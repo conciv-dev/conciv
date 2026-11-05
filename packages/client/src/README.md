@@ -25,6 +25,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
 - `decoded` (`push-channel.ts`): drops frames failing `PushFrameSchema.safeParse`
 - `acquirePushChannel` (`push-channel.ts`): ref-counted per apiBase and session; the socket closes when the last holder releases
+- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame) while at least one `queries()` consumer is live, and says so again on every reconnect; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects

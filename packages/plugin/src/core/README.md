@@ -9,8 +9,8 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `boot.ts:makeEngineBooter(options, root, builtins, portPolicy)` - returns a memoized function that loads server extensions and starts the engine; `PortPolicy` is `'exact' | 'preferred'`.
 - `vite.ts:makeViteHook(options, builtins)` - the Vite plugin (`apply: 'serve'`, `enforce: 'pre'`) with `resolveId`, `load`, `transform`, `transformIndexHtml` and `configureServer`.
 - `vite.ts:makeViteBridge(server)` - a `BundlerBridge` that reports `build-error`, `hmr-update` and `request-trace` events.
-- `widget-middleware.ts:htmlTags(corePort, {widget})` - `conciv-api-base` meta, plus `conciv-widget` meta and the `EXTENSIONS_ROUTE` module script unless `widget === false`.
-- `widget-middleware.ts:makeWidgetInject(apiBase, widgetConfig)` - middleware that injects the same tags into served HTML when absent.
+- `widget-middleware.ts:htmlTags(corePort, {widget, entry})` - `conciv-api-base` meta, plus `conciv-widget` meta and the `entry` module script unless `widget === false`. `makeViteHook` passes `EXTENSIONS_DOCK_ROUTE` when Vite DevTools is installed, else `EXTENSIONS_ROUTE`.
+- `widget-middleware.ts:makeWidgetInject(apiBase, widgetConfig)` - middleware that injects the same tags into served HTML when absent, always with the page module `EXTENSIONS_ROUTE`; an html already carrying either route gets no second script.
 - `nextjs.ts:withConciv(nextConfig, options)` - adds `NEXT_PUBLIC_CONCIV_PORT` and `CONCIV_OPTIONS` env, a webpack alias for `@conciv/app-extensions`, and turbopack config.
 - `nextjs.ts:registerWith` / `register` / `CONCIV_DEFAULT_PORT` (41700) - boot the engine from Next.js `instrumentation`.
 - `extensions-entry.ts:writeExtensionsEntry(root)` / `generateExtensionsEntrySource(files)` - write `.conciv/extensions-client.gen.tsx`.
@@ -28,6 +28,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `extensions-entry.ts` - throws when two extension files resolve to the same extensionless specifier.
 - `open-editor.ts:makeOpenInEditor` - a relative path is opened only when it resolves inside `root`.
 - `vite.ts:makeViteHook` - when the resolved config is not `enabled`, `configureServer` boots nothing, `transformIndexHtml` adds no tags and `transform` returns null.
+- `vite.ts:makeViteHook` - dock settings (`launcher: false`, `surface: 'dock'`) and the dock module go only through `transformIndexHtml`, the one pipeline Vite DevTools injects its dock into; html that reaches the page through the widget middleware alone (server-rendered hosts) gets the page module and the plain widget settings, so the launcher shows.
 
 ## Side Effects
 

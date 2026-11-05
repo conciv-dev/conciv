@@ -3,7 +3,7 @@ import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResu
 import {acpCompatible, type AcpCompatibleConfig} from '@tanstack/ai-acp'
 import {claudeCodeText, type ClaudeCodeTextConfig} from '@tanstack/ai-claude-code'
 import {codexText, CODEX_MODELS, type CodexTextConfig} from '@tanstack/ai-codex'
-import {opencodeText, OPENCODE_MODELS, type OpencodeTextConfig} from '@tanstack/ai-opencode'
+import {opencodeText, type OpencodeTextConfig} from '@tanstack/ai-opencode'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export type TextAdapter = AnyTextAdapter
@@ -53,8 +53,6 @@ export function codex(model: string, options: CodexOptions): TextAdapter {
 }
 
 export type OpencodeOptions = OpencodeTextConfig
-
-export const opencodeModels: readonly string[] = OPENCODE_MODELS
 
 export function opencode(model: string, options: OpencodeOptions): TextAdapter {
   return opencodeText(model, options)

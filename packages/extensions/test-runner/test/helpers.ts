@@ -22,10 +22,10 @@ export const vitestSpec = {
   buildListArgs: (failedOnly, cwd) => ['--mode', 'list', '--cwd', cwd, ...(failedOnly ? ['--failed'] : [])],
 } satisfies ChildRunnerSpec
 
-export function tsxSpawnFor(childTsUrl: URL): SpawnRunner {
+export function tsxSpawnFor(childTsUrl: URL, extraEnv: NodeJS.ProcessEnv = {}): SpawnRunner {
   const childTs = fileURLToPath(childTsUrl)
   return (args, cwd) => {
-    const env: NodeJS.ProcessEnv = {...process.env}
+    const env: NodeJS.ProcessEnv = {...process.env, ...extraEnv}
     delete env.NODE_OPTIONS
     return spawn(process.execPath, ['--import', tsxEntry, childTs, ...args], {
       cwd,

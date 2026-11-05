@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -27,10 +27,10 @@ import {
   useDisconnect,
   useGrabProvider,
   useInstances,
+  usePaneChat,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {usePaneChat} from '../app/use-pane-chat.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -153,7 +153,6 @@ function PanelSession(): JSX.Element {
   const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
-  const leaveGuard = () => running() || viewLocked()
 
   const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
@@ -184,11 +183,6 @@ function PanelSession(): JSX.Element {
 
   const grabStaging = makeGrabStaging({
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
-  })
-
-  useBlocker({
-    shouldBlockFn: ({current, next}) =>
-      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
   })
 
   const coordinator = makeRefreshCoordinator({
@@ -342,7 +336,7 @@ function PanelSession(): JSX.Element {
         views={statusBarViews()}
         activeView={activeView()}
         onSelectView={switchView}
-        disabled={leaveGuard()}
+        disabled={viewLocked()}
       />
     </PaneContext.Provider>
   )

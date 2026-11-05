@@ -2,14 +2,14 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
-import {mkdtempSync, readFileSync} from 'node:fs'
+import {mkdtempSync, readdirSync, readFileSync} from 'node:fs'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
 import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
-import {runMessages, sessionHistory} from '../src/run-schema.js'
+import {chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
 import {modelOf, runMessagesFor} from '../src/run-queries.js'
 
@@ -256,6 +256,63 @@ describe('db', () => {
           .values({...record('conciv_b'), harnessSessionId: 'tok'})
           .run(),
       ).toThrow()
+    })
+  })
+
+  describe('chat run harness migration', () => {
+    const HARNESS_MIGRATION = '20261105092249_chat_run_harness'
+    const drizzleDir = fileURLToPath(new URL('../drizzle/', import.meta.url))
+
+    function applyMigration(client: DatabaseSync, name: string): void {
+      const sql = readFileSync(join(drizzleDir, name, 'migration.sql'), 'utf8')
+      for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
+    }
+
+    function beforeHarnessMigration(): DatabaseSync {
+      const client = new DatabaseSync(':memory:')
+      readdirSync(drizzleDir)
+        .filter((name) => name < HARNESS_MIGRATION)
+        .toSorted()
+        .forEach((name) => applyMigration(client, name))
+      return client
+    }
+
+    it('tags every existing run with the harness of its session, and an orphan run with claude', () => {
+      const client = beforeHarnessMigration()
+      client
+        .prepare(
+          'INSERT INTO sessions (id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        )
+        .run('conciv_codex', 'codex', 'chat', '/w', 1, 1)
+      const run = client.prepare('INSERT INTO chat_runs (run_id, thread_id, status, started_at) VALUES (?, ?, ?, ?)')
+      run.run('run-codex', 'conciv_codex', 'completed', 1)
+      run.run('run-orphan', 'conciv_gone', 'completed', 2)
+
+      applyMigration(client, HARNESS_MIGRATION)
+
+      expect(client.prepare('SELECT run_id, harness_id FROM chat_runs ORDER BY run_id').all()).toEqual([
+        {run_id: 'run-codex', harness_id: 'codex'},
+        {run_id: 'run-orphan', harness_id: 'claude'},
+      ])
+      expect(() => run.run('run-untagged', 'conciv_codex', 'running', 3)).toThrow()
+      client.close()
+    })
+
+    it('imports a legacy run under the harness of its session', () => {
+      const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-legacy-run-'))
+      const first = openDb(stateRoot)
+      first
+        .insert(sessions)
+        .values({...record('conciv_pi'), harnessKind: 'pi'})
+        .run()
+      first
+        .insert(runs)
+        .values({runId: 'legacy-run', sessionId: 'conciv_pi', phase: 'completed', startedAt: 1, updatedAt: 1})
+        .run()
+      const second = openDb(stateRoot)
+      expect(second.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
+        {runId: 'legacy-run', harnessId: 'pi'},
+      ])
     })
   })
 

@@ -26,7 +26,8 @@
 - `GET /tty` returns 400 'invalid or missing session' when the `session` query param fails `SessionId.safeParse` (`server.ts`)
 - The WebSocket closes with code 4404 'no terminal for session' if no tty session exists when it opens (`server.ts`)
 - On WS open, a resize happens only if `cols` and `rows` are both integers greater than 1 (`server.ts`)
-- RPC `open` throws `NO_TTY` when `server.harness.ttyCommand` is missing; `openTtySession` likewise throws `harness "<id>" has no terminal mode` (`server.ts`)
+- Every harness surface is the session's: `server.harness(sessionId)`; a live pty opened by another harness is closed and treated as absent (`liveTty`, `server.ts`)
+- RPC `open` throws `NO_TTY` when `server.harness(sessionId).ttyCommand` is missing; `openTtySession` likewise throws `harness "<id>" has no terminal mode` (`server.ts`)
 - RPC `close` throws `BUSY` when the session's pty is busy (`server.ts`)
 - RPC `launch` and `connectCommand` throw `NO_CONNECT` when `harness.connectPlan` is absent (`server.ts`)
 - `LaunchInputSchema` limits `model` to 1-200 characters (`server.ts`)
@@ -35,7 +36,7 @@
 - `parseControl` accepts only text starting with '{' that passes `TtyClientControlSchema`; anything else is treated as raw input (`server.ts`)
 - `mintHarnessSession` reuses an existing `resumeToken` and only otherwise mints a new UUID and records it (`server.ts`)
 - `resumable` is false when there is no harnessSessionId; otherwise it uses `harness.transcriptExists`, defaulting to true (`server.ts`)
-- `openTtySession` calls `server.harness.release?.(sessionId)` before spawning the pty (`server.ts`)
+- `openTtySession` calls the session harness's `release?.(sessionId)` before spawning the pty, and tags the pty with the harness id (`server.ts`)
 
 ## Side Effects
 

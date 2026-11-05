@@ -14,6 +14,7 @@ const DEFAULT_ROWS = 32
 export type TtySink = {data(chunk: string): void; control(frame: TtyServerControl): void}
 
 export type TtySession = {
+  owner: string
   write(data: string): void
   interrupt(): void
   inject(text: string): void
@@ -25,7 +26,7 @@ export type TtySession = {
 }
 
 export type TtySessions = {
-  open(sessionId: string, command: TtyCommand, cwd: string): TtySession
+  open(sessionId: string, command: TtyCommand, cwd: string, owner: string): TtySession
   get(sessionId: string): TtySession | undefined
   close(sessionId: string): void
   shutdown(): void
@@ -112,9 +113,10 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     })
   }
 
-  const open = (sessionId: string, command: TtyCommand, cwd: string): TtySession => {
+  const open = (sessionId: string, command: TtyCommand, cwd: string, owner: string): TtySession => {
     drop(sessionId)
     const session: TtySession = {
+      owner,
       write: (data) => {
         const entry = entries.get(sessionId)
         if (entry && !entry.exit) entry.pty?.write(data)

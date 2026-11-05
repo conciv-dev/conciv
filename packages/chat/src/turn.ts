@@ -6,18 +6,24 @@ import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message
 import type {TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isHarnessSessionId, SessionId, type HarnessSessionId} from '@conciv/protocol/chat-types'
+import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
 
-export type SessionRow = {model: string | null; nativeId: HarnessSessionId | null; cwd: string}
+export type SessionRow = {
+  model: string | null
+  effort: ReasoningEffort | null
+  nativeId: HarnessSessionId | null
+  cwd: string
+  harnessKind: string
+}
 
 export type SessionPort = {
   row: (sessionId: SessionId) => SessionRow | null
   ensure: (sessionId: SessionId) => Promise<void>
-  recordNativeId: (sessionId: SessionId, nativeId: HarnessSessionId) => Promise<void>
+  recordNativeId: (sessionId: SessionId, harnessId: string, nativeId: HarnessSessionId) => Promise<void>
   recordUsage: (sessionId: SessionId, usage: UsageSnapshot) => Promise<void>
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
   recordTitle: (sessionId: SessionId, title: string) => Promise<void>
@@ -33,7 +39,7 @@ export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) 
 export type TurnDeps = {
   cwd: string
   claudeHome?: string
-  harness: HarnessAdapter
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
   sessions: SessionPort
@@ -63,9 +69,18 @@ export function systemTextOf(
   }
 }
 
-function resumableToken(deps: TurnDeps, token: HarnessSessionId | null): HarnessSessionId | null {
-  if (token === null || !deps.harness.capabilities.resume) return null
-  const history = deps.harness.history
+function ownRow(harness: HarnessAdapter, row: SessionRow | null): SessionRow | null {
+  return row?.harnessKind === harness.id ? row : null
+}
+
+function resumableToken(deps: TurnDeps, harness: HarnessAdapter, row: SessionRow | null): HarnessSessionId | null {
+  if (row === null || row.harnessKind !== harness.id) return null
+  return livingToken(deps, harness, row.nativeId)
+}
+
+function livingToken(deps: TurnDeps, harness: HarnessAdapter, token: HarnessSessionId | null): HarnessSessionId | null {
+  if (token === null || !harness.capabilities.resume) return null
+  const history = harness.history
   if (history === undefined) return token
   if (history.withinProject && !history.withinProject(deps.cwd, token, deps.claudeHome)) return null
   if (history.transcriptPath === undefined) return token
@@ -144,15 +159,11 @@ function titleOf(messages: ModelMessage[]): string {
     .slice(0, TITLE_MAX_CHARS)
 }
 
-function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
-  const models = harness.models
-  if (!Array.isArray(models) || modelId === null) return undefined
-  return models.find((model) => model.id === modelId)?.contextWindow
-}
-
 async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
-  const history = deps.harness.history
-  const nativeId = deps.sessions.row(sessionId)?.nativeId ?? null
+  const harness = deps.harnessFor(sessionId)
+  const history = harness.history
+  const row = deps.sessions.row(sessionId)
+  const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
   if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
   const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
   if (path === null || !existsSync(path)) return undefined
@@ -169,15 +180,17 @@ export function turnHooks(
   context: {approvals: ApprovalStore; ui: UiChannel; transcripts: TranscriptImporter},
 ): TurnHooks {
   const normalize = toolNameNormalizer(deps.toolNames)
-  const systemText = systemTextOf(deps.systemPrompt, deps.harness.capabilities.systemPrompt, deps.log)
   return {
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
+      const harness = deps.harnessFor(sessionId)
+      const systemText = systemTextOf(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = deps.sessions.row(sessionId)
-      const model = row?.model ?? null
-      const resumeSessionId = resumableToken(deps, row?.nativeId ?? null)
+      const own = ownRow(harness, row)
+      const model = own?.model ?? null
+      const resumeSessionId = resumableToken(deps, harness, row)
       const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, model})
-      const config = deps.harness.chatConfig({
+      const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,
         resumeSessionId,
@@ -189,6 +202,7 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
+        reasoning: own?.effort ?? undefined,
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
@@ -208,7 +222,7 @@ export function turnHooks(
           return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
         },
         providerMessages: async (messages) => {
-          const asked = turn.kind === 'compact' ? [...messages, compactPrompt(deps.harness)] : messages
+          const asked = turn.kind === 'compact' ? [...messages, compactPrompt(harness)] : messages
           const prepared = resumeSessionId === null ? asked : fromLastUser(asked)
           return config.prepareMessages?.(prepared) ?? prepared
         },
@@ -221,7 +235,7 @@ export function turnHooks(
             context.ui.noteToolCall(sessionId, shaped.toolCallId, shaped.toolCallName)
           }
           const minted = mintedSessionId(shaped)
-          if (minted !== null) await deps.sessions.recordNativeId(sessionId, minted)
+          if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
           const ask = approvalAskOf(shaped)
           if (ask !== null) {
             await context.approvals.asked(sessionId, {
@@ -240,12 +254,10 @@ export function turnHooks(
       const sessionId = SessionId.parse(turn.threadId)
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
-      const modelId = deps.sessions.row(sessionId)?.model ?? deps.harness.defaultModel ?? null
-      const contextWindow = contextWindowFor(deps.harness, modelId)
+      const modelId = deps.sessions.row(sessionId)?.model ?? deps.harnessFor(sessionId).defaultModel ?? null
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage),
         ...(modelId === null ? {} : {modelId}),
-        ...(contextWindow === undefined ? {} : {contextWindow}),
       })
     },
     started: (turn) =>

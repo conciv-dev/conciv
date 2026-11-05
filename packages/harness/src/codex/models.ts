@@ -3,6 +3,7 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {codexModels as adapterCodexModels} from '@conciv/ai/server'
 import {z} from 'zod'
+import {ReasoningEffortSchema, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessModel} from '@conciv/protocol/harness-types'
 
 const CONFIG_MODEL = /^model\s*=\s*"([^"]+)"/m
@@ -12,10 +13,28 @@ const TABLE_HEADER = /^\s*\[/m
 const ModelsCacheSchema = z
   .object({
     models: z.array(
-      z.object({slug: z.string(), display_name: z.string(), visibility: z.string(), priority: z.number()}).loose(),
+      z
+        .object({
+          slug: z.string(),
+          display_name: z.string(),
+          visibility: z.string(),
+          priority: z.number(),
+          supported_reasoning_levels: z
+            .array(z.object({effort: z.string()}).loose())
+            .catch([])
+            .default([]),
+        })
+        .loose(),
     ),
   })
   .loose()
+
+function listedEfforts(levels: readonly {effort: string}[]): ReasoningEffort[] {
+  return levels.flatMap((level) => {
+    const parsed = ReasoningEffortSchema.safeParse(level.effort)
+    return parsed.success ? [parsed.data] : []
+  })
+}
 
 const fallbackModels = (): HarnessModel[] => adapterCodexModels.map((id) => ({id, name: id, group: 'Codex'}))
 
@@ -46,7 +65,10 @@ export function codexModels(codexDir: string = codexHome()): HarnessModel[] {
   return parsed.data.models
     .filter((model) => model.visibility === 'list')
     .toSorted((left, right) => left.priority - right.priority)
-    .map((model) => ({id: model.slug, name: model.display_name, group: 'Codex'}))
+    .map((model) => {
+      const efforts = listedEfforts(model.supported_reasoning_levels)
+      return {id: model.slug, name: model.display_name, group: 'Codex', ...(efforts.length > 0 ? {efforts} : {})}
+    })
 }
 
 export function codexDefaultModel(codexDir: string = codexHome()): string {

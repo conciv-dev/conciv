@@ -1,6 +1,7 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
+import type {ChatSession} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {AppData} from '../data/app-data.js'
@@ -63,6 +64,10 @@ export function useEnvironment(): ConcivEnvironment {
 
 export function useLiveSessions(): LiveSessions {
   return useAppScope('useLiveSessions', (app) => app.liveSessions)
+}
+
+export function usePaneChat(sessionId: Accessor<string>): Accessor<ChatSession> {
+  return useLiveSessions().open(sessionId)
 }
 
 export function useWarmSession(): WarmSession {
