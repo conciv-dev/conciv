@@ -3207,7 +3207,10 @@ async function registerTarget(request: {
     width: record.width,
     height: record.height,
     scale: record.scale,
-    text: {runs: [...walk({root: loaded.design.root})].filter(({node}) => node.kind === 'text').length},
+    text: {
+      runs: [...walk({root: loaded.design.root})].filter(({node}) => node.kind === 'text').length,
+      ...(loaded.warnings.length === 0 ? {} : {error: loaded.warnings.join('; ')}),
+    },
     next: DESIGN_GUIDE,
   }
 }

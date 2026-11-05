@@ -16,7 +16,8 @@ export function createFigmaAdapter(input: {token: string | null; roles: RoleRule
       const source = Object.values(FIGMA_SOURCES).find((candidate) => candidate.available({token, attachments}))
       if (source === undefined) throw toolError('figma-source', {message: DESIGN_ERRORS['figma-source'].message})
       const loaded = await source.load({link, scale, token, attachments})
-      return {design: designFrom({link, scale, roles, ...loaded}), image: loaded.image}
+      const design = designFrom({link, scale, roles, ...loaded})
+      return {design, image: loaded.image, warnings: boundsWarnings(loaded.document.nodes[link.nodeId]?.document)}
     },
   }
 }
@@ -185,6 +186,20 @@ function designFrom(input: {
       children: childNodes({node: frame, origin, roles}),
     }),
   }
+}
+
+function boundsWarnings(frame: FigmaNode | undefined): string[] {
+  const missing = frame === undefined ? [] : unbounded(frame)
+  if (missing.length === 0) return []
+  return [
+    `${missing.length} Figma nodes have no bounds, their children are placed under the parent: ${missing.join(', ')}`,
+  ]
+}
+
+function unbounded(node: FigmaNode): string[] {
+  if (node.visible === false) return []
+  const own = node.absoluteBoundingBox === undefined || node.absoluteBoundingBox === null ? [node.id] : []
+  return [...own, ...(node.children ?? []).flatMap(unbounded)]
 }
 
 function designNodes(input: {node: FigmaNode; origin: Origin; roles: RoleRules}): DesignNode[] {

@@ -612,6 +612,7 @@ const DECISION_LABEL: Record<Decision['kind'], string> = {
   tolerance: 'tolerance',
   'accept-node': 'accepted node',
   twin: 'twin',
+  typography: 'typography',
 }
 
 const MARK_ACTION: Record<MarkKind, string> = {

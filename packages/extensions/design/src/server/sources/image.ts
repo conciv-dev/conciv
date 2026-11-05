@@ -50,7 +50,7 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
     load: async ({ref, scale, project, attachments}) => {
       const image = attachments.image ?? (await readPng({ref, project}))
       const raster = decodePng(image)
-      const nodes = await enrich({nodes: [], raster, scale, tools: input})
+      const {nodes, warnings} = await enrich({nodes: [], raster, scale, tools: input})
       const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
       const root: DesignNode = {
         id: 'root',
@@ -69,6 +69,7 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
           root,
         },
         image,
+        warnings,
       }
     },
   }
@@ -120,11 +121,26 @@ function designNode(input: {node: Flat; children: DesignNode[]}): DesignNode {
   return {...node, children: input.children}
 }
 
-async function enrich(input: {nodes: Flat[]; raster: Raster; scale: number; tools: ImageTools}): Promise<Flat[]> {
-  return ENRICHERS.reduce<Promise<Flat[]>>(async (pending, enricher) => {
-    const nodes = await pending
-    return enricher.run({...input, nodes}).catch(() => nodes)
-  }, Promise.resolve(input.nodes))
+async function enrich(input: {
+  nodes: Flat[]
+  raster: Raster
+  scale: number
+  tools: ImageTools
+}): Promise<{nodes: Flat[]; warnings: string[]}> {
+  return ENRICHERS.reduce<Promise<{nodes: Flat[]; warnings: string[]}>>(
+    async (pending, enricher) => {
+      const {nodes, warnings} = await pending
+      return enricher.run({...input, nodes}).then(
+        (enriched) => ({nodes: enriched, warnings}),
+        (error: unknown) => ({nodes, warnings: [...warnings, `${enricher.name} failed: ${errorMessage(error)}`]}),
+      )
+    },
+    Promise.resolve({nodes: input.nodes, warnings: []}),
+  )
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function nodeId(input: {kind: Flat['kind']; box: Box; text?: string}): string {

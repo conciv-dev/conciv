@@ -325,13 +325,14 @@ export const DECISION_KINDS = [
   'tolerance',
   'accept-node',
   'twin',
+  'typography',
 ] as const
 
 export const DecisionSchema = z.object({
   id: z.string(),
   kind: z.enum(DECISION_KINDS),
   anchor: z.string(),
-  value: z.union([z.string(), z.number(), z.null()]),
+  value: z.union([z.string(), z.number(), TypographySchema, z.null()]),
   at: z.number(),
 })
 
@@ -377,7 +378,7 @@ export type TargetAdapter = {
   load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Loaded>
 }
 
-export type Loaded = {design: Design; image: Uint8Array}
+export type Loaded = {design: Design; image: Uint8Array; warnings: string[]}
 
 export type Store = {
   put(input: {design: Design; image: Uint8Array; session: string; route?: string; name?: string}): Promise<TargetRecord>
