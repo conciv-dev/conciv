@@ -60,6 +60,7 @@ export type ChatPlane = {
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
+  driving: (sessionId: SessionId) => boolean
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -170,6 +171,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       clearThread(deps.db, sessionId)
     },
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
+    driving: (sessionId) => server.driving(sessionId),
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
