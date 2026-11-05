@@ -30,10 +30,9 @@ import {
   type TargetRecord,
   type XrayLink,
 } from '../shared/defs.js'
-import {createRunner} from './runner.js'
 
-export function createDiffer(input: {runtime: DesignRuntime; page: DesignPage}): Differ {
-  const {runtime, page} = input
+export function createDiffer(input: {runtime: DesignRuntime; page: DesignPage; runner: Runner}): Differ {
+  const {runtime, page, runner} = input
   const {store} = runtime
   const history = createHistory()
   const tab = (session: SessionId): ServerToolPageAccess => ({
@@ -41,7 +40,6 @@ export function createDiffer(input: {runtime: DesignRuntime; page: DesignPage}):
   })
   const latest = new Map<string, Settled>()
   const unanswered = new Set<string>()
-  const runner = createRunner({runtime})
   const runs = createRuns({
     execute: ({job, touched}) =>
       answeredDiff({job, touched, runtime, page: tab(job.session), history, latest, unanswered, runner}),

@@ -26,6 +26,7 @@ import {createMeasurer} from './server/measure.js'
 import {createJudge} from './server/judge.js'
 import {createCssDesigns} from './server/css.js'
 import {createProjections} from './server/status.js'
+import {createRunner} from './server/runner.js'
 import {createProvenance} from './server/provenance.js'
 import {createRegistrar} from './server/register.js'
 import {createTwins} from './server/twins.js'
@@ -106,7 +107,7 @@ export const design = defineExtension({
       }
     },
   }
-  const differ = createDiffer({runtime, page: server.page})
+  const differ = createDiffer({runtime, page: server.page, runner: createRunner({runtime})})
   const settled = watchSettled({
     bundler: server.bundler,
     store,
