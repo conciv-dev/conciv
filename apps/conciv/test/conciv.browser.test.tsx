@@ -2367,6 +2367,7 @@ describe('engine login', () => {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const reloginNotice = () =>
     page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
+  const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
 
   test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
@@ -2525,11 +2526,10 @@ describe('engine login', () => {
       await screen.getByRole('button', {name: 'Retry'}).click()
     }
     await retryWhileOffline()
-    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
-    await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+    await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+    await loginNotice().getByRole('button', {name: 'Log in'}).click()
     await userEvent.type(firstDigit(), await coreControl.requestCode())
-    await expect.element(reloginNotice()).not.toBeInTheDocument()
-    await page.getByRole('button', {name: 'Retry'}).click()
+    await expect.element(loginNotice()).not.toBeInTheDocument()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
     harness.dispose()
     await retryWhileOffline()

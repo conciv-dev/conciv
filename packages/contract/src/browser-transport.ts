@@ -18,7 +18,7 @@ const UNAUTHORIZED_STATUS = 401
 
 export const REVOKED_SOCKET_CLOSE_CODE = 1008
 
-export type TrustStatus = 'checking' | 'trusted' | 'untrusted' | 'unreachable'
+export type TrustStatus = 'checking' | 'trusted' | 'untrusted' | 'revoked' | 'unreachable'
 
 export type TrustListener = (status: TrustStatus) => void
 
@@ -150,7 +150,11 @@ function distrust(state: TrustState, refused: string | undefined): void {
   if (state.status === 'checking' || refused !== state.token) return
   if (state.token !== undefined && readStoredToken(state.key) === state.token) writeStoredToken(state.key, undefined)
   state.token = undefined
-  setStatus(state, 'untrusted')
+  setStatus(state, refusedStatus(refused))
+}
+
+function refusedStatus(token: string | undefined): TrustStatus {
+  return token === undefined || token === '' ? 'untrusted' : 'revoked'
 }
 
 function bearer(state: TrustState): Record<string, string> {
@@ -199,7 +203,7 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
     }
     if (readStoredToken(key) === token) writeStoredToken(key, undefined)
     if (state.token === token) state.token = undefined
-    setStatus(state, 'untrusted')
+    setStatus(state, refusedStatus(token))
     return false
   }
   const sourcedToken = async (tokenSource: EngineTokenSource | undefined): Promise<string | undefined> => {

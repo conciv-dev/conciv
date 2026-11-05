@@ -30,6 +30,7 @@ import {
   chatLog,
   browserBase,
   openLoggedIn,
+  logInFromPanelNotice,
 } from '../helpers.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
@@ -402,11 +403,7 @@ test.describe('dead engine boot', () => {
       )
       let proxy: ProxyCore | null = null
       try {
-        const earlier = await proxyTo(kit.base, {port: dead.port})
-        await openLoggedIn(page, kit, host.base)
-        await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
-        await earlier.close()
-        await page.reload({waitUntil: 'domcontentloaded'})
+        await page.goto(host.base, {waitUntil: 'domcontentloaded'})
         await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
         await page.getByRole('button', {name: 'Open conciv chat'}).click()
 
@@ -416,6 +413,7 @@ test.describe('dead engine boot', () => {
         proxy = await proxyTo(kit.base, {port: dead.port})
 
         await errorScreen.getByRole('button', {name: 'Retry'}).click()
+        await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
 
         const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
         await expect(composer).toBeVisible({timeout: MOUNT_TIMEOUT_MS})

@@ -12,7 +12,7 @@ import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
+import {Show, createEffect, createMemo, createSignal, on, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -41,7 +41,7 @@ import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
-import {EngineLoginDialog, engineConnected} from '../app/engine-login.js'
+import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -151,6 +151,17 @@ function RootComponent() {
     window.dispatchEvent(new CustomEvent(CONNECTION_CHANGED_EVENT, {detail: {connected: isConnected}}))
   })
 
+  const router = useRouter()
+  createEffect(
+    on(
+      app.connected,
+      (isConnected, wasConnected) => {
+        if (isConnected && wasConnected === false) void router.invalidate()
+      },
+      {defer: true},
+    ),
+  )
+
   const reachability = makeEngineReachability()
 
   return (
@@ -213,7 +224,7 @@ function RootChrome(props: {
   const rootSearch = Route.useSearch()
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
-  const locked = () => login?.status() === 'untrusted'
+  const locked = () => login !== undefined && engineLocked(login.status())
   const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())

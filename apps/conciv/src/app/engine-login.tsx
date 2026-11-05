@@ -46,6 +46,10 @@ export function engineConnected(status: TrustStatus): boolean {
   return status === 'trusted' || status === 'unreachable'
 }
 
+export function engineLocked(status: TrustStatus): boolean {
+  return status === 'untrusted' || status === 'revoked'
+}
+
 export async function startEngineLogin(login: EngineLogin): Promise<boolean> {
   const code = consumeMagicLinkCode()
   const trust = login.trust()

@@ -8,13 +8,14 @@ import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
 import {StandingNotice} from './notices.js'
-import {EngineLoginDialog, type EngineLogin} from '../app/engine-login.js'
+import {EngineLoginDialog, engineLocked, type EngineLogin} from '../app/engine-login.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 
 const ENGINE_STALE_MESSAGE =
   'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.'
 
-const ENGINE_LOCKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
+const ENGINE_REVOKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
+const ENGINE_LOGGED_OUT_MESSAGE = 'Log in to use conciv on this page.'
 
 const ENGINE_UNREACHABLE_KEY = 'engine-unreachable'
 const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'
@@ -94,7 +95,7 @@ export function EngineLockedNotice(): JSX.Element {
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const lockedLogin = (): EngineLogin | undefined => {
     const current = login()
-    return current?.status() === 'untrusted' ? current : undefined
+    return current !== undefined && engineLocked(current.status()) ? current : undefined
   }
   return <Show when={lockedLogin()}>{(current) => <LockedNotice login={current()} />}</Show>
 }
@@ -108,7 +109,7 @@ function LockedNotice(props: {login: EngineLogin}): JSX.Element {
   return (
     <>
       <StandingNotice
-        message={ENGINE_LOCKED_MESSAGE}
+        message={props.login.status() === 'revoked' ? ENGINE_REVOKED_MESSAGE : ENGINE_LOGGED_OUT_MESSAGE}
         action={{label: 'Log in', run: () => setView('loggingIn', true)}}
       />
       <Show when={view.loggingIn}>

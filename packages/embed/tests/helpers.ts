@@ -11,7 +11,7 @@ import {test, expect, type Page} from '@playwright/test'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
-import {magicLink} from '@conciv/harness-testkit/login'
+import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 
@@ -241,6 +241,15 @@ export function chatLog(page: Page) {
 
 export function chatBox(page: Page) {
   return page.getByRole('textbox', {name: 'Message the conciv agent'})
+}
+
+export async function logInFromPanelNotice(page: Page, kit: EmbedKit, notice: string): Promise<void> {
+  const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+  await expect(panel.getByRole('alert').filter({hasText: notice})).toBeVisible({timeout: PANEL_TIMEOUT_MS})
+  await panel.getByRole('button', {name: 'Log in'}).click()
+  const firstDigit = page.getByRole('textbox', {name: 'Digit 1 of 6'})
+  await expect(firstDigit).toBeVisible({timeout: PANEL_TIMEOUT_MS})
+  await firstDigit.pressSequentially(await requestPrintedCode(kit.origin, kit.terminal))
 }
 
 export async function openChatPanel(page: Page): Promise<void> {
