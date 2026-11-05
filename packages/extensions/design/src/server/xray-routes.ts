@@ -1,44 +1,43 @@
-import {extname, relative, resolve, sep} from 'node:path'
-import {createStorage, type Storage} from 'unstorage'
-import fsDriver from 'unstorage/drivers/fs'
+import {extname, resolve, sep} from 'node:path'
+import type {Storage} from 'unstorage'
 import {range} from 'es-toolkit'
 import {ORPCError, os} from '@orpc/server'
 import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
+import {PNG} from 'pngjs'
 import {z} from 'zod'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import {TOLERANCES} from '../shared/tolerances.js'
-import {MARK_KINDS, type Box, type DesignNode, type Differ, type Raster, type Store} from '../shared/defs.js'
-import {find, walk} from '../shared/tree.js'
+import {designConfig} from '../shared/tolerances.js'
+import {
+  DecisionSchema,
+  type Box,
+  type DesignNode,
+  type DesignRuntime,
+  type Differ,
+  type Match,
+  type Raster,
+} from '../shared/defs.js'
+import {walk} from '../shared/tree.js'
 import {createRaster} from './raster.js'
 
 export function createXrayRoutes(input: {
-  store: Store
-  state: Storage
-  differ: Pick<Differ, 'capture' | 'accept' | 'xray'>
-  targetImage: (id: string) => string
+  runtime: DesignRuntime
+  differ: Differ
+  pageDir: string
+  takumiDir: string
   sourceChangedAt: () => number | null
-  page: string
-  takumi: string
-  designDir: string
-  cwd: string
 }) {
-  const {store, state, differ, targetImage, sourceChangedAt} = input
+  const {runtime, differ, sourceChangedAt} = input
   return {
-    router: makeXrayRouter({store, differ, targetImage, sourceChangedAt}),
-    app: makeXrayApp({
-      store,
-      state,
-      page: readOnly(input.page),
-      takumi: readOnly(input.takumi),
-      designDir: input.designDir,
-      cwd: input.cwd,
-    }),
+    router: makeXrayRouter({runtime, differ, sourceChangedAt}),
+    app: makeXrayApp({runtime, pageDir: resolve(input.pageDir), takumiDir: resolve(input.takumiDir)}),
   }
 }
 
 const PAGE_FILE = 'index.html'
+
+const TARGET_IMAGE_PREFIX = 'target'
 
 const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
 
@@ -47,6 +46,8 @@ const NonEmptySchema = z.string().min(1)
 const TargetSchema = z.object({id: NonEmptySchema})
 
 const RunSchema = TargetSchema.extend({session: SessionId})
+
+const MarkKindSchema = DecisionSchema.shape.kind.exclude(['pin', 'twin', 'typography'])
 
 const WASM_EXTENSION = '.wasm'
 
@@ -58,13 +59,9 @@ const WASM_HEADERS = {'content-type': 'application/wasm', 'cache-control': 'publ
 
 const xrayOs = os.$context<RpcContext>()
 
-function makeXrayRouter(input: {
-  store: Store
-  differ: Pick<Differ, 'capture' | 'accept' | 'xray'>
-  targetImage: (id: string) => string
-  sourceChangedAt: () => number | null
-}) {
-  const {store, differ, sourceChangedAt} = input
+function makeXrayRouter(input: {runtime: DesignRuntime; differ: Differ; sourceChangedAt: () => number | null}) {
+  const {runtime, differ, sourceChangedAt} = input
+  const {store} = runtime
   const decided = async (run: {id: string; session: SessionId}) => ({
     report: await differ.capture(run).catch(() => null),
   })
@@ -81,16 +78,15 @@ function makeXrayRouter(input: {
       report: xrayOs.input(TargetSchema).handler(async ({input: query}) => {
         const target = await store.record(query.id)
         if (target === null) throw new ORPCError('NOT_FOUND', {message: `no design target with id ${query.id}`})
-        const latest = (await store.runs(target.id)).at(-1)
         const stored = await store.design(target.id).catch(() => null)
         const {report, outline} = await differ.xray({id: target.id})
         return {
           target,
           report,
-          run: latest === undefined ? null : await store.run({id: target.id, run: latest}),
+          run: await store.latest(target.id),
           decisions: await store.decisions(target.id),
           design: outline,
-          targetImage: input.targetImage(target.id),
+          targetImage: targetImage({runtime, id: target.id}),
           nodes: stored === null ? [] : designNodes(stored.root),
           sourceChangedAt: sourceChangedAt(),
         }
@@ -108,7 +104,7 @@ function makeXrayRouter(input: {
       mark: xrayOs
         .input(
           RunSchema.extend({
-            kind: z.enum(MARK_KINDS),
+            kind: MarkKindSchema,
             node: NonEmptySchema,
             value: z.union([z.string(), z.number()]).optional(),
           }),
@@ -135,44 +131,21 @@ function makeXrayRouter(input: {
   })
 }
 
-function inside(input: {dir: string; path: string}): boolean {
-  return input.path.startsWith(`${input.dir}${sep}`)
+function targetImage(input: {runtime: DesignRuntime; id: string}): string {
+  return `${TARGET_IMAGE_PREFIX}/${encodeURIComponent(input.id)}`
 }
 
-function readOnly(base: string): Storage {
-  return createStorage({driver: fsDriver({base, readOnly: true})})
+function designNodes(root: DesignNode): DesignNode[] {
+  return [...walk(root)].filter(({parent}) => parent !== null).map(({node}) => node)
 }
 
-async function readRaw(input: {storage: Storage; key: string}): Promise<Uint8Array<ArrayBuffer> | null> {
-  const raw: unknown = await input.storage.getItemRaw(input.key).catch(() => null)
-  return raw instanceof Uint8Array ? new Uint8Array(raw) : null
-}
-
-async function fileResponse(input: {storage: Storage; key: string}): Promise<Response> {
-  const body = await readRaw(input)
-  if (body === null) return new Response('not found', {status: 404})
-  return new Response(body, {headers: {'content-type': getMimeType(input.key) ?? 'application/octet-stream'}})
-}
-
-async function wasmResponse(input: {storage: Storage; key: string}): Promise<Response> {
-  const body = await readRaw(input)
-  if (body === null) return new Response('not found', {status: 404})
-  return new Response(body, {headers: WASM_HEADERS})
-}
-
-function makeXrayApp(input: {
-  store: Store
-  state: Storage
-  page: Storage
-  takumi: Storage
-  designDir: string
-  cwd: string
-}) {
-  const {store, state, page: assets, takumi, cwd} = input
-  const designDir = resolve(input.designDir)
+function makeXrayApp(input: {runtime: DesignRuntime; pageDir: string; takumiDir: string}) {
+  const {runtime, pageDir, takumiDir} = input
+  const {store, files, cwd} = runtime
+  const stateDir = store.path('')
   const cache: {page: string | null} = {page: null}
   const page = async (): Promise<string | null> => {
-    const bytes = cache.page === null ? await readRaw({storage: assets, key: PAGE_FILE}) : null
+    const bytes = cache.page === null ? await readRaw({storage: files, key: resolve(pageDir, PAGE_FILE)}) : null
     cache.page ??= bytes === null ? null : new TextDecoder().decode(bytes)
     return cache.page
   }
@@ -194,7 +167,7 @@ function makeXrayApp(input: {
     .get('/xray/node', async (c) => {
       const query = NodeQuerySchema.safeParse(c.req.query())
       if (!query.success || !(await known(query.data.target))) return c.text('not found', 404)
-      const png = await nodeCrop({store, ...query.data})
+      const png = await nodeCrop({runtime, ...query.data})
       if (png === null) return c.text('not found', 404)
       return new Response(new Uint8Array(png), {headers: {'content-type': 'image/png'}})
     })
@@ -203,65 +176,102 @@ function makeXrayApp(input: {
     .get('/xray/:asset{.+}', (c) => {
       const asset = NonEmptySchema.safeParse(c.req.param('asset'))
       if (!asset.success) return c.text('not found', 404)
-      return fileResponse({storage: assets, key: asset.data})
+      const path = resolve(pageDir, asset.data)
+      if (!inside({dir: pageDir, path})) return c.text('not found', 404)
+      return fileResponse({storage: files, key: path})
     })
     .get('/takumi/:asset', (c) => {
-      const asset = c.req.param('asset')
-      if (extname(asset) !== WASM_EXTENSION) return c.text('not found', 404)
-      return wasmResponse({storage: takumi, key: asset})
+      const path = resolve(takumiDir, c.req.param('asset'))
+      if (!inside({dir: takumiDir, path}) || extname(path) !== WASM_EXTENSION) return c.text('not found', 404)
+      return wasmResponse({storage: files, key: path})
+    })
+    .get(`/files/${TARGET_IMAGE_PREFIX}/:id`, async (c) => {
+      const image = await store.image({id: c.req.param('id')})
+      if (image === null) return c.text('not found', 404)
+      return new Response(new Uint8Array(image), {headers: {'content-type': 'image/png'}})
     })
     .get('/files/:file{.+}', (c) => {
       const file = NonEmptySchema.safeParse(c.req.param('file'))
-      if (!file.success) return c.text('not found', 404)
+      if (!file.success || stateDir === null) return c.text('not found', 404)
       const path = resolve(cwd, file.data)
-      if (!inside({dir: designDir, path})) return c.text('not found', 404)
-      return fileResponse({storage: state, key: relative(designDir, path).split(sep).join(':')})
+      if (!inside({dir: stateDir, path})) return c.text('not found', 404)
+      return fileResponse({storage: files, key: path})
     })
 }
 
+function inside(input: {dir: string; path: string}): boolean {
+  return input.path.startsWith(`${input.dir}${sep}`)
+}
+
+async function readRaw(input: {storage: Storage; key: string}): Promise<Uint8Array<ArrayBuffer> | null> {
+  const raw: unknown = await input.storage.getItemRaw(input.key).catch(() => null)
+  return raw instanceof Uint8Array ? new Uint8Array(raw) : null
+}
+
+async function fileResponse(input: {storage: Storage; key: string}): Promise<Response> {
+  const body = await readRaw(input)
+  if (body === null) return new Response('not found', {status: 404})
+  return new Response(body, {headers: {'content-type': getMimeType(input.key) ?? 'application/octet-stream'}})
+}
+
+async function wasmResponse(input: {storage: Storage; key: string}): Promise<Response> {
+  const body = await readRaw(input)
+  if (body === null) return new Response('not found', {status: 404})
+  return new Response(body, {headers: WASM_HEADERS})
+}
+
 async function nodeCrop(input: {
-  store: Store
+  runtime: DesignRuntime
   target: string
   node: string
   run?: string | undefined
 }): Promise<Uint8Array | null> {
-  const {store, target, node} = input
-  const stored = await store.design(target).catch(() => null)
-  const found = stored === null ? null : find({root: stored.root, id: node})
-  const image = await store.targetImage(target)
+  const {runtime, target, node} = input
+  const stored = await runtime.store.design(target).catch(() => null)
+  const found = stored === null ? null : designNode({root: stored.root, id: node})
+  const image = await runtime.store.image({id: target})
   if (stored === null || found === null || image === null) return null
   const raster = createRaster(image)
   const designRaster = stored.scale === 1 ? raster : raster.scaled(stored.scale)
   const box = grown(scaled({box: found.box, scale: stored.scale}))
   const designCrop = cutout({raster: designRaster, box})
   const live = await liveCrop({...input, box})
-  return (live === null ? designCrop : besides({rasters: [designCrop, live], gap: CROP_GAP})).png()
+  return encoded(live === null ? designCrop : besides({tiles: [designCrop, live], gap: CROP_GAP}))
 }
 
 async function liveCrop(input: {
-  store: Store
+  runtime: DesignRuntime
   target: string
   node: string
   run?: string | undefined
   box: Box
-}): Promise<Raster | null> {
-  const {store, target, node, box} = input
-  const run = input.run ?? (await store.runs(target)).at(-1)
+}): Promise<Tile | null> {
+  const {runtime, target, node, box} = input
+  const run = input.run ?? (await runtime.store.runs(target)).at(-1)
   if (run === undefined) return null
-  const stored = await store.run({id: target, run})
-  const match = stored === null ? null : find({root: stored.root, id: node, idOf: (entry) => entry.node.id})
-  const live = match?.live?.box
-  const bytes = await store.liveImage({id: target, run})
+  const stored = await runtime.store.run({id: target, run})
+  const live = stored === null ? undefined : matchedLive({root: stored.root, id: node})
+  const bytes = await runtime.store.image({id: target, run, kind: 'live'})
   if (live === undefined || bytes === null) return null
-  const margin = TOLERANCES.tileMargin
+  const margin = designConfig.tolerances.tileMargin
   return cutout({
     raster: createRaster(bytes),
     box: {...box, x: Math.round(live.x) - margin, y: Math.round(live.y) - margin},
   })
 }
 
-function designNodes(root: DesignNode): DesignNode[] {
-  return [...walk({root})].filter(({parent}) => parent !== null).map(({node}) => node)
+function designNode(input: {root: DesignNode; id: string}): DesignNode | null {
+  for (const {node} of walk(input.root)) {
+    if (node.id === input.id) return node
+  }
+  return null
+}
+
+function matchedLive(input: {root: Match; id: string}): Box | undefined {
+  for (const {node} of walk(input.root)) {
+    if (node.node.id === input.id) return node.live?.box
+  }
+  return undefined
 }
 
 function scaled(input: {box: Box; scale: number}): Box {
@@ -270,7 +280,7 @@ function scaled(input: {box: Box; scale: number}): Box {
 }
 
 function grown(box: Box): Box {
-  const margin = TOLERANCES.tileMargin
+  const margin = designConfig.tolerances.tileMargin
   return {
     x: Math.round(box.x) - margin,
     y: Math.round(box.y) - margin,
@@ -279,8 +289,9 @@ function grown(box: Box): Box {
   }
 }
 
-function cutout(input: {raster: Raster; box: Box}): Raster {
+function cutout(input: {raster: Raster; box: Box}): Tile {
   const {raster, box} = input
+  const pixels = raster.pixels()
   const data = new Uint8Array(box.w * box.h * 4)
   range(box.h).forEach((row) => {
     const y = box.y + row
@@ -289,22 +300,30 @@ function cutout(input: {raster: Raster; box: Box}): Raster {
     const right = Math.min(raster.width, box.x + box.w)
     if (right <= left) return
     const start = (y * raster.width + left) * 4
-    data.set(raster.data.subarray(start, start + (right - left) * 4), (row * box.w + left - box.x) * 4)
+    data.set(pixels.subarray(start, start + (right - left) * 4), (row * box.w + left - box.x) * 4)
   })
-  return raster.from({width: box.w, height: box.h, data})
+  return {width: box.w, height: box.h, data}
 }
 
-function besides(input: {rasters: [Raster, Raster]; gap: number}): Raster {
-  const {rasters, gap} = input
-  const width = rasters.reduce((sum, raster) => sum + raster.width, 0) + gap * Math.max(0, rasters.length - 1)
-  const height = Math.max(0, ...rasters.map((raster) => raster.height))
+function besides(input: {tiles: [Tile, Tile]; gap: number}): Tile {
+  const {tiles, gap} = input
+  const width = tiles.reduce((sum, tile) => sum + tile.width, 0) + gap * Math.max(0, tiles.length - 1)
+  const height = Math.max(0, ...tiles.map((tile) => tile.height))
   const data = new Uint8Array(width * height * 4)
-  rasters.reduce((left, raster) => {
-    range(raster.height).forEach((row) => {
-      const start = row * raster.width * 4
-      data.set(raster.data.subarray(start, start + raster.width * 4), (row * width + left) * 4)
+  tiles.reduce((left, tile) => {
+    range(tile.height).forEach((row) => {
+      const start = row * tile.width * 4
+      data.set(tile.data.subarray(start, start + tile.width * 4), (row * width + left) * 4)
     })
-    return left + raster.width + gap
+    return left + tile.width + gap
   }, 0)
-  return rasters[0].from({width, height, data})
+  return {width, height, data}
 }
+
+function encoded(tile: Tile): Uint8Array {
+  const png = new PNG({width: tile.width, height: tile.height})
+  png.data = Buffer.from(tile.data)
+  return new Uint8Array(PNG.sync.write(png))
+}
+
+type Tile = {width: number; height: number; data: Uint8Array}

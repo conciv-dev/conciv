@@ -3,20 +3,10 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {compact, groupBy, uniq} from 'es-toolkit'
 import type {makeExtRpcClient} from '@conciv/extension'
-import {
-  MARK_KINDS,
-  STAGES,
-  type Box,
-  type Decision,
-  type DesignNode,
-  type DiffReport,
-  type NodeStatus,
-  type Stage,
-  type TargetRecord,
-} from '../shared/defs.js'
-import {find, walk} from '../shared/tree.js'
+import type {Box, Decision, DesignNode, DiffReport, Match, TargetRecord} from '../shared/defs.js'
+import {walk} from '../shared/tree.js'
 import type {XrayRouter} from '../server.js'
-import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
+import {nodeName, RadioChip, STAGES, type Row, type RowGroup, type Stage, type XrayData} from './panel.js'
 
 export type XrayClient = ReturnType<typeof makeExtRpcClient<XrayRouter>>
 
@@ -30,7 +20,9 @@ export type XrayTab = {
 export const DECISION_MODES = ['off', 'pins', 'marks'] as const
 export type DecisionMode = (typeof DECISION_MODES)[number]
 
-type MarkKind = (typeof MARK_KINDS)[number]
+type MarkKind = Exclude<Decision['kind'], 'pin' | 'twin' | 'typography'>
+
+type NodeStatus = Match['status']
 type Request = {id: string; session: string}
 type Settled = {report: DiffReport | null}
 type DeciderState = {action: string | null; failure: string | null}
@@ -231,7 +223,8 @@ export function RowBadges(props: {row: Row; data: XrayData; opinions: boolean}):
     const [node] = props.row.nodes
     const run = props.data.run
     if (node === undefined || run === null) return null
-    return find({root: run.root, id: node, idOf: (match) => match.node.id})?.status ?? null
+    for (const {node: match} of walk(run.root)) if (match.node.id === node) return match.status
+    return null
   }
   const change = () => {
     const changes = props.data.report?.changes
@@ -668,5 +661,5 @@ const SCORE_PARTS: {label: string; format: (value: number) => string}[] = [
 
 function pairedNodes(data: XrayData): string[] {
   if (data.run === null) return []
-  return [...walk({root: data.run.root})].filter(({node}) => node.live !== null).map(({node}) => node.node.id)
+  return [...walk(data.run.root)].filter(({node}) => node.live !== null).map(({node}) => node.node.id)
 }

@@ -1,14 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: [
-    'src/server.ts',
-    'src/shared/defs.ts',
-    'src/server/differ.ts',
-    'src/server/sources/image.ts',
-    'src/server/raster.ts',
-    'src/server/store.ts',
-  ],
+  entry: ['src/server.ts', 'src/shared/defs.ts'],
   format: 'esm',
   fixedExtension: false,
   dts: false,

@@ -1,31 +1,17 @@
 import {z} from 'zod'
 import type {Storage} from 'unstorage'
+import type {ToolBuilder, ToolErrors} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
-import type {ServerApi} from '@conciv/extension'
-import type {SessionId} from '@conciv/protocol/chat-types'
-import type {DesignConfig} from './tolerances.js'
-import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
+import {defineTool} from '@conciv/extension/tool'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
-export type Role = (typeof ROLES)[number]
-export const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
+const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 
-export const DESIGN_EXTENSION_NAME = 'design'
+const DESIGN_EXTENSION_NAME = 'design'
 
-const DESIGN_TOOL_PREFIX = 'design_'
+export const DESIGN_TOOL_PREFIX = 'design_'
 
-export const DESIGN_GUIDE =
-  "A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS. `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element."
-
-export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
-export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node'] as const
-export const UNANSWERED_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
-
-export function designVerb(name: string): string {
-  if (!name.startsWith(DESIGN_TOOL_PREFIX)) throw new Error(`"${name}" is not a design tool`)
-  return name.slice(DESIGN_TOOL_PREFIX.length)
-}
+const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
 
 const DELTA_KIND_NAMES = [
   'inset-left',
@@ -54,15 +40,11 @@ const DELTA_KIND_NAMES = [
   'pixels',
 ] as const
 
-export const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
-
-export type Stage = (typeof STAGES)[number]
+const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
 
 const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
 
-export type NodeStatus = (typeof NODE_STATUSES)[number]
-
-export const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
+const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
@@ -76,11 +58,9 @@ const MirrorLimitsSchema = z.object({
   inlineWidths: z.number().describe('elements with an inline width or height, laid out as the live page left them'),
 })
 
-export type DeltaKindName = z.infer<typeof DeltaKindNameSchema>
+const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
 
-export const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
-
-export const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
+const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
 
 const DirectionSchema = z.enum(['row', 'column', 'grid', 'stack'])
 
@@ -118,12 +98,9 @@ const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
   index: z.number().describe('1-based position among the parent children in reading order'),
 })
 
-export type ContainerLayout = z.infer<typeof ContainerLayoutSchema>
-export type NodeLayout = z.infer<typeof NodeLayoutSchema>
-
 const SizingSchema = z.enum(['fixed', 'auto'])
 
-export const LiveStylesSchema = z.object({
+const LiveStylesSchema = z.object({
   background: z.string(),
   color: z.string(),
   fontSize: z.number(),
@@ -151,15 +128,13 @@ export const LiveStylesSchema = z.object({
     .describe('the first and last stop of the first linear-gradient in background-image, null when there is none'),
 })
 
-export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
+const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
 
-export type Glyph = z.output<typeof GlyphSchema>
-
-export const OpinionSchema = z
+const OpinionSchema = z
   .object({box: BoxSchema, confidence: z.number()})
   .describe('the box takumi lays the component out at, beside the mirror box; never scored')
 
-const LiveComponentSchema = z.object({
+const LiveComponentFieldsSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z
     .string()
@@ -199,7 +174,16 @@ const LiveComponentSchema = z.object({
     .nullable()
     .default(null)
     .describe('the kind of the Placeholder whose root this is, null for any other element'),
+})
+
+const LiveComponentWireSchema = LiveComponentFieldsSchema.extend({
   children: z.array(z.record(z.string(), z.unknown())).describe('nested components of the same shape'),
+})
+
+const LiveComponentSchema = LiveComponentFieldsSchema.extend({
+  get children(): z.ZodArray<typeof LiveComponentSchema> {
+    return z.array(LiveComponentSchema)
+  },
 })
 
 const ProvenanceSchema = z.object({
@@ -211,8 +195,6 @@ const ProvenanceSchema = z.object({
   selector: z.string().optional(),
   suggest: z.string().optional(),
 })
-
-export type Provenance = z.output<typeof ProvenanceSchema>
 
 const DeltaSchema = ProvenanceSchema.partial().extend({
   kind: DeltaKindNameSchema,
@@ -249,14 +231,10 @@ const TypographySchema = z.object({
 
 const BorderSchema = z.object({width: z.number(), color: z.string()})
 
-export type Border = z.infer<typeof BorderSchema>
-
 const PaintSchema = z.object({
   background: z.string(),
   gradient: z.object({from: z.string(), to: z.string(), axis: z.enum(['vertical', 'horizontal'])}).optional(),
 })
-
-export type Paint = z.infer<typeof PaintSchema>
 
 const DesignNodeKindSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -279,6 +257,7 @@ const DesignNodeKindSchema = z.discriminatedUnion('kind', [
 const DesignNodeBaseSchema = z.object({
   id: z.string().describe('from the source: the Figma node id, or the image hash plus an index'),
   box: BoxSchema.describe('design px'),
+  hash: z.string().describe('sha256 of the node own fields plus its children hashes'),
   layout: NodeLayoutSchema.partial().optional(),
 })
 
@@ -298,15 +277,36 @@ export const DesignSchema = z.object({
 
 const MatchSchema = z.object({
   node: DesignNodeBaseSchema.and(DesignNodeKindSchema),
-  live: LiveComponentSchema.omit({children: true}).nullable().describe('null when the node is unbuilt'),
+  live: LiveComponentFieldsSchema.nullable().describe('null when the node is unbuilt'),
+  hash: z.string().describe('sha256 of the live fingerprint plus the children hashes'),
   confidence: z.number(),
   source: MeasureSourceSchema,
   deltas: z.array(DeltaSchema).describe('empty when the node is clean'),
   status: z.enum(NODE_STATUSES),
   since: z.string().describe('the run that reached the status'),
+  shift: z.object({x: z.number(), y: z.number()}).nullable().describe('how far the paired element sits off its place'),
   get children(): z.ZodArray<typeof MatchSchema> {
     return z.array(MatchSchema)
   },
+})
+
+const ItemSchema = z.object({
+  key: z.string(),
+  kind: z.union([DeltaKindNameSchema, z.enum(['unbuilt', 'extra', 'offset'])]),
+  stage: z.enum(STAGES).nullable(),
+  size: z.number(),
+  confidence: z.number(),
+  box: BoxSchema,
+  depth: z.number(),
+  value: z.union([z.number(), z.string()]),
+  sentence: z.string(),
+  node: z.string().optional(),
+  source: SourceLocSchema.optional(),
+  demoted: z.boolean().optional(),
+  flipped: z.number().optional(),
+  spent: z.number().optional(),
+  unpaired: z.number().optional(),
+  residual: z.number().optional(),
 })
 
 export const RunSchema = z.object({
@@ -316,13 +316,17 @@ export const RunSchema = z.object({
   root: MatchSchema,
   extras: z.array(LiveComponentSchema).describe('live elements no design node claimed'),
   score: z.array(z.number()),
+  stage: z.enum(STAGES).nullable(),
   stop: z.enum(STOPS).nullable(),
   images: z.object({live: z.string(), diff: z.string()}),
-})
-
-const AttachmentsSchema = z.object({
-  document: z.unknown().optional(),
-  image: z.instanceof(Uint8Array).optional(),
+  mismatch: z.number(),
+  similarity: z.number().nullable(),
+  capture: z.string(),
+  section: z.string().nullable(),
+  items: z.array(ItemSchema),
+  sections: z.array(z.object({id: z.string(), similarity: z.number()})),
+  partial: z.boolean().describe('pairing hit its time budget'),
+  path: CapturePathSchema.describe('how the pixels were captured'),
 })
 
 const DECISION_KINDS = [
@@ -340,7 +344,13 @@ export const DecisionSchema = z.object({
   id: z.string(),
   kind: z.enum(DECISION_KINDS),
   anchor: z.string(),
-  value: z.union([z.string(), z.number(), TypographySchema, z.null()]),
+  value: z.union([
+    z.string(),
+    z.number(),
+    TypographySchema,
+    z.object({target: z.string(), node: z.string()}),
+    z.null(),
+  ]),
   at: z.number(),
 })
 
@@ -354,301 +364,10 @@ export const TargetRecordSchema = z.object({
   scale: z.number(),
   createdAt: z.number(),
   acceptedRun: z.string().optional(),
+  paths: z
+    .object({design: z.string(), placeholder: z.string()})
+    .describe('absolute paths of the outline and placeholder files'),
 })
-
-export type OcrLine = z.infer<typeof OcrLineSchema>
-export type Typography = z.infer<typeof TypographySchema>
-
-export type DesignNode = z.infer<typeof DesignNodeSchema>
-export type Design = z.infer<typeof DesignSchema>
-export type Match = z.infer<typeof MatchSchema>
-export type Run = z.infer<typeof RunSchema>
-export type Attachments = z.infer<typeof AttachmentsSchema>
-export type Decision = z.infer<typeof DecisionSchema>
-type DecisionKind = Decision['kind']
-export type TargetRecord = z.infer<typeof TargetRecordSchema>
-
-export type Pairer = (input: {
-  design: Design
-  live: LiveComponent
-  decisions: Decision[]
-  previous: Match | null
-  rasters: {live: Raster; target: Raster}
-  twins: {node: string; path: string}[]
-  comparators: Comparators
-  budget: number
-}) => Promise<{root: Match; partial: boolean; carried: number}>
-
-export type Shift = {dx: number; dy: number}
-
-export type Offset = {match: Match | null; shift: Shift}
-
-export type Geometry = {
-  align(input: {root: Match; live: Raster; exact: boolean}): {global: Shift; offsets: Offset[]}
-  fingerprint(
-    component: Pick<LiveComponent, 'source' | 'key' | 'instance' | 'owner' | 'tag' | 'glyphs' | 'box'>,
-  ): Fingerprint
-  targetBox(input: {node: Match['node']; live: NonNullable<Match['live']>; raster: Raster; exact: boolean}): Box
-  selectors(live: LiveComponent): Map<string, string>
-  regions(input: {mask: Uint8Array; width: number; height: number}): {labels: Int32Array; regions: MaskRegion[]}
-}
-
-export type MaskRegion = {label: number; size: number; box: Box}
-
-export type Deltas = {
-  elements(input: {
-    root: Match
-    live: LiveComponent
-    raster: Raster
-    exact: boolean
-    source: MeasureSource
-    mismatchAt: (box: Box) => number
-  }): Element[]
-  measure(input: {
-    elements: Element[]
-    reuse: Reuse | null
-    shift: Shift
-    live: Raster
-    target: Raster
-    page: Box
-    decisions: Decision[]
-    stamp: Pick<Delta, 'source' | 'confidence' | 'width'>
-  }): Promise<{measured: Measured[]; measures: Map<string, Delta[]>; judged: Map<Element, TextJudgement>}>
-  warnings(input: {
-    elements: Element[]
-    judged: Map<Element, TextJudgement>
-    components: LiveComponent[]
-    root: Match
-  }): Promise<Delta[]>
-  size(delta: Delta): number
-  sourced(input: {delta: Delta; element: Element}): Delta
-  sameWords(text: string): string
-}
-
-export type Provenancer = {
-  attribute(input: {
-    ranked: {element: Element; report: ComponentReport}[]
-    page: ServerToolPageAccess
-    width: number
-    height: number
-    sourced: Deltas['sourced']
-  }): Promise<ComponentReport[]>
-  liveText: LiveTextReader
-  dispose(): void
-}
-
-export type Measurer = {
-  color: ColorMetric
-  comparator: PixelComparator
-  connected(page: ServerToolPageAccess): Promise<void>
-  route(page: ServerToolPageAccess): Promise<string>
-  measure(input: {width?: number; height?: number; timeout?: number; page: ServerToolPageAccess}): Promise<{
-    capture: LiveCapture
-    longestTask?: number
-    pageError?: string
-  }>
-  texts(input: {components: LiveComponent[]; runs: TextRun[]; live: Raster; target: Raster; reuse: Reuse | null}): {
-    agreeing: Box[]
-    masks: Map<string, Box[]>
-  }
-  typography(input: {
-    texts: {node: MatchText; owner: LiveComponent}[]
-    raster: Raster
-    page: ServerToolPageAccess
-  }): Promise<{estimates: Record<string, Typography>; skipped: number}>
-  sources(capture: LiveCapture): MeasureSource[]
-  confidence(capture: LiveCapture): number
-  compare(input: {live: Raster; target: Raster; previous: TileCache | null}): {
-    mismatch: number
-    mask: Uint8Array
-    width: number
-    height: number
-    tiles: TileCache
-    carried: number
-  }
-  similarity(input: {
-    live: Raster
-    target: Raster
-    mask: Uint8Array
-    differing: Uint8Array
-    width: number
-    height: number
-  }): ScoredTile[]
-  mean(input: {tiles: ScoredTile[]; within?: Box}): number
-  paintOver(input: {onto: Raster; from: Raster; boxes: Box[]}): Raster
-  paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Raster
-  share(input: {mask: Uint8Array; width: number; height: number; box: Box}): number
-  reuse(input: {
-    before: {grid: Grid; rawTiles: string[]; textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>} | null
-    live: Raster
-    target: Raster
-  }): {grid: Grid; rawTiles: string[]; reuse: Reuse | null}
-}
-
-export type Round = {
-  score: number[]
-  capturePath: CapturePath | undefined
-  values: Map<string, number | string>
-  capture: string
-  report: DiffReport
-  section: string | undefined
-}
-
-export type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'stop' | 'score' | 'rows'>
-
-export type SectionBudget = {id: string; roundsUsed: number; open: boolean; spent: boolean}
-
-export type Judging = {
-  items: Item[]
-  score: number[]
-  capturePath: CapturePath | undefined
-  capture: string
-  warnings: Delta[]
-  painted: DiffReport['painted']
-  partial: boolean
-  changed: {changes: Changes; since: number | null}
-  crop: (node: string) => string
-  similarity: {now: number; was: number} | null
-}
-
-export type Judge = {
-  unmatched(input: {root: Match; components: LiveComponent[]; offsets: Offset[]; measured: Measured[]}): Unmatched[]
-  items(input: {components: Measured[]; unmatched: Unmatched[]; root: Match}): Item[]
-  score(input: {items: Item[]; unmatched: Unmatched[]; measured: Measured[]; masks: Box[]; page: Box}): number[]
-  verdict(input: Judging & {priors: Round[]; round: number}): Verdict
-  report(input: {measured: Measured[]; input: DiffInput; twins: Twin[]}): {
-    reported: {element: Element; report: ComponentReport}[]
-    listed: number
-  }
-  hint(input: {
-    attributed: boolean
-    absolute: boolean
-    partial: boolean
-    cut: {listed: number; shown: number; paired: number}
-  }): {hint?: string}
-  painted(components: LiveComponent[]): DiffReport['painted']
-  budgets(input: {sections: DesignNode[]; items: Item[]; rounds: Round[]}): SectionBudget[]
-  round(input: {
-    items: Item[]
-    score: number[]
-    capturePath: CapturePath | undefined
-    capture: string
-    report: DiffReport
-    section: string | undefined
-  }): Round
-  worse(input: {a: number[]; b: number[]}): boolean
-  section(input: {
-    report: DiffReport
-    section: DesignNode
-    judging: Judging | undefined
-    measured: Measured[]
-    rounds: Round[]
-    counts: LedgerCounts
-  }): DiffReport
-  settle(input: {
-    previous: Match | null
-    root: Match
-    accepted: Set<string>
-    run: string
-    items: Item[]
-    crop: (node: string) => string
-  }): {root: Match; changes: Changes}
-  counts(roots: Match[]): LedgerCounts
-}
-
-export type Registrar = {
-  register(input: {input: TargetInput; session: string; page: ServerToolPageAccess}): Promise<TargetResult>
-  current(session: string): Promise<TargetRecord>
-}
-
-export type Twin = {node: string; target: string; path: string}
-
-export type VoterName = 'text' | 'kind' | 'structure' | 'style' | 'geometry' | 'pixel' | 'hints' | 'twins'
-
-export type VoteView = {
-  key: string
-  kind: 'text' | 'box' | 'image' | 'element'
-  box: Box
-  lines: Box[]
-  text: string
-  words: string
-  alone: boolean
-  klass: 'heading' | 'text' | 'control' | 'container' | 'media'
-  ink: number | null
-  fill: [number, number, number] | null
-  tokens: string[]
-  parent: VoteView | null
-  rank: number
-  media: boolean
-}
-
-export type VoteContext = {
-  assigned: Map<string, VoteView>
-  diagonal: number
-  nodeRaster: Raster
-  candidateRaster: Raster
-  hashes: Map<string, Uint8Array>
-  twins: Map<string, string>
-  candidates: VoteView[]
-  bestText: Map<string, number>
-  spoken: Record<string, VoteView[]>
-}
-
-export type Voter = {
-  name: VoterName
-  base: number
-  score: (input: {node: VoteView; candidate: VoteView; context: VoteContext}) => number | null
-}
-
-export type Similarity = {voters: Voter[]; text(input: {a: string; b: string}): number}
-
-export type Ranker = (input: {items: Item[]}) => Item[]
-
-export type TargetAdapter = {
-  kind: string
-  accepts(input: {ref: string; project: Storage}): boolean
-  load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Loaded>
-}
-
-type Loaded = {design: Design; image: Uint8Array; warnings: string[]}
-
-export type Store = {
-  put(input: {design: Design; image: Uint8Array; session: string; route?: string; name?: string}): Promise<TargetRecord>
-  design(id: string): Promise<Design>
-  targetImage(id: string): Promise<Uint8Array | null>
-  liveImage(input: {id: string; run: string}): Promise<Uint8Array | null>
-  record(id: string): Promise<TargetRecord | null>
-  current(session: string): Promise<TargetRecord | null>
-  list(route?: string): Promise<TargetRecord[]>
-  remove(input: {id?: string; all?: boolean}): Promise<number>
-  runs(id: string): Promise<string[]>
-  latest(id: string): Promise<Run | null>
-  run(input: {id: string; run: string}): Promise<Run | null>
-  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<Run>
-  writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
-  decisions(id: string): Promise<Decision[]>
-  decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
-  revoke(input: {id: string; decision: string}): Promise<boolean>
-  accept(input: {id: string; run: string}): Promise<TargetRecord>
-  writeCapture(png: Uint8Array): Promise<string>
-  path(key: string): string | null
-}
-
-export type Words = {
-  outline(design: Design): string[]
-  placeholder(framework: Framework): string
-  line(input: {node: MatchNode; scale: number}): string
-  delta(input: {element: Element; delta: Delta}): string
-  unbuilt(input: {match: Match; parent: Match; root: Match; unbuilt: Record<string, Unmatched>}): string
-  entry(entry: Unmatched): string
-  row(input: {run: ContainerLayout['runs'][number]; owner: Match; root: Match}): string
-  subject(input: {match: Match; root: Match}): string
-  change(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string
-  stalled(input: {stage: Stage; score: number[]; unchanged: Item[]}): string
-  flipped(input: {items: Item[]; round: number}): string
-  painted(count: number): string
-  warning(delta: Delta): string
-}
 
 const UnmatchedSchema = z.object({
   kind: z
@@ -755,7 +474,7 @@ const LongestTaskSchema = z
   .number()
   .describe('the longest main-thread task in whole ms the page ran while the live page was measured')
 
-export const TimingsSchema = z
+const TimingsSchema = z
   .object({
     capture: PhaseSchema,
     decode: PhaseSchema,
@@ -787,23 +506,11 @@ const RowSchema = z.object({
   crop: CropSchema.optional(),
 })
 
-const FingerprintSchema = z.object({
-  source: SourceLocSchema.nullable(),
-  key: z.string().nullable().default(null),
-  instance: z.string().nullable().default(null),
-  owner: z.string().nullable().default(null),
-  tag: z.string(),
-  textHash: z.string(),
-  box: BoxSchema,
-})
-
-export type Fingerprint = z.output<typeof FingerprintSchema>
-
 const LedgerCountsSchema = z
   .object({unbuilt: z.number(), paired: z.number(), done: z.number(), regressed: z.number(), accepted: z.number()})
   .describe('design nodes per ledger status')
 
-export type LedgerCounts = z.infer<typeof LedgerCountsSchema>
+type LedgerCounts = z.infer<typeof LedgerCountsSchema>
 
 const ChangeSchema = z.object({node: z.string(), sentence: z.string(), crop: CropSchema})
 
@@ -817,9 +524,9 @@ const ChangesSchema = z
   })
   .describe('what the run changed against the ledger before it')
 
-export type Changes = z.infer<typeof ChangesSchema>
+type Changes = z.infer<typeof ChangesSchema>
 
-export const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [], moved: []}
+const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [], moved: []}
 const NO_COUNTS: LedgerCounts = {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0}
 const NODE_KINDS = ['text', 'box', 'image'] as const
 
@@ -829,7 +536,7 @@ const SimilaritySchema = z
     'mean SSIM over independent 64 px grayscale tiles, tiles wholly inside an image slot left out; 1 is identical',
   )
 
-export const DiffReportSchema = z.object({
+const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
   mismatch: z.number(),
   similarity: SimilaritySchema.optional(),
@@ -909,9 +616,7 @@ export const DiffReportSchema = z.object({
     .describe('the whole-page stop, stage and score of a section report'),
 })
 
-export type DiffReport = z.infer<typeof DiffReportSchema>
-
-export const CompactReportSchema = DiffReportSchema.pick({
+const CompactReportSchema = DiffReportSchema.pick({
   target: true,
   round: true,
   stage: true,
@@ -960,8 +665,6 @@ export const CompactReportSchema = DiffReportSchema.pick({
   .loose()
   .describe('pass `full: true` for the full report with every component and delta')
 
-export type CompactReport = z.infer<typeof CompactReportSchema>
-
 const StatusReportSchema = z.object({
   route: z.string().optional(),
   targets: z.array(
@@ -1009,15 +712,15 @@ const CaptureResultSchema = z.object({
   width: z.number(),
   height: z.number(),
   route: z.string(),
-  components: z.array(LiveComponentSchema),
+  components: z.array(LiveComponentWireSchema),
 })
 
-export const MeasureResultSchema = z.object({
+const MeasureResultSchema = z.object({
   image: z.string(),
   width: z.number(),
   height: z.number(),
   route: z.string(),
-  components: z.array(LiveComponentSchema),
+  components: z.array(LiveComponentWireSchema),
   capturePath: CapturePathSchema,
   source: MeasureSourceSchema,
   masks: z.array(BoxSchema),
@@ -1041,15 +744,15 @@ const RenderSchema = z.object({
   background: z.string(),
 })
 
-export const RenderResultSchema = z.object({images: z.array(z.string())})
+const RenderResultSchema = z.object({images: z.array(z.string())})
 
-export const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
+const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
 
 const ClearResultSchema = z.object({removed: z.number()})
 
 const Width = z.number().int().positive()
 
-export const TargetInputSchema = z
+const TargetInputSchema = z
   .object({
     image: z
       .string()
@@ -1078,7 +781,7 @@ export const TargetInputSchema = z
     message: 'document goes with figma and image',
   })
 
-export const DiffInputSchema = z.object({
+const DiffInputSchema = z.object({
   depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
   limit: z.number().int().min(1).max(60).default(12).describe('how many components to report'),
   full: z.boolean().optional().describe('return the full report with every component and delta'),
@@ -1088,9 +791,9 @@ export const DiffInputSchema = z.object({
     .describe('a section id from design_status.sections; the run stays whole-page, the report lists that section only'),
 })
 
-export const StatusInputSchema = z.object({})
+const StatusInputSchema = z.object({})
 
-export const WatchInputSchema = z.object({
+const WatchInputSchema = z.object({
   key: z.string().optional().describe('return the node paired to this data-conciv-key'),
   ref: z.string().optional().describe('return the node with this design id, the Figma node id for a Figma target'),
   node: z.string().optional().describe('return this node'),
@@ -1112,9 +815,7 @@ const WatchRowSchema = z.object({
   item: z.string().nullable().describe('the worst open item of the node, as a sentence'),
 })
 
-export type WatchRow = z.infer<typeof WatchRowSchema>
-
-export const WatchReportSchema = z.object({
+const WatchReportSchema = z.object({
   target: z.string(),
   run: z.string().nullable().describe('the run the mapping comes from; null before the first run'),
   live: z.boolean().describe('true when the mapping comes from the page watcher and is newer than the stored ledger'),
@@ -1123,10 +824,7 @@ export const WatchReportSchema = z.object({
   truncated: z.number().describe('rows left out by limit'),
 })
 
-export type WatchReport = z.infer<typeof WatchReportSchema>
-export type WatchInput = z.output<typeof WatchInputSchema>
-
-export const CaptureInputSchema = z.object({
+const CaptureInputSchema = z.object({
   height: Width.optional().describe('height of the captured area in px; defaults to the viewport height'),
   timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
 })
@@ -1142,7 +840,7 @@ const RenderInputSchema = z.object({
   timeout: z.number().int().positive().optional(),
 })
 
-export const WinnerInputSchema = z.object({
+const WinnerInputSchema = z.object({
   selector: z.string().describe('CSS selector of the element'),
   properties: z.array(z.string()).describe('CSS properties to explain'),
   width: Width.optional().describe(
@@ -1151,12 +849,12 @@ export const WinnerInputSchema = z.object({
   height: Width.optional().describe('viewport height the element was captured at'),
 })
 
-export const ClearInputSchema = z.object({
+const ClearInputSchema = z.object({
   target: z.string().optional().describe('target id to remove; defaults to the current target'),
   all: z.literal(true).optional().describe('remove every target'),
 })
 
-export const DESIGN_ERRORS = {
+const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
   'no-target': {message: NO_TARGET_MESSAGE},
   'unknown-section': {message: 'the design has no section with that id'},
@@ -1183,7 +881,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   verb: string
   summary: string
   mutating: boolean
-  icon: ToolIconKey
+  icon: 'edit' | 'read'
   running: string
   done: string
   input: z.ZodObject<Shape>
@@ -1194,7 +892,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   catalog?: boolean
 }): DesignToolDef<Shape, Out> {
   return defineTool({
-    name: `design_${spec.verb}`,
+    name: `${DESIGN_TOOL_PREFIX}${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
     outputSchema: spec.output,
@@ -1215,7 +913,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   })
 }
 
-export const targetDef = designTool({
+const targetDef = designTool({
   verb: 'target',
   summary: 'register a design image or a Figma frame as the target',
   mutating: true,
@@ -1229,7 +927,7 @@ export const targetDef = designTool({
   positional: 'image',
 })
 
-export const diffDef = designTool({
+const diffDef = designTool({
   verb: 'diff',
   summary: 'compare the live page with the current design target and rank the components that differ',
   mutating: false,
@@ -1242,7 +940,7 @@ export const diffDef = designTool({
   keywords: ['design', 'compare', 'pixels', 'deltas', 'visual'],
 })
 
-export const statusDef = designTool({
+const statusDef = designTool({
   verb: 'status',
   summary: 'report whether the live page matches the current design target',
   mutating: false,
@@ -1255,7 +953,7 @@ export const statusDef = designTool({
   keywords: ['design', 'done', 'progress'],
 })
 
-export const watchDef = designTool({
+const watchDef = designTool({
   verb: 'watch',
   summary: 'the live mapping of design nodes to the page: status, source key, source line, as the page is built',
   mutating: false,
@@ -1268,7 +966,7 @@ export const watchDef = designTool({
   keywords: ['design', 'mapping', 'pairs', 'figma', 'key'],
 })
 
-export const captureDef = designTool({
+const captureDef = designTool({
   verb: 'capture',
   summary: 'capture the live page at the tab width as a PNG with its component tree',
   mutating: false,
@@ -1281,7 +979,7 @@ export const captureDef = designTool({
   keywords: ['design', 'capture', 'screenshot', 'components'],
 })
 
-export const measureDef = designTool({
+const measureDef = designTool({
   verb: 'measure',
   summary: 'measure the page at the design width: components, pixels and how they were taken',
   mutating: false,
@@ -1295,7 +993,7 @@ export const measureDef = designTool({
   catalog: false,
 })
 
-export const renderDef = designTool({
+const renderDef = designTool({
   verb: 'render',
   summary: 'render strings in the page fonts as PNGs for the type estimate',
   mutating: false,
@@ -1309,7 +1007,7 @@ export const renderDef = designTool({
   catalog: false,
 })
 
-export const winnerDef = designTool({
+const winnerDef = designTool({
   verb: 'winner',
   summary: 'name the CSS declaration that wins each property of an element',
   mutating: false,
@@ -1322,7 +1020,7 @@ export const winnerDef = designTool({
   keywords: ['design', 'css', 'cascade', 'specificity', 'style'],
 })
 
-export const clearDef = designTool({
+const clearDef = designTool({
   verb: 'clear',
   summary: 'remove design targets',
   mutating: true,
@@ -1335,236 +1033,271 @@ export const clearDef = designTool({
   keywords: ['design', 'remove', 'reset'],
 })
 
-export const DESIGN_TOOL_DEFS = [targetDef, diffDef, statusDef, captureDef, winnerDef, clearDef] as const
+export const DESIGN_TOOLS = [
+  targetDef,
+  diffDef,
+  statusDef,
+  watchDef,
+  captureDef,
+  measureDef,
+  renderDef,
+  winnerDef,
+  clearDef,
+] as const
 
-export type TargetInput = z.output<typeof TargetInputSchema>
-export type DiffInput = z.output<typeof DiffInputSchema>
-export type CaptureInput = z.output<typeof CaptureInputSchema>
-export type MeasureInput = z.output<typeof MeasureInputSchema>
-export type MeasureResult = Omit<z.infer<typeof MeasureResultSchema>, 'components'> & {components: LiveComponent[]}
-export type RenderInput = z.output<typeof RenderInputSchema>
-export type RenderResult = z.infer<typeof RenderResultSchema>
-export type WinnerInput = z.output<typeof WinnerInputSchema>
-export type ClearInput = z.output<typeof ClearInputSchema>
-export type TargetResult = z.infer<typeof TargetResultSchema>
-export type ComponentReport = z.infer<typeof ComponentReportSchema>
-export type StatusReport = z.infer<typeof StatusReportSchema>
-export type CaptureResult = Omit<z.infer<typeof CaptureResultSchema>, 'components'> & {components: LiveComponent[]}
-export type WinnerResult = z.infer<typeof WinnerResultSchema>
-export type ClearResult = z.infer<typeof ClearResultSchema>
-
-export type LiveRole = 'literal' | 'expression' | 'mixed'
+type Stage = (typeof STAGES)[number]
+type Stop = (typeof STOPS)[number]
+type Rgb = [number, number, number]
+type Grid = {side: number; columns: number; rows: number; width: number; height: number}
+type MeasureSource = z.output<typeof MeasureSourceSchema>
+type CapturePath = z.output<typeof CapturePathSchema>
+type TargetInput = z.output<typeof TargetInputSchema>
+type DiffInput = z.output<typeof DiffInputSchema>
+type TargetResult = z.infer<typeof TargetResultSchema>
+type StatusReport = z.infer<typeof StatusReportSchema>
+type WatchInput = z.output<typeof WatchInputSchema>
+type WatchReport = z.infer<typeof WatchReportSchema>
 
 export type Box = z.output<typeof BoxSchema>
-export type Pixels = {width: number; height: number; data: Uint8Array}
-export type Rgb = [number, number, number]
-export type Raster = Pixels & {
-  from(pixels: Pixels): Raster
-  png(): Uint8Array
-  crop(input: {box: Box; margin?: number}): {raster: Raster; box: Box}
-  scaled(scale: number): Raster
-  rgb(index: number): Rgb
-  ink(box: Box): Box
-  fills(input: {box: Box; glyphs: Box[]; color: ColorMetric}): {background: string; foreground: string | null}
-  median(exclude: Uint8Array): string
-}
-export type SourceLoc = z.output<typeof SourceLocSchema>
-
-export type Gradient = {from: string; to: string}
-
-export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
-
-export type LiveBorder = {width: number; style: string; color: string; side: 'top' | 'right' | 'bottom' | 'left'}
-export type LiveStyles = z.output<typeof LiveStylesSchema>
-export type LiveComponent = Omit<z.output<typeof LiveComponentSchema>, 'children'> & {children: LiveComponent[]}
-export type CapturePath = z.output<typeof CapturePathSchema>
-export type MeasureSource = z.output<typeof MeasureSourceSchema>
-export type MirrorLimits = z.output<typeof MirrorLimitsSchema>
-export type LiveCapture = {
-  raster: Raster
-  viewport: {width: number; height: number}
-  route: string
-  components: LiveComponent[]
-  capturePath: CapturePath
-  source: MeasureSource
-  masks: Box[]
-  limits?: MirrorLimits
-  opinion: boolean
-  framework: Framework | null
-}
-export type Framework = 'react' | 'solid'
-
-export type PixelComparator = {
-  name: string
-  compare(input: {a: Pixels; b: Pixels}): {mismatch: number; mask: Uint8Array; score?: number}
-}
-export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
-export type TextRun = {box: Box; text: string}
-
-export type TextReader = {name: string; read(input: {raster: Raster}): Promise<OcrLine[]>}
-type Comparators = {
-  pixel: PixelComparator
-  color: ColorMetric
-  text: TextReader
-}
-
-export type TileRecord = {hash: string; mismatch: number; mask?: string}
-export type TileCache = {
-  side: number
-  columns: number
-  rows: number
+export type Design = z.infer<typeof DesignSchema>
+export type DesignNode = z.infer<typeof DesignNodeSchema>
+export type Run = z.infer<typeof RunSchema>
+export type Match = z.infer<typeof MatchSchema>
+export type Delta = z.output<typeof DeltaSchema>
+export type Decision = z.infer<typeof DecisionSchema>
+export type TargetRecord = z.infer<typeof TargetRecordSchema>
+export type LiveComponent = z.output<typeof LiveComponentSchema>
+export type Raster = {
   width: number
   height: number
-  tiles: TileRecord[]
+  crop(input: {box: Box; margin?: number}): Raster
+  scaled(scale: number): Raster
+  rgb(index: number): Rgb
+  ink(box: Box): number
+  fills(input: {box: Box; glyphs: Box[]; color: string}): string[]
+  median(exclude: Box[]): Rgb
+  png(): Uint8Array
+  pixels(): Uint8Array
+  region(input: {box: Box; margin?: number}): {raster: Raster; box: Box}
+  trim(box: Box): Box
+  edges(): Uint8Array
+  blur(radius: number): Raster
+  compare(input: {other: Raster; comparator: string}): {mismatch: number; mask: Uint8Array}
+  paintOver(input: {from: Raster; boxes: Box[]}): Raster
+  paintDiff(input: {mask: Uint8Array; width: number}): Raster
+  similarity(input: {
+    target: Raster
+    mask: Uint8Array
+    differing: Uint8Array
+    width: number
+    height: number
+  }): {box: Box; similarity: number}[]
+  coverage(input: {box: Box; background: Rgb; threshold: number}): number
+  radius(input: {box: Box; inside: Rgb; outside: Rgb}): number
+  hashes(input: {grid: Grid; margin: number}): string[]
+  cutout(box: Box): Raster
+  beside(input: {others: Raster[]; gap: number}): Raster
 }
-export type ItemKind = DeltaKindName | 'unbuilt' | 'extra' | 'offset'
-export type Item = {
-  key: string
-  kind: ItemKind
-  stage: Stage | null
-  size: number
-  confidence: number
-  box: Box
-  depth: number
-  value: number | string
-  sentence: string
-  node?: string
-  source?: SourceLoc
-}
-export type Flow = 'row' | 'column'
-export type Side = {
-  kind: DesignNode['kind']
-  box: Box
-  parent: Box | null
-  prev: Box | null
-  next: Box | null
-  axis: 'row' | 'column' | null
-  flow: Flow | null
-  columns: number | null
-  textBox: Box | null
-  ink: Box | null
-  lines: number | null
-  edge: string | null
-  radius: number | null
-  padding: ContainerLayout['padding'] | null
-  size: NodeLayout['size'] | null
-  styles: Partial<LiveStyles>
-}
-export type Delta = z.output<typeof DeltaSchema>
-export type DeltaKind = {
-  kind: DeltaKindName
-  measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]
-  read?(side: Side): number | string | null
-}
-export type Unmatched = DiffReport['unmatched'][number]
+export type DiffReport = z.infer<typeof DiffReportSchema>
 
-export type MatchNode = Match['node']
-export type MatchText = Extract<MatchNode, {kind: 'text'}>
-export type Element = {
-  match: Match
+export type TargetAdapter = {
+  kind: string
+  accepts(ref: string): boolean
+  load(input: {
+    ref: string
+    scale: number
+    project: Storage
+    files: Storage
+    attachments: {document?: unknown; image?: Uint8Array}
+  }): Promise<{design: Design; image: Uint8Array; warnings: string[]}>
+  dispose?(): Promise<void>
+}
+
+export type Store = {
+  put(input: {
+    design: Design
+    image: Uint8Array
+    session: string
+    route?: string
+    name?: string
+    framework?: 'react' | 'solid'
+  }): Promise<TargetRecord>
+  design(id: string): Promise<Design>
+  image(input: {id: string; run?: string; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
+  record(id: string): Promise<TargetRecord | null>
+  current(session: string): Promise<TargetRecord | null>
+  list(route?: string): Promise<TargetRecord[]>
+  remove(input: {id?: string; all?: boolean}): Promise<number>
+  runs(id: string): Promise<string[]>
+  latest(id: string): Promise<Run | null>
+  run(input: {id: string; run: string}): Promise<Run | null>
+  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<Run>
+  decisions(id: string): Promise<Decision[]>
+  decide(input: {id: string; kind: Decision['kind']; anchor: string; value: Decision['value']}): Promise<Decision>
+  revoke(input: {id: string; decision: string}): Promise<boolean>
+  accept(input: {id: string; run: string}): Promise<TargetRecord>
+  writeCapture(png: Uint8Array): Promise<string>
+  path(key: string): string | null
+}
+
+export type Measurer = {
+  probe(page: ServerToolPageAccess): Promise<{route: string; framework: 'react' | 'solid'}>
+  measure(input: {page: ServerToolPageAccess; width?: number; height?: number; timeout?: number}): Promise<Measured>
+  dispose(): void
+}
+
+export type Measured = {
   live: LiveComponent
-  node: MatchNode
-  texts: MatchText[]
-  source: MeasureSource
+  raster: Raster
+  route: string
+  path: CapturePath
+  sources: MeasureSource[]
   confidence: number
-  selector: string
-  liveBox: Box
-  targetBox: Box
-  mismatch: number
-  depth: number
-  parent: Element | null
-  host: {selector: string; live: LiveComponent} | null
-  prev: Element | null
-  next: Element | null
-}
-export type Measured = {element: Element; deltas: Delta[]}
-export type Reuse = {textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>; unchanged: (box: Box) => boolean}
-export type LiveText = {role: LiveRole; literals: string[]}
-export type LiveTextReader = (source: SourceLoc | null) => Promise<LiveText | null>
-export type TextJudgement = {verdict: 'text' | 'sample-data' | null; live: string; target: string}
-export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
-export type ScoredTile = {box: Box; similarity: number}
-export type Css = {design: Design; raster: Raster; dropped: Box[]}
-
-export type Winner = z.output<typeof WinnerSchema>
-export type DesignRuntime = {
-  cwd: string
-  state: Storage
-  project: Storage
-  blind: boolean
-  store: Store
-  comparators: Comparators
-  pairer: Pairer
-  ranker: Ranker
-  words: Words
-  deltas: Deltas
-  geometry: Geometry
-  measurer: Measurer
-  judge: Judge
-  provenance: Provenancer
-  registrar: Registrar
-  xrayUrl: (input: {id: string; session: string}) => XrayLink
+  longestTask?: number
+  pageError?: string
+  framework: 'react' | 'solid'
+  masks: Box[]
+  limits?: DiffReport['limits']
 }
 
-export type XrayLink = {url: string; absolute: boolean}
+export type Pairer = (input: {
+  design: Design
+  measured: Measured
+  target: Raster
+  previous: Run | null
+  decisions: Decision[]
+  twins: {node: string; path: string; confidence: number}[]
+  edited: string[]
+  budget: number
+}) => Promise<{root: Match; partial: boolean; carried: number}>
 
-export type Settled = {
-  grid: Grid
-  rawTiles: string[]
-  tiles: TileCache
-  textMasks: Map<string, Box[]>
-  measures: Map<string, Delta[]>
-  capture: string
-  observe: boolean
-  run: Run
-  report: DiffReport
-  judging: Judging
-  measured: Measured[]
-  twins: Twin[]
-  hinted: {attributed: boolean; absolute: boolean; partial: boolean; paired: number}
-}
-
-export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
-
-export type Latest = {run: Run; report: DiffReport; items: Item[]}
-
-export const TWIN_SEPARATOR = ':'
-
-export type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
-
-export type Lap = {phase: Phase | null; at: number}
-
-export type Runner = {
-  run(input: {
-    job: RunJob
-    record: TargetRecord
-    page: ServerToolPageAccess
+export type Deltas = {
+  compute(input: {
+    root: Match
+    design: Design
+    measured: Measured
+    target: Raster
+    previous: Run | null
     decisions: Decision[]
-    css: Css
-    reply: Awaited<ReturnType<Measurer['measure']>>
-    capture: string
-    rounds: Round[]
-    settled: Settled | undefined
-    twins: Twin[]
-    xray: XrayLink
-    laps: Lap[]
-  }): Promise<{run: Run; report: DiffReport; settled: Settled; round: Round | null}>
-  css(input: {id: string; decisions: Decision[]}): Promise<Css>
-  timings(laps: Lap[]): Omit<DiffReport['timings'], 'carried' | 'longestTask'>
-  paths(id: string): {designPath: string; placeholderPath: string}
+    page: ServerToolPageAccess
+    project: Storage
+    excluded: Box[]
+    limit: number
+  }): Promise<{
+    root: Match
+    extras: LiveComponent[]
+    warnings: Delta[]
+    mismatch: number
+    similarity: number | null
+    diff: Raster
+    sections: {id: string; similarity: number}[]
+    timings: Record<string, number>
+  }>
+  dispose(): void
 }
+
+export type Judge = (input: {
+  root: Match
+  extras: LiveComponent[]
+  warnings: Delta[]
+  previous: Run | null
+  rounds: Run[]
+  decisions: Decision[]
+  accepted: Set<string>
+  run: string
+  section?: string
+  capture: string
+  path: Run['path']
+  partial: boolean
+  excluded: Box[]
+}) => {root: Match; score: number[]; stage: Stage | null; stop: Stop | null; items: Run['items']}
+
+export type Words = {
+  outline(design: Design): string[]
+  placeholder(framework: 'react' | 'solid'): string
+  guide(input: {blind: boolean}): string
+  report(input: {
+    run: Run
+    previous: Run | null
+    items: Run['items']
+    measured: Measured
+    design: Design
+    record: TargetRecord
+    input: DiffInput
+    paths: {live: string; diff: string; xray: string}
+    timings: DiffReport['timings']
+    decisions: Decision[]
+    twins: Parameters<Pairer>[0]['twins']
+  }): DiffReport
+  status(input: {
+    record: TargetRecord
+    run: Run | null
+    design: Design | null
+    previous: Run | null
+    accepted: Run | null
+    rounds: Run[]
+    unanswered: boolean
+    blind: boolean
+  }): StatusReport
+  watch(input: {
+    record: TargetRecord
+    run: Run | null
+    design: Design
+    input: WatchInput
+    previous: Run | null
+  }): WatchReport
+  hint(input: {
+    kind:
+      | 'refused-route'
+      | 'page-error'
+      | 'hidden-tab'
+      | 'next'
+      | 'no-target'
+      | 'image-unreadable'
+      | 'unchanged'
+      | 'unknown-section'
+      | 'no-run'
+    route?: string
+    expected?: string
+    error?: string
+    section?: string
+  }): string
+}
+
+export type Runner = (input: {
+  record: TargetRecord
+  page: ServerToolPageAccess
+  input: DiffInput
+  session: string
+  observe: boolean
+  edited: string[]
+}) => Promise<{run: Run; report: DiffReport}>
 
 export type Differ = {
-  register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
-  run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
-  refresh(input: {session: SessionId}): Promise<void>
+  register(input: {input: TargetInput; session: string; page: ServerToolPageAccess}): Promise<TargetResult>
+  run(input: {input: DiffInput; session: string}): Promise<DiffReport>
+  refresh(input: {session: string}): Promise<void>
   touch(input: {file: string}): void
-  capture(input: {id: string; session: SessionId}): Promise<DiffReport>
+  capture(input: {id: string; session: string}): Promise<DiffReport>
   accept(input: {id: string}): Promise<TargetRecord>
-  status(input: {session: SessionId}): Promise<StatusReport>
-  watch(input: {input: WatchInput; session: SessionId}): Promise<WatchReport>
+  status(input: {session: string}): Promise<StatusReport>
+  watch(input: {input: WatchInput; session: string}): Promise<WatchReport>
   xray(input: {id: string}): Promise<{report: DiffReport | null; outline: string[]}>
   dispose(): void
 }
 
-export type DesignPage = ServerApi<DesignConfig>['page']
+export type DesignRuntime = {
+  cwd: string
+  blind: boolean
+  state: Storage
+  project: Storage
+  files: Storage
+  store: Store
+  adapters: TargetAdapter[]
+  measurer: Measurer
+  pairer: Pairer
+  deltas: Deltas
+  judge: Judge
+  words: Words
+  xrayUrl(input: {id: string; session: string}): {url: string; absolute: boolean}
+}

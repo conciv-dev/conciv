@@ -44,32 +44,6 @@
       "types": "./dist/shared/defs.d.ts",
       "import": "./dist/shared/defs.js"
     },
-    "./store": {
-      "types": "./dist/server/store.d.ts",
-      "import": "./dist/server/store.js"
-    },
-    "./provenance": {
-      "types": "./dist/server/differ.d.ts",
-      "import": "./dist/server/differ.js"
-    },
-    "./text-groups": {
-      "types": "./dist/server/differ.d.ts",
-      "import": "./dist/server/differ.js"
-    },
-    "./paddle": {
-      "types": "./dist/server/sources/image.d.ts",
-      "import": "./dist/server/sources/image.js"
-    },
-    "./colors": {
-      "types": "./dist/server/raster.d.ts",
-      "import": "./dist/server/raster.js"
-    },
-    "./types": {
-      "types": "./dist/shared/defs.d.ts"
-    },
-    "./xray-routes": {
-      "types": "./dist/server.d.ts"
-    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

@@ -1,26 +1,67 @@
 import {range} from 'es-toolkit'
-import {TOLERANCES} from './tolerances.js'
 import type {Box} from './defs.js'
+import {designConfig} from './tolerances.js'
 
-export function union(boxes: Box[]): Box {
-  const x = Math.min(...boxes.map((box) => box.x))
-  const y = Math.min(...boxes.map((box) => box.y))
+export const box = {
+  union,
+  bounds,
+  expand,
+  inset,
+  clip,
+  encloses,
+  overlaps,
+  area,
+  right,
+  bottom,
+  intersection,
+  centre,
+  distance,
+  readingOrder,
+  sameLine,
+  holds,
+  nearestLine,
+  mask,
+}
+
+type Point = {x: number; y: number}
+
+function union(boxes: Box[]): Box {
+  const x = Math.min(...boxes.map((entry) => entry.x))
+  const y = Math.min(...boxes.map((entry) => entry.y))
   return {
     x,
     y,
-    w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
-    h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+    w: Math.max(...boxes.map((entry) => entry.x + entry.w)) - x,
+    h: Math.max(...boxes.map((entry) => entry.y + entry.h)) - y,
   }
 }
 
-export function expand(input: {box: Box; by: number}): Box {
-  const {box, by} = input
-  return {x: box.x - by, y: box.y - by, w: box.w + by * 2, h: box.h + by * 2}
+function bounds(boxes: Box[]): Box | null {
+  return boxes.length === 0 ? null : union(boxes)
 }
 
-export function encloses(input: {outer: Box; inner: Box}): boolean {
+function expand(input: {box: Box; by: number}): Box {
+  const {box: rect, by} = input
+  return {x: rect.x - by, y: rect.y - by, w: rect.w + by * 2, h: rect.h + by * 2}
+}
+
+function inset(input: {box: Box; by: number}): Box {
+  const {box: rect, by} = input
+  return {x: rect.x + by, y: rect.y + by, w: Math.max(0, rect.w - 2 * by), h: Math.max(0, rect.h - 2 * by)}
+}
+
+function clip(input: {box: Box; width: number; height: number; margin: number}): Box {
+  const {box: rect, width, height, margin} = input
+  const x0 = Math.min(width, Math.max(0, Math.floor(rect.x - margin)))
+  const y0 = Math.min(height, Math.max(0, Math.floor(rect.y - margin)))
+  const w = Math.max(x0, Math.min(width, Math.ceil(rect.x + rect.w + margin))) - x0
+  const h = Math.max(y0, Math.min(height, Math.ceil(rect.y + rect.h + margin))) - y0
+  return {x: x0, y: y0, w, h}
+}
+
+function encloses(input: {outer: Box; inner: Box}): boolean {
   const {outer, inner} = input
-  const slack = TOLERANCES.geometryPx
+  const slack = designConfig.tolerances.geometryPx
   return (
     inner.x >= outer.x - slack &&
     inner.y >= outer.y - slack &&
@@ -29,7 +70,7 @@ export function encloses(input: {outer: Box; inner: Box}): boolean {
   )
 }
 
-export function overlaps(input: {a: Box; b: Box}): boolean {
+function overlaps(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   const shared =
     sharedLength({start: a.x, length: a.w, otherStart: b.x, otherLength: b.w}) *
@@ -37,16 +78,19 @@ export function overlaps(input: {a: Box; b: Box}): boolean {
   return shared > Math.min(area(a), area(b)) / 2
 }
 
-function sharedLength(input: {start: number; length: number; otherStart: number; otherLength: number}): number {
-  const {start, length, otherStart, otherLength} = input
-  return Math.max(0, Math.min(start + length, otherStart + otherLength) - Math.max(start, otherStart))
+function area(rect: Box): number {
+  return Math.max(0, rect.w) * Math.max(0, rect.h)
 }
 
-export function area(box: Box): number {
-  return Math.max(0, box.w) * Math.max(0, box.h)
+function right(rect: Box): number {
+  return rect.x + rect.w
 }
 
-export function intersection(input: {a: Box; b: Box}): Box | null {
+function bottom(rect: Box): number {
+  return rect.y + rect.h
+}
+
+function intersection(input: {a: Box; b: Box}): Box | null {
   const {a, b} = input
   const x = Math.max(a.x, b.x)
   const y = Math.max(a.y, b.y)
@@ -55,12 +99,25 @@ export function intersection(input: {a: Box; b: Box}): Box | null {
   return w > 0 && h > 0 ? {x, y, w, h} : null
 }
 
-export function readingOrder(a: Box, b: Box): number {
-  const shared = sharedLength({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h})
-  return shared >= Math.min(a.h, b.h) / 2 ? a.x - b.x : a.y - b.y
+function centre(rect: Box): Point {
+  return {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2}
 }
 
-export function holds(input: {outer: Box; inner: Box}): boolean {
+function distance(input: {a: Point; b: Point}): number {
+  return Math.hypot(X_WEIGHT * (input.a.x - input.b.x), input.a.y - input.b.y)
+}
+
+function readingOrder(input: {a: Box; b: Box}): number {
+  const {a, b} = input
+  return sameLine({a, b}) ? a.x - b.x : a.y - b.y
+}
+
+function sameLine(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  return sharedLength({start: a.y, length: a.h, otherStart: b.y, otherLength: b.h}) >= Math.min(a.h, b.h) / 2
+}
+
+function holds(input: {outer: Box; inner: Box}): boolean {
   const {outer, inner} = input
   return (
     inner.x >= outer.x &&
@@ -70,11 +127,7 @@ export function holds(input: {outer: Box; inner: Box}): boolean {
   )
 }
 
-export function centre(box: Box): {x: number; y: number} {
-  return {x: box.x + box.w / 2, y: box.y + box.h / 2}
-}
-
-export function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
+function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
   const target = centre(input.box)
   return input.lines.reduce<Box | null>((best, line) => {
     if (best === null) return line
@@ -82,22 +135,23 @@ export function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
   }, null)
 }
 
-export function distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number {
-  return Math.hypot(X_WEIGHT * (input.a.x - input.b.x), input.a.y - input.b.y)
-}
-
-export function boxMask(input: {boxes: Box[]; within: Box}): Uint8Array {
+function mask(input: {boxes: Box[]; within: Box}): Uint8Array {
   const {boxes, within} = input
   const cells = new Uint8Array(within.w * within.h)
-  boxes.forEach((box) => {
-    const x0 = Math.max(0, box.x - within.x)
-    const x1 = Math.min(within.w, box.x + box.w - within.x)
+  boxes.forEach((entry) => {
+    const x0 = Math.max(0, entry.x - within.x)
+    const x1 = Math.min(within.w, entry.x + entry.w - within.x)
     if (x1 <= x0) return
-    range(Math.max(0, box.y - within.y), Math.min(within.h, box.y + box.h - within.y)).forEach((y) => {
+    range(Math.max(0, entry.y - within.y), Math.min(within.h, entry.y + entry.h - within.y)).forEach((y) => {
       cells.fill(1, y * within.w + x0, y * within.w + x1)
     })
   })
   return cells
+}
+
+function sharedLength(input: {start: number; length: number; otherStart: number; otherLength: number}): number {
+  const {start, length, otherStart, otherLength} = input
+  return Math.max(0, Math.min(start + length, otherStart + otherLength) - Math.max(start, otherStart))
 }
 
 const X_WEIGHT = 0.5

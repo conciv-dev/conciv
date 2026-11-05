@@ -17,37 +17,9 @@ import {ComposerActions} from '@conciv/ui-kit-chat'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {sum, uniq} from 'es-toolkit'
-import {
-  type Box,
-  DESIGN_EXTENSION_NAME,
-  type Framework,
-  type Glyph,
-  type Gradient,
-  type LiveBorder,
-  type LiveComponent,
-  type LiveStyles,
-  measureDef,
-  type MeasureInput,
-  type MeasureResult,
-  type MirrorLimits,
-  PLACEHOLDER_KINDS,
-  renderDef,
-  type RenderInput,
-  type RenderResult,
-  type SourceLoc,
-  type Winner,
-  winnerDef,
-  type WinnerInput,
-  type WinnerResult,
-} from './shared/defs.js'
-import {
-  designConfig,
-  PANE_ATTR,
-  PLACEHOLDER_ATTR,
-  propertyAliases,
-  SOURCE_ATTR,
-  TOLERANCES,
-} from './shared/tolerances.js'
+import type {z} from 'zod'
+import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
+import {designConfig} from './shared/tolerances.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 
@@ -62,6 +34,34 @@ declare global {
     preferCurrentTab?: boolean
   }
 }
+
+const [, , , , , measureDef, renderDef, winnerDef] = DESIGN_TOOLS
+const DESIGN_EXTENSION_NAME = 'design'
+const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const satisfies readonly NonNullable<
+  LiveComponent['placeholder']
+>[]
+const TOLERANCES = designConfig.tolerances
+const SOURCE_ATTR = designConfig.attributes.source
+const PLACEHOLDER_ATTR = designConfig.attributes.placeholder
+const PANE_ATTR = designConfig.attributes.pane
+const propertyAliases = designConfig.propertyAliases
+
+type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
+type MeasureResult = Omit<z.output<NonNullable<(typeof measureDef)['outputSchema']>>, 'components'> & {
+  components: LiveComponent[]
+}
+type RenderInput = z.output<(typeof renderDef)['inputSchema']>
+type RenderResult = z.output<NonNullable<(typeof renderDef)['outputSchema']>>
+type WinnerInput = z.output<(typeof winnerDef)['inputSchema']>
+type WinnerResult = z.output<NonNullable<(typeof winnerDef)['outputSchema']>>
+type Winner = NonNullable<WinnerResult[string]>
+type Framework = NonNullable<MeasureResult['framework']>
+type MirrorLimits = NonNullable<MeasureResult['limits']>
+type LiveStyles = LiveComponent['styles']
+type LiveBorder = LiveStyles['border']
+type Gradient = NonNullable<LiveStyles['gradient']>
+type Glyph = LiveComponent['glyphs'][number]
+type SourceLoc = NonNullable<LiveComponent['source']>
 
 type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis

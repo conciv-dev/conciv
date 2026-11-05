@@ -1,14 +1,16 @@
 import {median} from 'es-toolkit'
-import {type Box, type ContainerLayout, type DesignNode, type NodeLayout} from '../../shared/defs.js'
-import {TOLERANCES} from '../../shared/tolerances.js'
+import type {Box, DesignNode} from '../../shared/defs.js'
+import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
-import {union} from '../../shared/box.js'
+import {box as geometry} from '../../shared/box.js'
 
 export function inferLayout(root: DesignNode): DesignNode {
   const arranged = laidOut(root) ? root : arrangedNode(root)
   return {...arranged, children: arranged.children.map(inferLayout)}
 }
 
+type NodeLayout = NonNullable<DesignNode['layout']>
+type ContainerLayout = Required<Omit<NodeLayout, 'size' | 'index'>>
 type Placed = {node: DesignNode; box: Box; glyph: Box | null}
 type ChildLayout = Pick<NodeLayout, 'size' | 'index'>
 type Arranged = {layout: ContainerLayout; placements: Map<string, ChildLayout>}
@@ -35,10 +37,10 @@ function seat(layout: DesignNode['layout']): Partial<ChildLayout> {
 }
 
 function placed(node: DesignNode): Placed {
-  const texts = [...walk({root: node})].flatMap((visit) =>
+  const texts = [...walk(node)].flatMap((visit) =>
     visit.depth > 0 && visit.node.kind === 'text' ? [visit.node.box] : [],
   )
-  return {node, box: node.box, glyph: texts.length === 0 ? null : union(texts)}
+  return {node, box: node.box, glyph: texts.length === 0 ? null : geometry.union(texts)}
 }
 
 function arrange(input: {box: Box; children: Placed[]}): Arranged {
@@ -46,7 +48,7 @@ function arrange(input: {box: Box; children: Placed[]}): Arranged {
   const lines = linesFrom(input.children)
   const ordered = lines.flat()
   const direction = directionFrom(lines)
-  const padding = paddingAround({box, inner: union(ordered.map((child) => child.box))})
+  const padding = paddingAround({box, inner: geometry.union(ordered.map((child) => child.box))})
   const width = box.w - padding.left - padding.right
   const rows = direction === 'row' || direction === 'grid' ? lines : []
   const runs = direction === 'column' || direction === 'stack' ? lines.filter((line) => line.length > 1) : []
@@ -91,7 +93,7 @@ function linesFrom(children: Placed[]): Placed[][] {
 
 function rowAligned(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
-  if (sharedSpan({a, b, axis: 'y'}) <= 0 || sharedSpan({a, b, axis: 'x'}) > TOLERANCES.layoutTolerance) return false
+  if (sharedSpan({a, b, axis: 'y'}) <= 0 || sharedSpan({a, b, axis: 'x'}) > LAYOUT_TOLERANCE) return false
   return crossAlignment({boxes: [a, b], axis: 'y'}) !== null
 }
 
@@ -114,7 +116,7 @@ function extent(input: {box: Box; axis: Axis}): number {
 
 function crossAlignment(input: {boxes: Box[]; axis: Axis}): Align | null {
   const {boxes, axis} = input
-  const whole = union(boxes)
+  const whole = geometry.union(boxes)
   const agree = (read: (box: Box) => number): boolean => boxes.every((box) => near({a: read(box), b: read(whole)}))
   if (agree((box) => extent({box, axis}))) return 'stretch'
   if (agree((box) => start({box, axis}))) return 'start'
@@ -124,7 +126,7 @@ function crossAlignment(input: {boxes: Box[]; axis: Axis}): Align | null {
 }
 
 function near(input: {a: number; b: number}): boolean {
-  return Math.abs(input.a - input.b) <= TOLERANCES.layoutTolerance
+  return Math.abs(input.a - input.b) <= LAYOUT_TOLERANCE
 }
 
 function directionFrom(lines: Placed[][]): ContainerLayout['direction'] {
@@ -140,12 +142,12 @@ function stacked(lines: Placed[][]): boolean {
   const unions = lines.map(lineBox)
   return unions.every((box, index) => {
     const previous = unions[index - 1]
-    return previous === undefined || box.y >= previous.y + previous.h - TOLERANCES.layoutTolerance
+    return previous === undefined || box.y >= previous.y + previous.h - LAYOUT_TOLERANCE
   })
 }
 
 function lineBox(line: Placed[]): Box {
-  return union(line.map((child) => child.box))
+  return geometry.union(line.map((child) => child.box))
 }
 
 function lattice(lines: Placed[][]): boolean {
@@ -241,3 +243,5 @@ function hugs(child: Placed): boolean {
       near({a: end({box, axis}), b: end({box: glyph, axis})}),
   )
 }
+
+const LAYOUT_TOLERANCE = designConfig.tolerances.layoutTolerance

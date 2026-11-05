@@ -1,30 +1,16 @@
 import {omit, pick} from 'es-toolkit'
+import type {z} from 'zod'
 import type {AnyToolBuilder, ToolRequest} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {
-  captureDef,
-  type CaptureInput,
-  type CaptureResult,
-  clearDef,
-  type ClearInput,
-  type ClearResult,
-  type CompactReport,
-  type DesignRuntime,
-  diffDef,
-  type Differ,
-  type DiffReport,
-  statusDef,
-  targetDef,
-  watchDef,
-  winnerDef,
-  type WinnerInput,
-  type WinnerResult,
-  WinnerResultSchema,
-} from '../shared/defs.js'
-import {iconSized} from '../shared/tolerances.js'
+import {DESIGN_TOOLS, type DesignRuntime, type Differ, type DiffReport} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
+
+const [targetDef, diffDef, statusDef, watchDef, captureDef, , , winnerDef, clearDef] = DESIGN_TOOLS
 
 export const SERVER_STEPS = [
-  targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
+  targetDef.server((input, ctx: DesignContext, request, page) =>
+    ctx.differ.register({input, session: request.sessionId, page}),
+  ),
   diffDef.server(async (input, ctx: DesignContext, request) => {
     const report = await ctx.differ.run({input, session: request.sessionId})
     const design =
@@ -47,7 +33,10 @@ function shaped(input: {report: DiffReport; design: string[] | null; limit: numb
     unbuilt: report.unmatched.filter((entry) => entry.kind === 'unbuilt').length,
     icons: report.unmatched.filter(
       (entry) =>
-        entry.kind === 'unbuilt' && entry.label === 'image' && entry.target !== undefined && iconSized(entry.target),
+        entry.kind === 'unbuilt' &&
+        entry.label === 'image' &&
+        entry.target !== undefined &&
+        designConfig.iconSized(entry.target),
     ).length,
     unmatched: report.unmatched.length,
     warnings: report.warnings.length,
@@ -74,10 +63,16 @@ function shaped(input: {report: DiffReport; design: string[] | null; limit: numb
 async function captureStep(
   ...[input, ctx, , page]: Parameters<ServerStep<CaptureInput, CaptureResult>>
 ): Promise<CaptureResult> {
-  const {capture: live} = await ctx.design.measurer.measure({height: input.height, timeout: input.timeout, page})
-  const key = await ctx.design.store.writeCapture(live.raster.png())
+  const measured = await ctx.design.measurer.measure({height: input.height, timeout: input.timeout, page})
+  const key = await ctx.design.store.writeCapture(measured.raster.png())
   const path = ctx.design.store.path(key) ?? key
-  return {path, width: live.raster.width, height: live.raster.height, route: live.route, components: live.components}
+  return {
+    path,
+    width: measured.raster.width,
+    height: measured.raster.height,
+    route: measured.route,
+    components: measured.live.children,
+  }
 }
 
 async function clearStep(
@@ -88,10 +83,10 @@ async function clearStep(
   return {removed: await store.remove(input.all === true ? {all: true} : {id})}
 }
 
-async function winnerStep(
-  ...[input, , , page]: Parameters<ServerStep<WinnerInput, WinnerResult>>
-): Promise<WinnerResult> {
-  return WinnerResultSchema.parse(await page.call(winnerDef.name, input))
+async function winnerStep(...[input, , , page]: Parameters<ServerStep<WinnerInput, unknown>>): Promise<unknown> {
+  const schema = winnerDef.outputSchema
+  const reply: unknown = await page.call(winnerDef.name, input)
+  return schema === undefined ? reply : schema.parse(reply)
 }
 
 const COMPACT_FIELDS = [
@@ -119,6 +114,13 @@ const COMPACT_FIELDS = [
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
 
 const BLIND_FIELDS = ['livePath', 'diffImage', 'capturePath'] as const
+
+type CompactReport = z.output<NonNullable<(typeof diffDef)['outputSchema']>>
+type CaptureInput = z.output<(typeof captureDef)['inputSchema']>
+type CaptureResult = z.output<NonNullable<(typeof captureDef)['outputSchema']>>
+type ClearInput = z.output<(typeof clearDef)['inputSchema']>
+type ClearResult = z.output<NonNullable<(typeof clearDef)['outputSchema']>>
+type WinnerInput = z.output<(typeof winnerDef)['inputSchema']>
 
 type ServerStep<Input, Output> = (
   input: Input,

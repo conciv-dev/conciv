@@ -1,5 +1,5 @@
 import init, {Painter, type FontLoader, type Matrix, type PaintTree, type TextNode} from 'takumi-paint/no-init'
-import {TOLERANCES} from '../shared/tolerances.js'
+import {designConfig} from '../shared/tolerances.js'
 import type {Box, LiveComponent} from '../shared/defs.js'
 
 type Opinion = {boxes: Map<string, Box>; confidence: number}
@@ -24,7 +24,9 @@ const painterSlot: {painter: Promise<Painter | null> | null} = {painter: null}
 const fontBytes = new Map<string, Promise<Uint8Array | null>>()
 
 export function secondOpinion(input: OpinionInput): Promise<Opinion | null> {
-  const budget = new Promise<null>((resolve) => setTimeout(() => resolve(null), TOLERANCES.opinionBudgetMs))
+  const budget = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), designConfig.tolerances.opinionBudgetMs),
+  )
   return Promise.race([layOut(input).catch(() => null), budget])
 }
 
@@ -272,6 +274,9 @@ function clipped(input: {edges: Edges; size: {width: number; height: number}}): 
 }
 
 function confidence(width: number): number {
-  const p95 = width < TOLERANCES.takumiNarrowBelow ? TOLERANCES.takumiP95.narrow : TOLERANCES.takumiP95.wide
+  const p95 =
+    width < designConfig.tolerances.takumiNarrowBelow
+      ? designConfig.tolerances.takumiP95.narrow
+      : designConfig.tolerances.takumiP95.wide
   return 1 - p95 / CONFIDENCE_SCALE_PX
 }

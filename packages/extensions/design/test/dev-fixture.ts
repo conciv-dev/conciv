@@ -1,12 +1,28 @@
 import {compact} from 'es-toolkit'
-import {DiffReportSchema, type Box, type DiffReport, type TargetRecord} from '../src/shared/defs.js'
-import {assemble, type Delta, type ReportResponse, type XrayData} from '../src/xray/panel.js'
+import type {Box, Delta, DiffReport, TargetRecord} from '../src/shared/defs.js'
+import {assemble, type ReportResponse, type XrayData} from '../src/xray/panel.js'
 
 const ROUTE = '/?variant=target'
 const HOME = '.conciv/design'
 const RUN_AGE_MS = 22_000
 const SOURCE_CHANGE_AGE_MS = 4_000
 const RUN_SUFFIX = 'a1b2'
+const TIMINGS: DiffReport['timings'] = {
+  capture: 0,
+  decode: 0,
+  measure: 0,
+  mask: 0,
+  similarity: 0,
+  regions: 0,
+  pair: 0,
+  typography: 0,
+  deltas: 0,
+  judge: 0,
+  encode: 0,
+  write: 0,
+  total: 0,
+  carried: {pairs: 0, tiles: 0},
+}
 
 function record(input: {id: string; width: number; name: string}): TargetRecord {
   return {
@@ -18,6 +34,7 @@ function record(input: {id: string; width: number; name: string}): TargetRecord 
     name: input.name,
     scale: 1,
     createdAt: 0,
+    paths: {design: `${HOME}/${input.id}/design.txt`, placeholder: `${HOME}/${input.id}/Placeholder.tsx`},
   }
 }
 
@@ -31,13 +48,32 @@ const TARGETS = {
 function report(input: {target: TargetRecord; body: Pick<DiffReport, 'mismatch' | 'components' | 'unmatched'>}) {
   const at = `${Date.now() - RUN_AGE_MS}-${RUN_SUFFIX}`
   const {target} = input
-  const value: DiffReport = DiffReportSchema.parse({
+  const value: DiffReport = {
     target: {id: target.id, route: target.route, width: target.width},
     diffImage: `${HOME}/${target.id}/diff-${at}.png`,
     livePath: `${HOME}/${target.id}/live-${at}.png`,
     xray: '',
+    sectionSimilarity: {},
+    warnings: [],
+    painted: null,
+    sources: [],
+    stage: null,
+    brief: [],
+    round: 0,
+    stop: null,
+    score: [],
+    responsive: [],
+    partial: false,
+    paired: 0,
+    pinsLost: [],
+    timings: TIMINGS,
+    rows: [],
+    changes: {done: [], regressed: [], paired: [], lost: [], moved: []},
+    ledger: {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0},
+    designPath: '',
+    placeholderPath: '',
     ...input.body,
-  })
+  }
   return value
 }
 

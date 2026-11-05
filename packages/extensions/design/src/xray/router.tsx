@@ -34,8 +34,8 @@ import {createStore, type SetStoreFunction} from 'solid-js/store'
 import {createTimer} from '@solid-primitives/timer'
 import {Dialog, EnvironmentProvider, readStorage, TooltipIconButton, writeStorage} from '@conciv/ui-kit-system'
 import {isEqual, uniq} from 'es-toolkit'
-import {DESIGN_EXTENSION_NAME, type SourceLoc, type TargetRecord} from '../shared/defs.js'
-import {PANE_ATTR} from '../shared/tolerances.js'
+import type {TargetRecord} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
 import type {XrayRouter} from '../server.js'
 import {
   createDecider,
@@ -69,11 +69,14 @@ import {
   type Filter,
   type ReportResponse,
   type Row,
+  type SourceLoc,
   type View,
   type XrayData,
 } from './panel.js'
 import {clampZoom, fitScale, MODES, Stage, StageToolbar, zoomStep, type Mode, type StageView} from './stage.js'
 import {AllMatch, createShortcuts, Loading, LoadError, NoRun, NoTarget, NothingShown, SHORTCUT_HELP} from './states.js'
+
+const DESIGN_EXTENSION_NAME = 'design'
 
 const PAGE_SEGMENT = '/xray'
 const STYLESHEET = 'assets/index.css'
@@ -727,7 +730,7 @@ export function XrayPane(props: PaneProps): JSX.Element {
       useShadow
       ref={(element: HTMLDivElement) => {
         held.host = element
-        element.setAttribute(PANE_ATTR, '')
+        element.setAttribute(designConfig.attributes.pane, '')
         element.style.setProperty('position', 'relative')
         element.style.setProperty('z-index', PANE_LAYER)
       }}

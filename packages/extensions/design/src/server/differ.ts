@@ -1,153 +1,244 @@
-import {createHash} from 'node:crypto'
-import {relative} from 'node:path'
+import {isAbsolute, relative} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
-import {keyBy, maxBy, omit, uniqBy} from 'es-toolkit'
-import {isPageVerbError, toolError} from '@conciv/extension'
+import {omit} from 'es-toolkit'
+import {isPageVerbError, isToolError, toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import {
-  DESIGN_GUIDE,
-  DiffInputSchema,
-  DiffReportSchema,
-  NO_CHANGES,
-  NO_TARGET_MESSAGE,
-  TimingsSchema,
-  UNANSWERED_HINT,
-  type Decision,
-  type DesignNode,
-  type DesignPage,
-  type DesignRuntime,
-  type DiffInput,
-  type DiffReport,
-  type Differ,
-  type Item,
-  type Lap,
-  type Latest,
-  type Match,
-  type Measurer,
-  type Raster,
-  type Round,
-  type Run,
-  type Runner,
-  type RunJob,
-  type Settled,
-  type StatusReport,
-  type Store,
-  type TargetRecord,
-  type Twin,
-  type WatchInput,
-  type WatchReport,
-  type WatchRow,
-  type XrayLink,
-  TWIN_SEPARATOR,
-} from '../shared/defs.js'
-import {aboveTolerance, designFamilies, TOLERANCES} from '../shared/tolerances.js'
-import {find, walk} from '../shared/tree.js'
-import {createRunner} from './runner.js'
+import {isSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {DesignRuntime, DiffReport, Differ, Run, Runner, Store, TargetRecord} from '../shared/defs.js'
+import {walk} from '../shared/tree.js'
+import {designConfig} from '../shared/tolerances.js'
 
 export function createDiffer(input: {
   runtime: DesignRuntime
+  runner: Runner
   page: DesignPage
   bundler: BundlerBridge | undefined
 }): Differ {
-  const {runtime, page, bundler} = input
+  const {runtime, runner, page, bundler} = input
   const {store} = runtime
-  const history = createHistory()
-  const runner = createRunner(runtime)
-  const tab = (session: SessionId): ServerToolPageAccess => ({
-    call: (name, query) => page.ask({sessionId: session, name, input: query}),
-  })
-  const latest = new Map<string, Settled>()
+  const reports = new Map<string, DiffReport>()
   const unanswered = new Set<string>()
-  const runs = createRuns({
-    execute: ({job, touched}) =>
-      answeredDiff({job, touched, runtime, runner, page: tab(job.session), history, latest, unanswered}),
+  const tab = (session: string): ServerToolPageAccess => ({
+    call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
-  const edits = watchSettled({
-    bundler,
-    store,
-    page,
-    refresh: ({session}) => refreshSession({store, runs, session}),
-    touch: ({file}) => runs.touch({file: relative(runtime.cwd, file)}),
+  const edited = new Map<string, Set<string>>()
+  const trigger = createLanes({
+    execute: (job) => {
+      const files = [...(edited.get(job.id) ?? [])]
+      edited.set(job.id, new Set())
+      return answeredDiff({job, edited: files, runtime, runner, page: tab(job.session), reports, unanswered})
+    },
   })
+  const refresh = async ({session}: {session: string}): Promise<void> => {
+    const record = await store.current(session)
+    if (record === null) return
+    await trigger({id: record.id, session, observe: false, input: DEFAULT_DIFF})
+  }
+  const edits = watchSettled({bundler, store, page, refresh})
   return {
-    register: async ({input: target, session}) => {
-      const previous = await store.current(session)
-      const result = await runtime.registrar.register({input: target, session, page: tab(session)})
-      if (previous?.id !== result.id || history.rounds(result.id).length === 0) history.reset(result.id)
-      const first = await runs.trigger({id: result.id, session, observe: false, input: DEFAULT_DIFF}).catch(() => null)
+    register: async ({input: target, session, page: access}) => {
+      const result = await registerTarget({runtime, target, session, page: access})
+      const first = await trigger({id: result.id, session, observe: false, input: DEFAULT_DIFF}).catch(() => null)
       await linkTwins({store, id: result.id, session})
       return first === null ? result : {...result, stage: first.stage, brief: first.brief}
     },
     run: async ({input: query, session}) => {
       await edits.quiet()
-      const record = await runtime.registrar.current(session)
-      const section = query.section === undefined ? null : await knownSection({runtime, runner, id: record.id, query})
-      const report = await runs.trigger({id: record.id, session, observe: true, input: query})
-      if (section === null) return report
-      const settled = latest.get(record.id)
-      const run = settled?.run ?? (await store.latest(record.id))
-      return runtime.judge.section({
-        report,
-        section,
-        judging: settled?.judging,
-        measured: settled?.measured ?? [],
-        rounds: history.rounds(record.id),
-        counts: runtime.judge.counts(run?.root.children.filter((child) => child.node.id === section.id) ?? []),
-      })
+      const record = await currentTarget({runtime, session})
+      if (query.section !== undefined) await knownSection({runtime, id: record.id, section: query.section})
+      return trigger({id: record.id, session, observe: true, input: query})
     },
-    refresh: ({session}) => refreshSession({store, runs, session}),
-    capture: ({id, session}) => runs.trigger({id, session, observe: false, input: DEFAULT_DIFF}),
-    touch: ({file}) => runs.touch({file: relative(runtime.cwd, file)}),
+    refresh,
+    touch: ({file}) => edited.forEach((files) => files.add(relative(runtime.cwd, file))),
+    capture: ({id, session}) => trigger({id, session, observe: false, input: DEFAULT_DIFF}),
     accept: async ({id}) => {
       const last = (await store.runs(id)).at(-1)
-      if (last === undefined) throw toolError('no-target', {message: NO_RUN_MESSAGE})
-      const record = await store.accept({id, run: last})
-      history.reset(id)
-      return record
+      if (last === undefined) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-run'})})
+      return store.accept({id, run: last})
     },
-    status: ({session}) =>
-      targetStatus({
-        context: runtime,
-        runner,
-        session,
-        unanswered: (id) => unanswered.has(id),
-        rounds: history.rounds,
-        latest: (id) => latestOf(latest.get(id)),
-      }),
-    watch: ({input: query, session}) =>
-      watchReport({context: runtime, query, session, latest: (id) => latestOf(latest.get(id))}),
-    xray: async ({id}) => {
-      const design = await store.design(id)
-      return {report: latest.get(id)?.report ?? null, outline: runtime.words.outline(design)}
-    },
+    status: ({session}) => targetStatus({runtime, session, unanswered}),
+    watch: ({input: query, session}) => watchReport({runtime, session, query}),
+    xray: async ({id}) => ({report: reports.get(id) ?? null, outline: runtime.words.outline(await store.design(id))}),
     dispose: edits.dispose,
   }
 }
 
-async function refreshSession(input: {store: Store; runs: Runs; session: SessionId}): Promise<void> {
-  const {store, runs, session} = input
-  const record = await store.current(session)
-  if (record === null) return
-  await runs.trigger({id: record.id, session, observe: false, input: DEFAULT_DIFF})
+type DesignPage = ServerApi<unknown>['page']
+
+type TargetInput = Parameters<Differ['register']>[0]['input']
+
+type TargetResult = Awaited<ReturnType<Differ['register']>>
+
+type DiffInput = Parameters<Differ['run']>[0]['input']
+
+type WatchInput = Parameters<Differ['watch']>[0]['input']
+
+type StatusReport = Awaited<ReturnType<Differ['status']>>
+
+type WatchReport = Awaited<ReturnType<Differ['watch']>>
+
+type Job = {id: string; session: string; observe: boolean; input: DiffInput}
+
+const TOLERANCES = designConfig.tolerances
+
+const DEFAULT_DIFF: DiffInput = {depth: TOLERANCES.depth, limit: TOLERANCES.limit}
+
+const PAGE_ERROR = 'page-error'
+
+const SETTLE_TOOL = 'page_hmr'
+
+const SETTLE_WAIT_MS = 5000
+
+const BASE64_REF = 'base64'
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+const UNANSWERED_CODES: ReadonlySet<string> = new Set(['page-hidden', 'no-live-widget'])
+
+async function registerTarget(input: {
+  runtime: DesignRuntime
+  target: TargetInput
+  session: string
+  page: ServerToolPageAccess
+}): Promise<TargetResult> {
+  const {runtime, target, session, page} = input
+  const {cwd, project} = runtime
+  const requested = target.figma ?? target.image
+  if (requested === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
+  const ref = projectRef({ref: requested, cwd})
+  const adapter = runtime.adapters.find((candidate) => candidate.accepts(ref))
+  if (adapter === undefined)
+    throw toolError('image-unreadable', {message: runtime.words.hint({kind: 'image-unreadable'})})
+  const pictured = target.image ?? (adapter.kind === 'image' ? requested : undefined)
+  const image =
+    pictured === undefined
+      ? undefined
+      : await readPng({ref: projectRef({ref: pictured, cwd}), project, words: runtime.words})
+  const loaded = await adapter.load({
+    ref: pngBase64(ref) === null ? ref : BASE64_REF,
+    scale: target.scale ?? 1,
+    project,
+    files: runtime.files,
+    attachments: {
+      ...(target.document === undefined ? {} : {document: target.document}),
+      ...(image === undefined ? {} : {image}),
+    },
+  })
+  const current = await runtime.store.current(session)
+  if (current?.id !== loaded.design.id) await runtime.store.remove({id: loaded.design.id})
+  const facts = await runtime.measurer.probe(page).catch(() => null)
+  const route = target.route ?? (facts === null ? undefined : pathnameIn(facts.route))
+  const record = await runtime.store.put({
+    design: loaded.design,
+    image: loaded.image,
+    session,
+    ...(route === undefined ? {} : {route}),
+    ...(target.name === undefined ? {} : {name: target.name}),
+    ...(facts === null ? {} : {framework: facts.framework}),
+  })
+  return {
+    id: record.id,
+    ...(record.route === undefined ? {} : {route: record.route}),
+    width: record.width,
+    height: record.height,
+    scale: record.scale,
+    text: {
+      runs: [...walk(loaded.design.root)].filter(({node}) => node.kind === 'text').length,
+      ...(loaded.warnings.length === 0 ? {} : {error: loaded.warnings.join('; ')}),
+    },
+    next: runtime.words.guide({blind: runtime.blind}),
+  }
 }
 
-type Runs = ReturnType<typeof createRuns>
+function pathnameIn(route: string): string {
+  return route.split('?')[0] ?? route
+}
 
-type History = ReturnType<typeof createHistory>
+function projectRef(input: {ref: string; cwd: string}): string {
+  return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
+}
+
+async function readPng(input: {
+  ref: string
+  project: DesignRuntime['project']
+  words: DesignRuntime['words']
+}): Promise<Uint8Array<ArrayBuffer>> {
+  const raw: unknown = await input.project.getItemRaw(input.ref).catch(() => null)
+  if (raw instanceof Uint8Array) return new Uint8Array(raw)
+  const bytes = pngBase64(input.ref)
+  if (bytes !== null) return bytes
+  throw toolError('image-unreadable', {
+    message: input.words.hint({kind: 'image-unreadable', error: input.ref.slice(0, 80)}),
+  })
+}
+
+function pngBase64(ref: string): Uint8Array<ArrayBuffer> | null {
+  const bytes = new Uint8Array(Buffer.from(ref, 'base64'))
+  return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
+}
+
+async function currentTarget(input: {runtime: DesignRuntime; session: string}): Promise<TargetRecord> {
+  const record = await input.runtime.store.current(input.session)
+  if (record !== null) return record
+  throw toolError('no-target', {message: input.runtime.words.hint({kind: 'no-target'})})
+}
+
+async function knownSection(input: {runtime: DesignRuntime; id: string; section: string}): Promise<void> {
+  const sections = (await input.runtime.store.design(input.id)).root.children
+  if (sections.some((section) => section.id === input.section)) return
+  throw toolError('unknown-section', {
+    message: input.runtime.words.hint({
+      kind: 'unknown-section',
+      section: input.section,
+      expected: sections.map((section) => section.id).join(', '),
+    }),
+  })
+}
+
+function createLanes(input: {execute: (job: Job) => Promise<DiffReport>}): (job: Job) => Promise<DiffReport> {
+  const lanes = new Map<string, Lane>()
+  const start = (lane: Lane): void => {
+    const next = lane.pending
+    if (next === null || lane.running) return
+    lane.pending = null
+    lane.running = true
+    input
+      .execute(next.job)
+      .then(next.resolve, next.reject)
+      .finally(() => {
+        lane.running = false
+        start(lane)
+      })
+  }
+  return (job) => {
+    const lane = lanes.get(job.id) ?? {running: false, pending: null}
+    lanes.set(job.id, lane)
+    const waiting = lane.pending
+    if (waiting !== null) {
+      waiting.job = {...job, observe: job.observe || waiting.job.observe}
+      return waiting.promise
+    }
+    const deferred = Promise.withResolvers<DiffReport>()
+    lane.pending = {job, ...deferred}
+    start(lane)
+    return deferred.promise
+  }
+}
+
+type Lane = {running: boolean; pending: (PromiseWithResolvers<DiffReport> & {job: Job}) | null}
 
 type Request = {
-  job: RunJob
-  touched: Touched
+  job: Job
+  edited: string[]
   runtime: DesignRuntime
   runner: Runner
   page: ServerToolPageAccess
-  history: History
-  latest: Map<string, Settled>
+  reports: Map<string, DiffReport>
+  unanswered: Set<string>
 }
 
-async function answeredDiff(request: Request & {unanswered: Set<string>}): Promise<DiffReport> {
+async function answeredDiff(request: Request): Promise<DiffReport> {
   const {job, unanswered} = request
   const started = Date.now()
   try {
@@ -155,6 +246,7 @@ async function answeredDiff(request: Request & {unanswered: Set<string>}): Promi
     unanswered.delete(job.id)
     return report
   } catch (error) {
+    if (isToolError(error) && error.code === PAGE_ERROR) return pageErrorRound({...request, message: error.message})
     if (!unansweredPage(error)) throw error
     unanswered.add(job.id)
     return unansweredRound({...request, error, started})
@@ -162,591 +254,256 @@ async function answeredDiff(request: Request & {unanswered: Set<string>}): Promi
 }
 
 async function runDiff(request: Request): Promise<DiffReport> {
-  const {job, touched, runtime, runner, page, history, latest} = request
-  const {store, measurer} = runtime
-  const laps: Lap[] = [{phase: null, at: Date.now()}]
-  const record = await store.record(job.id)
-  if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
-  const xray = runtime.xrayUrl({id: record.id, session: job.session})
-  await measurer.connected(page)
-  const route = await otherRoute({record, page, measurer})
-  if (route !== null) return refused({record, route, xray})
-  const decisions = await store.decisions(record.id)
-  const css = await runner.css({id: record.id, decisions})
-  laps.push({phase: null, at: Date.now()})
-  const measuredPage = await measurer.measure({width: record.width, height: record.height, page})
-  laps.push({phase: 'measure', at: Date.now()})
-  if (measuredPage.pageError !== undefined) return pageErrorRound({...request, message: measuredPage.pageError})
-  const reading = measuredPage.capture
-  if (reading.framework === 'solid') await store.writePlaceholder({id: record.id, framework: reading.framework})
-  laps.push({phase: 'decode', at: Date.now()})
-  const capture = captureHash({raster: reading.raster, decisions})
-  const rounds = history.rounds(record.id)
-  const settled = latest.get(record.id)
-  if (job.observe && touched === 'all' && settled !== undefined && countable({settled, capture})) {
-    return countedRound({settled, job, rounds, runtime, page, record, history, latest})
+  const {job, runtime, runner, page, reports} = request
+  const record = await runtime.store.record(job.id)
+  if (record === null) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-target'})})
+  const route = await otherRoute({record, page, measurer: runtime.measurer})
+  if (route !== null) {
+    return refused({
+      record,
+      route,
+      xray: runtime.xrayUrl({id: record.id, session: job.session}).url,
+      words: runtime.words,
+    })
   }
-  const repeated = repeatedRound({rounds, capture, observe: job.observe, touched, timings: runner.timings(laps)})
-  if (repeated !== null) return repeated
-  const twins = await twinPlacements({store, id: record.id})
-  const fresh = await runner.run({
-    job,
+  const {report} = await runner({
     record,
     page,
-    css,
-    decisions,
-    reply: measuredPage,
-    capture,
-    rounds,
-    settled,
-    twins,
-    xray,
-    laps,
+    input: job.input,
+    session: job.session,
+    observe: job.observe,
+    edited: request.edited,
   })
-  if (fresh.round !== null) history.append({id: record.id, round: fresh.round})
-  latest.set(record.id, fresh.settled)
-  return fresh.report
-}
-
-function captureHash(input: {raster: Raster; decisions: Decision[]}): string {
-  const counted = input.decisions.filter((decision) => decision.kind !== 'typography' && decision.kind !== 'twin')
-  return createHash('sha256').update(input.raster.data).update(JSON.stringify(counted)).digest('hex')
-}
-
-async function knownSection(input: {
-  runtime: DesignRuntime
-  runner: Runner
-  id: string
-  query: DiffInput
-}): Promise<DesignNode> {
-  const css = await input.runner.css({id: input.id, decisions: await input.runtime.store.decisions(input.id)})
-  const sections = css.design.root.children
-  const found = sections.find((section) => section.id === input.query.section)
-  if (found !== undefined) return found
-  throw toolError('unknown-section', {
-    message: `the design has no section ${input.query.section}; the sections are ${sections.map((section) => section.id).join(', ')}`,
-  })
+  reports.set(record.id, report)
+  return report
 }
 
 async function otherRoute(input: {
   record: TargetRecord
   page: ServerToolPageAccess
-  measurer: Measurer
-}): Promise<RouteItem | null> {
+  measurer: DesignRuntime['measurer']
+}): Promise<NonNullable<DiffReport['route']> | null> {
   const target = input.record.route
   if (target === undefined) return null
-  const live = await input.measurer.route(input.page).catch(() => null)
-  if (live === null) return null
-  const compared = target.includes('?') ? live : (live.split('?')[0] ?? live)
+  const probed = await input.measurer.probe(input.page).catch(() => null)
+  if (probed === null) return null
+  const live = probed.route
+  const compared = target.includes('?') ? live : pathnameIn(live)
   return compared === target ? null : {live, target}
-}
-
-async function countedRound(input: {
-  settled: Settled
-  job: RunJob
-  rounds: Round[]
-  runtime: DesignRuntime
-  page: ServerToolPageAccess
-  record: TargetRecord
-  history: History
-  latest: Map<string, Settled>
-}): Promise<DiffReport> {
-  const {settled, job, rounds, runtime, page, record, history, latest} = input
-  const {judge} = runtime
-  const {items, score, capturePath} = settled.judging
-  const verdict = judge.verdict({...settled.judging, priors: rounds, round: rounds.length + 1})
-  const {reported, listed} = judge.report({
-    measured: settled.measured,
-    input: job.input,
-    twins: settled.twins,
-  })
-  const components = await runtime.provenance.attribute({
-    ranked: reported,
-    page,
-    width: record.width,
-    height: record.height,
-    sourced: runtime.deltas.sourced,
-  })
-  const {paired, ...hinted} = settled.hinted
-  const report: DiffReport = {
-    ...omit(settled.report, ['hint']),
-    ...verdict,
-    components,
-    ...judge.hint({...hinted, cut: {listed, shown: reported.length, paired}}),
-  }
-  const run = await runtime.store.writeRun({
-    run: {...settled.run, round: rounds.length + 1, score: verdict.score, stop: verdict.stop},
-    live: (await runtime.store.liveImage({id: record.id, run: settled.run.id})) ?? new Uint8Array(),
-    diff: new Uint8Array(),
-  })
-  history.append({
-    id: record.id,
-    round: judge.round({items, score, capturePath, capture: settled.capture, report, section: job.input.section}),
-  })
-  latest.set(record.id, {...settled, observe: true, report, run})
-  return report
-}
-
-function repeatedRound(input: {
-  rounds: Round[]
-  capture: string
-  observe: boolean
-  touched: Touched
-  timings: ReturnType<Runner['timings']>
-}): DiffReport | null {
-  const previous = input.rounds.at(-1)
-  if (!input.observe || input.touched !== 'all') return null
-  if (previous === undefined || previous.capture !== input.capture) return null
-  return {...previous.report, hint: UNCHANGED_HINT, timings: {...input.timings, carried: {pairs: 0, tiles: 0}}}
-}
-
-function countable(input: {settled: Settled; capture: string}): boolean {
-  const {settled, capture} = input
-  return !settled.observe && !settled.judging.partial && settled.capture === capture
 }
 
 function unansweredPage(error: unknown): error is Error {
   return isPageVerbError(error) && UNANSWERED_CODES.has(error.code)
 }
 
-async function unansweredRound(input: {
-  error: Error
-  job: RunJob
-  history: History
-  latest: Map<string, Settled>
-  runtime: DesignRuntime
-  started: number
-}): Promise<DiffReport> {
-  const previous = await previousReport(input)
-  const elapsed = Date.now() - input.started
+async function unansweredRound(request: Request & {error: Error; started: number}): Promise<DiffReport> {
+  const previous = await previousReport(request)
+  const elapsed = Date.now() - request.started
   return {
     ...previous,
     partial: true,
     stop: null,
-    hint: `${UNANSWERED_HINT}; ${input.error.message}`,
-    timings: TimingsSchema.parse({measure: elapsed, total: elapsed}),
+    hint: request.runtime.words.hint({kind: 'hidden-tab', error: request.error.message}),
+    timings: {...blankTimings(), measure: elapsed, total: elapsed},
   }
 }
 
-async function pageErrorRound(input: {
-  message: string
-  job: RunJob
-  history: History
-  latest: Map<string, Settled>
-  runtime: DesignRuntime
-}): Promise<DiffReport> {
-  const {message} = input
-  const previous = await previousReport(input)
+async function pageErrorRound(request: Request & {message: string}): Promise<DiffReport> {
+  const {message} = request
+  const previous = await previousReport(request)
   return {
     ...omit(previous, ['hint']),
     stop: null,
-    changes: NO_CHANGES,
+    changes: noChanges(),
     warnings: [{kind: 'text', warning: 'page-error', live: message, target: ''}],
-    brief: [`${PAGE_ERROR_BRIEF}: ${message}`],
+    brief: [request.runtime.words.hint({kind: 'page-error', error: message})],
   }
 }
 
-async function previousReport(input: {
-  job: RunJob
-  history: History
-  latest: Map<string, Settled>
-  runtime: DesignRuntime
-}): Promise<DiffReport> {
-  const {job, runtime} = input
-  return (
-    input.history.rounds(job.id).at(-1)?.report ??
-    input.latest.get(job.id)?.report ??
-    (await emptyReport({job, runtime}))
-  )
-}
-
-async function emptyReport(input: {job: RunJob; runtime: DesignRuntime}): Promise<DiffReport> {
-  const {job, runtime} = input
+async function previousReport(request: Request): Promise<DiffReport> {
+  const {job, runtime, reports} = request
+  const known = reports.get(job.id)
+  if (known !== undefined) return known
   const record = await runtime.store.record(job.id)
-  if (record === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
-  return DiffReportSchema.parse({
-    target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
-    mismatch: 0,
-    diffImage: '',
-    livePath: '',
-    xray: runtime.xrayUrl({id: record.id, session: job.session}).url,
-    components: [],
-    unmatched: [],
-  })
+  if (record === null) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-target'})})
+  return blankReport({record, xray: runtime.xrayUrl({id: record.id, session: job.session}).url})
 }
 
-function refused(input: {record: TargetRecord; route: RouteItem; xray: XrayLink}): DiffReport {
+function refused(input: {
+  record: TargetRecord
+  route: NonNullable<DiffReport['route']>
+  xray: string
+  words: DesignRuntime['words']
+}): DiffReport {
   const {record, route, xray} = input
-  return DiffReportSchema.parse({
+  return {
+    ...blankReport({record, xray}),
+    route,
+    hint: input.words.hint({kind: 'refused-route', route: route.live, expected: route.target}),
+  }
+}
+
+function blankReport(input: {record: TargetRecord; xray: string}): DiffReport {
+  const {record, xray} = input
+  return {
     target: {id: record.id, ...(record.route === undefined ? {} : {route: record.route}), width: record.width},
     mismatch: 0,
+    sectionSimilarity: {},
     diffImage: '',
     livePath: '',
-    xray: xray.url,
+    xray,
     components: [],
     unmatched: [],
     warnings: [],
+    painted: null,
     sources: [],
-    route,
-    hint: `the tab shows ${route.live} but the design target is the design of ${route.target}; navigate the tab to ${route.target}, then diff again`,
+    stage: null,
+    brief: [],
+    round: 0,
+    stop: null,
+    score: [],
+    responsive: [],
+    partial: false,
+    paired: 0,
+    pinsLost: [],
+    timings: blankTimings(),
+    rows: [],
+    changes: noChanges(),
+    ledger: {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0},
+    designPath: '',
+    placeholderPath: '',
+  }
+}
+
+function blankTimings(): DiffReport['timings'] {
+  return {
+    capture: 0,
+    decode: 0,
+    measure: 0,
+    mask: 0,
+    similarity: 0,
+    regions: 0,
+    pair: 0,
+    typography: 0,
+    deltas: 0,
+    judge: 0,
+    encode: 0,
+    write: 0,
+    total: 0,
+    carried: {pairs: 0, tiles: 0},
+  }
+}
+
+function noChanges(): DiffReport['changes'] {
+  return {done: [], regressed: [], paired: [], lost: [], moved: []}
+}
+
+async function targetStatus(input: {
+  runtime: DesignRuntime
+  session: string
+  unanswered: Set<string>
+}): Promise<StatusReport> {
+  const {runtime} = input
+  const {store} = runtime
+  const record = await store.current(input.session)
+  if (record === null) return {targets: [], done: false}
+  const [run, previous, design, rounds, accepted] = await Promise.all([
+    store.latest(record.id),
+    earlierRun({store, id: record.id}),
+    store.design(record.id).catch(() => null),
+    countedRounds({store, record}),
+    record.acceptedRun === undefined ? null : store.run({id: record.id, run: record.acceptedRun}),
+  ])
+  return runtime.words.status({
+    record,
+    run,
+    design,
+    previous,
+    accepted,
+    rounds,
+    unanswered: input.unanswered.has(record.id),
+    blind: runtime.blind,
   })
 }
 
-function createRuns(input: {execute: (input: {job: RunJob; touched: Touched}) => Promise<DiffReport>}): {
-  trigger: (job: RunJob) => Promise<DiffReport>
-  touch: (input: {file: string}) => void
-} {
-  const lanes = new Map<string, Lane>()
-  const start = (lane: Lane): void => {
-    const next = lane.pending
-    if (next === null || lane.running) return
-    lane.pending = null
-    lane.running = true
-    const touched: Touched = lane.touched.size === 0 ? 'all' : new Set(lane.touched)
-    lane.touched.clear()
-    input
-      .execute({job: next.job, touched})
-      .then(next.resolve, next.reject)
-      .finally(() => {
-        lane.running = false
-        start(lane)
-      })
-  }
-  return {
-    touch: ({file}) => lanes.forEach((lane) => lane.touched.add(file)),
-    trigger: (job) => {
-      const lane = lanes.get(job.id) ?? {running: false, pending: null, touched: new Set<string>()}
-      lanes.set(job.id, lane)
-      const waiting = lane.pending
-      if (waiting !== null) {
-        waiting.job = {...job, observe: job.observe || waiting.job.observe}
-        return waiting.promise
-      }
-      const deferred = Promise.withResolvers<DiffReport>()
-      lane.pending = {job, ...deferred}
-      start(lane)
-      return deferred.promise
-    },
-  }
+async function watchReport(input: {runtime: DesignRuntime; session: string; query: WatchInput}): Promise<WatchReport> {
+  const {runtime, query} = input
+  const {store} = runtime
+  const record = await currentTarget({runtime, session: input.session})
+  const [design, run, previous] = await Promise.all([
+    store.design(record.id),
+    store.latest(record.id),
+    earlierRun({store, id: record.id}),
+  ])
+  return runtime.words.watch({record, run, design, input: query, previous})
 }
 
-function createHistory(): {
-  reset: (id: string) => void
-  rounds: (id: string) => Round[]
-  append: (input: {id: string; round: Round}) => void
-} {
-  const all = new Map<string, Round[]>()
-  return {
-    reset: (id) => all.set(id, []),
-    rounds: (id) => all.get(id) ?? [],
-    append: ({id, round}) => all.set(id, [...(all.get(id) ?? []), round]),
-  }
+async function earlierRun(input: {store: Store; id: string}): Promise<Run | null> {
+  const before = (await input.store.runs(input.id)).at(-2)
+  return before === undefined ? null : input.store.run({id: input.id, run: before})
 }
 
-type Deferred = {promise: Promise<DiffReport>; resolve: (report: DiffReport) => void; reject: (error: unknown) => void}
-
-type Lane = {running: boolean; pending: (Deferred & {job: RunJob}) | null; touched: Set<string>}
-
-const DEFAULT_DIFF: DiffInput = DiffInputSchema.parse({})
-
-const UNCHANGED_HINT = 'the page has not changed since the last diff'
-
-const PAGE_ERROR_BRIEF = 'the page did not render'
-
-const UNANSWERED_CODES: ReadonlySet<string> = new Set(['page-hidden', 'no-live-widget'])
-
-type RouteItem = NonNullable<DiffReport['route']>
-
-function latestOf(settled: Settled | undefined): Latest | undefined {
-  return settled === undefined ? undefined : {run: settled.run, report: settled.report, items: settled.judging.items}
-}
-
-const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
-
-type Touched = Set<string> | 'all'
-
-async function targetStatus(input: {
-  context: DesignRuntime
-  runner: Runner
-  session: string
-  unanswered: (id: string) => boolean
-  rounds: (id: string) => Round[]
-  latest: (id: string) => Latest | undefined
-}): Promise<StatusReport> {
-  const {context} = input
-  const {store, judge} = context
-  const record = await store.current(input.session)
-  if (record === null) return {targets: [], done: false}
-  const settled = input.latest(record.id)
-  const run = settled?.run ?? (await store.latest(record.id))
-  const report = settled?.report ?? null
-  const css = await input.runner.css({id: record.id, decisions: await store.decisions(record.id)}).catch(() => null)
-  const reregister = css === null
-  const done = !reregister && (await finished({store, record, run, worse: judge.worse}))
-  const sections =
-    css === null ? [] : css.design.root.children.toSorted((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)
-  const budgets = keyBy(judge.budgets({sections, items: [], rounds: input.rounds(record.id)}), (budget) => budget.id)
-  const paths = input.runner.paths(record.id)
-  return {
-    ...(record.route === undefined ? {} : {route: record.route}),
-    targets: [{id: record.id, width: record.width, ...runSummary(report)}],
-    done,
-    ...loopState({record, run, report}),
-    ledger: judge.counts(run?.root.children ?? []),
-    sections: sections.map((section) => ({
-      id: section.id,
-      kind: section.kind,
-      line: context.words.line({node: section, scale: 1}),
-      ledger: judge.counts(run?.root.children.filter((child) => child.node.id === section.id) ?? []),
-      roundsUsed: budgets[section.id]?.roundsUsed ?? 0,
-      ...withSimilarity(report?.sectionSimilarity[section.id]),
-    })),
-    ...(report === null ? {} : {changes: report.changes}),
-    ...paths,
-    ...statusNext({
-      done,
-      unanswered: input.unanswered(record.id),
-      first: (run?.round ?? 0) === 0,
-      ...paths,
-      families: css === null ? [] : designFamilies([...walk({root: css.design.root})].map(({node}) => node)),
-    }),
-    ...(reregister ? {reregister} : {}),
-  }
-}
-
-function runSummary(report: DiffReport | null): {mismatch: number | null; above: number; lastAt: number | null} {
-  if (report === null) return {mismatch: null, above: 0, lastAt: null}
-  return {mismatch: report.mismatch, above: aboveTolerance(report), lastAt: runTime(report)}
-}
-
-async function finished(input: {
-  store: Store
-  record: TargetRecord
-  run: Run | null
-  worse: (input: {a: number[]; b: number[]}) => boolean
-}): Promise<boolean> {
-  const {store, record, run, worse} = input
-  if (run === null) return false
-  if (run.stop === 'done') return true
-  if (record.acceptedRun === undefined) return false
-  const accepted = await store.run({id: record.id, run: record.acceptedRun})
-  return accepted !== null && !worse({a: run.score, b: accepted.score})
-}
-
-function loopState(input: {record: TargetRecord; run: Run | null; report: DiffReport | null}): Partial<StatusReport> {
-  const {record, run, report} = input
-  const accepted = record.acceptedRun === undefined ? {} : {acceptedRun: record.acceptedRun}
-  if (run === null) return accepted
-  return {...accepted, score: run.score, round: run.round, stop: run.stop, ...withSimilarity(report?.similarity)}
-}
-
-function runRows(input: {run: Run; settled: Latest | undefined}): WatchRow[] {
-  const {run, settled} = input
-  const items = settled?.run.id === run.id ? settled.items : []
-  return [...walk({root: run.root})].flatMap(({node, depth}): WatchRow[] =>
-    depth === 0
-      ? []
-      : [
-          {
-            node: node.node.id,
-            ref: node.node.id,
-            kind: node.node.kind,
-            text: node.node.kind === 'text' ? node.node.text : null,
-            box: node.node.box,
-            status: node.status,
-            key: node.live?.key ?? null,
-            source: node.live?.source ?? null,
-            path: node.live?.path ?? null,
-            confidence: node.live === null ? null : node.confidence,
-            item: worstSentence({items, node: node.node.id}),
-          },
-        ],
-  )
-}
-
-async function designRows(input: {store: Store; id: string}): Promise<WatchRow[]> {
-  const design = await input.store.design(input.id)
-  return [...walk({root: design.root})].flatMap(({node, depth}): WatchRow[] =>
-    depth === 0
-      ? []
-      : [
-          {
-            node: node.id,
-            ref: node.id,
-            kind: node.kind,
-            text: node.kind === 'text' ? node.text : null,
-            box: node.box,
-            status: 'unbuilt',
-            key: null,
-            source: null,
-            path: null,
-            confidence: null,
-            item: null,
-          },
-        ],
-  )
-}
-
-function worstSentence(input: {items: Item[]; node: string}): string | null {
-  return (
-    maxBy(
-      input.items.filter((item) => item.node === input.node && item.stage !== null),
-      (item) => item.size,
-    )?.sentence ?? null
-  )
-}
-
-function statusNext(input: {
-  done: boolean
-  unanswered: boolean
-  first: boolean
-  designPath: string
-  placeholderPath: string
-  families: string[]
-}): {
-  next?: string
-} {
-  if (input.unanswered) return {next: UNANSWERED_HINT}
-  if (input.done) return {}
-  if (input.first) {
-    return {
-      next: `read ${input.designPath} for the whole design before building; the brief lists what to fix first; copy ${input.placeholderPath} into the page's source and use <Placeholder kind=…> for every image and icon line${fontsPhrase(input.families)}`,
-    }
-  }
-  return {next: DESIGN_GUIDE}
-}
-
-function fontsPhrase(families: string[]): string {
-  if (families.length === 0) return ''
-  return `; the design sets its text in ${families.join(', ')}: load these fonts before building`
-}
-
-function withSimilarity(similarity: number | undefined): {similarity?: number} {
-  return similarity === undefined ? {} : {similarity}
-}
-
-function runTime(report: DiffReport): number | null {
-  const at = Number((report.livePath.split('/').at(-2) ?? '').split('-')[0])
-  return Number.isFinite(at) ? at : null
-}
-
-function watchMatches(input: {row: WatchRow; query: WatchInput}): boolean {
-  const {row, query} = input
-  if (query.node !== undefined && row.node !== query.node) return false
-  if (query.ref !== undefined && row.ref !== query.ref) return false
-  if (query.key !== undefined && row.key !== query.key) return false
-  return query.status === undefined || row.status === query.status
-}
-
-async function watchReport(input: {
-  context: DesignRuntime
-  query: WatchInput
-  session: SessionId
-  latest: (id: string) => Latest | undefined
-}): Promise<WatchReport> {
-  const {context, query, session, latest} = input
-  const {store, judge} = context
-  const record = await context.registrar.current(session)
-  const settled = latest(record.id)
-  const stored = await store.latest(record.id)
-  const run = settled?.run ?? stored
-  const rows = (run === null ? await designRows({store, id: record.id}) : runRows({run, settled})).filter((row) =>
-    watchMatches({row, query}),
-  )
-  return {
-    target: record.id,
-    run: run?.id ?? null,
-    live: settled !== undefined && settled.run.id !== stored?.id,
-    counts: run === null ? {...judge.counts([]), unbuilt: rows.length} : judge.counts(run.root.children),
-    rows: rows.slice(0, query.limit),
-    truncated: Math.max(0, rows.length - query.limit),
-  }
+async function countedRounds(input: {store: Store; record: TargetRecord}): Promise<Run[]> {
+  const {store, record} = input
+  const ids = await store.runs(record.id)
+  const accepted = record.acceptedRun === undefined ? -1 : ids.indexOf(record.acceptedRun)
+  const loaded = await Promise.all(ids.slice(accepted + 1).map((run) => store.run({id: record.id, run})))
+  return loaded.flatMap((run, index) => {
+    if (run === null || run.round === 0) return []
+    const before = loaded[index - 1]
+    return before !== undefined && before !== null && before.round === run.round ? [] : [run]
+  })
 }
 
 async function linkTwins(input: {store: Store; id: string; session: string}): Promise<void> {
   const {store, id, session} = input
   const others = (await store.list()).filter((record) => record.session === session && record.id !== id)
-  const here = await latestRun({store, id})
+  const here = await store.latest(id)
   if (here === null) return
-  await Promise.all(others.map((other) => linkPair({store, here, other: other.id})))
+  await Promise.all(others.map((other) => linkPair({store, id, here, other: other.id})))
 }
 
-async function twinPlacements(input: {store: Store; id: string}): Promise<Twin[]> {
-  const {store, id} = input
-  const twins = (await store.decisions(id)).filter((decision) => decision.kind === 'twin')
-  const placed = await Promise.all(
-    twins.map(async (decision): Promise<(Twin & {confidence: number})[]> => {
-      const [target = '', node = ''] = String(decision.value).split(TWIN_SEPARATOR)
-      const run = await latestRun({store, id: target})
-      const found = run === null ? null : find({root: run.root, id: node, idOf: pairedId(run.root)})
-      if (found === null || found.live === null) return []
-      return [{node: decision.anchor, target, path: found.live.path, confidence: found.confidence}]
-    }),
-  )
-  return uniqBy(
-    placed.flat().toSorted((a, b) => b.confidence - a.confidence),
-    (twin) => `${twin.node}:${twin.target}`,
-  ).map(({node, target, path}) => ({node, target, path}))
-}
-
-async function linkPair(input: {store: Store; here: Run; other: string}): Promise<void> {
-  const {store, here, other} = input
-  const there = await latestRun({store, id: other})
+async function linkPair(input: {store: Store; id: string; here: Run; other: string}): Promise<void> {
+  const {store, id, here, other} = input
+  const there = await store.latest(other)
   if (there === null) return
-  const links = [...walk({root: here.root})].flatMap(({node: match, depth}) => {
-    const twin =
-      depth === 0 || match.live === null
-        ? null
-        : find({root: there.root, id: match.live.path, idOf: livePath(there.root)})
-    return twin === null ? [] : [{node: match.node.id, twin: twin.node.id}]
+  const placed = new Map(
+    [...walk(there.root)].flatMap(({node, depth}) =>
+      depth === 0 || node.live === null ? [] : [[node.live.path, node.node.id] as const],
+    ),
+  )
+  const links = [...walk(here.root)].flatMap(({node, depth}) => {
+    const twin = depth === 0 || node.live === null ? undefined : placed.get(node.live.path)
+    return twin === undefined ? [] : [{node: node.node.id, twin}]
   })
-  await unlink({store, id: here.design, other})
-  await unlink({store, id: other, other: here.design})
+  await unlink({store, id, other})
+  await unlink({store, id: other, other: id})
   for (const link of links) {
-    await store.decide({
-      id: here.design,
-      kind: 'twin',
-      anchor: link.node,
-      value: `${other}${TWIN_SEPARATOR}${link.twin}`,
-    })
-    await store.decide({
-      id: other,
-      kind: 'twin',
-      anchor: link.twin,
-      value: `${here.design}${TWIN_SEPARATOR}${link.node}`,
-    })
+    await store.decide({id, kind: 'twin', anchor: link.node, value: {target: other, node: link.twin}})
+    await store.decide({id: other, kind: 'twin', anchor: link.twin, value: {target: id, node: link.node}})
   }
 }
 
 async function unlink(input: {store: Store; id: string; other: string}): Promise<void> {
   const {store, id, other} = input
   const stale = (await store.decisions(id)).filter(
-    (decision) => decision.kind === 'twin' && String(decision.value).startsWith(`${other}${TWIN_SEPARATOR}`),
+    (decision) =>
+      decision.kind === 'twin' &&
+      typeof decision.value === 'object' &&
+      decision.value !== null &&
+      'target' in decision.value &&
+      decision.value.target === other,
   )
   for (const decision of stale) await store.revoke({id, decision: decision.id})
-}
-
-async function latestRun(input: {store: Store; id: string}): Promise<Run | null> {
-  const last = (await input.store.runs(input.id)).at(-1)
-  return last === undefined ? null : input.store.run({id: input.id, run: last})
-}
-
-function pairedId(root: Match): (match: Match) => string {
-  return (match) => (match === root ? '' : match.node.id)
-}
-
-function livePath(root: Match): (match: Match) => string {
-  return (match) => (match === root || match.live === null ? '' : match.live.path)
 }
 
 function watchSettled(input: {
   bundler: BundlerBridge | undefined
   store: Store
   page: DesignPage
-  refresh: (input: {session: SessionId}) => Promise<unknown>
-  touch: (input: {file: string}) => void
+  refresh: (input: {session: string}) => Promise<unknown>
 }): {dispose: () => void; quiet: () => Promise<void>} {
-  const {bundler, store, page, refresh, touch} = input
+  const {bundler, store, page, refresh} = input
   const state: {burst: Burst | null; flight: Promise<void>} = {burst: null, flight: Promise.resolve()}
   const settle = async (since: number): Promise<void> => {
     const sessions = new Set((await store.list()).map((record) => record.session).filter(isSessionId))
@@ -769,7 +526,6 @@ function watchSettled(input: {
   }
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind !== 'hmr-update') return
-    touch({file: diagnostic.file})
     const burst = state.burst ?? {
       timer: undefined,
       since: diagnostic.timestamp - TOLERANCES.runDebounceMs,
@@ -810,7 +566,3 @@ function outsidePage(input: {bundler: BundlerBridge | undefined; files: string[]
 function applied(reply: unknown): boolean {
   return typeof reply === 'object' && reply !== null && 'applied' in reply && reply.applied === true
 }
-
-const SETTLE_TOOL = 'page_hmr'
-
-const SETTLE_WAIT_MS = 5000

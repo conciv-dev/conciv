@@ -1,9 +1,9 @@
 import {createMemo, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {minBy} from 'es-toolkit'
 import {Collapsible} from '@conciv/ui-kit-system'
-import {STAGES, type DesignNode, type DiffReport, type Stage} from '../shared/defs.js'
-import {kindStage} from '../shared/tolerances.js'
-import {nodeName, type ReportResponse, type XrayData} from './panel.js'
+import type {DesignNode, DiffReport} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
+import {nodeName, STAGES, type ReportResponse, type Stage, type XrayData} from './panel.js'
 
 type Cell = {kind: 'absent'} | {kind: 'match'} | {kind: 'item'; stage: Stage; confidence: number}
 type HeatRow = {node: DesignNode; cells: Cell[]}
@@ -111,7 +111,7 @@ function nodeItems(input: {report: DiffReport | null; node: string}): {stage: St
     .filter((component) => component.nodes?.includes(node) ?? false)
     .flatMap((component) => component.deltas)
     .flatMap((delta) => {
-      const stage = kindStage(delta.kind)
+      const stage = designConfig.kindStage(delta.kind)
       return stage === null ? [] : [{stage, confidence: delta.confidence ?? 1}]
     })
   const unmatched = report.unmatched.flatMap((entry) =>

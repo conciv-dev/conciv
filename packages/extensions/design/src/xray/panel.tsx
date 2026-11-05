@@ -3,28 +3,27 @@ import {createTimer} from '@solid-primitives/timer'
 import {compact, minBy, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
 import {
-  STAGES,
+  RunSchema,
   type Box,
-  type ComponentReport,
   type Decision,
-  type DeltaKindName,
   type DesignNode,
   type DiffReport,
-  type MeasureSource,
   type Run,
-  type SourceLoc,
-  type Stage,
   type TargetRecord,
 } from '../shared/defs.js'
-import {
-  aboveTolerance,
-  componentAboveTolerance,
-  deltaSentence,
-  kindStage,
-  kindTolerance,
-  SOURCE_ATTR,
-  traced,
-} from '../shared/tolerances.js'
+import {designConfig} from '../shared/tolerances.js'
+
+type ComponentReport = DiffReport['components'][number]
+
+export type SourceLoc = NonNullable<ComponentReport['source']>
+
+export type Stage = NonNullable<Run['stage']>
+
+export const STAGES = RunSchema.shape.stage.unwrap().options
+
+type DeltaKindName = Delta['kind']
+
+type MeasureSource = NonNullable<Delta['source']>
 
 export type Delta = ComponentReport['deltas'][number]
 
@@ -106,7 +105,7 @@ function componentRow(input: {component: ComponentReport; index: number; report:
     label: sourceLabel(component.source),
     source: component.source,
     tag: component.tag,
-    selector: component.selector.startsWith(`[${SOURCE_ATTR}=`) ? component.tag : component.selector,
+    selector: component.selector.startsWith(`[${designConfig.attributes.source}=`) ? component.tag : component.selector,
     live: component.live,
     target: component.target,
     mismatch: component.mismatch,
@@ -132,7 +131,7 @@ function deltaMeta(input: {
   report: DiffReport
 }): Pick<Row, 'stage' | 'measured' | 'confidence' | 'width'> {
   const [first] = input.deltas
-  const stages = compact(input.deltas.map((delta) => kindStage(delta.kind)))
+  const stages = compact(input.deltas.map((delta) => designConfig.kindStage(delta.kind)))
   return {
     stage: minBy(stages, (stage) => STAGES.indexOf(stage)) ?? null,
     measured: first?.source ?? input.report.sources[0] ?? null,
@@ -183,7 +182,7 @@ function placedName(input: {name: string; box: Box}): string {
 
 function regionQuery(region: Region): string | null {
   if (region.source === undefined || region.live === undefined) return null
-  return `[${SOURCE_ATTR}="${region.source.file}:${region.source.line}:${region.source.column}"]`
+  return `[${designConfig.attributes.source}="${region.source.file}:${region.source.line}:${region.source.column}"]`
 }
 
 function sameSite(input: {warning: Delta; source: SourceLoc | null}): boolean {
@@ -192,7 +191,7 @@ function sameSite(input: {warning: Delta; source: SourceLoc | null}): boolean {
 
 export function rowAboveTolerance(row: Row): boolean {
   if (row.unmatched !== null || row.mismatch === null) return true
-  return componentAboveTolerance({deltas: row.deltas, mismatch: row.mismatch})
+  return designConfig.componentAboveTolerance({deltas: row.deltas, mismatch: row.mismatch})
 }
 
 function runTime(report: DiffReport | null): number | null {
@@ -305,9 +304,9 @@ function badgeColor(delta: Delta): BadgeColor {
 export type View = 'list' | 'capture'
 
 export function fixPrompt(row: Row): string | null {
-  const deltas = row.deltas.filter(traced)
+  const deltas = row.deltas.filter(designConfig.traced)
   if (deltas.length === 0) return null
-  return `Fix ${row.label} (${row.selector}) to match the design: ${deltas.map(deltaSentence).join('. ')}.`
+  return `Fix ${row.label} (${row.selector}) to match the design: ${deltas.map(designConfig.deltaSentence).join('. ')}.`
 }
 
 const BADGE_CLASS: Record<BadgeColor | 'green', string> = {
@@ -498,7 +497,7 @@ function cellValue(input: {delta: Delta; value: number | string}): string {
 }
 
 function deltaSource(delta: Delta): SourceLoc | null {
-  if (!traced(delta) || delta.file === undefined) return null
+  if (!designConfig.traced(delta) || delta.file === undefined) return null
   return {file: delta.file, line: delta.line ?? 1, column: delta.column ?? 1}
 }
 
@@ -630,7 +629,7 @@ function PropertyTable(props: {row: Row; opinions: boolean; onOpen: (source: Sou
 function opinionAgrees(input: {delta: Delta; live: number | string}): boolean {
   const {delta, live} = input
   if (typeof live !== 'number' || typeof delta.live !== 'number') return live === delta.live
-  return Math.abs(live - delta.live) <= kindTolerance(delta.kind)
+  return Math.abs(live - delta.live) <= designConfig.kindTolerance(delta.kind)
 }
 
 function CaptureCrop(props: {row: Row; live: string; target: TargetRecord}): JSX.Element {
@@ -707,7 +706,8 @@ export function ComponentDetail(props: ComponentDetailProps): JSX.Element {
     setTimeout,
   )
   const prompt = () => fixPrompt(props.row)
-  const lines = () => uniq(props.row.deltas.flatMap((delta) => (traced(delta) ? [deltaWhere(delta)] : []))).length
+  const lines = () =>
+    uniq(props.row.deltas.flatMap((delta) => (designConfig.traced(delta) ? [deltaWhere(delta)] : []))).length
   const copy = (text: string) => {
     const report = props.onCopied
     void navigator.clipboard.writeText(text).then(
@@ -971,4 +971,9 @@ export function XrayPanel(props: XrayPanelProps): JSX.Element {
       </div>
     </div>
   )
+}
+
+function aboveTolerance(report: Pick<DiffReport, 'components' | 'unmatched'>): number {
+  const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure')
+  return report.components.filter(designConfig.componentAboveTolerance).length + unbuilt.length
 }
