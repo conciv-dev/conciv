@@ -13,7 +13,7 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {makeExtRpcClient} from '@conciv/extension'
-import {CompactReportSchema, MARK_KINDS, type CompactReport} from '@conciv/extension-design/defs'
+import {CompactReportSchema, MARK_KINDS, type CompactReport, type TargetInput} from '@conciv/extension-design/defs'
 import type {XrayRouter} from '@conciv/extension-design/xray-routes'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
@@ -40,6 +40,8 @@ type Options = {
   route: string
   width: number
   image?: string
+  figma?: string
+  document?: string
   state?: string
   port: number
   agent: boolean
@@ -103,6 +105,8 @@ async function main(): Promise<void> {
       route: {type: 'string', default: '/'},
       width: {type: 'string', default: '1280'},
       image: {type: 'string'},
+      figma: {type: 'string'},
+      document: {type: 'string'},
       state: {type: 'string'},
       port: {type: 'string', default: '0'},
       render: {type: 'string'},
@@ -126,12 +130,12 @@ async function render(dir: string): Promise<void> {
 
 async function serve(input: {options: Options; commands: string[]}): Promise<void> {
   const {options} = input
-  const image = requiredImage(options.image)
+  const target = await targetInput(options)
   const dirs = await trialDirs(options.state)
   const server = await hostServer({...dirs, port: options.port, agent: options.agent, blind: options.blind})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
   try {
-    const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, image})
+    const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target})
     print(`state ${dirs.stateRoot}`)
     await readCommands({trial, commands: input.commands})
   } finally {
@@ -141,9 +145,16 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   }
 }
 
-function requiredImage(image: string | undefined): string {
-  if (image === undefined) throw new Error('--image <png> is required')
-  return resolve(image)
+async function targetInput(options: Options): Promise<TargetInput> {
+  const {image, figma, document} = options
+  if (document !== undefined) {
+    if (figma === undefined || image === undefined) throw new Error('--document needs --figma and --image')
+    const parsed: unknown = JSON.parse(await readFile(resolve(document), 'utf8'))
+    return {figma, image: resolve(image), document: parsed}
+  }
+  if (image !== undefined && figma === undefined) return {image: resolve(image)}
+  if (figma !== undefined && image === undefined) return {figma}
+  throw new Error('--image <png> or --figma <link> is required')
 }
 
 async function trialDirs(state: string | undefined): Promise<TrialDirs> {
@@ -194,7 +205,7 @@ async function open(input: {
   server: ViteDevServer
   browser: Browser
   devEndpointDir: string
-  image: string
+  target: TargetInput
 }): Promise<Trial> {
   const local = input.server.resolvedUrls?.local[0]
   if (local === undefined) throw new Error('the fixture dev server has no local url')
@@ -208,7 +219,7 @@ async function open(input: {
     await injectWidget({page, apiBase})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
   })
-  const registered = TargetSchema.parse(await rpc.registry.call({name: 'design_target', input: {image: input.image}}))
+  const registered = TargetSchema.parse(await rpc.registry.call({name: 'design_target', input: input.target}))
   print(
     `target ${registered.id} ${registered.width}x${registered.height} text runs ${registered.text.runs}` +
       ` stage ${shown(registered.stage)} tab ${input.options.width}`,
