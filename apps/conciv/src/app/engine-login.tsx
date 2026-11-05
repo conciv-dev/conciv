@@ -1,4 +1,4 @@
-import {createMemo, from, onMount, type Accessor, type JSX} from 'solid-js'
+import {createMemo, from, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
   browserRpcConnection,
@@ -8,6 +8,7 @@ import {
   type TrustStatus,
 } from '@conciv/contract'
 import {Button, Dialog, PinInput} from '@conciv/ui-kit-system'
+import {useLayers} from './context.js'
 
 export type EngineLogin = {
   trust: Accessor<EngineTrust>
@@ -62,6 +63,7 @@ export async function startEngineLogin(login: EngineLogin): Promise<boolean> {
 
 export function EngineLoginDialog(props: {trust: EngineTrust; onClose: () => void}): JSX.Element {
   const [view, setView] = createStore<{notice: LoginNotice}>({notice: 'none'})
+  onCleanup(useLayers().register(() => true, false))
   const requestCode = (reissue: boolean): void => {
     props.trust
       .requestAuthCode({reissue})

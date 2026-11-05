@@ -206,7 +206,7 @@ function RootChrome(props: {
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
   const locked = () => login?.status() === 'untrusted'
-  const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen() && !locked()
+  const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
@@ -383,9 +383,7 @@ function RootChrome(props: {
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
       <PanelChromeContext.Provider value={{close: closePanel}}>
-        <Show when={!locked()}>
-          <Outlet />
-        </Show>
+        <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
         <ShellFab
@@ -399,7 +397,7 @@ function RootChrome(props: {
           working={working}
           suppressed={suppressed}
           fab={props.fab}
-          locked={locked}
+          locked={() => locked() && !panelOpen()}
           onToggle={togglePanel}
         />
       </Show>

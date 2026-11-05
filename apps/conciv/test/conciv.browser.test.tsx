@@ -1679,6 +1679,8 @@ describe('engine login', () => {
   const dialog = () => page.getByRole('dialog', {name: 'Authorize conciv'})
   const firstDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const reloginNotice = () =>
+    page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
 
   test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
@@ -1789,21 +1791,44 @@ describe('engine login', () => {
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
     await page.getByRole('button', {name: 'Session options'}).click()
     await page.getByRole('button', {name: 'Refresh the conversation'}).click()
-    await expect.element(locked(), {timeout: 8000}).toBeVisible()
-    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
     expect(localStorage.getItem(storageKey())).toBeNull()
   }, 30_000)
 
-  test('revoking a browser while its panel is open closes its sockets and locks the tab with no further action', async () => {
+  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
     await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
     await coreControl.revokeBrowsers()
-    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
     await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+    await expect.element(dialog()).toBeVisible()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
+    await coreControl.scriptTurn({toolCalls: [], text: 'Back in after the new code.'})
+    await editor().fill('are we back')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.element(page.getByText('Back in after the new code.')).toBeVisible()
   }, 30_000)
 
-  test('Retry on the unreachable screen checks the login again: untrusted locks, trusted opens the panel', async () => {
+  test('revoking a browser while its panel is closed locks the launcher', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(opener()).toBeVisible()
+    await coreControl.revokeBrowsers()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await locked().click()
+    await expect.element(dialog()).toBeVisible()
+  }, 30_000)
+
+  test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
     const retryWhileOffline = async (): Promise<void> => {
       const offline = await faults.install({kind: 'offline'})
       harness.mountShell('/', [], {login: {apiBase: origin()}})
@@ -1814,8 +1839,12 @@ describe('engine login', () => {
       await screen.getByRole('button', {name: 'Retry'}).click()
     }
     await retryWhileOffline()
-    await expect.element(locked(), {timeout: 8000}).toBeVisible()
-    await unlock()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await page.getByRole('button', {name: 'Retry'}).click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
     harness.dispose()
     await retryWhileOffline()
     await expect.element(editor(), {timeout: 8000}).toBeVisible()
