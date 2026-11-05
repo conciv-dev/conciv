@@ -122,7 +122,6 @@ export const imageAdapter: TargetAdapter = {
 type FigmaLink = {fileKey: string; nodeId: string}
 
 type FigmaSource = {
-  name: string
   available(input: {token: string | null; document: unknown; image: string | undefined}): boolean
   load(input: {
     link: FigmaLink
@@ -163,8 +162,8 @@ function parseFigmaLink(ref: string): FigmaLink | null {
 }
 
 const FIGMA_SOURCES = {
-  document: {name: 'document', available: documentAvailable, load: documentLoad},
-  rest: {name: 'rest', available: restAvailable, load: restLoad},
+  document: {available: documentAvailable, load: documentLoad},
+  rest: {available: restAvailable, load: restLoad},
 } as const satisfies Record<string, FigmaSource>
 
 const ColorSchema = z.looseObject({r: z.number(), g: z.number(), b: z.number(), a: z.number().optional()})
