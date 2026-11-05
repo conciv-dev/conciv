@@ -36,19 +36,22 @@ function resolveCli(cwd: string): string {
 type CliOutput = {stdout: string; stderr: string; code: number | null; signal: NodeJS.Signals | null}
 type CliResult = CliOutput & {report: string}
 
-function spawnCli(cwd: string, cliArgs: string[], reportFile: string): Promise<CliOutput> {
+function spawnCli(cwd: string, cliArgs: string[], reportFile: string, signal: AbortSignal): Promise<CliOutput> {
   const cliPath = resolveCli(cwd)
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cliPath, 'test', ...cliArgs, '--reporter=json'], {
       cwd,
       env: {...process.env, PLAYWRIGHT_JSON_OUTPUT_FILE: reportFile},
+      signal,
     })
     let stdout = ''
     let stderr = ''
     child.stdout?.on('data', (d: Buffer) => (stdout += d.toString()))
     child.stderr?.on('data', (d: Buffer) => (stderr += d.toString()))
-    child.on('error', reject)
-    child.on('close', (code, signal) => resolve({stdout, stderr, code, signal}))
+    child.on('error', (error) => {
+      if (error.name !== 'AbortError') reject(error)
+    })
+    child.on('close', (code, exitSignal) => resolve({stdout, stderr, code, signal: exitSignal}))
   })
 }
 
@@ -57,11 +60,12 @@ function emptyWhenMissing(error: unknown): string {
   throw error
 }
 
-async function runCli(cwd: string, cliArgs: string[]): Promise<CliResult> {
+async function runCli(cwd: string, cliArgs: string[], signal: AbortSignal): Promise<CliResult> {
   const reportDir = await mkdtemp(join(tmpdir(), 'conciv-playwright-report-'))
   try {
     const reportFile = join(reportDir, 'report.json')
-    const output = await spawnCli(cwd, cliArgs, reportFile)
+    const output = await spawnCli(cwd, cliArgs, reportFile, signal)
+    signal.throwIfAborted()
     const report = await readFile(reportFile, 'utf8').catch(emptyWhenMissing)
     return {...output, report}
   } finally {
@@ -92,10 +96,10 @@ function summarize(rows: TestRow[]): Summary {
   }
 }
 
-async function runTests(cwd: string, argv: string[]): Promise<void> {
+async function runTests(cwd: string, argv: string[], signal: AbortSignal): Promise<void> {
   const patterns = flagValues(argv, '--pattern')
   const name = flagValue(argv, '--name')
-  const cliResult = await runCli(cwd, [...patterns, ...(name ? ['-g', name] : [])])
+  const cliResult = await runCli(cwd, [...patterns, ...(name ? ['-g', name] : [])], signal)
   if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
   const rows = parsePlaywrightReport(cliResult.report)
   const files = [...new Set(rows.map((r) => r.file))]
@@ -105,8 +109,8 @@ async function runTests(cwd: string, argv: string[]): Promise<void> {
   send({type: 'run-end', runId: 'pw1', summary: summarize(rows), failures, tests: rows})
 }
 
-async function runList(cwd: string): Promise<void> {
-  const cliResult = await runCli(cwd, ['--list'])
+async function runList(cwd: string, signal: AbortSignal): Promise<void> {
+  const cliResult = await runCli(cwd, ['--list'], signal)
   if (!cliResult.report.trim().startsWith('{')) throw new Error(describeMissingReport(cliResult))
 
   const files = [...new Set(parsePlaywrightReport(cliResult.report).map((r) => r.file))]
@@ -117,8 +121,10 @@ export async function runChild(): Promise<void> {
   const argv = process.argv.slice(2)
   const mode = flagValue(argv, '--mode') ?? 'run'
   const cwd = flagValue(argv, '--cwd') ?? process.cwd()
+  const cancel = new AbortController()
+  process.once('SIGTERM', () => cancel.abort())
   try {
-    await (mode === 'list' ? runList(cwd) : runTests(cwd, argv))
+    await (mode === 'list' ? runList(cwd, cancel.signal) : runTests(cwd, argv, cancel.signal))
     process.exit(0)
   } catch (e) {
     send({type: 'error', reason: e instanceof Error ? e.message : String(e)})

@@ -1,4 +1,5 @@
 import {mkdtempSync} from 'node:fs'
+import {mkdtemp, readdir, rm, watch} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -236,6 +237,27 @@ describe('playwright', () => {
       expect(runErr).toBeInstanceOf(Error)
       expect((runErr as Error).message).toContain('exit code 7')
       expect((runErr as Error).message).toContain('signal null')
+    })
+
+    it('removes its report directory when the run is stopped mid-run', async () => {
+      const reportPrefix = 'conciv-playwright-report-'
+      const scratch = await mkdtemp(join(tmpdir(), 'conciv-playwright-stop-'))
+      try {
+        const mgr = makeChildManager(playwrightSpec, fixture, {
+          spawnRunner: tsxSpawnFor(childTs, {TMPDIR: scratch}),
+        })
+        const watcher = watch(scratch)
+        const reportDirCreated = (async () => {
+          for await (const change of watcher) if (change.filename?.startsWith(reportPrefix)) return
+        })()
+        const stopped = captureRunError(mgr)
+        await reportDirCreated
+        await mgr.stop()
+        await stopped
+        expect((await readdir(scratch)).filter((name) => name.startsWith(reportPrefix))).toEqual([])
+      } finally {
+        await rm(scratch, {recursive: true, force: true})
+      }
     })
 
     it('names the signal when the child is killed with no output', async () => {
