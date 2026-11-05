@@ -1,8 +1,8 @@
 # @conciv/extension-design
 
-Internal to `@conciv/it`. The design extension holds a target image per route and viewport width, captures the live
-page at that width, and returns the components that differ from the design, ranked, with the measured deltas and the
-source location that sets each value.
+Internal to `@conciv/it`. The design extension holds a target, an image or a Figma frame, per route and viewport width,
+captures the live page at that width, and returns the components that differ from the design, ranked, with the
+measured deltas and the source location that sets each value.
 
 ## Overview
 
@@ -34,7 +34,8 @@ src/
     types.ts           domain types and the slot interfaces
     tolerances.ts      TOLERANCES, designConfig, frame message names, source attribute, property aliases, tolerance counts
   server/
-    target.ts          ADAPTERS, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
+    target.ts          imageAdapter, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
+    figma.ts           the Figma adapter: link parsing, FIGMA_SOURCES (rest, document), the node tree to target nodes
     layout.ts          the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
     deltas.ts          DELTA_KINDS (border, axis and columns included), COLOR_METRICS, sampled fills and glyph ink color, sideFrom
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles

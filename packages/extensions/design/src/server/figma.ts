@@ -60,8 +60,8 @@ export function parseFigmaLink(ref: string): FigmaLink | null {
 }
 
 export const FIGMA_SOURCES = {
-  rest: {name: 'rest', available: restAvailable, load: restLoad},
   document: {name: 'document', available: documentAvailable, load: documentLoad},
+  rest: {name: 'rest', available: restAvailable, load: restLoad},
 } as const satisfies Record<string, FigmaSource>
 
 const ColorSchema = z.looseObject({r: z.number(), g: z.number(), b: z.number(), a: z.number().optional()})
@@ -209,7 +209,7 @@ function walk(input: {node: FigmaNode; origin: Origin; within: string | undefine
   const base = {id: fnv(`figma|${node.id}`), ref: node.id, box, ...(within === undefined ? {} : {within})}
   if (node.type === 'TEXT') return [textNode({node, base, scale: origin.scale})]
   if (vectorish(node)) return [imageNode(base)]
-  const self = boxNode({node, base})
+  const self = boxNode({node, base, scale: origin.scale})
   return [self, ...(node.children ?? []).flatMap((child) => walk({node: child, origin, within: self.id}))]
 }
 
@@ -254,8 +254,8 @@ function imageNode(base: Base): ImageNode {
   return {...base, kind: 'image', holds: 0}
 }
 
-function boxNode(input: {node: FigmaNode; base: Base}): BoxNode {
-  const {node, base} = input
+function boxNode(input: {node: FigmaNode; base: Base; scale: number}): BoxNode {
+  const {node, base, scale} = input
   const paint = paintOf(node.fills ?? [])
   const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
   const color = stroke?.color
@@ -263,11 +263,11 @@ function boxNode(input: {node: FigmaNode; base: Base}): BoxNode {
     ...base,
     kind: 'box',
     ...(paint === null ? {} : {paint}),
-    border: color === undefined ? null : {width: node.strokeWeight ?? 1, color: colorHex(color)},
+    border: color === undefined ? null : {width: (node.strokeWeight ?? 1) * scale, color: colorHex(color)},
     radius:
       node.type === 'ELLIPSE'
         ? Math.min(base.box.w, base.box.h) / 2
-        : (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0),
+        : (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0) * scale,
   }
 }
 

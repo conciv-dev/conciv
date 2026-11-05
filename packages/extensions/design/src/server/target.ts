@@ -12,7 +12,14 @@ import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
 import {chunk, countBy, groupBy, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {DESIGN_GUIDE, renderDef, RenderResultSchema, type TargetInput, type TargetResult} from '../shared/defs.js'
+import {
+  DESIGN_ERRORS,
+  DESIGN_GUIDE,
+  renderDef,
+  RenderResultSchema,
+  type TargetInput,
+  type TargetResult,
+} from '../shared/defs.js'
 import {iconSized, sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Border,
@@ -103,7 +110,7 @@ export async function readImage(input: {ref: string; cwd: string}): Promise<Uint
   throw toolError('image-unreadable', {message: unreadableMessage(input.ref)})
 }
 
-const imageAdapter: TargetAdapter = {
+export const imageAdapter: TargetAdapter = {
   kind: 'image',
   accepts: ({ref, cwd}) => isFile(resolve(cwd, ref)) || pngBase64(ref) !== null,
   load: async ({ref, scale, cwd}) => {
@@ -1339,8 +1346,6 @@ function smooth(input: {means: string[]; color: ColorMetric}): boolean {
 
 export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
 
-export const ADAPTERS: TargetAdapter[] = [imageAdapter]
-
 export const TEXT_READERS = {paddle: paddleReader} as const satisfies Record<string, TextReader>
 
 export const SEGMENTERS = {threshold: thresholdSegmenter} as const satisfies Record<string, Segmenter>
@@ -1395,11 +1400,21 @@ export async function registerTarget(request: {
   page: ServerToolPageAccess
 }): Promise<TargetResult> {
   const {input, session, design, page} = request
-  const adapter = design.adapters.find((candidate) => candidate.accepts({ref: input.image, cwd: design.cwd}))
+  const ref = input.figma ?? input.image
+  if (ref === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
+  const adapter = design.adapters.find((candidate) => candidate.accepts({ref, cwd: design.cwd}))
   if (adapter === undefined) {
-    throw toolError('image-unreadable', {message: unreadableMessage(input.image)})
+    throw input.figma === undefined
+      ? toolError('image-unreadable', {message: unreadableMessage(ref)})
+      : toolError('figma-link', {message: DESIGN_ERRORS['figma-link'].message})
   }
-  const loaded = await adapter.load({ref: input.image, scale: input.scale ?? 1, cwd: design.cwd})
+  const loaded = await adapter.load({
+    ref,
+    scale: input.scale ?? 1,
+    cwd: design.cwd,
+    document: input.document,
+    image: input.image,
+  })
   const enriched = await enrich({model: loaded, design})
   const route = await routeLabel({route: input.route, page})
   const record = await design.store.put({

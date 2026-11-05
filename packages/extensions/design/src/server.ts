@@ -8,12 +8,13 @@ import {designConfig, type DesignConfig} from './shared/tolerances.js'
 import {BLIND_GUIDE, DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
 import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
+import {createFigmaAdapter} from './server/figma.js'
 import {createDiffer, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
 import {watchSettled} from './server/loop.js'
 import {PAIRERS, RANKERS} from './server/pair.js'
 import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
-import {ADAPTERS, destroyPaddle, ENRICHERS, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
+import {destroyPaddle, ENRICHERS, imageAdapter, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/target.js'
 import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
 
 const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
@@ -33,7 +34,7 @@ function pickRuntime(input: {
     },
     pairer: PAIRERS[config.pairer],
     ranker: RANKERS[config.ranker],
-    adapters: ADAPTERS,
+    adapters: [imageAdapter, createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null})],
     enrichers: ENRICHERS,
     segmenter: SEGMENTERS[config.segmenter],
     roles: ROLE_RULES[config.roles],
