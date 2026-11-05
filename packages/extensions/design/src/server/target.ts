@@ -43,7 +43,7 @@ import type {
   TextReader,
   Typography,
 } from '../shared/types.js'
-import {laidOut} from './layout.js'
+import {laidOut} from './pair.js'
 import {
   boxMask,
   cornerRadius,
@@ -66,21 +66,10 @@ import {
   type Rgb,
   COLOR_METRICS,
   sampledFills,
+  fnv,
 } from './raster.js'
 
 export {trimToInk} from './raster.js'
-
-const FNV_OFFSET = 0x811c9dc5
-const FNV_PRIME = 0x01000193
-const ID_LENGTH = 8
-
-export function fnv(text: string): string {
-  const hash = [...text].reduce(
-    (state, character) => Math.imul(state ^ (character.codePointAt(0) ?? 0), FNV_PRIME) >>> 0,
-    FNV_OFFSET,
-  )
-  return hash.toString(16).padStart(ID_LENGTH, '0')
-}
 
 function nodeId(input: {kind: TargetNode['kind']; box: Box; text?: string}): string {
   const {kind, box} = input

@@ -109,7 +109,17 @@ import {
   type Round,
   type RunJob,
 } from './loop.js'
-import {align, fingerprint, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
+import {
+  align,
+  fingerprint,
+  glyphRun,
+  pairTree,
+  pairTwins,
+  placement,
+  type Offset,
+  type Shift,
+  type Tree,
+} from './pair.js'
 import {ledgerCounts, ledgerPairs, newStamp, nextLedger, watchRows} from './store.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
@@ -147,7 +157,6 @@ import {
   sideFrom,
 } from './raster.js'
 import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
-import {placement, type Tree} from './layout.js'
 
 export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore; page: DesignPage}): Differ {
   const {store, page} = input

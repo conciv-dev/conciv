@@ -36,13 +36,13 @@ src/
   server/
     target.ts          the adapters (imageAdapter, createFigmaAdapter with its link parsing and FIGMA_SOURCES rest and
                        document), TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
-    layout.ts          the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
     raster.ts          pure pixel and box operations, DELTA_KINDS (border, axis and columns included), COLOR_METRICS,
                        sampled fills and glyph ink color, sideFrom
     store.ts           the target store on disk and the node ledger: statuses per run, the changes against the ledger
                        before, the carried pairs, the watch rows
-    pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
+    pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets, pairTwins and
+                       the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
     loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
     differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, and the tool bindings
     xray-routes.ts     HTTP routes for the x-ray: targets, current, stamp, report, pin, unpin, mark, revoke,

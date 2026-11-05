@@ -687,6 +687,18 @@ export function besides(input: {rasters: Raster[]; gap: number}): Raster {
   return {width, height, data}
 }
 
+const FNV_OFFSET = 0x811c9dc5
+const FNV_PRIME = 0x01000193
+const ID_LENGTH = 8
+
+export function fnv(text: string): string {
+  const hash = [...text].reduce(
+    (state, character) => Math.imul(state ^ (character.codePointAt(0) ?? 0), FNV_PRIME) >>> 0,
+    FNV_OFFSET,
+  )
+  return hash.toString(16).padStart(ID_LENGTH, '0')
+}
+
 const difference = differenceCiede2000()
 
 const ciede2000: ColorMetric = {

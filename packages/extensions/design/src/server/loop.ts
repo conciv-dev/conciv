@@ -31,9 +31,8 @@ import type {
   Touched,
   Unmatched,
 } from '../shared/types.js'
-import {placement, type Seat, type Tree} from './layout.js'
 import type {LedgerChanges} from './store.js'
-import {glyphRun} from './pair.js'
+import {glyphRun, placement, type Seat, type Tree} from './pair.js'
 import {union} from './raster.js'
 
 export type Round = {
