@@ -30,18 +30,20 @@ export const Headless: Story = {
     )
   },
   play: async ({canvasElement}) => {
-    const c = within(canvasElement)
-    const trigger = c.getByRole('button', {name: 'Select model'})
+    const canvas = within(canvasElement)
+    const trigger = canvas.getByRole('button', {name: 'Select model'})
     await expect(trigger).toHaveTextContent('Alpha')
     await userEvent.click(trigger)
     const search = await waitFor(() => {
       expect(trigger).toHaveAttribute('aria-expanded', 'true')
-      return c.getByPlaceholderText('Search models…')
+      const field = canvas.getByPlaceholderText('Search models…')
+      expect(field).toHaveFocus()
+      return field
     })
     await userEvent.type(search, 'bet')
 
-    await waitFor(() => expect(c.queryByText('Gamma')).toBeNull())
-    await userEvent.click(c.getByText('Beta'))
+    await waitFor(() => expect(canvas.queryByText('Gamma')).toBeNull())
+    await userEvent.click(canvas.getByText('Beta'))
     await waitFor(() => expect(trigger).toHaveTextContent('Beta'))
   },
 }
