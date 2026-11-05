@@ -32,7 +32,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {fetch, dispose} = await makeApp({
+    const {fetch, dispose, agentToken} = await makeApp({
       print: env.print,
       cfg,
       cwd: env.cwd,
@@ -41,7 +41,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
-    return {fetch, dispose}
+    return {fetch, dispose, agentToken}
   }
 }
 

@@ -3,7 +3,6 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serveApp} from './serve-app.js'
-import {loginThroughTerminal} from './login.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
 import {makeChatSockets, type TurnMessage} from './chat-turn.js'
@@ -25,6 +24,7 @@ export type BootEnv = {
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
   dispose: () => Promise<void>
+  agentToken: string
 }
 export type BootApp = (env: BootEnv) => Promise<BootedApp>
 
@@ -101,7 +101,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const terminal = (): string => printed.join('\n')
       const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)})
       let served = await serveApp(app.fetch)
-      const token = await loginThroughTerminal(served.base, terminal)
+      const token = app.agentToken
       const base = `${served.base}/t/${token}`
       const wsBase = `${served.wsBase}/t/${token}`
       const aborts: AbortController[] = []

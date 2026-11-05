@@ -206,10 +206,8 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
     }
   }
 
-  function fakeRpcResponse(request: Request, print: (text: string) => void): unknown {
+  function fakeRpcResponse(request: Request): unknown {
     const path = new URL(request.url).pathname
-    if (path === '/rpc/auth/requestCode') print('#conciv_otp=000000')
-    if (path === '/rpc/auth/exchange') return {token: 'fake-token'}
     if (path.endsWith('/sessions/resolve')) return {sessionId: 'conciv_cleanup_fixture'}
     if (path.endsWith('/sessions/list')) return []
     return {ok: true}
@@ -219,8 +217,9 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
     return async (env) => {
       seedTree(env.stateRoot)
       return {
+        agentToken: 'fake-token',
         fetch: (request) =>
-          new Response(JSON.stringify({json: fakeRpcResponse(request, env.print)}), {
+          new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
             headers: {'content-type': 'application/json'},
           }),
         dispose: async () => {

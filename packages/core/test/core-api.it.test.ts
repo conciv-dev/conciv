@@ -613,7 +613,7 @@ describe('api harness switching', () => {
     createTestkit(alpha, async (env) => {
       const app = await bootMadeApp(env, {harnesses: [beta, gamma]})
       made.app = app
-      return {fetch: app.app.fetch, dispose: app.dispose}
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
     }).setup(),
   )
 
@@ -848,7 +848,7 @@ describe('api harness switching', () => {
       createTestkit(slow, async (env) => {
         const app = await bootMadeApp(env, {harnesses: [quick]})
         raced.app = app
-        return {fetch: app.app.fetch, dispose: app.dispose}
+        return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
       }).setup(),
     )
     return {

@@ -49,7 +49,7 @@ export async function bootCoreKit(opts: {
   const captured: {runtime?: CoreRuntime} = {}
   const served: (readonly string[])[] = []
   const kit = await createTestkit(harness, async (env) => {
-    const {fetch, dispose, runtime} = await makeApp({
+    const {fetch, dispose, runtime, agentToken} = await makeApp({
       print: env.print,
       cfg: {
         enabled: true,
@@ -81,6 +81,7 @@ export async function bootCoreKit(opts: {
         return response
       },
       dispose,
+      agentToken,
     }
   }).setup()
   const runtime = captured.runtime
