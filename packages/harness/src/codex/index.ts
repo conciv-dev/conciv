@@ -26,23 +26,29 @@ async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string)
   for await (const chunk of stream) yield runScopedChunk(chunk, runId)
 }
 
-function runScopedIds(adapter: TextAdapter): TextAdapter {
+function effortConfig(level: string | undefined): Record<string, string> {
+  return level === undefined || level === 'off' ? {} : {model_reasoning_effort: `"${level}"`}
+}
+
+function codexRunAdapter(deps: HarnessChatDeps, level?: string): TextAdapter {
+  return codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+    config: {...(deps.hasTools ? bridgeApproveConfig : {}), ...effortConfig(level)},
+    env: definedEntries(deps.env),
+  })
+}
+
+function codexTurnAdapter(deps: HarnessChatDeps): TextAdapter {
   const chatStream: TextAdapter['chatStream'] = (options) =>
-    runScopedStream(adapter.chatStream(options), options.runId ?? randomUUID())
-  return new Proxy(adapter, {
+    runScopedStream(codexRunAdapter(deps, options.reasoning?.level).chatStream(options), options.runId ?? randomUUID())
+  return new Proxy(codexRunAdapter(deps), {
     get: (target, key, receiver) => (key === 'chatStream' ? chatStream : Reflect.get(target, key, receiver)),
   })
 }
 
 const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: runScopedIds(
-    codexAdapter(deps.model ?? codexDefaultModel(codexHome(deps.env)), {
-      sandboxMode: 'workspace-write',
-      approvalPolicy: 'never',
-      ...(deps.hasTools ? {config: bridgeApproveConfig} : {}),
-      env: definedEntries(deps.env),
-    }),
-  ),
+  adapter: codexTurnAdapter(deps),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
 })
 

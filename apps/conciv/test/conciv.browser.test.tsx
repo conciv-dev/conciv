@@ -837,6 +837,24 @@ describe('model menu', () => {
     await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
   })
 
+  test('a picked effort stays checked while the session list is still catching up', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(checkedEffort('Default')).toBeInTheDocument()
+    const listing = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+    await userEvent.click(effort('Medium'))
+    await coreControl.awaitFaultPending(listing, 1)
+
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await expect.element(prompt('Opus 5.5, effort Medium')).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await userEvent.click(effort('High'))
+    await expect.element(checkedEffort('High')).toBeInTheDocument()
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+  })
+
   test('High+ is its own effort segment', async () => {
     await mountModelMenu()
 
