@@ -61,8 +61,8 @@
       "import": "./dist/server/target.js"
     },
     "./colors": {
-      "types": "./dist/server/deltas.d.ts",
-      "import": "./dist/server/deltas.js"
+      "types": "./dist/server/raster.d.ts",
+      "import": "./dist/server/raster.js"
     },
     "./types": {
       "types": "./dist/shared/types.d.ts"

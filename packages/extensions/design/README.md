@@ -10,11 +10,11 @@ The package.json describes this as the design built-in extension, internal to @c
 
 ## Interface
 
-- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance.ts`, `src/server/differ.ts`, `src/server/target.ts` and `src/server/deltas.ts` as ESM with `dts: false`
+- default `defineConfig` (`tsdown.config.ts`): bundles `src/server.ts`, `src/shared/defs.ts`, `src/server/provenance.ts`, `src/server/differ.ts`, `src/server/target.ts` and `src/server/raster.ts` as ESM with `dts: false`
 - default `defineConfig` (`vite.config.ts`): library build of `src/client.tsx` with the Solid plugin to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
 - default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin, the stylesheet at the stable name `assets/index.css` that the in-tab pane links; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
 - default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
-- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/deltas`), `./types` and `./xray-routes` (types only)
+- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/provenance`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/raster`), `./types` and `./xray-routes` (types only)
 - package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
 
 ## Source tree
@@ -37,9 +37,9 @@ src/
     target.ts          the adapters (imageAdapter, createFigmaAdapter with its link parsing and FIGMA_SOURCES rest and
                        document), TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
     layout.ts          the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
-    deltas.ts          DELTA_KINDS (border, axis and columns included), COLOR_METRICS, sampled fills and glyph ink color, sideFrom
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
-    raster.ts          pure pixel and box operations
+    raster.ts          pure pixel and box operations, DELTA_KINDS (border, axis and columns included), COLOR_METRICS,
+                       sampled fills and glyph ink color, sideFrom
     store.ts           the target store on disk and the node ledger: statuses per run, the changes against the ledger
                        before, the carried pairs, the watch rows
     pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
@@ -69,7 +69,7 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
 
 ## Side Effects
 
-- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance.js, server/differ.js, server/target.js, server/deltas.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
+- `build` script (package.json): writes dist/ (server.js, shared/defs.js, server/provenance.js, server/differ.js, server/target.js, server/raster.js, client.js, xray/, .d.ts files); the xray build empties `dist/xray/` (`emptyOutDir: true` in `vite.xray.config.ts`)
 - `compiler` (`vite.xray.config.ts`): in serve mode it dynamically imports the sibling package build at `../../it/dist/vite.js`
 - `design_target` runs OCR in-process on `onnxruntime-web`; the service is created on first read and disposed with the extension
 

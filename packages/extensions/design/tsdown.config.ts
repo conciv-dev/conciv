@@ -7,7 +7,7 @@ export default defineConfig({
     'src/server/provenance.ts',
     'src/server/differ.ts',
     'src/server/target.ts',
-    'src/server/deltas.ts',
+    'src/server/raster.ts',
     'src/server/store.ts',
   ],
   format: 'esm',

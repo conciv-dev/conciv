@@ -43,7 +43,6 @@ import type {
   TextReader,
   Typography,
 } from '../shared/types.js'
-import {COLOR_METRICS, sampledFills} from './deltas.js'
 import {laidOut} from './layout.js'
 import {
   boxMask,
@@ -65,6 +64,8 @@ import {
   union,
   type Region,
   type Rgb,
+  COLOR_METRICS,
+  sampledFills,
 } from './raster.js'
 
 export {trimToInk} from './raster.js'

@@ -93,7 +93,6 @@ import type {
   XrayLink,
 } from '../shared/types.js'
 import {PLACEHOLDER_KINDS} from '../shared/types.js'
-import {edgeStrip, glyphCoreColor, isOpaqueHex, opinionSide, sideFrom} from './deltas.js'
 import {
   changeReport,
   createHistory,
@@ -141,6 +140,11 @@ import {
   union,
   unpackMask,
   type Grid,
+  edgeStrip,
+  glyphCoreColor,
+  isOpaqueHex,
+  opinionSide,
+  sideFrom,
 } from './raster.js'
 import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
 import {placement, type Tree} from './layout.js'

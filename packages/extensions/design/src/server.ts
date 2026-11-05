@@ -7,7 +7,7 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig, type DesignConfig} from './shared/tolerances.js'
 import {BLIND_GUIDE, DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
 import type {CssMap, DesignRuntime} from './shared/types.js'
-import {COLOR_METRICS, DELTA_KINDS} from './server/deltas.js'
+import {COLOR_METRICS, DELTA_KINDS} from './server/raster.js'
 import {
   createFigmaAdapter,
   destroyPaddle,
