@@ -96,6 +96,11 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
+      # In the container a server listening on localhost binds ::1 while Node's fetch
+      # dials 127.0.0.1 (vite preview in the site prerender: ECONNREFUSED). ipv4first
+      # makes both sides resolve localhost to 127.0.0.1.
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     permissions:
       contents: read
     strategy:
@@ -332,6 +337,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -416,6 +423,8 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
+      env:
+        NODE_OPTIONS: --dns-result-order=ipv4first
     permissions:
       contents: read
     strategy:
