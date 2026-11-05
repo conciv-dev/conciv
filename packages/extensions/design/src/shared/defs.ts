@@ -702,7 +702,7 @@ export const WatchInputSchema = z.object({
 const WatchRowSchema = z.object({
   node: z.string(),
   ref: z.string().nullable().describe('the design id the node came from; the Figma node id, null for an image target'),
-  kind: z.enum(['text', 'box', 'image']),
+  kind: z.enum(NODE_KINDS),
   text: z.string().nullable().describe('the text of a text node'),
   box: BoxSchema,
   status: z.enum(NODE_STATUSES),
