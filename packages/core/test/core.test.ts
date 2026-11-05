@@ -877,6 +877,42 @@ describe('engine stamp', () => {
         rmSync(root, {recursive: true, force: true})
       }
     })
+
+    it('a taken port fails start with the bind error even when disposing an extension also fails', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'conciv-engine-mcp-'))
+      const port = await getPort()
+      const taken = createServer()
+      await new Promise<void>((resolve, reject) => {
+        taken.once('error', reject)
+        taken.listen(port, '127.0.0.1', () => resolve())
+      })
+      const written = vi.spyOn(console, 'error')
+      const failingDispose = defineExtension({name: 'failing-dispose'}).server(() => ({
+        context: null,
+        dispose: () => {
+          throw new Error('extension dispose failed')
+        },
+      }))
+      try {
+        const failure = await start({
+          options: {harnessBin: 'true', stateRoot: root},
+          root,
+          launchEditor: () => {},
+          port: {exact: port},
+          extensions: [failingDispose],
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        )
+        const logged = written.mock.calls.flat().map(String).join('\n')
+        expect.soft(failure).toMatchObject({code: 'EADDRINUSE'})
+        expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
+      } finally {
+        written.mockRestore()
+        await new Promise<void>((resolve) => taken.close(() => resolve()))
+        rmSync(root, {recursive: true, force: true})
+      }
+    })
   })
 })
 
