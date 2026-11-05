@@ -1058,6 +1058,7 @@ describe('vite devtools dock', () => {
     builtins: Builtins = NO_BUILTINS,
     root = realpathSync(dirs.tempDir('conciv-dock-')),
     hostHead = '',
+    hostPlugins: Plugin[] = [],
   ): Promise<string> {
     if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) linkConcivIt(root)
     writeFileSync(
@@ -1079,6 +1080,7 @@ describe('vite devtools dock', () => {
           },
         ),
         DevTools({clientAuth: false}),
+        ...hostPlugins,
       ],
     })
     servers.push(server)
@@ -1278,6 +1280,27 @@ describe('vite devtools dock', () => {
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     await page.close()
   }, 120_000)
+
+  it('shows the page launcher when the host renders its html without transformIndexHtml', async () => {
+    const serverRenderedHost: Plugin = {
+      name: 'server-rendered-host',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url !== '/') return next()
+          res.setHeader('content-type', 'text/html')
+          res.end(
+            '<!doctype html><html><head><meta charset="utf-8"><title>ssr</title></head><body><h1>ssr</h1></body></html>',
+          )
+        })
+      },
+    }
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await dockServer(undefined, NO_BUILTINS, undefined, '', [serverRenderedHost]), {
+      waitUntil: 'domcontentloaded',
+    })
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+    await page.close()
+  }, 60_000)
 
   it('runs as the dock when the host html already carries a conciv-widget meta', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})

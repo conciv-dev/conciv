@@ -1,7 +1,7 @@
 import '../src/styles.css'
 import {expect, test, vi, it, afterEach, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
-import {CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -258,7 +258,6 @@ describe('attachment widget', () => {
 })
 
 describe('chat pane', () => {
-  const HYDRATE_PATH = ['chat', 'hydrate']
   const UNSCRIPTED_REPLY = 'an unscripted reply'
 
   const core = bootedCore('chat-pane', {text: UNSCRIPTED_REPLY})
@@ -379,7 +378,7 @@ describe('chat pane', () => {
 
   test('the initial load shows a conversation skeleton until the snapshot arrives', async () => {
     const {sessionId} = await newSession()
-    const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
     mountChatPane(sessionId)
 
     await expect.element(skeleton()).toBeVisible()
@@ -438,8 +437,10 @@ describe('chat pane', () => {
 
     await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
     await expect.element(page.getByText('queued while running')).toBeVisible()
-    await expect.element(stopButton()).toBeVisible()
     await expect.element(input()).toHaveTextContent('draft kept in place')
+    await expect.element(page.getByText(UNSCRIPTED_REPLY).nth(1)).toBeVisible()
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
   })
 })
 
@@ -548,6 +549,236 @@ describe('composer overflow', () => {
     await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
     await expect.element(input().getByText('/context')).toBeVisible()
     await expect.element(input().getByText('21st-ui-build')).not.toBeInTheDocument()
+  })
+})
+
+describe('model menu', () => {
+  const EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const MODELS = [
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: EFFORTS},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: EFFORTS},
+    {id: 'claude-opus-4-7', name: 'Opus 4.7', group: 'Older versions', efforts: EFFORTS},
+    {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
+  ]
+
+  const HARNESS_COMMANDS = [
+    {name: 'model', description: 'Set the AI model for Claude Code'},
+    {name: 'deploy', description: 'Ship the branch'},
+  ]
+  const REPLY = 'a model menu reply'
+
+  const core = bootedCore('model-menu', {models: MODELS, commands: HARNESS_COMMANDS, text: REPLY})
+  const keep = keptPane()
+  const faults = trackedFaults()
+
+  const prompt = (name: string) => page.getByRole('button', {name: `Model: ${name}`})
+  const panel = () => page.getByRole('dialog', {name: 'Model'})
+  const models = (name = 'Model') => page.getByRole('listbox', {name, exact: true})
+  const model = (name: string) => page.getByRole('option', {name: new RegExp(`^${name.replace('.', '\\.')}`)})
+  const older = () => page.getByRole('button', {name: 'Older versions'})
+  const effortGroup = () => page.getByRole('radiogroup', {name: 'Effort'})
+  const effort = (name: string) => effortGroup().getByText(name, {exact: true})
+  const checkedEffort = (name: string) => effortGroup().getByRole('radio', {name, exact: true, checked: true})
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  async function mountModelMenu(): Promise<void> {
+    const sessionId = await createSession(coreRpc(core()))
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+    await expect.element(input()).toBeVisible()
+  }
+
+  test('the composer takes typing while the model list still loads, and keeps text and focus once it arrives', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+
+    await expect.element(input()).toBeVisible()
+    await input().fill('typed before the models arrived')
+    await expect.element(input()).toHaveFocus()
+
+    await faults.releaseAll()
+
+    await expect.element(prompt('Opus 5.5')).toBeVisible()
+    await expect.element(input()).toHaveTextContent('typed before the models arrived')
+    await expect.element(input()).toHaveFocus()
+  })
+
+  test('the slash list shows /model once, the built-in command replacing the harness one', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    expect(page.getByRole('option').elements()).toHaveLength(1)
+  })
+
+  test('/model and Enter opens the model menu, empties the composer and sends nothing', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(models()).toHaveFocus()
+    await expect.element(input()).not.toHaveTextContent()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(panel()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('hello')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    expect(page.getByText(REPLY).elements()).toHaveLength(1)
+    await expect.element(page.getByText('/model')).not.toBeInTheDocument()
+  })
+
+  test('/model typed with the menu dismissed and sent opens the model menu instead of reaching the agent', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('option').first()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent('/model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(models()).toHaveFocus()
+    await expect.element(input()).not.toHaveTextContent()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(input()).toHaveFocus()
+    await userEvent.keyboard('hello')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    expect(page.getByText(REPLY).elements()).toHaveLength(1)
+    await expect.element(page.getByText('/model')).not.toBeInTheDocument()
+  })
+
+  test('a harness command still inserts a chip and is sent to the agent', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/deploy')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/deployShip the branch')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(input().getByText('/deploy')).toBeVisible()
+    await expect.element(panel()).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByText(REPLY)).toBeVisible()
+    await expect.element(input()).not.toHaveTextContent()
+  })
+
+  test('the prompt names the current model and the overflow menu no longer lists models', async () => {
+    await mountModelMenu()
+
+    await expect.element(prompt('Opus 5.5')).toHaveTextContent('opus 5.5')
+
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await expect.element(page.getByRole('menuitem', {name: 'Compress the conversation'})).toBeVisible()
+    await expect.element(page.getByRole('menuitem', {name: /^Model:/})).not.toBeInTheDocument()
+  })
+
+  test('picking a model from the prompt menu switches the session, renames the prompt and focuses the composer', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.click(model('Sonnet 5.5'))
+
+    await expect.element(prompt('Sonnet 5.5')).toHaveTextContent('sonnet 5.5')
+    await expect.element(panel()).not.toBeInTheDocument()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.click(prompt('Sonnet 5.5'))
+    await expect.element(model('Sonnet 5.5')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('the arrow keys move from the current model and Enter picks it', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    await expect.element(prompt('Sonnet 5.5')).toBeVisible()
+    await expect.element(input()).toHaveFocus()
+  })
+
+  test('an older model is reached by keyboard through the Older versions section', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(models()).toHaveFocus()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(older()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(model('Opus 4.7')).toBeVisible()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(models('Older versions')).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    await expect.element(prompt('Opus 4.7')).toHaveTextContent('opus 4.7')
+    await userEvent.click(prompt('Opus 4.7'))
+    await expect.element(model('Opus 4.7')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('picking an effort keeps the panel open and names it on the prompt', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(effortGroup()).toBeVisible()
+    await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
+    await userEvent.click(effort('Medium'))
+
+    await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('opus 5.5')
+    await expect.element(panel()).toBeVisible()
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+  })
+
+  test('High+ is its own effort segment', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('High+'))
+
+    await expect.element(prompt('Opus 5.5, effort High+')).toHaveTextContent('opus 5.5')
+    await expect.element(checkedEffort('High+')).toBeInTheDocument()
+    await expect.element(page.getByText('Thinks even longer than High. Slower again, uses more tokens.')).toBeVisible()
+  })
+
+  test('the effort track takes the arrow keys', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('Medium'))
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort High+')).toBeVisible()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect.element(prompt('Opus 5.5, effort Max')).toBeVisible()
+  })
+
+  test('an older model without effort hides the effort row and clears the effort', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('High'))
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+
+    await userEvent.click(older())
+    await userEvent.click(model('Haiku 4.5'))
+
+    await expect.element(prompt('Haiku 4.5')).toHaveTextContent('haiku 4.5')
+    await userEvent.click(prompt('Haiku 4.5'))
+    await expect.element(model('Sonnet 5.5')).toBeVisible()
+    await expect.element(effortGroup()).not.toBeInTheDocument()
   })
 })
 
@@ -999,7 +1230,6 @@ describe('panel connect', () => {
 })
 
 describe('panel refresh', () => {
-  const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
 
   const coreBase = bootedCore('panel-refresh')
@@ -1026,7 +1256,7 @@ describe('panel refresh', () => {
     await sessionMenu().click()
     await expect.element(refreshRow(), {timeout: 8000}).toBeVisible()
 
-    const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    const gate = await faults.install({kind: 'gate', path: ['chat', 'hydrate']})
     await refreshRow().click()
     await coreControl.awaitFaultPending(gate, 1)
 

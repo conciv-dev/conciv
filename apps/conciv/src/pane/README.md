@@ -16,7 +16,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
 - `paneAttachments`, `returnUnsentToDraft` (`pane-attachments.ts`): image and text attachment adapters; unsent queue goes back to the draft
 - `makeRefreshCoordinator(deps)`, `RefreshCoordinator` (`refresh-coordinator.ts`)
-- `useSessionCaptures(sessionId)` (`session-captures.ts`), `useComposerTriggerSources(sessionId)` (`trigger-sources.ts`): slash command and tool trigger sources
+- `useSessionCaptures(sessionId)` (`session-captures.ts`), `useComposerTriggerSources({sessionId, openModelMenu})` (`trigger-sources.ts`): `{triggers, runTyped}`: slash command and tool trigger sources, plus `runTyped(text)` that runs a widget command whose `/<name>` is the whole text; widget commands are the built-in `/model` (opens the model menu) and extension commands from `useInstances()`
 - `QueueStrip` (`queue-strip.tsx`), `PendingApprovals` (`pending-approvals.tsx`), `ContextTracker`, `ContextSummary` (`context-tracker.tsx`), `StatusBar` (`status-bar.tsx`)
 - `Divider`, `CompactSpinner`, `ConversationSkeleton`, `ThinkingBubble` (`indicators.tsx`)
 - `makeToolViewCtx` (`tool-view-ctx.ts`), `toolFallbackCard` (`tool-fallback-card.tsx`), `foldToolDurations` (`tool-durations.ts`)
@@ -37,6 +37,9 @@ The chat pane for one session: transcript, composer with attachments and element
 - `refresh-coordinator.ts:run`: `chat().refresh()` and refetches `sessions.list`, `markers.list`, `captures.list`; screen reader announcements
 - `chat-pane.tsx:ChatPane`: announces `conciv is asking for permission.` and `conciv replied.`; invalidates sessions and refetches markers when a run settles
 - `trigger-sources.ts:useComposerTriggerSources`: `ensureQueryData` for `meta.commands` and `meta.tools`
+- `trigger-sources.ts:useComposerTriggerSources`: a built-in or extension command replaces the harness command of the same name in the `/` list; a built-in beats an extension command of the same name
+- `chat-pane.tsx:ChatPane`: a sent text that is exactly `/<name>` of a widget command runs it and is never sent to the agent
+- `chat-pane.tsx:ChatPane`: owns the model popover machine (`useModelMenu`); `/model` opens it with `setOpen(true)`, and every close (a pick, Escape, outside click) returns focus to the composer
 - `composer-input-adapter.tsx:ComposerInputAdapter`: `keydown` listener for Escape
 
 ## Verification
