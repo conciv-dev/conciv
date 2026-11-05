@@ -1,12 +1,21 @@
-import {readdir, readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {dirname, extname, join, resolve, sep} from 'node:path'
+import {dirname, extname, join, relative, resolve, sep} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {createStorage, type Storage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig, TOLERANCES, type DesignConfig} from './shared/tolerances.js'
-import {BLIND_GUIDE, DESIGN_EXTENSION_NAME, DESIGN_GUIDE, MARK_KINDS} from './shared/defs.js'
-import type {Box, CssMap, DesignRuntime, Differ, Raster, TargetStore} from './shared/types.js'
+import {
+  BLIND_GUIDE,
+  DESIGN_EXTENSION_NAME,
+  DESIGN_GUIDE,
+  MARK_KINDS,
+  type DesignNode,
+  type Store,
+} from './shared/defs.js'
+import type {Box, CssMap, DesignRuntime, Differ, Raster} from './shared/types.js'
+import {find, walk} from './shared/tree.js'
 import {besides, COLOR_METRICS, cutout, decodePng, DELTA_KINDS, downscale, encodePng} from './server/raster.js'
 import {
   createFigmaAdapter,
@@ -20,7 +29,7 @@ import {
 import {buildCssMap, createDiffer, MAPPERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
 import {watchSettled} from './server/loop.js'
 import {PAIRERS, RANKERS} from './server/pair.js'
-import {createTargetStore, TARGET_FILE} from './server/store.js'
+import {createStore} from './server/store.js'
 import {ORPCError, os} from '@orpc/server'
 import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
@@ -33,7 +42,7 @@ const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
 function pickRuntime(input: {
   config: DesignConfig
   server: ServerApi<DesignConfig>
-}): Omit<DesignRuntime, 'store' | 'cssMap' | 'xrayUrl'> {
+}): Omit<DesignRuntime, 'store' | 'state' | 'project' | 'cssMap' | 'xrayUrl'> {
   const {config} = input
   return {
     cwd: input.server.cwd,
@@ -54,17 +63,17 @@ function pickRuntime(input: {
   }
 }
 
-async function cssFiles(cwd: string): Promise<string[]> {
-  const root = join(cwd, 'src')
-  const names = await readdir(root, {recursive: true}).catch(() => [])
-  return names.filter((name) => name.endsWith('.css') && !name.includes('node_modules')).map((name) => join(root, name))
+async function cssFiles(project: Storage): Promise<string[]> {
+  const keys = await project.getKeys('src').catch(() => [])
+  return keys.map((key) => key.replaceAll(':', '/')).filter((file) => file.endsWith('.css'))
 }
 
-function lazyCssMap(input: {cwd: string; bundler: BundlerBridge | undefined}): {
+function lazyCssMap(input: {project: Storage; bundler: BundlerBridge | undefined}): {
   cssMap: () => Promise<CssMap>
   dispose: () => void
 } {
-  const build = async (): Promise<CssMap> => buildCssMap({cwd: input.cwd, files: await cssFiles(input.cwd)})
+  const {project} = input
+  const build = async (): Promise<CssMap> => buildCssMap({project, files: await cssFiles(project)})
   const cache: {map: Promise<CssMap> | null} = {map: null}
   const unsubscribe = input.bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind === 'hmr-update' && diagnostic.file.endsWith('.css')) cache.map = null
@@ -95,13 +104,17 @@ export const design = defineExtension({
   configSchema: designConfig,
   tools: SERVER_STEPS,
 }).server((server) => {
-  const css = lazyCssMap({cwd: server.cwd, bundler: server.bundler})
-  const changes = sourceChanges(server.bundler)
   const designDir = join(server.stateDir, 'design')
-  const store = createTargetStore({dir: designDir, cwd: server.cwd})
+  const state = createStorage({driver: fsDriver({base: designDir})})
+  const project = createStorage({driver: fsDriver({base: server.cwd, readOnly: true})})
+  const css = lazyCssMap({project, bundler: server.bundler})
+  const changes = sourceChanges(server.bundler)
+  const store = createStore(state)
   const runtime: DesignRuntime = {
     ...pickRuntime({config: server.config, server}),
     store,
+    state,
+    project,
     cssMap: css.cssMap,
     xrayUrl: ({id, session}) => {
       const origin = server.nativeUrl()
@@ -132,14 +145,20 @@ export const design = defineExtension({
       },
     },
     systemPrompt: async ({sessionId}) =>
-      (await store.current({session: sessionId})) === null ? undefined : designGuide(server.config.blind),
-    router: makeXrayRouter({store, differ, designDir, sourceChangedAt: changes.sourceChangedAt}),
+      (await store.current(sessionId)) === null ? undefined : designGuide(server.config.blind),
+    router: makeXrayRouter({
+      store,
+      differ,
+      targetImage: (id) => relative(server.cwd, join(designDir, id, TARGET_IMAGE)),
+      sourceChangedAt: changes.sourceChangedAt,
+    }),
     app: makeXrayApp({
       store,
-      pageDir: fileURLToPath(new URL('xray/', import.meta.url)),
+      state,
+      page: readOnly(fileURLToPath(new URL('xray/', import.meta.url))),
+      takumi: readOnly(dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT))),
       designDir,
       cwd: server.cwd,
-      takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
     }),
     dispose: async () => {
       await destroyPaddle()
@@ -157,6 +176,7 @@ function designGuide(blind: boolean): string {
 }
 
 const PAGE_FILE = 'index.html'
+const TARGET_IMAGE = 'target.png'
 const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
 const NonEmptySchema = z.string().min(1)
 const TargetSchema = z.object({id: NonEmptySchema})
@@ -169,12 +189,12 @@ const WASM_HEADERS = {'content-type': 'application/wasm', 'cache-control': 'publ
 const xrayOs = os.$context<RpcContext>()
 
 function makeXrayRouter(input: {
-  store: TargetStore
-  differ: Pick<Differ, 'capture' | 'accept'>
-  designDir: string
+  store: Store
+  differ: Pick<Differ, 'capture' | 'accept' | 'xray'>
+  targetImage: (id: string) => string
   sourceChangedAt: () => number | null
 }) {
-  const {store, differ, designDir, sourceChangedAt} = input
+  const {store, differ, sourceChangedAt} = input
   const decided = async (run: {id: string; session: SessionId}) => ({
     report: await differ.capture(run).catch(() => null),
   })
@@ -182,29 +202,26 @@ function makeXrayRouter(input: {
     xray: {
       targets: xrayOs
         .input(z.object({route: z.string().optional()}))
-        .handler(({input: filter}) => store.list(filter.route === undefined ? {} : {route: filter.route})),
-      current: xrayOs.input(z.object({session: z.string()})).handler(({input: query}) => store.current(query)),
+        .handler(({input: filter}) => store.list(filter.route)),
+      current: xrayOs.input(z.object({session: z.string()})).handler(({input: query}) => store.current(query.session)),
       stamp: xrayOs.input(TargetSchema).handler(async ({input: query}) => ({
-        run: (await store.latestRun(query.id))?.run ?? null,
+        run: (await store.runs(query.id)).at(-1) ?? null,
         sourceChangedAt: sourceChangedAt(),
       })),
       report: xrayOs.input(TargetSchema).handler(async ({input: query}) => {
-        const target = await store.find({id: query.id})
+        const target = await store.record(query.id)
         if (target === null) throw new ORPCError('NOT_FOUND', {message: `no design target with id ${query.id}`})
-        const latest = await store.latestRun(target.id)
+        const latest = (await store.runs(target.id)).at(-1)
+        const stored = await store.design(target.id).catch(() => null)
+        const {report, outline} = await differ.xray({id: target.id})
         return {
           target,
-          report: latest?.report ?? null,
-          pairs: latest?.pairs ?? [],
+          report,
+          run: latest === undefined ? null : await store.run({id: target.id, run: latest}),
           decisions: await store.decisions(target.id),
-          twins: await store.twins(target.id),
-          ledger: await store.ledger(target.id),
-          design: await store.design(target.id),
-          targetImage: store.reportPath(join(designDir, target.id, TARGET_FILE)),
-          nodes: await store.model(target.id).then(
-            (model) => model.nodes,
-            () => [],
-          ),
+          design: outline,
+          targetImage: input.targetImage(target.id),
+          nodes: stored === null ? [] : designNodes(stored.root),
           sourceChangedAt: sourceChangedAt(),
         }
       }),
@@ -241,7 +258,7 @@ function makeXrayRouter(input: {
       }),
       accept: xrayOs.input(TargetSchema).handler(async ({input: request}) => {
         const target = await differ.accept({id: request.id})
-        return {target, report: await store.lastResult(target.id)}
+        return {target, report: (await differ.xray({id: target.id})).report}
       }),
       capture: xrayOs.input(RunSchema).handler(({input: request}) => differ.capture(request)),
     },
@@ -252,33 +269,46 @@ function inside(input: {dir: string; path: string}): boolean {
   return input.path.startsWith(`${input.dir}${sep}`)
 }
 
-async function fileResponse(path: string): Promise<Response> {
-  const body = await readFile(path).catch(() => null)
-  if (body === null) return new Response('not found', {status: 404})
-  return new Response(new Uint8Array(body), {
-    headers: {'content-type': getMimeType(path) ?? 'application/octet-stream'},
-  })
+function readOnly(base: string): Storage {
+  return createStorage({driver: fsDriver({base, readOnly: true})})
 }
 
-async function wasmResponse(path: string): Promise<Response> {
-  const body = await readFile(path).catch(() => null)
-  if (body === null) return new Response('not found', {status: 404})
-  return new Response(new Uint8Array(body), {headers: WASM_HEADERS})
+async function readRaw(input: {storage: Storage; key: string}): Promise<Uint8Array<ArrayBuffer> | null> {
+  const raw: unknown = await input.storage.getItemRaw(input.key).catch(() => null)
+  return raw instanceof Uint8Array ? new Uint8Array(raw) : null
 }
 
-function makeXrayApp(input: {store: TargetStore; pageDir: string; designDir: string; cwd: string; takumiDir: string}) {
-  const {store, pageDir, cwd} = input
-  const takumiDir = resolve(input.takumiDir)
+async function fileResponse(input: {storage: Storage; key: string}): Promise<Response> {
+  const body = await readRaw(input)
+  if (body === null) return new Response('not found', {status: 404})
+  return new Response(body, {headers: {'content-type': getMimeType(input.key) ?? 'application/octet-stream'}})
+}
+
+async function wasmResponse(input: {storage: Storage; key: string}): Promise<Response> {
+  const body = await readRaw(input)
+  if (body === null) return new Response('not found', {status: 404})
+  return new Response(body, {headers: WASM_HEADERS})
+}
+
+function makeXrayApp(input: {
+  store: Store
+  state: Storage
+  page: Storage
+  takumi: Storage
+  designDir: string
+  cwd: string
+}) {
+  const {store, state, page: assets, takumi, cwd} = input
   const designDir = resolve(input.designDir)
-  const root = resolve(pageDir)
   const cache: {page: string | null} = {page: null}
   const page = async (): Promise<string | null> => {
-    cache.page ??= await readFile(join(root, PAGE_FILE), 'utf8').catch(() => null)
+    const bytes = cache.page === null ? await readRaw({storage: assets, key: PAGE_FILE}) : null
+    cache.page ??= bytes === null ? null : new TextDecoder().decode(bytes)
     return cache.page
   }
   const known = async (target: string | undefined): Promise<boolean> => {
     const id = NonEmptySchema.safeParse(target)
-    return id.success && (await store.find({id: id.data})) !== null
+    return id.success && (await store.record(id.data)) !== null
   }
   const servePage = async (c: Context) => {
     if (!(await known(c.req.query('target')))) return c.text('not found', 404)
@@ -294,7 +324,7 @@ function makeXrayApp(input: {store: TargetStore; pageDir: string; designDir: str
     .get('/xray/node', async (c) => {
       const query = NodeQuerySchema.safeParse(c.req.query())
       if (!query.success || !(await known(query.data.target))) return c.text('not found', 404)
-      const png = await nodeCrop({store, designDir, ...query.data})
+      const png = await nodeCrop({store, ...query.data})
       if (png === null) return c.text('not found', 404)
       return new Response(new Uint8Array(png), {headers: {'content-type': 'image/png'}})
     })
@@ -303,63 +333,66 @@ function makeXrayApp(input: {store: TargetStore; pageDir: string; designDir: str
     .get('/xray/:asset{.+}', (c) => {
       const asset = NonEmptySchema.safeParse(c.req.param('asset'))
       if (!asset.success) return c.text('not found', 404)
-      const path = resolve(root, asset.data)
-      if (!inside({dir: root, path})) return c.text('not found', 404)
-      return fileResponse(path)
+      return fileResponse({storage: assets, key: asset.data})
     })
     .get('/takumi/:asset', (c) => {
-      const path = resolve(takumiDir, c.req.param('asset'))
-      if (!inside({dir: takumiDir, path}) || extname(path) !== WASM_EXTENSION) return c.text('not found', 404)
-      return wasmResponse(path)
+      const asset = c.req.param('asset')
+      if (extname(asset) !== WASM_EXTENSION) return c.text('not found', 404)
+      return wasmResponse({storage: takumi, key: asset})
     })
     .get('/files/:file{.+}', (c) => {
       const file = NonEmptySchema.safeParse(c.req.param('file'))
       if (!file.success) return c.text('not found', 404)
       const path = resolve(cwd, file.data)
       if (!inside({dir: designDir, path})) return c.text('not found', 404)
-      return fileResponse(path)
+      return fileResponse({storage: state, key: relative(designDir, path).split(sep).join(':')})
     })
 }
 export type XrayRouter = ReturnType<typeof makeXrayRouter>
 
 async function nodeCrop(input: {
-  store: TargetStore
-  designDir: string
+  store: Store
   target: string
   node: string
   run?: string | undefined
 }): Promise<Uint8Array | null> {
   const {store, target, node} = input
-  const model = await store.model(target).catch(() => null)
-  const found = model?.nodes.find((entry) => entry.id === node)
-  if (model === null || found === undefined) return null
-  const designRaster = model.scale === 1 ? model.raster : downscale({raster: model.raster, scale: model.scale})
-  const box = grown(scaled({box: found.box, scale: model.scale}))
+  const stored = await store.design(target).catch(() => null)
+  const found = stored === null ? null : find({root: stored.root, id: node})
+  const image = await store.targetImage(target)
+  if (stored === null || found === null || image === null) return null
+  const raster = decodePng(image)
+  const designRaster = stored.scale === 1 ? raster : downscale({raster, scale: stored.scale})
+  const box = grown(scaled({box: found.box, scale: stored.scale}))
   const designCrop = cutout({raster: designRaster, box})
   const live = await liveCrop({...input, box})
   return encodePng(live === null ? designCrop : besides({rasters: [designCrop, live], gap: CROP_GAP}))
 }
 
 async function liveCrop(input: {
-  store: TargetStore
-  designDir: string
+  store: Store
   target: string
   node: string
   run?: string | undefined
   box: Box
 }): Promise<Raster | null> {
-  const {store, designDir, target, node, box} = input
-  const run = input.run ?? (await store.latestRun(target))?.run
+  const {store, target, node, box} = input
+  const run = input.run ?? (await store.runs(target)).at(-1)
   if (run === undefined) return null
   const stored = await store.run({id: target, run})
-  const live = stored?.pairs.find((pair) => pair.node === node)?.fingerprint?.box
-  const bytes = await readFile(join(designDir, target, `live-${run}.png`)).catch(() => null)
+  const match = stored === null ? null : find({root: stored.root, id: node, idOf: (entry) => entry.node.id})
+  const live = match?.live?.box
+  const bytes = await store.liveImage({id: target, run})
   if (live === undefined || bytes === null) return null
   const margin = TOLERANCES.tileMargin
   return cutout({
     raster: decodePng(bytes),
     box: {...box, x: Math.round(live.x) - margin, y: Math.round(live.y) - margin},
   })
+}
+
+function designNodes(root: DesignNode): DesignNode[] {
+  return [...walk({root})].filter(({parent}) => parent !== null).map(({node}) => node)
 }
 
 function scaled(input: {box: Box; scale: number}): Box {

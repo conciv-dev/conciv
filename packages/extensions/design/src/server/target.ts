@@ -1,8 +1,6 @@
 import * as ort from 'onnxruntime-web'
-import {existsSync, statSync} from 'node:fs'
-import {readFile} from 'node:fs/promises'
 import {createHash} from 'node:crypto'
-import {resolve, dirname, join} from 'node:path'
+import {basename, dirname, isAbsolute, join, relative} from 'node:path'
 import {toolError} from '@conciv/extension'
 import {createRequire} from 'node:module'
 import {pathToFileURL} from 'node:url'
@@ -10,6 +8,8 @@ import type {InferenceSession} from 'onnxruntime-web'
 import {Canvas, Contours, cv, ImageProcessor, type CanvasLike} from 'ppu-ocv'
 import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
+import {createStorage, type Storage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs'
 import {chunk, countBy, groupBy, partition, range, uniqBy, zip} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {
@@ -88,13 +88,9 @@ function unreadableMessage(ref: string): string {
   return `image is neither a PNG file nor PNG base64: ${ref.slice(0, 80)}`
 }
 
-function isFile(path: string): boolean {
-  return existsSync(path) && statSync(path).isFile()
-}
-
-async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array> {
-  const path = resolve(input.cwd, input.ref)
-  if (isFile(path)) return new Uint8Array(await readFile(path))
+async function readImage(input: {ref: string; project: Storage}): Promise<Uint8Array> {
+  const file = await readRaw({storage: input.project, key: input.ref})
+  if (file !== null) return file
   const bytes = pngBase64(input.ref)
   if (bytes !== null) return bytes
   throw toolError('image-unreadable', {message: unreadableMessage(input.ref)})
@@ -102,14 +98,14 @@ async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array>
 
 export const imageAdapter: TargetAdapter = {
   kind: 'image',
-  accepts: ({ref, cwd}) => isFile(resolve(cwd, ref)) || pngBase64(ref) !== null,
-  load: async ({ref, scale, cwd}) => {
-    const bytes = await readImage({ref, cwd})
+  accepts: ({ref}) => pngBase64(ref) !== null || !URL.canParse(ref),
+  load: async ({ref, scale, project}) => {
+    const bytes = await readImage({ref, project})
     const raster = decodePng(bytes)
     const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
     return {
       id: createHash('sha256').update(bytes).digest('hex').slice(0, 12),
-      source: {kind: 'image', ref: isFile(resolve(cwd, ref)) ? ref : 'base64'},
+      source: {kind: 'image', ref: pngBase64(ref) === null ? ref : 'base64'},
       viewport,
       raster,
       scale,
@@ -129,7 +125,7 @@ type FigmaSource = {
     token: string | null
     document: unknown
     image: string | undefined
-    cwd: string
+    project: Storage
   }): Promise<{document: FigmaDocument; raster: Raster; version: string}>
 }
 
@@ -138,12 +134,12 @@ export function createFigmaAdapter(input: {token: string | null}): TargetAdapter
   return {
     kind: 'figma',
     accepts: ({ref}) => parseFigmaLink(ref) !== null,
-    load: async ({ref, scale, cwd, document, image}) => {
+    load: async ({ref, scale, project, document, image}) => {
       const link = parseFigmaLink(ref)
       if (link === null) throw toolError('figma-link', {message: DESIGN_ERRORS['figma-link'].message})
       const source = Object.values(FIGMA_SOURCES).find((candidate) => candidate.available({token, document, image}))
       if (source === undefined) throw toolError('figma-source', {message: DESIGN_ERRORS['figma-source'].message})
-      const loaded = await source.load({link, scale, token, document, image, cwd})
+      const loaded = await source.load({link, scale, token, document, image, project})
       return modelFrom({link, scale, ...loaded})
     },
   }
@@ -263,9 +259,9 @@ function documentAvailable(input: {document: unknown; image: string | undefined}
   return input.document !== undefined && input.image !== undefined
 }
 
-async function documentLoad(input: {document: unknown; image: string | undefined; cwd: string}) {
+async function documentLoad(input: {document: unknown; image: string | undefined; project: Storage}) {
   const document = parsedDocument(input.document)
-  const bytes = await readImage({ref: input.image ?? '', cwd: input.cwd})
+  const bytes = await readImage({ref: input.image ?? '', project: input.project})
   return {document, raster: decodePng(bytes), version: document.lastModified ?? ''}
 }
 
@@ -456,7 +452,11 @@ function wasmHost() {
     isCanvas: (image: unknown): image is Canvas => image instanceof Canvas,
     loadResource: async (source: string | ArrayBuffer | undefined, defaultUrl: string): Promise<ArrayBuffer> => {
       if (source instanceof ArrayBuffer) return source
-      return Uint8Array.from(await readFile(source ?? defaultUrl)).buffer
+      const path = source ?? defaultUrl
+      const storage = createStorage({driver: fsDriver({base: dirname(path), readOnly: true})})
+      const bytes = await readRaw({storage, key: basename(path)})
+      if (bytes === null) throw new Error(`the OCR resource ${path} could not be read`)
+      return Uint8Array.from(bytes).buffer
     },
     saveDebugImage: async () => undefined,
     canvas: {
@@ -475,8 +475,9 @@ function wasmHost() {
 
 async function readModels(): Promise<{detection: Uint8Array; recognition: Uint8Array; dictionary: Uint8Array}> {
   const directory = join(dirname(nodeRequire.resolve('@conciv/extension-design/package.json')), 'models')
+  const models = createStorage({driver: fsDriver({base: directory, readOnly: true})})
   const [detection, recognition, dictionary] = await Promise.all(
-    MODEL_FILES.map(async (name) => new Uint8Array(await readFile(join(directory, name)))),
+    MODEL_FILES.map((name) => readModel({storage: models, key: name})),
   )
   if (detection === undefined || recognition === undefined || dictionary === undefined) {
     throw new Error('the OCR model files could not be read')
@@ -1667,9 +1668,10 @@ export async function registerTarget(request: {
   page: ServerToolPageAccess
 }): Promise<TargetResult> {
   const {input, session, design, page} = request
-  const ref = input.figma ?? input.image
-  if (ref === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
-  const adapter = design.adapters.find((candidate) => candidate.accepts({ref, cwd: design.cwd}))
+  const requested = input.figma ?? input.image
+  if (requested === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
+  const ref = projectRef({ref: requested, cwd: design.cwd})
+  const adapter = design.adapters.find((candidate) => candidate.accepts({ref, project: design.project}))
   if (adapter === undefined) {
     throw input.figma === undefined
       ? toolError('image-unreadable', {message: unreadableMessage(ref)})
@@ -1678,9 +1680,9 @@ export async function registerTarget(request: {
   const loaded = await adapter.load({
     ref,
     scale: input.scale ?? 1,
-    cwd: design.cwd,
+    project: design.project,
     document: input.document,
-    image: input.image,
+    image: input.image === undefined ? undefined : projectRef({ref: input.image, cwd: design.cwd}),
   })
   const enriched = await enrich({model: loaded, design})
   const route = await routeLabel({route: input.route, page})
@@ -1896,4 +1898,19 @@ function weightBy(input: {ratio: number; live: number}): number {
   if (input.ratio >= TOLERANCES.boldCoverage) return BOLD_WEIGHT
   if (input.ratio <= TOLERANCES.regularCoverage) return REGULAR_WEIGHT
   return input.live
+}
+
+function projectRef(input: {ref: string; cwd: string}): string {
+  return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
+}
+
+async function readRaw(input: {storage: Storage; key: string}): Promise<Uint8Array | null> {
+  const raw: unknown = await input.storage.getItemRaw(input.key).catch(() => null)
+  return raw instanceof Uint8Array ? new Uint8Array(raw) : null
+}
+
+async function readModel(input: {storage: Storage; key: string}): Promise<Uint8Array> {
+  const bytes = await readRaw(input)
+  if (bytes === null) throw new Error('the OCR model files could not be read')
+  return bytes
 }

@@ -377,8 +377,10 @@ export type TargetAdapter = {
 }
 
 export type Store = {
-  put(input: {design: Design; session: string; route?: string; name?: string}): Promise<TargetRecord>
+  put(input: {design: Design; image: Uint8Array; session: string; route?: string; name?: string}): Promise<TargetRecord>
   design(id: string): Promise<Design>
+  targetImage(id: string): Promise<Uint8Array | null>
+  liveImage(input: {id: string; run: string}): Promise<Uint8Array | null>
   record(id: string): Promise<TargetRecord | null>
   current(session: string): Promise<TargetRecord | null>
   list(route?: string): Promise<TargetRecord[]>

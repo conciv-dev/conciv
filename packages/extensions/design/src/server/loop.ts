@@ -8,32 +8,52 @@ import {
   type DiffInput,
   type DiffReport,
   type Ledger,
+  type LedgerCounts,
+  type LedgerEntry,
+  type NodeStatus,
   type Stage,
+  type WatchRow,
   type Stop,
 } from '../shared/defs.js'
-import {keyBy, uniq, zip} from 'es-toolkit'
-import {deltaSentence, iconSized, kindStage, kindTolerance, setVia, TOLERANCES, traced} from '../shared/tolerances.js'
+import {countBy, groupBy, keyBy, mapValues, maxBy, minBy, uniq, zip} from 'es-toolkit'
+import {
+  deltaSentence,
+  designFamilies,
+  iconSized,
+  kindStage,
+  kindTolerance,
+  PLACEHOLDER_ATTR,
+  setVia,
+  TOLERANCES,
+  traced,
+} from '../shared/tolerances.js'
 import type {
   Box,
   CapturePath,
   ColorMetric,
+  Decision,
   Delta,
   DesignPage,
   DesignSection,
   Item,
   ItemKind,
   Pair,
+  Fingerprint,
+  Framework,
+  LiveComponent,
+  Matched,
+  PairRecord,
   Ranker,
   SourceLoc,
+  TargetModel,
   TargetNode,
   TargetStore,
   TextNode,
   Touched,
   Unmatched,
 } from '../shared/types.js'
-import type {LedgerChanges} from './store.js'
-import {glyphRun, placement, type Seat, type Tree} from './pair.js'
-import {union} from './raster.js'
+import {fingerprint, glyphRun, placement, type Seat, type Shift, type Tree} from './pair.js'
+import {encloses, union} from './raster.js'
 
 export type Round = {
   score: number[]
@@ -985,4 +1005,422 @@ function stalled(input: {
 
 function stageColumn(stage: Stage): number {
   return 1 + STAGES.indexOf(stage)
+}
+
+const INDENT = '  '
+const SECTION_DEPTH = 1
+
+type StoredModel = Omit<TargetModel, 'raster'>
+type StoredNode = TargetNode
+
+export function designOutline(model: StoredModel): string[] {
+  const {scale} = model
+  const root = `page ${sized({box: model.root.box, scale})}${layoutPhrase(model.root.layout)}`
+  const families = designFamilies(model.nodes)
+  const fonts = families.length === 0 ? [] : [`fonts: ${families.join(', ')}`]
+  return [root, ...fonts, ...outlineLines({nodes: model.nodes, children: topNodes(model), depth: SECTION_DEPTH, scale})]
+}
+
+function topNodes(model: StoredModel): StoredNode[] {
+  const ids = new Set(model.nodes.map((node) => node.id))
+  return model.nodes.filter((node) => node.within === undefined || !ids.has(node.within))
+}
+
+function outlineLines(input: {nodes: StoredNode[]; children: StoredNode[]; depth: number; scale: number}): string[] {
+  const {nodes, depth, scale} = input
+  return input.children
+    .toSorted(documentOrder)
+    .flatMap((node) => [
+      `${INDENT.repeat(depth)}${depth === SECTION_DEPTH ? `section ${node.id} ` : ''}${nodeLine({node, scale})}`,
+      ...outlineLines({nodes, children: nodes.filter((child) => child.within === node.id), depth: depth + 1, scale}),
+    ])
+}
+
+export function designSections(model: StoredModel): DesignSection[] {
+  const {scale} = model
+  const children = groupBy(model.nodes, (node) => node.within ?? '')
+  return topNodes(model)
+    .toSorted(documentOrder)
+    .map((node) => ({
+      id: node.id,
+      kind: node.kind,
+      line: nodeLine({node, scale}),
+      box: mapValues(node.box, (value) => Math.round(value / scale)),
+      nodes: uniq([
+        node.id,
+        ...descendants({children, id: node.id}),
+        ...model.nodes.filter((other) => encloses({outer: node.box, inner: other.box})).map((other) => other.id),
+      ]),
+    }))
+}
+
+function descendants(input: {children: Record<string, StoredNode[]>; id: string}): string[] {
+  const {children} = input
+  return (children[input.id] ?? []).flatMap((child) => [child.id, ...descendants({children, id: child.id})])
+}
+
+function documentOrder(a: StoredNode, b: StoredNode): number {
+  return (
+    (a.layout?.index ?? 0) - (b.layout?.index ?? 0) ||
+    a.box.y - b.box.y ||
+    a.box.x - b.box.x ||
+    a.id.localeCompare(b.id)
+  )
+}
+
+function nodeLine(input: {node: StoredNode; scale: number}): string {
+  const {node, scale} = input
+  if (node.kind === 'image')
+    return `${iconSized(node.box) ? 'icon' : 'image'} ${sized({box: node.box, scale})} placeholder${heldPhrase(node.holds)}`
+  if (node.kind === 'text') return textLine({node, scale})
+  return `box ${sized({box: node.box, scale})}${layoutPhrase(node.layout)}${paintPhrase(node)}`
+}
+
+function heldPhrase(holds: number): string {
+  return holds > 0 ? ` (holds ${holds} text lines)` : ''
+}
+
+function textLine(input: {node: Extract<StoredNode, {kind: 'text'}>; scale: number}): string {
+  const {node, scale} = input
+  const type =
+    node.typography === undefined
+      ? ` size ~${Math.round(node.box.h / scale / TOLERANCES.capRatio)}`
+      : ` size ${Math.round(node.typography.size)}/${node.typography.weight}`
+  const role = node.role === undefined || node.role === 'unknown' ? '' : ` ${node.role}`
+  const lines = node.lines.length > 1 ? ` (${node.lines.length} lines)` : ''
+  const family = node.typography?.family ?? null
+  return `text "${foldedText(node.text)}"${type}${role}${lines}${family === null ? '' : ` ${family}`}`
+}
+
+function paintPhrase(node: Extract<StoredNode, {kind: 'box'}>): string {
+  const paint = [
+    backgroundPhrase(node.paint),
+    node.border === null ? null : `border ${node.border.width} ${node.border.color}`,
+    node.radius > 0 ? `radius ${node.radius}` : null,
+  ].filter((part) => part !== null)
+  return paint.length === 0 ? '' : `, ${paint.join(', ')}`
+}
+
+function backgroundPhrase(paint: Extract<StoredNode, {kind: 'box'}>['paint']): string | null {
+  if (paint === undefined) return null
+  if (paint.gradient === undefined) return `background ${paint.background}`
+  const {from, to, axis} = paint.gradient
+  return `background gradient ${from} to ${to} ${axis}`
+}
+
+function layoutPhrase(layout: Partial<ContainerLayout> | undefined): string {
+  if (layout?.direction === undefined) return ''
+  const gap = layout.gap === undefined ? '' : ` gap ${layout.gap.px}`
+  const align = layout.align === undefined ? '' : ` align ${layout.align}`
+  const sides = layout.padding === undefined ? [] : paddingSides(layout.padding)
+  const padding = sides.every((side) => side === 0) ? '' : ` padding ${sides.join(' ')}`
+  return ` ${layout.direction}${gap}${align}${layout.wrap === true ? ' wrapping' : ''}${padding}`
+}
+
+function paddingSides(padding: ContainerLayout['padding']): number[] {
+  const {top, right, bottom, left} = padding
+  if (top !== bottom || right !== left) return [top, right, bottom, left]
+  return top === right ? [top] : [top, right]
+}
+
+function sized(input: {box: StoredNode['box']; scale: number}): string {
+  const {box, scale} = input
+  return `${Math.round(box.w / scale)}x${Math.round(box.h / scale)}`
+}
+
+function foldedText(text: string): string {
+  return text
+    .split('\n')
+    .flatMap((line) => line.split('\t'))
+    .flatMap((part) => part.split(' '))
+    .filter((word) => word !== '')
+    .join(' ')
+}
+
+const PLACEHOLDER_IMPORTS: Record<Framework, {line: string; style: string}> = {
+  react: {line: "import type {CSSProperties} from 'react'", style: 'CSSProperties'},
+  solid: {line: "import type {JSX} from 'solid-js'", style: 'JSX.CSSProperties'},
+}
+
+const PLACEHOLDER_GLYPHS: Record<string, [string, string][]> = {
+  icon: [
+    ['width', "'40%'"],
+    ['height', "'40%'"],
+    ['border-radius', "'22%'"],
+  ],
+  logo: [
+    ['width', "'62%'"],
+    ['height', "'28%'"],
+    ['border-radius', "'999px'"],
+  ],
+  image: [
+    ['width', "'48%'"],
+    ['height', "'38%'"],
+    ['border-radius', "'12%'"],
+    ['display', "'flex'"],
+    ['align-items', "'center'"],
+    ['justify-content', "'center'"],
+  ],
+  avatar: [
+    ['width', "'42%'"],
+    ['height', "'42%'"],
+    ['border-radius', "'50%'"],
+  ],
+}
+
+const PLACEHOLDER_ROOT: [string, string][] = [
+  ['width', "'100%'"],
+  ['height', "'100%'"],
+  ['box-sizing', "'border-box'"],
+  ['display', "'flex'"],
+  ['align-items', "'center'"],
+  ['justify-content', "'center'"],
+  ['overflow', "'hidden'"],
+  ['border-radius', "props.kind === 'avatar' ? '50%' : '8px'"],
+  ['background', '`linear-gradient(135deg, hsl(${hue} 32% 94%), hsl(${(hue + 40) % 360} 32% 86%))`'],
+  ['aspect-ratio', 'props.ratio === undefined ? undefined : String(props.ratio)'],
+]
+
+const PLACEHOLDER_SPOT: [string, string][] = [
+  ['width', "'38%'"],
+  ['height', "'48%'"],
+  ['border-radius', "'50%'"],
+  ['background', '`hsl(${hue} 30% 93%)`'],
+]
+
+export function placeholderSource(framework: Framework): string {
+  const {line, style} = PLACEHOLDER_IMPORTS[framework]
+  const object = (entries: [string, string][]): string => styleObject({framework, entries})
+  const glyphs = Object.entries(PLACEHOLDER_GLYPHS).map(([kind, entries]) => `  ${kind}: ${object(entries)},`)
+  return [
+    line,
+    '',
+    "type PlaceholderKind = 'icon' | 'logo' | 'image' | 'avatar'",
+    '',
+    'type PlaceholderProps = {kind: PlaceholderKind; label?: string; ratio?: number}',
+    '',
+    `const GLYPHS: Record<PlaceholderKind, ${style}> = {`,
+    ...glyphs,
+    '}',
+    '',
+    'export function Placeholder(props: PlaceholderProps) {',
+    '  const hue = hash(props.label ?? props.kind) % 360',
+    `  const glyph: ${style} = {...GLYPHS[props.kind], background: \`hsl(\${hue} 28% 74% / 0.75)\`}`,
+    '  return (',
+    `    <div aria-hidden="true" ${PLACEHOLDER_ATTR}={props.kind} style={${object(PLACEHOLDER_ROOT)}}>`,
+    '      <div style={glyph}>',
+    `        {props.kind === 'image' ? <div style={${object(PLACEHOLDER_SPOT)}} /> : null}`,
+    '      </div>',
+    '    </div>',
+    '  )',
+    '}',
+    '',
+    'function hash(text: string): number {',
+    '  return [...text].reduce(',
+    '    (value, character) => Math.imul(value ^ (character.codePointAt(0) ?? 0), 16777619) >>> 0,',
+    '    2166136261,',
+    '  )',
+    '}',
+    '',
+  ].join('\n')
+}
+
+function styleObject(input: {framework: Framework; entries: [string, string][]}): string {
+  const pairs = input.entries.map(([name, value]) => `${styleKey({framework: input.framework, name})}: ${value}`)
+  return `{${pairs.join(', ')}}`
+}
+
+function styleKey(input: {framework: Framework; name: string}): string {
+  if (input.framework === 'solid') return `'${input.name}'`
+  const [first = '', ...rest] = input.name.split('-')
+  return [first, ...rest.map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)].join('')
+}
+
+export type LedgerChanges = {
+  done: string[]
+  regressed: string[]
+  paired: string[]
+  lost: string[]
+  moved: {node: string; shift: Shift}[]
+}
+
+export function nextLedger(input: {
+  earlier: Ledger | null
+  run: string
+  round: number
+  nodes: TargetNode[]
+  matched: Matched[]
+  items: Item[]
+  decisions: Decision[]
+  components: LiveComponent[]
+}): {ledger: Ledger; changes: LedgerChanges} {
+  const {earlier, run, nodes, items} = input
+  const found = new Map(input.matched.map((entry) => [entry.node.id, entry]))
+  const accepted = new Set(
+    input.decisions.filter((decision) => decision.kind === 'accept-node').map((decision) => decision.anchor),
+  )
+  const entries = nodes.map((node): [string, LedgerEntry] => {
+    const previous = earlier?.nodes[node.id] ?? null
+    const match = found.get(node.id)
+    const item = worstItem({items, node: node.id})
+    const status = nextStatus({
+      previous: previous?.status ?? 'unbuilt',
+      paired: match !== undefined,
+      dirty: item !== null,
+      accepted: accepted.has(node.id),
+    })
+    return [
+      node.id,
+      {
+        status,
+        since: previous !== null && previous.status === status ? previous.since : run,
+        pair: match === undefined ? (previous?.pair ?? null) : livePair({match, run}),
+        item,
+      },
+    ]
+  })
+  const current = Object.fromEntries(entries)
+  const ledger = {run, round: input.round, nodes: {...earlier?.nodes, ...current}}
+  if (earlier === null) return {ledger, changes: {done: [], regressed: [], paired: [], lost: [], moved: []}}
+  return {ledger, changes: changesBetween({earlier, current, found, components: input.components})}
+}
+
+export function ledgerPairs(ledger: Ledger | null): PairRecord[] {
+  if (ledger === null) return []
+  return Object.entries(ledger.nodes).flatMap(([node, entry]): PairRecord[] => {
+    if (entry.pair === null || entry.pair.run !== ledger.run) return []
+    const {path, confidence} = entry.pair
+    return [{node, path, confidence, fingerprint: entry.pair.fingerprint}]
+  })
+}
+
+export function ledgerCounts(ledger: Ledger | null): LedgerCounts {
+  const counted = countBy(Object.values(ledger?.nodes ?? {}), (entry) => entry.status)
+  return {
+    unbuilt: counted.unbuilt ?? 0,
+    paired: counted.paired ?? 0,
+    done: counted.done ?? 0,
+    regressed: counted.regressed ?? 0,
+    accepted: counted.accepted ?? 0,
+  }
+}
+
+export function watchRows(input: {nodes: TargetNode[]; ledger: Ledger | null}): WatchRow[] {
+  return input.nodes.map((node): WatchRow => {
+    const entry = input.ledger?.nodes[node.id]
+    return {
+      node: node.id,
+      ref: node.ref ?? null,
+      kind: node.kind,
+      text: node.kind === 'text' ? node.text : null,
+      box: node.box,
+      status: entry?.status ?? 'unbuilt',
+      key: entry?.pair?.fingerprint.key ?? null,
+      source: entry?.pair?.fingerprint.source ?? null,
+      path: entry?.pair?.path ?? null,
+      confidence: entry?.pair?.confidence ?? null,
+      item: entry?.item?.sentence ?? null,
+    }
+  })
+}
+
+function worstItem(input: {items: Item[]; node: string}): LedgerEntry['item'] {
+  const worst = maxBy(
+    input.items.filter((item) => item.node === input.node && item.stage !== null),
+    (item) => item.size,
+  )
+  if (worst === undefined || worst.stage === null) return null
+  return {stage: worst.stage, size: worst.size, sentence: worst.sentence}
+}
+
+function nextStatus(input: {previous: NodeStatus; paired: boolean; dirty: boolean; accepted: boolean}): NodeStatus {
+  const {previous, paired, dirty} = input
+  if (input.accepted) return 'accepted'
+  if (paired && !dirty) return 'done'
+  if (previous === 'unbuilt') return paired ? 'paired' : 'unbuilt'
+  if (previous === 'paired' && paired) return 'paired'
+  return 'regressed'
+}
+
+function livePair(input: {match: Matched; run: string}): LedgerEntry['pair'] {
+  const {match, run} = input
+  return {path: match.component.path, fingerprint: fingerprint(match.component), confidence: match.confidence, run}
+}
+
+function changesBetween(input: {
+  earlier: Ledger
+  current: Record<string, LedgerEntry>
+  found: Map<string, Matched>
+  components: LiveComponent[]
+}): LedgerChanges {
+  const {earlier, current} = input
+  const listed = Object.entries(current).filter(([, entry]) => entry.status !== 'accepted')
+  const was = (node: string): NodeStatus => earlier.nodes[node]?.status ?? 'unbuilt'
+  const newly = (status: NodeStatus): string[] =>
+    listed.filter(([node, entry]) => entry.status === status && was(node) !== status).map(([node]) => node)
+  const prints = flattened(input.components).map(fingerprintAt)
+  const sightings = listed.flatMap(([node, entry]) => {
+    const pair = earlier.nodes[node]?.pair
+    if (pair === undefined || pair === null || pair.run !== earlier.run) return []
+    const now = input.found.has(node) ? entry.pair : null
+    if (now !== null) return [{node, sighting: sighted({box: now.fingerprint.box, wanted: pair.fingerprint})}]
+    return [{node, sighting: nearestSighting({wanted: pair.fingerprint, path: pair.path, prints})}]
+  })
+  return {
+    done: newly('done'),
+    regressed: newly('regressed'),
+    paired: listed
+      .filter(([node, entry]) => was(node) === 'unbuilt' && (entry.status === 'paired' || entry.status === 'done'))
+      .map(([node]) => node),
+    lost: sightings.filter(({sighting}) => sighting === null).map(({node}) => node),
+    moved: sightings.flatMap(({node, sighting}) =>
+      sighting === null || !sighting.outside ? [] : [{node, shift: sighting.shift}],
+    ),
+  }
+}
+
+type Print = {path: string; print: Fingerprint}
+
+function fingerprintAt(component: LiveComponent): Print {
+  return {path: component.path, print: fingerprint(component)}
+}
+
+function nearestSighting(input: {
+  wanted: Fingerprint
+  path: string
+  prints: Print[]
+}): {shift: Shift; outside: boolean} | null {
+  const {wanted} = input
+  const nearest = minBy(
+    input.prints.filter(({path, print}) => sameElement({a: print, b: wanted, path, wantedPath: input.path})),
+    ({print}) => Math.hypot(print.box.x - wanted.box.x, print.box.y - wanted.box.y),
+  )
+  if (nearest === undefined) return null
+  return sighted({box: nearest.print.box, wanted})
+}
+
+function sighted(input: {box: Fingerprint['box']; wanted: Fingerprint}): {shift: Shift; outside: boolean} {
+  const {box, wanted} = input
+  const edges = [box.x - wanted.box.x, box.y - wanted.box.y, box.w - wanted.box.w, box.h - wanted.box.h]
+  return {
+    shift: {dx: Math.round(box.x - wanted.box.x), dy: Math.round(box.y - wanted.box.y)},
+    outside: edges.some((edge) => Math.abs(edge) > TOLERANCES.tileMargin),
+  }
+}
+
+function sameElement(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
+  const {a, b} = input
+  if (a.key !== null && b.key !== null) return a.key === b.key && a.instance === b.instance
+  return unkeyedSame(input)
+}
+
+function unkeyedSame(input: {a: Fingerprint; b: Fingerprint; path: string; wantedPath: string}): boolean {
+  const {a, b} = input
+  if (a.textHash !== b.textHash) return false
+  if (b.source === null) return a.source === null && a.tag === b.tag && input.path === input.wantedPath
+  return a.source !== null && a.source.file === b.source.file && a.source.line === b.source.line
+}
+
+function flattened(components: LiveComponent[]): LiveComponent[] {
+  return components.flatMap((component) => [component, ...flattened(component.children)])
 }

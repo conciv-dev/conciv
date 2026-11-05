@@ -1,3 +1,4 @@
+import type {Storage} from 'unstorage'
 import type {ServerApi, ToolRequest} from '@conciv/extension'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
@@ -227,12 +228,15 @@ export type ProvenanceMapper = {
     property: string
     target: number | string
     cwd: string
+    project: Storage
     cssMap: CssMap
   }): Promise<Provenance>
 }
 
 export type DesignRuntime = {
   cwd: string
+  state: Storage
+  project: Storage
   blind: boolean
   store: Store
   comparators: Comparators
@@ -259,6 +263,7 @@ export type Differ = {
   accept(input: {id: string}): Promise<TargetRecord>
   status(input: {session: SessionId}): Promise<StatusReport>
   watch(input: {input: WatchInput; session: SessionId}): Promise<WatchReport>
+  xray(input: {id: string}): Promise<{report: DiffReport | null; outline: string[]}>
 }
 
 export type DesignPage = ServerApi<DesignConfig>['page']

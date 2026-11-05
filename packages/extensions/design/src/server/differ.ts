@@ -6,7 +6,7 @@ import {groupBy, keyBy, mapValues, maxBy, omit, partition, pick, range, uniq, un
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
-import {basename, isAbsolute, join, relative} from 'node:path'
+import {basename, relative} from 'node:path'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {
@@ -116,10 +116,14 @@ import {
   heldBy,
   itemsFrom,
   judge,
+  ledgerCounts,
+  ledgerPairs,
   lexicallyWorse,
+  nextLedger,
   roundRecord,
   scoreTuple,
   sectionBudgets,
+  watchRows,
   type Round,
   type RunJob,
 } from './loop.js'
@@ -134,7 +138,7 @@ import {
   type Shift,
   type Tree,
 } from './pair.js'
-import {ledgerCounts, ledgerPairs, newStamp, nextLedger, watchRows} from './store.js'
+import {newStamp} from './store.js'
 import {
   boxBlur,
   boxMask,
@@ -171,7 +175,8 @@ import {
 } from './raster.js'
 import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
 import postcss, {AtRule, type Container, type Document, type Root} from 'postcss'
-import {readFile, readdir} from 'node:fs/promises'
+import {createStorage, type Storage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs'
 import {
   parseSync,
   Visitor,
@@ -490,7 +495,7 @@ async function runDiff(request: {
     mismatchAt: (box) => maskShare({...pixels, box: expand({box, by: TOLERANCES.tileMargin})}),
   })
   const alignment = align({pairs, live: live.raster, exact, tolerances: TOLERANCES})
-  const judged = await textJudgements({pairs, cwd: design.cwd})
+  const judged = await textJudgements({pairs, project: design.project})
   const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const measures = cachedMeasures({
     pairs,
@@ -541,7 +546,7 @@ async function runDiff(request: {
   })
   const warnings = [
     ...drawnWarnings({pairs, components: live.components, nodes}),
-    ...(await warningDeltas({pairs, judged, components: live.components, cwd: design.cwd})),
+    ...(await warningDeltas({pairs, judged, components: live.components, project: design.project})),
   ].map((delta) => ({...delta, ...stamp}))
   const painted = paintedPage(live.components)
   const score = scoreTuple({
@@ -1388,7 +1393,7 @@ function decided(input: {deltas: Delta[]; pair: Pair; decisions: Decision[]; col
 
 type TextJudgement = {verdict: TextVerdict; live: string; target: string}
 
-async function textJudgements(input: {pairs: Pair[]; cwd: string}): Promise<Map<Pair, TextJudgement>> {
+async function textJudgements(input: {pairs: Pair[]; project: Storage}): Promise<Map<Pair, TextJudgement>> {
   const judged = await Promise.all(
     input.pairs
       .filter((pair) => pair.texts.length > 0)
@@ -1397,7 +1402,7 @@ async function textJudgements(input: {pairs: Pair[]; cwd: string}): Promise<Map<
         const targetText = joinedText(
           pair.texts.toSorted((a, b) => readingBox({a: a.box, b: b.box})).map((node) => node.text),
         )
-        const live = await readLiveText({cwd: input.cwd, source: pair.live.source})
+        const live = await readLiveText({project: input.project, source: pair.live.source})
         const roles = new Set(pair.texts.map((node) => node.role ?? 'unknown'))
         const [only] = roles
         const role: Role = roles.size === 1 && only !== undefined ? only : 'unknown'
@@ -1455,9 +1460,9 @@ async function warningDeltas(input: {
   pairs: Pair[]
   judged: Map<Pair, TextJudgement>
   components: LiveComponent[]
-  cwd: string
+  project: Storage
 }): Promise<Delta[]> {
-  const {judged, cwd} = input
+  const {judged, project} = input
   const parents = new Map(
     flattened(input.components).flatMap((parent) =>
       parent.children.map((child): [string, LiveComponent] => [child.path, parent]),
@@ -1468,7 +1473,7 @@ async function warningDeltas(input: {
       const found = judged.get(pair)
       if (found === undefined || found.verdict !== 'sample-data') return []
       const marked = pair.texts.some((node) => node.role === 'placeholder')
-      if (!marked && !(await rendersData({pair, parent: parents.get(pair.live.path), cwd}))) return []
+      if (!marked && !(await rendersData({pair, parent: parents.get(pair.live.path), project}))) return []
       return [
         sourced({
           delta: {kind: 'text', live: found.live, target: found.target, warning: 'sample-data', box: pair.liveBox},
@@ -1516,11 +1521,11 @@ function drawnLabel(tag: string): string {
   return 'drawn canvas'
 }
 
-async function rendersData(input: {pair: Pair; parent: LiveComponent | undefined; cwd: string}): Promise<boolean> {
-  const {pair, parent, cwd} = input
+async function rendersData(input: {pair: Pair; parent: LiveComponent | undefined; project: Storage}): Promise<boolean> {
+  const {pair, parent, project} = input
   if (parent === undefined) return false
   const siblings = parent.children.filter((child) => child.path !== pair.live.path && child.text.trim() !== '')
-  const texts = await Promise.all(siblings.map((sibling) => readLiveText({cwd, source: sibling.source})))
+  const texts = await Promise.all(siblings.map((sibling) => readLiveText({project, source: sibling.source})))
   return texts.some((text) => text !== null && text.role !== 'literal')
 }
 
@@ -2371,6 +2376,7 @@ async function attributeEntry(input: {
         component: found.owner.live,
         target: delta.target,
         cwd: design.cwd,
+        project: design.project,
         cssMap,
         mappers: design.mappers,
       })
@@ -2506,11 +2512,12 @@ type Site = Parsed & {element: JSXOpeningElement}
 
 const UNKNOWN: Provenance = {via: 'unknown'}
 
-async function parseFile(path: string): Promise<Parsed | null> {
-  const code = await readFile(path, 'utf8').catch(() => null)
+async function parseFile(input: {project: Storage; file: string}): Promise<Parsed | null> {
+  const {file} = input
+  const code = await readText(input)
   if (code === null) return null
-  const lang = path.endsWith('.tsx') || path.endsWith('.jsx') ? 'tsx' : 'ts'
-  const {program, errors} = parseSync(path, code, {sourceType: 'module', lang})
+  const lang = file.endsWith('.tsx') || file.endsWith('.jsx') ? 'tsx' : 'ts'
+  const {program, errors} = parseSync(file, code, {sourceType: 'module', lang})
   if (errors.length > 0) return null
   return {code, program}
 }
@@ -2525,9 +2532,9 @@ function offsetAt(input: {code: string; line: number; column: number}): number {
   return lines.reduce((sum, line) => sum + line.length + 1, 0) + input.column - 1
 }
 
-async function readSite(input: {cwd: string; source: SourceLoc | null}): Promise<Site | null> {
+async function readSite(input: {project: Storage; source: SourceLoc | null}): Promise<Site | null> {
   if (input.source === null) return null
-  const parsed = await parseFile(join(input.cwd, input.source.file))
+  const parsed = await parseFile({project: input.project, file: input.source.file})
   if (parsed === null) return null
   const offset = offsetAt({code: parsed.code, line: input.source.line, column: input.source.column})
   const found: JSXOpeningElement[] = []
@@ -2579,11 +2586,11 @@ function mediaConditions(parent: Parent): string[] {
   return [...outer, `@media ${parent.params}`]
 }
 
-async function parseCss(path: string): Promise<Root | null> {
-  const css = await readFile(path, 'utf8').catch(() => null)
+async function parseCss(input: {project: Storage; file: string}): Promise<Root | null> {
+  const css = await readText(input)
   if (css === null) return null
   try {
-    return postcss.parse(css, {from: path})
+    return postcss.parse(css, {from: input.file})
   } catch {
     return null
   }
@@ -2622,13 +2629,12 @@ function selects(input: {entry: CssEntry; selector: string}): boolean {
   return input.entry.file.endsWith('.module.css') && input.entry.selector === localName(input.selector)
 }
 
-export async function buildCssMap(input: {cwd: string; files: string[]}): Promise<CssMap> {
+export async function buildCssMap(input: {project: Storage; files: string[]}): Promise<CssMap> {
   const parsed = await Promise.all(
     input.files.map(async (file) => {
-      const path = isAbsolute(file) ? file : join(input.cwd, file)
-      const root = await parseCss(path)
+      const root = await parseCss({project: input.project, file})
       if (root === null) return []
-      return cssEntries({root, file: relative(input.cwd, path)})
+      return cssEntries({root, file})
     }),
   )
   const entries = parsed.flat()
@@ -2641,8 +2647,8 @@ export async function buildCssMap(input: {cwd: string; files: string[]}): Promis
   }
 }
 
-async function countDeclarations(input: {cwd: string; file: string; selector: string}): Promise<number> {
-  const root = await parseCss(join(input.cwd, input.file))
+async function countDeclarations(input: {project: Storage; file: string; selector: string}): Promise<number> {
+  const root = await parseCss(input)
   if (root === null) return 0
   const counts: number[] = []
   root.walkRules((rule) => {
@@ -2791,7 +2797,7 @@ const styleMapper: ProvenanceMapper = {
   applies: ({winner}) => winner.inline || winner.sheet.emotion,
   async map(input) {
     const {source} = input.component
-    const site = await readSite({cwd: input.cwd, source})
+    const site = await readSite({project: input.project, source})
     if (site === null || source === null) return UNKNOWN
     const names: ('style' | 'sx')[] = input.winner.inline ? ['style', 'sx'] : ['sx']
     const found = names
@@ -2861,21 +2867,24 @@ function overrideIn(input: {node: Expression | undefined; path: string[]; proper
   return matched?.property ?? null
 }
 
-async function sourceFiles(cwd: string): Promise<string[]> {
-  const root = join(cwd, 'src')
-  const names = await readdir(root, {recursive: true}).catch(() => [])
-  return names
-    .filter((name) => !name.includes('node_modules') && SOURCE_EXTENSIONS.some((ext) => name.endsWith(ext)))
-    .map((name) => join(root, name))
+async function sourceFiles(project: Storage): Promise<string[]> {
+  const keys = await project.getKeys('src').catch(() => [])
+  return keys
+    .map((key) => key.replaceAll(':', '/'))
+    .filter((file) => !file.includes('node_modules') && SOURCE_EXTENSIONS.some((ext) => file.endsWith(ext)))
 }
 
-async function themeOverride(input: {cwd: string; selector: string | null; property: string}): Promise<string | null> {
+async function themeOverride(input: {
+  project: Storage
+  selector: string | null
+  property: string
+}): Promise<string | null> {
   if (input.selector === null || !input.selector.startsWith('.')) return null
   const [slotName, slot] = input.selector.slice(1).split('-')
   if (slotName === undefined || slot === undefined) return null
   const path = ['components', slotName, 'styleOverrides', slot]
-  for (const file of await sourceFiles(input.cwd)) {
-    const parsed = await parseFile(file)
+  for (const file of await sourceFiles(input.project)) {
+    const parsed = await parseFile({project: input.project, file})
     if (parsed === null || !parsed.code.includes('createTheme')) continue
     const found: ObjectProperty[] = []
     new Visitor({
@@ -2890,7 +2899,7 @@ async function themeOverride(input: {cwd: string; selector: string | null; prope
     const override = found[0]
     if (override === undefined) continue
     const {line, column} = positionAt({code: parsed.code, offset: override.start})
-    return `${parsed.code.slice(override.start, override.end)} (${relative(input.cwd, file)}:${line}:${column})`
+    return `${parsed.code.slice(override.start, override.end)} (${file}:${line}:${column})`
   }
   return null
 }
@@ -2901,7 +2910,11 @@ const libraryMapper: ProvenanceMapper = {
   async map(input) {
     const {winner, component} = input
     if (!isLibrary({winner, cwd: input.cwd})) return UNKNOWN
-    const override = await themeOverride({cwd: input.cwd, selector: winner.selector, property: input.property})
+    const override = await themeOverride({
+      project: input.project,
+      selector: winner.selector,
+      property: input.property,
+    })
     return {
       via: 'library',
       ...(component.source === null ? {} : component.source),
@@ -2996,7 +3009,7 @@ const classNameMapper: ProvenanceMapper = {
     const token = classToken(input.winner.selector)
     const {source} = input.component
     if (token === null || source === null) return UNKNOWN
-    const site = await readSite({cwd: input.cwd, source})
+    const site = await readSite({project: input.project, source})
     if (site === null) return UNKNOWN
     const offset = classPieces(site)
       .map((piece) => tokenOffset({piece, token}))
@@ -3004,7 +3017,9 @@ const classNameMapper: ProvenanceMapper = {
     if (offset === undefined || offset === null) return UNKNOWN
     const selector = `.${token}`
     const hit = input.cssMap.find({selector, property: input.property})
-    if (hit !== null && (await countDeclarations({cwd: input.cwd, file: hit.file, selector})) > 1) return UNKNOWN
+    if (hit !== null && (await countDeclarations({project: input.project, file: hit.file, selector})) > 1) {
+      return UNKNOWN
+    }
     const {line, column} = located({site, offset})
     return {via: 'className', file: source.file, line, column, declaration: token, selector}
   },
@@ -3054,11 +3069,12 @@ export const MAPPERS: ProvenanceMapper[] = [
 ]
 
 export async function mapDeclaration(
-  input: Parameters<ProvenanceMapper['map']>[0] & {mappers?: ProvenanceMapper[]},
+  input: Omit<MapInput, 'project'> & {project?: Storage; mappers?: ProvenanceMapper[]},
 ): Promise<Provenance> {
+  const mapped = {...input, project: input.project ?? projectFiles(input.cwd)}
   for (const mapper of input.mappers ?? MAPPERS) {
-    if (!mapper.applies(input)) continue
-    const provenance = await mapper.map(input)
+    if (!mapper.applies(mapped)) continue
+    const provenance = await mapper.map(mapped)
     if (provenance.via !== 'unknown') return provenance
   }
   return UNKNOWN
@@ -3106,7 +3122,7 @@ function partsRole(found: Parts): LiveRole | null {
   return found.literals.length > 0 ? 'literal' : null
 }
 
-export async function readLiveText(input: {cwd: string; source: SourceLoc | null}): Promise<LiveText | null> {
+export async function readLiveText(input: {project: Storage; source: SourceLoc | null}): Promise<LiveText | null> {
   const site = await readSite(input)
   if (site === null) return null
   const elements: JSXElement[] = []
@@ -3130,4 +3146,15 @@ export function lookups(input: {delta: Delta; pair: Pair}): Lookup[] {
     const owner = PARENT_PROPERTIES.includes(property) ? pair.host : pair
     return owner === null ? [] : [{property, owner}]
   })
+}
+
+type MapInput = Parameters<ProvenanceMapper['map']>[0]
+
+function projectFiles(cwd: string): Storage {
+  return createStorage({driver: fsDriver({base: cwd, readOnly: true})})
+}
+
+async function readText(input: {project: Storage; file: string}): Promise<string | null> {
+  const raw: unknown = await input.project.getItemRaw(input.file).catch(() => null)
+  return raw instanceof Uint8Array ? new TextDecoder().decode(raw) : null
 }
