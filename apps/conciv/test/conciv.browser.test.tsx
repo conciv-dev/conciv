@@ -29,6 +29,7 @@ import {
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
   ChatProvider,
@@ -835,6 +836,24 @@ describe('model menu', () => {
     await expect.element(page.getByRole('button', {name: 'Model: Opus 5.5', exact: true})).toBeVisible()
     await expect.element(checkedEffort('Default')).toBeInTheDocument()
     await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
+  })
+
+  test('a picked effort stays checked while the session list is still catching up', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await expect.element(checkedEffort('Default')).toBeInTheDocument()
+    const listing = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+    await userEvent.click(effort('Medium'))
+    await coreControl.awaitFaultPending(listing, 1)
+
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await expect.element(prompt('Opus 5.5, effort Medium')).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+    await userEvent.click(effort('High'))
+    await expect.element(checkedEffort('High')).toBeInTheDocument()
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
   })
 
   test('High+ is its own effort segment', async () => {
@@ -1870,6 +1889,8 @@ describe('panel view tabs', () => {
 
   describe('during a running turn', () => {
     const STREAMED_TEXT = 'the reply that streams while the notes tab is open'
+    const HYDRATE_PATH = ['chat', 'hydrate']
+    const UNREACHABLE_BASE = 'http://127.0.0.1:9'
     const FOLLOW_UP_TEXT = 'the follow-up reply after returning to chat'
 
     afterEach(async () => {
@@ -1882,12 +1903,15 @@ describe('panel view tabs', () => {
     const narration = () => page.getByText('Responding…', {exact: true})
     const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
 
-    async function mountHeldTurn(sessionId: string): Promise<Awaited<ReturnType<typeof sendTurn>>> {
+    async function mountHeldTurn(
+      sessionId: string,
+      options: ShellMountOptions = {},
+    ): Promise<Awaited<ReturnType<typeof sendTurn>>> {
       await page.viewport(1000, 900)
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       await coreControl.holdTurn()
       const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
-      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension], options)
       await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(narration()).toBeVisible()
       return turn
@@ -1919,12 +1943,39 @@ describe('panel view tabs', () => {
       await expect.element(page.getByText(STREAMED_TEXT)).toBeVisible()
     }, 30_000)
 
-    test('another session can open right after Send and the left run still settles in the background', async () => {
+    const replied = () => page.getByText('conciv replied.')
+    const option = (name: RegExp) => page.getByRole('option', {name})
+    const openSessions = async (active: string) => {
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await page.getByRole('button', {name: `Session: ${active}`}).click()
+    }
+    type Titles = {running: string; other: string}
+
+    async function twoSessions(tag: string): Promise<{running: string; titles: Titles}> {
       const rpc = coreRpc(coreBase())
       const [running, other] = [await createSession(rpc), await createSession(rpc)]
-      await rpc.sessions.rename({sessionId: running, title: 'the running session'})
-      await rpc.sessions.rename({sessionId: other, title: 'the other session'})
+      const titles = {running: `the running session ${tag}`, other: `the other session ${tag}`}
+      await rpc.sessions.rename({sessionId: running, title: titles.running})
+      await rpc.sessions.rename({sessionId: other, title: titles.other})
       await page.viewport(1000, 900)
+      return {running, titles}
+    }
+
+    async function switchToOther(titles: Titles): Promise<void> {
+      await openSessions(titles.running)
+      await option(new RegExp(`^${titles.other}`)).click()
+      await expect.element(page.getByText('How can I help you today?'), {timeout: 8000}).toBeVisible()
+      await expect.element(replied()).not.toBeInTheDocument()
+    }
+
+    async function returnToRunning(titles: Titles): Promise<void> {
+      await openSessions(titles.other)
+      await option(new RegExp(`^${titles.running}`)).click()
+      await expect.element(chatPanel().getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+    }
+
+    test('another session can open right after Send and the left run still settles in the background', async () => {
+      const {running, titles} = await twoSessions('sent')
       await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
       harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
       await expect.element(composer(), {timeout: 8000}).toBeVisible()
@@ -1932,26 +1983,103 @@ describe('panel view tabs', () => {
       await composer().fill('start a long turn')
       await userEvent.keyboard('{Enter}')
       await coreControl.awaitFaultPending(unsent, 1)
-      const option = (name: RegExp) => page.getByRole('option', {name})
-      const openSessions = async (active: string) => {
-        await page.getByRole('button', {name: 'Session options'}).click()
-        await page.getByRole('button', {name: `Session: ${active}`}).click()
-      }
 
-      await openSessions('the running session')
-      await option(/^the other session/).click()
-      await expect.element(page.getByText('How can I help you today?'), {timeout: 8000}).toBeVisible()
-      await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+      await switchToOther(titles)
 
       await coreControl.releaseFault(unsent)
-      await expect.element(page.getByText('conciv replied.'), {timeout: 8000}).toBeInTheDocument()
+      await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
       await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
-      await openSessions('the other session')
-      await expect.element(option(/^the running session(?!.*running)/), {timeout: 8000}).toBeVisible()
+      await openSessions(titles.other)
+      await expect.element(option(new RegExp(`^${titles.running}(?!.*running)`)), {timeout: 8000}).toBeVisible()
 
-      await option(/^the running session/).click()
+      await option(new RegExp(`^${titles.running}`)).click()
       await expect.element(chatPanel().getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
       await expect.element(chatPanel().getByText('start a long turn')).toBeVisible()
+    }, 30_000)
+
+    test('a follow-up queued then removed before leaving does not keep the left session connected', async () => {
+      const {running, titles} = await twoSessions('removed')
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.holdTurn()
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await composer().fill('a follow-up to take back')
+      await userEvent.keyboard('{Enter}')
+      await page.getByRole('button', {name: 'Remove from queue'}).click()
+      await expect.element(page.getByText('a follow-up to take back')).not.toBeInTheDocument()
+
+      await switchToOther(titles)
+      await coreControl.releaseTurn()
+      await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
+      const hydrated = await coreControl.rpcCallCount(HYDRATE_PATH)
+
+      await returnToRunning(titles)
+      expect(await coreControl.rpcCallCount(HYDRATE_PATH)).toBeGreaterThan(hydrated)
+    }, 30_000)
+
+    test('a follow-up queued before leaving is still sent once the left run ends', async () => {
+      const {running, titles} = await twoSessions('queued')
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
+      await coreControl.holdTurn()
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await composer().fill('a follow-up that waits in the queue')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByRole('button', {name: 'Remove from queue'})).toBeVisible()
+
+      await switchToOther(titles)
+      await coreControl.releaseTurn()
+
+      await returnToRunning(titles)
+      await expect.element(chatPanel().getByText(FOLLOW_UP_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(chatPanel().getByText('a follow-up that waits in the queue')).toBeVisible()
+    }, 30_000)
+
+    test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
+      const {running, titles} = await twoSessions('offline')
+      const [connection, setConnection] = createStore({apiBase: coreBase()})
+      const turn = await mountHeldTurn(running, {transport: 'fetch', apiBase: () => connection.apiBase})
+
+      await switchToOther(titles)
+      setConnection('apiBase', UNREACHABLE_BASE)
+      await coreControl.releaseTurn()
+      await turn.awaitTurnEnd()
+      turn.close()
+      setConnection('apiBase', coreBase())
+
+      await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
+      await returnToRunning(titles)
+    }, 30_000)
+
+    test('approving an ask and leaving while its turn is still unsent settles that turn in the background', async () => {
+      const {running, titles} = await twoSessions('approved')
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
+      await coreControl.scriptCustomEvent('approval-requested', {
+        approvalId: 'switch-ask',
+        title: 'Approve Bash: rm -rf build',
+        input: {command: 'rm -rf build'},
+      })
+      await composer().fill('delete the build directory')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByRole('group', {name: 'Permission request'}), {timeout: 15_000}).toBeVisible()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      const unsent = await faults.install({kind: 'chat-gate'})
+      await page.getByRole('button', {name: 'Approve'}).click()
+      await coreControl.awaitFaultPending(unsent, 1)
+
+      await switchToOther(titles)
+      await coreControl.releaseFault(unsent)
+
+      await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
+      await returnToRunning(titles)
     }, 30_000)
   })
 

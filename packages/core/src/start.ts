@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -12,7 +13,7 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
-import {runInOrder} from './lib/shutdown.js'
+import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
@@ -116,6 +117,12 @@ async function servePort(
   return serving
 }
 
+function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
+  return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) =>
+    console.error('conciv: cleanup after a failed start also failed', inspect(failure, {depth: null})),
+  )
+}
+
 function onceNotifier(callback?: () => void): () => void {
   let fired = false
   return () => {
@@ -193,7 +200,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   try {
     serving = await servePort(fetchHandler, opts.port, {file: paths.server, token: agentToken})
   } catch (error) {
-    await dispose()
+    await cleanupAfterFailedStart([dispose])
     throw error
   }
   const {port, close} = serving
@@ -210,9 +217,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
       writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
     }
   } catch (error) {
-    await runInOrder([close, dispose], 'conciv: stopping the engine failed').catch((failure: unknown) =>
-      console.error('conciv: cleanup after a failed start also failed', failure),
-    )
+    await cleanupAfterFailedStart([close, dispose])
     throw error
   }
   const clearEndpoint = (): void => {

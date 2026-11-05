@@ -15,8 +15,8 @@ export type PagePlaneWatch = {
 }
 
 type ReadyGate = {
-  ready: Promise<boolean>
-  open: (result: Promise<boolean>) => void
+  ready: Promise<void>
+  open: () => void
 }
 
 type JournalEntry = {at: number; line: string}
@@ -128,11 +128,8 @@ function readyOf(socket: PageWebSocket): Promise<boolean> {
 }
 
 function readyGate(): ReadyGate {
-  const held: {open: (result: Promise<boolean>) => void} = {open: () => {}}
-  const opened = new Promise<Promise<boolean>>((resolve) => {
-    held.open = resolve
-  })
-  return {ready: opened.then((result) => result), open: (result) => held.open(result)}
+  const opened = Promise.withResolvers<void>()
+  return {ready: opened.promise, open: () => opened.resolve()}
 }
 
 function watchPagePlane(page: Page): PagePlaneWatch {
@@ -143,7 +140,11 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   const onSocket = (socket: PageWebSocket): void => {
     note(`websocket open ${socket.url()}`)
     const gate = held.gate
-    if (isPushSocket(socket)) gate.open(readyOf(socket))
+    if (isPushSocket(socket)) {
+      void readyOf(socket).then((ready) => {
+        if (ready) gate.open()
+      })
+    }
     const onClose = (): void => {
       note(`websocket close ${socket.url()}`)
       socketCleanups.delete(cleanup)
@@ -193,22 +194,18 @@ function watchPagePlane(page: Page): PagePlaneWatch {
   return {
     subscribed: async () => {
       note('subscribed() called')
-      const ready = await pTimeout(held.gate.ready, {
+      await pTimeout(held.gate.ready, {
         milliseconds: SUBSCRIBE_TIMEOUT_MS,
         fallback: async () => {
           throw new TimeoutError(
-            await explain({line: `no page plane push socket opened on ${PUSH_WS_PATH}`, journal, page}),
+            await explain({
+              line: `no push socket on ${PUSH_WS_PATH} sent the ready frame that marks it serving page queries`,
+              journal,
+              page,
+            }),
           )
         },
       })
-      if (ready) return
-      throw new Error(
-        await explain({
-          line: `the page plane push socket on ${PUSH_WS_PATH} never sent its ready frame`,
-          journal,
-          page,
-        }),
-      )
     },
     dispose: () => {
       page.off('websocket', onSocket)

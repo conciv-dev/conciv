@@ -332,6 +332,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 
 export type ShellMountOptions = {
   transport?: ChatTransportPreference
+  apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
 }
 
@@ -364,16 +365,20 @@ export function createShellHarness(base: () => string): ShellHarness {
         return createEngineLogin({apiBase: () => apiBase, tokenSource: loginOptions.tokenSource})
       })
     if (login) void startEngineLogin(login)
+    const activeSession: {read: () => string | null} = {read: () => null}
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(apiBase).rpc,
+      rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
-      apiBase: () => apiBase,
+      apiBase: options.apiBase ?? (() => apiBase),
       connected: () => (login ? engineConnected(login.status()) : true),
       connectionGeneration: () => 0,
       extensions,
       login,
+      bindActiveSession: (read) => {
+        activeSession.read = read
+      },
     })
     mounted.router = router
     mounted.unmount = render(() => <RouterProvider router={router} />).unmount

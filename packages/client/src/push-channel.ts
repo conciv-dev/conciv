@@ -1,6 +1,12 @@
 import ReconnectingWebSocket from 'partysocket/ws'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema, type PushFrame} from '@conciv/protocol/push-types'
+import {
+  PUSH_SESSION_PARAM,
+  PUSH_WS_PATH,
+  PushFrameSchema,
+  type PageServingFrame,
+  type PushFrame,
+} from '@conciv/protocol/push-types'
 import {engineWebSocket} from '@conciv/contract'
 import {relayedValues} from './stream-relay.js'
 
@@ -61,11 +67,30 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
       sinks.delete(sink)
     }
   }
+  const pageServers = new Set<(frame: PushFrame) => void>()
+  const announceServing = (): void => {
+    if (socket.readyState !== socket.OPEN) return
+    const frame: PageServingFrame = {channel: 'page-serving', serving: pageServers.size > 0}
+    socket.send(JSON.stringify(frame))
+  }
+  socket.addEventListener('open', () => {
+    if (pageServers.size > 0) announceServing()
+  })
+  const servePage = (sink: (frame: PushFrame) => void): (() => void) => {
+    pageServers.add(sink)
+    const unsubscribe = subscribe(sink)
+    announceServing()
+    return () => {
+      unsubscribe()
+      pageServers.delete(sink)
+      announceServing()
+    }
+  }
   return {
     queries: (abortSignal) =>
       relayedValues<PageQueryFrame>(
         (emit) =>
-          subscribe((frame) => {
+          servePage((frame) => {
             if (frame.channel === 'page') emit({requestId: frame.requestId, query: frame.query})
           }),
         abortSignal,
