@@ -135,6 +135,53 @@ CREATE TABLE \`chat_threads\` (
   })
 
   it(
+    'a failed cancel write still ends every live run and endAllRuns settles them before it rejects',
+    {timeout: 15_000},
+    async () => {
+      const db = chatDb()
+      db.$client.exec(`CREATE TRIGGER cancel_write_fails BEFORE UPDATE OF cancel_requested ON chat_runs
+      WHEN NEW.cancel_requested = 1 AND OLD.cancel_requested IS NOT 1
+      BEGIN SELECT RAISE(ABORT, 'cancel write failed'); END`)
+      const started = new Map(['one', 'two'].map((threadId) => [threadId, Promise.withResolvers<void>()]))
+      const hooks: TurnHooks = {
+        plan: (turn) => ({
+          adapter: makeTextAdapter('stalled', async function* () {
+            yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+            started.get(turn.threadId)?.resolve()
+            await new Promise(() => undefined)
+          }),
+          systemPrompts: [],
+          codeMode: [],
+          asking: [],
+          setup: async () => new Map(),
+          expand: async (messages) => messages,
+          providerMessages: async (messages) => messages,
+          chunk: async (chunk) => [chunk],
+        }),
+        usage: async () => undefined,
+        started: () => undefined,
+        end: async () => undefined,
+      }
+      const server = await chatServer(hooks, () => undefined, db)
+      const driven = [...started.keys()].map((threadId) =>
+        server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [{role: 'user', content: 'hi'}]),
+      )
+      await Promise.all([...started.values()].map((gate) => gate.promise))
+      const outcome = await server.endAllRuns().then(
+        () => 'resolved',
+        (error: unknown) => (error instanceof AggregateError ? 'aggregate' : String(error)),
+      )
+      const runs = db.$client.prepare('SELECT thread_id, status FROM chat_runs ORDER BY thread_id').all()
+      expect.soft(runs).toEqual([
+        {thread_id: 'one', status: 'aborted'},
+        {thread_id: 'two', status: 'aborted'},
+      ])
+      expect.soft(outcome).toBe('aggregate')
+      await Promise.all(driven)
+    },
+  )
+
+  it(
     'a CLI silent past the journal default but inside the first-output budget still reports its exit',
     {timeout: 25_000},
     async () => {
@@ -164,10 +211,10 @@ CREATE TABLE \`chat_threads\` (
     },
   )
 
-  async function chatServer(hooks: TurnHooks, log: (message: string) => void) {
+  async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     return createChatServer({
-      stores: drizzleChatStores(chatDb()),
+      stores: drizzleChatStores(db),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
       codeModeResult: (value) => value,

@@ -1322,7 +1322,95 @@ describe('panel view tabs', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
 
     await coreControl.releaseFault(gate)
+    await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
   }, 30_000)
+
+  describe('during a running turn', () => {
+    const STREAMED_TEXT = 'the reply that streams while the notes tab is open'
+    const FOLLOW_UP_TEXT = 'the follow-up reply after returning to chat'
+
+    afterEach(async () => {
+      await coreControl.releaseTurn()
+    })
+
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const stopButton = () => page.getByRole('button', {name: 'Stop generating'})
+    const launcher = () => page.getByRole('button', {name: 'Minimize conciv chat'})
+    const narration = () => page.getByText('Responding…', {exact: true})
+    const chatPanel = () => page.getByRole('tabpanel', {name: 'Chat'})
+
+    async function mountHeldTurn(sessionId: string): Promise<Awaited<ReturnType<typeof sendTurn>>> {
+      await page.viewport(1000, 900)
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      await coreControl.holdTurn()
+      const turn = await sendTurn(coreBase(), sessionId, 'start a long turn')
+      harness.mountShell(`/panel/${sessionId}?open=true`, [notesExtension])
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(narration()).toBeVisible()
+      return turn
+    }
+
+    test('the view tabs stay open mid-turn and Chat shows the finished reply once on return', async () => {
+      const turn = await mountHeldTurn(await createSession(coreRpc(coreBase())))
+
+      await expect.element(notesTab()).toBeEnabled()
+      await notesTab().click()
+      await expect.element(notes(), {timeout: 8000}).toBeVisible()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'true')
+
+      await coreControl.releaseTurn()
+      await turn.awaitTurnEnd()
+      turn.close()
+      await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
+
+      await chatTab().click()
+      await expect.element(page.getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(chatPanel().getByText('start a long turn')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(stopButton()).not.toBeInTheDocument()
+
+      await coreControl.scriptTurn({toolCalls: [], text: FOLLOW_UP_TEXT})
+      await composer().fill('a follow-up after the switch')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByText(FOLLOW_UP_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByText(STREAMED_TEXT)).toBeVisible()
+    }, 30_000)
+
+    test('another session can open right after Send and the left run still settles in the background', async () => {
+      const rpc = coreRpc(coreBase())
+      const [running, other] = [await createSession(rpc), await createSession(rpc)]
+      await rpc.sessions.rename({sessionId: running, title: 'the running session'})
+      await rpc.sessions.rename({sessionId: other, title: 'the other session'})
+      await page.viewport(1000, 900)
+      await coreControl.scriptTurn({toolCalls: [], text: STREAMED_TEXT})
+      harness.mountShell(`/panel/${running}?open=true`, [notesExtension], {transport: 'fetch'})
+      await expect.element(composer(), {timeout: 8000}).toBeVisible()
+      const unsent = await faults.install({kind: 'chat-gate'})
+      await composer().fill('start a long turn')
+      await userEvent.keyboard('{Enter}')
+      await coreControl.awaitFaultPending(unsent, 1)
+      const option = (name: RegExp) => page.getByRole('option', {name})
+      const openSessions = async (active: string) => {
+        await page.getByRole('button', {name: 'Session options'}).click()
+        await page.getByRole('button', {name: `Session: ${active}`}).click()
+      }
+
+      await openSessions('the running session')
+      await option(/^the other session/).click()
+      await expect.element(page.getByText('How can I help you today?'), {timeout: 8000}).toBeVisible()
+      await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(unsent)
+      await expect.element(page.getByText('conciv replied.'), {timeout: 8000}).toBeInTheDocument()
+      await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')
+      await openSessions('the other session')
+      await expect.element(option(/^the running session(?!.*running)/), {timeout: 8000}).toBeVisible()
+
+      await option(/^the running session/).click()
+      await expect.element(chatPanel().getByText(STREAMED_TEXT), {timeout: 8000}).toBeVisible()
+      await expect.element(chatPanel().getByText('start a long turn')).toBeVisible()
+    }, 30_000)
+  })
 
   describe('a crashing extension', () => {
     const RECOVERED_BODY = 'the recovered tab body'
@@ -1827,7 +1915,7 @@ describe('status bar', () => {
       ))
     }
 
-    it('locks the tabs the leave guard blocks while keeping the active one reachable', async () => {
+    it('locks the tabs a view lock blocks while keeping the active one reachable', async () => {
       mountViews('chat', () => {}, true)
 
       await expect.element(page.getByRole('tab', {name: 'Board'})).toBeDisabled()

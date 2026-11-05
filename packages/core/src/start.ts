@@ -11,6 +11,7 @@ import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
 import {writeText} from './lib/fs.js'
+import {runInOrder} from './lib/shutdown.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
@@ -212,8 +213,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
       writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
     }
   } catch (error) {
-    await dispose()
-    await close()
+    await runInOrder([close, dispose], 'conciv: stopping the engine failed').catch((failure: unknown) =>
+      console.error('conciv: cleanup after a failed start also failed', failure),
+    )
     throw error
   }
   const clearEndpoint = (): void => {
@@ -230,8 +232,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     extensionContexts,
     stop: async () => {
       clearEndpoint()
-      await dispose()
-      await close()
+      await runInOrder([close, dispose], 'conciv: stopping the engine failed')
     },
   }
 }
