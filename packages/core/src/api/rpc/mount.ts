@@ -15,7 +15,9 @@ import type {makeRpcRouter} from './router.js'
 import type {AuthRouter} from '../../engine-login.js'
 
 export type ChatContext = {
-  harness: HarnessAdapter
+  defaultHarness: HarnessAdapter
+  harnesses: readonly HarnessAdapter[]
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   cwd: string
   basePath: string
   claudeHome?: string

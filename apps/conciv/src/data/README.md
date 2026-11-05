@@ -2,7 +2,7 @@
 
 ## Overview
 
-Widget settings parsing, the query-utils wrapper over the rpc client, and the harness metadata context.
+Widget settings parsing, the query-utils wrapper over the rpc client, and the per-session harness queries.
 
 ## Interface
 
@@ -10,7 +10,9 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the ha
 - `ConcivSettings`, `Launcher` types (`settings.ts`): `modal`, `quickTerminal`, `defaultOpen`, `launcher`, `surface`, `transport`
 - `makeAppData(rpc, queryClient)` (`app-data.ts`): returns `{utils, invalidateSessions}` built on `makeQueryUtils` from `@conciv/client`
 - `AppData` type (`app-data.ts`)
-- `HarnessMetaContext`, `createHarnessMeta`, `useHarnessMeta` (`harness-meta.ts`): harness metadata (`ChatModels['harness']`) accessor
+- `useSessionModels`, `useSessionHarness` (`harness-meta.ts`): `meta.models` for a session and its harness metadata (`ChatModels['harness']`)
+- `useHarnesses` (`harness-meta.ts`): `meta.harnesses` (each harness with its models) as `list`, `switchable` (more than one) and `nameOf(id)`
+- `useRefetchSessionHarness` (`harness-meta.ts`): refetches a session's `meta.models`, `meta.commands` and `sessions.list`, inactive queries included
 
 ## Invariants
 
@@ -20,7 +22,6 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the ha
 - `settings.ts:hotkeysOf`: default hotkey list is `['Mod+`']`
 - `settings.ts:transportOf`: `auto` | `websocket` | `fetch`, anything else becomes `auto`
 - `settings.ts:parseConcivSettings`: `surface` is `dock` only when exactly `'dock'`, otherwise `page`
-- `harness-meta.ts:useHarnessMeta`: throws `useHarnessMeta called outside the app provider`
 
 ## Side Effects
 

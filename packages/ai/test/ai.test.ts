@@ -2,11 +2,19 @@ import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {createChatServer, drizzleChatStores, makeTextAdapter, type TurnHooks} from '../src/server.js'
+import {
+  chatRuns,
+  claudeCode,
+  createChatServer,
+  drizzleChatStores,
+  makeTextAdapter,
+  type TurnHooks,
+} from '../src/server.js'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
+  type RunLifecycle,
   approvalRequestedEvent,
   ChatEventType,
   defineChatEvent,
@@ -16,7 +24,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
 import {createTextChunks, storyConnection} from '../src/testkit.js'
-import {mkdtempSync, readdirSync, readFileSync, statSync} from 'node:fs'
+import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -26,6 +34,7 @@ describe('chat stores', () => {
   const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
 	\`run_id\` text PRIMARY KEY,
 	\`thread_id\` text NOT NULL,
+	\`harness_id\` text NOT NULL,
 	\`status\` text NOT NULL,
 	\`started_at\` integer NOT NULL,
 	\`finished_at\` integer,
@@ -56,6 +65,15 @@ CREATE TABLE \`chat_threads\` (
     client.exec(CHAT_TABLES)
     return drizzle({client})
   }
+
+  it('a run row records the harness of its thread when it is created', async () => {
+    const db = chatDb()
+    const stores = drizzleChatStores(db, {harnessOf: (threadId) => `harness-of-${threadId}`})
+    await stores.runs.createOrResume({runId: 'r1', threadId: 't1', startedAt: 1})
+    expect(db.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
+      {runId: 'r1', harnessId: 'harness-of-t1'},
+    ])
+  })
 
   it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {
     const logged: string[] = []
@@ -180,10 +198,40 @@ CREATE TABLE \`chat_threads\` (
     },
   )
 
+  it(
+    'a CLI silent past the journal default but inside the first-output budget still reports its exit',
+    {timeout: 25_000},
+    async () => {
+      const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
+      writeFileSync(bin, '#!/bin/sh\nsleep 11\nexit 1\n')
+      chmodSync(bin, 0o755)
+      const ended = Promise.withResolvers<RunLifecycle>()
+      const hooks: TurnHooks = {
+        plan: () => ({
+          adapter: claudeCode('opus', {claudeExecutable: bin}),
+          systemPrompts: [],
+          codeMode: [],
+          asking: [],
+          setup: async () => new Map(),
+          expand: async (messages) => messages,
+          providerMessages: async (messages) => messages,
+          chunk: async (chunk) => [chunk],
+        }),
+        usage: async () => undefined,
+        started: () => undefined,
+        end: async (_turn, run) => ended.resolve(run),
+      }
+      const server = await chatServer(hooks, () => undefined)
+      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+      const run = await ended.promise
+      expect(run.error).toBe('Agent process exited with code 1')
+    },
+  )
+
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     return createChatServer({
-      stores: drizzleChatStores(db),
+      stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
       codeModeResult: (value) => value,
@@ -194,7 +242,7 @@ CREATE TABLE \`chat_threads\` (
 
   runPersistenceConformance(
     'conciv drizzle chat stores',
-    () => defineAIPersistence({stores: drizzleChatStores(chatDb())}),
+    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})}),
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],

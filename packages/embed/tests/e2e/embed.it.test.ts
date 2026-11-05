@@ -739,22 +739,22 @@ test.describe('model selector', () => {
   test.describe('model selector error path', () => {
     test.use({viewport: {width: 900, height: 760}})
 
-    test('offers a retry when meta.models fails and recovers on retry', async ({page}) => {
+    test('offers a retry when the model menu fails to load and recovers on retry', async ({page}) => {
       test.setTimeout(180_000)
       const models = await failRpcCalls(page, {path: ['meta', 'models']})
       await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
       await openPanel(page)
 
-      await page.getByRole('button', {name: 'Couldn’t load models'}).click()
-      const retry = page.getByRole('button', {name: /Retry loading models/})
+      await page.getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+      const retry = page.getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
       await expect(retry).toBeVisible({timeout: 30_000})
-      await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
       models.repair()
       await retry.click()
       await expect(page.getByRole('option', {name: /^Claude Sonnet 4\.5/, selected: true})).toBeVisible({
         timeout: 30_000,
       })
+      await expect(page.getByRole('textbox', {name: 'Search models'})).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})).toBeVisible({timeout: 30_000})
     })

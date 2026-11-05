@@ -26,6 +26,7 @@ import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
+import {Dialog} from '@conciv/ui-kit-system'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
@@ -34,7 +35,6 @@ import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '..
 import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
-import {createHarnessMeta, HarnessMetaContext} from '../src/data/harness-meta.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
 import {onlineManager} from '@tanstack/query-core'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
@@ -286,10 +286,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     refresh: chatRoot.coordinator.refresh,
     isRefreshing: chatRoot.coordinator.isRefreshing,
   }
-  const harnessRoot = createRoot((disposeHarness) => ({
-    harness: createHarnessMeta(data, () => true, queryClient),
-    dispose: disposeHarness,
-  }))
   const reachabilityRoot = createRoot((disposeReachability) => ({
     reachability: makeEngineReachability(),
     dispose: disposeReachability,
@@ -297,21 +293,24 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const mounted = render(() => (
     <QueryClientProvider client={queryClient}>
       <AppContext.Provider value={app}>
-        <HarnessMetaContext.Provider value={harnessRoot.harness}>
-          <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
-            <NoticeContextProvider>
-              <PaneContext.Provider value={pane}>
-                <HostApiProvider rpc={rpc} apiBase={() => options.base} toast={(message) => app.announce(message)}>
-                  <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
-                    {view(pane)}
-                    <NoticeSurface />
-                  </div>
-                  <AnnounceLog entries={announced} />
-                </HostApiProvider>
-              </PaneContext.Provider>
-            </NoticeContextProvider>
-          </EngineReachabilityContext.Provider>
-        </HarnessMetaContext.Provider>
+        <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
+          <NoticeContextProvider>
+            <PaneContext.Provider value={pane}>
+              <HostApiProvider
+                rpc={rpc}
+                apiBase={() => options.base}
+                toast={(message) => app.announce(message)}
+                dialog={app.layers.track(Dialog)}
+              >
+                <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
+                  {view(pane)}
+                  <NoticeSurface />
+                </div>
+                <AnnounceLog entries={announced} />
+              </HostApiProvider>
+            </PaneContext.Provider>
+          </NoticeContextProvider>
+        </EngineReachabilityContext.Provider>
       </AppContext.Provider>
     </QueryClientProvider>
   ))
@@ -320,7 +319,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       mounted.unmount()
       for (const instance of instances) instance.dispose()
       chatRoot.dispose()
-      harnessRoot.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
     },
