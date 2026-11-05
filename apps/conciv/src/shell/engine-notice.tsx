@@ -65,7 +65,7 @@ export function EngineUnreachableNotice(): JSX.Element {
   const router = useRouter()
   const login = useRouteContext({strict: false, select: (context) => context.login})
   const retry = async (): Promise<void> => {
-    await login()?.recheck()
+    await login()?.requestTrust()
     resetBrowserRpcConnection(apiBase())
     await router.invalidate()
   }

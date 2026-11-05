@@ -49,10 +49,21 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const embedBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
+const AGENT_BASE = /^(?<origin>https?:\/\/[^/]+)\/t\/(?<token>[^/]+)(?<rest>\/.*)?$/
+
+export function browserBase(apiBase: string): {apiBase: string; storage: Record<string, string>} {
+  const groups = AGENT_BASE.exec(apiBase)?.groups
+  if (groups?.origin === undefined || groups.token === undefined) return {apiBase, storage: {}}
+  const base = `${groups.origin}${groups.rest ?? ''}`.replace(/\/$/, '')
+  return {apiBase: base, storage: {[`conciv:engine-token:${base}`]: groups.token}}
+}
+
 export function hostPage(opts: {apiBase: string; widget?: string; body?: string}): string {
+  const browser = browserBase(opts.apiBase)
   return `<!doctype html><html><head>
     <meta charset="utf-8">
-    <meta name="conciv-api-base" content="${opts.apiBase}">
+    <script>for (const [key, value] of Object.entries(${JSON.stringify(browser.storage)})) localStorage.setItem(key, value)</script>
+    <meta name="conciv-api-base" content="${browser.apiBase}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
     ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
@@ -255,13 +266,14 @@ export function untilPanelDraft(
 }
 
 export async function mountHandle(page: Page, apiBase: string): Promise<void> {
-  await page.evaluate((base) => {
+  await page.evaluate(({apiBase: base, storage}) => {
+    for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value)
     const el = document.createElement('div')
     document.body.appendChild(el)
     window.concivTestElement = el
     window.concivTestHandle = window.ConcivHandle.makeHandle(base)
     void window.concivTestHandle.mount(el)
-  }, apiBase)
+  }, browserBase(apiBase))
 }
 
 export async function openHostWithHandle(page: Page, hostBase: string, apiBase: string): Promise<string[]> {
@@ -281,7 +293,10 @@ export async function unmountHandle(page: Page): Promise<void> {
 }
 
 export async function rebindHandle(page: Page, apiBase: string): Promise<void> {
-  await page.evaluate((base) => window.concivTestHandle.rebind(base), apiBase)
+  await page.evaluate(({apiBase: base, storage}) => {
+    for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value)
+    window.concivTestHandle.rebind(base)
+  }, browserBase(apiBase))
 }
 
 export type NativeBridge = {

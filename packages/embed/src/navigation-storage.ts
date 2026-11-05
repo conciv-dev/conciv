@@ -22,7 +22,7 @@ type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLoc
 
 export function makeNavigationStorage(
   rpc: NavigationRpc,
-  ready: Promise<unknown>,
+  trust: {ready: Promise<boolean>; isTrusted: () => boolean},
   onRestore: (href: string) => void,
 ): NavigationStorage {
   const state: NavigationStorageState = {cache: null, lastStamp: 0, wroteLocally: false, cancelled: false}
@@ -32,12 +32,13 @@ export function makeNavigationStorage(
   }
   const write = new Debouncer(
     (navigation: NavigationState, updatedAt: number) => {
+      if (!trust.isTrusted()) return
       void rpc.navigation.set({...navigation, updatedAt}).catch(() => {})
     },
     {wait: WRITE_DELAY_MS},
   )
-  const restored = ready
-    .then(() => rpc.navigation.get(undefined))
+  const restored = trust.ready
+    .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
     .catch(() => null)
     .then((initial) => {
       if (state.cancelled || state.wroteLocally || !initial) return

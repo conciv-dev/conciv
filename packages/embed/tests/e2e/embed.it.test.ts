@@ -28,6 +28,7 @@ import {
   openHostWithHandle,
   rebindHandle,
   chatLog,
+  browserBase,
 } from '../helpers.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
@@ -781,7 +782,8 @@ test.describe('mount ready', () => {
   test.describe('mount() readiness contract', () => {
     test('an open dispatched right after mount() resolves opens the panel, never dropped', async ({page}) => {
       await openPage(page)
-      await page.evaluate(async (base) => {
+      await page.evaluate(async ({apiBase: base, storage}) => {
+        for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value)
         const el = document.createElement('div')
         document.body.appendChild(el)
         const handle = window.ConcivHandle.makeHandle(base)
@@ -791,7 +793,7 @@ test.describe('mount ready', () => {
             detail: {type: 'panel:open', payload: undefined, pluginId: 'panel'},
           }),
         )
-      }, kit.base)
+      }, browserBase(kit.base))
       await expect(chatBox(page)).toBeVisible({timeout: 10_000})
     })
   })
@@ -1224,7 +1226,7 @@ test.describe('rebind', () => {
       await openChatPanel(page)
 
       const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-      await expect(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
+      await expect(apiBaseProbe).toHaveText(browserBase(proxyA.base).apiBase, {timeout: 30_000})
 
       await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
       const sessionBefore = await panelSession()
@@ -1240,7 +1242,7 @@ test.describe('rebind', () => {
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
-      await expect(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
+      await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base).apiBase, {timeout: 30_000})
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})

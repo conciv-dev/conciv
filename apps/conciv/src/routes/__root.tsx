@@ -41,7 +41,7 @@ import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
-import {EngineLoginDialog} from '../app/engine-login.js'
+import {EngineLoginDialog, engineConnected} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -171,7 +171,7 @@ function RootComponent() {
                 politeMessage={politeMessage}
                 assertiveMessage={assertiveMessage}
               />
-              <Show when={app.login?.apiBase() !== null}>
+              <Show when={app.login === undefined || engineConnected(app.login.status())}>
                 <EffectsSurface instances={app.instances} />
               </Show>
             </HostApiProvider>
@@ -205,11 +205,9 @@ function RootChrome(props: {
   const rootSearch = Route.useSearch()
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
-  const locked = () => {
-    const phase = login?.phase()
-    return phase === 'locked' || phase === 'exchanging'
-  }
+  const locked = () => login?.status() === 'untrusted'
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen() && !locked()
+  const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const warm = useWarmSession()
@@ -238,15 +236,12 @@ function RootChrome(props: {
       }),
     )
   }
-  const whenUnlocked = (action: () => void): void => {
-    if (login) {
-      login.request(action)
-      return
-    }
-    action()
-  }
   const showPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
+    if (!connected()) {
+      void router.navigate({to: '/', search: {open: true}, replace: Boolean(quickMatch())})
+      return
+    }
     if (panelMatch() || connectMatch()) {
       void setShutter(router, true)
       return
@@ -279,8 +274,7 @@ function RootChrome(props: {
       pendingFabFocus = true
     })
   }
-  const openPanel = () => whenUnlocked(showPanel)
-  const togglePanel = () => (panelOpen() ? closePanel() : openPanel())
+  const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -315,22 +309,19 @@ function RootChrome(props: {
   onMount(() => {
     const opensOnLoad = () =>
       (settings.surface === 'dock' && panelMatch() && !shutterOpen()) || (settings.defaultOpen && closedMatch())
-    if (opensOnLoad())
-      whenUnlocked(() => {
-        if (opensOnLoad()) showPanel()
-      })
+    if (opensOnLoad()) showPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
       panelCommands.on('open', () => {
         revealDock()
-        openPanel()
+        showPanel()
       }),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
       panelCommands.on('toggle', () => {
         if (!revealDock()) return togglePanel()
-        openPanel()
+        showPanel()
       }),
     ]
     eventBus.start()
@@ -384,7 +375,7 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
-  const toggleQuick = () => whenUnlocked(switchQuick)
+  const toggleQuick = () => (connected() ? switchQuick() : showPanel())
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
@@ -412,7 +403,9 @@ function RootChrome(props: {
           onToggle={togglePanel}
         />
       </Show>
-      <Show when={login}>{(current) => <EngineLoginDialog login={current()} />}</Show>
+      <Show when={loginOpen() ? login : undefined}>
+        {(current) => <EngineLoginDialog trust={current().trust()} onClose={() => void setShutter(router, false)} />}
+      </Show>
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}
       </div>

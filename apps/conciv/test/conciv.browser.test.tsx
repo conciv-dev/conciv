@@ -1711,9 +1711,9 @@ describe('engine login', () => {
     const code = await coreControl.requestCode()
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#conciv_otp=${code}`)
     harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.poll(() => localStorage.getItem(storageKey())).not.toBeNull()
     await expect.element(opener()).toBeVisible()
     expect(window.location.hash).toBe('')
-    expect(localStorage.getItem(storageKey())).not.toBeNull()
   })
 
   test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
@@ -1722,7 +1722,51 @@ describe('engine login', () => {
     await expect.element(page.getByText(/surface probe on/)).not.toBeInTheDocument()
     await locked().click()
     await userEvent.type(firstDigit(), await coreControl.printedCode())
-    await expect.element(page.getByText(`surface probe on ${origin()}/t/`, {exact: false})).toBeInTheDocument()
+    await expect.element(page.getByText(`surface probe on ${origin()}`, {exact: true})).toBeInTheDocument()
+  }, 30_000)
+
+  test('Send a new code prints a fresh code, and only the fresh code opens the panel', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await locked().click()
+    await expect.element(firstDigit()).toBeVisible()
+    await expect
+      .poll(() =>
+        coreControl.printedCode().then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(true)
+    const first = await coreControl.printedCode()
+    await dialog().getByRole('button', {name: 'Send a new code'}).click()
+    await expect.element(dialog().getByRole('status')).toMatchTextContent(/A new code was printed/)
+    await expect.poll(() => coreControl.printedCode()).not.toBe(first)
+    await userEvent.type(firstDigit(), first)
+    await expect.element(dialog().getByRole('alert')).toMatchTextContent(/That code didn.t match/)
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('the host token source is asked only when there is no trusted stored token', async () => {
+    const minted = {count: 0}
+    const tokenSource = async (): Promise<string> => {
+      minted.count += 1
+      const result = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in result)) throw new Error(`the engine refused the test code: ${result.refused}`)
+      return result.token
+    }
+    const mountTrusted = async (): Promise<void> => {
+      harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource}})
+      await opener().click()
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      harness.dispose()
+    }
+    await mountTrusted()
+    await mountTrusted()
+    expect(minted.count).toBe(1)
+    localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    await mountTrusted()
+    expect(minted.count).toBe(2)
   }, 30_000)
 
   test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
