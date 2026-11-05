@@ -1302,6 +1302,25 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 60_000)
 
+  it('mounts one widget, in the dock, when a framework client-entry module also loads on the page', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-dock-'))
+    mkdirSync(join(root, 'src'))
+    writeFileSync(join(root, 'src', 'client-entry.ts'), 'export {}\n')
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    const url = await dockServer(
+      undefined,
+      NO_BUILTINS,
+      root,
+      '<script type="module" src="/src/client-entry.ts"></script>',
+    )
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+    const composers = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composers.first().waitFor({timeout: 30_000})
+    await expectLocator(composers).toHaveCount(1)
+    await page.close()
+  }, 60_000)
+
   it('runs as the dock when the host html already carries a conciv-widget meta', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
     const url = await dockServer(undefined, NO_BUILTINS, undefined, '<meta name="conciv-widget" content="{}">')
