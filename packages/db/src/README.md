@@ -18,6 +18,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 ## Invariants
 
+- `schema.ts:sessions.effort` is a nullable reasoning effort (`ReasoningEffort`); null means the CLI's default.
 - `schema.ts:sessions` has unique index `sessions_native_key_unique` on (`harness_kind`, `cwd`, `harness_session_id`); `origin` is one of `chat`, `agent`, `external`.
 - `schema.ts:toolCaptures` primary key `tool_captures_pk` is (`tool_call_id`, `kind`, `session_id`); `markers.kind` is `new` or `compact`; `navigation.id` defaults to `'navigation'` (a single row).
 - `run-schema.ts:runs.phase` is restricted to `RUN_PHASES` (`running`, `stopping`, `completed`, `failed`, `aborted`).

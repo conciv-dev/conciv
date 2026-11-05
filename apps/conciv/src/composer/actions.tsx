@@ -11,7 +11,6 @@ import {useAppData} from '../app/context.js'
 import {useNotices} from '../shell/notice-context.js'
 import type {Notify} from '../shell/notices.js'
 import {LaunchMenu} from './launch-menu.js'
-import {SessionModelSelector} from './model-selector.js'
 import {terminalRpc} from './terminal-rpc.js'
 
 const ACT =
@@ -131,7 +130,6 @@ export function ComposerActions(props: {
           onRetry={() => void meta.refetch()}
         />
       </Show>
-      <SessionModelSelector sessionId={props.sessionId} />
     </>
   )
 }

@@ -10,6 +10,7 @@ import {
   withTanstackMetadata,
   type DebugConfig,
   type MetadataStore,
+  type ReasoningLevel,
   type RunRecord,
   type RunStore,
   type StreamDurability,
@@ -53,6 +54,7 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
+  reasoning?: ReasoningLevel
   systemPrompts: readonly string[]
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
@@ -451,6 +453,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       modelOptions: plan.modelOptions,
+      reasoning: plan.reasoning,
       abortController: controller,
       debug,
       middleware: [

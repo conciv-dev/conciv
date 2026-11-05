@@ -3,6 +3,7 @@ import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {setImmediate} from 'node:timers/promises'
 import {describe, it, expect, afterEach, afterAll, beforeAll, test, beforeEach, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks} from '@conciv/ai/testkit'
@@ -19,7 +20,7 @@ import {type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {defineTool, defineExtension} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
-import {type HarnessAdapter, defineHarness} from '@conciv/harness'
+import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
@@ -34,6 +35,7 @@ import {resolveConfig, defineConfig} from '../src/config.js'
 import {symbolicateFrame} from '../src/editor/symbolicate.js'
 import {readDevEndpoint, removeDevEndpoint, writeDevEndpoint} from '../src/lib/dev-endpoint.js'
 import {makeStalenessProbe} from '../src/lib/engine-stamp.js'
+import {withSavedModels} from '../src/lib/saved-models.js'
 import {statePaths} from '../src/lib/state-paths.js'
 import {makePageBus} from '../src/page-bus.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
@@ -327,7 +329,7 @@ describe('chat plane', () => {
 
   function sessionPort(): SessionPort {
     return {
-      row: () => ({model: null, nativeId: null, cwd: '/workspace'}),
+      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace'}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -571,6 +573,112 @@ describe('dev endpoint', () => {
       removeDevEndpoint(dir, 100)
       expect(readDevEndpoint(dir)).toBeNull()
     })
+  })
+})
+
+describe('saved harness models', () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'conciv-saved-models-'))
+  })
+
+  afterEach(() => {
+    rmSync(dir, {recursive: true, force: true})
+  })
+
+  type Listed = {id: string; name: string; group: string}
+  const OPUS: Listed = {id: 'opus', name: 'Opus 5.5', group: 'Claude'}
+  const SONNET: Listed = {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude'}
+  const savedFile = () => JSON.parse(readFileSync(join(dir, 'listing-models.json'), 'utf8'))
+
+  function harnessListing(models: () => Promise<Listed[]>): HarnessAdapter {
+    return defineHarness({
+      id: 'listing',
+      binName: 'listing',
+      models,
+      chatConfig: () => ({adapter: makeTextAdapter('listing', async function* () {})}),
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        compaction: false,
+        systemPrompt: 'file',
+        mcp: 'none',
+        imageInput: false,
+        init: 'none',
+        slashCommands: 'none',
+        transcriptHistory: false,
+      },
+    })
+  }
+
+  it('waits for the live list the first time and saves it', async () => {
+    const harness = withSavedModels(
+      harnessListing(async () => [OPUS]),
+      dir,
+    )
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+    expect(savedFile()).toEqual([OPUS])
+  })
+
+  it('answers from the saved list at once and refreshes it in the background', async () => {
+    await resolveHarnessModels(
+      withSavedModels(
+        harnessListing(async () => [OPUS]),
+        dir,
+      ),
+    )
+    const live = Promise.withResolvers<Listed[]>()
+    const harness = withSavedModels(
+      harnessListing(() => live.promise),
+      dir,
+    )
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+    live.resolve([OPUS, SONNET])
+    await setImmediate()
+    expect(savedFile()).toEqual([OPUS, SONNET])
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS, SONNET])
+  })
+
+  it('keeps the saved list when the live list fails or comes back empty', async () => {
+    await resolveHarnessModels(
+      withSavedModels(
+        harnessListing(async () => [OPUS]),
+        dir,
+      ),
+    )
+    const failing = withSavedModels(
+      harnessListing(() => Promise.reject(new Error('probe failed'))),
+      dir,
+    )
+    expect(await resolveHarnessModels(failing)).toEqual([OPUS])
+    const empty = withSavedModels(
+      harnessListing(async () => []),
+      dir,
+    )
+    expect(await resolveHarnessModels(empty)).toEqual([OPUS])
+    expect(savedFile()).toEqual([OPUS])
+  })
+
+  it('reports the failure when nothing is saved and retries on the next call', async () => {
+    const outcomes: Promise<Listed[]>[] = [Promise.reject(new Error('probe failed')), Promise.resolve([OPUS])]
+    outcomes[0]?.catch(() => {})
+    const harness = withSavedModels(
+      harnessListing(() => outcomes.shift() ?? Promise.resolve([])),
+      dir,
+    )
+    await expect(resolveHarnessModels(harness)).rejects.toThrow('probe failed')
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
+  })
+
+  it('retries after an empty list when nothing is saved', async () => {
+    const outcomes: Listed[][] = [[], [OPUS]]
+    const harness = withSavedModels(
+      harnessListing(async () => outcomes.shift() ?? []),
+      dir,
+    )
+    await expect(resolveHarnessModels(harness)).rejects.toThrow('listed no models')
+    expect(await resolveHarnessModels(harness)).toEqual([OPUS])
   })
 })
 

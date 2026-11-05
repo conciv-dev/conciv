@@ -128,10 +128,12 @@ describe('rows', () => {
         origin: 'conciv',
         usage: null,
         model: null,
+        effort: null,
         hidden: false,
         native: null,
       })
       expect(parsed.hidden).toBe(false)
+      expect(parsed.effort).toBeNull()
     })
 
     it('rejects an unknown marker kind', () => {
