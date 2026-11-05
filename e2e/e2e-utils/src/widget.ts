@@ -106,3 +106,21 @@ export async function loginWidget(page: Page, path = '/', serverLog?: string): P
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
 }
+
+const PRINTED_CODE = /#conciv_otp=(\d{6})/g
+
+function printedCodes(logPath: string): string[] {
+  return [...readFileSync(logPath, 'utf8').matchAll(PRINTED_CODE)].flatMap((match) =>
+    match[1] === undefined ? [] : [match[1]],
+  )
+}
+
+export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promise<string> {
+  await engineOrigin(page, path)
+  const logPath = e2eServerLog(Number(new URL(page.url()).port))
+  const seen = printedCodes(logPath).length
+  await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
+  await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
+  await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
+  return printedCodes(logPath).at(-1) ?? ''
+}
