@@ -111,8 +111,7 @@ import {
   type RunJob,
 } from './loop.js'
 import {align, fingerprint, glyphRun, pairTree, pairTwins, type Offset, type Shift} from './pair.js'
-import {ledgerCounts, ledgerPairs, nextLedger, watchRows} from './ledger.js'
-import {newStamp} from './store.js'
+import {ledgerCounts, ledgerPairs, newStamp, nextLedger, watchRows} from './store.js'
 import {lookups, mapDeclaration, readLiveText, type LiveText} from './provenance.js'
 import {
   boxBlur,

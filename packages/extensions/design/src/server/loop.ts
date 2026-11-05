@@ -32,7 +32,7 @@ import type {
   Unmatched,
 } from '../shared/types.js'
 import {placement, type Seat, type Tree} from './layout.js'
-import type {LedgerChanges} from './ledger.js'
+import type {LedgerChanges} from './store.js'
 import {glyphRun} from './pair.js'
 import {union} from './raster.js'
 
