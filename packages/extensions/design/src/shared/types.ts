@@ -70,7 +70,7 @@ export type TargetModel = {
 export type TargetAdapter = {
   kind: string
   accepts(input: {ref: string; cwd: string}): boolean
-  load(input: {ref: string; scale: number; cwd: string}): Promise<TargetModel>
+  load(input: {ref: string; scale: number; cwd: string; document?: unknown; image?: string}): Promise<TargetModel>
 }
 export type Enricher = {
   name: string

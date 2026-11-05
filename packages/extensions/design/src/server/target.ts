@@ -95,7 +95,7 @@ function isFile(path: string): boolean {
   return existsSync(path) && statSync(path).isFile()
 }
 
-async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array> {
+export async function readImage(input: {ref: string; cwd: string}): Promise<Uint8Array> {
   const path = resolve(input.cwd, input.ref)
   if (isFile(path)) return new Uint8Array(await readFile(path))
   const bytes = pngBase64(input.ref)
