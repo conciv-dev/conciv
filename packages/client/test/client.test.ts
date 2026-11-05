@@ -5,7 +5,7 @@ import {makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {createServer, type Server} from 'node:http'
-import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
@@ -509,6 +509,37 @@ describe('push channel', () => {
       channel.dispose()
       expect(livePushChannelCount()).toBe(opened - 1)
     })
+  })
+
+  describe('a session the page is not showing', () => {
+    it('refuses its page tools at once, and serves them again once the page shows it', async () => {
+      const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
+      const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
+      const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
+      void shownChannel.queries(abort.signal)
+      const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
+      await settled(SETTLE_MS)
+
+      const started = Date.now()
+      await expect(backgroundRpc.registry.call({name: 'page_text', input: {selector: 'body'}})).rejects.toMatchObject({
+        code: 'NO_PAGE_CLIENT',
+        message: expect.stringContaining(
+          'the page is showing another session; switch back to this session to use page tools',
+        ),
+      })
+      expect(Date.now() - started).toBeLessThan(1000)
+
+      const arriving = nextQuery(backgroundChannel.queries(abort.signal))
+      await settled(SETTLE_MS)
+      const calling = backgroundRpc.registry.call({name: 'page_text', input: {selector: 'body'}})
+      const frame = await arriving
+      await backgroundRpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'shown again'}}})
+
+      expect(await calling).toEqual({text: 'shown again'})
+      abort.abort()
+      shownChannel.dispose()
+      backgroundChannel.dispose()
+    }, 15_000)
   })
 })
 
