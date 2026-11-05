@@ -1,7 +1,7 @@
 import {createMemo, onCleanup, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {createWindowSize} from '@solid-primitives/resize-observer'
+import {createElementSize} from '@solid-primitives/resize-observer'
 import {Debouncer} from '@tanstack/pacer'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {readStorage, writeStorage} from '@conciv/ui-kit-system'
@@ -447,9 +447,9 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     return anchorOf(state.placement)
   })
 
-  const windowSize = createWindowSize()
+  const rootSize = createElementSize(document.documentElement)
   const growsTowardStart = (labelWidth: number): boolean => {
-    const measured = measure(windowSize)
+    const measured = measure({width: rootSize.clientWidth ?? viewportWidth(), height: viewportHeight()})
     const gesture = state.gesture
     const left = gesture.phase === 'dragging' ? gesture.at.x : pixelsOf(state.placement, measured).x
     return left + measured.size + labelWidth > measured.viewport.width - measured.bounds.minX
