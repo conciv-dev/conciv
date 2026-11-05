@@ -89,11 +89,12 @@ jobs:
     # Browsers and their OS deps come baked into the official Playwright image
     # (playwright.dev/docs/ci#via-containers), so no job downloads or apt-installs
     # them. The tag must equal the lockfile's playwright version or Playwright
-    # cannot find its browsers; repo checks fail on drift. --user 1001 is the
+    # cannot find its browsers; repo checks fail on drift. The multi-arch index
+    # digest pins it the way the actions are pinned by SHA. --user 1001 is the
     # runner's uid (Firefox refuses a HOME owned by another user); --init and
     # --ipc=host follow playwright.dev/docs/docker.
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
     permissions:
       contents: read
@@ -246,15 +247,17 @@ jobs:
       # retrigger on label changes (pull_request's default types can't).
       - run: pnpm exec conciv-publish check-changesets
       - run: pnpm exec conciv-publish check-catalog
-      # The browser jobs' container tag must match the playwright the lockfile resolves,
-      # else Playwright looks for browser builds the image does not have. Dependabot
-      # cannot bump container images (dependabot/dependabot-core#5819), so this is the guard.
+      # The browser jobs' container image must be one digest-pinned reference whose tag
+      # is the playwright version the lockfile resolves, else Playwright looks for
+      # browser builds the image does not have. Dependabot cannot bump container images
+      # (dependabot/dependabot-core#5819), so this is the guard.
       - name: Playwright image matches lockfile
         run: |
           want="mcr.microsoft.com/playwright:v$(node -p "require('playwright/package.json').version")-noble"
           found=$(grep -ohE 'mcr\.microsoft\.com/playwright:v[0-9][^[:space:]]*' .github/workflows/*.yml | sort -u)
-          if [ "$found" != "$want" ]; then
-            echo "::error::Playwright image drift: workflows use [${found}], lockfile resolves ${want}"
+          if [ "$(printf '%s\n' "$found" | wc -l)" -ne 1 ] || [ "${found%@sha256:*}" != "$want" ] ||
+            ! printf '%s' "$found" | grep -qE '@sha256:[0-9a-f]{64}$'; then
+            echo "::error::Playwright image drift: workflows use [${found}], want one ${want}@sha256:<digest>"
             exit 1
           fi
       # Build the site too so bundle-size can measure the Cloudflare worker and gate it below.
@@ -327,7 +330,7 @@ jobs:
     runs-on: ubuntu-latest
     # Same Playwright image as the build job (see there).
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -411,7 +414,7 @@ jobs:
     runs-on: ubuntu-latest
     # Same Playwright image as the build job (see there).
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
       options: --user 1001 --init --ipc=host
     permissions:
       contents: read

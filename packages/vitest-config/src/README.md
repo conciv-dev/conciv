@@ -22,7 +22,7 @@ Shared CI tooling for the monorepo: vitest config factories (reporters, coverage
 - Unknown `--task` throws `unknown --task X; expected test or e2e` (`taskConfig`); `run` throws when `SHARD_PACKAGES` is empty; an unknown subcommand prints usage and sets `process.exitCode = 2` (`ci-shards.ts`).
 - Timings files over `MAX_TIMINGS_BYTES` (1,000,000) are ignored; report files over `MAX_REPORT_BYTES` (20,000,000) are skipped with a stderr warning (`ci-shards.ts`).
 - `readPackage` throws when package.json lacks a string name or the name fails `VALID_PACKAGE_NAME`; `parseTimings` keeps only finite non-negative numbers (`shards.ts`).
-- Shard count is `max(ceil(total / targetMs), minShards, 1)`, raised to `bootstrapShards` without timings, capped by `maxShards` and package count; packages are bin-packed heaviest first; `chromium` is set when a member depends on `playwright`, `@playwright/*` or `@vitest/browser*` (`planShards`, `usesBrowser`).
+- Shard count is `max(ceil(total / targetMs), minShards, 1)`, raised to `bootstrapShards` without timings, capped by `maxShards` and package count; packages are bin-packed heaviest first (`planShards`).
 - `plannedPackages` excludes `PACKAGES_WITH_DEDICATED_JOBS`; `e2ePackages` keeps packages with a `test:e2e` script.
 - `VITEST_MAX_FORKS` becomes `maxWorkers` only when it is an integer >= 1 (`forkCap`, `reporters.ts`).
 - Report discovery skips `node_modules`, `dist`, `.turbo`, `.git`, `test`, `src` (`SKIPPED_DIRS`); a file that failed without failed assertions becomes a synthetic failed case (`crashedWithoutAssertions`); failure messages are cut at `MAX_FAILURE_CHARS` (8,000) with ANSI stripped; Playwright reports are detected by an array `suites` and mapped through `PLAYWRIGHT_STATUS` (`summary.ts`).

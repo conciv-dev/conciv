@@ -72,12 +72,12 @@ describe('reporters', () => {
 })
 
 describe('shards', () => {
-  function pkg(name: string, browser = false): WorkspacePackage {
-    return {name, browser, e2e: false}
+  function pkg(name: string): WorkspacePackage {
+    return {name, e2e: false}
   }
 
   function e2ePkg(name: string): WorkspacePackage {
-    return {name, browser: true, e2e: true}
+    return {name, e2e: true}
   }
 
   function writeManifest(root: string, dir: string, manifest: Record<string, unknown>): void {
@@ -85,7 +85,7 @@ describe('shards', () => {
     writeFileSync(join(root, dir, 'package.json'), JSON.stringify(manifest))
   }
 
-  test('discoverPackages finds workspace packages and flags browser dependencies', () => {
+  test('discoverPackages finds workspace packages', () => {
     const root = mkdtempSync(join(tmpdir(), 'shards-'))
     writeManifest(root, 'packages/embed', {name: '@x/embed', devDependencies: {playwright: '^1'}})
     writeManifest(root, 'packages/core', {name: '@x/core', devDependencies: {vitest: '^4'}})
@@ -93,10 +93,10 @@ describe('shards', () => {
     writeManifest(root, 'packages/extensions/board', {name: '@x/board', devDependencies: {playwright: '^1'}})
     mkdirSync(join(root, 'packages', 'no-manifest'))
     expect(discoverPackages(root, ['packages', 'packages/extensions'])).toEqual([
-      {name: '@x/board', browser: true, e2e: false},
-      {name: '@x/core', browser: false, e2e: false},
-      {name: '@x/embed', browser: true, e2e: false},
-      {name: '@x/ui', browser: true, e2e: false},
+      {name: '@x/board', e2e: false},
+      {name: '@x/core', e2e: false},
+      {name: '@x/embed', e2e: false},
+      {name: '@x/ui', e2e: false},
     ])
   })
 
@@ -114,21 +114,10 @@ describe('shards', () => {
   })
 
   test('planShards isolates a dominant package and balances the rest', () => {
-    const packages = [pkg('whale', true), pkg('mid1'), pkg('mid2'), pkg('small1'), pkg('small2')]
+    const packages = [pkg('whale'), pkg('mid1'), pkg('mid2'), pkg('small1'), pkg('small2')]
     const shards = planShards(packages, {whale: 300_000, mid1: 50_000, mid2: 45_000, small1: 5_000, small2: 5_000})
     const whaleShard = shards.find((shard) => shard.packages.includes('whale'))
     expect(whaleShard?.packages).toEqual(['whale'])
-    expect(whaleShard?.chromium).toBe(true)
-  })
-
-  test('planShards derives chromium per shard from member dependencies', () => {
-    const shards = planShards([pkg('browser-heavy', true), pkg('node-only')], {
-      'browser-heavy': 200_000,
-      'node-only': 200_000,
-    })
-    const byName = new Map(shards.map((shard) => [shard.packages.join(','), shard.chromium]))
-    expect(byName.get('browser-heavy')).toBe(true)
-    expect(byName.get('node-only')).toBe(false)
   })
 
   test('planShards scales shard count with total measured time', () => {
