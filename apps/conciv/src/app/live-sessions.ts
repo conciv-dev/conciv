@@ -30,6 +30,12 @@ type RunWatch = {live: string | null; settled: string | null}
 
 const IDLE_RUN: RunWatch = {live: null, settled: null}
 
+function clientWorking(chat: ChatSession): boolean {
+  const status = chat.status()
+  if (status === 'submitted' || status === 'streaming') return true
+  return status === 'ready' && untrack(chat.queue).length > 0
+}
+
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const [state, setState] = createStore<{openers: Accessor<string>[]; runs: Record<string, RunWatch>}>({
     openers: [],
@@ -77,7 +83,11 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
           onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
           onLifecycle: (lifecycle) =>
             isRunPhaseTerminal(lifecycle.phase)
-              ? finish(sessionId, lifecycle, untrack(session.sending))
+              ? finish(
+                  sessionId,
+                  lifecycle,
+                  untrack(() => clientWorking(session)),
+                )
               : start(sessionId, lifecycle),
         },
       })
@@ -91,7 +101,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const chats = createMemo<LiveChat[]>((previous) => {
     const ids = wanted()
-    const [kept, dropped] = partition(previous, (entry) => ids.includes(entry.sessionId) || entry.chat().sending())
+    const [kept, dropped] = partition(previous, (entry) => ids.includes(entry.sessionId) || clientWorking(entry.chat()))
     for (const entry of dropped) entry.dispose()
     const added = difference(
       ids,
