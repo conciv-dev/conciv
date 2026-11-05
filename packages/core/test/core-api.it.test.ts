@@ -538,10 +538,11 @@ describe('api codex turns', () => {
   const fakeCodex = [
     '#!/bin/sh',
     'cat > /dev/null',
+    'echo "$@" > "$(dirname "$0")/args"',
     'count_file="$(dirname "$0")/count"',
     'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
     'echo "$count" > "$count_file"',
-    `echo '{"type":"thread.started","thread_id":"codex-thread-1"}'`,
+    `echo '{"type":"thread.started","thread_id":"codex-thread-'"$count"'"}'`,
     `echo '{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"","status":"in_progress"}}'`,
     `echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"listed","exit_code":0,"status":"completed"}}'`,
     `echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"answer '"$count"'"}}'`,
@@ -549,7 +550,21 @@ describe('api codex turns', () => {
   ].join('\n')
   beforeAll(() => {
     mkdirSync(bin)
-    mkdirSync(join(root, 'home'))
+    mkdirSync(join(root, 'home', '.codex'), {recursive: true})
+    writeFileSync(
+      join(root, 'home', '.codex', 'models_cache.json'),
+      JSON.stringify({
+        models: [
+          {
+            slug: 'gpt-fake',
+            display_name: 'GPT Fake',
+            visibility: 'list',
+            priority: 1,
+            supported_reasoning_levels: [{effort: 'medium'}, {effort: 'xhigh'}],
+          },
+        ],
+      }),
+    )
     writeFileSync(join(bin, 'codex'), fakeCodex, {mode: 0o755})
     process.env.PATH = `${bin}:${saved.PATH ?? ''}`
     process.env.HOME = join(root, 'home')
@@ -581,6 +596,17 @@ describe('api codex turns', () => {
       {role: 'user', text: 'third question', toolCalls: 0},
       {role: 'assistant', text: 'answer 3', toolCalls: 1},
     ])
+  }, 30_000)
+
+  it('runs codex at the effort picked for the session', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await kit().rpc.sessions.model({sessionId, model: 'gpt-fake'})
+    await kit().rpc.sessions.effort({sessionId, effort: 'xhigh'})
+    await runTurn(kit(), 'think hard', sessionId)
+    expect(readFileSync(join(bin, 'args'), 'utf8')).toContain('model_reasoning_effort="xhigh"')
+    await kit().rpc.sessions.effort({sessionId, effort: null})
+    await runTurn(kit(), 'think normally', sessionId)
+    expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
   }, 30_000)
 })
 

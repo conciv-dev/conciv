@@ -1248,7 +1248,19 @@ describe('codex models', () => {
     etag: 'etag-1',
     client_version: '0.150.0',
     models: [
-      {slug: 'gpt-second', display_name: 'GPT Second', visibility: 'list', priority: 2, supported_in_api: true},
+      {
+        slug: 'gpt-second',
+        display_name: 'GPT Second',
+        visibility: 'list',
+        priority: 2,
+        supported_in_api: true,
+        supported_reasoning_levels: [
+          {effort: 'low', description: 'Fast'},
+          {effort: 'xhigh', description: 'Extra high'},
+          {effort: 'max', description: 'Maximum'},
+          {effort: 'ultra', description: 'Maximum with delegation'},
+        ],
+      },
       {slug: 'gpt-hidden', display_name: 'GPT Hidden', visibility: 'hide', priority: 0, supported_in_api: true},
       {slug: 'gpt-first', display_name: 'GPT First', visibility: 'list', priority: 1, supported_in_api: true},
     ],
@@ -1264,11 +1276,11 @@ describe('codex models', () => {
   }
 
   describe('codexModels', () => {
-    it('lists the listed models from codex catalog in priority order', () => {
+    it('lists the listed models from codex catalog in priority order, with the efforts conciv can pick', () => {
       const dir = codexDir({'models_cache.json': JSON.stringify(MODELS_CACHE)})
       expect(codexModels(dir)).toEqual([
         {id: 'gpt-first', name: 'GPT First', group: 'Codex'},
-        {id: 'gpt-second', name: 'GPT Second', group: 'Codex'},
+        {id: 'gpt-second', name: 'GPT Second', group: 'Codex', efforts: ['low', 'xhigh', 'max']},
       ])
     })
 
