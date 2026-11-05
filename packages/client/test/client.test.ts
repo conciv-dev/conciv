@@ -5,7 +5,7 @@ import {makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
 import {createServer, type Server} from 'node:http'
-import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
@@ -509,6 +509,71 @@ describe('push channel', () => {
       channel.dispose()
       expect(livePushChannelCount()).toBe(opened - 1)
     })
+  })
+
+  describe('a session the page is not showing', () => {
+    const pageText = {name: 'page_text', input: {selector: 'body'}}
+    const POLL = {timeout: 4_000, interval: 50}
+
+    function outcomeOf(call: Promise<unknown>): Promise<unknown> {
+      return call.catch((error: unknown) => ({
+        rejected: error instanceof ORPCError ? error.code : 'unexpected',
+        message: error instanceof Error ? error.message : String(error),
+      }))
+    }
+
+    async function answerEvery(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
+      for await (const frame of source) {
+        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
+      }
+    }
+
+    async function answerOnce(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
+      for await (const frame of source) {
+        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
+        return
+      }
+    }
+
+    it('refuses its page tools at once, and serves them again once the page shows it', async () => {
+      const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
+      const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
+      const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
+      void shownChannel.queries(abort.signal)
+      const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
+
+      await expect
+        .poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL)
+        .toMatchObject({
+          rejected: 'NO_PAGE_CLIENT',
+          message: expect.stringContaining(
+            'the page is showing another session; switch back to this session to use page tools',
+          ),
+        })
+
+      const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
+      await expect.poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL).toEqual({text: 'shown again'})
+
+      abort.abort()
+      await serving
+      shownChannel.dispose()
+      backgroundChannel.dispose()
+    }, 15_000)
+
+    it('stops serving page queries once its query loop exits, while the chat stream keeps the socket', async () => {
+      const {booted, channel, abort} = await bootWithChannel()
+      void channel.events(abort.signal)
+      const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
+
+      await expect.poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
+      await servedOnce
+      await expect
+        .poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL)
+        .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
+
+      abort.abort()
+      channel.dispose()
+    }, 15_000)
   })
 })
 

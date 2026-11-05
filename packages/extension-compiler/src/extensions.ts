@@ -25,18 +25,25 @@ export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
 export type ExtensionsSurface = 'page' | 'dock'
 
-const PAGE_MOUNT = [
-  `mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
-]
-
-const DOCK_RENDERER = [
+const HOST_WIDGET_SETTINGS = [
   `function hostWidgetSettings() {`,
   `  try {`,
-  `    return JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `    const parsed = JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `    return typeof parsed === 'object' && parsed !== null ? parsed : {}`,
   `  } catch {`,
   `    return {}`,
   `  }`,
   `}`,
+]
+
+const DOCK_SCRIPT_SELECTOR = `script[src*="${EXTENSIONS_DOCK_ROUTE}"]`
+
+const PAGE_MOUNT = [
+  `if (typeof document !== 'undefined' && !document.querySelector(${JSON.stringify(DOCK_SCRIPT_SELECTOR)}))`,
+  `  mountConciv(picked.extensions).catch((error) => console.error('[conciv] widget failed to start', error))`,
+]
+
+const DOCK_RENDERER = [
   `export default function concivDockRenderer(context) {`,
   `  const entry = context.current`,
   `  const settings = {...hostWidgetSettings(), launcher: false, defaultOpen: true, surface: 'dock'}`,
@@ -82,7 +89,7 @@ export function extensionsModuleSource(
     `const folderLoaders = toSortedLoaders(import.meta.glob(${JSON.stringify(EXTENSION_GLOB)}))`,
     `const picked = await loadExtensions([...builtinLoaders, ...folderLoaders])`,
     `for (const d of picked.dropped) console.warn('conciv extension dropped:', d.source, d.reason)`,
-    ...(surface === 'dock' ? DOCK_RENDERER : PAGE_MOUNT),
+    ...(surface === 'dock' ? [...HOST_WIDGET_SETTINGS, ...DOCK_RENDERER] : PAGE_MOUNT),
     '',
   ].join('\n')
 }

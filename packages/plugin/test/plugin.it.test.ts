@@ -22,7 +22,7 @@ import getPort from 'get-port'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {DevTools} from '@vitejs/devtools'
-import {createLogger, createServer, type Plugin, type ViteDevServer} from 'vite'
+import {createLogger, createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import ios from '@conciv/extension-ios'
@@ -1053,13 +1053,7 @@ describe('vite devtools dock', () => {
     symlinkSync(join(dirname(embedDir), 'it'), join(root, 'node_modules', '@conciv', 'it'))
   }
 
-  async function dockServer(
-    widget?: false,
-    builtins: Builtins = NO_BUILTINS,
-    root = realpathSync(dirs.tempDir('conciv-dock-')),
-    hostHead = '',
-    hostPlugins: Plugin[] = [],
-  ): Promise<string> {
+  async function hostServer(root: string, hostHead: string, plugins: PluginOption[]): Promise<string> {
     if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) linkConcivIt(root)
     writeFileSync(
       join(root, 'index.html'),
@@ -1070,23 +1064,37 @@ describe('vite devtools dock', () => {
       configFile: false,
       logLevel: 'silent',
       server: {host: '127.0.0.1', port: 0},
-      plugins: [
-        makeViteHook(
-          {enabled: true, stateRoot: root, ...(widget === false ? {widget} : {})},
-          {
-            ...builtins,
-            embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
-            dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
-          },
-        ),
-        DevTools({clientAuth: false}),
-        ...hostPlugins,
-      ],
+      plugins,
     })
     servers.push(server)
     await server.listen()
     const address = server.httpServer?.address()
     return `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
+  }
+
+  function concivHook(root: string, builtins: Builtins, widget?: false) {
+    return makeViteHook(
+      {enabled: true, stateRoot: root, ...(widget === false ? {widget} : {})},
+      {
+        ...builtins,
+        embedEntry: fileURLToPath(import.meta.resolve('@conciv/embed')),
+        dedupeEntry: fileURLToPath(import.meta.resolve('@conciv/extension-compiler/dedupe')),
+      },
+    )
+  }
+
+  async function dockServer(
+    widget?: false,
+    builtins: Builtins = NO_BUILTINS,
+    root = realpathSync(dirs.tempDir('conciv-dock-')),
+    hostHead = '',
+    hostPlugins: Plugin[] = [],
+  ): Promise<string> {
+    return hostServer(root, hostHead, [
+      concivHook(root, builtins, widget),
+      DevTools({clientAuth: false}),
+      ...hostPlugins,
+    ])
   }
 
   it('fills the dock panel with the widget and keeps it there when the dock entry is reopened', async () => {
@@ -1299,6 +1307,49 @@ describe('vite devtools dock', () => {
       waitUntil: 'domcontentloaded',
     })
     await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+    await page.close()
+  }, 60_000)
+
+  it.each([
+    {host: 'no conciv-widget meta', hostMeta: ''},
+    {host: 'its own conciv-widget meta', hostMeta: '<meta name="conciv-widget" content="{}">'},
+  ])(
+    'mounts one widget, in the dock, when a framework client-entry module also loads on a page with $host',
+    async ({hostMeta}) => {
+      const root = realpathSync(dirs.tempDir('conciv-dock-'))
+      mkdirSync(join(root, 'src'))
+      writeFileSync(
+        join(root, 'src', 'client-entry.ts'),
+        "await import('virtual:conciv-extensions')\ndocument.title = 'page module evaluated'\nexport {}\n",
+      )
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const url = await dockServer(
+        undefined,
+        NO_BUILTINS,
+        root,
+        `${hostMeta}<script type="module" src="/src/client-entry.ts"></script>`,
+      )
+      await page.goto(url, {waitUntil: 'domcontentloaded'})
+      await expectLocator(page).toHaveTitle('page module evaluated', {timeout: 30_000})
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      const composers = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composers.first().waitFor({timeout: 30_000})
+      await expectLocator(composers).toHaveCount(1)
+      await expectLocator(page.getByRole('button', {name: /Open conciv chat|Close chat/})).toHaveCount(0)
+      await page.close()
+    },
+    60_000,
+  )
+
+  it('mounts the floating page widget when the host conciv-widget meta holds null', async () => {
+    const root = realpathSync(dirs.tempDir('conciv-null-meta-'))
+    const url = await hostServer(root, '<meta name="conciv-widget" content="null">', [concivHook(root, NO_BUILTINS)])
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+    await page.goto(url, {waitUntil: 'domcontentloaded'})
+    await expectLocator(page.getByRole('button', {name: /conciv chat$/})).toBeVisible({timeout: 30_000})
+    expect(pageErrors).toEqual([])
     await page.close()
   }, 60_000)
 

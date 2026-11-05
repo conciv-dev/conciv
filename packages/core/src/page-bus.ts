@@ -105,9 +105,19 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     }
   }
 
+  function anySubscriber(): boolean {
+    return [...bySession.values()].some((page) => page.subscribers.size > 0)
+  }
+
   async function ask(sessionId: SessionId, query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
     const page = bySession.get(sessionId)
     if (page === undefined || page.subscribers.size === 0) {
+      if (anySubscriber()) {
+        throw pageFailure(
+          'no-widget',
+          'the page is showing another session; switch back to this session to use page tools',
+        )
+      }
       throw pageFailure('no-widget', `no widget connected to session "${sessionId}"`)
     }
     idState.n += 1
@@ -129,7 +139,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   return {
     ask,
     connected: (sessionId) => (bySession.get(sessionId)?.subscribers.size ?? 0) > 0,
-    anySubscriber: () => [...bySession.values()].some((page) => page.subscribers.size > 0),
+    anySubscriber,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
   }

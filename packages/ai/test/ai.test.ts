@@ -8,8 +8,10 @@ import {
   createChatServer,
   drizzleChatStores,
   makeTextAdapter,
+  toolApprovalId,
   type TurnHooks,
 } from '../src/server.js'
+import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
@@ -23,7 +25,7 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
-import {createTextChunks, storyConnection} from '../src/testkit.js'
+import {createTextChunks, createToolCallChunks, storyConnection} from '../src/testkit.js'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
@@ -227,6 +229,57 @@ CREATE TABLE \`chat_threads\` (
       expect(run.error).toBe('Agent process exited with code 1')
     },
   )
+
+  it('endAllRuns interrupts a run blocked in a tool call and records it aborted', {timeout: 15_000}, async () => {
+    const db = chatDb()
+    const toolRunning = Promise.withResolvers<void>()
+    const blocking = defineTool({
+      name: 'blocking',
+      description: 'Waits until the run is stopped.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+    }).server(async (_args, context) => {
+      toolRunning.resolve()
+      const signal = context?.abortSignal
+      await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
+      return 'stopped'
+    })
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('calls-tool', async function* () {
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          yield* createToolCallChunks('blocking', {})
+          yield {
+            type: ChatEventType.RUN_FINISHED,
+            runId: turn.runId,
+            threadId: turn.threadId,
+            finishReason: 'tool_calls',
+            timestamp: Date.now(),
+          }
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [blocking],
+        setup: async () => new Map([[toolApprovalId('blocking'), true]]),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async () => undefined,
+    }
+    const server = await chatServer(hooks, () => undefined, db)
+    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    await toolRunning.promise
+    const outcome = await Promise.race([
+      server.endAllRuns().then(() => 'ended'),
+      new Promise((resolve) => setTimeout(resolve, 3_000, 'still waiting on the tool')),
+    ])
+    expect(outcome).toBe('ended')
+    expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
+    await driven
+  })
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
