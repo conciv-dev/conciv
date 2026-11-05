@@ -5,7 +5,6 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
 
 export type BootCoreInput = {
@@ -46,7 +45,6 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   terminal: TerminalState
-  calls: RpcCallCursor | null
   push: PushWireWatch | null
 }
 
@@ -77,7 +75,6 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     terminal: {launches: 0, succeeds: true},
-    calls: null,
     push: null,
   }
   files.set(key, created)
@@ -96,12 +93,6 @@ function pushOf(ctx: BrowserCommandContext): PushWireWatch {
   return push
 }
 
-function callsOf(ctx: BrowserCommandContext): RpcCallCursor {
-  const calls = stateOf(ctx).calls
-  if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
-  return calls
-}
-
 function faultOf(ctx: BrowserCommandContext, handle: string): Fault {
   const fault = stateOf(ctx).faults.get(handle)
   if (!fault) throw new Error(`no fault is installed under the handle "${handle}"`)
@@ -116,7 +107,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     state.terminal.launches += 1
     return Promise.resolve(state.terminal.succeeds)
   }
-  const {bootCoreKit, createTerminalExtension, rpcCallCursor, watchPushWire} = await testkitOf(ctx)
+  const {bootCoreKit, createTerminalExtension, watchPushWire} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -141,7 +132,6 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
       : {}),
   })
   state.kit = kit
-  state.calls = rpcCallCursor(ctx.page)
   state.push = watchPushWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
 }
@@ -153,7 +143,6 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.staleness.value = FRESH
   state.terminal.launches = 0
   state.terminal.succeeds = true
-  state.calls = null
   state.push = null
   const kit = state.kit
   state.kit = null
@@ -216,7 +205,7 @@ const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
 
 const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => callsOf(ctx).completedSince(path)
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => kitOf(ctx).rpcServed(path)
 
 type Injector = {repair: () => void; dispose: () => Promise<void>}
 

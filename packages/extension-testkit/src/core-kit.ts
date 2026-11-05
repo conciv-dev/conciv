@@ -5,8 +5,13 @@ import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessConnect, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
+import {procedurePathOf, samePath} from './rpc-payload.js'
 
-export type CoreKit = Kit & {harness: FakeHarness; forSession: (id: SessionId) => SessionScope}
+export type CoreKit = Kit & {
+  harness: FakeHarness
+  forSession: (id: SessionId) => SessionScope
+  rpcServed: (path: readonly string[]) => number
+}
 
 export async function bootCoreKit(opts: {
   id: string
@@ -33,6 +38,7 @@ export async function bootCoreKit(opts: {
     history: opts.history,
   })
   const captured: {runtime?: CoreRuntime} = {}
+  const served: (readonly string[])[] = []
   const kit = await createTestkit(harness, async (env) => {
     const {app, dispose, runtime} = await makeApp({
       cfg: {
@@ -55,9 +61,23 @@ export async function bootCoreKit(opts: {
       nativePageDir: opts.nativePageDir,
     })
     captured.runtime = runtime
-    return {fetch: app.fetch, dispose}
+    return {
+      fetch: async (...fetchArguments: Parameters<typeof app.fetch>) => {
+        const [request] = fetchArguments
+        const response = await app.fetch(...fetchArguments)
+        const procedurePath = procedurePathOf(request.url)
+        if (procedurePath && request.method !== 'OPTIONS') served.push(procedurePath)
+        return response
+      },
+      dispose,
+    }
   }).setup()
   const runtime = captured.runtime
   if (!runtime) throw new Error('the core kit booted without capturing the core runtime')
-  return {...kit, harness, forSession: runtime.forSession}
+  return {
+    ...kit,
+    harness,
+    forSession: runtime.forSession,
+    rpcServed: (path) => served.filter((servedPath) => samePath(servedPath, path)).length,
+  }
 }
