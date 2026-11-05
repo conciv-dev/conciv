@@ -128,11 +128,22 @@
 - [ ] **Step 4: Gate.** Lint clean, typecheck clean for the whole package, `pnpm run build` passes. Import rule grep from the spec matches only `server.ts`.
 - [ ] **Step 5: Commit** `design: one run tree; loop.ts dissolves into differ and words`.
 
-### Task 6: Proof
+### Task 6: Tests against interfaces
 
-- [ ] **Step 1:** From `packages/it`: `pnpm test -- test/design.it.test.ts`, failing set compared to `/tmp/design-it-base.txt`; must be identical.
-- [ ] **Step 2:** Review Focus checks by hand through the trial script `packages/it/scripts/design-trial.ts`: a three-deep Figma frame from `scratchpad/figma5/rest-raw.json` listed by `watch`, a regressed node after deleting its element, a fresh target with no `regressed`, `clear all` leaving `list` empty. Record the commands and outputs in the task report.
-- [ ] **Step 3:** Report `wc -l src/server/*.ts src/server/sources/*.ts src/shared/*.ts` before and after.
-- [ ] **Step 4: Commit** nothing new unless a fix was needed; the fix is its own `design:` commit.
+Rule from the owner: no export exists for a test; a test exercises an interface's implementation, never an internal. The package exports shrink to `.`, `./client`, `./server`, `./defs`, `./package.json`; `./store`, `./provenance`, `./text-groups`, `./paddle`, `./colors`, `./types`, `./xray-routes` are removed from `package.json`, the tsdown entries and the README.
+
+**Files:**
+
+- Modify: `packages/extensions/design/package.json`, `tsdown.config.*`
+- Rewrite: `packages/it/test/design.it.test.ts` (5.4k lines, 170 cases, 21 describe blocks)
+
+**Interfaces a test may touch:** the seven tools over the RPC client as the file does today; `Store` through `createStore(createStorage({driver: memoryDriver()}))`; `TargetAdapter` through `createImageAdapter(...)` and `createFigmaAdapter(...)` from `@conciv/extension-design/server`; `Pairer` and `Ranker` through `PAIRERS`/`RANKERS` from the same entry; the x-ray router type from `./server`.
+
+- [ ] **Step 1: Triage every describe block** against the baseline names in `scratchpad/one-tree/design-it-base-names.txt`. For each case: keep as is (already through a tool or the x-ray), rewrite through an interface (store, adapter, pairer), or drop with a one-line reason in the task report (an internal-only unit test such as `trimToInk` on a synthetic raster has no interface to go through; its behavior is covered by the adapter case on a real image or it is gone). The report lists all three sets by case name.
+- [ ] **Step 2: Rewrite** the file; assertions of kept cases unchanged; rewritten cases keep their assertions and change only how they reach the code.
+- [ ] **Step 3: Run** from `packages/it`: `pnpm test -- test/design.it.test.ts`. Expected: the kept and rewritten cases that passed at the baseline pass; the 42 baseline failures that survive triage still fail for the same reasons (compare by name); no new failure.
+- [ ] **Step 4: Review Focus checks** 1 to 5 as cases in the rewritten file, each through an interface (watch tool, store, adapter).
+- [ ] **Step 5: Report** `wc -l` before and after for `src/server/*.ts`, `src/server/sources/*.ts`, `src/shared/*.ts`, `src/server.ts`, and for the test file.
+- [ ] **Step 6: Commit** `design: tests go through interfaces; internal subpath exports removed`.
 
 The tag3 rerun on OrangeFarm and Pricing is run by the orchestrator from the scratch harness after Task 6, not by the implementer.

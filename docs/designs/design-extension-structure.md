@@ -1,7 +1,7 @@
 # Design extension: module structure
 
 - **Author:** Omri Katz (omridevk)
-- **Status:** Proposed
+- **Status:** Superseded by `docs/superpowers/specs/2026-11-05-design-one-tree.md` (2026-11-05). Rule 3 ("helpers shared by two slot files move to `raster.ts`") produced a 52-export utility bag; rule 1 produced 3,400-line slot files. Do not follow this document.
 - **Date:** 2026-11-02
 
 ## The problem

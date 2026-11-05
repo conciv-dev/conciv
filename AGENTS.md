@@ -88,6 +88,42 @@ README.md; this file is the non-obvious operational rules.
   `.github/skills/code-review/SKILL.md`.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
+## Architecture: the data first, then one interface per file
+
+These rules exist because the design extension (November 2026) grew to 12 flat files, 10k lines, a
+3,400-line `differ.ts`, a `raster.ts` with 52 exports, a flat node list whose parent link was rebuilt
+at 45 call sites, ten id-keyed side shapes for one relationship, file system calls in four modules and
+six package subpaths exported only so a test could reach internals. Every one of those was a rule-free
+local choice that looked fine in its own diff. Spec and postmortem:
+`docs/superpowers/specs/2026-11-05-design-one-tree.md`.
+
+- **Find the data structure before writing code.** If the domain is a tree, hold a tree
+  (`children`), never a flat list plus a parent id. If two trees relate, annotate one with the
+  other (`Match` carries `live`, `deltas`, `status`), never a third list keyed by id. Every view
+  (report, ledger, counts, outline) is a walk over that structure, never a join. A second shape
+  that re-states a relationship the structure already holds is the defect, however small.
+- **One file exports one interface's implementation.** A `create<X>` function or one table of
+  implementations, helpers private below it in call order. A file whose exports are helpers for
+  its neighbours is a utility bag: move each helper into its single consumer as a private function,
+  or into `shared/` only when two or more files need it. Reviewer check:
+  `grep -c '^export ' <file>` is 1 except for a table file and `defs.ts`.
+- **Interface types live in one place** (`shared/defs.ts` for the design extension; the package's
+  `types` module elsewhere). A consumer imports the type and receives the implementation as an
+  argument. Only the entry file (`server.ts`) names an implementation module.
+- **Every side effect sits behind one interface.** File system, network, clock. No `node:fs` import
+  outside the one storage module; persistence goes through `unstorage` (`fsDriver` in production,
+  `memoryDriver` in tests). Keys are the API; paths are derived, never hand-built by callers.
+- **No file over about 600 lines.** Past that, the file holds two interfaces; split by interface,
+  not by alphabet.
+- **No export exists for a test.** Tests call an interface's implementation (a tool over RPC, a store,
+  an adapter, a pairer). A package subpath, a flag or a helper export whose only importer is a test is
+  removed with the test rewritten against the interface.
+- **Schema is the type.** A zod schema defines the shape and the type is `z.infer`; a hand-written
+  twin of a schema is deleted.
+- **A refactor that drops a feature is not a refactor.** When a signature change leaves a feature
+  with no input (a voter without its raster, a carry-over without the previous run), the signature
+  grows; the feature stays. Say so in the report instead of deleting.
+
 ## TanStack Router
 
 - Before any router work: `pnpm dlx @tanstack/intent@latest load @tanstack/router-core#<skill>`

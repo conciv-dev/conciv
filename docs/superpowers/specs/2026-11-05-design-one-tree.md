@@ -187,6 +187,7 @@ type Pairer = (input: {
   previous: Match | null // the last run's tree, for carry-over by fingerprint
   rasters: {live: Raster; target: Raster}
   twins: {node: string; path: string}[] // twin decisions resolved by the run to the twin's live path
+  decisions: Decision[] // pins read directly
   comparators: Comparators
   budget: number // ms
 }) => Promise<{root: Match; partial: boolean; carried: number}>
@@ -198,6 +199,8 @@ Twins across two targets are still found automatically: `linkTwins` in `differ.t
 
 Layout inference (`laidOut` at 1a1ed0175, rows, columns, gap, padding from children boxes) is a design property and runs once in the sources: `inferLayout(root: DesignNode): DesignNode` in `server/sources/layout.ts`, called by the image adapter for every container and by the Figma adapter only for containers whose Figma node has no auto-layout. Nothing after the sources infers layout.
 
+Units: a `Design` is in design px (raster px). The run converts the tree to CSS px once before pairing (boxes, gap, padding, typography sizes, all divided by `scale`) and hands the pairer rasters in the same px as the boxes it passes.
+
 `align`, `fingerprint`, `glyphRun`, `targetBox` and `selectors` are pairing geometry the run needs; `differ.ts` imports them from `pair.ts`. The interface rule covers implementations chosen by configuration (`PAIRERS`, `RANKERS`, the adapters, `createStore`), not every function in those files.
 
 ## Tool contracts
@@ -206,22 +209,31 @@ Layout inference (`laidOut` at 1a1ed0175, rows, columns, gap, padding from child
 
 ## Modules after
 
+One file exports one interface's implementation: one create function or one table, helpers private below it. No file over about 600 lines. Every interface type lives in `shared/defs.ts`.
+
 ```
-server.ts                 extension entry, routes, runtime, the two storages
-server/sources/figma.ts   createFigmaAdapter: link parse, document and REST fetch, Figma tree to Design
-server/sources/image.ts   imageAdapter: OCR, segmentation, roles, nesting by containment, to Design
-server/raster.ts          pixels: decode, crop, compare, color
-server/pair.ts            pairers and rankers: Design plus LiveComponent to Match
-server/differ.ts          a run: measure, pair, deltas, judge, stop; the tool bindings
-server/words.ts           every sentence the agent reads: outline, items, changes
+server.ts                 wiring only: storages, runtime, createDiffer, routes, dispose
+server/sources/figma.ts   createFigmaAdapter: TargetAdapter
+server/sources/image.ts   createImageAdapter: TargetAdapter
+server/sources/layout.ts  inferLayout, shared by both adapters
+server/register.ts        registerTarget and the current target per session
+server/measure.ts         createMeasurer: Measurer (capture, mirror, takumi, text grouping)
+server/pair.ts            PAIRERS and RANKERS, plus the pairing geometry the run imports
+server/deltas.ts          DELTA_KINDS and deltasFor: one Match to its deltas
+server/raster.ts          pixel operations only
+server/judge.ts           judge: status transitions, score, stage, stop rules
+server/provenance.ts      MAPPERS and the CSS map
+server/words.ts           every sentence the agent reads
+server/differ.ts          createDiffer: composes the above into Differ; watchSettled
+server/tools.ts           SERVER_STEPS: tool bindings, compact and blind shaping
+server/xray-routes.ts     the x-ray router and app
 server/store.ts           createStore over unstorage
-shared/defs.ts            schemas and the TargetAdapter interface; types by z.infer, no hand-written twins
+shared/defs.ts            schemas and every interface type; types by z.infer
+shared/tree.ts            walk, find
 shared/tolerances.ts
 ```
 
-`server/sources/` is the one folder: one file per adapter, both implementing `TargetAdapter` from `defs.ts`, registered in `server.ts` as today. `target.ts` is gone; its registration code (`registerTarget`, current target per session) lives in `differ.ts` beside the other tool bindings.
-
-`loop.ts` dissolves: the run loop goes to `differ.ts`, the prose to `words.ts`. Types in `shared/types.ts` that a schema already defines are deleted; the rest move to `defs.ts`.
+Reviewer rule: `grep -c "^export " <file>` is 1 for every file under `src/server/` except `pair.ts` and `deltas.ts` (a table plus the functions the run imports). `loop.ts` and `target.ts` are gone; `shared/types.ts` is gone once nothing hand-written remains.
 
 ## What this removes
 

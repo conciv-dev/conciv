@@ -182,6 +182,26 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   `/workspace`.
 - Capability flags or options that add a second half-way code path where one correct path should exist.
 - New public API surface (new extension slots, props, exports) the PR does not justify.
+- The data structure is wrong: a flat list plus a parent id where the domain is a tree, a second
+  id-keyed shape re-stating a relationship another structure holds, a view built as a join instead
+  of a walk. Ask for the structure first; the code that follows is usually a third the size.
+- A file exports more than one interface's implementation, or exports helpers for its neighbours
+  (a utility bag). One `create<X>` or one table per file; helpers private, moved into their one
+  consumer. Flag any file over about 600 lines.
+- A consumer imports an implementation module instead of taking the implementation through its
+  interface type; only the entry file wires implementations.
+- A side effect outside its one interface: `node:fs` anywhere but the storage module, a path built
+  by a caller, a network call outside its adapter. Persistence is `unstorage`.
+- A package subpath, export or flag whose only importer is a test (the `Package shape` law above),
+  including `exports` entries added "for the integration test".
+- A hand-written type beside a zod schema of the same shape.
+- A refactor whose new signature starves a feature (a voter with no raster, a carry-over with no
+  previous run) and the feature is dropped rather than the signature widened.
+
+Postmortem, November 2026, design extension: 12 flat server files, a 3,400-line `differ.ts`, 52
+exports in `raster.ts`, a parent link rebuilt at 45 sites, ten id-keyed side shapes, fs calls in four
+modules, six test-only subpath exports. Each passed its own review because no law named it. Spec:
+`docs/superpowers/specs/2026-11-05-design-one-tree.md`.
 
 ## Fallow
 
