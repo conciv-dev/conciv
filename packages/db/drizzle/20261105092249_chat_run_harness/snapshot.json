@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "bffa69cc-00de-4906-9a07-7a0c9d733418",
-  "prevIds": ["2109d4b6-ed88-46bd-acf7-020f9bb6928d"],
+  "id": "c73baf1a-decc-45ac-858e-83dbd601e152",
+  "prevIds": ["b7460237-aa78-4561-a718-d158c5ff35d9"],
   "ddl": [
     {
       "name": "css_bundles",
@@ -349,6 +349,16 @@
     {
       "table": "sessions",
       "name": "model",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "sessions",
+      "name": "effort",
       "type": "text",
       "notNull": false,
       "autoincrement": false,

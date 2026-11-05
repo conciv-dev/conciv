@@ -55,9 +55,14 @@ function resumable(harness: ServerHarness, harnessSessionId: HarnessSessionId | 
   return harness.transcriptExists?.(harnessSessionId) ?? true
 }
 
-function liveTty({server, tty}: TerminalRuntime, sessionId: SessionId): TtySession | undefined {
+function ttyOwner(harnessId: string, harnessSessionId: HarnessSessionId | null): string {
+  return `${harnessId}:${harnessSessionId ?? ''}`
+}
+
+async function liveTty({server, tty}: TerminalRuntime, sessionId: SessionId): Promise<TtySession | undefined> {
+  const owner = ttyOwner(server.harness(sessionId).id, await server.sessions.resumeToken(sessionId))
   const alive = tty.get(sessionId)
-  if (alive === undefined || alive.owner === server.harness(sessionId).id) return alive
+  if (alive === undefined || alive.owner === owner) return alive
   tty.close(sessionId)
   return undefined
 }
@@ -120,7 +125,7 @@ async function openTtySession(
   const harnessSessionId = await mintHarnessSession(runtime, sessionId)
   const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, base)
   harness.release?.(sessionId)
-  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd, harness.id)
+  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd, ttyOwner(harness.id, harnessSessionId))
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
   if (ctx.resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
@@ -144,7 +149,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .handler(async ({input, context, errors}) => {
         const {sessionId, ...size} = input
         if (!runtime.server.harness(sessionId).ttyCommand) throw errors.NO_TTY()
-        if (reuseAlive(liveTty(runtime, sessionId), size)) return {alive: true}
+        if (reuseAlive(await liveTty(runtime, sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, apiBase(runtime, context))
         return {alive: true}
       }),
@@ -152,16 +157,16 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .errors(busy)
       .input(SessionInputSchema)
       .output(z.object({alive: z.boolean()}))
-      .handler(({input, errors}) => {
-        if (liveTty(runtime, input.sessionId)?.busy()) throw errors.BUSY()
+      .handler(async ({input, errors}) => {
+        if ((await liveTty(runtime, input.sessionId))?.busy()) throw errors.BUSY()
         runtime.tty.close(input.sessionId)
         return {alive: false}
       }),
     state: terminalOs
       .input(SessionInputSchema)
       .output(TerminalStateSchema)
-      .handler(({input}) => {
-        const session = liveTty(runtime, input.sessionId)
+      .handler(async ({input}) => {
+        const session = await liveTty(runtime, input.sessionId)
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
       }),
@@ -207,7 +212,7 @@ const app = new Hono<TerminalEnv>().get(
     const url = new URL(c.req.url)
     const sessionOf = () => {
       const parsed = SessionId.safeParse(url.searchParams.get('session'))
-      return parsed.success ? liveTty(runtime, parsed.data) : undefined
+      return parsed.success ? runtime.tty.get(parsed.data) : undefined
     }
     let detach: (() => void) | null = null
     return {

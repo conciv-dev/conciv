@@ -2,7 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "id": "b7460237-aa78-4561-a718-d158c5ff35d9",
-  "prevIds": ["bffa69cc-00de-4906-9a07-7a0c9d733418"],
+  "prevIds": ["2109d4b6-ed88-46bd-acf7-020f9bb6928d"],
   "ddl": [
     {
       "name": "css_bundles",
@@ -549,16 +549,6 @@
     {
       "table": "chat_runs",
       "name": "thread_id",
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "chat_runs",
-      "name": "harness_id",
       "type": "text",
       "notNull": true,
       "autoincrement": false,

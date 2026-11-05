@@ -669,6 +669,20 @@ describe('routes', () => {
       }
     })
 
+    it('switching away and back without touching the terminal starts a fresh terminal', async () => {
+      const first = recordingHarness()
+      const dedicated = await startTerminalServer(first.harness)
+      try {
+        expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
+        dedicated.sessions.tokens.delete(sessionId)
+        expect(await dedicated.rpc.state({sessionId})).toEqual({alive: false, busy: false})
+        expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
+        expect(first.captured).toHaveLength(2)
+      } finally {
+        await dedicated.close()
+      }
+    })
+
     it('rejects open when the harness has no tty command', async () => {
       const bare = await startTerminalServer({id: 'no-tty'})
       try {

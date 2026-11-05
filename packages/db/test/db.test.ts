@@ -260,7 +260,7 @@ describe('db', () => {
   })
 
   describe('chat run harness migration', () => {
-    const HARNESS_MIGRATION = '20261102235400_chat_run_harness'
+    const HARNESS_MIGRATION = '20261105092249_chat_run_harness'
     const drizzleDir = fileURLToPath(new URL('../drizzle/', import.meta.url))
 
     function applyMigration(client: DatabaseSync, name: string): void {

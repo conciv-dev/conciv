@@ -1,5 +1,5 @@
-import {existsSync} from 'node:fs'
-import {homedir} from 'node:os'
+import {accessSync, constants, existsSync} from 'node:fs'
+import {delimiter, join} from 'node:path'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -21,8 +21,7 @@ import {
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
-import {getHarness, transcriptPathWithin} from '@conciv/harness'
-import {detectHarnesses} from '@conciv/harness-init/detect'
+import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
@@ -129,12 +128,22 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
+function executable(file: string): boolean {
+  try {
+    accessSync(file, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function onPath(bin: string): boolean {
+  const directories = (process.env.PATH ?? '').split(delimiter).filter((entry) => entry.length > 0)
+  return directories.some((directory) => executable(join(directory, bin)))
+}
+
 function detectedHarnesses(): HarnessAdapter[] {
-  return detectHarnesses({PATH: process.env.PATH ?? '', HOME: homedir()}).flatMap((found) => {
-    if (found.via !== 'path') return []
-    const adapter = getHarness(found.id)
-    return adapter ? [adapter] : []
-  })
+  return listHarnesses().filter((adapter) => onPath(adapter.binName))
 }
 
 function availableHarnesses(boot: HarnessAdapter, others: readonly HarnessAdapter[]): HarnessAdapter[] {
@@ -214,7 +223,7 @@ function sessionPort(
           }
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
-    recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),
+    recordNativeId: (sessionId, harnessId, nativeId) => recordNativeId(db, sessionId, harnessId, nativeId),
     recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
     recordContextTokens: async (sessionId, contextTokens) => {
       const usage = currentRow(db, sessionId)?.usage
@@ -369,7 +378,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
-      await recordNativeId(db, sessionId, token)
+      await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => modelOf(db, sessionId),

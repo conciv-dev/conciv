@@ -12,14 +12,14 @@ const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const bridgeApproveConfig = {[`mcp_servers.${BRIDGED_MCP_SERVER_NAME}.default_tools_approval_mode`]: '"approve"'}
 
+const RUN_SCOPED_FIELDS = ['toolCallId', 'messageId', 'parentMessageId'] as const
+
 function runScopedChunk(chunk: ChatEvent, runId: string): ChatEvent {
-  if ('toolCallId' in chunk && typeof chunk.toolCallId === 'string') {
-    return {...chunk, toolCallId: `${runId}:${chunk.toolCallId}`}
-  }
-  if ('messageId' in chunk && typeof chunk.messageId === 'string') {
-    return {...chunk, messageId: `${runId}:${chunk.messageId}`}
-  }
-  return chunk
+  const scoped = RUN_SCOPED_FIELDS.flatMap((field) => {
+    const value: unknown = Reflect.get(chunk, field)
+    return typeof value === 'string' ? [[field, `${runId}:${value}`]] : []
+  })
+  return scoped.length === 0 ? chunk : {...chunk, ...Object.fromEntries(scoped)}
 }
 
 async function* runScopedStream(stream: AsyncIterable<ChatEvent>, runId: string): AsyncIterable<ChatEvent> {

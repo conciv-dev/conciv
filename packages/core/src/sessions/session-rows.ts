@@ -95,8 +95,16 @@ async function claimNativeRow(
 export const nativeIdFor = async (db: ConcivDb, id: SessionId): Promise<HarnessSessionId | null> =>
   (await rowById(db, id))?.harnessSessionId ?? null
 
-export async function recordNativeId(db: ConcivDb, id: SessionId, nativeId: HarnessSessionId): Promise<void> {
-  await db.update(sessions).set({harnessSessionId: nativeId, updatedAt: Date.now()}).where(eq(sessions.id, id))
+export async function recordNativeId(
+  db: ConcivDb,
+  id: SessionId,
+  harnessKind: string,
+  nativeId: HarnessSessionId,
+): Promise<void> {
+  await db
+    .update(sessions)
+    .set({harnessSessionId: nativeId, updatedAt: Date.now()})
+    .where(and(eq(sessions.id, id), eq(sessions.harnessKind, harnessKind)))
 }
 
 export async function ensureRow(db: ConcivDb, id: SessionId, harnessKind: string, cwd: string): Promise<void> {

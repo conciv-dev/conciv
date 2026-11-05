@@ -23,7 +23,7 @@ export type SessionRow = {
 export type SessionPort = {
   row: (sessionId: SessionId) => SessionRow | null
   ensure: (sessionId: SessionId) => Promise<void>
-  recordNativeId: (sessionId: SessionId, nativeId: HarnessSessionId) => Promise<void>
+  recordNativeId: (sessionId: SessionId, harnessId: string, nativeId: HarnessSessionId) => Promise<void>
   recordUsage: (sessionId: SessionId, usage: UsageSnapshot) => Promise<void>
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
   recordTitle: (sessionId: SessionId, title: string) => Promise<void>
@@ -67,6 +67,10 @@ export function systemTextOf(
     log(`[chat] system prompt file unreadable (${sources.systemPromptFile}), using inline text: ${String(error)}`)
     return sources.systemPromptText ?? ''
   }
+}
+
+function ownRow(harness: HarnessAdapter, row: SessionRow | null): SessionRow | null {
+  return row?.harnessKind === harness.id ? row : null
 }
 
 function resumableToken(deps: TurnDeps, harness: HarnessAdapter, row: SessionRow | null): HarnessSessionId | null {
@@ -182,7 +186,8 @@ export function turnHooks(
       const harness = deps.harnessFor(sessionId)
       const systemText = systemTextOf(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
       const row = deps.sessions.row(sessionId)
-      const model = row?.model ?? null
+      const own = ownRow(harness, row)
+      const model = own?.model ?? null
       const resumeSessionId = resumableToken(deps, harness, row)
       const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, model})
       const config = harness.chatConfig({
@@ -197,7 +202,7 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        reasoning: row?.effort ?? undefined,
+        reasoning: own?.effort ?? undefined,
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
@@ -230,7 +235,7 @@ export function turnHooks(
             context.ui.noteToolCall(sessionId, shaped.toolCallId, shaped.toolCallName)
           }
           const minted = mintedSessionId(shaped)
-          if (minted !== null) await deps.sessions.recordNativeId(sessionId, minted)
+          if (minted !== null) await deps.sessions.recordNativeId(sessionId, harness.id, minted)
           const ask = approvalAskOf(shaped)
           if (ask !== null) {
             await context.approvals.asked(sessionId, {

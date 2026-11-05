@@ -176,12 +176,12 @@ export function sessionsRouter(deps: RpcDeps) {
       const target = chat.harnesses.find((harness) => harness.id === input.harnessId)
       if (!target) throw errors.UNKNOWN_HARNESS()
       if (row.harnessKind === target.id) return {harnessId: target.id}
-      if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
       const model = input.model ?? null
       if (model !== null) {
         const models = await resolveHarnessModels(target)
         if (!models.some((listed) => listed.id === model && !listed.disabled)) throw errors.UNKNOWN_MODEL()
       }
+      if (await chat.plane.live(input.sessionId)) throw errors.SESSION_RUNNING()
       switchRowHarness(db, input.sessionId, target.id, model)
       return {harnessId: target.id}
     }),
