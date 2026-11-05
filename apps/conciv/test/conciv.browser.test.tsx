@@ -41,6 +41,7 @@ import {
   ComposerActionsHost,
   type SessionStatus,
   useComposer,
+  createTextAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
 import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
@@ -1532,6 +1533,74 @@ describe('pane composer stopping', () => {
   })
 })
 
+describe('pane composer attachments', () => {
+  function stagedNote(name: string) {
+    return {id: name, type: 'document', name, contentType: 'text/plain', data: btoa(name)}
+  }
+
+  function mountWithStagedNotes(text: string, initialSelection?: {start: number; end: number}) {
+    const storage = memoryStorage()
+    storage.setItem(
+      'attachments',
+      JSON.stringify({text, quote: null, attachments: [stagedNote('first.txt'), stagedNote('second.txt')]}),
+    )
+    const inputs: ComposerInputHandle[] = []
+    const chat = () =>
+      createChat({
+        threadId: 'pane-composer-attachments',
+        connection: storyConnection({chunks: createTextChunks('done')}),
+      })
+    render(() => (
+      <EngineReachabilityContext.Provider value={{online: () => true, sustainedOffline: () => false}}>
+        <ChatProvider chat={chat()}>
+          <ComposerHandlersProvider value={{}}>
+            <PaneComposer
+              draftStorage={storage}
+              draftKey="attachments"
+              placeholder="Ask anything…"
+              inputLabel="Message"
+              attachmentAdapter={createTextAttachmentAdapter()}
+              initialSelection={initialSelection}
+              onInputReady={(handle) => inputs.push(handle)}
+            />
+          </ComposerHandlersProvider>
+        </ChatProvider>
+      </EngineReachabilityContext.Provider>
+    ))
+    return {focus: () => inputs[0]?.focus()}
+  }
+
+  const removeButton = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
+  const input = () => page.getByRole('textbox', {name: 'Message'})
+
+  it('Backspace with the caret at the start removes the attachments one by one, last first', async () => {
+    const composer = mountWithStagedNotes('keep me', {start: 0, end: 0})
+    await expect.element(removeButton('second.txt')).toBeVisible()
+    composer.focus()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(removeButton('second.txt')).not.toBeInTheDocument()
+    await expect.element(removeButton('first.txt')).toBeVisible()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(removeButton('first.txt')).not.toBeInTheDocument()
+    await expect.element(input()).toHaveTextContent('keep me')
+  })
+
+  it('Backspace after text deletes the text and leaves the attachments staged', async () => {
+    const composer = mountWithStagedNotes('hi')
+    await expect.element(removeButton('second.txt')).toBeVisible()
+    composer.focus()
+    await expect.element(input()).toHaveFocus()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(input()).toHaveTextContent('h')
+    await expect.element(removeButton('first.txt')).toBeVisible()
+    await expect.element(removeButton('second.txt')).toBeVisible()
+  })
+})
+
 const FOUND_API_BASE = 'http://found.test'
 const CONNECT_PROBE_NAME = 'connect-probe'
 
@@ -1613,6 +1682,20 @@ describe('panel refresh', () => {
   const sessionMenu = () => page.getByRole('button', {name: 'Session options'})
   const refreshingMenu = () => page.getByRole('button', {name: 'Refreshing the conversation'})
   const refreshRow = () => page.getByRole('button', {name: 'Refresh the conversation'})
+
+  test('a session list still loading never hides the title or the view tabs behind skeletons', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await coreControl.scriptTurn({toolCalls: [], text: REPLY_TEXT})
+    await runTurn(coreBase(), sessionId, 'seed the transcript')
+    const gate = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.awaitFaultPending(gate, 1)
+
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('banner').getByText('New session', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
+  })
 
   test('refreshing the conversation dismisses the menu, shows progress, and keeps the transcript', async () => {
     const rpc = coreRpc(coreBase())

@@ -49,6 +49,14 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
     void Promise.allSettled(files.map((file) => context.addAttachment(file)))
     return true
   }
+  const removeLastAttachment = (): boolean => {
+    const last = context.attachments().at(-1)
+    if (!last) return false
+    context.removeAttachment(last.id).catch((error: unknown) => {
+      console.error('[conciv] could not remove the attachment', error)
+    })
+    return true
+  }
   const bind = (element: HTMLDivElement) => {
     wrapper = element
     makeEventListener(element, 'keydown', cancelOnEscape)
@@ -65,6 +73,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         label={props.inputLabel}
         editableClass={props.editableClass}
         onPaste={consumeFilePaste}
+        onBackspaceAtStart={removeLastAttachment}
         slashTrigger={props.triggers?.slash}
         mentionTrigger={props.triggers?.mention}
         onReady={(handle) => {
