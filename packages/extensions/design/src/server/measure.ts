@@ -1,6 +1,9 @@
 import {createHash} from 'node:crypto'
 import {z} from 'zod'
 import {ssim} from 'ssim.js'
+import pixelmatch from 'pixelmatch'
+import {diff} from '@blazediff/core'
+import {differenceCiede2000, parse} from 'culori'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {chunk, groupBy, mean, partition, range, uniqBy, zip} from 'es-toolkit'
 import {isPageVerbError} from '@conciv/extension'
@@ -19,6 +22,7 @@ import {
   renderDef,
   type Box,
   type ColorMetric,
+  type Geometry,
   type Grid,
   type LiveCapture,
   type LiveComponent,
@@ -26,6 +30,8 @@ import {
   type MeasureSource,
   type Measurer,
   type PixelComparator,
+  type Pixels,
+  type Rgb,
   type Raster,
   type Reuse,
   type ScoredTile,
@@ -34,13 +40,20 @@ import {
   type TileRecord,
   type Typography,
 } from '../shared/defs.js'
-import {sameFamily, TOLERANCES} from '../shared/tolerances.js'
-import {expand, intersection, overlapping, sameLine, union} from '../shared/box.js'
-import {crop, decodePng, labelRegions, rgbAt, rgbDistance, sampledFills, trimToInk, type Rgb} from './raster.js'
+import {rgbDistance, sameFamily, TOLERANCES, type DesignConfig} from '../shared/tolerances.js'
+import {expand, overlaps, union} from '../shared/box.js'
+import {createRaster} from './raster.js'
 
-export function createMeasurer(input: {color: ColorMetric; comparator: PixelComparator}): Measurer {
-  const {color, comparator} = input
+export function createMeasurer(input: {
+  config: Pick<DesignConfig, 'comparator' | 'color'>
+  geometry: Geometry
+}): Measurer {
+  const {geometry} = input
+  const color = COLOR_METRICS[input.config.color]
+  const comparator = PIXEL_COMPARATORS[input.config.comparator]
   return {
+    color,
+    comparator,
     connected: widgetConnected,
     route: liveRoute,
     measure: async (request) => {
@@ -52,10 +65,10 @@ export function createMeasurer(input: {color: ColorMetric; comparator: PixelComp
       }
     },
     texts: (request) => agreeingText({...request, color}),
-    typography: (request) => estimateTypography({...request, color}),
+    typography: (request) => estimateTypography({...request, color, geometry}),
     sources: measuredSources,
     confidence: sourceConfidence,
-    compare: (request) => comparePages({...request, comparator}),
+    compare: (request) => comparePages({...request, comparator, geometry}),
     similarity: similarityTiles,
     mean: ({tiles, within}) =>
       meanSimilarity(within === undefined ? tiles : tiles.filter((tile) => centred({inner: tile.box, outer: within}))),
@@ -113,7 +126,7 @@ type MeasureReply = z.infer<typeof MeasureReplySchema>
 
 function liveCapture(reply: MeasureReply): LiveCapture {
   return {
-    raster: decodePng(Buffer.from(reply.image, 'base64')),
+    raster: createRaster(Buffer.from(reply.image, 'base64')),
     viewport: {width: reply.width, height: reply.height},
     route: reply.route,
     components: reply.components,
@@ -194,8 +207,8 @@ function readingOrder(a: TextItem, b: TextItem): number {
   const first = a.boxes[0]
   const second = b.boxes[0]
   if (first === undefined || second === undefined) return 0
-  if (sameLine({a: first, b: second})) return first.x - second.x
-  return first.y - second.y
+  const shared = Math.max(0, Math.min(first.y + first.h, second.y + second.h) - Math.max(first.y, second.y))
+  return shared >= Math.min(first.h, second.h) / 2 ? first.x - second.x : first.y - second.y
 }
 
 function joined(items: TextItem[]): string {
@@ -211,8 +224,7 @@ function folded(text: string): string {
 
 function inkColor(input: {raster: Raster; boxes: Box[]; color: ColorMetric}): string | null {
   const {raster, boxes, color} = input
-  return sampledFills({raster, box: expand({box: union(boxes), by: TOLERANCES.tileMargin}), glyphs: boxes, color})
-    .foreground
+  return raster.fills({box: expand({box: union(boxes), by: TOLERANCES.tileMargin}), glyphs: boxes, color}).foreground
 }
 
 function inkAgrees(input: {
@@ -270,7 +282,7 @@ type Constituent = {item: TextItem; trimmed: Box[]; agrees: boolean}
 
 function constituent(input: {item: TextItem; live: Raster; target: Raster; color: ColorMetric}): Constituent {
   const {item, live, target, color} = input
-  const trimmed = item.boxes.map((box) => trimToInk({raster: live, box}))
+  const trimmed = item.boxes.map((box) => live.ink(box))
   const agrees = inkAgrees({live, target, liveBoxes: trimmed, targetBoxes: item.boxes, color})
   return {item, trimmed, agrees}
 }
@@ -293,7 +305,7 @@ function connected(items: TextItem[]): TextItem[][] {
   }
   items.forEach((item, index) => {
     range(index + 1, items.length).forEach((next) => {
-      const touching = item.boxes.some((a) => items[next]?.boxes.some((b) => overlapping({a, b})) === true)
+      const touching = item.boxes.some((a) => items[next]?.boxes.some((b) => overlaps({a, b})) === true)
       if (touching) parent[root(next)] = root(index)
     })
   })
@@ -365,6 +377,7 @@ async function estimateTypography(input: {
   raster: Raster
   page: ServerToolPageAccess
   color: ColorMetric
+  geometry: Geometry
 }): Promise<{estimates: Record<string, Typography>; skipped: number}> {
   const {page} = input
   const jobs = typeJobs(input)
@@ -379,15 +392,16 @@ function typeJobs(input: {
   texts: {node: TextNode; owner: LiveComponent}[]
   raster: Raster
   color: ColorMetric
+  geometry: Geometry
 }): TypeJob[] {
-  const {raster} = input
+  const {raster, geometry} = input
   return uniqBy(input.texts, (entry) => entry.node.id)
     .filter((entry) => needsEstimate({typography: entry.node.typography, live: entry.owner.styles.fontFamily}))
     .map(({node, owner}) => {
-      const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
-      const fills = sampledFills({raster, box: area.box, glyphs: [node.box], color: input.color})
-      const background = rgbAt({raster: area.raster, index: 0})
-      const ink = ownInk({area, background})
+      const area = raster.crop({box: node.box, margin: TOLERANCES.typeHalo})
+      const fills = raster.fills({box: area.box, glyphs: [node.box], color: input.color})
+      const background = area.raster.rgb(0)
+      const ink = ownInk({area, background, geometry})
       return {
         node,
         owner,
@@ -406,24 +420,26 @@ function needsEstimate(input: {typography: Typography | undefined; live: string}
   return !sameFamily({a: typography.font, b: input.live})
 }
 
-function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {
+function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb; geometry: Geometry}): Box {
   const {raster, box} = input.area
   const {width, height} = raster
   const mask = Uint8Array.from(range(width * height), (index) => {
-    const pixel = rgbAt({raster, index})
+    const pixel = raster.rgb(index)
     const apart = pixel.some(
       (channel, at) => Math.abs(channel - (input.background[at] ?? channel)) > TOLERANCES.inkTrimThreshold,
     )
     return apart ? 1 : 0
   })
-  const inside = labelRegions({mask, width, height}).regions.filter(
-    (region) =>
-      region.box.x > 0 &&
-      region.box.y > 0 &&
-      region.box.x + region.box.w < width &&
-      region.box.y + region.box.h < height,
-  )
-  if (inside.length === 0) return trimToInk({raster, box: {x: 0, y: 0, w: width, h: height}})
+  const inside = input.geometry
+    .regions({mask, width, height})
+    .regions.filter(
+      (region) =>
+        region.box.x > 0 &&
+        region.box.y > 0 &&
+        region.box.x + region.box.w < width &&
+        region.box.y + region.box.h < height,
+    )
+  if (inside.length === 0) return raster.ink({x: 0, y: 0, w: width, h: height})
   const own = union(inside.map((region) => region.box))
   return {...own, x: own.x + box.x, y: own.y + box.y}
 }
@@ -463,7 +479,7 @@ async function renderChunk(input: {page: ServerToolPageAccess; renders: Render[]
   if (reply === null) return input.renders.map(renderKey)
   zip(input.renders, reply.images).forEach(([render, image]) => {
     if (render === undefined || image === undefined) return
-    RENDERED.set(renderKey(render), inkOf(decodePng(Buffer.from(image, 'base64'))))
+    RENDERED.set(renderKey(render), inkOf(createRaster(Buffer.from(image, 'base64'))))
   })
   return []
 }
@@ -473,8 +489,8 @@ function renderKey(render: Render): string {
 }
 
 function inkOf(raster: Raster): Ink {
-  const box = trimToInk({raster, box: {x: 0, y: 0, w: raster.width, h: raster.height}})
-  return {height: box.h, contrast: contrast({raster, box, background: rgbAt({raster, index: 0})})}
+  const box = raster.ink({x: 0, y: 0, w: raster.width, h: raster.height})
+  return {height: box.h, contrast: contrast({raster, box, background: raster.rgb(0)})}
 }
 
 function contrast(input: {raster: Raster; box: Box; background: Rgb}): number {
@@ -484,7 +500,7 @@ function contrast(input: {raster: Raster; box: Box; background: Rgb}): number {
   let total = 0
   for (let y = box.y; y < box.y + box.h; y += 1) {
     for (let x = box.x; x < box.x + box.w; x += 1) {
-      total += rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background})
+      total += rgbDistance({a: raster.rgb(y * raster.width + x), b: background})
     }
   }
   return total / (area * MAX_CONTRAST)
@@ -567,7 +583,13 @@ function reuseFrom(input: Parameters<Measurer['reuse']>[0]): ReturnType<Measurer
   return {grid, rawTiles, reuse}
 }
 
-function comparePages(input: {live: Raster; target: Raster; comparator: PixelComparator; previous: TileCache | null}): {
+function comparePages(input: {
+  live: Raster
+  target: Raster
+  comparator: PixelComparator
+  previous: TileCache | null
+  geometry: Geometry
+}): {
   mismatch: number
   mask: Uint8Array
   width: number
@@ -575,7 +597,7 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   tiles: TileCache
   carried: number
 } {
-  const {live, target, comparator, previous} = input
+  const {live, target, comparator, previous, geometry} = input
   const width = Math.min(live.width, target.width)
   const height = Math.min(live.height, target.height)
   const grid = tileGrid({width, height, side: TOLERANCES.tileSide})
@@ -590,7 +612,7 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
     unpackMask({packed: tile.mask, mask, width, box})
   })
   compareAreas({
-    clusters: clusters({grid, changed}).map((cluster) => cluster.flatMap((index) => boxes[index] ?? [])),
+    clusters: clusters({grid, changed, geometry}).map((cluster) => cluster.flatMap((index) => boxes[index] ?? [])),
     width,
     height,
   }).forEach((area) => compareTiles({live, target, comparator, mask, width, ...area}))
@@ -616,11 +638,11 @@ function comparePages(input: {live: Raster; target: Raster; comparator: PixelCom
   }
 }
 
-function clusters(input: {grid: Grid; changed: number[]}): number[][] {
-  const {grid, changed} = input
+function clusters(input: {grid: Grid; changed: number[]; geometry: Geometry}): number[][] {
+  const {grid, changed, geometry} = input
   const wanted = new Set(changed)
   const cells = Uint8Array.from(range(grid.columns * grid.rows), (index) => (wanted.has(index) ? 1 : 0))
-  return findRegions({mask: cells, width: grid.columns, height: grid.rows, minSize: 1}).map((region) =>
+  return geometry.regions({mask: cells, width: grid.columns, height: grid.rows}).regions.map(({box: region}) =>
     changed.filter((index) => {
       const column = index % grid.columns
       const row = (index - column) / grid.columns
@@ -679,8 +701,8 @@ function compareTiles(input: {
   boxes: Box[]
 }): void {
   const {live, target, comparator, mask, width, area, boxes} = input
-  const a = boxBlur({raster: crop({raster: live, box: area}).raster, radius: TOLERANCES.blurRadius})
-  const b = boxBlur({raster: crop({raster: target, box: area}).raster, radius: TOLERANCES.blurRadius})
+  const a = boxBlur({raster: live.crop({box: area}).raster, radius: TOLERANCES.blurRadius})
+  const b = boxBlur({raster: target.crop({box: area}).raster, radius: TOLERANCES.blurRadius})
   const compared = comparator.compare({a, b})
   boxes.forEach((box) => copyMask({from: compared.mask, fromArea: area, onto: mask, width, box}))
 }
@@ -694,7 +716,7 @@ function paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Rast
     const y = (index - x) / width
     data.set([255, 0, 0, 255], (y * live.width + x) * 4)
   })
-  return {width: live.width, height: live.height, data}
+  return live.from({width: live.width, height: live.height, data})
 }
 
 function centred(input: {inner: Box; outer: Box}): boolean {
@@ -727,9 +749,9 @@ function similarityTiles(input: {
   const side = TOLERANCES.similarityTile
   if (width === 0 || height === 0) return []
   const page = {x: 0, y: 0, w: width, h: height}
-  const target = crop({raster: input.target, box: page}).raster
+  const target = input.target.crop({box: page}).raster
   const map = ssim(
-    imageData(seenRaster({live: crop({raster: input.live, box: page}).raster, target, differing: input.differing})),
+    imageData(seenRaster({live: input.live.crop({box: page}).raster, target, differing: input.differing})),
     imageData(target),
     {
       ssim: 'bezkrovny',
@@ -781,16 +803,10 @@ function paintOver(input: {onto: Raster; from: Raster; boxes: Box[]}): Raster {
       data.set(from.data.subarray((y * from.width + x0) * 4, (y * from.width + x1) * 4), (y * onto.width + x0) * 4)
     })
   })
-  return {width: onto.width, height: onto.height, data}
+  return onto.from({width: onto.width, height: onto.height, data})
 }
 
-function findRegions(input: {mask: Uint8Array; width: number; height: number; minSize: number}): Box[] {
-  return labelRegions(input)
-    .regions.filter((region) => region.size >= input.minSize)
-    .map((region) => region.box)
-}
-
-function seenRaster(input: {live: Raster; target: Raster; differing: Uint8Array}): Raster {
+function seenRaster(input: {live: Pixels; target: Pixels; differing: Uint8Array}): Pixels {
   const {live, target, differing} = input
   const data = Uint8Array.from(target.data)
   differing.forEach((bit, index) => {
@@ -799,7 +815,7 @@ function seenRaster(input: {live: Raster; target: Raster; differing: Uint8Array}
   return {width: target.width, height: target.height, data}
 }
 
-function imageData(raster: Raster): {data: Uint8ClampedArray; width: number; height: number} {
+function imageData(raster: Pixels): {data: Uint8ClampedArray; width: number; height: number} {
   return {
     data: new Uint8ClampedArray(raster.data.buffer, raster.data.byteOffset, raster.data.length),
     width: raster.width,
@@ -807,13 +823,13 @@ function imageData(raster: Raster): {data: Uint8ClampedArray; width: number; hei
   }
 }
 
-function boxBlur(input: {raster: Raster; radius: number}): Raster {
+function boxBlur(input: {raster: Pixels; radius: number}): Pixels {
   if (input.radius <= 0) return input.raster
   const once = blurPass({raster: input.raster, radius: input.radius, horizontal: true})
   return blurPass({raster: once, radius: input.radius, horizontal: false})
 }
 
-function blurPass(input: {raster: Raster; radius: number; horizontal: boolean}): Raster {
+function blurPass(input: {raster: Pixels; radius: number; horizontal: boolean}): Pixels {
   const {raster, radius, horizontal} = input
   const {width, height} = raster
   const data = new Uint8Array(raster.data.length)
@@ -916,4 +932,67 @@ function maskCount(input: {mask: Uint8Array; width: number; box: Box}): number {
     const start = (box.y + row) * width + box.x
     return total + mask.subarray(start, start + box.w).reduce((sum, value) => sum + value, 0)
   }, 0)
+}
+
+const PIXEL_COMPARATORS = {
+  blazediff: {name: 'blazediff', compare: blazediffCompare},
+  pixelmatch: {name: 'pixelmatch', compare: pixelmatchCompare},
+} as const satisfies Record<string, PixelComparator>
+
+const difference = differenceCiede2000()
+
+const ciede2000: ColorMetric = {
+  name: 'ciede2000',
+  distance: ({a, b}) => {
+    const from = parse(a)
+    const to = parse(b)
+    if (from === undefined || to === undefined) return 0
+    return difference(from, to)
+  },
+}
+
+const COLOR_METRICS = {ciede2000} as const satisfies Record<string, ColorMetric>
+
+function blazediffCompare(input: {a: Pixels; b: Pixels}): {mismatch: number; mask: Uint8Array} {
+  const {a, b} = input
+  const output = new Uint8Array(a.data.length)
+  const count = diff(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
+  return pixelResult({output, count, width: a.width, height: a.height})
+}
+
+function pixelmatchCompare(input: {a: Pixels; b: Pixels}): {mismatch: number; mask: Uint8Array} {
+  const {a, b} = input
+  const output = new Uint8Array(a.data.length)
+  const count = pixelmatch(a.data, b.data, output, a.width, a.height, DIFF_OPTIONS)
+  return pixelResult({output, count, width: a.width, height: a.height})
+}
+
+const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
+
+function pixelResult(input: {output: Uint8Array; count: number; width: number; height: number}): {
+  mismatch: number
+  mask: Uint8Array
+} {
+  const {output, count, width, height} = input
+  const total = width * height
+  return {mismatch: total === 0 ? 0 : count / total, mask: diffMask({output, width, height})}
+}
+
+function diffMask(input: {output: Uint8Array; width: number; height: number}): Uint8Array {
+  const {output, width, height} = input
+  const mask = new Uint8Array(width * height)
+  for (let i = 0; i < mask.length; i += 1) {
+    const red = output[i * 4] === 255 && output[i * 4 + 1] === 0 && output[i * 4 + 2] === 0
+    mask[i] = red && output[i * 4 + 3] === 255 ? 1 : 0
+  }
+  return mask
+}
+
+function intersection(input: {a: Box; b: Box}): Box | null {
+  const {a, b} = input
+  const x = Math.max(a.x, b.x)
+  const y = Math.max(a.y, b.y)
+  const w = Math.min(a.x + a.w, b.x + b.w) - x
+  const h = Math.min(a.y + a.h, b.y + b.h) - y
+  return w > 0 && h > 0 ? {x, y, w, h} : null
 }

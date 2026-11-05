@@ -14,7 +14,6 @@ import {
   type TargetResult,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {readPng} from './raster.js'
 
 export function createRegistrar(input: {
   adapters: TargetAdapter[]
@@ -48,15 +47,16 @@ async function registerTarget(request: {
   const requested = input.figma ?? input.image
   if (requested === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
   const ref = projectRef({ref: requested, cwd})
-  const image =
-    input.image === undefined ? undefined : await readPng({ref: projectRef({ref: input.image, cwd}), project})
+  const adapter = request.adapters.find((candidate) => candidate.accepts({ref, project}))
+  if (adapter === undefined) throw toolError('image-unreadable', {message: DESIGN_ERRORS['image-unreadable'].message})
+  const pictured = input.image ?? (adapter.kind === 'image' ? requested : undefined)
+  const image = pictured === undefined ? undefined : await readPng({ref: projectRef({ref: pictured, cwd}), project})
   const attachments = {
     ...(input.document === undefined ? {} : {document: input.document}),
     ...(image === undefined ? {} : {image}),
   }
-  const adapter = request.adapters.find((candidate) => candidate.accepts({ref, project}))
-  if (adapter === undefined) throw toolError('image-unreadable', {message: DESIGN_ERRORS['image-unreadable'].message})
-  const loaded = await adapter.load({ref, scale: input.scale ?? 1, project, attachments})
+  const label = pngBase64(ref) === null ? ref : BASE64_REF
+  const loaded = await adapter.load({ref: label, scale: input.scale ?? 1, project, attachments})
   const route = await routeLabel({route: input.route, page, measurer: request.measurer})
   const record = await request.store.put({
     design: loaded.design,
@@ -95,3 +95,22 @@ function pathnameIn(route: string): string {
 function projectRef(input: {ref: string; cwd: string}): string {
   return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
 }
+
+async function readPng(input: {ref: string; project: Storage}): Promise<Uint8Array<ArrayBuffer>> {
+  const raw: unknown = await input.project.getItemRaw(input.ref).catch(() => null)
+  if (raw instanceof Uint8Array) return new Uint8Array(raw)
+  const bytes = pngBase64(input.ref)
+  if (bytes !== null) return bytes
+  throw toolError('image-unreadable', {
+    message: `image is neither a PNG file nor PNG base64: ${input.ref.slice(0, 80)}`,
+  })
+}
+
+function pngBase64(ref: string): Uint8Array<ArrayBuffer> | null {
+  const bytes = new Uint8Array(Buffer.from(ref, 'base64'))
+  return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+const BASE64_REF = 'base64'

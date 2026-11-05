@@ -15,6 +15,7 @@ import {
   type DiffInput,
   type DiffReport,
   type Element,
+  type Geometry,
   type Item,
   type Judge,
   type Judging,
@@ -39,10 +40,15 @@ import {
 import {glyphRun, iconSized, kindStage, isOpaqueHex, childPosition, TOLERANCES} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import {encloses, union} from '../shared/box.js'
-import {boxMask} from './raster.js'
 
-export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas; color: ColorMetric}): Judge {
-  const {ranker, words, deltas, color} = input
+export function createJudge(input: {
+  ranker: Ranker
+  words: Words
+  deltas: Deltas
+  color: ColorMetric
+  geometry: Geometry
+}): Judge {
+  const {ranker, words, deltas, color, geometry} = input
   return {
     unmatched: ({root, components, offsets, measured}) => {
       const paired = [...walk({root})].flatMap(({node, depth}) => (depth === 0 || node.live === null ? [] : [node]))
@@ -61,7 +67,7 @@ export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas
       scoreTuple({
         items,
         unpairedShare: unpairedShare({unmatched, page}),
-        residualShare: residualShare({measured, unmatched, masks, page}),
+        residualShare: residualShare({measured, unmatched, masks, page, geometry}),
       }),
     verdict: (request) => judge({...request, ranker, words, color}),
     report: (request) => reportedComponents({...request, size: deltas.size}),
@@ -70,7 +76,7 @@ export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas
     budgets: sectionBudgets,
     round: roundRecord,
     worse: lexicallyWorse,
-    section: (request) => sectionReport({...request, ranker, words, color}),
+    section: (request) => sectionReport({...request, ranker, words, color, geometry}),
     settle: (request) => settled({...request, words}),
     counts: ledgerCounts,
   }
@@ -760,8 +766,14 @@ function unpairedShare(input: {unmatched: Unmatched[]; page: Box}): number {
   return total === 0 ? 0 : Math.min(1, area / total)
 }
 
-function residualShare(input: {measured: Measured[]; unmatched: Unmatched[]; masks: Box[]; page: Box}): number {
-  const {measured, unmatched, masks, page} = input
+function residualShare(input: {
+  measured: Measured[]
+  unmatched: Unmatched[]
+  masks: Box[]
+  page: Box
+  geometry: Geometry
+}): number {
+  const {measured, unmatched, masks, page, geometry} = input
   const tiles = measured
     .filter((entry) => entry.deltas.length === 0 && entry.element.mismatch >= TOLERANCES.tileGate)
     .map((entry) => entry.element.liveBox)
@@ -772,8 +784,8 @@ function residualShare(input: {measured: Measured[]; unmatched: Unmatched[]; mas
     ...unmatched.flatMap((entry) => [entry.target, entry.live].filter((box) => box !== undefined)),
     ...masks,
   ]
-  const residual = boxMask({boxes: tiles, area: page})
-  const covered = boxMask({boxes: explained, area: page})
+  const residual = geometry.mask({boxes: tiles, area: page})
+  const covered = geometry.mask({boxes: explained, area: page})
   const count = residual.reduce((sum, value, index) => sum + (value === 1 && covered[index] !== 1 ? 1 : 0), 0)
   return count / total
 }
@@ -788,8 +800,9 @@ function sectionReport(input: {
   ranker: Ranker
   words: Words
   color: ColorMetric
+  geometry: Geometry
 }): DiffReport {
-  const {report, section, judging, ranker, words, color} = input
+  const {report, section, judging, ranker, words, color, geometry} = input
   const nodes = sectionNodes(section)
   const box = sectionBox(section)
   const inside = (inner: Box | undefined): boolean => inner !== undefined && encloses({inner, outer: box})
@@ -827,7 +840,7 @@ function sectionReport(input: {
     score: scoreTuple({
       items,
       unpairedShare: unpairedShare({unmatched, page: box}),
-      residualShare: residualShare({measured, unmatched, masks: [], page: box}),
+      residualShare: residualShare({measured, unmatched, masks: [], page: box, geometry}),
     }),
     warnings: judging.warnings.filter((warning) => inside(warning.box)),
     changed: {...judging.changed, changes},

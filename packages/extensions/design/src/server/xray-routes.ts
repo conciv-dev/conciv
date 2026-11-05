@@ -11,7 +11,7 @@ import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {TOLERANCES} from '../shared/tolerances.js'
 import {MARK_KINDS, type Box, type DesignNode, type Differ, type Raster, type Store} from '../shared/defs.js'
 import {find, walk} from '../shared/tree.js'
-import {decodePng, downscale, encodePng} from './raster.js'
+import {createRaster} from './raster.js'
 
 export function createXrayRoutes(input: {
   store: Store
@@ -230,12 +230,12 @@ async function nodeCrop(input: {
   const found = stored === null ? null : find({root: stored.root, id: node})
   const image = await store.targetImage(target)
   if (stored === null || found === null || image === null) return null
-  const raster = decodePng(image)
-  const designRaster = stored.scale === 1 ? raster : downscale({raster, scale: stored.scale})
+  const raster = createRaster(image)
+  const designRaster = stored.scale === 1 ? raster : raster.scaled(stored.scale)
   const box = grown(scaled({box: found.box, scale: stored.scale}))
   const designCrop = cutout({raster: designRaster, box})
   const live = await liveCrop({...input, box})
-  return encodePng(live === null ? designCrop : besides({rasters: [designCrop, live], gap: CROP_GAP}))
+  return (live === null ? designCrop : besides({rasters: [designCrop, live], gap: CROP_GAP})).png()
 }
 
 async function liveCrop(input: {
@@ -255,7 +255,7 @@ async function liveCrop(input: {
   if (live === undefined || bytes === null) return null
   const margin = TOLERANCES.tileMargin
   return cutout({
-    raster: decodePng(bytes),
+    raster: createRaster(bytes),
     box: {...box, x: Math.round(live.x) - margin, y: Math.round(live.y) - margin},
   })
 }
@@ -291,10 +291,10 @@ function cutout(input: {raster: Raster; box: Box}): Raster {
     const start = (y * raster.width + left) * 4
     data.set(raster.data.subarray(start, start + (right - left) * 4), (row * box.w + left - box.x) * 4)
   })
-  return {width: box.w, height: box.h, data}
+  return raster.from({width: box.w, height: box.h, data})
 }
 
-function besides(input: {rasters: Raster[]; gap: number}): Raster {
+function besides(input: {rasters: [Raster, Raster]; gap: number}): Raster {
   const {rasters, gap} = input
   const width = rasters.reduce((sum, raster) => sum + raster.width, 0) + gap * Math.max(0, rasters.length - 1)
   const height = Math.max(0, ...rasters.map((raster) => raster.height))
@@ -306,5 +306,5 @@ function besides(input: {rasters: Raster[]; gap: number}): Raster {
     })
     return left + raster.width + gap
   }, 0)
-  return {width, height, data}
+  return rasters[0].from({width, height, data})
 }

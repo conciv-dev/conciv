@@ -22,7 +22,6 @@ import {
   WinnerResultSchema,
 } from '../shared/defs.js'
 import {iconSized} from '../shared/tolerances.js'
-import {encodePng} from './raster.js'
 
 export const SERVER_STEPS = [
   targetDef.server((input, ctx: DesignContext, request) => ctx.differ.register({input, session: request.sessionId})),
@@ -76,7 +75,7 @@ async function captureStep(
   ...[input, ctx, , page]: Parameters<ServerStep<CaptureInput, CaptureResult>>
 ): Promise<CaptureResult> {
   const {capture: live} = await ctx.design.measurer.measure({height: input.height, timeout: input.timeout, page})
-  const key = await ctx.design.store.writeCapture(encodePng(live.raster))
+  const key = await ctx.design.store.writeCapture(live.raster.png())
   const path = ctx.design.store.path(key) ?? key
   return {path, width: live.raster.width, height: live.raster.height, route: live.route, components: live.components}
 }

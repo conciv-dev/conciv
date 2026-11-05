@@ -52,8 +52,8 @@ import {
 } from '../shared/defs.js'
 import {aboveTolerance, designFamilies, TOLERANCES} from '../shared/tolerances.js'
 import {find, walk} from '../shared/tree.js'
-import {expand, intersection, readingOrder} from '../shared/box.js'
-import {boxMask, decodePng, downscale, encodePng} from './raster.js'
+import {area, expand} from '../shared/box.js'
+import {createRaster} from './raster.js'
 
 export function createDiffer(input: {
   runtime: DesignRuntime
@@ -493,6 +493,8 @@ function latestOf(settled: Settled | undefined): Latest | undefined {
   return settled === undefined ? undefined : {run: settled.run, report: settled.report, items: settled.judging.items}
 }
 
+const NO_BOX: Box = {x: 0, y: 0, w: 0, h: 0}
+
 const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
 
 type Touched = Set<string> | 'all'
@@ -553,7 +555,7 @@ async function freshRun(input: {
   const scored = measurer.similarity({
     live: masked,
     target: css.raster,
-    mask: boxMask({
+    mask: runtime.geometry.mask({
       boxes: [...reading.masks, ...css.dropped, ...slots],
       area: {x: 0, y: 0, w: compared.width, h: compared.height},
     }),
@@ -677,8 +679,8 @@ async function freshRun(input: {
   laps.push({phase: 'judge', at: Date.now()})
   const pageWidth = Math.min(live.raster.width, css.raster.width)
   const images = {
-    live: encodePng(live.raster),
-    diff: encodePng(measurer.paintDiff({live: masked, mask: compared.mask, width: pageWidth})),
+    live: live.raster.png(),
+    diff: measurer.paintDiff({live: masked, mask: compared.mask, width: pageWidth}).png(),
   }
   laps.push({phase: 'encode', at: Date.now()})
   const run = await store.writeRun({
@@ -812,7 +814,7 @@ function soleTexts(input: {root: Match; exact: boolean}): Match {
   )
   const kept = new Set(
     Object.values(groupBy(texts, (entry) => entry.path)).flatMap((entries) => {
-      const best = maxBy(entries, (entry) => overlapArea({a: entry.match.node.box, b: entry.live.box}))
+      const best = maxBy(entries, (entry) => area(intersection({a: entry.match.node.box, b: entry.live.box}) ?? NO_BOX))
       return best === undefined ? [] : [best.match]
     }),
   )
@@ -824,11 +826,6 @@ function unpaired(input: {match: Match; dropped: Set<Match>}): Match {
   const children = input.match.children.map((child) => unpaired({...input, match: child}))
   if (!input.dropped.has(input.match)) return {...input.match, children}
   return {...input.match, live: null, confidence: 0, children}
-}
-
-function overlapArea(input: {a: Box; b: Box}): number {
-  const common = intersection(input)
-  return common === null ? 0 : common.w * common.h
 }
 
 function textOwners(root: Match): {node: MatchText; owner: LiveComponent}[] {
@@ -931,8 +928,8 @@ async function loadCss(input: {store: Store; id: string; decisions: Decision[]})
   const design = await store.design(id)
   const png = await store.targetImage(id)
   if (png === null) throw toolError('no-target', {message: NO_TARGET_MESSAGE})
-  const decoded = decodePng(png)
-  const raster = design.scale === 1 ? decoded : downscale({raster: decoded, scale: design.scale})
+  const decoded = createRaster(png)
+  const raster = design.scale === 1 ? decoded : decoded.scaled(design.scale)
   const by = 1 / design.scale
   const page = scaledBox({box: design.root.box, by})
   const excluded = new Set(
@@ -1393,6 +1390,11 @@ function ranks(nodes: DesignNode[]): Map<string, number> {
   return new Map(nodes.toSorted((a, b) => readingOrder(a.box, b.box)).map((node, index) => [node.id, index]))
 }
 
+function readingOrder(a: Box, b: Box): number {
+  const shared = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  return shared >= Math.min(a.h, b.h) / 2 ? a.x - b.x : a.y - b.y
+}
+
 function spans(input: {box: DesignNode['box']; width: number}): boolean {
   return input.box.w >= STRETCHED * input.width
 }
@@ -1477,3 +1479,12 @@ function applied(reply: unknown): boolean {
 const SETTLE_TOOL = 'page_hmr'
 
 const SETTLE_WAIT_MS = 5000
+
+function intersection(input: {a: Box; b: Box}): Box | null {
+  const {a, b} = input
+  const x = Math.max(a.x, b.x)
+  const y = Math.max(a.y, b.y)
+  const w = Math.min(a.x + a.w, b.x + b.w) - x
+  const h = Math.min(a.y + a.h, b.y + b.h) - y
+  return w > 0 && h > 0 ? {x, y, w, h} : null
+}

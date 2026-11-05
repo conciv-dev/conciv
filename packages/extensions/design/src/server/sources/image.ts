@@ -15,45 +15,32 @@ import {
   type Box,
   type ColorMetric,
   type DesignNode,
+  type Geometry,
+  type MaskRegion,
   type OcrLine,
   type Paint,
   type Raster,
+  type Rgb,
   type RoleRules,
   type TargetAdapter,
   type TextReader,
 } from '../../shared/defs.js'
-import {iconSized, TOLERANCES} from '../../shared/tolerances.js'
-import {
-  boxMask,
-  crop,
-  decodePng,
-  encodePng,
-  hex,
-  labelRegions,
-  pngBase64,
-  readPng,
-  rgbAt,
-  rgbDistance,
-  trimToInk,
-  type Rgb,
-  COLOR_METRICS,
-  sampledFills,
-  fnv,
-} from '../raster.js'
-import {encloses, expand, overlapping, sameLine, union} from '../../shared/box.js'
+import {hex, iconSized, rgbDistance, TOLERANCES} from '../../shared/tolerances.js'
+import {toolError} from '@conciv/extension'
+import {createRaster} from '../raster.js'
+import {encloses, expand, overlaps, union} from '../../shared/box.js'
 import {isFigmaUrl} from './figma.js'
 import {inferLayout} from './layout.js'
 import {walk} from '../../shared/tree.js'
-
-export {trimToInk} from '../raster.js'
 
 export function createImageAdapter(input: ImageTools): TargetAdapter {
   return {
     kind: 'image',
     accepts: ({ref}) => !isFigmaUrl(ref),
-    load: async ({ref, scale, project, attachments}) => {
-      const image = attachments.image ?? (await readPng({ref, project}))
-      const raster = decodePng(image)
+    load: async ({ref, scale, attachments}) => {
+      const {image} = attachments
+      if (image === undefined) throw toolError('image-unreadable', {message: `no PNG for ${ref.slice(0, 80)}`})
+      const raster = createRaster(image)
       const context = {raster, scale, tools: input}
       const flat = await enrich({...context, value: [], enrichers: FLAT_ENRICHERS})
       const page: DesignNode = {
@@ -71,7 +58,7 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
       return {
         design: {
           id: createHash('sha256').update(image).digest('hex').slice(0, 12),
-          source: {kind: 'image', ref: pngBase64(ref) === null ? ref : 'base64'},
+          source: {kind: 'image', ref},
           viewport,
           scale,
           root,
@@ -101,7 +88,13 @@ function nest(nodes: DesignNode[]): DesignNode[] {
   return parents.flatMap((parent, index) => (parent === -1 ? build(index) : []))
 }
 
-type ImageTools = {reader: TextReader; segmenter: Segmenter; roles: RoleRules}
+type ImageTools = {
+  reader: TextReader
+  segmenter: Segmenter
+  roles: RoleRules
+  color: ColorMetric
+  geometry: Geometry
+}
 
 type BoxNode = Extract<DesignNode, {kind: 'box'}>
 type ImageNode = Extract<DesignNode, {kind: 'image'}>
@@ -318,7 +311,7 @@ function serialized<Result>(task: () => Promise<Result>): Promise<Result> {
 async function recognize(input: {raster: Raster}): Promise<OcrLine[]> {
   const {raster} = input
   const service = await paddleService()
-  const png = Uint8Array.from(encodePng(raster)).buffer
+  const png = Uint8Array.from(raster.png()).buffer
   const {results} = RecognizedSchema.parse(await service.recognize(png, {flatten: true, noCache: true}))
   return results.map((result) => ({
     text: result.text,
@@ -450,7 +443,16 @@ const MAX_DEPTH = 6
 const MAX_BORDER = 4
 
 type Found = BoxNode | ImageNode
-type Level = {raster: Raster; region: Box; background: Rgb; depth: number; text: Box[]; marks: Box[]}
+type Level = {
+  raster: Raster
+  region: Box
+  background: Rgb
+  depth: number
+  text: Box[]
+  marks: Box[]
+  geometry: Geometry
+  color: ColorMetric
+}
 
 function median(values: number[]): number {
   const sorted = values.toSorted((a, b) => a - b)
@@ -503,7 +505,7 @@ function share(input: {raster: Raster; indices: number[]; color: Rgb}): number {
   const {raster, indices, color} = input
   if (indices.length === 0) return 0
   const close = indices.filter(
-    (index) => rgbDistance({a: rgbAt({raster, index}), b: color}) <= TOLERANCES.segmentDistance,
+    (index) => rgbDistance({a: raster.rgb(index), b: color}) <= TOLERANCES.segmentDistance,
   ).length
   return close / indices.length
 }
@@ -522,7 +524,7 @@ function threshold(level: Level): Uint8Array {
   const mask = new Uint8Array(region.w * region.h)
   for (let y = 0; y < region.h; y += 1) {
     for (let x = 0; x < region.w; x += 1) {
-      const pixel = rgbAt({raster, index: (region.y + y) * raster.width + region.x + x})
+      const pixel = raster.rgb((region.y + y) * raster.width + region.x + x)
       mask[y * region.w + x] = rgbDistance({a: pixel, b: background}) > TOLERANCES.segmentDistance ? 1 : 0
     }
   }
@@ -548,7 +550,7 @@ function large(box: Box): boolean {
   return box.w >= TOLERANCES.unmatchedMinimum && box.h >= TOLERANCES.unmatchedMinimum
 }
 
-function solidity(input: {labels: Int32Array; width: number; region: Region}): number {
+function solidity(input: {labels: Int32Array; width: number; region: MaskRegion}): number {
   const {labels, width, region} = input
   const {box, label} = region
   let filled = 0
@@ -575,15 +577,15 @@ function contains(input: {outer: Box; inner: Box}): boolean {
   )
 }
 
-function candidates(level: Level): {labels: Int32Array; regions: Region[]} {
-  const {region} = level
+function candidates(level: Level): {labels: Int32Array; regions: MaskRegion[]} {
+  const {region, geometry} = level
   const mask = threshold(level)
-  const first = labelRegions({mask, width: region.w, height: region.h})
+  const first = geometry.regions({mask, width: region.w, height: region.h})
   const spanning = first.regions.some(
     (found) => large(found.box) && spans({region: {...region, x: 0, y: 0}, candidate: found.box}),
   )
   const labelled = spanning
-    ? labelRegions({mask: openMask({mask, width: region.w, height: region.h}), width: region.w, height: region.h})
+    ? geometry.regions({mask: openMask({mask, width: region.w, height: region.h}), width: region.w, height: region.h})
     : first
   const sized = labelled.regions.filter(
     (found) => large(found.box) && !spans({region: {...region, x: 0, y: 0}, candidate: found.box}),
@@ -722,11 +724,8 @@ function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null;
     children: [],
   }
   const inner = inset({box, by: CHILD_INSET})
-  const found = gradient
-    ? []
-    : children({raster, region: inner, background: fill, depth: depth + 1, text: level.text, marks: level.marks})
-  const empty =
-    !found.some((child) => child.kind === 'box') && !level.text.some((text) => overlapping({a: box, b: text}))
+  const found = gradient ? [] : children({...level, region: inner, background: fill, depth: depth + 1})
+  const empty = !found.some((child) => child.kind === 'box') && !level.text.some((text) => overlaps({a: box, b: text}))
   if (empty && iconSized(box)) return [imageNode(box), ...found]
   return [node, ...found]
 }
@@ -745,9 +744,9 @@ function classify(input: {level: Level; raw: Box; rectangular: boolean}): Found[
 
 function gradientFill(input: {level: Level; raw: Box}): boolean {
   const {level, raw} = input
-  const holes = level.text.filter((box) => overlapping({a: box, b: raw}))
+  const holes = level.text.filter((box) => overlaps({a: box, b: raw}))
   const box = inset({box: raw, by: TOLERANCES.interiorInset})
-  return fillShape({raster: level.raster, box, holes, color: COLOR_METRICS.ciede2000}).kind === 'gradient'
+  return fillShape({raster: level.raster, box, holes, color: level.color, geometry: level.geometry}).kind === 'gradient'
 }
 
 function children(level: Level): Found[] {
@@ -763,13 +762,13 @@ function children(level: Level): Found[] {
 
 const thresholdSegmenter: Segmenter = {
   name: 'threshold',
-  segment: ({raster, nodes}) => {
+  segment: ({raster, nodes, geometry, color}) => {
     const page = {x: 0, y: 0, w: raster.width, h: raster.height}
     const background = medianRgb({raster, indices: borderIndices({width: raster.width, box: page})})
     const haloed = (node: DesignNode): Box => expand({box: node.box, by: TOLERANCES.glyphHalo})
     const text = nodes.filter((node) => node.kind === 'text').map(haloed)
     const marks = nodes.filter((node) => node.kind !== 'box').map(haloed)
-    return Promise.resolve(children({raster, region: page, background, depth: 1, text, marks}))
+    return Promise.resolve(children({raster, region: page, background, depth: 1, text, marks, geometry, color}))
   },
 }
 
@@ -787,7 +786,7 @@ function upsampled(raster: Raster): Raster {
       data.set(raster.data.subarray(from, from + 4), (y * width + x) * 4)
     }
   }
-  return {width, height, data}
+  return raster.from({width, height, data})
 }
 
 function scaled(input: {line: OcrLine; by: number; dy: number}): OcrLine {
@@ -805,7 +804,7 @@ function onSeam(input: {line: OcrLine; tile: Box; raster: Raster}): boolean {
 
 async function readTile(input: {raster: Raster; tile: Box; reader: TextReader}): Promise<OcrLine[]> {
   const {raster, tile, reader} = input
-  const part = crop({raster, box: tile}).raster
+  const part = raster.crop({box: tile}).raster
   const lines = await reader.read({raster: part})
   const small = lines.length > 0 && median(lines.map((line) => line.box.h)) < TOLERANCES.ocrUpsampleBelowPx
   const read = small
@@ -829,7 +828,8 @@ function joinsRow(input: {row: OcrLine[]; line: OcrLine}): boolean {
   if (last === undefined) return false
   const {box} = input.line
   const gap = box.x - (last.box.x + last.box.w)
-  return sameLine({a: last.box, b: box}) && gap < Math.max(last.box.h, box.h)
+  const shared = Math.max(0, Math.min(last.box.y + last.box.h, box.y + box.h) - Math.max(last.box.y, box.y))
+  return shared >= Math.min(last.box.h, box.h) / 2 && gap < Math.max(last.box.h, box.h)
 }
 
 function rows(lines: OcrLine[]): OcrLine[][] {
@@ -869,7 +869,7 @@ const textEnricher: Enricher<DesignNode[]> = {
       .flatMap((line) => lineParts({line, raster, latin}))
       .reduce<Part[]>(
         (found, part) =>
-          found.some((other) => overlapping({a: other.line.box, b: part.line.box})) ? found : [...found, part],
+          found.some((other) => overlaps({a: other.line.box, b: part.line.box})) ? found : [...found, part],
         [],
       )
     const [glyphs, words] = partition(kept, (part) => part.glyph)
@@ -908,7 +908,7 @@ function lineParts(input: {line: OcrLine; raster: Raster; latin: boolean}): Part
   const piece = (span: {from: number; to: number}): OcrLine => ({
     text: characters.slice(span.from, span.to).join('').trim(),
     confidence: line.confidence,
-    box: trimToInk({raster, box: shareBox({box: line.box, ...span, count: characters.length})}),
+    box: raster.ink(shareBox({box: line.box, ...span, count: characters.length})),
   })
   const whole = piece({from: 0, to: characters.length})
   const blanks = range(first, last).filter((index) => !inked(characters[index] ?? ''))
@@ -960,7 +960,7 @@ function surface(box: Box): number {
 const segmentEnricher: Enricher<DesignNode[]> = {
   name: 'segment',
   run: async ({value: nodes, raster, tools}) => {
-    const found = await tools.segmenter.segment({raster, nodes})
+    const found = await tools.segmenter.segment({raster, nodes, geometry: tools.geometry, color: tools.color})
     return pictured({nodes: [...nodes, ...found].filter((node) => !glyphNoise(node)), raster})
   },
 }
@@ -996,7 +996,7 @@ function flatHalo(input: {node: DesignNode; nodes: DesignNode[]; raster: Raster}
   const band = expand({box: node.box, by: TOLERANCES.glyphHalo})
   const others = nodes.filter(
     (other) =>
-      other.id !== node.id && overlapping({a: other.box, b: band}) && !encloses({outer: other.box, inner: node.box}),
+      other.id !== node.id && overlaps({a: other.box, b: band}) && !encloses({outer: other.box, inner: node.box}),
   )
   const indices = haloIndices({raster, box: node.box, others: others.map((other) => other.box)})
   if (indices.length === 0) return false
@@ -1005,8 +1005,8 @@ function flatHalo(input: {node: DesignNode; nodes: DesignNode[]; raster: Raster}
 
 function haloIndices(input: {raster: Raster; box: Box; others: Box[]}): number[] {
   const {raster, box, others} = input
-  const band = crop({raster, box, margin: TOLERANCES.glyphHalo}).box
-  const covered = [box, ...others].map((other) => crop({raster, box: other}).box)
+  const band = raster.crop({box, margin: TOLERANCES.glyphHalo}).box
+  const covered = [box, ...others].map((other) => raster.crop({box: other}).box)
   return range(band.y, band.y + band.h).flatMap((y) =>
     range(band.x, band.x + band.w).flatMap((x) =>
       covered.some((area) => covers({area, x, y})) ? [] : [y * raster.width + x],
@@ -1038,22 +1038,23 @@ function withRoles(input: {node: DesignNode; tools: ImageTools}): DesignNode {
 
 const colorEnricher: Enricher<DesignNode> = {
   name: 'color',
-  run: ({value, raster}) =>
-    Promise.resolve({...value, children: value.children.map((child) => painted({node: child, raster}))}),
+  run: ({value, raster, tools}) =>
+    Promise.resolve({...value, children: value.children.map((child) => painted({node: child, raster, tools}))}),
 }
 
-function painted(input: {node: DesignNode; raster: Raster}): DesignNode {
-  const {node, raster} = input
-  const inner = node.children.map((child) => painted({node: child, raster}))
+function painted(input: {node: DesignNode; raster: Raster; tools: ImageTools}): DesignNode {
+  const {node, raster, tools} = input
+  const inner = node.children.map((child) => painted({node: child, raster, tools}))
   if (node.kind !== 'box' || node.paint !== undefined) return {...node, children: inner}
-  const color = COLOR_METRICS.ciede2000
-  const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color})
+  const {color} = tools
+  const {background} = raster.fills({box: node.box, glyphs: [node.box], color})
   const holes = node.children.map((child) => expand({box: child.box, by: TOLERANCES.glyphHalo}))
   const shape = fillShape({
     raster,
     box: inset({box: node.box, by: TOLERANCES.geometryPx + node.radius}),
     holes,
     color,
+    geometry: tools.geometry,
   })
   if (shape.kind === 'picture' && holes.length === 0) return imageNode(node.box)
   if (shape.kind === 'gradient') return {...node, children: inner, paint: {background, gradient: shape.gradient}}
@@ -1283,10 +1284,10 @@ const SOLID: FillShape = {kind: 'solid'}
 const PICTURE: FillShape = {kind: 'picture'}
 const MIN_LINES = 2
 
-function fillShape(input: {raster: Raster; box: Box; holes: Box[]; color: ColorMetric}): FillShape {
+function fillShape(input: {raster: Raster; box: Box; holes: Box[]; color: ColorMetric; geometry: Geometry}): FillShape {
   const {raster, box, holes, color} = input
   if (box.w < MIN_LINES || box.h < MIN_LINES) return SOLID
-  const mask = boxMask({boxes: holes, area: box})
+  const mask = input.geometry.mask({boxes: holes, area: box})
   const rowMeans = lineMeans({raster, area: box, mask, axis: 'vertical'})
   const columnMeans = lineMeans({raster, area: box, mask, axis: 'horizontal'})
   const vertical = varies({means: rowMeans, color})
@@ -1362,8 +1363,6 @@ async function readModel(input: {storage: Storage; key: string}): Promise<Uint8A
   return bytes
 }
 
-type Region = ReturnType<typeof labelRegions>['regions'][number]
-
 function inkCoverage(input: {raster: Raster; box: Box; background: Rgb; threshold: number}): number {
   const {raster, box, background, threshold} = input
   const area = box.w * box.h
@@ -1371,7 +1370,7 @@ function inkCoverage(input: {raster: Raster; box: Box; background: Rgb; threshol
   let covered = 0
   for (let y = box.y; y < box.y + box.h; y += 1) {
     for (let x = box.x; x < box.x + box.w; x += 1) {
-      if (rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background}) > threshold) covered += 1
+      if (rgbDistance({a: raster.rgb(y * raster.width + x), b: background}) > threshold) covered += 1
     }
   }
   return covered / area
@@ -1414,7 +1413,7 @@ function cornerDepth(input: {
     const fill = fillAt({raster, box, x, y, inside})
     const span = rgbDistance({a: fill, b: outside})
     if (span === 0) return depth
-    const covered = Math.min(1, rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: outside}) / span)
+    const covered = Math.min(1, rgbDistance({a: raster.rgb(y * raster.width + x), b: outside}) / span)
     depth += 1 - covered
     if (covered >= 1) break
   }
@@ -1473,4 +1472,21 @@ function openMask(input: {mask: Uint8Array; width: number; height: number}): Uin
 
 type DesignGradient = NonNullable<Paint['gradient']>
 
-type Segmenter = {name: string; segment(input: {raster: Raster; nodes: DesignNode[]}): Promise<DesignNode[]>}
+type Segmenter = {
+  name: string
+  segment(input: {raster: Raster; nodes: DesignNode[]; geometry: Geometry; color: ColorMetric}): Promise<DesignNode[]>
+}
+
+function fnv(text: string): string {
+  const hash = [...text].reduce(
+    (running, character) => Math.imul(running ^ (character.codePointAt(0) ?? 0), FNV_PRIME) >>> 0,
+    FNV_OFFSET,
+  )
+  return hash.toString(16).padStart(ID_LENGTH, '0')
+}
+
+const FNV_OFFSET = 0x811c9dc5
+
+const FNV_PRIME = 0x01000193
+
+const ID_LENGTH = 8

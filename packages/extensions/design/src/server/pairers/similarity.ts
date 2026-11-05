@@ -1,5 +1,4 @@
 import {type Box, type Raster, type Similarity, type VoteContext, type VoteView, type Voter} from '../../shared/defs.js'
-import {centre, distance, holds, nearestLine} from '../../shared/box.js'
 import {INK_SHARE, glyphSized, TOLERANCES} from '../../shared/tolerances.js'
 
 const VOTERS: Voter[] = [
@@ -19,7 +18,8 @@ function textVote(input: {node: VoteView; candidate: VoteView; context: VoteCont
   const {node, candidate, context} = input
   if (node.kind !== 'text' || node.text === '') return null
   if (glyphSized(node)) return null
-  if (candidate.media && holds({outer: candidate.box, inner: node.box})) return 1 - bestText({node, context})
+  if (candidate.media && context.geometry.holds({outer: candidate.box, inner: node.box}))
+    return 1 - bestText({node, context})
   if (candidate.text === '') return 0
   return similarity({a: node.text, b: candidate.text})
 }
@@ -111,6 +111,7 @@ function styleVote(input: {node: VoteView; candidate: VoteView}): number | null 
 
 function geometryVote(input: {node: VoteView; candidate: VoteView; context: VoteContext}): number | null {
   const {node, candidate, context} = input
+  const {centre, distance, nearestLine} = context.geometry
   const box =
     node.kind === 'text' ? (nearestLine({lines: candidate.lines, box: node.box}) ?? candidate.box) : candidate.box
   const page = distance({a: centre(node.box), b: centre(box)}) / context.diagonal
@@ -129,7 +130,9 @@ function geometryVote(input: {node: VoteView; candidate: VoteView; context: Vote
 function pixelVote(input: {node: VoteView; candidate: VoteView; context: VoteContext}): number | null {
   const {node, candidate, context} = input
   const box =
-    node.kind === 'text' ? (nearestLine({lines: candidate.lines, box: node.box}) ?? candidate.box) : candidate.box
+    node.kind === 'text'
+      ? (context.geometry.nearestLine({lines: candidate.lines, box: node.box}) ?? candidate.box)
+      : candidate.box
   const a = hashed({raster: context.nodeRaster, box: node.box, context, side: 'node'})
   const b = hashed({raster: context.candidateRaster, box, context, side: 'candidate'})
   const differing = a.reduce((sum, bit, index) => sum + (bit === b[index] ? 0 : 1), 0)

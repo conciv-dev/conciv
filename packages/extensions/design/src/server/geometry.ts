@@ -1,4 +1,5 @@
-import {median} from 'es-toolkit'
+import {createHash} from 'node:crypto'
+import {median, range} from 'es-toolkit'
 import {SOURCE_ATTR, type Tolerances} from '../shared/tolerances.js'
 import {
   type Box,
@@ -6,13 +7,13 @@ import {
   type Geometry,
   type LiveComponent,
   type Match,
+  type MaskRegion,
   type Offset,
   type Raster,
   type Shift,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {fnv, trimToInk} from './raster.js'
-import {centre, nearestLine, union} from '../shared/box.js'
+import {union} from '../shared/box.js'
 import {folded} from '../shared/tolerances.js'
 
 export function createGeometry(input: {tolerances: Tolerances}): Geometry {
@@ -22,6 +23,12 @@ export function createGeometry(input: {tolerances: Tolerances}): Geometry {
     fingerprint,
     targetBox,
     selectors,
+    centre,
+    holds,
+    nearestLine,
+    distance,
+    mask: boxMask,
+    regions: labelRegions,
   }
 }
 
@@ -34,7 +41,7 @@ function fingerprint(
     instance: component.instance,
     owner: component.owner,
     tag: component.tag,
-    textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
+    textHash: textHash(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
     box: component.box,
   }
 }
@@ -97,7 +104,7 @@ function inkShift(input: {node: TextNode; live: PairedLive; raster: Raster}): Sh
   const {node, live, raster} = input
   const line = nearestLine({lines: live.glyphs.flatMap((glyph) => glyph.boxes), box: node.box})
   if (line === null) return {dx: 0, dy: 0}
-  const ink = trimToInk({raster, box: line})
+  const ink = raster.ink(line)
   return {dx: node.box.x - ink.x, dy: node.box.y - ink.y}
 }
 
@@ -181,3 +188,105 @@ function sourceKey(component: LiveComponent): string | null {
 function median0(values: number[]): number {
   return values.length === 0 ? 0 : median(values)
 }
+
+function centre(box: Box): {x: number; y: number} {
+  return {x: box.x + box.w / 2, y: box.y + box.h / 2}
+}
+
+function holds(input: {outer: Box; inner: Box}): boolean {
+  const {outer, inner} = input
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w &&
+    inner.y + inner.h <= outer.y + outer.h
+  )
+}
+
+function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
+  const target = centre(input.box)
+  return input.lines.reduce<Box | null>((best, line) => {
+    if (best === null) return line
+    return distance({a: centre(line), b: target}) < distance({a: centre(best), b: target}) ? line : best
+  }, null)
+}
+
+function distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number {
+  return Math.hypot(X_WEIGHT * (input.a.x - input.b.x), input.a.y - input.b.y)
+}
+
+const X_WEIGHT = 0.5
+
+function boxMask(input: {boxes: Box[]; area: Box}): Uint8Array {
+  const {boxes, area} = input
+  const mask = new Uint8Array(area.w * area.h)
+  boxes.forEach((box) => {
+    const x0 = Math.max(0, box.x - area.x)
+    const x1 = Math.min(area.w, box.x + box.w - area.x)
+    if (x1 <= x0) return
+    range(Math.max(0, box.y - area.y), Math.min(area.h, box.y + box.h - area.y)).forEach((y) => {
+      mask.fill(1, y * area.w + x0, y * area.w + x1)
+    })
+  })
+  return mask
+}
+
+function labelRegions(input: {mask: Uint8Array; width: number; height: number}): {
+  labels: Int32Array
+  regions: MaskRegion[]
+} {
+  const {mask, width, height} = input
+  const labels = new Int32Array(width * height)
+  const regions: MaskRegion[] = []
+  for (let start = 0; start < width * height; start += 1) {
+    if (mask[start] !== 1 || labels[start] !== 0) continue
+    labels[start] = regions.length + 1
+    regions.push(floodFill({mask, labels, width, height, start}))
+  }
+  return {labels, regions}
+}
+
+function floodFill(input: {
+  mask: Uint8Array
+  labels: Int32Array
+  width: number
+  height: number
+  start: number
+}): MaskRegion {
+  const {mask, labels, width, height, start} = input
+  const label = labels[start] ?? 0
+  const bounds = {size: 0, minX: width, minY: height, maxX: 0, maxY: 0}
+  const stack = [start]
+  while (stack.length > 0) {
+    const index = stack.pop() ?? 0
+    const x = index % width
+    const y = (index - x) / width
+    bounds.size += 1
+    bounds.minX = Math.min(bounds.minX, x)
+    bounds.minY = Math.min(bounds.minY, y)
+    bounds.maxX = Math.max(bounds.maxX, x)
+    bounds.maxY = Math.max(bounds.maxY, y)
+    const neighbours = [
+      x > 0 ? index - 1 : -1,
+      x < width - 1 ? index + 1 : -1,
+      y > 0 ? index - width : -1,
+      y < height - 1 ? index + width : -1,
+    ]
+    neighbours.forEach((next) => {
+      if (next < 0 || mask[next] !== 1 || labels[next] !== 0) return
+      labels[next] = label
+      stack.push(next)
+    })
+  }
+  return {
+    label,
+    size: bounds.size,
+    box: {x: bounds.minX, y: bounds.minY, w: bounds.maxX - bounds.minX + 1, h: bounds.maxY - bounds.minY + 1},
+  }
+}
+
+function textHash(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, TEXT_HASH_LENGTH)
+}
+
+const TEXT_HASH_LENGTH = 8

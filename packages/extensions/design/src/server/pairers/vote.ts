@@ -10,6 +10,7 @@ import {
   type LiveComponent,
   type Match,
   type Pairer,
+  type Rgb,
   type Similarity,
   type VoteContext,
   type VoteView,
@@ -17,8 +18,7 @@ import {
   type VoterName,
 } from '../../shared/defs.js'
 import {walk} from '../../shared/tree.js'
-import {type Rgb} from '../raster.js'
-import {centre, expand, holds, readingOrder} from '../../shared/box.js'
+import {expand} from '../../shared/box.js'
 import {INK_SHARE, folded} from '../../shared/tolerances.js'
 
 export function createVotePairer(input: {similarity: Similarity; geometry: Geometry}): Pairer {
@@ -107,6 +107,7 @@ function votePairer(input: Parameters<Pairer>[0] & {similarity: Similarity; geom
       nodes.filter((node) => node.kind === 'text' && node.words !== ''),
       (node) => node.words,
     ),
+    geometry,
   }
   const shared = {
     voters: similarity.voters,
@@ -658,7 +659,10 @@ function elementGate(input: {node: VoteView; candidate: VoteView; state: State; 
     return iou({a: node.box, b: candidate.box}) >= tolerances.pairBoxIou && area < tolerances.pairBoxArea
   }
   const reach = expand({box: candidate.box, by: tolerances.tileMargin})
-  const within = holds({outer: reach, inner: {...centre(node.box), w: 0, h: 0}})
+  const within = holds({
+    outer: reach,
+    inner: {x: node.box.x + node.box.w / 2, y: node.box.y + node.box.h / 2, w: 0, h: 0},
+  })
   return (
     within ||
     (node.alone && node.words === candidate.words) ||
@@ -788,4 +792,19 @@ function inside(input: {view: VoteView; anchor: VoteView}): boolean {
   if (input.view === input.anchor) return true
   const parent = input.view.parent
   return parent !== null && inside({view: parent, anchor: input.anchor})
+}
+
+function readingOrder(a: Box, b: Box): number {
+  const shared = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  return shared >= Math.min(a.h, b.h) / 2 ? a.x - b.x : a.y - b.y
+}
+
+function holds(input: {outer: Box; inner: Box}): boolean {
+  const {outer, inner} = input
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w &&
+    inner.y + inner.h <= outer.y + outer.h
+  )
 }

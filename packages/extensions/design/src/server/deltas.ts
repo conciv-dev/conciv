@@ -38,8 +38,7 @@ import {
   type TextJudgement,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {boundsOf, bottomEdge, encloses, expand, readingOrder, rightEdge, union} from '../shared/box.js'
-import {crop, medianColor, sampledFills} from './raster.js'
+import {encloses, expand, union} from '../shared/box.js'
 
 export function createDeltas(input: {geometry: Geometry; color: ColorMetric; liveText: LiveTextReader}): Deltas {
   const {geometry, color, liveText} = input
@@ -614,9 +613,9 @@ function edgeStrip(input: {
   const strips = EDGE_OFFSETS.flatMap(
     (offset) => stripAt({box, side: declared.side, width: declared.width, offset}) ?? [],
   )
-  const inside = sampledFills({raster, box, glyphs: [box], color}).background
+  const inside = raster.fills({box, glyphs: [box], color}).background
   const scored = strips.map((strip) => {
-    const seen = medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)})
+    const seen = raster.crop({box: strip}).raster.median(new Uint8Array(strip.w * strip.h))
     const score =
       toward === 'declared' ? -color.distance({a: seen, b: declared.color}) : color.distance({a: seen, b: inside})
     return {strip, score}
@@ -658,7 +657,7 @@ function edgeOn(input: {element: Element; from: From; raster: Raster; strip: Box
   if (strip === null) return null
   const {node} = element
   if (from === 'target' && node.kind === 'box' && node.border !== null) return node.border.color
-  return medianColor({raster: crop({raster, box: strip}).raster, exclude: new Uint8Array(strip.w * strip.h)})
+  return raster.crop({box: strip}).raster.median(new Uint8Array(strip.w * strip.h))
 }
 
 function radiusOn(input: {element: Element; from: From}): number | null {
@@ -815,7 +814,7 @@ function sideStyles(input: {
   const {element, from, box, raster} = input
   const paintsText = element.live.glyphs.length > 0
   const glyphs = input.glyphs.length === 0 ? [box] : input.glyphs
-  const fills = sampledFills({raster, box, glyphs, color: input.color})
+  const fills = raster.fills({box, glyphs, color: input.color})
   const color = paintsText && fills.foreground !== null ? {color: fills.foreground} : {}
   if (from === 'target') {
     return {...designPaint({element, sampled: fills.background}), ...color, ...estimatedType(element)}
@@ -1144,4 +1143,21 @@ const DELTA_KINDS: DeltaKind[] = [
 
 function extent(side: Side): Box {
   return side.ink === null ? side.box : (boundsOf([side.box, side.ink]) ?? side.box)
+}
+
+function boundsOf(boxes: Box[]): Box | null {
+  return boxes.length === 0 ? null : union(boxes)
+}
+
+function rightEdge(box: Box): number {
+  return box.x + box.w
+}
+
+function bottomEdge(box: Box): number {
+  return box.y + box.h
+}
+
+function readingOrder(a: Box, b: Box): number {
+  const shared = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  return shared >= Math.min(a.h, b.h) / 2 ? a.x - b.x : a.y - b.y
 }

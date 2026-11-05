@@ -390,7 +390,15 @@ export type Geometry = {
   ): Fingerprint
   targetBox(input: {node: Match['node']; live: NonNullable<Match['live']>; raster: Raster; exact: boolean}): Box
   selectors(live: LiveComponent): Map<string, string>
+  centre(box: Box): {x: number; y: number}
+  holds(input: {outer: Box; inner: Box}): boolean
+  nearestLine(input: {lines: Box[]; box: Box}): Box | null
+  distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number
+  mask(input: {boxes: Box[]; area: Box}): Uint8Array
+  regions(input: {mask: Uint8Array; width: number; height: number}): {labels: Int32Array; regions: MaskRegion[]}
 }
+
+export type MaskRegion = {label: number; size: number; box: Box}
 
 export type Deltas = {
   elements(input: {
@@ -435,6 +443,8 @@ export type Provenancer = {
 }
 
 export type Measurer = {
+  color: ColorMetric
+  comparator: PixelComparator
   connected(page: ServerToolPageAccess): Promise<void>
   route(page: ServerToolPageAccess): Promise<string>
   measure(input: {width?: number; height?: number; timeout?: number; page: ServerToolPageAccess}): Promise<{
@@ -587,6 +597,7 @@ export type VoteContext = {
   candidates: VoteView[]
   bestText: Map<string, number>
   spoken: Record<string, VoteView[]>
+  geometry: Geometry
 }
 
 export type Voter = {
@@ -1351,7 +1362,18 @@ export type ClearResult = z.infer<typeof ClearResultSchema>
 export type LiveRole = 'literal' | 'expression' | 'mixed'
 
 export type Box = z.output<typeof BoxSchema>
-export type Raster = {width: number; height: number; data: Uint8Array}
+export type Pixels = {width: number; height: number; data: Uint8Array}
+export type Rgb = [number, number, number]
+export type Raster = Pixels & {
+  from(pixels: Pixels): Raster
+  png(): Uint8Array
+  crop(input: {box: Box; margin?: number}): {raster: Raster; box: Box}
+  scaled(scale: number): Raster
+  rgb(index: number): Rgb
+  ink(box: Box): Box
+  fills(input: {box: Box; glyphs: Box[]; color: ColorMetric}): {background: string; foreground: string | null}
+  median(exclude: Uint8Array): string
+}
 export type SourceLoc = z.output<typeof SourceLocSchema>
 
 export type Gradient = {from: string; to: string}
@@ -1380,7 +1402,7 @@ export type Framework = 'react' | 'solid'
 
 export type PixelComparator = {
   name: string
-  compare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; score?: number}
+  compare(input: {a: Pixels; b: Pixels}): {mismatch: number; mask: Uint8Array; score?: number}
 }
 export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
 export type TextRun = {box: Box; text: string}

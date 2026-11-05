@@ -12,7 +12,7 @@ import {
   type RoleRules,
   type TargetAdapter,
 } from '../../shared/defs.js'
-import {hex} from '../raster.js'
+import {hex} from '../../shared/tolerances.js'
 import {inferLayout} from './layout.js'
 
 export function createFigmaAdapter(input: {token: string | null; roles: RoleRules}): TargetAdapter {

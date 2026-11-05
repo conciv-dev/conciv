@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {
+  type Rgb,
   type Box,
   type ComponentReport,
   type ContainerLayout,
@@ -269,4 +270,13 @@ export function childPosition(input: {
   const run = (layout?.runs ?? []).find((entry) => entry.children.includes(node.id))
   if (run === undefined) return {direction, index}
   return {direction: run.direction, index: run.children.indexOf(node.id) + 1}
+}
+
+export function hex(channels: number[]): string {
+  return `#${channels.map((value) => value.toString(16).padStart(2, '0')).join('')}`
+}
+
+export function rgbDistance(input: {a: Rgb; b: Rgb}): number {
+  const {a, b} = input
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
 }

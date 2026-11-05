@@ -7,7 +7,6 @@ import {defineExtension} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig, TOLERANCES} from './shared/tolerances.js'
 import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE, type DesignRuntime} from './shared/defs.js'
-import {COLOR_METRICS, PIXEL_COMPARATORS} from './server/raster.js'
 import {createFigmaAdapter} from './server/sources/figma.js'
 import {createImageAdapter, destroyPaddle, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/sources/image.js'
 import {createDiffer} from './server/differ.js'
@@ -39,13 +38,10 @@ export const design = defineExtension({
   const project = createStorage({driver: fsDriver({base: server.cwd, readOnly: true})})
   const changes = sourceChanges(server.bundler)
   const store = createStore({state, words: WORDS})
-  const comparators = {
-    pixel: PIXEL_COMPARATORS[config.comparator],
-    color: COLOR_METRICS[config.color],
-    text: TEXT_READERS[config.text],
-  }
-  const roles = ROLE_RULES[config.roles]
   const geometry = createGeometry({tolerances: TOLERANCES})
+  const measurer = createMeasurer({config, geometry})
+  const comparators = {pixel: measurer.comparator, color: measurer.color, text: TEXT_READERS[config.text]}
+  const roles = ROLE_RULES[config.roles]
   const pairers = {vote: () => createVotePairer({similarity: SIMILARITY, geometry})}
   const ranker = rankByImpact
   const provenance = createProvenance({project, cwd: server.cwd, bundler: server.bundler})
@@ -54,11 +50,16 @@ export const design = defineExtension({
     color: comparators.color,
     liveText: provenance.liveText,
   })
-  const measurer = createMeasurer({color: comparators.color, comparator: comparators.pixel})
-  const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color})
+  const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color, geometry})
   const registrar = createRegistrar({
     adapters: [
-      createImageAdapter({reader: comparators.text, segmenter: SEGMENTERS[config.segmenter], roles}),
+      createImageAdapter({
+        reader: comparators.text,
+        segmenter: SEGMENTERS[config.segmenter],
+        roles,
+        color: comparators.color,
+        geometry,
+      }),
       createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, roles}),
     ],
     store,
