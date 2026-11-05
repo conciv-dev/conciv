@@ -2,11 +2,12 @@ import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {createChatServer, drizzleChatStores, makeTextAdapter, type TurnHooks} from '../src/server.js'
+import {claudeCode, createChatServer, drizzleChatStores, makeTextAdapter, type TurnHooks} from '../src/server.js'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
+  type RunLifecycle,
   approvalRequestedEvent,
   ChatEventType,
   defineChatEvent,
@@ -16,7 +17,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
 import {createTextChunks, storyConnection} from '../src/testkit.js'
-import {mkdtempSync, readdirSync, readFileSync, statSync} from 'node:fs'
+import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -132,6 +133,36 @@ CREATE TABLE \`chat_threads\` (
     await second
     expect(launched).toEqual(['second'])
   })
+
+  it(
+    'a CLI silent past the journal default but inside the first-output budget still reports its exit',
+    {timeout: 25_000},
+    async () => {
+      const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
+      writeFileSync(bin, '#!/bin/sh\nsleep 11\nexit 1\n')
+      chmodSync(bin, 0o755)
+      const ended = Promise.withResolvers<RunLifecycle>()
+      const hooks: TurnHooks = {
+        plan: () => ({
+          adapter: claudeCode('opus', {claudeExecutable: bin}),
+          systemPrompts: [],
+          codeMode: [],
+          asking: [],
+          setup: async () => new Map(),
+          expand: async (messages) => messages,
+          providerMessages: async (messages) => messages,
+          chunk: async (chunk) => [chunk],
+        }),
+        usage: async () => undefined,
+        started: () => undefined,
+        end: async (_turn, run) => ended.resolve(run),
+      }
+      const server = await chatServer(hooks, () => undefined)
+      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+      const run = await ended.promise
+      expect(run.error).toBe('Agent process exited with code 1')
+    },
+  )
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
