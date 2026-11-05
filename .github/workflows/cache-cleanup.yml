@@ -1,7 +1,7 @@
 name: Cache Cleanup
 
 # The Actions cache is capped at 10GB per repo; each PR run saves ~950MB
-# (pnpm + playwright + turbo) to its merge ref, where no other PR can read it.
+# (pnpm + turbo) to its merge ref, where no other PR can read it.
 # Left alone, closed-PR caches pile up past the cap and LRU-evict main's warm
 # cache. Sweep them when a PR closes, plus daily for anything missed (fork-PR
 # close events carry a read-only token, so their deletes land in the sweep).
