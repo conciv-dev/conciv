@@ -489,7 +489,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         withSandbox(sandbox, {
           runs: stores.runs,
           locks,
-          durability: {adapter: durability, journal: config.sandbox.journalDir, detachOnDisconnect: true},
+          durability: {
+            adapter: durability,
+            journal: config.sandbox.journalDir,
+            detachOnDisconnect: true,
+            attachWaitMs: config.firstOutputTimeoutMs,
+          },
         }),
         concivTurn(turn, plan, granted, view, entry),
       ],
