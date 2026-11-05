@@ -2,10 +2,6 @@ import {type Box, type Raster, type Similarity, type VoteContext, type VoteView,
 import {centre, distance, holds, nearestLine} from '../../shared/box.js'
 import {INK_SHARE, glyphSized, TOLERANCES} from '../../shared/tolerances.js'
 
-export function createSimilarity(): Similarity {
-  return {voters: VOTERS, text: similarity}
-}
-
 const VOTERS: Voter[] = [
   {name: 'text', base: 0.3, score: textVote},
   {name: 'kind', base: 0.1, score: kindVote},
@@ -16,6 +12,8 @@ const VOTERS: Voter[] = [
   {name: 'hints', base: 0.1, score: hintsVote},
   {name: 'twins', base: 0.1, score: twinsVote},
 ]
+
+export const SIMILARITY: Similarity = {voters: VOTERS, text: similarity}
 
 function textVote(input: {node: VoteView; candidate: VoteView; context: VoteContext}): number | null {
   const {node, candidate, context} = input

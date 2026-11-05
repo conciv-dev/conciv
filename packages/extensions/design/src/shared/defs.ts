@@ -392,19 +392,7 @@ export type Geometry = {
   selectors(live: LiveComponent): Map<string, string>
 }
 
-export type Sides = {
-  measure(input: {
-    element: Element
-    elements: Element[]
-    live: Raster
-    target: Raster
-    page: Box
-    shift: Shift
-  }): Delta[]
-}
-
 export type Deltas = {
-  kinds: DeltaKind[]
   elements(input: {
     root: Match
     live: LiveComponent
@@ -446,8 +434,26 @@ export type Provenancer = {
   dispose(): void
 }
 
-export type Pixels = {
-  compare(input: {live: Raster; target: Raster; previous: TileCache | null; clock: Clock}): {
+export type Measurer = {
+  connected(page: ServerToolPageAccess): Promise<void>
+  route(page: ServerToolPageAccess): Promise<string>
+  measure(input: {width?: number; height?: number; timeout?: number; page: ServerToolPageAccess}): Promise<{
+    capture: LiveCapture
+    longestTask?: number
+    pageError?: string
+  }>
+  texts(input: {components: LiveComponent[]; runs: TextRun[]; live: Raster; target: Raster; reuse: Reuse | null}): {
+    agreeing: Box[]
+    masks: Map<string, Box[]>
+  }
+  typography(input: {
+    texts: {node: MatchText; owner: LiveComponent}[]
+    raster: Raster
+    page: ServerToolPageAccess
+  }): Promise<{estimates: Record<string, Typography>; skipped: number}>
+  sources(capture: LiveCapture): MeasureSource[]
+  confidence(capture: LiveCapture): number
+  compare(input: {live: Raster; target: Raster; previous: TileCache | null}): {
     mismatch: number
     mask: Uint8Array
     width: number
@@ -472,27 +478,6 @@ export type Pixels = {
     live: Raster
     target: Raster
   }): {grid: Grid; rawTiles: string[]; reuse: Reuse | null}
-}
-
-export type Measurer = {
-  connected(page: ServerToolPageAccess): Promise<void>
-  route(page: ServerToolPageAccess): Promise<string>
-  measure(input: {width?: number; height?: number; timeout?: number; page: ServerToolPageAccess}): Promise<{
-    capture: LiveCapture
-    longestTask?: number
-    pageError?: string
-  }>
-  texts(input: {components: LiveComponent[]; runs: TextRun[]; live: Raster; target: Raster; reuse: Reuse | null}): {
-    agreeing: Box[]
-    masks: Map<string, Box[]>
-  }
-  typography(input: {
-    texts: {node: MatchText; owner: LiveComponent}[]
-    raster: Raster
-    page: ServerToolPageAccess
-  }): Promise<{estimates: Record<string, Typography>; skipped: number}>
-  sources(capture: LiveCapture): MeasureSource[]
-  confidence(capture: LiveCapture): number
 }
 
 export type Round = {
@@ -569,12 +554,6 @@ export type Judge = {
 export type Registrar = {
   register(input: {input: TargetInput; session: string; page: ServerToolPageAccess}): Promise<TargetResult>
   current(session: string): Promise<TargetRecord>
-}
-
-export type Twins = {
-  link(input: {id: string; session: string}): Promise<void>
-  placements(id: string): Promise<Twin[]>
-  responsive(input: {id: string; design: Design}): Promise<DiffReport['responsive']>
 }
 
 export type Twin = {node: string; target: string; path: string}
@@ -1489,12 +1468,6 @@ export type LiveTextReader = (source: SourceLoc | null) => Promise<LiveText | nu
 export type TextJudgement = {verdict: 'text' | 'sample-data' | null; live: string; target: string}
 export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
 export type ScoredTile = {box: Box; similarity: number}
-export type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
-export type Clock = {
-  lap: (phase: Phase) => void
-  skip: () => void
-  timings: () => Omit<DiffReport['timings'], 'carried' | 'longestTask'>
-}
 export type Css = {design: Design; raster: Raster; dropped: Box[]}
 
 export type Winner = z.output<typeof WinnerSchema>
@@ -1509,41 +1482,15 @@ export type DesignRuntime = {
   ranker: Ranker
   words: Words
   deltas: Deltas
-  pixels: Pixels
   geometry: Geometry
-  twins: Twins
   measurer: Measurer
   judge: Judge
   provenance: Provenancer
   registrar: Registrar
-  css: CssDesigns
-  projections: Projections
   xrayUrl: (input: {id: string; session: string}) => XrayLink
 }
 
 export type XrayLink = {url: string; absolute: boolean}
-
-export type CssDesigns = {
-  load(input: {id: string; decisions: Decision[]}): Promise<Css>
-}
-
-export type Fresh = {
-  job: RunJob
-  record: TargetRecord
-  page: ServerToolPageAccess
-  css: Css
-  decisions: Decision[]
-  measured: Awaited<ReturnType<Measurer['measure']>>
-  capture: string
-  rounds: Round[]
-  settled: Settled | undefined
-  xray: XrayLink
-  clock: Clock
-}
-
-export type Runner = {
-  fresh(input: Fresh): Promise<{report: DiffReport; settled: Settled; round: Round | null}>
-}
 
 export type Settled = {
   grid: Grid
@@ -1565,22 +1512,6 @@ export type RunJob = {id: string; session: SessionId; observe: boolean; input: D
 
 export type Latest = {run: Run; report: DiffReport; items: Item[]}
 
-export type Projections = {
-  status(input: {
-    session: string
-    unanswered: (id: string) => boolean
-    rounds: (id: string) => Round[]
-    latest: (id: string) => Latest | undefined
-  }): Promise<StatusReport>
-  watch(input: {
-    query: WatchInput
-    session: SessionId
-    latest: (id: string) => Latest | undefined
-  }): Promise<WatchReport>
-  paths(id: string): {designPath: string; placeholderPath: string}
-  relative(path: string): string
-}
-
 export type Differ = {
   register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
   run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
@@ -1591,6 +1522,7 @@ export type Differ = {
   status(input: {session: SessionId}): Promise<StatusReport>
   watch(input: {input: WatchInput; session: SessionId}): Promise<WatchReport>
   xray(input: {id: string}): Promise<{report: DiffReport | null; outline: string[]}>
+  dispose(): void
 }
 
 export type DesignPage = ServerApi<DesignConfig>['page']

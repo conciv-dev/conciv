@@ -11,25 +11,17 @@ import {COLOR_METRICS, PIXEL_COMPARATORS} from './server/raster.js'
 import {createFigmaAdapter} from './server/sources/figma.js'
 import {createImageAdapter, destroyPaddle, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/sources/image.js'
 import {createDiffer} from './server/differ.js'
-import {watchSettled} from './server/settle.js'
 import {createStore} from './server/store.js'
 import {WORDS} from './server/words.js'
 import {createGeometry} from './server/geometry.js'
-import {createSimilarity} from './server/pairers/similarity.js'
+import {SIMILARITY} from './server/pairers/similarity.js'
 import {createVotePairer} from './server/pairers/vote.js'
-import {createRanker} from './server/rankers.js'
-import {createKinds} from './server/kinds.js'
-import {createSides} from './server/sides.js'
+import {rankByImpact} from './server/rankers.js'
 import {createDeltas} from './server/deltas.js'
-import {createPixels} from './server/pixels.js'
 import {createMeasurer} from './server/measure.js'
 import {createJudge} from './server/judge.js'
-import {createCssDesigns} from './server/css.js'
-import {createProjections} from './server/status.js'
-import {createRunner} from './server/runner.js'
 import {createProvenance} from './server/provenance.js'
 import {createRegistrar} from './server/register.js'
-import {createTwins} from './server/twins.js'
 import {SERVER_STEPS} from './server/tools.js'
 import {createXrayRoutes} from './server/xray-routes.js'
 
@@ -54,20 +46,16 @@ export const design = defineExtension({
   }
   const roles = ROLE_RULES[config.roles]
   const geometry = createGeometry({tolerances: TOLERANCES})
-  const pairers = {vote: () => createVotePairer({similarity: createSimilarity(), geometry})}
-  const ranker = createRanker()
+  const pairers = {vote: () => createVotePairer({similarity: SIMILARITY, geometry})}
+  const ranker = rankByImpact
   const provenance = createProvenance({project, cwd: server.cwd, bundler: server.bundler})
-  const kinds = createKinds()
   const deltas = createDeltas({
-    kinds,
-    sides: createSides({kinds, color: comparators.color}),
     geometry,
     color: comparators.color,
     liveText: provenance.liveText,
   })
-  const measurer = createMeasurer({color: comparators.color})
+  const measurer = createMeasurer({color: comparators.color, comparator: comparators.pixel})
   const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color})
-  const css = createCssDesigns({store})
   const registrar = createRegistrar({
     adapters: [
       createImageAdapter({reader: comparators.text, segmenter: SEGMENTERS[config.segmenter], roles}),
@@ -89,15 +77,11 @@ export const design = defineExtension({
     ranker,
     words: WORDS,
     deltas,
-    pixels: createPixels({comparator: comparators.pixel}),
     geometry,
-    twins: createTwins({store}),
     measurer,
     judge,
     provenance,
     registrar,
-    css,
-    projections: createProjections({cwd: server.cwd, store, judge, css, registrar, words: WORDS}),
     xrayUrl: ({id, session}) => {
       const origin = server.nativeUrl()
       const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`
@@ -107,14 +91,7 @@ export const design = defineExtension({
       }
     },
   }
-  const differ = createDiffer({runtime, page: server.page, runner: createRunner({runtime})})
-  const settled = watchSettled({
-    bundler: server.bundler,
-    store,
-    page: server.page,
-    refresh: differ.refresh,
-    touch: differ.touch,
-  })
+  const differ = createDiffer({runtime, page: server.page, bundler: server.bundler})
   const xray = createXrayRoutes({
     store,
     state,
@@ -129,13 +106,7 @@ export const design = defineExtension({
   return {
     context: {
       design: runtime,
-      differ: {
-        ...differ,
-        run: async (request) => {
-          await settled.quiet()
-          return differ.run(request)
-        },
-      },
+      differ,
     },
     systemPrompt: async ({sessionId}) =>
       (await store.current(sessionId)) === null ? undefined : designGuide(config.blind),
@@ -145,7 +116,7 @@ export const design = defineExtension({
       await destroyPaddle()
       provenance.dispose()
       changes.dispose()
-      settled.dispose()
+      differ.dispose()
     },
   }
 })
