@@ -305,7 +305,7 @@ const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
 
 afterAll(() => kit.dispose())
 
-it('declares six design tools with the flags from the spec', async () => {
+it('declares seven design tools with the flags from the spec', async () => {
   const catalog = CatalogSchema.parse(await rpc.registry.catalog(undefined)).filter((entry) =>
     entry.name.startsWith('design_'),
   )
@@ -313,11 +313,12 @@ it('declares six design tools with the flags from the spec', async () => {
     'design_target',
     'design_diff',
     'design_status',
+    'design_watch',
     'design_capture',
     'design_winner',
     'design_clear',
   ])
-  expect(catalog.map((entry) => entry.mutating)).toEqual([true, false, false, false, false, true])
+  expect(catalog.map((entry) => entry.mutating)).toEqual([true, false, false, false, false, false, true])
   expect(catalog.every((entry) => entry.category === 'design' && entry.approval === undefined)).toBe(true)
   expect(designVerb('design_diff')).toBe('diff')
   expect(diffDef.inputSchema.parse({})).toEqual({depth: 3, limit: 12})
