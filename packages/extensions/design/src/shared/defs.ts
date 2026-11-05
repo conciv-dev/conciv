@@ -691,6 +691,40 @@ export const DiffInputSchema = z.object({
 
 export const StatusInputSchema = z.object({})
 
+export const WatchInputSchema = z.object({
+  key: z.string().optional().describe('return the node paired to this data-conciv-key'),
+  ref: z.string().optional().describe('return the node with this design id, the Figma node id for a Figma target'),
+  node: z.string().optional().describe('return this node'),
+  status: z.enum(NODE_STATUSES).optional().describe('return the nodes in this ledger status'),
+  limit: z.number().int().positive().default(400).describe('at most this many rows'),
+})
+
+const WatchRowSchema = z.object({
+  node: z.string(),
+  ref: z.string().nullable().describe('the design id the node came from; the Figma node id, null for an image target'),
+  kind: z.enum(['text', 'box', 'image']),
+  text: z.string().nullable().describe('the text of a text node'),
+  box: BoxSchema,
+  status: z.enum(NODE_STATUSES),
+  key: z.string().nullable().describe('the data-conciv-key of the paired element'),
+  source: SourceLocSchema.nullable(),
+  path: z.string().nullable().describe('the paired element as a child-position path'),
+  confidence: z.number().nullable(),
+  item: z.string().nullable().describe('the worst open item of the node, as a sentence'),
+})
+
+export const WatchReportSchema = z.object({
+  target: z.string(),
+  run: z.string().nullable().describe('the run the mapping comes from; null before the first run'),
+  live: z.boolean().describe('true when the mapping comes from the page watcher and is newer than the stored ledger'),
+  counts: LedgerCountsSchema,
+  rows: z.array(WatchRowSchema),
+  truncated: z.number().describe('rows left out by limit'),
+})
+export type WatchRow = z.infer<typeof WatchRowSchema>
+export type WatchReport = z.infer<typeof WatchReportSchema>
+export type WatchInput = z.output<typeof WatchInputSchema>
+
 export const CaptureInputSchema = z.object({
   height: Width.optional().describe('height of the captured area in px; defaults to the viewport height'),
   timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
@@ -818,6 +852,19 @@ export const statusDef = designTool({
   output: StatusReportSchema,
   hint: 'done is true once the last diff of the current target has nothing above tolerance',
   keywords: ['design', 'done', 'progress'],
+})
+
+export const watchDef = designTool({
+  verb: 'watch',
+  summary: 'the live mapping of design nodes to the page: status, source key, source line, as the page is built',
+  mutating: false,
+  icon: 'read',
+  running: 'Reading the design mapping',
+  done: 'Read the design mapping',
+  input: WatchInputSchema,
+  output: WatchReportSchema,
+  hint: 'look up a node by key, ref or node; without a filter the rows list every design node; runs no diff',
+  keywords: ['design', 'mapping', 'pairs', 'figma', 'key'],
 })
 
 export const captureDef = designTool({

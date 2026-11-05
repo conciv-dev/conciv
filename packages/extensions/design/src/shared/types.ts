@@ -13,6 +13,8 @@ import type {
   StatusReport,
   TargetInput,
   TargetResult,
+  WatchInput,
+  WatchReport,
 } from './defs.js'
 
 export const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -379,6 +381,7 @@ export type Differ = {
   capture(input: {id: string; session: SessionId}): Promise<DiffReport>
   accept(input: {id: string}): Promise<TargetRecord>
   status(input: {session: SessionId}): Promise<StatusReport>
+  watch(input: {input: WatchInput; session: SessionId}): Promise<WatchReport>
 }
 
 export type DesignPage = ServerApi<DesignConfig>['page']
