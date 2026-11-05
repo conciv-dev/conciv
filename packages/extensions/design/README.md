@@ -14,7 +14,7 @@ The package.json describes this as the design built-in extension, internal to @c
 - default `defineConfig` (`vite.config.ts`): library build of `src/client.tsx` with the Solid plugin to `client.js` (ES format), with `emptyOutDir: false` and sourcemaps
 - default `defineConfig` (`vite.xray.config.ts`): builds `src/xray/` into `dist/xray/` with UnoCSS and the Solid plugin, the stylesheet at the stable name `assets/index.css` that the in-tab pane links; in serve mode it loads `../../it/dist/vite.js` instead of plain Solid
 - default `defineConfig` (`uno.config.ts`): UnoCSS with `presetConciv`, scanning `src/xray/**` and `../../ui-kit-system/src/**`
-- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/differ`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/raster`), `./types` and `./xray-routes` (types only)
+- package.json `exports`: `.` (browser maps to client, import maps to server), `./client`, `./server`, `./defs`, `./provenance` (`dist/server/differ`), `./text-groups` (`dist/server/differ`), `./paddle` (`dist/server/target`), `./colors` (`dist/server/raster`), `./types` and `./xray-routes` (types only, `dist/server`)
 - package.json script `dev:xray`: runs `vite --config vite.xray.config.ts`
 
 ## Source tree
@@ -28,7 +28,9 @@ src/
                        the composer button and the Surface that mounts the x-ray pane in the tab
   client/
     takumi.ts          the takumi second opinion: lays the mirror snapshot out at the design width in wasm
-  server.ts            extension entry: pickRuntime over the slot tables, CSS map, x-ray routes, dispose
+  server.ts            extension entry: pickRuntime over the slot tables, CSS map, dispose, and the HTTP routes for
+                       the x-ray: targets, current, stamp, report, pin, unpin, mark, revoke, accept and capture, and
+                       the node crop PNG
   shared/
     defs.ts            tool definitions, wire schemas, errors and messages
     types.ts           domain types and the slot interfaces
@@ -45,8 +47,6 @@ src/
     loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
     differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, the tool bindings,
                        and provenance: MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
-    xray-routes.ts     HTTP routes for the x-ray: targets, current, stamp, report, pin, unpin, mark, revoke,
-                       accept and capture, and the node crop PNG
   xray/
     entry.tsx          mount
     router.tsx         routes, search schema, data loading, the in-tab pane (memory history)

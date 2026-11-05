@@ -68,7 +68,7 @@
       "types": "./dist/shared/types.d.ts"
     },
     "./xray-routes": {
-      "types": "./dist/server/xray-routes.d.ts"
+      "types": "./dist/server.d.ts"
     },
     "./package.json": "./package.json"
   },

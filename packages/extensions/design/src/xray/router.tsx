@@ -37,7 +37,7 @@ import {isEqual, uniq} from 'es-toolkit'
 import {DESIGN_EXTENSION_NAME} from '../shared/defs.js'
 import {PANE_ATTR} from '../shared/tolerances.js'
 import type {SourceLoc, TargetRecord} from '../shared/types.js'
-import type {XrayRouter} from '../server/xray-routes.js'
+import type {XrayRouter} from '../server.js'
 import {
   createDecider,
   DecisionBar,

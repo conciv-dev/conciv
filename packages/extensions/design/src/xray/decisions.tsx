@@ -5,7 +5,7 @@ import {compact, groupBy, uniq} from 'es-toolkit'
 import type {makeExtRpcClient} from '@conciv/extension'
 import {MARK_KINDS, STAGES, type DiffReport, type NodeStatus, type Stage} from '../shared/defs.js'
 import type {Box, Decision, TargetNode, TargetRecord} from '../shared/types.js'
-import type {XrayRouter} from '../server/xray-routes.js'
+import type {XrayRouter} from '../server.js'
 import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
 
 export type XrayClient = ReturnType<typeof makeExtRpcClient<XrayRouter>>
