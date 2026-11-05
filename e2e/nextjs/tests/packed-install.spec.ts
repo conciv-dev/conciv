@@ -57,6 +57,7 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
   async function gotoAndOpen(page: Page): Promise<void> {
     if (handle === undefined) throw new Error('next dev is not running')
     await loginWidget(page, `http://localhost:${DEV_PORT}/`, handle.logPath)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 60_000})
   }
 
