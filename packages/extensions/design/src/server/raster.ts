@@ -2,6 +2,8 @@ import {createHash} from 'node:crypto'
 import {clamp, mean, minBy, range} from 'es-toolkit'
 import {PNG} from 'pngjs'
 import {ssim} from 'ssim.js'
+import type {Storage} from 'unstorage'
+import {toolError} from '@conciv/extension'
 import {leadingFamily, sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import type {
   Box,
@@ -26,6 +28,23 @@ const MINIMUM_TRIM_SIDE = 2
 const DIAGONAL_SHARE = 1 - Math.SQRT1_2
 
 export type Rgb = [number, number, number]
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+
+export async function readPng(input: {ref: string; project: Storage}): Promise<Uint8Array<ArrayBuffer>> {
+  const raw: unknown = await input.project.getItemRaw(input.ref).catch(() => null)
+  if (raw instanceof Uint8Array) return new Uint8Array(raw)
+  const bytes = pngBase64(input.ref)
+  if (bytes !== null) return bytes
+  throw toolError('image-unreadable', {
+    message: `image is neither a PNG file nor PNG base64: ${input.ref.slice(0, 80)}`,
+  })
+}
+
+export function pngBase64(ref: string): Uint8Array<ArrayBuffer> | null {
+  const bytes = new Uint8Array(Buffer.from(ref, 'base64'))
+  return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
+}
 
 export function decodePng(bytes: Uint8Array): Raster {
   const png = PNG.sync.read(Buffer.from(bytes))

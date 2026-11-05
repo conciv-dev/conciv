@@ -5,7 +5,7 @@ export default defineConfig({
     'src/server.ts',
     'src/shared/defs.ts',
     'src/server/differ.ts',
-    'src/server/target.ts',
+    'src/server/sources/image.ts',
     'src/server/raster.ts',
     'src/server/store.ts',
   ],

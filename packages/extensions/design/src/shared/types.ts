@@ -6,7 +6,6 @@ import type {DesignConfig} from './tolerances.js'
 import type {
   ContainerLayout,
   DeltaKindName,
-  Design,
   DesignNode,
   DiffInput,
   DiffReport,
@@ -36,10 +35,6 @@ export type Raster = {width: number; height: number; data: Uint8Array}
 export type SourceLoc = {file: string; line: number; column: number}
 
 export type Gradient = {from: string; to: string}
-export type Enricher = {
-  name: string
-  run(input: {design: Design; raster: Raster; runtime: DesignRuntime}): Promise<DesignNode[]>
-}
 export type Segmenter = {name: string; segment(input: {raster: Raster; nodes: DesignNode[]}): Promise<DesignNode[]>}
 export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
 
@@ -243,9 +238,6 @@ export type DesignRuntime = {
   pairer: Pairer
   ranker: Ranker
   adapters: TargetAdapter[]
-  enrichers: Enricher[]
-  segmenter: Segmenter
-  roles: RoleRules
   deltaKinds: DeltaKind[]
   mappers: ProvenanceMapper[]
   cssMap: () => Promise<CssMap>

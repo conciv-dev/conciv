@@ -1,7 +1,6 @@
 import * as ort from 'onnxruntime-web'
 import {createHash} from 'node:crypto'
-import {basename, dirname, isAbsolute, join, relative} from 'node:path'
-import {toolError} from '@conciv/extension'
+import {basename, dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
 import {pathToFileURL} from 'node:url'
 import type {InferenceSession} from 'onnxruntime-web'
@@ -10,40 +9,10 @@ import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
-import {chunk, countBy, groupBy, partition, range, uniqBy, zip} from 'es-toolkit'
-import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {
-  DESIGN_ERRORS,
-  DESIGN_GUIDE,
-  renderDef,
-  RenderResultSchema,
-  type TargetInput,
-  type TargetResult,
-} from '../shared/defs.js'
-import {iconSized, sameFamily, TOLERANCES} from '../shared/tolerances.js'
-import type {
-  Border,
-  Box,
-  BoxNode,
-  ColorMetric,
-  DesignGradient,
-  DesignRuntime,
-  Enricher,
-  ImageNode,
-  LiveComponent,
-  OcrLine,
-  Raster,
-  RoleRules,
-  Segmenter,
-  TargetAdapter,
-  TargetModel,
-  TargetNode,
-  TargetStore,
-  TextNode,
-  TextReader,
-  Typography,
-} from '../shared/types.js'
-import {laidOut} from './pair.js'
+import {countBy, groupBy, partition, range} from 'es-toolkit'
+import type {Border, DesignGradient, DesignNode, OcrLine, TargetAdapter} from '../../shared/defs.js'
+import {iconSized, TOLERANCES} from '../../shared/tolerances.js'
+import type {Box, ColorMetric, Raster, RoleRules, Segmenter, TextReader} from '../../shared/types.js'
 import {
   boxMask,
   cornerRadius,
@@ -57,6 +26,8 @@ import {
   labelRegions,
   openMask,
   overlapping,
+  pngBase64,
+  readPng,
   rgbAt,
   rgbDistance,
   sameLine,
@@ -67,329 +38,99 @@ import {
   COLOR_METRICS,
   sampledFills,
   fnv,
-} from './raster.js'
+} from '../raster.js'
+import {isFigmaUrl} from './figma.js'
 
-export {trimToInk} from './raster.js'
+export {trimToInk} from '../raster.js'
 
-function nodeId(input: {kind: TargetNode['kind']; box: Box; text?: string}): string {
-  const {kind, box} = input
-  const rounded = [box.x, box.y, box.w, box.h].map(Math.round).join(',')
-  return fnv(`${kind}|${rounded}|${input.text ?? ''}`)
-}
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
-
-function pngBase64(ref: string): Uint8Array | null {
-  const bytes = new Uint8Array(Buffer.from(ref, 'base64'))
-  return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
-}
-
-function unreadableMessage(ref: string): string {
-  return `image is neither a PNG file nor PNG base64: ${ref.slice(0, 80)}`
-}
-
-async function readImage(input: {ref: string; project: Storage}): Promise<Uint8Array> {
-  const file = await readRaw({storage: input.project, key: input.ref})
-  if (file !== null) return file
-  const bytes = pngBase64(input.ref)
-  if (bytes !== null) return bytes
-  throw toolError('image-unreadable', {message: unreadableMessage(input.ref)})
-}
-
-export const imageAdapter: TargetAdapter = {
-  kind: 'image',
-  accepts: ({ref}) => pngBase64(ref) !== null || !URL.canParse(ref),
-  load: async ({ref, scale, project}) => {
-    const bytes = await readImage({ref, project})
-    const raster = decodePng(bytes)
-    const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
-    return {
-      id: createHash('sha256').update(bytes).digest('hex').slice(0, 12),
-      source: {kind: 'image', ref: pngBase64(ref) === null ? ref : 'base64'},
-      viewport,
-      raster,
-      scale,
-      root: {id: 'root', box: {x: 0, y: 0, w: viewport.width, h: viewport.height}},
-      nodes: [],
-    }
-  },
-}
-
-type FigmaLink = {fileKey: string; nodeId: string}
-
-type FigmaSource = {
-  available(input: {token: string | null; document: unknown; image: string | undefined}): boolean
-  load(input: {
-    link: FigmaLink
-    scale: number
-    token: string | null
-    document: unknown
-    image: string | undefined
-    project: Storage
-  }): Promise<{document: FigmaDocument; raster: Raster; version: string}>
-}
-
-export function createFigmaAdapter(input: {token: string | null}): TargetAdapter {
-  const {token} = input
+export function createImageAdapter(input: ImageTools): TargetAdapter {
   return {
-    kind: 'figma',
-    accepts: ({ref}) => parseFigmaLink(ref) !== null,
-    load: async ({ref, scale, project, document, image}) => {
-      const link = parseFigmaLink(ref)
-      if (link === null) throw toolError('figma-link', {message: DESIGN_ERRORS['figma-link'].message})
-      const source = Object.values(FIGMA_SOURCES).find((candidate) => candidate.available({token, document, image}))
-      if (source === undefined) throw toolError('figma-source', {message: DESIGN_ERRORS['figma-source'].message})
-      const loaded = await source.load({link, scale, token, document, image, project})
-      return modelFrom({link, scale, ...loaded})
+    kind: 'image',
+    accepts: ({ref}) => !isFigmaUrl(ref),
+    load: async ({ref, scale, project, attachments}) => {
+      const image = attachments.image ?? (await readPng({ref, project}))
+      const raster = decodePng(image)
+      const nodes = await enrich({nodes: [], raster, scale, tools: input})
+      const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
+      const root: DesignNode = {
+        id: 'root',
+        box: {x: 0, y: 0, w: raster.width, h: raster.height},
+        kind: 'box',
+        border: null,
+        radius: 0,
+        children: nest({nodes}),
+      }
+      return {
+        design: {
+          id: createHash('sha256').update(image).digest('hex').slice(0, 12),
+          source: {kind: 'image', ref: pngBase64(ref) === null ? ref : 'base64'},
+          viewport,
+          scale,
+          root,
+        },
+        image,
+      }
     },
   }
 }
 
-function parseFigmaLink(ref: string): FigmaLink | null {
-  if (!URL.canParse(ref)) return null
-  const url = new URL(ref)
-  if (url.hostname !== 'figma.com' && !url.hostname.endsWith('.figma.com')) return null
-  const [, kind, key, branch, branchKey] = url.pathname.split('/')
-  if ((kind !== 'design' && kind !== 'file') || key === undefined || key === '') return null
-  const node = url.searchParams.get('node-id')
-  if (node === null || node === '') return null
-  const fileKey = branch === 'branch' && branchKey !== undefined && branchKey !== '' ? branchKey : key
-  return {fileKey, nodeId: node.replaceAll('-', ':')}
-}
-
-const FIGMA_SOURCES = {
-  document: {available: documentAvailable, load: documentLoad},
-  rest: {available: restAvailable, load: restLoad},
-} as const satisfies Record<string, FigmaSource>
-
-const ColorSchema = z.looseObject({r: z.number(), g: z.number(), b: z.number(), a: z.number().optional()})
-const PointSchema = z.looseObject({x: z.number(), y: z.number()})
-const PaintSchema = z.looseObject({
-  type: z.string(),
-  visible: z.boolean().optional(),
-  color: ColorSchema.optional(),
-  opacity: z.number().optional(),
-  gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
-  gradientHandlePositions: z.array(PointSchema).optional(),
-})
-const FigmaNodeSchema = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  type: z.string(),
-  visible: z.boolean().optional(),
-  absoluteBoundingBox: z
-    .looseObject({x: z.number(), y: z.number(), width: z.number(), height: z.number()})
-    .nullable()
-    .optional(),
-  characters: z.string().optional(),
-  style: z
-    .looseObject({
-      fontSize: z.number().optional(),
-      fontFamily: z.string().optional(),
-      fontWeight: z.number().optional(),
-      lineHeightPx: z.number().optional(),
-    })
-    .optional(),
-  fills: z.array(PaintSchema).optional(),
-  strokes: z.array(PaintSchema).optional(),
-  strokeWeight: z.number().optional(),
-  cornerRadius: z.number().optional(),
-  rectangleCornerRadii: z.array(z.number()).optional(),
-  get children() {
-    return z.array(FigmaNodeSchema).optional()
-  },
-})
-const FigmaDocumentSchema = z.looseObject({
-  nodes: z.record(z.string(), z.looseObject({document: FigmaNodeSchema}).nullable()),
-  version: z.string().optional(),
-  lastModified: z.string().optional(),
-})
-const FigmaImagesSchema = z.looseObject({images: z.record(z.string(), z.string().nullable())})
-
-type FigmaDocument = z.infer<typeof FigmaDocumentSchema>
-type FigmaNode = z.infer<typeof FigmaNodeSchema>
-type Paint = z.infer<typeof PaintSchema>
-type Color = z.infer<typeof ColorSchema>
-
-const FIGMA_API = 'https://api.figma.com/v1'
-const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'LINE', 'STAR', 'POLYGON', 'REGULAR_POLYGON'])
-const GROUPS = new Set(['GROUP', 'FRAME', 'INSTANCE', 'COMPONENT'])
-
-function restAvailable(input: {token: string | null}): boolean {
-  return input.token !== null
-}
-
-async function restLoad(input: {link: FigmaLink; scale: number; token: string | null}) {
-  const {link, scale, token} = input
-  const ids = encodeURIComponent(link.nodeId)
-  const headers = {'X-Figma-Token': token ?? ''}
-  const body = await figmaJson({url: `${FIGMA_API}/files/${link.fileKey}/nodes?ids=${ids}`, headers, link})
-  const images = FigmaImagesSchema.safeParse(
-    await figmaJson({url: `${FIGMA_API}/images/${link.fileKey}?ids=${ids}&format=png&scale=${scale}`, headers, link}),
-  )
-  const render = images.success ? images.data.images[link.nodeId] : undefined
-  if (render === undefined || render === null)
-    throw toolError('figma-request', {message: `Figma rendered no image for ${link.nodeId}`})
-  const png = await figmaFetch({url: render, headers: {}, link})
-  const document = parsedDocument(body)
-  return {document, raster: decodePng(new Uint8Array(await png.arrayBuffer())), version: document.version ?? ''}
-}
-
-async function figmaJson(input: {url: string; headers: Record<string, string>; link: FigmaLink}): Promise<unknown> {
-  const response = await figmaFetch(input)
-  return response.json()
-}
-
-async function figmaFetch(input: {url: string; headers: Record<string, string>; link: FigmaLink}): Promise<Response> {
-  const {url, headers, link} = input
-  const response = await fetch(url, {headers}).catch((cause: unknown) => {
-    throw toolError('figma-request', {message: `Figma did not answer for ${link.nodeId}`, data: String(cause)})
+function nest(input: {nodes: Flat[]}): DesignNode[] {
+  const {nodes} = input
+  const parents = nodes.map((node) => {
+    const holders = nodes.flatMap((other, index) => (holds({outer: other, inner: node}) ? [index] : []))
+    return holders.reduce<number>((best, index) => {
+      const current = nodes[best]
+      const candidate = nodes[index]
+      if (current === undefined || candidate === undefined) return index
+      return surface(candidate.box) < surface(current.box) ? index : best
+    }, -1)
   })
-  if (!response.ok) throw toolError('figma-request', {message: `Figma answered ${response.status} for ${link.nodeId}`})
-  return response
-}
-
-function parsedDocument(body: unknown): FigmaDocument {
-  const parsed = FigmaDocumentSchema.safeParse(body)
-  if (!parsed.success) throw toolError('figma-request', {message: 'the Figma document has an unexpected shape'})
-  return parsed.data
-}
-
-function documentAvailable(input: {document: unknown; image: string | undefined}): boolean {
-  return input.document !== undefined && input.image !== undefined
-}
-
-async function documentLoad(input: {document: unknown; image: string | undefined; project: Storage}) {
-  const document = parsedDocument(input.document)
-  const bytes = await readImage({ref: input.image ?? '', project: input.project})
-  return {document, raster: decodePng(bytes), version: document.lastModified ?? ''}
-}
-
-function modelFrom(input: {
-  link: FigmaLink
-  document: FigmaDocument
-  raster: Raster
-  scale: number
-  version: string
-}): TargetModel {
-  const {link, document, raster, scale, version} = input
-  const root = document.nodes[link.nodeId]?.document
-  const frame = root?.absoluteBoundingBox
-  if (root === undefined || frame === undefined || frame === null)
-    throw toolError('figma-request', {message: `the Figma document has no frame ${link.nodeId}`})
-  const origin = {x: frame.x, y: frame.y, scale}
-  const viewport = {width: Math.round(frame.width), height: Math.round(frame.height)}
-  return {
-    id: createHash('sha256').update(`${link.fileKey}|${link.nodeId}|${version}`).digest('hex').slice(0, 12),
-    source: {kind: 'figma', ref: `${link.fileKey}/${link.nodeId}`},
-    viewport,
-    raster,
-    scale,
-    root: {id: 'root', box: {x: 0, y: 0, w: viewport.width, h: viewport.height}},
-    nodes: (root.children ?? []).flatMap((child) => walk({node: child, origin, parent: undefined})),
+  const build = (index: number): DesignNode[] => {
+    const node = nodes[index]
+    if (node === undefined) return []
+    return [designNode({node, children: parents.flatMap((parent, child) => (parent === index ? build(child) : []))})]
   }
+  return parents.flatMap((parent, index) => (parent === -1 ? build(index) : []))
 }
 
-type Origin = {x: number; y: number; scale: number}
+type ImageTools = {reader: TextReader; segmenter: Segmenter; roles: RoleRules}
 
-function walk(input: {node: FigmaNode; origin: Origin; parent: string | undefined}): TargetNode[] {
-  const {node, origin, parent} = input
-  if (node.visible === false) return []
-  const bounds = node.absoluteBoundingBox
-  if (bounds === undefined || bounds === null)
-    return (node.children ?? []).flatMap((child) => walk({node: child, origin, parent}))
-  const box = {
-    x: Math.round((bounds.x - origin.x) * origin.scale),
-    y: Math.round((bounds.y - origin.y) * origin.scale),
-    w: Math.round(bounds.width * origin.scale),
-    h: Math.round(bounds.height * origin.scale),
-  }
-  const base = {id: fnv(`figma|${node.id}`), ref: node.id, box, ...(parent === undefined ? {} : {within: parent})}
-  if (node.type === 'TEXT') return [figmaTextNode({node, base, scale: origin.scale})]
-  if (vectorish(node)) return [figmaImageNode(base)]
-  const self = figmaBoxNode({node, base, scale: origin.scale})
-  return [self, ...(node.children ?? []).flatMap((child) => walk({node: child, origin, parent: self.id}))]
+type Flat = DesignNode & {within?: string}
+type FlatBox = Extract<Flat, {kind: 'box'}>
+type FlatImage = Extract<Flat, {kind: 'image'}>
+type FlatText = Extract<Flat, {kind: 'text'}>
+
+type Enricher = {
+  name: string
+  run(input: {nodes: Flat[]; raster: Raster; scale: number; tools: ImageTools}): Promise<Flat[]>
 }
 
-type Base = {id: string; ref: string; box: Box; within?: string}
-
-function figmaTextNode(input: {node: FigmaNode; base: Base; scale: number}): TextNode {
-  const {node, base, scale} = input
-  const text = node.characters ?? ''
-  const size = node.style?.fontSize
-  const family = node.style?.fontFamily ?? null
-  const typography =
-    size === undefined
-      ? {}
-      : {
-          typography: {
-            size: size * scale,
-            lineHeight: (node.style?.lineHeightPx ?? size) * scale,
-            weight: node.style?.fontWeight ?? 400,
-            confidence: 1,
-            font: family ?? '',
-            family,
-          },
-        }
-  return {...base, kind: 'text', text, lines: [{box: base.box, text, confidence: 1}], confidence: 1, ...typography}
-}
-
-function visibleChildren(node: FigmaNode): FigmaNode[] {
-  return (node.children ?? []).filter((child) => child.visible !== false)
-}
-
-function imageFilled(node: FigmaNode): boolean {
-  return (node.fills ?? []).some((paint) => paint.type === 'IMAGE' && paint.visible !== false)
-}
-
-function vectorish(node: FigmaNode): boolean {
-  if (VECTORS.has(node.type) || imageFilled(node)) return true
-  const shown = visibleChildren(node)
-  return GROUPS.has(node.type) && shown.length > 0 && shown.every(vectorish)
-}
-
-function figmaImageNode(base: Base): ImageNode {
-  return {...base, kind: 'image', holds: 0}
-}
-
-function figmaBoxNode(input: {node: FigmaNode; base: Base; scale: number}): BoxNode {
-  const {node, base, scale} = input
-  const paint = paintOf(node.fills ?? [])
-  const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
-  const color = stroke?.color
-  return {
-    ...base,
-    kind: 'box',
-    ...(paint === null ? {} : {paint}),
-    border: color === undefined ? null : {width: (node.strokeWeight ?? 1) * scale, color: colorHex(color)},
-    radius:
-      node.type === 'ELLIPSE'
-        ? Math.min(base.box.w, base.box.h) / 2
-        : (node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? 0) * scale,
-  }
-}
-
-function paintOf(fills: Paint[]): {background: string; gradient?: DesignGradient} | null {
-  const fill = fills.findLast(
-    (paint) => paint.visible !== false && (paint.type === 'SOLID' || paint.type === 'GRADIENT_LINEAR'),
+function holds(input: {outer: Flat; inner: Flat}): boolean {
+  const {outer, inner} = input
+  return (
+    outer.kind === 'box' &&
+    outer !== inner &&
+    surface(outer.box) > surface(inner.box) &&
+    encloses({outer: outer.box, inner: inner.box})
   )
-  if (fill === undefined) return null
-  if (fill.type === 'SOLID') return fill.color === undefined ? null : {background: colorHex(fill.color)}
-  const first = fill.gradientStops?.[0]
-  const last = fill.gradientStops?.at(-1)
-  if (first === undefined || last === undefined) return null
-  const from = colorHex(first.color)
-  return {background: from, gradient: {from, to: colorHex(last.color), axis: gradientAxis(fill)}}
 }
 
-function gradientAxis(fill: Paint): DesignGradient['axis'] {
-  const [start, end] = fill.gradientHandlePositions ?? []
-  if (start === undefined || end === undefined) return 'vertical'
-  return Math.abs(end.x - start.x) > Math.abs(end.y - start.y) ? 'horizontal' : 'vertical'
+function designNode(input: {node: Flat; children: DesignNode[]}): DesignNode {
+  const {within: _within, ...node} = input.node
+  return {...node, children: input.children}
 }
 
-function colorHex(color: Color): string {
-  return hex([color.r, color.g, color.b].map((channel) => Math.round(channel * 255)))
+async function enrich(input: {nodes: Flat[]; raster: Raster; scale: number; tools: ImageTools}): Promise<Flat[]> {
+  return ENRICHERS.reduce<Promise<Flat[]>>(async (pending, enricher) => {
+    const nodes = await pending
+    return enricher.run({...input, nodes}).catch(() => nodes)
+  }, Promise.resolve(input.nodes))
+}
+
+function nodeId(input: {kind: Flat['kind']; box: Box; text?: string}): string {
+  const {kind, box} = input
+  const rounded = [box.x, box.y, box.w, box.h].map(Math.round).join(',')
+  return fnv(`${kind}|${rounded}|${input.text ?? ''}`)
 }
 
 const MODEL_FILES = ['PP-OCRv6_tiny_det.ort', 'PP-OCRv6_tiny_rec.ort', 'ppocrv6_tiny_dict.txt'] as const
@@ -690,7 +431,7 @@ const CHILD_INSET = 2
 const MAX_DEPTH = 6
 const MAX_BORDER = 4
 
-type Found = BoxNode | ImageNode
+type Found = FlatBox | FlatImage
 type Level = {raster: Raster; region: Box; background: Rgb; depth: number; text: Box[]; marks: Box[]}
 
 function median(values: number[]): number {
@@ -926,8 +667,8 @@ function border(input: {raster: Raster; box: Box; fill: Rgb}): Border | null {
   return {width: width ?? MAX_BORDER, color: hex(color)}
 }
 
-function imageNode(box: Box): ImageNode {
-  return {id: nodeId({kind: 'image', box}), kind: 'image', box, holds: 0}
+function imageNode(box: Box): FlatImage {
+  return {id: nodeId({kind: 'image', box}), kind: 'image', box, holds: 0, children: []}
 }
 
 type Measured = {fill: Rgb; dominant: number; cover: number; plain: boolean}
@@ -954,12 +695,13 @@ function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null;
   const {level, raw, fill, edge, gradient} = input
   const {raster, region, background, depth} = level
   const box = depth > 1 ? grow({raster, box: raw, region, fill}) : raw
-  const node: BoxNode = {
+  const node: FlatBox = {
     id: nodeId({kind: 'box', box}),
     kind: 'box',
     box,
     border: edge,
     radius: cornerRadius({raster, box, inside: fill, outside: background}),
+    children: [],
   }
   const inner = inset({box, by: CHILD_INSET})
   const found = gradient
@@ -1006,7 +748,7 @@ const thresholdSegmenter: Segmenter = {
   segment: ({raster, nodes}) => {
     const page = {x: 0, y: 0, w: raster.width, h: raster.height}
     const background = medianRgb({raster, indices: borderIndices({width: raster.width, box: page})})
-    const haloed = (node: TargetNode): Box => expand({box: node.box, by: TOLERANCES.glyphHalo})
+    const haloed = (node: DesignNode): Box => expand({box: node.box, by: TOLERANCES.glyphHalo})
     const text = nodes.filter((node) => node.kind === 'text').map(haloed)
     const marks = nodes.filter((node) => node.kind !== 'box').map(haloed)
     return Promise.resolve(children({raster, region: page, background, depth: 1, text, marks}))
@@ -1083,7 +825,7 @@ function rows(lines: OcrLine[]): OcrLine[][] {
     }, [])
 }
 
-function textNode(row: OcrLine[]): TextNode {
+function textNode(row: OcrLine[]): FlatText {
   const text = row.map((line) => line.text.trim()).join(' ')
   const box = union(row.map((line) => line.box))
   return {
@@ -1093,16 +835,14 @@ function textNode(row: OcrLine[]): TextNode {
     text,
     lines: row,
     confidence: Math.min(...row.map((line) => line.confidence)),
+    children: [],
   }
 }
 
 const textEnricher: Enricher = {
   name: TEXT_ENRICHER,
-  run: async ({model, raster, runtime}) => {
-    if (model.nodes.some((node) => node.kind === 'text')) return model.nodes
-    const read = await Promise.all(
-      tiles(raster).map((tile) => readTile({raster, tile, reader: runtime.comparators.text})),
-    )
+  run: async ({nodes, raster, tools}) => {
+    const read = await Promise.all(tiles(raster).map((tile) => readTile({raster, tile, reader: tools.reader})))
     const lines = read
       .flat()
       .filter((line) => line.confidence >= TOLERANCES.ocrConfidenceFloor && line.text.trim() !== '')
@@ -1116,7 +856,7 @@ const textEnricher: Enricher = {
       )
     const [glyphs, words] = partition(kept, (part) => part.glyph)
     return [
-      ...model.nodes,
+      ...nodes,
       ...rows(words.map((part) => part.line)).map(textNode),
       ...glyphs.map((part) => imageNode(part.line.box)),
     ]
@@ -1195,13 +935,11 @@ function isSign(character: string): boolean {
   return character === PERCENT || isCurrency(character)
 }
 
-type Segmentation = 'full' | 'partial'
-
 function surface(box: Box): number {
   return box.w * box.h
 }
 
-function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
+function within(input: {node: Flat; nodes: Flat[]}): Flat {
   const {node, nodes} = input
   const [smallest] = nodes
     .filter(
@@ -1215,54 +953,42 @@ function within(input: {node: TargetNode; nodes: TargetNode[]}): TargetNode {
   return smallest === undefined ? node : {...node, within: smallest.id}
 }
 
-export function segmentationQuality(model: Pick<TargetModel, 'nodes' | 'viewport'>): Segmentation {
-  const page = model.viewport.width * model.viewport.height
-  const regionIds = new Set(
-    model.nodes.flatMap((node) => (node.kind === 'box' && node.paint === undefined ? [node.id] : [])),
-  )
-  const covered = model.nodes
-    .filter((node) => node.kind === 'image' && (node.within === undefined || regionIds.has(node.within)))
-    .reduce((sum, node) => sum + surface(node.box), 0)
-  return page > 0 && covered / page > TOLERANCES.segmentImageShare ? 'partial' : 'full'
-}
-
 const segmentEnricher: Enricher = {
   name: 'segment',
-  run: async ({model, raster, runtime}) => {
-    if (model.nodes.some((node) => node.kind === 'box')) return model.nodes
-    const found = await runtime.segmenter.segment({raster, nodes: model.nodes})
-    const nodes = pictured({nodes: [...model.nodes, ...found].filter((node) => !glyphNoise(node)), raster})
-    return nodes.map((node) => within({node, nodes}))
+  run: async ({nodes, raster, tools}) => {
+    const found = await tools.segmenter.segment({raster, nodes})
+    const kept = pictured({nodes: [...nodes, ...found].filter((node) => !glyphNoise(node)), raster})
+    return kept.map((node) => within({node, nodes: kept}))
   },
 }
 
-function glyphNoise(node: TargetNode): boolean {
+function glyphNoise(node: Flat): boolean {
   return node.kind === 'image' && node.box.w < TOLERANCES.glyphNoise && node.box.h < TOLERANCES.glyphNoise
 }
 
-function picture(node: TargetNode): boolean {
+function isPicture(node: Flat): boolean {
   return node.kind === 'image' && node.box.w >= TOLERANCES.iconSlotSide && node.box.h >= TOLERANCES.iconSlotSide
 }
 
-function pictured(input: {nodes: TargetNode[]; raster: Raster}): TargetNode[] {
+function pictured(input: {nodes: Flat[]; raster: Raster}): Flat[] {
   const {nodes, raster} = input
-  const pictures = nodes.filter(picture).toSorted((a, b) => surface(a.box) - surface(b.box))
-  const holder = (node: TargetNode): string => {
+  const pictures = nodes.filter(isPicture).toSorted((a, b) => surface(a.box) - surface(b.box))
+  const ownerOf = (node: Flat): string => {
     if (node.kind !== 'text') return ''
     const image = pictures.find((candidate) => encloses({outer: candidate.box, inner: node.box}))
     if (image === undefined || flatHalo({node, nodes, raster})) return ''
     return image.id
   }
-  const owners = nodes.map((node) => ({node, owner: holder(node)}))
+  const owners = nodes.map((node) => ({node, owner: ownerOf(node)}))
   const held = countBy(owners, ({owner}) => owner)
-  return owners.flatMap(({node, owner}): TargetNode[] => {
+  return owners.flatMap(({node, owner}): Flat[] => {
     if (owner !== '') return []
     if (node.kind !== 'image') return [node]
     return [{...node, holds: held[node.id] ?? 0}]
   })
 }
 
-function flatHalo(input: {node: TargetNode; nodes: TargetNode[]; raster: Raster}): boolean {
+function flatHalo(input: {node: Flat; nodes: Flat[]; raster: Raster}): boolean {
   const {node, nodes, raster} = input
   const band = expand({box: node.box, by: TOLERANCES.glyphHalo})
   const others = nodes.filter(
@@ -1292,28 +1018,27 @@ function covers(input: {area: Box; x: number; y: number}): boolean {
 
 const rolesEnricher: Enricher = {
   name: 'roles',
-  run: ({model, runtime}) =>
+  run: ({nodes, tools}) =>
     Promise.resolve(
-      model.nodes.map((node) => {
+      nodes.map((node) => {
         if (node.kind !== 'text' || node.role !== undefined) return node
-        const neighbours = model.nodes.flatMap((other) =>
+        const neighbours = nodes.flatMap((other) =>
           other.kind === 'text' && other.id !== node.id && other.within === node.within ? [other.text] : [],
         )
-        const {role, confidence} = runtime.roles({text: node.text, neighbours})
-        return {...node, role, roleConfidence: confidence}
+        return {...node, role: tools.roles({text: node.text, neighbours}).role}
       }),
     ),
 }
 
 const colorEnricher: Enricher = {
   name: 'color',
-  run: ({model, raster}) =>
+  run: ({nodes, raster}) =>
     Promise.resolve(
-      model.nodes.map((node) => {
+      nodes.map((node) => {
         if (node.kind !== 'box' || node.paint !== undefined) return node
         const color = COLOR_METRICS.ciede2000
         const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color})
-        const holes = model.nodes
+        const holes = nodes
           .filter((other) => other.within === node.id)
           .map((other) => expand({box: other.box, by: TOLERANCES.glyphHalo}))
         const shape = fillShape({
@@ -1332,9 +1057,10 @@ const colorEnricher: Enricher = {
 const regionsEnricher: Enricher = {
   name: 'regions',
   run: (input) => {
-    const model = {...input.model, nodes: withoutTwins(input.model.nodes)}
+    const {scale} = input
+    const nodes = withoutTwins(input.nodes)
     const [pictures, members] = partition(
-      model.nodes.filter((node) => node.within === undefined),
+      nodes.filter((node) => node.within === undefined),
       (node) => node.kind === 'image',
     )
     const {seats, regions} = carve({
@@ -1342,29 +1068,29 @@ const regionsEnricher: Enricher = {
       parent: undefined,
       along: 'y',
       depth: 1,
-      scale: model.scale,
+      scale,
     })
-    const placed = pictures.map((picture) => ({id: picture.id, within: holder({box: picture.box, regions})}))
+    const placed = pictures.map((shown) => ({id: shown.id, within: holder({box: shown.box, regions})}))
     const holding = new Set(placed.map((seat) => seat.within))
     const flanked = regions
       .filter((region) => holding.has(region.id))
-      .reduce<Carving>((carving, region) => beside({carving, region, nodes: model.nodes, scale: model.scale}), {
+      .reduce<Carving>((carving, region) => beside({carving, region, nodes, scale}), {
         seats: [...seats, ...placed],
         regions,
       })
     const parents = new Map(flanked.seats.map((seat) => [seat.id, seat.within]))
     return Promise.resolve([
-      ...model.nodes.map((node) => {
+      ...nodes.map((node) => {
         const parent = parents.get(node.id)
         return parent === undefined ? node : {...node, within: parent}
       }),
-      ...grown({carving: flanked, nodes: model.nodes}),
+      ...grown({carving: flanked, nodes}),
     ])
   },
 }
 
-export function withoutTwins(nodes: TargetNode[]): TargetNode[] {
-  const folded = nodes.reduce<{kept: TargetNode[]; into: Record<string, string>}>(
+export function withoutTwins(nodes: Flat[]): Flat[] {
+  const folded = nodes.reduce<{kept: Flat[]; into: Record<string, string>}>(
     (found, node) => {
       const twin = found.kept.find((other) => twins({a: other, b: node}))
       if (twin === undefined) return {...found, kept: [...found.kept, node]}
@@ -1378,7 +1104,7 @@ export function withoutTwins(nodes: TargetNode[]): TargetNode[] {
   })
 }
 
-function twins(input: {a: TargetNode; b: TargetNode}): boolean {
+function twins(input: {a: Flat; b: Flat}): boolean {
   const {a, b} = input
   if (a.kind !== b.kind || a.within !== b.within) return false
   if (a.kind === 'text' && b.kind === 'text' && a.text.trim() !== b.text.trim()) return false
@@ -1390,12 +1116,12 @@ function twins(input: {a: TargetNode; b: TargetNode}): boolean {
 
 type Along = 'x' | 'y'
 type Seat = {id: string; within: string | undefined}
-type Carving = {seats: Seat[]; regions: BoxNode[]}
+type Carving = {seats: Seat[]; regions: FlatBox[]}
 
 const REGION_DEPTH = 3
 
 function carve(input: {
-  members: TargetNode[]
+  members: Flat[]
   parent: string | undefined
   along: Along
   depth: number
@@ -1420,7 +1146,7 @@ function carve(input: {
   }
 }
 
-function beside(input: {carving: Carving; region: BoxNode; nodes: TargetNode[]; scale: number}): Carving {
+function beside(input: {carving: Carving; region: FlatBox; nodes: Flat[]; scale: number}): Carving {
   const {carving, region} = input
   const seated = new Set(carving.seats.filter((seat) => seat.within === region.id).map((seat) => seat.id))
   const direct = [
@@ -1450,12 +1176,12 @@ function beside(input: {carving: Carving; region: BoxNode; nodes: TargetNode[]; 
   }
 }
 
-function grown(input: {carving: Carving; nodes: TargetNode[]}): BoxNode[] {
+function grown(input: {carving: Carving; nodes: Flat[]}): FlatBox[] {
   const {carving} = input
   const boxes = new Map(input.nodes.map((node) => [node.id, node.box]))
   const members = groupBy(carving.seats, (seat) => seat.within ?? '')
   const nested = groupBy(carving.regions, (region) => region.within ?? '')
-  const span = (visit: {region: BoxNode; seen: Set<string>}): Box => {
+  const span = (visit: {region: FlatBox; seen: Set<string>}): Box => {
     const {region} = visit
     const seen = new Set([...visit.seen, region.id])
     return union([
@@ -1478,11 +1204,11 @@ function bandEnd(input: {box: Box; along: Along}): number {
   return input.along === 'y' ? input.box.y + input.box.h : input.box.x + input.box.w
 }
 
-function bands(input: {members: TargetNode[]; along: Along; gap: number}): TargetNode[][] {
+function bands(input: {members: Flat[]; along: Along; gap: number}): Flat[][] {
   const {along, gap} = input
   return input.members
     .toSorted((a, b) => bandStart({box: a.box, along}) - bandStart({box: b.box, along}))
-    .reduce<{groups: TargetNode[][]; end: number}>(
+    .reduce<{groups: Flat[][]; end: number}>(
       (sweep, node) => {
         const last = sweep.groups.at(-1)
         if (last === undefined || bandStart({box: node.box, along}) - sweep.end >= gap) {
@@ -1495,7 +1221,7 @@ function bands(input: {members: TargetNode[]; along: Along; gap: number}): Targe
     ).groups
 }
 
-function absorbed(input: {groups: TargetNode[][]; along: Along}): TargetNode[][] {
+function absorbed(input: {groups: Flat[][]; along: Along}): Flat[][] {
   const {groups, along} = input
   const index = groups.findIndex((group) => group.length === 1 && group[0]?.kind !== 'box')
   const lone = groups[index]
@@ -1520,7 +1246,7 @@ function absorbed(input: {groups: TargetNode[][]; along: Along}): TargetNode[][]
   return absorbed({groups: merged, along})
 }
 
-function holder(input: {box: Box; regions: BoxNode[]}): string | undefined {
+function holder(input: {box: Box; regions: FlatBox[]}): string | undefined {
   const [best] = input.regions
     .map((region) => {
       const shared = intersect({box: input.box, region: region.box})
@@ -1541,9 +1267,9 @@ function edgeDistance(input: {a: Box; b: Box}): number {
   return Math.hypot(across, down)
 }
 
-function regionNode(input: {members: TargetNode[]; parent: string | undefined}): BoxNode {
+function regionNode(input: {members: Flat[]; parent: string | undefined}): FlatBox {
   const box = union(input.members.map((node) => node.box))
-  const node: BoxNode = {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0}
+  const node: FlatBox = {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0, children: []}
   return input.parent === undefined ? node : {...node, within: input.parent}
 }
 
@@ -1612,297 +1338,13 @@ function smooth(input: {means: string[]; color: ColorMetric}): boolean {
   })
 }
 
-export const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
+const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
 
 export const TEXT_READERS = {paddle: paddleReader} as const satisfies Record<string, TextReader>
 
 export const SEGMENTERS = {threshold: thresholdSegmenter} as const satisfies Record<string, Segmenter>
 
 export const ROLE_RULES = {rules: roleRules} as const satisfies Record<string, RoleRules>
-
-const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
-
-export async function liveRoute(page: ServerToolPageAccess): Promise<string> {
-  const {pathname, search} = PageRouteSchema.parse(await page.call('page_route', {}))
-  return `${pathname}${search}`
-}
-
-export function pathnameIn(route: string): string {
-  return route.split('?')[0] ?? route
-}
-
-async function routeLabel(input: {route: string | undefined; page: ServerToolPageAccess}): Promise<string | undefined> {
-  if (input.route !== undefined) return input.route
-  return liveRoute(input.page).then(pathnameIn, () => undefined)
-}
-
-type Enriched = {model: TargetModel; failures: Record<string, string>}
-
-async function enrich(input: {model: TargetModel; design: DesignRuntime}): Promise<Enriched> {
-  const {design} = input
-  return design.enrichers.reduce<Promise<Enriched>>(
-    async (pending, enricher) => {
-      const {model, failures} = await pending
-      try {
-        const nodes = await enricher.run({model, raster: model.raster, runtime: design})
-        return {model: {...model, nodes}, failures}
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        return {model, failures: {...failures, [enricher.name]: message}}
-      }
-    },
-    Promise.resolve({model: input.model, failures: {}}),
-  )
-}
-
-function textResult(enriched: Enriched): NonNullable<TargetResult['text']> {
-  const runs = enriched.model.nodes.filter((node) => node.kind === 'text').length
-  const error = enriched.failures[TEXT_ENRICHER]
-  return error === undefined ? {runs} : {runs, error}
-}
-
-export async function registerTarget(request: {
-  input: TargetInput
-  session: string
-  design: DesignRuntime
-  page: ServerToolPageAccess
-}): Promise<TargetResult> {
-  const {input, session, design, page} = request
-  const requested = input.figma ?? input.image
-  if (requested === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
-  const ref = projectRef({ref: requested, cwd: design.cwd})
-  const adapter = design.adapters.find((candidate) => candidate.accepts({ref, project: design.project}))
-  if (adapter === undefined) {
-    throw input.figma === undefined
-      ? toolError('image-unreadable', {message: unreadableMessage(ref)})
-      : toolError('figma-link', {message: DESIGN_ERRORS['figma-link'].message})
-  }
-  const loaded = await adapter.load({
-    ref,
-    scale: input.scale ?? 1,
-    project: design.project,
-    document: input.document,
-    image: input.image === undefined ? undefined : projectRef({ref: input.image, cwd: design.cwd}),
-  })
-  const enriched = await enrich({model: loaded, design})
-  const route = await routeLabel({route: input.route, page})
-  const record = await design.store.put({
-    model: laidOut(enriched.model),
-    session,
-    ...(route === undefined ? {} : {route}),
-    ...(input.name === undefined ? {} : {name: input.name}),
-  })
-  return {
-    id: record.id,
-    ...(record.route === undefined ? {} : {route: record.route}),
-    width: record.width,
-    height: record.height,
-    scale: record.scale,
-    text: textResult(enriched),
-    next: DESIGN_GUIDE,
-  }
-}
-
-type Ink = {height: number; contrast: number}
-type Render = {text: string; font: string; size: number; weight: number; color: string; background: string}
-type TypeJob = {node: TextNode; owner: LiveComponent; color: string; background: string; ink: Box; contrast: number}
-type SizeFound = {size: number; confidence: number}
-
-const REGULAR_WEIGHT = 400
-const BOLD_WEIGHT = 700
-const HALF_STEPS = 2
-const MAX_CONTRAST = rgbDistance({a: [0, 0, 0], b: [255, 255, 255]})
-
-const RENDERED = new Map<string, Ink>()
-
-export async function estimateTypography(input: {
-  texts: {node: TextNode; owner: LiveComponent}[]
-  target: TargetModel
-  id: string
-  store: TargetStore
-  page: ServerToolPageAccess
-  color: ColorMetric
-}): Promise<{estimates: Record<string, Typography>; skipped: number}> {
-  const {page} = input
-  const jobs = typeJobs(input)
-  if (jobs.length === 0) return {estimates: {}, skipped: 0}
-  const skippedKeys = new Set(await renderInks({page, renders: jobs.map(liveRender)}))
-  const [skipped, rendered] = partition(jobs, (job) => skippedKeys.has(renderKey(liveRender(job))))
-  const estimates = Object.fromEntries(await Promise.all(rendered.map((job) => estimate({job, page}))))
-  await input.store.setTypography({id: input.id, typography: estimates})
-  return {estimates, skipped: skipped.length}
-}
-
-function typeJobs(input: {
-  texts: {node: TextNode; owner: LiveComponent}[]
-  target: TargetModel
-  color: ColorMetric
-}): TypeJob[] {
-  const {raster} = input.target
-  return uniqBy(input.texts, (entry) => entry.node.id)
-    .filter((entry) => needsEstimate({typography: entry.node.typography, live: entry.owner.styles.fontFamily}))
-    .map(({node, owner}) => {
-      const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
-      const fills = sampledFills({raster, box: area.box, glyphs: [node.box], color: input.color})
-      const background = rgbAt({raster: area.raster, index: 0})
-      const ink = ownInk({area, background})
-      return {
-        node,
-        owner,
-        color: fills.foreground ?? owner.styles.color,
-        background: fills.background,
-        ink,
-        contrast: contrast({raster, box: ink, background}),
-      }
-    })
-}
-
-function needsEstimate(input: {typography: Typography | undefined; live: string}): boolean {
-  const {typography} = input
-  if (typography === undefined) return true
-  if (typography.confidence === 1) return false
-  return !sameFamily({a: typography.font, b: input.live})
-}
-
-function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {
-  const {raster, box} = input.area
-  const {width, height} = raster
-  const mask = Uint8Array.from(range(width * height), (index) => {
-    const pixel = rgbAt({raster, index})
-    const apart = pixel.some(
-      (channel, at) => Math.abs(channel - (input.background[at] ?? channel)) > TOLERANCES.inkTrimThreshold,
-    )
-    return apart ? 1 : 0
-  })
-  const inside = labelRegions({mask, width, height}).regions.filter(
-    (region) =>
-      region.box.x > 0 &&
-      region.box.y > 0 &&
-      region.box.x + region.box.w < width &&
-      region.box.y + region.box.h < height,
-  )
-  if (inside.length === 0) return trimToInk({raster, box: {x: 0, y: 0, w: width, h: height}})
-  const own = union(inside.map((region) => region.box))
-  return {...own, x: own.x + box.x, y: own.y + box.y}
-}
-
-function liveRender(job: TypeJob): Render {
-  return renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})
-}
-
-function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {
-  const {job} = input
-  return {
-    text: job.node.text,
-    font: job.owner.styles.fontFamily,
-    size: input.size,
-    weight: input.weight,
-    color: job.color,
-    background: job.background,
-  }
-}
-
-async function renderInks(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
-  const missing = uniqBy(
-    input.renders.filter((render) => !RENDERED.has(renderKey(render))),
-    renderKey,
-  )
-  return chunk(missing, TOLERANCES.renderChunk).reduce<Promise<string[]>>(
-    async (before, renders) => [...(await before), ...(await renderChunk({page: input.page, renders}))],
-    Promise.resolve([]),
-  )
-}
-
-async function renderChunk(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
-  const reply = await input.page
-    .call(renderDef.name, {renders: input.renders, timeout: TOLERANCES.measureTimeoutMs})
-    .then((result) => RenderResultSchema.parse(result))
-    .catch(() => null)
-  if (reply === null) return input.renders.map(renderKey)
-  zip(input.renders, reply.images).forEach(([render, image]) => {
-    if (render === undefined || image === undefined) return
-    RENDERED.set(renderKey(render), inkOf(decodePng(Buffer.from(image, 'base64'))))
-  })
-  return []
-}
-
-function renderKey(render: Render): string {
-  return [render.text, render.font, render.color, render.background, render.size, render.weight].join('|')
-}
-
-function inkOf(raster: Raster): Ink {
-  const box = trimToInk({raster, box: {x: 0, y: 0, w: raster.width, h: raster.height}})
-  return {height: box.h, contrast: contrast({raster, box, background: rgbAt({raster, index: 0})})}
-}
-
-function contrast(input: {raster: Raster; box: Box; background: Rgb}): number {
-  const {raster, box, background} = input
-  const area = box.w * box.h
-  if (area <= 0) return 0
-  let total = 0
-  for (let y = box.y; y < box.y + box.h; y += 1) {
-    for (let x = box.x; x < box.x + box.w; x += 1) {
-      total += rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background})
-    }
-  }
-  return total / (area * MAX_CONTRAST)
-}
-
-async function estimate(input: {job: TypeJob; page: ServerToolPageAccess}): Promise<[string, Typography]> {
-  const {job, page} = input
-  const {fontSize, fontWeight, fontFamily, lineHeight} = job.owner.styles
-  const found = await sizeFound({job, page, live: fontSize})
-  const regular = await inkAt({page, render: renderAt({job, size: found.size, weight: REGULAR_WEIGHT})})
-  const ratio = regular.contrast === 0 ? 1 : job.contrast / regular.contrast
-  return [
-    job.node.id,
-    {
-      size: found.size,
-      lineHeight: (lineHeight * found.size) / fontSize,
-      weight: weightBy({ratio, live: fontWeight}),
-      confidence: found.confidence,
-      font: fontFamily,
-      family: null,
-    },
-  ]
-}
-
-async function inkAt(input: {page: ServerToolPageAccess; render: Render}): Promise<Ink> {
-  await renderInks({page: input.page, renders: [input.render]})
-  return RENDERED.get(renderKey(input.render)) ?? {height: 0, contrast: 0}
-}
-
-async function sizeFound(input: {job: TypeJob; page: ServerToolPageAccess; live: number}): Promise<SizeFound> {
-  const {job, page, live} = input
-  const wanted = job.ink.h
-  const height = async (size: number): Promise<number> =>
-    (await inkAt({page, render: renderAt({job, size, weight: job.owner.styles.fontWeight})})).height
-  const atLive = await height(live)
-  if (atLive === wanted) return {size: live, confidence: 1}
-  const span = {from: TOLERANCES.typeSearchMin, to: TOLERANCES.typeSearchMax + 1}
-  const low = await lowest({...span, test: async (size) => (await height(size)) >= wanted})
-  const high = (await lowest({...span, test: async (size) => (await height(size)) > wanted})) - 1
-  if (low <= high) return {size: (low + high) / 2, confidence: 1}
-  const ratio = atLive === 0 ? 1 : wanted / atLive
-  return {size: Math.round(live * ratio * HALF_STEPS) / HALF_STEPS, confidence: TOLERANCES.ratioConfidence}
-}
-
-async function lowest(input: {from: number; to: number; test: (size: number) => Promise<boolean>}): Promise<number> {
-  if (input.from >= input.to) return input.from
-  const middle = Math.floor((input.from + input.to) / 2)
-  if (await input.test(middle)) return lowest({...input, to: middle})
-  return lowest({...input, from: middle + 1})
-}
-
-function weightBy(input: {ratio: number; live: number}): number {
-  if (input.ratio >= TOLERANCES.boldCoverage) return BOLD_WEIGHT
-  if (input.ratio <= TOLERANCES.regularCoverage) return REGULAR_WEIGHT
-  return input.live
-}
-
-function projectRef(input: {ref: string; cwd: string}): string {
-  return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
-}
 
 async function readRaw(input: {storage: Storage; key: string}): Promise<Uint8Array | null> {
   const raw: unknown = await input.storage.getItemRaw(input.key).catch(() => null)

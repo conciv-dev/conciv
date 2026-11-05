@@ -2,16 +2,19 @@ import pixelmatch from 'pixelmatch'
 import {diff} from '@blazediff/core'
 import {z} from 'zod'
 import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
-import {groupBy, keyBy, mapValues, maxBy, omit, partition, pick, range, uniq, uniqBy} from 'es-toolkit'
+import {chunk, groupBy, keyBy, mapValues, maxBy, omit, partition, pick, range, uniq, uniqBy, zip} from 'es-toolkit'
 import {isPageVerbError, toolError, type AnyToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {createHash} from 'node:crypto'
-import {basename, relative} from 'node:path'
+import {basename, isAbsolute, relative} from 'node:path'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {
   BLIND_FIELDS,
   BoxSchema,
+  DESIGN_ERRORS,
+  renderDef,
+  RenderResultSchema,
   captureDef,
   clearDef,
   DESIGN_GUIDE,
@@ -40,12 +43,17 @@ import {
   type CompactReport,
   type ComponentReport,
   type DeltaKindName,
+  type Design,
+  type DesignNode,
   type DiffInput,
   type DiffReport,
   type Ledger,
   type Stage,
   type StatusReport,
   type Stop,
+  type TargetInput,
+  type TargetResult,
+  type Typography,
   type WatchInput,
   type WatchRow,
   type WinnerInput,
@@ -59,8 +67,10 @@ import {
   iconSized,
   kindStage,
   LIBRARY_SHEET_MARKER,
+  sameFamily,
   TOLERANCES,
 } from '../shared/tolerances.js'
+import {walk} from '../shared/tree.js'
 import {
   PLACEHOLDER_KINDS,
   type Box,
@@ -96,7 +106,6 @@ import {
   type TargetRecord,
   type TargetStore,
   type TextGroup,
-  type TextNode,
   type TextRun,
   type TileCache,
   type TileRecord,
@@ -171,9 +180,14 @@ import {
   glyphCoreColor,
   isOpaqueHex,
   opinionSide,
+  readPng,
+  rgbAt,
+  rgbDistance,
+  labelRegions,
+  sampledFills,
   sideFrom,
+  type Rgb,
 } from './raster.js'
-import {estimateTypography, liveRoute, pathnameIn, registerTarget, segmentationQuality} from './target.js'
 import postcss, {AtRule, type Container, type Document, type Root} from 'postcss'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
@@ -207,7 +221,7 @@ export function createDiffer(input: {runtime: DesignRuntime; store: TargetStore;
   })
   return {
     register: async ({input: target, session}) => {
-      const previous = await store.current({session})
+      const previous = await store.current(session)
       const result = await registerTarget({input: target, session, design, page: tab(session)})
       const fresh = previous?.id !== result.id || history.rounds(result.id).length === 0
       if (fresh) history.reset(result.id)
@@ -2108,7 +2122,7 @@ function foundAt(input: {wanted: string[]; among: string[]; from: number}): numb
 
 function misaligned(input: {liveItems: TextItem[]; targetText: string}): {item: TextItem; remainder: string} | null {
   const target = wordsOf(input.targetText)
-  const walk = input.liveItems.reduce<{cursor: number; missing: TextItem | null}>(
+  const scan = input.liveItems.reduce<{cursor: number; missing: TextItem | null}>(
     (state, item) => {
       if (state.missing !== null) return state
       const wanted = wordsOf(item.text)
@@ -2117,8 +2131,8 @@ function misaligned(input: {liveItems: TextItem[]; targetText: string}): {item: 
     },
     {cursor: 0, missing: null},
   )
-  if (walk.missing === null) return null
-  return {item: walk.missing, remainder: target.slice(walk.cursor).join(' ')}
+  if (scan.missing === null) return null
+  return {item: scan.missing, remainder: target.slice(scan.cursor).join(' ')}
 }
 
 type Constituent = {item: TextItem; trimmed: Box[]; agrees: boolean}
@@ -2263,7 +2277,7 @@ function watchMatches(input: {row: WatchRow; query: WatchInput}): boolean {
 }
 
 async function currentTarget(input: {design: DesignRuntime; session: string}): Promise<TargetRecord> {
-  const record = await input.design.store.current({session: input.session})
+  const record = await input.design.store.current(input.session)
   if (record !== null) return record
   throw toolError('no-target', {message: NO_TARGET_MESSAGE})
 }
@@ -3157,4 +3171,270 @@ function projectFiles(cwd: string): Storage {
 async function readText(input: {project: Storage; file: string}): Promise<string | null> {
   const raw: unknown = await input.project.getItemRaw(input.file).catch(() => null)
   return raw instanceof Uint8Array ? new TextDecoder().decode(raw) : null
+}
+
+async function registerTarget(request: {
+  input: TargetInput
+  session: string
+  design: DesignRuntime
+  page: ServerToolPageAccess
+}): Promise<TargetResult> {
+  const {input, session, design, page} = request
+  const {cwd, project} = design
+  const requested = input.figma ?? input.image
+  if (requested === undefined) throw toolError('image-unreadable', {message: 'pass image or figma'})
+  const ref = projectRef({ref: requested, cwd})
+  const image =
+    input.image === undefined ? undefined : await readPng({ref: projectRef({ref: input.image, cwd}), project})
+  const attachments = {
+    ...(input.document === undefined ? {} : {document: input.document}),
+    ...(image === undefined ? {} : {image}),
+  }
+  const adapter = design.adapters.find((candidate) => candidate.accepts({ref, project}))
+  if (adapter === undefined) throw toolError('image-unreadable', {message: DESIGN_ERRORS['image-unreadable'].message})
+  const loaded = await adapter.load({ref, scale: input.scale ?? 1, project, attachments})
+  const route = await routeLabel({route: input.route, page})
+  const record = await design.store.put({
+    design: loaded.design,
+    image: loaded.image,
+    session,
+    ...(route === undefined ? {} : {route}),
+    ...(input.name === undefined ? {} : {name: input.name}),
+  })
+  return {
+    id: record.id,
+    ...(record.route === undefined ? {} : {route: record.route}),
+    width: record.width,
+    height: record.height,
+    scale: record.scale,
+    text: {runs: [...walk({root: loaded.design.root})].filter(({node}) => node.kind === 'text').length},
+    next: DESIGN_GUIDE,
+  }
+}
+
+const PageRouteSchema = z.object({pathname: z.string(), search: z.string()})
+
+async function liveRoute(page: ServerToolPageAccess): Promise<string> {
+  const {pathname, search} = PageRouteSchema.parse(await page.call('page_route', {}))
+  return `${pathname}${search}`
+}
+
+function pathnameIn(route: string): string {
+  return route.split('?')[0] ?? route
+}
+
+async function routeLabel(input: {route: string | undefined; page: ServerToolPageAccess}): Promise<string | undefined> {
+  if (input.route !== undefined) return input.route
+  return liveRoute(input.page).then(pathnameIn, () => undefined)
+}
+
+type Ink = {height: number; contrast: number}
+type Render = {text: string; font: string; size: number; weight: number; color: string; background: string}
+type TextNode = Extract<DesignNode, {kind: 'text'}>
+type TypeJob = {node: TextNode; owner: LiveComponent; color: string; background: string; ink: Box; contrast: number}
+type SizeFound = {size: number; confidence: number}
+
+const REGULAR_WEIGHT = 400
+const BOLD_WEIGHT = 700
+const HALF_STEPS = 2
+const MAX_CONTRAST = rgbDistance({a: [0, 0, 0], b: [255, 255, 255]})
+
+const RENDERED = new Map<string, Ink>()
+
+async function estimateTypography(input: {
+  texts: {node: TextNode; owner: LiveComponent}[]
+  raster: Raster
+  page: ServerToolPageAccess
+  color: ColorMetric
+}): Promise<{estimates: Record<string, Typography>; skipped: number}> {
+  const {page} = input
+  const jobs = typeJobs(input)
+  if (jobs.length === 0) return {estimates: {}, skipped: 0}
+  const skippedKeys = new Set(await renderInks({page, renders: jobs.map(liveRender)}))
+  const [skipped, rendered] = partition(jobs, (job) => skippedKeys.has(renderKey(liveRender(job))))
+  const estimates = Object.fromEntries(await Promise.all(rendered.map((job) => estimate({job, page}))))
+  return {estimates, skipped: skipped.length}
+}
+
+function typeJobs(input: {
+  texts: {node: TextNode; owner: LiveComponent}[]
+  raster: Raster
+  color: ColorMetric
+}): TypeJob[] {
+  const {raster} = input
+  return uniqBy(input.texts, (entry) => entry.node.id)
+    .filter((entry) => needsEstimate({typography: entry.node.typography, live: entry.owner.styles.fontFamily}))
+    .map(({node, owner}) => {
+      const area = crop({raster, box: node.box, margin: TOLERANCES.typeHalo})
+      const fills = sampledFills({raster, box: area.box, glyphs: [node.box], color: input.color})
+      const background = rgbAt({raster: area.raster, index: 0})
+      const ink = ownInk({area, background})
+      return {
+        node,
+        owner,
+        color: fills.foreground ?? owner.styles.color,
+        background: fills.background,
+        ink,
+        contrast: contrast({raster, box: ink, background}),
+      }
+    })
+}
+
+function needsEstimate(input: {typography: Typography | undefined; live: string}): boolean {
+  const {typography} = input
+  if (typography === undefined) return true
+  if (typography.confidence === 1) return false
+  return !sameFamily({a: typography.font, b: input.live})
+}
+
+function ownInk(input: {area: {raster: Raster; box: Box}; background: Rgb}): Box {
+  const {raster, box} = input.area
+  const {width, height} = raster
+  const mask = Uint8Array.from(range(width * height), (index) => {
+    const pixel = rgbAt({raster, index})
+    const apart = pixel.some(
+      (channel, at) => Math.abs(channel - (input.background[at] ?? channel)) > TOLERANCES.inkTrimThreshold,
+    )
+    return apart ? 1 : 0
+  })
+  const inside = labelRegions({mask, width, height}).regions.filter(
+    (region) =>
+      region.box.x > 0 &&
+      region.box.y > 0 &&
+      region.box.x + region.box.w < width &&
+      region.box.y + region.box.h < height,
+  )
+  if (inside.length === 0) return trimToInk({raster, box: {x: 0, y: 0, w: width, h: height}})
+  const own = union(inside.map((region) => region.box))
+  return {...own, x: own.x + box.x, y: own.y + box.y}
+}
+
+function liveRender(job: TypeJob): Render {
+  return renderAt({job, size: job.owner.styles.fontSize, weight: job.owner.styles.fontWeight})
+}
+
+function renderAt(input: {job: TypeJob; size: number; weight: number}): Render {
+  const {job} = input
+  return {
+    text: job.node.text,
+    font: job.owner.styles.fontFamily,
+    size: input.size,
+    weight: input.weight,
+    color: job.color,
+    background: job.background,
+  }
+}
+
+async function renderInks(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
+  const missing = uniqBy(
+    input.renders.filter((render) => !RENDERED.has(renderKey(render))),
+    renderKey,
+  )
+  return chunk(missing, TOLERANCES.renderChunk).reduce<Promise<string[]>>(
+    async (before, renders) => [...(await before), ...(await renderChunk({page: input.page, renders}))],
+    Promise.resolve([]),
+  )
+}
+
+async function renderChunk(input: {page: ServerToolPageAccess; renders: Render[]}): Promise<string[]> {
+  const reply = await input.page
+    .call(renderDef.name, {renders: input.renders, timeout: TOLERANCES.measureTimeoutMs})
+    .then((result) => RenderResultSchema.parse(result))
+    .catch(() => null)
+  if (reply === null) return input.renders.map(renderKey)
+  zip(input.renders, reply.images).forEach(([render, image]) => {
+    if (render === undefined || image === undefined) return
+    RENDERED.set(renderKey(render), inkOf(decodePng(Buffer.from(image, 'base64'))))
+  })
+  return []
+}
+
+function renderKey(render: Render): string {
+  return [render.text, render.font, render.color, render.background, render.size, render.weight].join('|')
+}
+
+function inkOf(raster: Raster): Ink {
+  const box = trimToInk({raster, box: {x: 0, y: 0, w: raster.width, h: raster.height}})
+  return {height: box.h, contrast: contrast({raster, box, background: rgbAt({raster, index: 0})})}
+}
+
+function contrast(input: {raster: Raster; box: Box; background: Rgb}): number {
+  const {raster, box, background} = input
+  const area = box.w * box.h
+  if (area <= 0) return 0
+  let total = 0
+  for (let y = box.y; y < box.y + box.h; y += 1) {
+    for (let x = box.x; x < box.x + box.w; x += 1) {
+      total += rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background})
+    }
+  }
+  return total / (area * MAX_CONTRAST)
+}
+
+async function estimate(input: {job: TypeJob; page: ServerToolPageAccess}): Promise<[string, Typography]> {
+  const {job, page} = input
+  const {fontSize, fontWeight, fontFamily, lineHeight} = job.owner.styles
+  const found = await sizeFound({job, page, live: fontSize})
+  const regular = await inkAt({page, render: renderAt({job, size: found.size, weight: REGULAR_WEIGHT})})
+  const ratio = regular.contrast === 0 ? 1 : job.contrast / regular.contrast
+  return [
+    job.node.id,
+    {
+      size: found.size,
+      lineHeight: (lineHeight * found.size) / fontSize,
+      weight: weightBy({ratio, live: fontWeight}),
+      confidence: found.confidence,
+      font: fontFamily,
+      family: null,
+    },
+  ]
+}
+
+async function inkAt(input: {page: ServerToolPageAccess; render: Render}): Promise<Ink> {
+  await renderInks({page: input.page, renders: [input.render]})
+  return RENDERED.get(renderKey(input.render)) ?? {height: 0, contrast: 0}
+}
+
+async function sizeFound(input: {job: TypeJob; page: ServerToolPageAccess; live: number}): Promise<SizeFound> {
+  const {job, page, live} = input
+  const wanted = job.ink.h
+  const height = async (size: number): Promise<number> =>
+    (await inkAt({page, render: renderAt({job, size, weight: job.owner.styles.fontWeight})})).height
+  const atLive = await height(live)
+  if (atLive === wanted) return {size: live, confidence: 1}
+  const span = {from: TOLERANCES.typeSearchMin, to: TOLERANCES.typeSearchMax + 1}
+  const low = await lowest({...span, test: async (size) => (await height(size)) >= wanted})
+  const high = (await lowest({...span, test: async (size) => (await height(size)) > wanted})) - 1
+  if (low <= high) return {size: (low + high) / 2, confidence: 1}
+  const ratio = atLive === 0 ? 1 : wanted / atLive
+  return {size: Math.round(live * ratio * HALF_STEPS) / HALF_STEPS, confidence: TOLERANCES.ratioConfidence}
+}
+
+async function lowest(input: {from: number; to: number; test: (size: number) => Promise<boolean>}): Promise<number> {
+  if (input.from >= input.to) return input.from
+  const middle = Math.floor((input.from + input.to) / 2)
+  if (await input.test(middle)) return lowest({...input, to: middle})
+  return lowest({...input, from: middle + 1})
+}
+
+function weightBy(input: {ratio: number; live: number}): number {
+  if (input.ratio >= TOLERANCES.boldCoverage) return BOLD_WEIGHT
+  if (input.ratio <= TOLERANCES.regularCoverage) return REGULAR_WEIGHT
+  return input.live
+}
+
+function projectRef(input: {ref: string; cwd: string}): string {
+  return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
+}
+
+function segmentationQuality(design: Design): 'full' | 'partial' {
+  const page = design.viewport.width * design.viewport.height
+  const covered = [...walk({root: design.root})]
+    .filter(({node, parent}) => node.kind === 'image' && parent !== null && regionLike({parent, root: design.root}))
+    .reduce((sum, {node}) => sum + node.box.w * node.box.h, 0)
+  return page > 0 && covered / page > TOLERANCES.segmentImageShare ? 'partial' : 'full'
+}
+
+function regionLike(input: {parent: DesignNode; root: DesignNode}): boolean {
+  return input.parent === input.root || (input.parent.kind === 'box' && input.parent.paint === undefined)
 }

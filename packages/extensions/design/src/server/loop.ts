@@ -5,6 +5,8 @@ import {
   STAGES,
   type Changes,
   type ContainerLayout,
+  type Design,
+  type DesignNode,
   type DiffInput,
   type DiffReport,
   type Ledger,
@@ -54,6 +56,7 @@ import type {
 } from '../shared/types.js'
 import {fingerprint, glyphRun, placement, type Seat, type Shift, type Tree} from './pair.js'
 import {encloses, union} from './raster.js'
+import {walk} from '../shared/tree.js'
 
 export type Round = {
   score: number[]
@@ -1011,14 +1014,14 @@ const INDENT = '  '
 const SECTION_DEPTH = 1
 
 type StoredModel = Omit<TargetModel, 'raster'>
-type StoredNode = TargetNode
+type StoredNode = DesignNode
 
-export function designOutline(model: StoredModel): string[] {
-  const {scale} = model
-  const root = `page ${sized({box: model.root.box, scale})}${layoutPhrase(model.root.layout)}`
-  const families = designFamilies(model.nodes)
+export function designOutline(design: Design): string[] {
+  const {scale, root} = design
+  const page = `page ${sized({box: root.box, scale})}${layoutPhrase(root.layout)}`
+  const families = designFamilies([...walk({root})].map(({node}) => node))
   const fonts = families.length === 0 ? [] : [`fonts: ${families.join(', ')}`]
-  return [root, ...fonts, ...outlineLines({nodes: model.nodes, children: topNodes(model), depth: SECTION_DEPTH, scale})]
+  return [page, ...fonts, ...outlineLines({children: root.children, depth: SECTION_DEPTH, scale})]
 }
 
 function topNodes(model: StoredModel): StoredNode[] {
@@ -1026,13 +1029,13 @@ function topNodes(model: StoredModel): StoredNode[] {
   return model.nodes.filter((node) => node.within === undefined || !ids.has(node.within))
 }
 
-function outlineLines(input: {nodes: StoredNode[]; children: StoredNode[]; depth: number; scale: number}): string[] {
-  const {nodes, depth, scale} = input
+function outlineLines(input: {children: StoredNode[]; depth: number; scale: number}): string[] {
+  const {depth, scale} = input
   return input.children
     .toSorted(documentOrder)
     .flatMap((node) => [
       `${INDENT.repeat(depth)}${depth === SECTION_DEPTH ? `section ${node.id} ` : ''}${nodeLine({node, scale})}`,
-      ...outlineLines({nodes, children: nodes.filter((child) => child.within === node.id), depth: depth + 1, scale}),
+      ...outlineLines({children: node.children, depth: depth + 1, scale}),
     ])
 }
 
@@ -1060,12 +1063,7 @@ function descendants(input: {children: Record<string, StoredNode[]>; id: string}
 }
 
 function documentOrder(a: StoredNode, b: StoredNode): number {
-  return (
-    (a.layout?.index ?? 0) - (b.layout?.index ?? 0) ||
-    a.box.y - b.box.y ||
-    a.box.x - b.box.x ||
-    a.id.localeCompare(b.id)
-  )
+  return a.box.y - b.box.y || a.box.x - b.box.x || a.id.localeCompare(b.id)
 }
 
 function nodeLine(input: {node: StoredNode; scale: number}): string {

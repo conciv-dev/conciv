@@ -17,15 +17,8 @@ import {
 import type {Box, CssMap, DesignRuntime, Differ, Raster} from './shared/types.js'
 import {find, walk} from './shared/tree.js'
 import {besides, COLOR_METRICS, cutout, decodePng, DELTA_KINDS, downscale, encodePng} from './server/raster.js'
-import {
-  createFigmaAdapter,
-  destroyPaddle,
-  ENRICHERS,
-  imageAdapter,
-  ROLE_RULES,
-  SEGMENTERS,
-  TEXT_READERS,
-} from './server/target.js'
+import {createFigmaAdapter} from './server/sources/figma.js'
+import {createImageAdapter, destroyPaddle, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/sources/image.js'
 import {buildCssMap, createDiffer, MAPPERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
 import {watchSettled} from './server/loop.js'
 import {PAIRERS, RANKERS} from './server/pair.js'
@@ -44,6 +37,7 @@ function pickRuntime(input: {
   server: ServerApi<DesignConfig>
 }): Omit<DesignRuntime, 'store' | 'state' | 'project' | 'cssMap' | 'xrayUrl'> {
   const {config} = input
+  const roles = ROLE_RULES[config.roles]
   return {
     cwd: input.server.cwd,
     blind: config.blind,
@@ -54,10 +48,10 @@ function pickRuntime(input: {
     },
     pairer: PAIRERS[config.pairer],
     ranker: RANKERS[config.ranker],
-    adapters: [imageAdapter, createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null})],
-    enrichers: ENRICHERS,
-    segmenter: SEGMENTERS[config.segmenter],
-    roles: ROLE_RULES[config.roles],
+    adapters: [
+      createImageAdapter({reader: TEXT_READERS[config.text], segmenter: SEGMENTERS[config.segmenter], roles}),
+      createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, roles}),
+    ],
     deltaKinds: DELTA_KINDS,
     mappers: MAPPERS,
   }

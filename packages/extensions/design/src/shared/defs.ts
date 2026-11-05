@@ -268,16 +268,17 @@ const DesignNodeKindSchema = z.discriminatedUnion('kind', [
   z.object({kind: z.literal('image'), holds: z.number()}),
 ])
 
-export const DesignNodeSchema = z
-  .object({
-    id: z.string().describe('from the source: the Figma node id, or the image hash plus an index'),
-    box: BoxSchema.describe('design px'),
-    layout: ContainerLayoutSchema.optional(),
-    get children() {
-      return z.array(DesignNodeSchema)
-    },
-  })
-  .and(DesignNodeKindSchema)
+const DesignNodeBaseSchema = z.object({
+  id: z.string().describe('from the source: the Figma node id, or the image hash plus an index'),
+  box: BoxSchema.describe('design px'),
+  layout: ContainerLayoutSchema.optional(),
+})
+
+export const DesignNodeSchema = DesignNodeBaseSchema.extend({
+  get children() {
+    return z.array(DesignNodeSchema)
+  },
+}).and(DesignNodeKindSchema)
 
 export const DesignSchema = z.object({
   id: z.string(),
@@ -288,8 +289,8 @@ export const DesignSchema = z.object({
 })
 
 export const MatchSchema = z.object({
-  node: DesignNodeSchema,
-  live: LiveComponentSchema.nullable().describe('null when the node is unbuilt'),
+  node: DesignNodeBaseSchema.and(DesignNodeKindSchema),
+  live: LiveComponentSchema.omit({children: true}).nullable().describe('null when the node is unbuilt'),
   confidence: z.number(),
   source: MeasureSourceSchema,
   deltas: z.array(DeltaSchema).describe('empty when the node is clean'),
@@ -373,8 +374,10 @@ export type Ranker = (input: {items: Item[]}) => Item[]
 export type TargetAdapter = {
   kind: string
   accepts(input: {ref: string; project: Storage}): boolean
-  load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Design>
+  load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Loaded>
 }
+
+export type Loaded = {design: Design; image: Uint8Array}
 
 export type Store = {
   put(input: {design: Design; image: Uint8Array; session: string; route?: string; name?: string}): Promise<TargetRecord>
@@ -393,6 +396,7 @@ export type Store = {
   revoke(input: {id: string; decision: string}): Promise<boolean>
   accept(input: {id: string; run: string}): Promise<TargetRecord>
   writeCapture(png: Uint8Array): Promise<string>
+  path(key: string): string | null
 }
 
 export type Words = {

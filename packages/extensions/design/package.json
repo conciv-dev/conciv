@@ -57,8 +57,8 @@
       "import": "./dist/server/differ.js"
     },
     "./paddle": {
-      "types": "./dist/server/target.d.ts",
-      "import": "./dist/server/target.js"
+      "types": "./dist/server/sources/image.d.ts",
+      "import": "./dist/server/sources/image.js"
     },
     "./colors": {
       "types": "./dist/server/raster.d.ts",

@@ -171,6 +171,10 @@ type Store = {
 }
 ```
 
+Keys that the fs driver turns into both a file and a directory are not allowed, so a run's JSON sits at `<target>:runs:<run>:run` beside its `live.png` and `diff.png`; image keys end in `.png` so the x-ray serves them by type.
+
+Agents read some artifacts by file path (the design outline, the placeholder source, the live and diff images). The store exposes `path(key)`, the fs driver's base joined with the key, and writes the outline and the placeholder as `<target>:design.txt` and `<target>:placeholder.tsx` when `put` runs. A typography override is a `Decision` of kind `typography`, not a write into the design.
+
 Tests build the store over `memoryDriver()`; no temp directories. The brief text and the placeholder source are written from the design on demand, not stored. Pruning old runs is `getKeys(`${target}:runs`)` and `removeItem`, not directory listing by filename prefix.
 
 ## Pairing

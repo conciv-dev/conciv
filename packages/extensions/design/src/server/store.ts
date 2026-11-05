@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {join, resolve} from 'node:path'
 import {toolError} from '@conciv/extension'
 import type {Storage} from 'unstorage'
 import {z} from 'zod'
@@ -12,11 +13,13 @@ import {
   type TargetRecord,
 } from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
+import {designOutline, placeholderSource} from './loop.js'
 
 const RUNS_KEPT = 5
 const RUN_KEY = 'run'
 const RECORD_KEY = 'record'
 const CAPTURES = 'captures'
+const DriverBaseSchema = z.object({base: z.string()})
 
 export function createStore(state: Storage): Store {
   const queue: {tail: Promise<unknown>} = {tail: Promise.resolve()}
@@ -75,6 +78,8 @@ export function createStore(state: Storage): Store {
         const earlier = await record(design.id)
         await state.setItemRaw(targetKey(design.id), image)
         await state.setItem(`${design.id}:design`, design)
+        await state.setItem(`${design.id}:design.txt`, designOutline(design).join('\n'))
+        await state.setItem(`${design.id}:placeholder.tsx`, placeholderSource('react'))
         return writeRecord({
           id: design.id,
           session,
@@ -147,6 +152,12 @@ export function createStore(state: Storage): Store {
       const stale = all.slice(0, Math.max(0, all.length - TOLERANCES.runsKept))
       await Promise.all(stale.map((old) => state.removeItem(old)))
       return key
+    },
+    path: (key) => {
+      const mount = state.getMount(key)
+      const driver = DriverBaseSchema.safeParse(mount.driver.options)
+      if (!driver.success) return null
+      return join(resolve(driver.data.base), ...key.slice(mount.base.length).split(':'))
     },
   }
 }
