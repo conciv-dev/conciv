@@ -41,7 +41,7 @@ src/
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
     raster.ts          pure pixel and box operations
     store.ts           the target store on disk
-    ledger.ts          the node ledger: statuses per run, the changes against the ledger before, the carried pairs
+    ledger.ts          the node ledger: statuses per run, the changes against the ledger before, the carried pairs, the watch rows
     pair.ts            PAIRERS (the calibrated vote), RANKERS (impact), the pair tree, alignment offsets and pairTwins
     loop.ts            items, stages, score, brief and stop rules, round history, the run queue and the HMR settle trigger
     differ.ts          PIXEL_COMPARATORS, text groups, the diff run, unbuilt, extra and offset entries, and the tool bindings
@@ -192,6 +192,14 @@ x-ray page shell. `test/dev-fixture.ts` is the sample data `dev:xray` shows with
   longer be read. `sections` lists the sections in document order as `{id, kind, line, ledger, roundsUsed}`: the node
   id, its kind, its outline line without the `section` prefix, the ledger counts over its subtree (zeros before the
   first ledger), and the counted rounds scoped to it that changed a node of it (see `budget` above).
+- `design_watch` returns the live mapping of design nodes to the page, one row per design node in model order:
+  `node`, `ref`, `kind`, `text`, `box`, the ledger `status`, and from the node's last live pair the element's `key`
+  (its `data-conciv-key`), `source`, `path` and `confidence`, with `item`, the node's worst open item as a sentence. It
+  runs no diff, captures nothing and writes nothing: it reads the ledger the page watcher refreshed after the last
+  HMR settle first and the stored ledger second, and `live` is true when the first is newer than the second. `key`,
+  `ref`, `node` and `status` filter the rows and combine; a filter nothing matches returns no rows, not an error.
+  `ref` is the Figma node id for a Figma target and null for an image target. Before the first run every row is
+  `unbuilt` with no `key`. `limit` (400) bounds the rows and `truncated` counts the rest.
 - `design_capture`, `design_winner` and `design_clear` capture the page, name the CSS declaration that wins a
   property, and remove targets.
 
@@ -469,7 +477,8 @@ and a pair, once made, stays until its element is gone or no longer passes the p
   never listed. When a ledger existed before the run, the first brief line is the summary, `since round 2: 12
   done, 3 regressed ("Daybreak Yoga" lost its element), 5 paired` (second, after the `stalled` line, when the run
   stalled), and the stage's items of regressed nodes rank first.
-  `design_status.changes` holds the latest run's changes.
+  `design_status.changes` holds the latest run's changes. `design_watch` exposes the ledger row by row, joined with each
+  node's design id, kind, text and box.
 - **Crops.** `GET …/xray/node?target=<id>&node=<node>[&run=<run>]` answers a PNG encoded on request: the design crop
   and the live crop of the node, side by side with a 4 px gap, each the node's design box grown by `tileMargin` on
   every side in CSS px, the live one placed at the element the run paired (from `pairs-<run>.json`, the latest run by
@@ -587,7 +596,7 @@ Each delta names the source that measured it, and each report lists the sources 
 `docs/designs/trials/` holds one record per trial: the rounds an agent ran against a design image, with the brief,
 the score and the edit of every round, and where the loop misled it. Run one from `packages/it` with
 `pnpm trial --route '/?variant=<name>' --width <px> --image <png> [--agent] [--blind]`, then type `diff`, `status`,
-`pin <node> <path>`, `mark <kind> <node> [value]`, `accept`, `screenshot <file>` or `quit`; `--agent` boots the real
+`watch [key|ref=<id>|node=<id>|status=<status>]`, `pin <node> <path>`, `mark <kind> <node> [value]`, `accept`, `screenshot <file>` or `quit`; `--agent` boots the real
 harness (`claude` on PATH, or `CONCIV_HARNESS_BIN`) instead of a stub, `--blind` sets the design extension's `blind`
 option so the agent's `design_diff` results carry no `livePath`, `diffImage` or `capturePath` and its design guide
 forbids opening a png or taking a screenshot, and `pnpm trial --render <dir>` writes the

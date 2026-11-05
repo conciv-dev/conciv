@@ -13,7 +13,14 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {makeExtRpcClient} from '@conciv/extension'
-import {CompactReportSchema, MARK_KINDS, type CompactReport, type TargetInput} from '@conciv/extension-design/defs'
+import {
+  CompactReportSchema,
+  MARK_KINDS,
+  WatchReportSchema,
+  type CompactReport,
+  type TargetInput,
+  type WatchRow,
+} from '@conciv/extension-design/defs'
 import type {XrayRouter} from '@conciv/extension-design/xray-routes'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
@@ -22,6 +29,7 @@ const HOST_ROOT = fileURLToPath(new URL('../test/fixtures/design/host/', import.
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const TAB_HEIGHT = 720
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const WATCH_FIELDS = ['ref', 'node', 'status'] as const
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -70,6 +78,18 @@ const COMMANDS: Record<string, Command> = {
   },
   status: async ({trial}) => {
     print(JSON.stringify(await trial.rpc.registry.call({name: 'design_status', input: {}})))
+  },
+  watch: async ({trial, args}) => {
+    const report = WatchReportSchema.parse(
+      await trial.rpc.registry.call({name: 'design_watch', input: watchQuery(args)}),
+    )
+    print(
+      [
+        `run ${shown(report.run)} live ${report.live} counts ${JSON.stringify(report.counts)}`,
+        ...report.rows.map(watchLine),
+        ...(report.truncated === 0 ? [] : [`truncated ${report.truncated}`]),
+      ].join('\n'),
+    )
   },
   pin: async ({trial, args: [node = '', path = '']}) => {
     const result = await trial.xray.xray.pin({id: trial.id, node, path, session: trial.session})
@@ -272,6 +292,20 @@ function rowCells(row: Row): string[] {
     row.source === undefined ? '-' : `${row.source.file}:${row.source.line}`,
     row.sentence,
   ]
+}
+
+function watchQuery(args: string[]): Record<string, string> {
+  return Object.fromEntries(
+    args.map((arg): [string, string] => {
+      const field = WATCH_FIELDS.find((name) => arg.startsWith(`${name}=`))
+      return field === undefined ? ['key', arg] : [field, arg.slice(field.length + 1)]
+    }),
+  )
+}
+
+function watchLine(row: WatchRow): string {
+  const source = row.source === null ? '-' : `${row.source.file}:${row.source.line}`
+  return [row.status, row.node, shown(row.ref), shown(row.key), source, row.text ?? row.kind].join(' ')
 }
 
 function table(rows: string[][]): string {
