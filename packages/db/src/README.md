@@ -24,7 +24,8 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `run-schema.ts:runs.phase` is restricted to `RUN_PHASES` (`running`, `stopping`, `completed`, `failed`, `aborted`).
 - `db.ts:openDb` runs, in order: `migrateSync(migrations)`, `importLegacyRuns`, `importLegacyThreads`, `markRunningRunsDetached`, all with one `Date.now()`.
 - `chat-thread-import.ts:importLegacyThreads` runs once: it returns early when `chatMetadata` holds key `chatThreads.importedAt` in namespace `conciv.migration`, and writes that key in the same transaction as the import.
-- `run-migrations.ts:importLegacyRuns` maps legacy `runs.phase` to `chatRuns.status` via `STATUS_BY_PHASE` (`stopping` becomes `running` with `cancelRequested: true`) and inserts with `onConflictDoNothing` on `runId`.
+- `run-migrations.ts:importLegacyRuns` maps legacy `runs.phase` to `chatRuns.status` via `STATUS_BY_PHASE` (`stopping` becomes `running` with `cancelRequested: true`) and inserts with `onConflictDoNothing` on `runId`; each run takes its session's `harnessKind` as `harness_id`, `claude` when the session is gone.
+- `chat_runs.harness_id` (migration `20261105092249_chat_run_harness`) is not null; the migration backfills it from the run's session `harness_kind`, `claude` for a run without a session.
 - `capture-queries.ts:writeToolCapture` dedupes CSS by `cssBundles.hash` (`onConflictDoNothing`) and upserts a capture on the composite key; `deleteSessionCaptures` deletes CSS bundles no remaining capture references.
 - `page-change-queries.ts:pageChangesFor` orders by the autoincrement `page_changes.id`, exposed as `seq`; `appendPageChange` throws when the insert returns no row.
 

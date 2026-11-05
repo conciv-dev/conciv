@@ -569,7 +569,7 @@ describe('query utils', () => {
       const {sessionId, utils, queryClient} = await bootQueryFixture()
       const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
       expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
-      const models = await queryClient.fetchQuery(utils.meta.models.queryOptions())
+      const models = await queryClient.fetchQuery(utils.meta.models.queryOptions({input: {sessionId}}))
       expect(models.harness.id).toBe('fake-client')
     })
 

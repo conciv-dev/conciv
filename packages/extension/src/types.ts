@@ -104,7 +104,7 @@ export type ServerApi<Config> = {
   basePath: string
   stateDir: string
   sessions: ServerSessions
-  harness: ServerHarness
+  harness: (sessionId: SessionId) => ServerHarness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined

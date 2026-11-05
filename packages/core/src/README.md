@@ -30,6 +30,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start` (`start.ts`): with an accessToken the app is mounted under `/t/<token>`; a failed bind or endpoint write disposes the app
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered
+- `detectedHarnesses` (`app.ts`): only harnesses whose binary is on `PATH` join the boot harness as switch targets; a config directory alone does not count
 - `mountExtension` (`app.ts`): a failing extension `__server` is logged and skipped
 - `registryBackedTool` (`app.ts`): only `binding === 'server'` tools are exposed; mutating when approval is 'ask' or meta.mutating
 - `onError` (`app.ts`): HTTPException keeps its status; anything else is 500 'internal error'

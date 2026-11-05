@@ -97,6 +97,7 @@ export type ChatServer = ChatDelivery & {
   endRuns: (threadId: string) => Promise<void>
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
+  driving: (threadId: string) => boolean
   hydrate: (threadId: string) => Promise<ChatThread>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
@@ -522,6 +523,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
       throwRejected(ended, 'conciv: ending the live runs failed')
     },
+    driving: (threadId) => liveRunsOf(threadId).length > 0,
     settled: async (threadId) => {
       await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
     },

@@ -71,6 +71,7 @@ import {opencode} from '../src/opencode/index.js'
 import {storagePath, opencodeHistory} from '../src/opencode/history.js'
 import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 
 describe('acp harnesses', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
@@ -1100,9 +1101,9 @@ describe('codex history', () => {
   describe('codex rollout parsing', () => {
     it('builds a user/assistant spine with tool calls and their outputs', async () => {
       expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
-        {id: 'h1', role: 'user', parts: [{type: 'text', content: 'list the files'}]},
+        {id: `${SESSION}:h1`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
         {
-          id: 'h2',
+          id: `${SESSION}:h2`,
           role: 'assistant',
           parts: [
             {
@@ -1125,6 +1126,21 @@ describe('codex history', () => {
           ],
         },
       ])
+    })
+
+    it('gives two codex sessions of one project disjoint message ids', async () => {
+      const second = HarnessSessionId.parse('019fb340-0000-7000-8000-000000000002')
+      await seedRollout(
+        `rollout-2026-07-30T17-00-00-${second}.jsonl`,
+        ROLLOUT_LINES.map((line) =>
+          line.type === 'session_meta' ? {...line, payload: {...line.payload, session_id: second, id: second}} : line,
+        ),
+      )
+      const first = await history().messages(PROJECT, SESSION, state.home)
+      const next = await history().messages(PROJECT, second, state.home)
+      expect(next.map((message) => message.role)).toEqual(['user', 'assistant'])
+      const firstIds = new Set(first.map((message) => message.id))
+      expect(next.filter((message) => firstIds.has(message.id))).toEqual([])
     })
 
     it('reads the context tokens from the last token_count event', () => {
@@ -1478,6 +1494,156 @@ describe('opencode chat config', () => {
         sessionId: 'ses-9',
       })
     })
+  })
+})
+
+describe('opencode models', () => {
+  const savedPath = process.env.PATH
+
+  afterEach(() => {
+    process.env.PATH = savedPath
+  })
+
+  const verbose = (models: {providerID: string; id: string; name: string; release_date?: string; status?: string}[]) =>
+    `\u001b]0;ready\u0007${models.map((model) => `${model.providerID}/${model.id}\n${JSON.stringify(model, null, 2)}`).join('\n')}\n`
+
+  async function fakeOpencode(output: string, exitCode = 0): Promise<void> {
+    const bin = await mkdtemp(join(tmpdir(), 'conciv-fake-opencode-'))
+    await writeFile(join(bin, 'listing.txt'), output)
+    await writeFile(
+      join(bin, 'opencode'),
+      `#!/bin/sh\n[ "$1 $2" = "models --verbose" ] || exit 2\ncat "${join(bin, 'listing.txt')}"\nexit ${exitCode}\n`,
+      {mode: 0o755},
+    )
+    process.env.PATH = `${bin}:${savedPath ?? ''}`
+  }
+
+  it('lists the live models opencode reports, named by model, newest first, deprecated ones left out', async () => {
+    await fakeOpencode(
+      verbose([
+        {providerID: 'openai', id: 'gpt-5.2', name: 'GPT-5.2', release_date: '2026-05-01'},
+        {providerID: 'anthropic', id: 'claude-opus-4-5', name: 'Claude Opus 4.5', release_date: '2026-09-01'},
+        {providerID: 'opencode', id: 'claude-opus-4-5', name: 'Claude Opus 4.5', release_date: '2026-09-01'},
+        {providerID: 'opencode', id: 'big-pickle', name: 'Big Pickle'},
+        {providerID: 'openai', id: 'gpt-4', name: 'GPT-4', release_date: '2023-03-14', status: 'deprecated'},
+      ]),
+    )
+
+    expect(await resolveHarnessModels(opencode)).toEqual([
+      {
+        id: 'anthropic/claude-opus-4-5',
+        name: 'Claude Opus 4.5 · anthropic',
+        description: 'anthropic',
+        group: 'OpenCode',
+      },
+      {id: 'opencode/claude-opus-4-5', name: 'Claude Opus 4.5 · opencode', description: 'opencode', group: 'OpenCode'},
+      {id: 'openai/gpt-5.2', name: 'GPT-5.2', description: 'openai', group: 'OpenCode'},
+      {id: 'opencode/big-pickle', name: 'Big Pickle', description: 'opencode', group: 'OpenCode'},
+    ])
+  })
+
+  it('collapses region and routing duplicates of one model to one row, preferring the global route', async () => {
+    await fakeOpencode(
+      verbose([
+        {
+          providerID: 'amazon-bedrock',
+          id: 'anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'au.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (AU)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'eu.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (EU)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'global.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (Global)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'us.anthropic.claude-haiku-5-5',
+          name: 'Claude Haiku 5.5 (US)',
+          release_date: '2026-10-07',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'au.anthropic.claude-opus-4-6-v1',
+          name: 'AU Anthropic Claude Opus 4.6',
+          release_date: '2026-02-05',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'us.anthropic.claude-opus-4-6-v1',
+          name: 'Claude Opus 4.6 (US)',
+          release_date: '2026-02-05',
+        },
+        {
+          providerID: 'amazon-bedrock',
+          id: 'anthropic.claude-opus-4-6-v1',
+          name: 'Claude Opus 4.6',
+          release_date: '2026-02-05',
+        },
+        {providerID: 'amazon-bedrock', id: 'us.moonshotai.kimi-k3', name: 'Kimi K3 (US)', release_date: '2026-07-16'},
+        {
+          providerID: 'amazon-bedrock',
+          id: 'global.moonshotai.kimi-k3',
+          name: 'Kimi K3 (Global)',
+          release_date: '2026-07-16',
+        },
+        {providerID: 'amazon-bedrock', id: 'openai.gpt-oss-120b', name: 'gpt-oss-120b', release_date: '2025-08-05'},
+        {providerID: 'amazon-bedrock', id: 'openai.gpt-oss-120b-1:0', name: 'gpt-oss-120b', release_date: '2025-08-05'},
+        {providerID: 'opencode-go', id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', release_date: '2026-10-07'},
+      ]),
+    )
+
+    expect(await resolveHarnessModels(opencode)).toEqual([
+      {
+        id: 'amazon-bedrock/global.anthropic.claude-haiku-5-5',
+        name: 'Claude Haiku 5.5 · amazon-bedrock',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'opencode-go/claude-haiku-5-5',
+        name: 'Claude Haiku 5.5 · opencode-go',
+        description: 'opencode-go',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/global.moonshotai.kimi-k3',
+        name: 'Kimi K3 (Global)',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/anthropic.claude-opus-4-6-v1',
+        name: 'Claude Opus 4.6',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+      {
+        id: 'amazon-bedrock/openai.gpt-oss-120b',
+        name: 'gpt-oss-120b',
+        description: 'amazon-bedrock',
+        group: 'OpenCode',
+      },
+    ])
+  })
+
+  it('rejects when the opencode CLI fails, so the saved list stays in use', async () => {
+    await fakeOpencode('', 1)
+
+    await expect(resolveHarnessModels(opencode)).rejects.toThrow()
   })
 })
 
@@ -1953,6 +2119,51 @@ describe('pi history', () => {
   })
 })
 
+describe('replayed history from another harness', () => {
+  const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const foreignHistory: ModelMessage[] = [
+    {
+      role: 'user',
+      content: [
+        {type: 'text', content: 'what is in this screenshot?'},
+        {type: 'image', source: {type: 'data', value: pixel, mimeType: 'image/png'}},
+      ],
+    },
+    {
+      role: 'assistant',
+      content: 'reading the file first',
+      toolCalls: [
+        {
+          id: 'call_minted_elsewhere',
+          type: 'function',
+          function: {name: 'mcp__other__Read', arguments: '{"path":"a.ts"}'},
+        },
+      ],
+    },
+    {role: 'tool', toolCallId: 'call_minted_elsewhere', content: 'export const a = 1'},
+    {role: 'assistant', content: 'a red square'},
+    {role: 'user', content: 'what did I ask you first?'},
+  ]
+
+  it.each([claude, codex, geminiCli, opencode, pi].map((adapter) => [adapter.id, adapter] as const))(
+    '%s takes a history with foreign tool calls and earlier images and keeps the question last',
+    (_id, adapter) => {
+      const cwd = mkdtempSync(join(tmpdir(), 'replay-'))
+      const config = adapter.chatConfig({
+        cwd,
+        sessionId: SessionId.parse('conciv_replay'),
+        resumeSessionId: null,
+        env: {},
+        kind: 'chat',
+      })
+      const prepared = config.prepareMessages?.(foreignHistory) ?? foreignHistory
+      expect(prepared.slice(0, -1)).toEqual(foreignHistory.slice(0, -1))
+      expect(prepared.at(-1)?.role).toBe('user')
+      expect(lastUserModelText(prepared)).toBe('what did I ask you first?')
+    },
+  )
+})
+
 describe('registry', () => {
   function stub(id: string): HarnessAdapter {
     return defineHarness({
@@ -2292,15 +2503,15 @@ describe('transcript handles', () => {
       const raw = fixture('codex-rollout.jsonl')
       const whole = join(state.rollouts, 'whole-file.jsonl')
       writeFileSync(whole, raw)
-      seedThread('whole-file', whole)
-      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
+      seedThread(CODEX_SESSION, whole)
+      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse(CODEX_SESSION), state.home)).toEqual(
         expected.messages,
       )
 
       const path = join(state.rollouts, 'equivalence.jsonl')
       writeFileSync(path, '')
-      seedThread('equivalence', path)
-      const handle = observe('equivalence')
+      seedThread(CODEX_SESSION, path)
+      const handle = observe(CODEX_SESSION)
       expect(await foldLineByLine(handle, path, raw.split('\n').filter(Boolean))).toEqual(expected.messages)
       handle.close()
     })

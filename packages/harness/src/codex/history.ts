@@ -210,11 +210,11 @@ function spineEvent(payload: unknown): SpineEvent | null {
   }
 }
 
-type CodexSpine = {messages: ChatMessage[]; opened: number}
+type CodexSpine = {messages: ChatMessage[]; opened: number; sessionId: string}
 
 function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: ChatPart[]): void {
   spine.opened += 1
-  spine.messages.push({id: `h${spine.opened}`, role, parts})
+  spine.messages.push({id: `${spine.sessionId}:h${spine.opened}`, role, parts})
 }
 
 function appendAssistant(spine: CodexSpine, part: ChatPart): void {
@@ -245,8 +245,8 @@ function applyEvent(spine: CodexSpine, event: SpineEvent): void {
   attachOutput(spine, event.callId, event.part)
 }
 
-function emptySpine(): CodexSpine {
-  return {messages: [], opened: 0}
+function emptySpine(sessionId: string): CodexSpine {
+  return {messages: [], opened: 0, sessionId}
 }
 
 function foldLine(spine: CodexSpine, line: string): CodexSpine {
@@ -263,8 +263,8 @@ function spineMessages(spine: CodexSpine): ChatMessage[] {
   return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
 }
 
-function parseHistory(raw: string): ChatMessage[] {
-  return raw.split('\n').reduce(foldLine, emptySpine()).messages
+function parseHistory(raw: string, sessionId: string): ChatMessage[] {
+  return raw.split('\n').reduce(foldLine, emptySpine(sessionId)).messages
 }
 
 function contextTokensFromTranscript(raw: string): number | undefined {
@@ -322,7 +322,7 @@ function rolloutWithinProject(cwd: string, sessionId: string, home: string = hom
 
 async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<ChatMessage[]> {
   const rollout = projectRollout(cwd, sessionId, home)
-  return rollout ? parseHistory(rollout.raw) : []
+  return rollout ? parseHistory(rollout.raw, sessionId) : []
 }
 
 async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
@@ -334,7 +334,7 @@ async function listSessions(cwd: string, home: string = homedir()): Promise<Harn
         id: row.id,
         derivedTitle: firstText(row),
         updatedAt: millis(row.updated_at_ms, row.updated_at),
-        messageCount: parseHistory(raw).length,
+        messageCount: parseHistory(raw, row.id).length,
         model: row.model ?? null,
         totalTokens: row.tokens_used ?? 0,
         lastMessage: condense(row.preview, MAX_PREVIEW) || null,
@@ -346,7 +346,7 @@ async function listSessions(cwd: string, home: string = homedir()): Promise<Harn
 
 function observeTranscript(cwd: string, sessionId: string, home: string = homedir()): TranscriptHandle {
   return makeJsonlHandle<CodexSpine>({
-    parser: {empty: emptySpine, foldLine, messages: spineMessages},
+    parser: {empty: () => emptySpine(sessionId), foldLine, messages: spineMessages},
     resolvePath: async () => {
       const path = rolloutPath(sessionId, home)
       return path ?? transcriptFailure('missing', `no codex rollout recorded for ${sessionId}`)

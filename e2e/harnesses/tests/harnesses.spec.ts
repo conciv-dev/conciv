@@ -2,17 +2,21 @@ import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
-const expected: Record<HarnessApp, {model: string} | null> = {
+type ExpectedModel = {model: string; usable?: false}
+
+const expected: Record<HarnessApp, ExpectedModel | {harness: string}> = {
   claude: {model: 'Opus 5.5'},
   codex: {model: 'gpt-5.3-codex'},
   'gemini-cli': {model: 'gemini-3-pro-preview'},
-  opencode: {model: 'opencode/claude-sonnet-4-5'},
-  pi: null,
+  opencode: {model: 'opencode/claude-sonnet-4-5', usable: false},
+  pi: {harness: 'Pi'},
 }
 
 const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expected, name)
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const modelName = (harness: ExpectedModel): string => `${escapeRegex(harness.model)}( \\([^)]+\\))?`
 
 const outcomePattern: Record<HarnessApp, RegExp> = {
   claude: /^Agent process exited with code 1$/m,
@@ -32,20 +36,34 @@ test('full app boots with the configured harness and exposes its real model cata
   await page.goto('/', {waitUntil: 'domcontentloaded'})
   await expectWidgetBoots(page, failures)
 
-  const modelPrompt = page.getByRole('button', {name: /^Model: /})
   const composerTextbox = page.getByRole('textbox', {name: 'Message the conciv agent'})
-  if (harness) {
-    const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${escapeRegex(harness.model)}(,|$)`)})
+  const search = page.getByRole('textbox', {name: 'Search models'})
+  if ('harness' in harness) {
+    const prompt = page.getByRole('button', {name: `Model: ${harness.harness}`, exact: true})
     await expect(prompt).toBeVisible()
     await prompt.click()
-    await expect(
-      page.getByRole('option', {name: new RegExp(`^${escapeRegex(harness.model)}`), selected: true}),
-    ).toBeVisible()
+    await expect(search).toBeFocused()
+    await expect(page.getByText(`${harness.harness} has no usable models`)).toBeVisible()
     await page.keyboard.press('Escape')
-    await expect(composerTextbox).toBeVisible()
+    await expect(composerTextbox).toBeFocused()
   } else {
-    await expect(composerTextbox).toBeVisible()
-    await expect(modelPrompt).toHaveCount(0)
+    const prompt = page.getByRole('button', {name: new RegExp(`^Model: ${modelName(harness)}(,|$)`)})
+    await expect(prompt).toBeVisible()
+    await prompt.click()
+    await expect(search).toBeFocused()
+    if (harness.usable === false) {
+      await expect(page.getByRole('option', {selected: true})).toHaveCount(0)
+      await expect(
+        page
+          .getByRole('group', {name: /^(OpenCode|Model)$/})
+          .getByRole('option')
+          .first(),
+      ).toBeVisible()
+    } else {
+      await expect(page.getByRole('option', {name: new RegExp(`^${modelName(harness)}`), selected: true})).toBeVisible()
+    }
+    await page.keyboard.press('Escape')
+    await expect(composerTextbox).toBeFocused()
   }
   expect(failures.pageErrors).toEqual([])
   expect(failures.consoleErrors).toEqual([])
