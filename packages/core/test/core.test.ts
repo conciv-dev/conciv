@@ -1,9 +1,10 @@
 import {mkdtempSync, rmSync, readFileSync, statSync, writeFileSync, mkdirSync, utimesSync} from 'node:fs'
+import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {setImmediate} from 'node:timers/promises'
-import {describe, it, expect, afterEach, afterAll, beforeAll, test, beforeEach} from 'vitest'
+import {describe, it, expect, afterEach, afterAll, beforeAll, test, beforeEach, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks} from '@conciv/ai/testkit'
 import {
@@ -16,7 +17,7 @@ import {
   type SessionPort,
 } from '@conciv/chat'
 import {type EngineStaleness} from '@conciv/contract'
-import {openDb, type ConcivDb} from '@conciv/db'
+import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {defineTool, defineExtension} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
@@ -24,6 +25,7 @@ import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
+import {eq} from 'drizzle-orm'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -184,7 +186,55 @@ describe('chat plane', () => {
       expect(stopped.flat()).toContain('tool-call')
       cli.release()
     })
+
+    it('engine stop refuses new requests, ends a run held mid-stream as aborted, and never queries a closed database', async () => {
+      const root = stateRoot()
+      const cli = fakeCli()
+      cli.steps.push('streaming')
+      const written = vi.spyOn(process.stderr, 'write')
+      const engine = await start({
+        options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+        root,
+        launchEditor: () => {},
+        harness: cliHarness(cli),
+      })
+      const turn = await fetch(`http://127.0.0.1:${engine.port}${CHAT_SSE_PATH}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: turnBody(sessionId('engine-stop'), 'engine-stop-run', 'keep talking'),
+      })
+      await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+      const stopping = engine.stop()
+      const late = await lateRequest(engine.port)
+      await stopping
+      const db = openDb(root)
+      opened.push(db)
+      const runs = db
+        .select({status: chatRuns.status})
+        .from(chatRuns)
+        .where(eq(chatRuns.runId, 'engine-stop-run'))
+        .all()
+      const logged = written.mock.calls.map(([chunk]) => String(chunk)).join('')
+      written.mockRestore()
+      cli.release()
+      expect.soft(late).toBe('ECONNREFUSED')
+      expect.soft(runs).toEqual([{status: 'aborted'}])
+      expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
+    })
   })
+
+  function lateRequest(port: number): Promise<string> {
+    return new Promise((resolve) => {
+      const late = httpRequest({host: '127.0.0.1', port, path: '/health', agent: false}, (response) => {
+        response.resume()
+        resolve(`answered ${String(response.statusCode)}`)
+      })
+      late.on('error', (error) =>
+        resolve('code' in error && typeof error.code === 'string' ? error.code : error.message),
+      )
+      late.end()
+    })
+  }
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
 
@@ -323,17 +373,21 @@ describe('chat plane', () => {
 
   type WireChunk = z.infer<typeof ChunkSchema>
 
+  function turnBody(sessionId: string, runId: string, text: string): string {
+    return JSON.stringify({
+      threadId: sessionId,
+      runId,
+      messages: [{id: `${runId}-user`, role: 'user', content: text}],
+      tools: [],
+      context: [],
+    })
+  }
+
   async function startTurn(chat: ChatPlane, sessionId: string, runId: string, text: string): Promise<Response> {
     return chat.routes(noUpgrade).request(CHAT_SSE_PATH, {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({
-        threadId: sessionId,
-        runId,
-        messages: [{id: `${runId}-user`, role: 'user', content: text}],
-        tools: [],
-        context: [],
-      }),
+      body: turnBody(sessionId, runId, text),
     })
   }
 

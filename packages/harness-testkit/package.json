@@ -30,7 +30,6 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "hono": "catalog:",
-    "p-timeout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
