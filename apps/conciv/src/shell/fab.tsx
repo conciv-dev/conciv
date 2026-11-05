@@ -1,4 +1,4 @@
-import {Show, Suspense, createSignal, type JSX} from 'solid-js'
+import {Show, Suspense, createMemo, createSignal, type JSX} from 'solid-js'
 import {createElementSize} from '@solid-primitives/resize-observer'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
@@ -14,7 +14,11 @@ const FAB_LIFT =
 const FAB_BUSY = 'conciv-fab-busy absolute -inset-[0.1875rem] rounded-chat-pill pointer-events-none'
 const FAB_ATTN = 'border-2 border-chat-accent anim-fab-ring'
 const FAB_LOCK =
-  'absolute -bottom-px left-8 size-5 inline-flex items-center justify-center text-chat-warn pointer-events-none [transition:transform_240ms_var(--chat-ease-expo)_120ms] [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transition:transform_240ms_var(--chat-ease-expo)] group-focus-visible:[transition:transform_240ms_var(--chat-ease-expo)] [@media(hover:none)]:[transition:transform_240ms_var(--chat-ease-expo)] [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transform:translate(1.0625rem,-1rem)] group-focus-visible:[transform:translate(1.0625rem,-1rem)] [@media(hover:none)]:[transform:translate(1.0625rem,-1rem)]'
+  'absolute -bottom-px size-5 inline-flex items-center justify-center text-chat-warn pointer-events-none [transition:transform_240ms_var(--chat-ease-expo)_120ms] [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transition:transform_240ms_var(--chat-ease-expo)] group-focus-visible:[transition:transform_240ms_var(--chat-ease-expo)] [@media(hover:none)]:[transition:transform_240ms_var(--chat-ease-expo)]'
+const FAB_LOCK_TOWARD_END =
+  'left-8 [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transform:translate(1.0625rem,-1rem)] group-focus-visible:[transform:translate(1.0625rem,-1rem)] [@media(hover:none)]:[transform:translate(1.0625rem,-1rem)]'
+const FAB_LOCK_TOWARD_START =
+  '-left-0.5 [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transform:translate(0.6875rem,-1rem)] group-focus-visible:[transform:translate(0.6875rem,-1rem)] [@media(hover:none)]:[transform:translate(0.6875rem,-1rem)]'
 const FAB_LOCK_CHROME =
   'absolute inset-0 rounded-chat-pill border border-chat-line bg-chat-panel [transition:opacity_120ms_var(--chat-ease)_120ms] [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-0 group-focus-visible:opacity-0 [@media(hover:none)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transition:opacity_120ms_var(--chat-ease)] group-focus-visible:[transition:opacity_120ms_var(--chat-ease)] [@media(hover:none)]:[transition:opacity_120ms_var(--chat-ease)]'
 const FAB_LOCK_ICON =
@@ -23,7 +27,9 @@ const FAB_UNAUTHORIZED_TRACK =
   'grid grid-cols-[0fr] [transition:grid-template-columns_240ms_var(--chat-ease-expo)_120ms] [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transition:grid-template-columns_240ms_var(--chat-ease-expo)] group-focus-visible:[transition:grid-template-columns_240ms_var(--chat-ease-expo)] [@media(hover:none)]:[transition:grid-template-columns_240ms_var(--chat-ease-expo)] [@media(hover:hover)_and_(pointer:fine)]:group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr] [@media(hover:none)]:grid-cols-[1fr]'
 const FAB_UNAUTHORIZED =
   'min-w-0 overflow-hidden invisible opacity-0 [transition:opacity_120ms_var(--chat-ease),visibility_0s_linear_120ms] [@media(hover:hover)_and_(pointer:fine)]:group-hover:visible group-focus-visible:visible [@media(hover:none)]:visible [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-hover:[transition:opacity_200ms_var(--chat-ease)_120ms,visibility_0s] group-focus-visible:[transition:opacity_200ms_var(--chat-ease)_120ms,visibility_0s] [@media(hover:none)]:[transition:opacity_200ms_var(--chat-ease)_120ms,visibility_0s]'
-const FAB_UNAUTHORIZED_LABEL = 'block text-sm leading-5 font-medium whitespace-nowrap text-chat-warn ps-6.5 pe-2'
+const FAB_UNAUTHORIZED_LABEL = 'block w-max text-sm leading-5 font-medium whitespace-nowrap text-chat-warn'
+const FAB_UNAUTHORIZED_TOWARD_END = 'ps-6.5 pe-2'
+const FAB_UNAUTHORIZED_TOWARD_START = 'ps-7.5 pe-1'
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 const FAB_PREVIEWING = 'opacity-0 pointer-events-none'
 const FAB_DOCKED = 'invisible'
@@ -57,11 +63,12 @@ const EDGE_TOOLTIP_SIDE: Record<TriggerEdge, TriggerEdge> = {
   bottom: 'top',
 }
 
-function fabClass(fab: DraggablePosition): string {
+function fabClass(fab: DraggablePosition, towardStart: boolean): string {
+  const direction = towardStart ? ' flex-row-reverse' : ''
   const dragging = fab.dragging() ? ` ${FAB_DRAGGING}` : ''
   const previewing = fab.previewing() ? ` ${FAB_PREVIEWING}` : ''
   const docked = fab.docked() ? ` ${FAB_DOCKED}` : ''
-  return `${FAB_BASE} ${FAB_LIFT}${dragging}${previewing}${docked}`
+  return `${FAB_BASE}${direction} ${FAB_LIFT}${dragging}${previewing}${docked}`
 }
 
 function tooltipPlacement(position: TriggerCorner): 'left' | 'right' {
@@ -107,11 +114,15 @@ export function ShellFab(props: {
   locked: () => boolean
   onToggle: () => void
 }): JSX.Element {
-  const [launcher, setLauncher] = createSignal<HTMLButtonElement>()
-  const launcherSize = createElementSize(launcher)
+  let launcher: HTMLButtonElement | undefined
+  const [label, setLabel] = createSignal<HTMLSpanElement>()
+  const labelSize = createElementSize(label)
+  const towardStart = createMemo(
+    () => props.locked() && labelSize.width !== null && props.fab.growsTowardStart(labelSize.width),
+  )
   const restore = () => {
     props.fab.restore()
-    launcher()?.focus()
+    launcher?.focus()
   }
   return (
     <>
@@ -128,13 +139,13 @@ export function ShellFab(props: {
         <Tooltip.Trigger
           type="button"
           ref={(element) => {
-            setLauncher(element)
+            launcher = element
             props.ref(element)
           }}
-          class={fabClass(props.fab)}
+          class={fabClass(props.fab, towardStart())}
           data-conciv-fab
           data-conciv-suppressed={props.suppressed()}
-          style={launcherPlacement(props.fab.anchor(), launcherSize.width)}
+          style={launcherPlacement(props.fab.anchor(), towardStart())}
           aria-label={fabLabel(props.open(), props.locked())}
           aria-busy={props.working()}
           aria-haspopup={props.locked() ? 'dialog' : undefined}
@@ -155,10 +166,18 @@ export function ShellFab(props: {
           <Show when={props.locked()}>
             <span class={FAB_UNAUTHORIZED_TRACK}>
               <span class={FAB_UNAUTHORIZED}>
-                <span class={FAB_UNAUTHORIZED_LABEL}>Unauthorized</span>
+                <span
+                  ref={setLabel}
+                  class={`${FAB_UNAUTHORIZED_LABEL} ${towardStart() ? FAB_UNAUTHORIZED_TOWARD_START : FAB_UNAUTHORIZED_TOWARD_END}`}
+                >
+                  Unauthorized
+                </span>
               </span>
             </span>
-            <span class={FAB_LOCK} aria-hidden="true">
+            <span
+              class={`${FAB_LOCK} ${towardStart() ? FAB_LOCK_TOWARD_START : FAB_LOCK_TOWARD_END}`}
+              aria-hidden="true"
+            >
               <span class={FAB_LOCK_CHROME} />
               <TriangleAlert class={FAB_LOCK_ICON} />
             </span>

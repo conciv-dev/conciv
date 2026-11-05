@@ -1,6 +1,7 @@
 import {createMemo, onCleanup, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {createWindowSize} from '@solid-primitives/resize-observer'
 import {Debouncer} from '@tanstack/pacer'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {readStorage, writeStorage} from '@conciv/ui-kit-system'
@@ -51,11 +52,11 @@ function rootFontSizePx(): number {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 }
 
-function measure(): Measure {
+function measure(available = {width: viewportWidth(), height: viewportHeight()}): Measure {
   const rem = rootFontSizePx()
   const size = SIZE_REM * rem
   const pad = MARGIN_REM * rem
-  const viewport = {width: viewportWidth(), height: viewportHeight()}
+  const viewport = {width: available.width, height: available.height}
   return {
     size,
     viewport,
@@ -234,9 +235,9 @@ function anchorOf(placement: Placement): LauncherAnchor {
   }
 }
 
-export function launcherPlacement(anchor: LauncherAnchor, width: number | null): JSX.CSSProperties {
-  if (width === null) return {left: anchor.left, top: anchor.top}
-  return {left: `min(${anchor.left}, calc(100% - ${MARGIN_REM}rem - ${width}px))`, top: anchor.top}
+export function launcherPlacement(anchor: LauncherAnchor, growsTowardStart: boolean): JSX.CSSProperties {
+  if (growsTowardStart) return {right: anchor.right, top: anchor.top}
+  return {left: anchor.left, top: anchor.top}
 }
 
 export function panelPlacement(anchor: LauncherAnchor): JSX.CSSProperties {
@@ -266,6 +267,7 @@ export type DraggablePosition = {
   dragging: () => boolean
   hotCorner: () => TriggerCorner | null
   previewing: () => boolean
+  growsTowardStart: (labelWidth: number) => boolean
   docked: () => boolean
   edgeTab: () => LauncherEdgeTab | null
   onPointerDown: (event: PointerEvent) => void
@@ -445,6 +447,14 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     return anchorOf(state.placement)
   })
 
+  const windowSize = createWindowSize()
+  const growsTowardStart = (labelWidth: number): boolean => {
+    const measured = measure(windowSize)
+    const gesture = state.gesture
+    const left = gesture.phase === 'dragging' ? gesture.at.x : pixelsOf(state.placement, measured).x
+    return left + measured.size + labelWidth > measured.viewport.width - measured.bounds.minX
+  }
+
   const edgeTab = (): LauncherEdgeTab | null => {
     const gesture = state.gesture
     if (gesture.phase === 'dragging' && gesture.edge)
@@ -460,6 +470,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     dragging: () => state.gesture.phase === 'dragging' || state.gesture.phase === 'settling',
     hotCorner: () => (state.gesture.phase === 'dragging' ? state.gesture.hot : null),
     previewing: () => state.gesture.phase === 'dragging' && state.gesture.edge !== null,
+    growsTowardStart,
     docked: () => state.placement.kind === 'edge',
     edgeTab,
     onPointerDown,

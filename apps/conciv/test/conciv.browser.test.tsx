@@ -902,15 +902,32 @@ describe('launcher drag', () => {
     await expect.element(unauthorized()).not.toBeVisible()
   })
 
-  test('the locked launcher pinned in the bottom-right corner opens its pill inside the window', async () => {
+  test('the locked launcher pinned in the bottom-right corner grows its pill to the left inside the window while its robot stays put', async () => {
     await page.viewport(1000, 700)
     mountLocked()
     await expect.element(locked()).toBeVisible()
     await capture('locked-bottom-right-closed')
-    await locked().hover()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
     await expect.element(unauthorized()).toBeVisible()
     await expect.element(unauthorized()).toBeInViewport({ratio: 1})
     await capture('locked-bottom-right-open')
+  })
+
+  test('the locked launcher dropped near the right edge without room for its pill grows it to the left and its robot stays put', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await coreControl.dragButton({name: LOCKED_NAME, moves: [{deltaX: -60, deltaY: -300, steps: 20}], settleMs: 300})
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -120, deltaY: 0}]})
+    await expect.element(unauthorized()).toBeVisible()
+    await expect.element(unauthorized()).toBeInViewport({ratio: 1})
+    await capture('locked-near-right-edge-open')
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 50, deltaY: 0}]})
+    await expect.element(unauthorized()).not.toBeVisible()
   })
 })
 
