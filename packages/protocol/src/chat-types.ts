@@ -141,17 +141,29 @@ export const HarnessModelSchema = z.object({
   disabled: z.boolean().optional(),
   efforts: z.array(ReasoningEffortSchema).optional(),
 })
+export const HarnessMetaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  canLaunch: z.boolean(),
+  imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
+})
+export type HarnessMeta = z.infer<typeof HarnessMetaSchema>
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
-
-  harness: z.object({
-    id: z.string(),
-    name: z.string(),
-    canLaunch: z.boolean(),
-    imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
-  }),
+  harness: HarnessMetaSchema,
 })
+export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
+  models: z.array(HarnessModelSchema),
+  defaultModel: z.string().nullable(),
+  modelsFailed: z.boolean(),
+})
+export type HarnessMenuEntry = z.infer<typeof HarnessMenuEntrySchema>
+export const ChatHarnessesSchema = z.object({
+  harnesses: z.array(HarnessMenuEntrySchema),
+  defaultHarness: z.string(),
+})
+export type ChatHarnesses = z.infer<typeof ChatHarnessesSchema>
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>
 

@@ -13,6 +13,14 @@ export type CoreKit = Kit & {
   rpcServed: (path: readonly string[]) => number
 }
 
+export type AlternateHarness = {
+  id: string
+  displayName: string
+  text?: string
+  models?: HarnessModel[]
+  commands?: HarnessCommand[]
+}
+
 export async function bootCoreKit(opts: {
   id: string
   text?: string
@@ -23,6 +31,7 @@ export async function bootCoreKit(opts: {
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   history?: HarnessSessionMeta[]
+  alternates?: AlternateHarness[]
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
   nativePageDir?: string
@@ -55,6 +64,7 @@ export async function bootCoreKit(opts: {
       cwd: env.cwd,
       openInEditor: () => {},
       harness: env.harness,
+      harnesses: (opts.alternates ?? []).map((alternate) => createFakeHarness(alternate)),
       extensions: opts.extensions,
       allowedOrigins: opts.allowedOrigins,
       staleness: opts.staleness,

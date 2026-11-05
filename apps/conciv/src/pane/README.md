@@ -27,6 +27,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `send-checks.ts:checkSend`: refuses empty content and sends while busy; more than `MAX_CONTENT_PARTS` (16) parts, a JSON payload over `WS_RPC_PAYLOAD_BUDGET_BYTES`, or an unreachable engine are refused with a warning and the message stays in the composer
 - `use-pane-messaging.ts:usePaneMessaging`: a failed `checkSend` verdict throws `sendRejection(verdict)` before any rpc call
 - `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored
+- `chat-pane.tsx:renderTurnPrefix`: an assistant turn carries its harness name only once the session's replies (hydrated `harnessAt`, else the current harness) span more than one harness
 - `draft-storage.ts:makeDraftStorage`: writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft cancels the pending write and persists the cleared draft immediately
 - `queue-strip.tsx:QueueStrip`: shows at most 3 queued messages (`VISIBLE_LIMIT`), the rest as an overflow count
 
@@ -39,7 +40,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `trigger-sources.ts:useComposerTriggerSources`: `ensureQueryData` for `meta.commands` and `meta.tools`
 - `trigger-sources.ts:useComposerTriggerSources`: a built-in or extension command replaces the harness command of the same name in the `/` list; a built-in beats an extension command of the same name
 - `chat-pane.tsx:ChatPane`: a sent text that is exactly `/<name>` of a widget command runs it and is never sent to the agent
-- `chat-pane.tsx:ChatPane`: owns the model popover machine (`useModelMenu`); `/model` opens it with `setOpen(true)`, and every close (a pick, Escape, outside click) returns focus to the composer
+- `chat-pane.tsx:ChatPane`: owns the model menu (`useModelMenu`); `/model` opens it with `popover().setOpen(true)`, which focuses its search field, and every close (a pick, Escape, outside click, a settled harness-switch confirm) returns focus to the composer
 - `composer-input-adapter.tsx:ComposerInputAdapter`: `keydown` listener for Escape
 
 ## Verification

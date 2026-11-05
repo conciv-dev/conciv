@@ -14,7 +14,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `clackOutput` / `clackPrompts` / `interactiveTerminal` (`wizard.ts`): @clack/prompts output and prompts, and the TTY/CI check
 - `detectProject(cwd)` / `detectFramework(cwd)` / `Framework` (`detect.ts`): nextjs, astro, vite, webpack, rspack, rollup, esbuild or unknown
 - `execFileOutcome(bin, args, options, onLine)` (`exec.ts`): spawns a process and resolves {code, output}
-- `detectHarnesses(env)` / `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`
+- `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`; installed-harness detection is `detectHarnesses` from `@conciv/harness-init/detect`
 - `captureFile` / `guardBackups` / `onInterrupt` (`interrupt.ts`): file backup and restore, and the SIGINT hook
 - `StepStatus`, `ManualCard`, `StepNote`, `StepPlan`, `StepOutcome`, `LedgerEntry` (`ledger.ts`)
 - `emitOutro(output, entries, next)` (`outro.ts`), `preflight(cwd, force)` (`preflight.ts`), `silentOutput()` (`silent.ts`)
@@ -33,7 +33,6 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `detectFramework` (`detect.ts`): rule order sets priority; an invalid manifest gives 'unknown'
 - `execFileOutcome` (`exec.ts`): a signal exit resolves with code 1
 - `guardBackups` (`interrupt.ts`): restores in reverse order; a file captured as null is deleted on restore
-- `detectHarnesses` (`harness-detect.ts`): a PATH match requires the execute bit
 
 ## Side Effects
 
@@ -42,7 +41,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit' and SIGINT listeners and rewrite or delete backed-up files
 - `execFileOutcome` (`exec.ts`): spawns child processes
 - `preflight` (`preflight.ts`): runs `git status --porcelain` with LC_ALL=C
-- `detect.ts`, `harness-detect.ts`: read package.json, config files, PATH entries and HOME config dirs
+- `detect.ts`: reads package.json and config files; `detectHarnesses` (`@conciv/harness-init/detect`) reads PATH entries and HOME config dirs
 - `clackOutput` / `clackPrompts` (`wizard.ts`): write to the terminal and prompt for input
 
 ## Verification

@@ -131,6 +131,7 @@ describe('rows', () => {
         effort: null,
         hidden: false,
         native: null,
+        harnessKind: 'claude',
       })
       expect(parsed.hidden).toBe(false)
       expect(parsed.effort).toBeNull()

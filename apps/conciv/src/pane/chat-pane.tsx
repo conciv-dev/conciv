@@ -33,12 +33,13 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
+import type {ChatSession} from '@conciv/client'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
-import {useHarnessMeta} from '../data/harness-meta.js'
+import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
 import {foldToolDurations} from './tool-durations.js'
@@ -74,6 +75,8 @@ const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
 const NOW_ROW_UNDER_TURN = 'shrink-0 self-stretch min-w-0 pb-[6px] -mt-[13px]'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
+const HARNESS_LABEL =
+  'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
@@ -113,6 +116,22 @@ function isStoppedTurn(message: ChatMessage | undefined): boolean {
   return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
 
+function turnHarnessNames(chat: ChatSession, current: () => string | undefined): (turn: Turn) => string | undefined {
+  const harnesses = useHarnesses()
+  const mixed = createMemo(() => {
+    const harnessId = current()
+    if (harnessId === undefined) return false
+    return chat
+      .messages()
+      .some((message, index) => message.role === 'assistant' && (chat.harnessAt(index) ?? harnessId) !== harnessId)
+  })
+  return (turn) => {
+    if (!mixed() || turn.role !== 'assistant') return undefined
+    const harnessId = chat.harnessAt(turn.start) ?? current()
+    return harnessId === undefined ? undefined : harnesses.nameOf(harnessId)
+  }
+}
+
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
@@ -120,9 +139,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const connected = useConnected()
   const {reachability, notices} = useEngineNotices()
   const instances = useInstances()
-  const harness = useHarnessMeta()
   const pane = usePane()
   const sessionId = untrack(() => props.sessionId)
+  const harness = useSessionHarness(() => sessionId)
   const chat = pane.chat()
 
   const isThinking = () => chat.status() === 'submitted'
@@ -218,7 +237,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const modelMenu = useModelMenu(focusInput)
   const commandSources = useComposerTriggerSources({
     sessionId,
-    openModelMenu: () => modelMenu().setOpen(true),
+    openModelMenu: () => modelMenu.popover().setOpen(true),
   })
   const sendOrRunCommand = async (content: string | SendContent): Promise<void> => {
     if (typeof content === 'string' && commandSources.runTyped(content)) return
@@ -263,12 +282,14 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const stoppedBefore = (index: number): boolean => isStoppedTurn(chat.messages()[index - 1])
   const lastTurnStopped = () => !narrating() && (chat.stopped() || stoppedBefore(chat.messages().length))
+  const turnHarnessName = turnHarnessNames(chat, () => harness()?.id)
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
     <>
       <Show when={stoppedBefore(turn.start)}>
         <Divider kind="stopped" />
       </Show>
       <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
+      <Show when={turnHarnessName(turn)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
     </>
   )
 
@@ -363,7 +384,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                             initialSelection={storage().restoredSelection}
                             busy={compacting() ? <CompactSpinner /> : undefined}
                             triggers={commandSources.triggers}
-                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} />}
+                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
                           >
                             <Suspense fallback={<ComposerActionsPending />}>
                               <ComposerActions

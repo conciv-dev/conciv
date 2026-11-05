@@ -5,6 +5,7 @@ import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
+import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
 
 export type BootCoreInput = {
@@ -17,6 +18,7 @@ export type BootCoreInput = {
   history?: HarnessSessionMeta[]
   commands?: HarnessCommand[]
   models?: HarnessModel[]
+  alternates?: AlternateHarness[]
   allowedOrigins?: string[]
 }
 
@@ -117,6 +119,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     history: input.history,
     commands: input.commands,
     models: input.models,
+    alternates: input.alternates,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),

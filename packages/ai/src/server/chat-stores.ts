@@ -48,7 +48,7 @@ function durableColumns(patch: RunPatch): RunColumns {
 const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
-export function drizzleChatStores(db: NodeSQLiteDatabase): ChatStores {
+export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (threadId: string) => string}): ChatStores {
   const get = async (runId: string): Promise<RunRecord | null> => {
     const rows = await db.select().from(chatRuns).where(eq(chatRuns.runId, runId)).limit(1)
     const row = rows[0]
@@ -77,7 +77,7 @@ export function drizzleChatStores(db: NodeSQLiteDatabase): ChatStores {
       createOrResume: async ({runId, threadId, startedAt, status}) => {
         await db
           .insert(chatRuns)
-          .values({runId, threadId, status: status ?? 'running', startedAt})
+          .values({runId, threadId, harnessId: opts.harnessOf(threadId), status: status ?? 'running', startedAt})
           .onConflictDoNothing({target: chatRuns.runId})
         const stored = await get(runId)
         if (stored === null) throw new Error(`run ${runId} was not stored`)
