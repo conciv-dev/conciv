@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {median, range} from 'es-toolkit'
+import {median} from 'es-toolkit'
 import {SOURCE_ATTR, type Tolerances} from '../shared/tolerances.js'
 import {
   type Box,
@@ -13,7 +13,7 @@ import {
   type Shift,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {union} from '../shared/box.js'
+import {centre, nearestLine, union} from '../shared/box.js'
 import {folded} from '../shared/tolerances.js'
 
 export function createGeometry(input: {tolerances: Tolerances}): Geometry {
@@ -23,11 +23,6 @@ export function createGeometry(input: {tolerances: Tolerances}): Geometry {
     fingerprint,
     targetBox,
     selectors,
-    centre,
-    holds,
-    nearestLine,
-    distance,
-    mask: boxMask,
     regions: labelRegions,
   }
 }
@@ -187,48 +182,6 @@ function sourceKey(component: LiveComponent): string | null {
 
 function median0(values: number[]): number {
   return values.length === 0 ? 0 : median(values)
-}
-
-function centre(box: Box): {x: number; y: number} {
-  return {x: box.x + box.w / 2, y: box.y + box.h / 2}
-}
-
-function holds(input: {outer: Box; inner: Box}): boolean {
-  const {outer, inner} = input
-  return (
-    inner.x >= outer.x &&
-    inner.y >= outer.y &&
-    inner.x + inner.w <= outer.x + outer.w &&
-    inner.y + inner.h <= outer.y + outer.h
-  )
-}
-
-function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
-  const target = centre(input.box)
-  return input.lines.reduce<Box | null>((best, line) => {
-    if (best === null) return line
-    return distance({a: centre(line), b: target}) < distance({a: centre(best), b: target}) ? line : best
-  }, null)
-}
-
-function distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number {
-  return Math.hypot(X_WEIGHT * (input.a.x - input.b.x), input.a.y - input.b.y)
-}
-
-const X_WEIGHT = 0.5
-
-function boxMask(input: {boxes: Box[]; area: Box}): Uint8Array {
-  const {boxes, area} = input
-  const mask = new Uint8Array(area.w * area.h)
-  boxes.forEach((box) => {
-    const x0 = Math.max(0, box.x - area.x)
-    const x1 = Math.min(area.w, box.x + box.w - area.x)
-    if (x1 <= x0) return
-    range(Math.max(0, box.y - area.y), Math.min(area.h, box.y + box.h - area.y)).forEach((y) => {
-      mask.fill(1, y * area.w + x0, y * area.w + x1)
-    })
-  })
-  return mask
 }
 
 function labelRegions(input: {mask: Uint8Array; width: number; height: number}): {

@@ -15,7 +15,6 @@ import {
   type DiffInput,
   type DiffReport,
   type Element,
-  type Geometry,
   type Item,
   type Judge,
   type Judging,
@@ -39,16 +38,10 @@ import {
 } from '../shared/defs.js'
 import {glyphRun, iconSized, kindStage, isOpaqueHex, childPosition, TOLERANCES} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
-import {encloses, union} from '../shared/box.js'
+import {encloses, boxMask, union} from '../shared/box.js'
 
-export function createJudge(input: {
-  ranker: Ranker
-  words: Words
-  deltas: Deltas
-  color: ColorMetric
-  geometry: Geometry
-}): Judge {
-  const {ranker, words, deltas, color, geometry} = input
+export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas; color: ColorMetric}): Judge {
+  const {ranker, words, deltas, color} = input
   return {
     unmatched: ({root, components, offsets, measured}) => {
       const paired = [...walk({root})].flatMap(({node, depth}) => (depth === 0 || node.live === null ? [] : [node]))
@@ -67,7 +60,7 @@ export function createJudge(input: {
       scoreTuple({
         items,
         unpairedShare: unpairedShare({unmatched, page}),
-        residualShare: residualShare({measured, unmatched, masks, page, geometry}),
+        residualShare: residualShare({measured, unmatched, masks, page}),
       }),
     verdict: (request) => judge({...request, ranker, words, color}),
     report: (request) => reportedComponents({...request, size: deltas.size}),
@@ -76,7 +69,7 @@ export function createJudge(input: {
     budgets: sectionBudgets,
     round: roundRecord,
     worse: lexicallyWorse,
-    section: (request) => sectionReport({...request, ranker, words, color, geometry}),
+    section: (request) => sectionReport({...request, ranker, words, color}),
     settle: (request) => settled({...request, words}),
     counts: ledgerCounts,
   }
@@ -766,14 +759,8 @@ function unpairedShare(input: {unmatched: Unmatched[]; page: Box}): number {
   return total === 0 ? 0 : Math.min(1, area / total)
 }
 
-function residualShare(input: {
-  measured: Measured[]
-  unmatched: Unmatched[]
-  masks: Box[]
-  page: Box
-  geometry: Geometry
-}): number {
-  const {measured, unmatched, masks, page, geometry} = input
+function residualShare(input: {measured: Measured[]; unmatched: Unmatched[]; masks: Box[]; page: Box}): number {
+  const {measured, unmatched, masks, page} = input
   const tiles = measured
     .filter((entry) => entry.deltas.length === 0 && entry.element.mismatch >= TOLERANCES.tileGate)
     .map((entry) => entry.element.liveBox)
@@ -784,8 +771,8 @@ function residualShare(input: {
     ...unmatched.flatMap((entry) => [entry.target, entry.live].filter((box) => box !== undefined)),
     ...masks,
   ]
-  const residual = geometry.mask({boxes: tiles, area: page})
-  const covered = geometry.mask({boxes: explained, area: page})
+  const residual = boxMask({boxes: tiles, within: page})
+  const covered = boxMask({boxes: explained, within: page})
   const count = residual.reduce((sum, value, index) => sum + (value === 1 && covered[index] !== 1 ? 1 : 0), 0)
   return count / total
 }
@@ -800,9 +787,8 @@ function sectionReport(input: {
   ranker: Ranker
   words: Words
   color: ColorMetric
-  geometry: Geometry
 }): DiffReport {
-  const {report, section, judging, ranker, words, color, geometry} = input
+  const {report, section, judging, ranker, words, color} = input
   const nodes = sectionNodes(section)
   const box = sectionBox(section)
   const inside = (inner: Box | undefined): boolean => inner !== undefined && encloses({inner, outer: box})
@@ -840,7 +826,7 @@ function sectionReport(input: {
     score: scoreTuple({
       items,
       unpairedShare: unpairedShare({unmatched, page: box}),
-      residualShare: residualShare({measured, unmatched, masks: [], page: box, geometry}),
+      residualShare: residualShare({measured, unmatched, masks: [], page: box}),
     }),
     warnings: judging.warnings.filter((warning) => inside(warning.box)),
     changed: {...judging.changed, changes},

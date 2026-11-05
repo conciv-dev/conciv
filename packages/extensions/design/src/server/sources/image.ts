@@ -28,7 +28,7 @@ import {
 import {hex, iconSized, rgbDistance, TOLERANCES} from '../../shared/tolerances.js'
 import {toolError} from '@conciv/extension'
 import {createRaster} from '../raster.js'
-import {encloses, expand, overlaps, union} from '../../shared/box.js'
+import {encloses, expand, boxMask, overlaps, union} from '../../shared/box.js'
 import {isFigmaUrl} from './figma.js'
 import {inferLayout} from './layout.js'
 import {walk} from '../../shared/tree.js'
@@ -1287,7 +1287,7 @@ const MIN_LINES = 2
 function fillShape(input: {raster: Raster; box: Box; holes: Box[]; color: ColorMetric; geometry: Geometry}): FillShape {
   const {raster, box, holes, color} = input
   if (box.w < MIN_LINES || box.h < MIN_LINES) return SOLID
-  const mask = input.geometry.mask({boxes: holes, area: box})
+  const mask = boxMask({boxes: holes, within: box})
   const rowMeans = lineMeans({raster, area: box, mask, axis: 'vertical'})
   const columnMeans = lineMeans({raster, area: box, mask, axis: 'horizontal'})
   const vertical = varies({means: rowMeans, color})

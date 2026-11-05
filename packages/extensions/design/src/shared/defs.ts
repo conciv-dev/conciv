@@ -390,11 +390,6 @@ export type Geometry = {
   ): Fingerprint
   targetBox(input: {node: Match['node']; live: NonNullable<Match['live']>; raster: Raster; exact: boolean}): Box
   selectors(live: LiveComponent): Map<string, string>
-  centre(box: Box): {x: number; y: number}
-  holds(input: {outer: Box; inner: Box}): boolean
-  nearestLine(input: {lines: Box[]; box: Box}): Box | null
-  distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number
-  mask(input: {boxes: Box[]; area: Box}): Uint8Array
   regions(input: {mask: Uint8Array; width: number; height: number}): {labels: Int32Array; regions: MaskRegion[]}
 }
 
@@ -597,7 +592,6 @@ export type VoteContext = {
   candidates: VoteView[]
   bestText: Map<string, number>
   spoken: Record<string, VoteView[]>
-  geometry: Geometry
 }
 
 export type Voter = {
@@ -1533,6 +1527,32 @@ export type Settled = {
 export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
 
 export type Latest = {run: Run; report: DiffReport; items: Item[]}
+
+export const TWIN_SEPARATOR = ':'
+
+export type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
+
+export type Lap = {phase: Phase | null; at: number}
+
+export type Runner = {
+  run(input: {
+    job: RunJob
+    record: TargetRecord
+    page: ServerToolPageAccess
+    decisions: Decision[]
+    css: Css
+    reply: Awaited<ReturnType<Measurer['measure']>>
+    capture: string
+    rounds: Round[]
+    settled: Settled | undefined
+    twins: Twin[]
+    xray: XrayLink
+    laps: Lap[]
+  }): Promise<{run: Run; report: DiffReport; settled: Settled; round: Round | null}>
+  css(input: {id: string; decisions: Decision[]}): Promise<Css>
+  timings(laps: Lap[]): Omit<DiffReport['timings'], 'carried' | 'longestTask'>
+  paths(id: string): {designPath: string; placeholderPath: string}
+}
 
 export type Differ = {
   register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>

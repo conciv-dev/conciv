@@ -38,7 +38,7 @@ import {
   type TextJudgement,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {encloses, expand, union} from '../shared/box.js'
+import {encloses, expand, readingOrder, union} from '../shared/box.js'
 
 export function createDeltas(input: {geometry: Geometry; color: ColorMetric; liveText: LiveTextReader}): Deltas {
   const {geometry, color, liveText} = input
@@ -1155,9 +1155,4 @@ function rightEdge(box: Box): number {
 
 function bottomEdge(box: Box): number {
   return box.y + box.h
-}
-
-function readingOrder(a: Box, b: Box): number {
-  const shared = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
-  return shared >= Math.min(a.h, b.h) / 2 ? a.x - b.x : a.y - b.y
 }

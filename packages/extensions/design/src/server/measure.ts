@@ -41,7 +41,7 @@ import {
   type Typography,
 } from '../shared/defs.js'
 import {rgbDistance, sameFamily, TOLERANCES, type DesignConfig} from '../shared/tolerances.js'
-import {expand, overlaps, union} from '../shared/box.js'
+import {expand, intersection, overlaps, readingOrder, union} from '../shared/box.js'
 import {createRaster} from './raster.js'
 
 export function createMeasurer(input: {
@@ -203,12 +203,11 @@ function flattened(components: LiveComponent[]): LiveComponent[] {
   return components.flatMap((component) => [component, ...flattened(component.children)])
 }
 
-function readingOrder(a: TextItem, b: TextItem): number {
+function itemOrder(a: TextItem, b: TextItem): number {
   const first = a.boxes[0]
   const second = b.boxes[0]
   if (first === undefined || second === undefined) return 0
-  const shared = Math.max(0, Math.min(first.y + first.h, second.y + second.h) - Math.max(first.y, second.y))
-  return shared >= Math.min(first.h, second.h) / 2 ? first.x - second.x : first.y - second.y
+  return readingOrder(first, second)
 }
 
 function joined(items: TextItem[]): string {
@@ -336,7 +335,7 @@ function attributed(input: {group: TextGroup; liveItems: TextItem[]; sameText: b
 
 function toGroup(input: {members: TextItem[]; live: Raster; target: Raster; color: ColorMetric}): Grouped | null {
   const {live, target, color} = input
-  const sorted = input.members.toSorted(readingOrder)
+  const sorted = input.members.toSorted(itemOrder)
   const liveItems = sorted.filter((item) => item.side === 'live')
   const targetItems = sorted.filter((item) => item.side === 'target')
   const owner = liveItems[0]?.owner ?? null
@@ -986,13 +985,4 @@ function diffMask(input: {output: Uint8Array; width: number; height: number}): U
     mask[i] = red && output[i * 4 + 3] === 255 ? 1 : 0
   }
   return mask
-}
-
-function intersection(input: {a: Box; b: Box}): Box | null {
-  const {a, b} = input
-  const x = Math.max(a.x, b.x)
-  const y = Math.max(a.y, b.y)
-  const w = Math.min(a.x + a.w, b.x + b.w) - x
-  const h = Math.min(a.y + a.h, b.y + b.h) - y
-  return w > 0 && h > 0 ? {x, y, w, h} : null
 }

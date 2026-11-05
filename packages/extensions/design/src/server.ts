@@ -50,7 +50,7 @@ export const design = defineExtension({
     color: comparators.color,
     liveText: provenance.liveText,
   })
-  const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color, geometry})
+  const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color})
   const registrar = createRegistrar({
     adapters: [
       createImageAdapter({
