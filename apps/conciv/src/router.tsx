@@ -8,7 +8,6 @@ import type {AnyExtension} from '@conciv/extension'
 import {setupEngineReachability} from '@conciv/client'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
-import {createHarnessMeta, HarnessMetaContext} from './data/harness-meta.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
@@ -102,8 +101,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
-    const harness = createHarnessMeta(data, connected, queryClient)
-    return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
+    return <>{props.children}</>
   }
   return createRouter({
     routeTree,

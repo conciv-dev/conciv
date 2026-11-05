@@ -4,7 +4,7 @@ import {z} from 'zod'
 import {getHarness} from '@conciv/harness'
 import {harnessAvailable} from '../src/harness-available.js'
 import {makeCallTool, makeRunTypescript} from '../src/call-tool.js'
-import {existsSync, mkdirSync, writeFileSync} from 'node:fs'
+import {chmodSync, existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {spawn, type ChildProcess} from 'node:child_process'
 import {createTestkit, type BootApp} from '../src/create-testkit.js'
@@ -247,6 +247,36 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
 
     expect(existsSync(stateRoot)).toBe(false)
   }, 30_000)
+
+  it('reports a failed app dispose together with a failed state root removal', async () => {
+    const locked = {dir: ''}
+    const boot: BootApp = async (env) => ({
+      fetch: (request) =>
+        new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
+          headers: {'content-type': 'application/json'},
+        }),
+      dispose: async () => {
+        locked.dir = join(env.stateRoot, 'locked')
+        mkdirSync(locked.dir)
+        writeFileSync(join(locked.dir, 'kept'), '')
+        chmodSync(locked.dir, 0o500)
+        throw new Error('app dispose failed')
+      },
+    })
+    const kit = await createTestkit(createFakeHarness(), boot).setup()
+    try {
+      const failure = await kit.cleanup().then(
+        () => null,
+        (error: unknown) => error,
+      )
+      expect(failure).toBeInstanceOf(AggregateError)
+      const reasons = failure instanceof AggregateError ? failure.errors.map(String) : []
+      expect(reasons).toEqual([expect.stringContaining('app dispose failed'), expect.stringContaining(kit.stateRoot)])
+    } finally {
+      chmodSync(locked.dir, 0o700)
+      rmSync(kit.stateRoot, {recursive: true, force: true})
+    }
+  })
 })
 
 describe('create fake harness', () => {

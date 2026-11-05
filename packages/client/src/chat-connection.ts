@@ -159,6 +159,7 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
       }
       controller.close()
     },
+    cancel: () => scope.abort(),
   })
   return readingValues(readable)
 }

@@ -10,7 +10,7 @@ Wraps the TanStack harness text adapters (Claude Code, Codex, opencode, ACP) beh
 - `adapters.ts:makeTextAdapter` - wraps a `(options) => AsyncIterable<ChatEvent>` function in a `DelegatingTextAdapter` (a `BaseTextAdapter` subclass).
 - `adapters.ts:claudeCode` - calls `claudeCodeText(model, options)` from `@tanstack/ai-claude-code`.
 - `adapters.ts:codex` / `codexModels` - call `codexText` and re-export `CODEX_MODELS` from `@tanstack/ai-codex`.
-- `adapters.ts:opencode` / `opencodeModels` - call `opencodeText` and re-export `OPENCODE_MODELS` from `@tanstack/ai-opencode`.
+- `adapters.ts:opencode` - calls `opencodeText` from `@tanstack/ai-opencode`.
 - `adapters.ts:acp` - calls `acpCompatible(options)(model)` from `@tanstack/ai-acp`.
 - `adapters.ts:ClaudeCodeOptions` / `CodexOptions` / `OpencodeOptions` / `AcpOptions` - aliases of the upstream config types.
 

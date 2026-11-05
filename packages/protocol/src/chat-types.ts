@@ -81,6 +81,9 @@ export const NativeSessionRefSchema = z.object({
 })
 export type NativeSessionRef = z.infer<typeof NativeSessionRefSchema>
 
+export const ReasoningEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>
+
 export const SessionRecordSchema = z.object({
   id: SessionId,
   harnessSessionId: HarnessSessionId.nullable(),
@@ -88,6 +91,7 @@ export const SessionRecordSchema = z.object({
   origin: z.enum(['chat', 'agent', 'external']),
   title: z.string().nullable(),
   model: z.string().nullable(),
+  effort: ReasoningEffortSchema.nullable().default(null),
   usage: UsageSnapshotSchema.nullable(),
   cwd: z.string(),
   deletedAt: z.number().nullable().default(null),
@@ -135,18 +139,31 @@ export const HarnessModelSchema = z.object({
   description: z.string().optional(),
   group: z.string().optional(),
   disabled: z.boolean().optional(),
+  efforts: z.array(ReasoningEffortSchema).optional(),
 })
+export const HarnessMetaSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  canLaunch: z.boolean(),
+  imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
+})
+export type HarnessMeta = z.infer<typeof HarnessMetaSchema>
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
-
-  harness: z.object({
-    id: z.string(),
-    name: z.string(),
-    canLaunch: z.boolean(),
-    imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
-  }),
+  harness: HarnessMetaSchema,
 })
+export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
+  models: z.array(HarnessModelSchema),
+  defaultModel: z.string().nullable(),
+  modelsFailed: z.boolean(),
+})
+export type HarnessMenuEntry = z.infer<typeof HarnessMenuEntrySchema>
+export const ChatHarnessesSchema = z.object({
+  harnesses: z.array(HarnessMenuEntrySchema),
+  defaultHarness: z.string(),
+})
+export type ChatHarnesses = z.infer<typeof ChatHarnessesSchema>
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>
 

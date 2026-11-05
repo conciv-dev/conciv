@@ -14,7 +14,9 @@ import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
 
 export type ChatContext = {
-  harness: HarnessAdapter
+  defaultHarness: HarnessAdapter
+  harnesses: readonly HarnessAdapter[]
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   cwd: string
   basePath: string
   claudeHome?: string

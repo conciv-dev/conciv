@@ -28,9 +28,35 @@ const ObservedMetadataSchema = z.looseObject({sandboxObserved: z.literal(true)})
 
 const RunMetadataSchema = z.object({tanstack: z.object({run: z.object({id: z.string()})})})
 
+const ImportedMetadataSchema = z.object({conciv: z.object({harnessId: z.string()})})
+
 function runOf(message: ChatMessage): string | null {
   const parsed = RunMetadataSchema.safeParse(message.metadata)
   return parsed.success ? parsed.data.tanstack.run.id : null
+}
+
+function importedHarnessOf(message: ChatMessage): string | null {
+  const parsed = ImportedMetadataSchema.safeParse(message.metadata)
+  return parsed.success ? parsed.data.conciv.harnessId : null
+}
+
+export function messageHarnesses(
+  messages: readonly ChatMessage[],
+  runHarness: Readonly<Record<string, string>>,
+): Record<string, string> {
+  return Object.fromEntries(
+    messages.flatMap((message): [string, string][] => {
+      if (message.role !== 'assistant') return []
+      const run = runOf(message)
+      const harnessId = (run === null ? undefined : runHarness[run]) ?? importedHarnessOf(message)
+      return harnessId === null ? [] : [[message.id, harnessId]]
+    }),
+  )
+}
+
+function stampedImport(message: ChatMessage, harnessId: string): ChatMessage {
+  if (message.role !== 'assistant') return message
+  return {...message, metadata: {...message.metadata, conciv: {harnessId}}}
 }
 
 function sameTurn(previous: ChatMessage, message: ChatMessage): boolean {
@@ -66,11 +92,11 @@ export function normalizedMessages(messages: ChatMessage[], normalize: (name: st
 const AnchorSchema = z.object({nativeId: z.string().nullable()}).nullable().catch(null)
 
 export type TranscriptSource = {
-  harness: HarnessAdapter
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   stores: ChatStores
   claudeHome?: string
   toolNames: ReadonlySet<string>
-  native: (sessionId: SessionId) => {nativeId: HarnessSessionId; cwd: string} | null
+  native: (sessionId: SessionId) => {nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null
   log: (message: string) => void
 }
 
@@ -80,12 +106,15 @@ export type TranscriptImporter = {
 }
 
 export function createTranscriptImporter(source: TranscriptSource): TranscriptImporter {
-  const {harness, stores} = source
+  const {stores} = source
   const normalize = toolNameNormalizer(source.toolNames)
   const read = async (sessionId: SessionId): Promise<ChatMessage[] | null> => {
+    const harness = source.harnessFor(sessionId)
     const history = harness.history
     const native = source.native(sessionId)
-    if (!harness.capabilities.transcriptHistory || history === undefined || native === null) return null
+    if (!harness.capabilities.transcriptHistory || history === undefined || native?.harnessKind !== harness.id) {
+      return null
+    }
     try {
       return await history.messages(native.cwd, native.nativeId, source.claudeHome)
     } catch (error) {
@@ -109,7 +138,10 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       const fresh = anchor !== null && anchored === -1 ? [] : transcript.slice(anchored + 1)
       const stored = await stores.messages.loadThread(sessionId)
       const known = new Set(stored.flatMap((message) => ('id' in message && message.id ? [message.id] : [])))
-      const novel = normalizedMessages(fresh, normalize).filter((message) => !known.has(message.id))
+      const harnessId = source.harnessFor(sessionId).id
+      const novel = normalizedMessages(fresh, normalize)
+        .filter((message) => !known.has(message.id))
+        .map((message) => stampedImport(message, harnessId))
       if (novel.length > 0) await stores.messages.saveThread(sessionId, [...stored, ...toModelMessages(novel)])
       await advance(sessionId, transcript)
     },

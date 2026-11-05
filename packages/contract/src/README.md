@@ -6,7 +6,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Interface
 
-- `contract` (`contract.ts`): oRPC router with `sessions{list,create,resolve,open,restore,rename,delete,model,compact}`, `drafts{get,set}`, `markers{list}`, `navigation{get,set}`, `chat{events,hydrate,stop,permissionDecision,uiReply}` (`events` is an eventIterator), `registry{catalog,call}`, `captures{list}`, `page{symbolicate,changes,clearChanges,queries,reply}` (`queries` is an eventIterator), `server{config,resolve,graph,transform,urls,reload,restart}`, `editor{open,openFromFrames}`, `meta{models,commands,tools,engine}`.
+- `contract` (`contract.ts`): oRPC router with `sessions{list,create,resolve,open,restore,rename,delete,model,effort,compact,switchHarness}`, `drafts{get,set}`, `markers{list}`, `navigation{get,set}`, `chat{events,hydrate,stop,permissionDecision,uiReply}` (`events` is an eventIterator), `registry{catalog,call}`, `captures{list}`, `page{symbolicate,changes,clearChanges,queries,reply}` (`queries` is an eventIterator), `server{config,resolve,graph,transform,urls,reload,restart}`, `editor{open,openFromFrames}`, `meta{models,harnesses,commands,tools,engine}`.
 - `ChatHydrationSchema` / `ChatHydration`, `ChatPendingApproval` (`contract.ts`): chat hydrate payload (messages, activeRun, lastRun, pendingApprovals, interrupts).
 - `ToolCommandSignatureSchema` / `ToolCommandSignature` (`contract.ts`): registry catalog entry (name, path, binding `server|client`, icon from `TOOL_ICON_KEYS`, label, mutating/mirrors/reachable, approval `'ask'`, input/output schema, errors).
 - `RegistryCallErrorName` (`contract.ts`): `NO_PAGE_CLIENT`, `PAGE_TIMEOUT`, `UNKNOWN_TOOL`, `INVALID_ARGS`, `HANDLER_ERROR`, `APPROVAL_DENIED`.
@@ -23,7 +23,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Invariants
 
-- `sessions.rename` requires `title` of 1-120 characters and declares `NOT_FOUND`; `sessions.model` declares `NOT_FOUND` and `UNKNOWN_MODEL` (`contract.ts`).
+- `sessions.rename` requires `title` of 1-120 characters and declares `NOT_FOUND`; `sessions.model` declares `NOT_FOUND` and `UNKNOWN_MODEL`; `sessions.effort` takes a `ReasoningEffortSchema` value or null and declares `NOT_FOUND` and `UNSUPPORTED_EFFORT`; `sessions.switchHarness` takes a non-empty `harnessId` and an optional non-empty `model` and declares `NOT_FOUND`, `UNKNOWN_HARNESS`, `UNKNOWN_MODEL` and `SESSION_RUNNING`; `meta.models` and `meta.commands` take a `sessionId`; `SessionMetaSchema` carries a nullable `effort` (`contract.ts`, `rows.ts`).
 - `chat.stop` requires `runIds` to be non-empty strings; `chat.permissionDecision`, `chat.uiReply` and `page.reply` declare `UNKNOWN_REQUEST` (`contract.ts`).
 - Every `server.*` procedure declares `NO_BUNDLER`; `server.reload` and `server.restart` also declare `APPROVAL_DENIED`; `restart.force` defaults to `false` (`contract.ts`).
 - `registry.call` requires a non-empty `name` and `input` as `record<string, unknown>`, and declares the `registryCallErrors` set (`contract.ts`).

@@ -10,6 +10,7 @@ import {
   withTanstackMetadata,
   type DebugConfig,
   type MetadataStore,
+  type ReasoningLevel,
   type RunRecord,
   type RunStore,
   type StreamDurability,
@@ -53,6 +54,7 @@ export type Approvals = ReadonlyMap<string, boolean>
 export type TurnPlan = {
   adapter: TextAdapter
   modelOptions?: Record<string, unknown>
+  reasoning?: ReasoningLevel
   systemPrompts: readonly string[]
   codeMode: readonly ChatTool[]
   asking: readonly ChatTool[]
@@ -93,7 +95,9 @@ export type CustomEventSink = (name: string, value: Record<string, unknown>) => 
 export type ChatServer = ChatDelivery & {
   stop: (threadId: string, runIds?: readonly string[]) => Promise<void>
   endRuns: (threadId: string) => Promise<void>
+  endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
+  driving: (threadId: string) => boolean
   hydrate: (threadId: string) => Promise<ChatThread>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
@@ -269,6 +273,11 @@ function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   }
 }
 
+function throwRejected(outcomes: readonly PromiseSettledResult<unknown>[], message: string): void {
+  const failures = outcomes.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []))
+  if (failures.length > 0) throw new AggregateError(failures, message)
+}
+
 export async function createChatServer(config: ChatServerConfig): Promise<ChatServer> {
   const {stores, hooks} = config
   const persistence = defineAIPersistence({stores})
@@ -315,16 +324,32 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     [...live.entries()].filter(([runId, entry]) => entry.threadId === threadId && runId !== except)
 
   const endRuns = async (threadId: string, except?: string): Promise<void> => {
-    for (const [runId, entry] of liveRunsOf(threadId, except)) {
-      await requestRunCancel(stores.runs, runId)
-      entry.ending.abort({
-        type: EventType.RUN_FINISHED,
-        threadId,
-        runId,
-        finishReason: 'stop',
-        timestamp: Date.now(),
-      })
-    }
+    const cancels = await Promise.allSettled(
+      liveRunsOf(threadId, except).map(async ([runId, entry]) => {
+        try {
+          await requestRunCancel(stores.runs, runId)
+        } finally {
+          entry.ending.abort({
+            type: EventType.RUN_FINISHED,
+            threadId,
+            runId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          })
+        }
+      }),
+    )
+    throwRejected(cancels, `conciv: cancelling the runs of thread ${threadId} failed`)
+  }
+
+  const endThreadRuns = async (threadId: string): Promise<void> => {
+    const running = liveRunsOf(threadId)
+    const interrupted = endRuns(threadId).finally(() => {
+      for (const [, entry] of running) entry.controller.abort(RUN_CANCEL_REASON)
+    })
+    const ending = running.map(([, entry]) => entry.settled.promise)
+    const [cancelled] = await Promise.allSettled([interrupted, Promise.all(ending)])
+    if (cancelled.status === 'rejected') throw cancelled.reason
   }
 
   function concivTurn(turn: Turn, plan: TurnPlan, granted: {approvals: Approvals}, view: RunMessages, entry: LiveRun) {
@@ -444,6 +469,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
       modelOptions: plan.modelOptions,
+      reasoning: plan.reasoning,
       abortController: controller,
       debug,
       middleware: [
@@ -468,7 +494,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         withSandbox(sandbox, {
           runs: stores.runs,
           locks,
-          durability: {adapter: durability, journal: config.sandbox.journalDir, detachOnDisconnect: true},
+          durability: {
+            adapter: durability,
+            journal: config.sandbox.journalDir,
+            detachOnDisconnect: true,
+            attachWaitMs: config.firstOutputTimeoutMs,
+          },
         }),
         concivTurn(turn, plan, granted, view, entry),
       ],
@@ -489,11 +520,13 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       await requestRunCancel(stores.runs, active.runId)
       live.get(active.runId)?.controller.abort(RUN_CANCEL_REASON)
     },
-    endRuns: async (threadId) => {
-      const ending = liveRunsOf(threadId).map(([, entry]) => entry.settled.promise)
-      await endRuns(threadId)
-      await Promise.all(ending)
+    endRuns: endThreadRuns,
+    endAllRuns: async () => {
+      const threadIds = new Set([...live.values()].map((entry) => entry.threadId))
+      const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
+      throwRejected(ended, 'conciv: ending the live runs failed')
     },
+    driving: (threadId) => liveRunsOf(threadId).length > 0,
     settled: async (threadId) => {
       await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
     },

@@ -8,6 +8,7 @@ export const chatRuns = sqliteTable(
   {
     runId: text('run_id').primaryKey(),
     threadId: text('thread_id').notNull(),
+    harnessId: text('harness_id').notNull(),
     status: text('status').$type<RunStatus>().notNull(),
     startedAt: integer('started_at').notNull(),
     finishedAt: integer('finished_at'),

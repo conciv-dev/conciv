@@ -25,6 +25,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `createToolRegistry` / `ToolRegistry` / `TOOL_TRANSPORT_ERRORS` / `toInlineJsonSchema` (`tool-registry.ts`)
 - `walkRegistryProcedures` (`registry-walk.ts`)
 - `makeCompositeRpcRouter` / `rpcFetchMiddleware` / `rpcWebsocketRoute` / `RPC_PREFIX` ('/rpc') / `RPC_WS_PATH` ('/rpc-ws') (`rpc-mount.ts`)
+- `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` and the shared contract types
 
 ## Invariants

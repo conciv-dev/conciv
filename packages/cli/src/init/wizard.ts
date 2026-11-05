@@ -14,7 +14,8 @@ import {
 } from '@clack/prompts'
 import pc from 'picocolors'
 import type {Framework} from './detect.js'
-import type {FoundHarness, HarnessId} from './harness-detect.js'
+import type {FoundHarness} from '@conciv/harness-init/detect'
+import type {HarnessId} from './harness-detect.js'
 import type {StepNote, StepStatus} from './ledger.js'
 
 type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}

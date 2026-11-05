@@ -12,6 +12,7 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 - `geminiCliInit` (`gemini-cli.ts`): detection `{bin: 'gemini', configDir: ['.gemini']}`, `init: 'none'`.
 - `opencodeInit` (`opencode.ts`): detection `{bin: 'opencode', configDir: ['.config', 'opencode']}`, `init: 'none'`.
 - `piInit` (`pi.ts`): detection `{bin: 'pi', configDir: ['.pi']}`, `init: 'none'`.
+- `detectHarnesses(env)` / `FoundHarness` (`detect.ts`, export `./detect`): installed harnesses by an executable on PATH or a config dir under HOME, from each contribution's `detection`; the cli uses it for `conciv init`, core for the set of harnesses a session can switch to.
 - `parseJsonOrNull(raw)` (`json.ts`, export `./json`).
 - `inside(parent, child)`, `realpathOrSelf(path)`, `sameCwd(a, b)` (`paths.ts`, export `./paths`).
 - [claude/README.md](./claude/README.md): `claudeInit`, plugin files, MCP bridge and install-state checks.
@@ -19,11 +20,13 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 ## Invariants
 
 - `initContributions` is a mapped type over `InitHarnessId`, so every id in `INIT_HARNESS_IDS` needs a contribution with a matching `harnessId` (`registry.ts`).
+- `detectHarnesses` reports one entry per harness, `via: 'path'` winning over `'config'`; a PATH match requires the execute bit (`detect.ts`).
 - `inside` returns false when the child equals the parent, or when `relative()` starts with `..` or is absolute (`paths.ts`).
 
 ## Side Effects
 
 - `realpathSync` read in `realpathOrSelf` (`paths.ts`).
+- `detectHarnesses` (`detect.ts`) checks PATH entries and HOME config dirs with `existsSync` / `statSync`.
 
 ## Verification
 

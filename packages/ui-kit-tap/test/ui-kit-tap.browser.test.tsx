@@ -12,6 +12,7 @@ import {
 describe('external value', () => {
   const LABEL = 'Message'
   const CARET_LABEL = 'Caret'
+  const FOCUS = 'Focus'
   const FOCUS_END = 'Focus end'
 
   const slashTrigger: RichTextFieldTriggerSource = {
@@ -19,7 +20,10 @@ describe('external value', () => {
     items: () => [{id: 'clear', label: '/clear'}],
   }
 
-  function mount(initial: string, triggers?: {slash: RichTextFieldTriggerSource}): (next: string) => void {
+  function mount(
+    initial: string,
+    options: {slash?: RichTextFieldTriggerSource; initialSelection?: RichTextFieldSelection} = {},
+  ): (next: string) => void {
     const [value, setValue] = createSignal(initial)
     const [selection, setSelection] = createSignal<RichTextFieldSelection>({start: 0, end: 0})
     const [handle, setHandle] = createSignal<RichTextFieldHandle | null>(null)
@@ -30,15 +34,21 @@ describe('external value', () => {
           onValueChange={setValue}
           onSelectionChange={setSelection}
           onReady={setHandle}
-          slashTrigger={triggers?.slash}
+          slashTrigger={options.slash}
+          initialSelection={options.initialSelection}
           label={LABEL}
         />
         <p>{`${CARET_LABEL} ${selection().start}-${selection().end}`}</p>
         <Show when={handle()}>
           {(api) => (
-            <button type="button" onClick={() => api().focus({end: true})}>
-              {FOCUS_END}
-            </button>
+            <>
+              <button type="button" onClick={() => api().focus()}>
+                {FOCUS}
+              </button>
+              <button type="button" onClick={() => api().focus({end: true})}>
+                {FOCUS_END}
+              </button>
+            </>
           )}
         </Show>
       </>
@@ -52,12 +62,10 @@ describe('external value', () => {
 
   const undoChord = navigator.platform.includes('Mac') ? '{Meta>}z{/Meta}' : '{Control>}z{/Control}'
 
-  async function placeCaret(text: string, offset: number): Promise<void> {
-    await userEvent.click(editable())
+  async function focusAtCaret(offset: number): Promise<void> {
+    await expect.element(caret(offset, offset)).toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: FOCUS, exact: true}))
     await expect.element(editable()).toHaveFocus()
-    await userEvent.keyboard('{End}')
-    await expect.element(caret(text.length, text.length)).toBeInTheDocument()
-    await userEvent.keyboard(`{ArrowLeft>${text.length - offset}}`)
     await expect.element(caret(offset, offset)).toBeInTheDocument()
   }
 
@@ -72,9 +80,9 @@ describe('external value', () => {
   }
 
   it('keeps the caret in place when an external write changes text after it', async () => {
-    const setValue = mount('hello world')
+    const setValue = mount('hello world', {initialSelection: {start: 5, end: 5}})
     await expect.element(editable()).toHaveTextContent('hello world')
-    await placeCaret('hello world', 5)
+    await focusAtCaret(5)
 
     setValue('hello world!')
 
@@ -86,9 +94,9 @@ describe('external value', () => {
   })
 
   it('maps the caret through an external write that changes text before it', async () => {
-    const setValue = mount('hello world')
+    const setValue = mount('hello world', {initialSelection: {start: 5, end: 5}})
     await expect.element(editable()).toHaveTextContent('hello world')
-    await placeCaret('hello world', 5)
+    await focusAtCaret(5)
 
     setValue('Xhello world')
 
