@@ -6,13 +6,18 @@ import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message
 import type {TurnHooks} from '@conciv/ai/server'
 import type {AttachmentDocumentPart} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
-import {isHarnessSessionId, SessionId, type HarnessSessionId} from '@conciv/protocol/chat-types'
+import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {ApprovalStore, UiChannel} from './approvals.js'
 import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {normalizedChunk, toolNameNormalizer, type TranscriptImporter} from './transcript.js'
 
-export type SessionRow = {model: string | null; nativeId: HarnessSessionId | null; cwd: string}
+export type SessionRow = {
+  model: string | null
+  effort: ReasoningEffort | null
+  nativeId: HarnessSessionId | null
+  cwd: string
+}
 
 export type SessionPort = {
   row: (sessionId: SessionId) => SessionRow | null
@@ -144,12 +149,6 @@ function titleOf(messages: ModelMessage[]): string {
     .slice(0, TITLE_MAX_CHARS)
 }
 
-function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
-  const models = harness.models
-  if (!Array.isArray(models) || modelId === null) return undefined
-  return models.find((model) => model.id === modelId)?.contextWindow
-}
-
 async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<number | undefined> {
   const history = deps.harness.history
   const nativeId = deps.sessions.row(sessionId)?.nativeId ?? null
@@ -189,6 +188,7 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
+        reasoning: row?.effort ?? undefined,
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,
@@ -241,11 +241,9 @@ export function turnHooks(
       const usage = toTokenUsage(reported)
       if (usage === undefined) return
       const modelId = deps.sessions.row(sessionId)?.model ?? deps.harness.defaultModel ?? null
-      const contextWindow = contextWindowFor(deps.harness, modelId)
       await deps.sessions.recordUsage(sessionId, {
         ...tokenUsageToSnapshot(usage),
         ...(modelId === null ? {} : {modelId}),
-        ...(contextWindow === undefined ? {} : {contextWindow}),
       })
     },
     started: (turn) =>

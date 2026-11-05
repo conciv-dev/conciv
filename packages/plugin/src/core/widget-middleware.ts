@@ -1,10 +1,10 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
-import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
+import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-export {EXTENSIONS_ROUTE}
+export {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE}
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
@@ -12,7 +12,7 @@ function escapeAttr(value: string): string {
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false}): HtmlTag[] {
+export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false; entry: string}): HtmlTag[] {
   const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
   ]
@@ -20,7 +20,7 @@ export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | 
   return [
     ...base,
     {tag: 'meta', attrs: {name: 'conciv-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
-    {tag: 'script', attrs: {type: 'module', src: EXTENSIONS_ROUTE}, injectTo: 'head'},
+    {tag: 'script', attrs: {type: 'module', src: opts.entry}, injectTo: 'head'},
   ]
 }
 
@@ -44,7 +44,7 @@ function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false):
       html: `<meta name="conciv-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">`,
     },
     {
-      present: (html) => html.includes(EXTENSIONS_ROUTE),
+      present: (html) => html.includes(EXTENSIONS_ROUTE) || html.includes(EXTENSIONS_DOCK_ROUTE),
       html: `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`,
     },
   ]
