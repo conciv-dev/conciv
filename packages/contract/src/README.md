@@ -40,7 +40,6 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - Connections are keyed by `normalizeApiBase` (origin + pathname without trailing slash, resolved against `location.href` when present), so equivalent bases share one connection (`browser-transport.ts`).
 - Retry policy: `CONNECTION_LOSS_RETRIES` = 12 with `CONNECTION_LOSS_RETRY_DELAY_MS` = 250, gated by `isRetryableRpcFailure`; a closed connection is not alive and stops retrying (`browser-transport.ts`).
 - The token is stored under `conciv:engine-token:<normalized api base>` in localStorage; a 401 or a 1008 close for the token currently held forgets it and sets `untrusted`, a refusal for an older token is ignored (`browser-transport.ts`).
-- Only the active connection for a key may report reachability: `voteReachability` ignores votes whose connectionId differs from `activeConnections()` (`browser-transport.ts`).
 
 ## Side Effects
 
