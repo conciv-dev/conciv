@@ -13,6 +13,7 @@ export type PageQueryFrame = {requestId: string; query: unknown}
 
 export type PushChannel = {
   queries: (abortSignal?: AbortSignal) => AsyncGenerator<PageQueryFrame>
+  serving: (abortSignal?: AbortSignal) => AsyncGenerator<boolean>
   events: (abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
   dispose: () => void
 }
@@ -93,6 +94,14 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
           }),
         abortSignal,
       ),
+    serving: (abortSignal) =>
+      relayedValues<boolean>(
+        (emit) =>
+          subscribe((frame) => {
+            if (frame.channel === 'page-serving') emit(frame.serving)
+          }),
+        abortSignal,
+      ),
     events: (abortSignal) =>
       relayedValues<ChatEvent>(
         (emit) =>
@@ -128,6 +137,7 @@ export function acquirePushChannel(options: PushChannelOptions): PushChannel {
   shared.set(key, entry)
   return {
     queries: (abortSignal) => entry.channel.queries(abortSignal),
+    serving: (abortSignal) => entry.channel.serving(abortSignal),
     events: (abortSignal) => entry.channel.events(abortSignal),
     dispose: () => releasePushChannel(key),
   }

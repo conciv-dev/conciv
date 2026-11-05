@@ -28,7 +28,8 @@ export type ExtensionsSurface = 'page' | 'dock'
 const HOST_WIDGET_SETTINGS = [
   `function hostWidgetSettings() {`,
   `  try {`,
-  `    return JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `    const parsed = JSON.parse(document.querySelector('meta[name="conciv-widget"]')?.content ?? '{}')`,
+  `    return typeof parsed === 'object' && parsed !== null ? parsed : {}`,
   `  } catch {`,
   `    return {}`,
   `  }`,

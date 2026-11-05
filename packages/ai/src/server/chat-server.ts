@@ -336,7 +336,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             finishReason: 'stop',
             timestamp: Date.now(),
           })
-          entry.controller.abort(RUN_CANCEL_REASON)
         }
       }),
     )
@@ -344,8 +343,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   }
 
   const endThreadRuns = async (threadId: string): Promise<void> => {
-    const ending = liveRunsOf(threadId).map(([, entry]) => entry.settled.promise)
-    const [cancelled] = await Promise.allSettled([endRuns(threadId), Promise.all(ending)])
+    const running = liveRunsOf(threadId)
+    const interrupted = endRuns(threadId).finally(() => {
+      for (const [, entry] of running) entry.controller.abort(RUN_CANCEL_REASON)
+    })
+    const ending = running.map(([, entry]) => entry.settled.promise)
+    const [cancelled] = await Promise.allSettled([interrupted, Promise.all(ending)])
     if (cancelled.status === 'rejected') throw cancelled.reason
   }
 

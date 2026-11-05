@@ -17,7 +17,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `settleTeardown` / `TeardownStep` (`settle-teardown.ts`): runs teardown steps concurrently, each with its own timeout
 - `mountToolCard` (`card-harness.tsx`): renders a Solid `ToolCardProps` component with a synthetic tool-call part (id 't1') and an optional tool-result
 - `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then calls RPC `registry.call` with page_text
-- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once any push socket on PUSH_WS_PATH sends a 'ready' frame (sent when the socket starts serving page queries)
+- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once any push socket on PUSH_WS_PATH receives a 'page-serving' frame with `serving: true` (the server's acknowledgement that the socket serves page queries)
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
 - `watchRpcWire` / `RpcWireWatch` (`rpc-wire.ts`): waits for sessions.list and sessions.resolve traffic
@@ -39,7 +39,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `bootCoreKit` (`core-kit.ts`): throws if makeApp did not capture a runtime
 - `settleTeardown` (`settle-teardown.ts`): every step runs even if another fails; each step times out after 20s by default; the first rejection is rethrown after all steps settle
 - `getExtensionTestApi` (`get-extension-test-api.ts`): dispose tears down browser, host and server through settleTeardown; serverContext is keyed by extension.server.name
-- `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if no push socket sent a 'ready' frame; the journal keeps at most 200 entries
+- `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if no push socket acknowledged serving page queries; the journal keeps at most 200 entries
 - `rpcObserverFor` (`rpc-observer.ts`): one observer per Page (WeakMap); only URLs containing '/rpc/' are recorded; completed() checks buffered calls first and rejects after 30s by default; dispose rejects pending waiters
 - `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): OPTIONS preflights always pass through; the gate's answered waits for status 200 within 15s
 - `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): only POST requests are faulted; the request's origin is echoed in CORS headers

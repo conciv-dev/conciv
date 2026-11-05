@@ -29,6 +29,7 @@ import {
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
   ChatProvider,
@@ -1831,15 +1832,15 @@ describe('panel view tabs', () => {
 
     test('a run that ends while the connection is down settles once the replacement client hydrates', async () => {
       const {running, titles} = await twoSessions('offline')
-      const [apiBase, setApiBase] = createSignal(coreBase())
-      const turn = await mountHeldTurn(running, {transport: 'fetch', apiBase})
+      const [connection, setConnection] = createStore({apiBase: coreBase()})
+      const turn = await mountHeldTurn(running, {transport: 'fetch', apiBase: () => connection.apiBase})
 
       await switchToOther(titles)
-      setApiBase(UNREACHABLE_BASE)
+      setConnection('apiBase', UNREACHABLE_BASE)
       await coreControl.releaseTurn()
       await turn.awaitTurnEnd()
       turn.close()
-      setApiBase(coreBase())
+      setConnection('apiBase', coreBase())
 
       await expect.element(replied(), {timeout: 8000}).toBeInTheDocument()
       await expect.element(launcher()).toHaveAttribute('aria-busy', 'false')

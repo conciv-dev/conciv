@@ -16,13 +16,14 @@ export const ChatEventFrameSchema = z.object({channel: z.literal('chat'), chunk:
 
 export const ReadyFrameSchema = z.object({channel: z.literal('ready')})
 
+export const PageServingFrameSchema = z.object({channel: z.literal('page-serving'), serving: z.boolean()})
+
 export const PushFrameSchema = z.discriminatedUnion('channel', [
   ReadyFrameSchema,
   PageQueryFrameSchema,
   ChatEventFrameSchema,
+  PageServingFrameSchema,
 ])
-
-export const PageServingFrameSchema = z.object({channel: z.literal('page-serving'), serving: z.boolean()})
 
 export type ReadyFrame = z.infer<typeof ReadyFrameSchema>
 export type PageQueryFrame = z.infer<typeof PageQueryFrameSchema>
