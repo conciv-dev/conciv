@@ -56,6 +56,8 @@ const EFFORT_NOTE: Record<ReasoningEffort, string> = {
   max: 'Thinks as long as it needs. Slowest, uses the most tokens.',
 }
 const EFFORT_DEFAULT_NOTE = 'Using the model’s default effort.'
+const EFFORT_DEFAULT = 'default'
+const EFFORT_DEFAULT_NAME = 'Default'
 const CHARACTERS_PER_TOKEN = 4
 const MAIN_ROWS = 4
 const MODEL_COUNT = new Intl.NumberFormat(undefined)
@@ -317,10 +319,11 @@ function HarnessGroup(props: {
 function EffortSection(props: {
   efforts: readonly ReasoningEffort[]
   value: ReasoningEffort | null
-  onSelect: (effort: ReasoningEffort) => void
+  onSelect: (effort: ReasoningEffort | null) => void
 }): JSX.Element {
   const [local] = splitProps(props, ['efforts', 'value', 'onSelect'])
   const select = (value: string | null) => {
+    if (value === EFFORT_DEFAULT) return local.onSelect(null)
     const parsed = ReasoningEffortSchema.safeParse(value)
     if (parsed.success) local.onSelect(parsed.data)
   }
@@ -334,11 +337,15 @@ function EffortSection(props: {
       </div>
       <SegmentGroup.Root
         class={EFFORT_TRACK}
-        value={local.value}
+        value={local.value ?? EFFORT_DEFAULT}
         onValueChange={(details) => select(details.value)}
         aria-label={EFFORT_LABEL}
       >
         <SegmentGroup.Indicator />
+        <SegmentGroup.Item class={EFFORT_SEGMENT} value={EFFORT_DEFAULT}>
+          <SegmentGroup.ItemText>{EFFORT_DEFAULT_NAME}</SegmentGroup.ItemText>
+          <SegmentGroup.ItemHiddenInput />
+        </SegmentGroup.Item>
         <For each={effortLevels(local.efforts)}>
           {(level) => (
             <SegmentGroup.Item class={EFFORT_SEGMENT} value={level}>
@@ -567,7 +574,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
     close()
     if (picked.model.id !== value()) setModel.mutate(picked.model.id)
   }
-  const selectEffort = (next: ReasoningEffort) => {
+  const selectEffort = (next: ReasoningEffort | null) => {
     if (next === effort()) return
     setEffort.mutate(next)
   }

@@ -815,11 +815,25 @@ describe('model menu', () => {
     await userEvent.click(prompt('Opus 5.5'))
     await expect.element(effortGroup()).toBeVisible()
     await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
+    await expect.element(checkedEffort('Default')).toBeInTheDocument()
     await userEvent.click(effort('Medium'))
 
     await expect.element(prompt('Opus 5.5, effort Medium')).toHaveTextContent('opus 5.5')
     await expect.element(picker()).toBeVisible()
     await expect.element(checkedEffort('Medium')).toBeInTheDocument()
+  })
+
+  test('the Default segment puts the model back on its default effort', async () => {
+    await mountModelMenu()
+
+    await userEvent.click(prompt('Opus 5.5'))
+    await userEvent.click(effort('High'))
+    await expect.element(prompt('Opus 5.5, effort High')).toBeVisible()
+    await userEvent.click(effort('Default'))
+
+    await expect.element(page.getByRole('button', {name: 'Model: Opus 5.5', exact: true})).toBeVisible()
+    await expect.element(checkedEffort('Default')).toBeInTheDocument()
+    await expect.element(page.getByText('Using the model’s default effort.')).toBeVisible()
   })
 
   test('High+ is its own effort segment', async () => {
