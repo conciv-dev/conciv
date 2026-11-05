@@ -246,7 +246,6 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  window.__CONCIV_API_BASE__ = options.base
   browserRpcConnection(options.base)
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
@@ -302,7 +301,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
           <EngineReachabilityContext.Provider value={reachabilityRoot.reachability}>
             <NoticeContextProvider>
               <PaneContext.Provider value={pane}>
-                <HostApiProvider rpc={rpc} apiBase={() => ''} toast={(message) => app.announce(message)}>
+                <HostApiProvider rpc={rpc} apiBase={() => options.base} toast={(message) => app.announce(message)}>
                   <div class="flex flex-col h-150" style={{width: `${width()}px`}}>
                     {view(pane)}
                     <NoticeSurface />
@@ -324,7 +323,6 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       harnessRoot.dispose()
       reachabilityRoot.dispose()
       closeBrowserRpcConnection(options.base)
-      delete window.__CONCIV_API_BASE__
     },
     pane,
     data,
@@ -368,7 +366,6 @@ export function createShellHarness(base: () => string): ShellHarness {
         return createEngineLogin({apiBase: () => apiBase, tokenSource: loginOptions.tokenSource})
       })
     if (login) void startEngineLogin(login)
-    window.__CONCIV_API_BASE__ = base()
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase).rpc,
       history: createMemoryHistory({initialEntries: [entry]}),
@@ -392,9 +389,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.disposeLogin()
     mounted.disposeLogin = () => {}
     closeBrowserRpcConnection(mounted.apiBase)
-    closeBrowserRpcConnection(base())
     onlineManager.setOnline(true)
-    delete window.__CONCIV_API_BASE__
   }
 
   return {mountShell, dispose}

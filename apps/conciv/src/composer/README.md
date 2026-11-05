@@ -10,7 +10,7 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 - `LaunchMenu` (`launch-menu.tsx`): `Open in <harness>`, `Copy command`, or a retry item when failed
 - `useModelMenu(onClose)`, `SessionModelPrompt({sessionId, menu})` (`model-selector.tsx`): the model popover machine (`usePopover` from ui-kit-system, so the pane can open it for `/model`; `onClose` runs whenever it closes) and the composer prompt: a mono trigger (lowercase model name sliding in on change, then signal bars for the effort that fill and drain one bar at a time) followed by a separate `❯` caret, with the trigger rendering the picker through `Popover.RootProvider` (`lazyMount`, `unmountOnExit`): a `Listbox` of the first group's models (name and description, check on the selected one), each later group as a `Collapsible` section with its own `Listbox`, and below a separator an `Effort` section: a `SegmentGroup` of the current model's `efforts` in order (`xhigh` reads `High+`) and a fixed-height note for the chosen level
 - `SessionSelector` (`session-selector.tsx`): session combobox (`pill` | `bar`) with Today/Yesterday/Earlier groups, search, rename, new session
-- `terminalRpc`, `TerminalRpc` (`terminal-rpc.ts`): `makeExtRpcClient<TerminalRouter>(resolveApiBase(), 'terminal')`
+- `terminalRpc`, `TerminalRpc` (`terminal-rpc.ts`): `makeExtRpcClient<TerminalRouter>(apiBase, 'terminal')` for the api base the widget is bound to (read from the host api by the caller)
 
 ## Invariants
 

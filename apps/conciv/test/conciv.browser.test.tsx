@@ -874,6 +874,7 @@ describe('grab staging', () => {
 describe('launch actions', () => {
   const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
   const LAUNCH_PATH = ['ext', 'terminal', 'launch']
+  const STALE_API_BASE = 'http://127.0.0.1:1'
 
   const core = bootedCore('launch-actions', {displayName: 'Claude', connect: true, terminal: true, resume: true})
   const keep = keptPane()
@@ -940,6 +941,22 @@ describe('launch actions', () => {
 
     await expect.element(page.getByText(/Command copied|Run in your terminal: cd .*'claude' '--resume'/)).toBeVisible()
     expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
+  })
+
+  test('after a rebind, opening externally reaches the engine the widget is bound to, not the page api base it booted on', async () => {
+    window.__CONCIV_API_BASE__ = STALE_API_BASE
+    try {
+      await mountActions()
+      const before = await coreControl.terminalLaunches()
+
+      await openMenu()
+      await page.getByText('Open in Claude').click()
+
+      await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
+      expect((await coreControl.terminalLaunches()) - before).toBe(1)
+    } finally {
+      delete window.__CONCIV_API_BASE__
+    }
   })
 
   test('a launch failure is surfaced instead of swallowed', async () => {
