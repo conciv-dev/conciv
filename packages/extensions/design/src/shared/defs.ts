@@ -396,7 +396,6 @@ export type Sides = {
   measure(input: {
     element: Element
     elements: Element[]
-    nodes: DesignNode[]
     live: Raster
     target: Raster
     page: Box
@@ -416,7 +415,6 @@ export type Deltas = {
   }): Element[]
   measure(input: {
     elements: Element[]
-    tree: DesignTree
     reuse: Reuse | null
     shift: Shift
     live: Raster
@@ -429,7 +427,7 @@ export type Deltas = {
     elements: Element[]
     judged: Map<Element, TextJudgement>
     components: LiveComponent[]
-    tree: DesignTree
+    root: Match
   }): Promise<Delta[]>
   size(delta: Delta): number
   sourced(input: {delta: Delta; element: Element}): Delta
@@ -510,8 +508,6 @@ export type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'stop' | 's
 
 export type SectionBudget = {id: string; roundsUsed: number; open: boolean; spent: boolean}
 
-export type Placement = {node: string; target: string; path: string; confidence: number}
-
 export type Judging = {
   items: Item[]
   score: number[]
@@ -526,17 +522,11 @@ export type Judging = {
 }
 
 export type Judge = {
-  unmatched(input: {
-    tree: DesignTree
-    root: Match
-    components: LiveComponent[]
-    offsets: Offset[]
-    measured: Measured[]
-  }): Unmatched[]
-  items(input: {components: Measured[]; unmatched: Unmatched[]; tree: DesignTree}): Item[]
+  unmatched(input: {root: Match; components: LiveComponent[]; offsets: Offset[]; measured: Measured[]}): Unmatched[]
+  items(input: {components: Measured[]; unmatched: Unmatched[]; root: Match}): Item[]
   score(input: {items: Item[]; unmatched: Unmatched[]; measured: Measured[]; masks: Box[]; page: Box}): number[]
   verdict(input: Judging & {priors: Round[]; round: number}): Verdict
-  report(input: {measured: Measured[]; input: DiffInput; placements: Placement[]}): {
+  report(input: {measured: Measured[]; input: DiffInput; twins: Twin[]}): {
     reported: {element: Element; report: ComponentReport}[]
     listed: number
   }
@@ -547,7 +537,7 @@ export type Judge = {
     cut: {listed: number; shown: number; paired: number}
   }): {hint?: string}
   painted(components: LiveComponent[]): DiffReport['painted']
-  budgets(input: {sections: DesignSection[]; items: Item[]; rounds: Round[]}): SectionBudget[]
+  budgets(input: {sections: DesignNode[]; items: Item[]; rounds: Round[]}): SectionBudget[]
   round(input: {
     items: Item[]
     score: number[]
@@ -559,7 +549,7 @@ export type Judge = {
   worse(input: {a: number[]; b: number[]}): boolean
   section(input: {
     report: DiffReport
-    section: DesignSection
+    section: DesignNode
     judging: Judging | undefined
     measured: Measured[]
     rounds: Round[]
@@ -571,10 +561,9 @@ export type Judge = {
     accepted: Set<string>
     run: string
     items: Item[]
-    tree: DesignTree
     crop: (node: string) => string
   }): {root: Match; changes: Changes}
-  counts(input: {root: Match | null; nodes?: string[]}): LedgerCounts
+  counts(roots: Match[]): LedgerCounts
 }
 
 export type Registrar = {
@@ -584,9 +573,11 @@ export type Registrar = {
 
 export type Twins = {
   link(input: {id: string; session: string}): Promise<void>
-  placements(id: string): Promise<Placement[]>
+  placements(id: string): Promise<Twin[]>
   responsive(input: {id: string; design: Design}): Promise<DiffReport['responsive']>
 }
+
+export type Twin = {node: string; target: string; path: string}
 
 export type VoterName = 'text' | 'kind' | 'structure' | 'style' | 'geometry' | 'pixel' | 'hints' | 'twins'
 
@@ -662,11 +653,12 @@ export type Store = {
 export type Words = {
   outline(design: Design): string[]
   placeholder(framework: Framework): string
-  line(input: {node: DesignNode; scale: number}): string
+  line(input: {node: MatchNode; scale: number}): string
   delta(input: {element: Element; delta: Delta}): string
-  entry(input: {entry: Unmatched; tree: DesignTree; unbuilt: Record<string, Unmatched>}): string
-  row(input: {run: ContainerLayout['runs'][number]; members: DesignNode[]; tree: DesignTree}): string
-  subject(input: {node: DesignNode; tree: DesignTree}): string
+  unbuilt(input: {match: Match; parent: Match; root: Match; unbuilt: Record<string, Unmatched>}): string
+  entry(entry: Unmatched): string
+  row(input: {run: ContainerLayout['runs'][number]; owner: Match; root: Match}): string
+  subject(input: {match: Match; root: Match}): string
   change(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string
   stalled(input: {stage: Stage; score: number[]; unchanged: Item[]}): string
   flipped(input: {items: Item[]; round: number}): string
@@ -1473,18 +1465,6 @@ export type Unmatched = DiffReport['unmatched'][number]
 
 export type MatchNode = Match['node']
 export type MatchText = Extract<MatchNode, {kind: 'text'}>
-export type DesignTree = {
-  root: DesignNode
-  nodes: DesignNode[]
-  byId: Map<string, DesignNode>
-  parents: Map<string, DesignNode>
-  children(id: string | undefined): DesignNode[]
-  descendants(id: string): DesignNode[]
-  placement(node: DesignNode): Seat | null
-}
-
-export type Seat = {direction: ContainerLayout['direction']; index: number; parent: DesignNode | null}
-export type DesignSection = {id: string; kind: DesignNode['kind']; line: string; box: Box; nodes: string[]}
 export type Element = {
   match: Match
   live: LiveComponent
@@ -1515,7 +1495,7 @@ export type Clock = {
   skip: () => void
   timings: () => Omit<DiffReport['timings'], 'carried' | 'longestTask'>
 }
-export type Css = {design: Design; tree: DesignTree; raster: Raster; dropped: Box[]}
+export type Css = {design: Design; raster: Raster; dropped: Box[]}
 
 export type Winner = z.output<typeof WinnerSchema>
 export type DesignRuntime = {
@@ -1545,7 +1525,6 @@ export type XrayLink = {url: string; absolute: boolean}
 
 export type CssDesigns = {
   load(input: {id: string; decisions: Decision[]}): Promise<Css>
-  sections(tree: DesignTree): DesignSection[]
 }
 
 export type Fresh = {
@@ -1578,7 +1557,7 @@ export type Settled = {
   report: DiffReport
   judging: Judging
   measured: Measured[]
-  placements: Placement[]
+  twins: Twin[]
   hinted: {attributed: boolean; absolute: boolean; partial: boolean; paired: number}
 }
 

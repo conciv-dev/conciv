@@ -10,8 +10,8 @@ export function inferLayout(root: DesignNode): DesignNode {
 }
 
 type Placed = {node: DesignNode; box: Box; glyph: Box | null}
-type Placement = Pick<NodeLayout, 'size' | 'index'>
-type Arranged = {layout: ContainerLayout; placements: Map<string, Placement>}
+type ChildLayout = Pick<NodeLayout, 'size' | 'index'>
+type Arranged = {layout: ContainerLayout; placements: Map<string, ChildLayout>}
 type Axis = 'x' | 'y'
 type Align = ContainerLayout['align']
 
@@ -28,7 +28,7 @@ function arrangedNode(node: DesignNode): DesignNode {
   }
 }
 
-function seat(layout: DesignNode['layout']): Partial<Placement> {
+function seat(layout: DesignNode['layout']): Partial<ChildLayout> {
   if (layout === undefined) return {}
   const {size, index} = layout
   return {...(size === undefined ? {} : {size}), ...(index === undefined ? {} : {index})}

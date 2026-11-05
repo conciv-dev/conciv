@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {
   type Box,
   type ComponentReport,
+  type ContainerLayout,
   type Delta,
   type DeltaKindName,
   type DiffReport,
@@ -254,4 +255,18 @@ const OPAQUE_HEX_LENGTH = 7
 
 export function glyphRun(node: Match['node']): boolean {
   return node.kind === 'text' && glyphSized({text: folded(node.text), box: node.box})
+}
+
+export function childPosition(input: {
+  node: Match['node']
+  parent: Match['node']
+}): {direction: ContainerLayout['direction']; index: number} | null {
+  const {node, parent} = input
+  const {layout} = parent
+  const direction = layout?.direction
+  const index = node.layout?.index
+  if (direction === undefined || index === undefined) return null
+  const run = (layout?.runs ?? []).find((entry) => entry.children.includes(node.id))
+  if (run === undefined) return {direction, index}
+  return {direction: run.direction, index: run.children.indexOf(node.id) + 1}
 }

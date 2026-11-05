@@ -1,4 +1,4 @@
-import {mapValues, uniq} from 'es-toolkit'
+import {mapValues} from 'es-toolkit'
 import {toolError} from '@conciv/extension'
 import {
   type Box,
@@ -6,23 +6,18 @@ import {
   type CssDesigns,
   type Decision,
   type DesignNode,
-  type DesignSection,
-  type DesignTree,
   NO_TARGET_MESSAGE,
-  type Seat,
   type Store,
   type Typography,
-  type Words,
 } from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import {encloses, intersection} from '../shared/box.js'
+import {intersection} from '../shared/box.js'
 import {decodePng, downscale} from './raster.js'
 
-export function createCssDesigns(input: {store: Store; words: Words}): CssDesigns {
-  const {store, words} = input
+export function createCssDesigns(input: {store: Store}): CssDesigns {
+  const {store} = input
   return {
     load: ({id, decisions}) => cssDesign({store, id, decisions}),
-    sections: (tree) => sectionsOf({tree, words}),
   }
 }
 
@@ -61,7 +56,7 @@ async function cssDesign(input: {store: Store; id: string; decisions: Decision[]
     children: design.root.children.flatMap((child) => convert(child) ?? []),
   }
   const css = {...design, scale: 1, viewport: {width: page.w, height: page.h}, root}
-  return {design: css, tree: designTree(root), raster, dropped}
+  return {design: css, raster, dropped}
 }
 
 function scaledNode(input: {node: DesignNode; by: number; typography: Typography | undefined}): DesignNode {
@@ -126,62 +121,4 @@ function pagedNode(input: {node: DesignNode; page: Box}): DesignNode {
     bottom: Math.max(0, padding.bottom - clipped.bottom),
   }
   return {...node, box, layout: {...layout, padding: inset}}
-}
-
-function sectionsOf(input: {tree: DesignTree; words: Words}): DesignSection[] {
-  const {tree, words} = input
-  return tree.root.children
-    .toSorted((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)
-    .map((node) => ({
-      id: node.id,
-      kind: node.kind,
-      line: words.line({node, scale: 1}),
-      box: mapValues(node.box, (value) => Math.round(value)),
-      nodes: uniq([
-        ...[...walk({root: node})].map((visit) => visit.node.id),
-        ...tree.nodes.filter((other) => encloses({outer: node.box, inner: other.box})).map((other) => other.id),
-      ]),
-    }))
-}
-
-function designTree(root: DesignNode): DesignTree {
-  const visits = [...walk({root})]
-  const nodes = visits.flatMap(({node, depth}) => (depth === 0 ? [] : [node]))
-  const base: Indexed = {
-    root,
-    nodes,
-    byId: new Map(nodes.map((node) => [node.id, node])),
-    parents: new Map(visits.flatMap(({node, parent}) => (parent === null ? [] : [[node.id, parent] as const]))),
-  }
-  return {
-    ...base,
-    children: (id) => childrenIn({tree: base, id}),
-    descendants: (id) => descendantsIn({tree: base, id}),
-    placement: (node) => placement({node, tree: base}),
-  }
-}
-
-type Indexed = Pick<DesignTree, 'root' | 'nodes' | 'byId' | 'parents'>
-
-function childrenIn(input: {tree: Indexed; id: string | undefined}): DesignNode[] {
-  const {tree, id} = input
-  const parent = id === undefined ? tree.root : tree.byId.get(id)
-  return (parent?.children ?? []).toSorted((a, b) => (a.layout?.index ?? 0) - (b.layout?.index ?? 0))
-}
-
-function descendantsIn(input: {tree: Indexed; id: string}): DesignNode[] {
-  return childrenIn(input).flatMap((node) => [node, ...descendantsIn({tree: input.tree, id: node.id})])
-}
-
-function placement(input: {node: DesignNode; tree: Indexed}): Seat | null {
-  const {node, tree} = input
-  const above = tree.parents.get(node.id)
-  const parent = above === undefined || above === tree.root ? null : above
-  const layout = (parent ?? tree.root).layout
-  const direction = layout?.direction
-  const index = node.layout?.index
-  if (direction === undefined || index === undefined) return null
-  const run = (layout?.runs ?? []).find((entry) => entry.children.includes(node.id)) ?? null
-  if (run === null) return {direction, index, parent}
-  return {direction: run.direction, index: run.children.indexOf(node.id) + 1, parent}
 }

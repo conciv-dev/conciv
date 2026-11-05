@@ -1,7 +1,7 @@
 import {uniqBy} from 'es-toolkit'
-import type {DesignNode, DiffReport, Match, Placement, Run, Store, Twins} from '../shared/defs.js'
+import type {DesignNode, DiffReport, Match, Run, Store, Twin, Twins} from '../shared/defs.js'
 import {readingOrder} from '../shared/box.js'
-import {walk} from '../shared/tree.js'
+import {find, walk} from '../shared/tree.js'
 
 export function createTwins(input: {store: Store}): Twins {
   const {store} = input
@@ -15,18 +15,18 @@ export function createTwins(input: {store: Store}): Twins {
     placements: async (id) => {
       const twins = (await store.decisions(id)).filter((decision) => decision.kind === 'twin')
       const placed = await Promise.all(
-        twins.map(async (decision): Promise<Placement[]> => {
+        twins.map(async (decision): Promise<(Twin & {confidence: number})[]> => {
           const [target = '', node = ''] = String(decision.value).split(TWIN_SEPARATOR)
           const run = await latestRun({store, id: target})
-          const found = run === null ? null : paired(run.root).get(node)
-          if (found === undefined || found === null || found.live === null) return []
+          const found = run === null ? null : find({root: run.root, id: node, idOf: pairedId(run.root)})
+          if (found === null || found.live === null) return []
           return [{node: decision.anchor, target, path: found.live.path, confidence: found.confidence}]
         }),
       )
       return uniqBy(
         placed.flat().toSorted((a, b) => b.confidence - a.confidence),
-        (placement) => `${placement.node}:${placement.target}`,
-      )
+        (twin) => `${twin.node}:${twin.target}`,
+      ).map(({node, target, path}) => ({node, target, path}))
     },
     responsive: async ({id, design}) => {
       const twins = (await store.decisions(id)).filter((decision) => decision.kind === 'twin')
@@ -66,14 +66,12 @@ async function linkPair(input: {store: Store; here: Run; other: string}): Promis
   const {store, here, other} = input
   const there = await latestRun({store, id: other})
   if (there === null) return
-  const byPath = new Map(
-    [...paired(there.root).values()].flatMap((match) =>
-      match.live === null ? [] : [[match.live.path, match] as const],
-    ),
-  )
-  const links = [...paired(here.root).values()].flatMap((match) => {
-    const twin = match.live === null ? undefined : byPath.get(match.live.path)
-    return twin === undefined ? [] : [{node: match.node.id, twin: twin.node.id}]
+  const links = [...walk({root: here.root})].flatMap(({node: match, depth}) => {
+    const twin =
+      depth === 0 || match.live === null
+        ? null
+        : find({root: there.root, id: match.live.path, idOf: livePath(there.root)})
+    return twin === null ? [] : [{node: match.node.id, twin: twin.node.id}]
   })
   await unlink({store, id: here.design, other})
   await unlink({store, id: other, other: here.design})
@@ -106,8 +104,12 @@ async function latestRun(input: {store: Store; id: string}): Promise<Run | null>
   return last === undefined ? null : input.store.run({id: input.id, run: last})
 }
 
-function paired(root: Match): Map<string, Match> {
-  return new Map([...walk({root})].flatMap(({node, depth}) => (depth === 0 ? [] : [[node.node.id, node] as const])))
+function pairedId(root: Match): (match: Match) => string {
+  return (match) => (match === root ? '' : match.node.id)
+}
+
+function livePath(root: Match): (match: Match) => string {
+  return (match) => (match === root || match.live === null ? '' : match.live.path)
 }
 
 function compareSlices(input: {
@@ -122,13 +124,16 @@ function compareSlices(input: {
 }): DiffReport['responsive'][number] {
   const {here, there, twinned, width, target} = input
   const hereNodes = nodesOf(here.root)
-  const thereNodes = new Map(nodesOf(there).map((node) => [node.id, node]))
   const twinIds = new Set(twinned.values())
   const hereRanks = ranks(hereNodes.filter((node) => twinned.has(node.id)))
-  const thereRanks = ranks([...thereNodes.values()].filter((node) => twinIds.has(node.id)))
+  const thereRanks = ranks(nodesOf(there).filter((node) => twinIds.has(node.id)))
   const linked = hereNodes.flatMap((node) => {
-    const twin = thereNodes.get(twinned.get(node.id) ?? '')
-    return twin === undefined ? [] : [{node, twin}]
+    const twin = find({
+      root: there,
+      id: twinned.get(node.id) ?? '',
+      idOf: (other: DesignNode) => (other === there ? '' : other.id),
+    })
+    return twin === null || twin === there ? [] : [{node, twin}]
   })
   return {
     target,

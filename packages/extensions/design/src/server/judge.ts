@@ -12,8 +12,6 @@ import {
   type Delta,
   type Deltas,
   type DesignNode,
-  type DesignSection,
-  type DesignTree,
   type DiffInput,
   type DiffReport,
   type Element,
@@ -27,18 +25,18 @@ import {
   type Measured,
   type NodeStatus,
   type Offset,
-  type Placement,
   type Ranker,
   type Round,
   type SectionBudget,
   type Shift,
   type SourceLoc,
   type Stage,
+  type Twin,
   type Unmatched,
   type Verdict,
   type Words,
 } from '../shared/defs.js'
-import {glyphRun, iconSized, kindStage, isOpaqueHex, TOLERANCES} from '../shared/tolerances.js'
+import {glyphRun, iconSized, kindStage, isOpaqueHex, childPosition, TOLERANCES} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import {encloses, union} from '../shared/box.js'
 import {boxMask} from './raster.js'
@@ -46,10 +44,10 @@ import {boxMask} from './raster.js'
 export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas; color: ColorMetric}): Judge {
   const {ranker, words, deltas, color} = input
   return {
-    unmatched: ({tree, root, components, offsets, measured}) => {
+    unmatched: ({root, components, offsets, measured}) => {
       const paired = [...walk({root})].flatMap(({node, depth}) => (depth === 0 || node.live === null ? [] : [node]))
       return [
-        ...unbuiltEntries({tree, pairedNodes: new Set(paired.map((match) => match.node.id))}),
+        ...unbuiltEntries(root),
         ...extraEntries({
           components,
           paired: new Set(paired.flatMap((match) => (match.live === null ? [] : [match.live.path]))),
@@ -79,7 +77,7 @@ export function createJudge(input: {ranker: Ranker; words: Words; deltas: Deltas
 }
 
 function settled(input: Parameters<Judge['settle']>[0] & {words: Words}): ReturnType<Judge['settle']> {
-  const {previous, root, accepted, run, items, tree, crop, words} = input
+  const {previous, root, accepted, run, items, crop, words} = input
   const before = new Map(
     previous === null
       ? []
@@ -93,8 +91,7 @@ function settled(input: Parameters<Judge['settle']>[0] & {words: Words}): Return
   const newly = (status: NodeStatus): Match[] =>
     listed.filter(({now, was}) => now.status === status && (was?.status ?? 'unbuilt') !== status).map(({now}) => now)
   const entry = (change: {match: Match; says: (subject: string) => string}): Changes['done'][number] => {
-    const node = tree.byId.get(change.match.node.id)
-    const subject = node === undefined ? 'the node' : words.subject({node, tree})
+    const subject = words.subject({match: change.match, root: restated})
     return {node: change.match.node.id, sentence: change.says(subject), crop: crop(change.match.node.id)}
   }
   const worse =
@@ -172,15 +169,9 @@ function shifted(input: {now: Box; was: Box}): Shift | null {
   return {dx: Math.round(now.x - was.x), dy: Math.round(now.y - was.y)}
 }
 
-function ledgerCounts(input: {root: Match | null; nodes?: string[]}): LedgerCounts {
-  const {root} = input
-  const kept = input.nodes === undefined ? null : new Set(input.nodes)
+function ledgerCounts(roots: Match[]): LedgerCounts {
   const counted = countBy(
-    root === null
-      ? []
-      : [...walk({root})].flatMap(({node, depth}) =>
-          depth === 0 || (kept !== null && !kept.has(node.node.id)) ? [] : [node.status],
-        ),
+    roots.flatMap((root) => [...walk({root})].map(({node}) => node.status)),
     (status) => status,
   )
   return {
@@ -197,9 +188,9 @@ function itemsFrom(input: {
   unmatched: Unmatched[]
   words: Words
   size: (delta: Delta) => number
-  tree: DesignTree
+  root: Match
 }): Item[] {
-  const {words, size, tree} = input
+  const {words, size, root} = input
   const deltas = input.components.flatMap(({element, deltas: found}) =>
     found.map((delta): Item => ({
       key: `${element.node.id}:${delta.kind}${delta.side === undefined ? '' : `:${delta.side}`}`,
@@ -214,42 +205,54 @@ function itemsFrom(input: {
       ...located({node: element.node.id, source: element.live.source}),
     })),
   )
-  const slots = new Set(tree.nodes.filter(iconSlot).map((node) => node.id))
-  const unmatched = input.unmatched.filter(
-    (entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !slots.has(entry.node),
-  )
+  const visits = [...walk({root})].flatMap((visit) => (visit.parent === null ? [] : [{...visit, parent: visit.parent}]))
+  const slots = new Set(visits.flatMap(({node}) => (iconSlot(node.node) ? [node.node.id] : [])))
   const unbuilt = keyBy(
     input.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node !== undefined),
     (entry) => entry.node ?? '',
   )
-  const runs = [tree.root.layout?.runs ?? [], ...tree.nodes.map((node) => node.layout?.runs ?? [])]
-    .flat()
-    .filter((run) => run.children.every((id) => unbuilt[id]?.stage === 'structure'))
-  const complete = tree.nodes.filter(
-    (node) =>
-      node.id in unbuilt &&
-      allUnbuilt({tree, id: node.id, unbuilt}) &&
-      tree.children(node.id).some((child) => !slots.has(child.id)),
+  const runs = [...walk({root})].flatMap(({node}) =>
+    (node.node.layout?.runs ?? [])
+      .filter((run) => run.children.every((id) => unbuilt[id]?.stage === 'structure'))
+      .map((run) => ({run, owner: node})),
+  )
+  const complete = visits.filter(
+    ({node}) =>
+      node.node.id in unbuilt &&
+      allUnbuilt({match: node, unbuilt}) &&
+      node.children.some((child) => !slots.has(child.node.id)),
   )
   const covered = new Set([
-    ...runs.flatMap((run) => run.children),
-    ...complete.flatMap((node) => tree.descendants(node.id).map((child) => child.id)),
+    ...runs.flatMap(({run}) => run.children),
+    ...complete.flatMap(({node}) =>
+      [...walk({root: node})].flatMap(({depth, node: inner}) => (depth === 0 ? [] : [inner.node.id])),
+    ),
   ])
-  const entries = unmatched
-    .filter((entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !covered.has(entry.node))
-    .map((entry): Item => ({
-      key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
-      kind: entry.kind,
-      stage: entry.stage ?? null,
-      size: entrySize(entry),
-      confidence: 1,
-      box: entry.target ?? entry.live ?? {x: 0, y: 0, w: 0, h: 0},
-      depth: 0,
-      value: entry.shift === undefined ? boxKey(entry.target ?? entry.live) : `${entry.shift.dx},${entry.shift.dy}`,
-      sentence: words.entry({entry, tree, unbuilt}),
-      ...located({node: entry.node, source: entry.source}),
-    }))
-  return [...deltas, ...entries, ...runs.map((run) => runItem({run, tree, unbuilt, words}))]
+  const built = visits.flatMap(({node, parent}) => {
+    const entry = unbuilt[node.node.id]
+    if (entry === undefined || slots.has(node.node.id) || covered.has(node.node.id)) return []
+    return [entryItem({entry, sentence: words.unbuilt({match: node, parent, root, unbuilt})})]
+  })
+  const others = input.unmatched
+    .filter((entry) => entry.kind !== 'unbuilt' || entry.node === undefined)
+    .map((entry) => entryItem({entry, sentence: words.entry(entry)}))
+  return [...deltas, ...built, ...others, ...runs.map(({run, owner}) => runItem({run, owner, root, unbuilt, words}))]
+}
+
+function entryItem(input: {entry: Unmatched; sentence: string}): Item {
+  const {entry, sentence} = input
+  return {
+    key: `${entry.kind}:${entry.node ?? boxKey(entry.target ?? entry.live)}`,
+    kind: entry.kind,
+    stage: entry.stage ?? null,
+    size: entrySize(entry),
+    confidence: 1,
+    box: entry.target ?? entry.live ?? {x: 0, y: 0, w: 0, h: 0},
+    depth: 0,
+    value: entry.shift === undefined ? boxKey(entry.target ?? entry.live) : `${entry.shift.dx},${entry.shift.dy}`,
+    sentence,
+    ...located({node: entry.node, source: entry.source}),
+  }
 }
 
 function scoreTuple(input: {items: Item[]; unpairedShare: number; residualShare: number}): number[] {
@@ -315,9 +318,9 @@ function judge(input: {
   }
 }
 
-function sectionBudgets(input: {sections: DesignSection[]; items: Item[]; rounds: Round[]}): SectionBudget[] {
+function sectionBudgets(input: {sections: DesignNode[]; items: Item[]; rounds: Round[]}): SectionBudget[] {
   return input.sections.map((section) => {
-    const nodes = new Set(section.nodes)
+    const nodes = sectionNodes(section)
     const roundsUsed = input.rounds.filter(
       (round) => round.section === section.id && touchesSection({changes: round.report.changes, nodes}),
     ).length
@@ -328,12 +331,20 @@ function sectionBudgets(input: {sections: DesignSection[]; items: Item[]; rounds
 
 function heldBy(input: {
   item: {node?: string | undefined; box?: Box | undefined}
-  section: DesignSection
+  section: DesignNode
   nodes: Set<string>
 }): boolean {
   const {item, section, nodes} = input
   if (item.node !== undefined) return nodes.has(item.node)
-  return item.box !== undefined && encloses({inner: item.box, outer: section.box})
+  return item.box !== undefined && encloses({inner: item.box, outer: sectionBox(section)})
+}
+
+function sectionNodes(section: DesignNode): Set<string> {
+  return new Set([...walk({root: section})].map(({node}) => node.id))
+}
+
+function sectionBox(section: DesignNode): Box {
+  return mapValues(section.box, (value) => Math.round(value))
 }
 
 function touchesSection(input: {changes: Changes; nodes: Set<string>}): boolean {
@@ -521,14 +532,14 @@ function entrySize(entry: Unmatched): number {
   return capped((box.w * box.h) / (TOLERANCES.unmatchedMinimum * TOLERANCES.unmatchedMinimum))
 }
 
-function allUnbuilt(input: {tree: DesignTree; id: string; unbuilt: Unbuilt}): boolean {
-  const children = input.tree.children(input.id)
-  return children.length > 0 && children.every((child) => child.id in input.unbuilt)
+function allUnbuilt(input: {match: Match; unbuilt: Unbuilt}): boolean {
+  const {children} = input.match
+  return children.length > 0 && children.every((child) => child.node.id in input.unbuilt)
 }
 
-function runItem(input: {run: LayoutRun; tree: DesignTree; unbuilt: Unbuilt; words: Words}): Item {
-  const {run, tree, unbuilt, words} = input
-  const members = run.children.flatMap((id) => tree.nodes.filter((node) => node.id === id))
+function runItem(input: {run: LayoutRun; owner: Match; root: Match; unbuilt: Unbuilt; words: Words}): Item {
+  const {run, owner, root, unbuilt, words} = input
+  const members = run.children.flatMap((id) => owner.children.filter((child) => child.node.id === id))
   const entries = run.children.flatMap((id) => {
     const entry = unbuilt[id]
     return entry === undefined ? [] : [entry]
@@ -545,8 +556,8 @@ function runItem(input: {run: LayoutRun; tree: DesignTree; unbuilt: Unbuilt; wor
     box,
     depth: 0,
     value: boxKey(box),
-    sentence: words.row({run, members, tree}),
-    ...located({node: first?.id, source: undefined}),
+    sentence: words.row({run, owner, root}),
+    ...located({node: first?.node.id, source: undefined}),
   }
 }
 
@@ -573,31 +584,32 @@ const STAGE_TOLERANCES: Record<Stage, number> = {
 
 const SCORE_PRECISION = 10_000
 
-function unbuiltEntries(input: {tree: DesignTree; pairedNodes: Set<string>}): Unmatched[] {
-  const {tree, pairedNodes} = input
-  return tree.nodes
-    .filter((node) => !pairedNodes.has(node.id))
-    .map((node): Unmatched => {
-      const structural = node.kind !== 'image' && !glyphRun(node) && parentPaired({node, tree, pairedNodes})
-      const layout = entryLayout({node, tree})
-      return {
+function unbuiltEntries(root: Match): Unmatched[] {
+  return [...walk({root})].flatMap(({node: match, parent}) => {
+    if (parent === null || match.live !== null) return []
+    const {node} = match
+    const structural = node.kind !== 'image' && !glyphRun(node) && (parent === root || parent.live !== null)
+    const layout = entryLayout({node, parent: parent.node})
+    return [
+      {
         kind: 'unbuilt',
         target: node.box,
         label: node.kind === 'text' ? `text "${node.text}"` : node.kind,
         stage: structural ? 'structure' : null,
         node: node.id,
         ...(layout === null ? {} : {layout}),
-      }
-    })
+      },
+    ]
+  })
 }
 
-function entryLayout(input: {node: DesignNode; tree: DesignTree}): Unmatched['layout'] | null {
-  const {node, tree} = input
+function entryLayout(input: {node: MatchNode; parent: MatchNode}): Unmatched['layout'] | null {
+  const {node} = input
   const own = node.layout
   if (own?.size === undefined) return null
   const {direction, size} = own
   if (direction !== undefined) return {direction, size, ...pick(own, CONTAINER_FIELDS)}
-  const seat = tree.placement(node)
+  const seat = childPosition(input)
   return seat === null ? null : {direction: seat.direction, index: seat.index, size}
 }
 
@@ -691,9 +703,9 @@ function reportedComponents(input: {
   measured: Measured[]
   input: DiffInput
   size: (delta: Delta) => number
-  placements: Placement[]
+  twins: Twin[]
 }): {reported: Reported[]; listed: number} {
-  const {measured, size, placements} = input
+  const {measured, size, twins} = input
   const above = measured.filter((entry) => entry.deltas.length > 0 || entry.element.mismatch >= TOLERANCES.tileGate)
   const impact = (entry: Measured): number =>
     Math.max(0, ...entry.deltas.map((delta) => (delta.confidence ?? 1) * size(delta)))
@@ -712,7 +724,7 @@ function reportedComponents(input: {
         children: above.filter((child) => child.element.parent === entry.element).length,
         nodes: uniq([entry.element.node.id, ...entry.element.texts.map((node) => node.id)]),
         path: entry.element.live.path,
-        ...twinDisagreement({element: entry.element, placements}),
+        ...twinDisagreement({element: entry.element, twins}),
       },
     }))
     .filter(
@@ -733,12 +745,9 @@ function reportedComponents(input: {
   }
 }
 
-function twinDisagreement(input: {
-  element: Element
-  placements: Placement[]
-}): Pick<ComponentReport, 'twinDisagreement'> {
+function twinDisagreement(input: {element: Element; twins: Twin[]}): Pick<ComponentReport, 'twinDisagreement'> {
   const {element} = input
-  const other = input.placements.find((entry) => entry.node === element.node.id && entry.path !== element.live.path)
+  const other = input.twins.find((entry) => entry.node === element.node.id && entry.path !== element.live.path)
   if (other === undefined) return {}
   return {twinDisagreement: {target: other.target, path: other.path}}
 }
@@ -771,7 +780,7 @@ function residualShare(input: {measured: Measured[]; unmatched: Unmatched[]; mas
 
 function sectionReport(input: {
   report: DiffReport
-  section: DesignSection
+  section: DesignNode
   judging: Judging | undefined
   measured: Measured[]
   rounds: Round[]
@@ -781,8 +790,9 @@ function sectionReport(input: {
   color: ColorMetric
 }): DiffReport {
   const {report, section, judging, ranker, words, color} = input
-  const nodes = new Set(section.nodes)
-  const inside = (box: Box | undefined): boolean => box !== undefined && encloses({inner: box, outer: section.box})
+  const nodes = sectionNodes(section)
+  const box = sectionBox(section)
+  const inside = (inner: Box | undefined): boolean => inner !== undefined && encloses({inner, outer: box})
   const held = (item: {node?: string | undefined; box?: Box | undefined}): boolean => heldBy({item, section, nodes})
   const unmatched = report.unmatched.filter((entry) => held({node: entry.node, box: entry.target ?? entry.live}))
   const changes = mapValues(report.changes, (list) => list.filter((change) => nodes.has(change.node)))
@@ -795,7 +805,7 @@ function sectionReport(input: {
     warnings: report.warnings.filter((warning) => inside(warning.box)),
     changes,
     ledger: input.counts,
-    section: {id: section.id, line: section.line},
+    section: {id: section.id, line: words.line({node: section, scale: 1})},
     scope: 'section',
     page: {
       stop: report.stop,
@@ -816,8 +826,8 @@ function sectionReport(input: {
     items,
     score: scoreTuple({
       items,
-      unpairedShare: unpairedShare({unmatched, page: section.box}),
-      residualShare: residualShare({measured, unmatched, masks: [], page: section.box}),
+      unpairedShare: unpairedShare({unmatched, page: box}),
+      residualShare: residualShare({measured, unmatched, masks: [], page: box}),
     }),
     warnings: judging.warnings.filter((warning) => inside(warning.box)),
     changed: {...judging.changed, changes},
@@ -899,11 +909,6 @@ const MISMATCH_PRECISION = 10_000
 
 function mismatchRounded(mismatch: number): number {
   return Math.round(mismatch * MISMATCH_PRECISION) / MISMATCH_PRECISION
-}
-
-function parentPaired(input: {node: MatchNode; tree: DesignTree; pairedNodes: Set<string>}): boolean {
-  const parent = input.tree.parents.get(input.node.id)
-  return parent === undefined || parent === input.tree.root || input.pairedNodes.has(parent.id)
 }
 
 function stageColumn(stage: Stage): number {

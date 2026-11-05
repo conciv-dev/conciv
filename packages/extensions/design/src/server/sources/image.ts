@@ -9,7 +9,7 @@ import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
-import {clamp, countBy, groupBy, partition, range} from 'es-toolkit'
+import {clamp, countBy, partition, range} from 'es-toolkit'
 import {
   type Border,
   type Box,
@@ -43,6 +43,7 @@ import {
 import {encloses, expand, overlapping, sameLine, union} from '../../shared/box.js'
 import {isFigmaUrl} from './figma.js'
 import {inferLayout} from './layout.js'
+import {walk} from '../../shared/tree.js'
 
 export {trimToInk} from '../raster.js'
 
@@ -53,16 +54,20 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
     load: async ({ref, scale, project, attachments}) => {
       const image = attachments.image ?? (await readPng({ref, project}))
       const raster = decodePng(image)
-      const {nodes, warnings} = await enrich({nodes: [], raster, scale, tools: input})
-      const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
-      const root = inferLayout({
+      const context = {raster, scale, tools: input}
+      const flat = await enrich({...context, value: [], enrichers: FLAT_ENRICHERS})
+      const page: DesignNode = {
         id: 'root',
         box: {x: 0, y: 0, w: raster.width, h: raster.height},
         kind: 'box',
         border: null,
         radius: 0,
-        children: nest({nodes}),
-      })
+        children: nest(flat.value),
+      }
+      const nested = await enrich({...context, value: page, enrichers: TREE_ENRICHERS})
+      const warnings = [...flat.warnings, ...nested.warnings]
+      const viewport = {width: Math.round(raster.width / scale), height: Math.round(raster.height / scale)}
+      const root = inferLayout(nested.value)
       return {
         design: {
           id: createHash('sha256').update(image).digest('hex').slice(0, 12),
@@ -78,8 +83,7 @@ export function createImageAdapter(input: ImageTools): TargetAdapter {
   }
 }
 
-function nest(input: {nodes: Flat[]}): DesignNode[] {
-  const {nodes} = input
+function nest(nodes: DesignNode[]): DesignNode[] {
   const parents = nodes.map((node) => {
     const holders = nodes.flatMap((other, index) => (holds({outer: other, inner: node}) ? [index] : []))
     return holders.reduce<number>((best, index) => {
@@ -92,24 +96,23 @@ function nest(input: {nodes: Flat[]}): DesignNode[] {
   const build = (index: number): DesignNode[] => {
     const node = nodes[index]
     if (node === undefined) return []
-    return [designNode({node, children: parents.flatMap((parent, child) => (parent === index ? build(child) : []))})]
+    return [{...node, children: parents.flatMap((parent, child) => (parent === index ? build(child) : []))}]
   }
   return parents.flatMap((parent, index) => (parent === -1 ? build(index) : []))
 }
 
 type ImageTools = {reader: TextReader; segmenter: Segmenter; roles: RoleRules}
 
-type Flat = DesignNode & {within?: string}
-type FlatBox = Extract<Flat, {kind: 'box'}>
-type FlatImage = Extract<Flat, {kind: 'image'}>
-type FlatText = Extract<Flat, {kind: 'text'}>
+type BoxNode = Extract<DesignNode, {kind: 'box'}>
+type ImageNode = Extract<DesignNode, {kind: 'image'}>
+type TextNode = Extract<DesignNode, {kind: 'text'}>
 
-type Enricher = {
+type Enricher<Value> = {
   name: string
-  run(input: {nodes: Flat[]; raster: Raster; scale: number; tools: ImageTools}): Promise<Flat[]>
+  run(input: {value: Value; raster: Raster; scale: number; tools: ImageTools}): Promise<Value>
 }
 
-function holds(input: {outer: Flat; inner: Flat}): boolean {
+function holds(input: {outer: DesignNode; inner: DesignNode}): boolean {
   const {outer, inner} = input
   return (
     outer.kind === 'box' &&
@@ -119,26 +122,22 @@ function holds(input: {outer: Flat; inner: Flat}): boolean {
   )
 }
 
-function designNode(input: {node: Flat; children: DesignNode[]}): DesignNode {
-  const {within: _within, ...node} = input.node
-  return {...node, children: input.children}
-}
-
-async function enrich(input: {
-  nodes: Flat[]
+async function enrich<Value>(input: {
+  value: Value
+  enrichers: Enricher<Value>[]
   raster: Raster
   scale: number
   tools: ImageTools
-}): Promise<{nodes: Flat[]; warnings: string[]}> {
-  return ENRICHERS.reduce<Promise<{nodes: Flat[]; warnings: string[]}>>(
+}): Promise<{value: Value; warnings: string[]}> {
+  return input.enrichers.reduce<Promise<{value: Value; warnings: string[]}>>(
     async (pending, enricher) => {
-      const {nodes, warnings} = await pending
-      return enricher.run({...input, nodes}).then(
-        (enriched) => ({nodes: enriched, warnings}),
-        (error: unknown) => ({nodes, warnings: [...warnings, `${enricher.name} failed: ${errorMessage(error)}`]}),
+      const {value, warnings} = await pending
+      return enricher.run({...input, value}).then(
+        (enriched) => ({value: enriched, warnings}),
+        (error: unknown) => ({value, warnings: [...warnings, `${enricher.name} failed: ${errorMessage(error)}`]}),
       )
     },
-    Promise.resolve({nodes: input.nodes, warnings: []}),
+    Promise.resolve({value: input.value, warnings: []}),
   )
 }
 
@@ -146,7 +145,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function nodeId(input: {kind: Flat['kind']; box: Box; text?: string}): string {
+function nodeId(input: {kind: DesignNode['kind']; box: Box; text?: string}): string {
   const {kind, box} = input
   const rounded = [box.x, box.y, box.w, box.h].map(Math.round).join(',')
   return fnv(`${kind}|${rounded}|${input.text ?? ''}`)
@@ -450,7 +449,7 @@ const CHILD_INSET = 2
 const MAX_DEPTH = 6
 const MAX_BORDER = 4
 
-type Found = FlatBox | FlatImage
+type Found = BoxNode | ImageNode
 type Level = {raster: Raster; region: Box; background: Rgb; depth: number; text: Box[]; marks: Box[]}
 
 function median(values: number[]): number {
@@ -686,7 +685,7 @@ function border(input: {raster: Raster; box: Box; fill: Rgb}): Border | null {
   return {width: width ?? MAX_BORDER, color: hex(color)}
 }
 
-function imageNode(box: Box): FlatImage {
+function imageNode(box: Box): ImageNode {
   return {id: nodeId({kind: 'image', box}), kind: 'image', box, holds: 0, children: []}
 }
 
@@ -714,7 +713,7 @@ function boxNode(input: {level: Level; raw: Box; fill: Rgb; edge: Border | null;
   const {level, raw, fill, edge, gradient} = input
   const {raster, region, background, depth} = level
   const box = depth > 1 ? grow({raster, box: raw, region, fill}) : raw
-  const node: FlatBox = {
+  const node: BoxNode = {
     id: nodeId({kind: 'box', box}),
     kind: 'box',
     box,
@@ -844,7 +843,7 @@ function rows(lines: OcrLine[]): OcrLine[][] {
     }, [])
 }
 
-function textNode(row: OcrLine[]): FlatText {
+function textNode(row: OcrLine[]): TextNode {
   const text = row.map((line) => line.text.trim()).join(' ')
   const box = union(row.map((line) => line.box))
   return {
@@ -858,9 +857,9 @@ function textNode(row: OcrLine[]): FlatText {
   }
 }
 
-const textEnricher: Enricher = {
+const textEnricher: Enricher<DesignNode[]> = {
   name: TEXT_ENRICHER,
-  run: async ({nodes, raster, tools}) => {
+  run: async ({value: nodes, raster, tools}) => {
     const read = await Promise.all(tiles(raster).map((tile) => readTile({raster, tile, reader: tools.reader})))
     const lines = read
       .flat()
@@ -958,41 +957,26 @@ function surface(box: Box): number {
   return box.w * box.h
 }
 
-function within(input: {node: Flat; nodes: Flat[]}): Flat {
-  const {node, nodes} = input
-  const [smallest] = nodes
-    .filter(
-      (other) =>
-        other.kind === 'box' &&
-        other.id !== node.id &&
-        surface(other.box) > surface(node.box) &&
-        encloses({outer: other.box, inner: node.box}),
-    )
-    .toSorted((a, b) => surface(a.box) - surface(b.box))
-  return smallest === undefined ? node : {...node, within: smallest.id}
-}
-
-const segmentEnricher: Enricher = {
+const segmentEnricher: Enricher<DesignNode[]> = {
   name: 'segment',
-  run: async ({nodes, raster, tools}) => {
+  run: async ({value: nodes, raster, tools}) => {
     const found = await tools.segmenter.segment({raster, nodes})
-    const kept = pictured({nodes: [...nodes, ...found].filter((node) => !glyphNoise(node)), raster})
-    return kept.map((node) => within({node, nodes: kept}))
+    return pictured({nodes: [...nodes, ...found].filter((node) => !glyphNoise(node)), raster})
   },
 }
 
-function glyphNoise(node: Flat): boolean {
+function glyphNoise(node: DesignNode): boolean {
   return node.kind === 'image' && node.box.w < TOLERANCES.glyphNoise && node.box.h < TOLERANCES.glyphNoise
 }
 
-function isPicture(node: Flat): boolean {
+function isPicture(node: DesignNode): boolean {
   return node.kind === 'image' && node.box.w >= TOLERANCES.iconSlotSide && node.box.h >= TOLERANCES.iconSlotSide
 }
 
-function pictured(input: {nodes: Flat[]; raster: Raster}): Flat[] {
+function pictured(input: {nodes: DesignNode[]; raster: Raster}): DesignNode[] {
   const {nodes, raster} = input
   const pictures = nodes.filter(isPicture).toSorted((a, b) => surface(a.box) - surface(b.box))
-  const ownerOf = (node: Flat): string => {
+  const ownerOf = (node: DesignNode): string => {
     if (node.kind !== 'text') return ''
     const image = pictures.find((candidate) => encloses({outer: candidate.box, inner: node.box}))
     if (image === undefined || flatHalo({node, nodes, raster})) return ''
@@ -1000,14 +984,14 @@ function pictured(input: {nodes: Flat[]; raster: Raster}): Flat[] {
   }
   const owners = nodes.map((node) => ({node, owner: ownerOf(node)}))
   const held = countBy(owners, ({owner}) => owner)
-  return owners.flatMap(({node, owner}): Flat[] => {
+  return owners.flatMap(({node, owner}): DesignNode[] => {
     if (owner !== '') return []
     if (node.kind !== 'image') return [node]
     return [{...node, holds: held[node.id] ?? 0}]
   })
 }
 
-function flatHalo(input: {node: Flat; nodes: Flat[]; raster: Raster}): boolean {
+function flatHalo(input: {node: DesignNode; nodes: DesignNode[]; raster: Raster}): boolean {
   const {node, nodes, raster} = input
   const band = expand({box: node.box, by: TOLERANCES.glyphHalo})
   const others = nodes.filter(
@@ -1035,97 +1019,90 @@ function covers(input: {area: Box; x: number; y: number}): boolean {
   return x >= area.x && x < area.x + area.w && y >= area.y && y < area.y + area.h
 }
 
-const rolesEnricher: Enricher = {
+const rolesEnricher: Enricher<DesignNode> = {
   name: 'roles',
-  run: ({nodes, tools}) =>
-    Promise.resolve(
-      nodes.map((node) => {
-        if (node.kind !== 'text' || node.role !== undefined) return node
-        const neighbours = nodes.flatMap((other) =>
-          other.kind === 'text' && other.id !== node.id && other.within === node.within ? [other.text] : [],
-        )
-        return {...node, role: tools.roles({text: node.text, neighbours}).role}
-      }),
-    ),
+  run: ({value, tools}) => Promise.resolve(withRoles({node: value, tools})),
 }
 
-const colorEnricher: Enricher = {
-  name: 'color',
-  run: ({nodes, raster}) =>
-    Promise.resolve(
-      nodes.map((node) => {
-        if (node.kind !== 'box' || node.paint !== undefined) return node
-        const color = COLOR_METRICS.ciede2000
-        const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color})
-        const holes = nodes
-          .filter((other) => other.within === node.id)
-          .map((other) => expand({box: other.box, by: TOLERANCES.glyphHalo}))
-        const shape = fillShape({
-          raster,
-          box: inset({box: node.box, by: TOLERANCES.geometryPx + node.radius}),
-          holes,
-          color,
-        })
-        if (shape.kind === 'picture' && holes.length === 0) return imageNode(node.box)
-        if (shape.kind === 'gradient') return {...node, paint: {background, gradient: shape.gradient}}
-        return {...node, paint: {background}}
-      }),
-    ),
-}
-
-const regionsEnricher: Enricher = {
-  name: 'regions',
-  run: (input) => {
-    const {scale} = input
-    const nodes = withoutTwins(input.nodes)
-    const [pictures, members] = partition(
-      nodes.filter((node) => node.within === undefined),
-      (node) => node.kind === 'image',
+function withRoles(input: {node: DesignNode; tools: ImageTools}): DesignNode {
+  const {node, tools} = input
+  const inner = node.children.map((child) => {
+    if (child.kind !== 'text' || child.role !== undefined) return withRoles({node: child, tools})
+    const neighbours = node.children.flatMap((other) =>
+      other.kind === 'text' && other.id !== child.id ? [other.text] : [],
     )
-    const {seats, regions} = carve({
-      members,
-      parent: undefined,
-      along: 'y',
-      depth: 1,
-      scale,
-    })
-    const placed = pictures.map((shown) => ({id: shown.id, within: holder({box: shown.box, regions})}))
-    const holding = new Set(placed.map((seat) => seat.within))
+    return {...child, role: tools.roles({text: child.text, neighbours}).role}
+  })
+  return {...node, children: inner}
+}
+
+const colorEnricher: Enricher<DesignNode> = {
+  name: 'color',
+  run: ({value, raster}) =>
+    Promise.resolve({...value, children: value.children.map((child) => painted({node: child, raster}))}),
+}
+
+function painted(input: {node: DesignNode; raster: Raster}): DesignNode {
+  const {node, raster} = input
+  const inner = node.children.map((child) => painted({node: child, raster}))
+  if (node.kind !== 'box' || node.paint !== undefined) return {...node, children: inner}
+  const color = COLOR_METRICS.ciede2000
+  const {background} = sampledFills({raster, box: node.box, glyphs: [node.box], color})
+  const holes = node.children.map((child) => expand({box: child.box, by: TOLERANCES.glyphHalo}))
+  const shape = fillShape({
+    raster,
+    box: inset({box: node.box, by: TOLERANCES.geometryPx + node.radius}),
+    holes,
+    color,
+  })
+  if (shape.kind === 'picture' && holes.length === 0) return imageNode(node.box)
+  if (shape.kind === 'gradient') return {...node, children: inner, paint: {background, gradient: shape.gradient}}
+  return {...node, children: inner, paint: {background}}
+}
+
+const regionsEnricher: Enricher<DesignNode> = {
+  name: 'regions',
+  run: ({value, scale}) => {
+    const root = withoutTwins(value)
+    const [pictures, members] = partition(root.children, (node) => node.kind === 'image')
+    const {seats, regions} = carve({members, parent: undefined, along: 'y', depth: 1, scale})
+    const placed = pictures.map((shown) => ({id: shown.id, region: holder({box: shown.box, regions})}))
+    const holding = new Set(placed.map((seat) => seat.region))
+    const known = new Set([...walk({root})].map(({node}) => node.id))
     const flanked = regions
-      .filter((region) => holding.has(region.id))
-      .reduce<Carving>((carving, region) => beside({carving, region, nodes, scale}), {
+      .filter((region) => holding.has(region.node.id))
+      .reduce<Carving>((carving, region) => beside({carving, region, nodes: root.children, known, scale}), {
         seats: [...seats, ...placed],
         regions,
       })
-    const parents = new Map(flanked.seats.map((seat) => [seat.id, seat.within]))
-    return Promise.resolve([
-      ...nodes.map((node) => {
-        const parent = parents.get(node.id)
-        return parent === undefined ? node : {...node, within: parent}
-      }),
-      ...grown({carving: flanked, nodes}),
-    ])
+    const carving = {seats: flanked.seats, regions: grown({carving: flanked, nodes: root.children})}
+    return Promise.resolve({...root, children: regrouped({nodes: root.children, carving, parent: undefined})})
   },
 }
 
-export function withoutTwins(nodes: Flat[]): Flat[] {
-  const folded = nodes.reduce<{kept: Flat[]; into: Record<string, string>}>(
-    (found, node) => {
-      const twin = found.kept.find((other) => twins({a: other, b: node}))
-      if (twin === undefined) return {...found, kept: [...found.kept, node]}
-      return {kept: found.kept, into: {...found.into, [node.id]: twin.id}}
-    },
-    {kept: [], into: {}},
-  )
-  return folded.kept.map((node) => {
-    const parent = node.within === undefined ? undefined : folded.into[node.within]
-    return parent === undefined ? node : {...node, within: parent}
-  })
+function regrouped(input: {nodes: DesignNode[]; carving: Carving; parent: string | undefined}): DesignNode[] {
+  const {nodes, carving, parent} = input
+  const regionOf = (id: string): string | undefined => carving.seats.find((seat) => seat.id === id)?.region
+  return [
+    ...nodes.filter((node) => regionOf(node.id) === parent),
+    ...carving.regions
+      .filter((region) => region.parent === parent)
+      .map((region) => ({...region.node, children: regrouped({...input, parent: region.node.id})})),
+  ]
 }
 
-function twins(input: {a: Flat; b: Flat}): boolean {
+function withoutTwins(node: DesignNode): DesignNode {
+  const kept = node.children.reduce<DesignNode[]>((found, child) => {
+    const twin = found.find((other) => twins({a: other, b: child}))
+    if (twin === undefined) return [...found, child]
+    return found.map((other) => (other === twin ? {...other, children: [...other.children, ...child.children]} : other))
+  }, [])
+  return {...node, children: kept.map(withoutTwins)}
+}
+
+function twins(input: {a: DesignNode; b: DesignNode}): boolean {
   const {a, b} = input
-  if (a.kind !== b.kind || a.within !== b.within) return false
+  if (a.kind !== b.kind) return false
   if (a.kind === 'text' && b.kind === 'text' && a.text.trim() !== b.text.trim()) return false
   const near = (edge: (box: Box) => number): boolean => Math.abs(edge(a.box) - edge(b.box)) <= TOLERANCES.geometryPx
   return [(box: Box) => box.x, (box: Box) => box.y, (box: Box) => box.x + box.w, (box: Box) => box.y + box.h].every(
@@ -1134,13 +1111,14 @@ function twins(input: {a: Flat; b: Flat}): boolean {
 }
 
 type Along = 'x' | 'y'
-type Seat = {id: string; within: string | undefined}
-type Carving = {seats: Seat[]; regions: FlatBox[]}
+type Seat = {id: string; region: string | undefined}
+type Carved = {node: BoxNode; parent: string | undefined}
+type Carving = {seats: Seat[]; regions: Carved[]}
 
 const REGION_DEPTH = 3
 
 function carve(input: {
-  members: Flat[]
+  members: DesignNode[]
   parent: string | undefined
   along: Along
   depth: number
@@ -1148,15 +1126,15 @@ function carve(input: {
 }): Carving {
   const {members, parent, along, depth, scale} = input
   const gap = (parent === undefined ? TOLERANCES.sectionGap : TOLERANCES.regionGap) * scale
-  const seated: Carving = {seats: members.map((node) => ({id: node.id, within: parent})), regions: []}
+  const seated: Carving = {seats: members.map((node) => ({id: node.id, region: parent})), regions: []}
   if (depth > REGION_DEPTH || members.length < 2) return seated
   const groups = absorbed({groups: bands({members, along, gap}), along})
   const next: Along = along === 'y' ? 'x' : 'y'
   if (groups.length < 2) return carve({...input, along: next, depth: depth + 1})
   const carvings = groups.map((group): Carving => {
-    if (group.length < 2) return {seats: group.map((node) => ({id: node.id, within: parent})), regions: []}
+    if (group.length < 2) return {seats: group.map((node) => ({id: node.id, region: parent})), regions: []}
     const region = regionNode({members: group, parent})
-    const inner = carve({members: group, parent: region.id, along: next, depth: depth + 1, scale})
+    const inner = carve({members: group, parent: region.node.id, along: next, depth: depth + 1, scale})
     return {seats: inner.seats, regions: [region, ...inner.regions]}
   })
   return {
@@ -1165,54 +1143,58 @@ function carve(input: {
   }
 }
 
-function beside(input: {carving: Carving; region: FlatBox; nodes: Flat[]; scale: number}): Carving {
+function beside(input: {
+  carving: Carving
+  region: Carved
+  nodes: DesignNode[]
+  known: Set<string>
+  scale: number
+}): Carving {
   const {carving, region} = input
-  const seated = new Set(carving.seats.filter((seat) => seat.within === region.id).map((seat) => seat.id))
+  const id = region.node.id
+  const seated = new Set(carving.seats.filter((seat) => seat.region === id).map((seat) => seat.id))
   const direct = [
     ...input.nodes.filter((node) => seated.has(node.id)),
-    ...carving.regions.filter((child) => child.within === region.id),
+    ...carving.regions.filter((child) => child.parent === id).map((child) => child.node),
   ]
   const groups = bands({members: direct, along: 'x', gap: TOLERANCES.regionGap * input.scale})
   if (groups.length < 2) return carving
-  const known = new Set([...input.nodes, ...carving.regions].map((node) => node.id))
+  const known = new Set([...input.known, ...carving.regions.map((child) => child.node.id)])
   const wraps = groups
     .filter((group) => group.length > 1)
     .map((group) => {
-      const wrap = regionNode({members: group, parent: region.id})
-      return {group, wrap: {...wrap, id: nodeId({kind: 'box', box: wrap.box, text: region.id})}}
+      const wrap = regionNode({members: group, parent: id})
+      return {group, wrap: {...wrap, node: {...wrap.node, id: nodeId({kind: 'box', box: wrap.node.box, text: id})}}}
     })
-    .filter(({wrap}) => !known.has(wrap.id))
-  const moved = new Map(wraps.flatMap(({group, wrap}) => group.map((node) => [node.id, wrap.id])))
+    .filter(({wrap}) => !known.has(wrap.node.id))
+  const movedTo = (child: string): string | undefined =>
+    wraps.find(({group}) => group.some((node) => node.id === child))?.wrap.node.id
   return {
-    seats: carving.seats.map((seat) => ({id: seat.id, within: moved.get(seat.id) ?? seat.within})),
+    seats: carving.seats.map((seat) => ({id: seat.id, region: movedTo(seat.id) ?? seat.region})),
     regions: [
-      ...carving.regions.map((child) => {
-        const parent = moved.get(child.id)
-        return parent === undefined ? child : {...child, within: parent}
-      }),
+      ...carving.regions.map((child) => ({...child, parent: movedTo(child.node.id) ?? child.parent})),
       ...wraps.map(({wrap}) => wrap),
     ],
   }
 }
 
-function grown(input: {carving: Carving; nodes: Flat[]}): FlatBox[] {
-  const {carving} = input
-  const boxes = new Map(input.nodes.map((node) => [node.id, node.box]))
-  const members = groupBy(carving.seats, (seat) => seat.within ?? '')
-  const nested = groupBy(carving.regions, (region) => region.within ?? '')
-  const span = (visit: {region: FlatBox; seen: Set<string>}): Box => {
+function grown(input: {carving: Carving; nodes: DesignNode[]}): Carved[] {
+  const {carving, nodes} = input
+  const span = (visit: {region: Carved; seen: Set<string>}): Box => {
     const {region} = visit
-    const seen = new Set([...visit.seen, region.id])
+    const seen = new Set([...visit.seen, region.node.id])
     return union([
-      region.box,
-      ...(members[region.id] ?? []).flatMap((seat) => {
-        const box = boxes.get(seat.id)
-        return box === undefined ? [] : [box]
+      region.node.box,
+      ...carving.seats.flatMap((seat) => {
+        const node = seat.region === region.node.id ? nodes.find((member) => member.id === seat.id) : undefined
+        return node === undefined ? [] : [node.box]
       }),
-      ...(nested[region.id] ?? []).filter((child) => !seen.has(child.id)).map((child) => span({region: child, seen})),
+      ...carving.regions
+        .filter((child) => child.parent === region.node.id && !seen.has(child.node.id))
+        .map((child) => span({region: child, seen})),
     ])
   }
-  return carving.regions.map((region) => ({...region, box: span({region, seen: new Set()})}))
+  return carving.regions.map((region) => ({...region, node: {...region.node, box: span({region, seen: new Set()})}}))
 }
 
 function bandStart(input: {box: Box; along: Along}): number {
@@ -1223,11 +1205,11 @@ function bandEnd(input: {box: Box; along: Along}): number {
   return input.along === 'y' ? input.box.y + input.box.h : input.box.x + input.box.w
 }
 
-function bands(input: {members: Flat[]; along: Along; gap: number}): Flat[][] {
+function bands(input: {members: DesignNode[]; along: Along; gap: number}): DesignNode[][] {
   const {along, gap} = input
   return input.members
     .toSorted((a, b) => bandStart({box: a.box, along}) - bandStart({box: b.box, along}))
-    .reduce<{groups: Flat[][]; end: number}>(
+    .reduce<{groups: DesignNode[][]; end: number}>(
       (sweep, node) => {
         const last = sweep.groups.at(-1)
         if (last === undefined || bandStart({box: node.box, along}) - sweep.end >= gap) {
@@ -1240,7 +1222,7 @@ function bands(input: {members: Flat[]; along: Along; gap: number}): Flat[][] {
     ).groups
 }
 
-function absorbed(input: {groups: Flat[][]; along: Along}): Flat[][] {
+function absorbed(input: {groups: DesignNode[][]; along: Along}): DesignNode[][] {
   const {groups, along} = input
   const index = groups.findIndex((group) => group.length === 1 && group[0]?.kind !== 'box')
   const lone = groups[index]
@@ -1265,9 +1247,9 @@ function absorbed(input: {groups: Flat[][]; along: Along}): Flat[][] {
   return absorbed({groups: merged, along})
 }
 
-function holder(input: {box: Box; regions: FlatBox[]}): string | undefined {
+function holder(input: {box: Box; regions: Carved[]}): string | undefined {
   const [best] = input.regions
-    .map((region) => {
+    .map(({node: region}) => {
       const shared = intersect({box: input.box, region: region.box})
       return {
         region,
@@ -1286,10 +1268,12 @@ function edgeDistance(input: {a: Box; b: Box}): number {
   return Math.hypot(across, down)
 }
 
-function regionNode(input: {members: Flat[]; parent: string | undefined}): FlatBox {
+function regionNode(input: {members: DesignNode[]; parent: string | undefined}): Carved {
   const box = union(input.members.map((node) => node.box))
-  const node: FlatBox = {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0, children: []}
-  return input.parent === undefined ? node : {...node, within: input.parent}
+  return {
+    node: {id: nodeId({kind: 'box', box}), kind: 'box', box, border: null, radius: 0, children: []},
+    parent: input.parent,
+  }
 }
 
 type FillShape = {kind: 'solid'} | {kind: 'picture'} | {kind: 'gradient'; gradient: DesignGradient}
@@ -1357,7 +1341,9 @@ function smooth(input: {means: string[]; color: ColorMetric}): boolean {
   })
 }
 
-const ENRICHERS: Enricher[] = [textEnricher, segmentEnricher, rolesEnricher, colorEnricher, regionsEnricher]
+const FLAT_ENRICHERS: Enricher<DesignNode[]>[] = [textEnricher, segmentEnricher]
+
+const TREE_ENRICHERS: Enricher<DesignNode>[] = [rolesEnricher, colorEnricher, regionsEnricher]
 
 export const TEXT_READERS = {paddle: paddleReader} as const satisfies Record<string, TextReader>
 

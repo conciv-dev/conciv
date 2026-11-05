@@ -17,6 +17,7 @@ import {
   UNANSWERED_HINT,
   type WatchInput,
   type WatchRow,
+  type Words,
 } from '../shared/defs.js'
 import {aboveTolerance, designFamilies} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
@@ -38,7 +39,7 @@ export function createProjections(input: Context): Projections {
         target: record.id,
         run: run?.id ?? null,
         live: settled !== undefined && settled.run.id !== stored?.id,
-        counts: run === null ? {...judge.counts({root: null}), unbuilt: rows.length} : judge.counts({root: run.root}),
+        counts: run === null ? {...judge.counts([]), unbuilt: rows.length} : judge.counts(run.root.children),
         rows: rows.slice(0, query.limit),
         truncated: Math.max(0, rows.length - query.limit),
       }
@@ -48,7 +49,7 @@ export function createProjections(input: Context): Projections {
   }
 }
 
-type Context = {cwd: string; store: Store; judge: Judge; css: CssDesigns; registrar: Registrar}
+type Context = {cwd: string; store: Store; judge: Judge; css: CssDesigns; registrar: Registrar; words: Words}
 
 async function targetStatus(input: {
   context: Context
@@ -67,7 +68,8 @@ async function targetStatus(input: {
   const css = await context.css.load({id: record.id, decisions: await store.decisions(record.id)}).catch(() => null)
   const reregister = css === null
   const done = !reregister && (await finished({store, record, run, worse: judge.worse}))
-  const sections = css === null ? [] : context.css.sections(css.tree)
+  const sections =
+    css === null ? [] : css.design.root.children.toSorted((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)
   const budgets = keyBy(judge.budgets({sections, items: [], rounds: input.rounds(record.id)}), (budget) => budget.id)
   const paths = targetPaths({context, id: record.id})
   return {
@@ -75,12 +77,12 @@ async function targetStatus(input: {
     targets: [{id: record.id, width: record.width, ...runSummary(report)}],
     done,
     ...loopState({record, run, report}),
-    ledger: judge.counts({root: run?.root ?? null}),
+    ledger: judge.counts(run?.root.children ?? []),
     sections: sections.map((section) => ({
       id: section.id,
       kind: section.kind,
-      line: section.line,
-      ledger: judge.counts({root: run?.root ?? null, nodes: section.nodes}),
+      line: context.words.line({node: section, scale: 1}),
+      ledger: judge.counts(run?.root.children.filter((child) => child.node.id === section.id) ?? []),
       roundsUsed: budgets[section.id]?.roundsUsed ?? 0,
       ...withSimilarity(report?.sectionSimilarity[section.id]),
     })),
@@ -91,7 +93,7 @@ async function targetStatus(input: {
       unanswered: input.unanswered(record.id),
       first: (run?.round ?? 0) === 0,
       ...paths,
-      families: css === null ? [] : designFamilies(css.tree.nodes),
+      families: css === null ? [] : designFamilies([...walk({root: css.design.root})].map(({node}) => node)),
     }),
     ...(reregister ? {reregister} : {}),
   }

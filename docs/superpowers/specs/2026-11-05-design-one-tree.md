@@ -201,7 +201,25 @@ Layout inference (`laidOut` at 1a1ed0175, rows, columns, gap, padding from child
 
 Units: a `Design` is in design px (raster px). The run converts the tree to CSS px once before pairing (boxes, gap, padding, typography sizes, all divided by `scale`) and hands the pairer rasters in the same px as the boxes it passes.
 
-`align`, `fingerprint`, `glyphRun`, `targetBox` and `selectors` are pairing geometry the run needs; `differ.ts` imports them from `pair.ts`. The interface rule covers implementations chosen by configuration (`PAIRERS`, `RANKERS`, the adapters, `createStore`), not every function in those files.
+### The algorithm is a plug
+
+`Pairer` is the interface; an algorithm is one file exporting one implementation, under `server/pairers/`:
+
+```
+server/pairers/vote.ts       createVotePairer({similarity}): Pairer     today's sibling-level vote, recursive
+server/pairers/gumtree.ts    createGumtreePairer({similarity}): Pairer  top-down by hash, bottom-up by dice, recovery (next)
+server/pairers/similarity.ts createSimilarity({comparators}): Similarity  the voters as one scoring function
+```
+
+```ts
+type Similarity = (input: {node: DesignNode; live: LiveComponent; rasters; context}) => number // 0..1
+```
+
+Both pairers take the same `Similarity`; the voters are not an algorithm's private property. `server.ts` picks the pairer by `config.pairer` from the two create functions; no table module. The pairing geometry the run needs (`align`, `fingerprint`, `targetBox`, `selectors`) is `server/geometry.ts`, one export: `createGeometry({tolerances})`. `pair.ts` as a file no longer exists.
+
+### Hashed tree
+
+Every `DesignNode` and every `Match` carries `hash`: for a design node, the hash of its content fields plus its children's hashes; for a match, the hash of the paired element's fingerprint plus its children's hashes. Equal hash between runs means unchanged subtree: the run skips re-pairing it (carry-over is a hash lookup in `previous`, no fingerprint re-sighting code), the change list between runs is the set of nodes whose hash differs, and the store may dedup subtrees by hash later. `fingerprint` folds into the hash.
 
 ## Tool contracts
 
@@ -218,7 +236,8 @@ server/sources/image.ts   createImageAdapter: TargetAdapter
 server/sources/layout.ts  inferLayout, shared by both adapters
 server/register.ts        registerTarget and the current target per session
 server/measure.ts         createMeasurer: Measurer (capture, mirror, takumi, text grouping)
-server/pair.ts            PAIRERS and RANKERS, plus the pairing geometry the run imports
+server/pairers/*.ts       one Pairer per file plus similarity.ts; server/geometry.ts: createGeometry
+server/rankers.ts         createRanker: Ranker
 server/deltas.ts          DELTA_KINDS and deltasFor: one Match to its deltas
 server/raster.ts          pixel operations only
 server/judge.ts           judge: status transitions, score, stage, stop rules
@@ -233,7 +252,7 @@ shared/tree.ts            walk, find
 shared/tolerances.ts
 ```
 
-Reviewer rule: `grep -c "^export " <file>` is 1 for every file under `src/server/` except `pair.ts` and `deltas.ts` (a table plus the functions the run imports). `loop.ts` and `target.ts` are gone; `shared/types.ts` is gone once nothing hand-written remains.
+Reviewer rule: `grep -c "^export " <file>` is 1 for every file under `src/server/`; `deltas.ts` exports `createDeltas` whose result carries the kinds table. `loop.ts` and `target.ts` are gone; `shared/types.ts` is gone once nothing hand-written remains.
 
 ## What this removes
 

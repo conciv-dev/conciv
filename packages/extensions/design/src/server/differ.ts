@@ -14,8 +14,8 @@ import {
   type Clock,
   type Decision,
   type DesignPage,
+  type DesignNode,
   type DesignRuntime,
-  type DesignSection,
   type DiffInput,
   type DiffReport,
   type Differ,
@@ -66,7 +66,7 @@ export function createDiffer(input: {runtime: DesignRuntime; page: DesignPage; r
         judging: settled?.judging,
         measured: settled?.measured ?? [],
         rounds: history.rounds(record.id),
-        counts: runtime.judge.counts({root: run?.root ?? null, nodes: section.nodes}),
+        counts: runtime.judge.counts(run?.root.children.filter((child) => child.node.id === section.id) ?? []),
       })
     },
     refresh: async ({session}) => {
@@ -175,10 +175,10 @@ function captureHash(input: {raster: Raster; decisions: Decision[]}): string {
   return createHash('sha256').update(input.raster.data).update(JSON.stringify(counted)).digest('hex')
 }
 
-async function knownSection(input: {runtime: DesignRuntime; id: string; query: DiffInput}): Promise<DesignSection> {
+async function knownSection(input: {runtime: DesignRuntime; id: string; query: DiffInput}): Promise<DesignNode> {
   const {runtime} = input
   const css = await runtime.css.load({id: input.id, decisions: await runtime.store.decisions(input.id)})
-  const sections = runtime.css.sections(css.tree)
+  const sections = css.design.root.children
   const found = sections.find((section) => section.id === input.query.section)
   if (found !== undefined) return found
   throw toolError('unknown-section', {
@@ -216,7 +216,7 @@ async function countedRound(input: {
   const {reported, listed} = judge.report({
     measured: settled.measured,
     input: job.input,
-    placements: settled.placements,
+    twins: settled.twins,
   })
   const components = await runtime.provenance.attribute({
     ranked: reported,

@@ -5,12 +5,12 @@ import {
   type ColorMetric,
   type Delta,
   type DeltaKind,
-  type DesignNode,
   type Element,
   type Flow,
   type LiveBorder,
   type LiveComponent,
   type LiveStyles,
+  type Match,
   type MatchNode,
   type Raster,
   type Shift,
@@ -27,7 +27,6 @@ export function createSides(input: {kinds: DeltaKind[]; color: ColorMetric}): Si
 function measureDeltas(input: {
   element: Element
   elements: Element[]
-  nodes: DesignNode[]
   live: Raster
   target: Raster
   page: Box
@@ -35,7 +34,7 @@ function measureDeltas(input: {
   color: ColorMetric
   shift: Shift
 }): Delta[] {
-  const {element, elements, nodes, live, target, page, kinds, color, shift} = input
+  const {element, elements, live, target, page, kinds, color, shift} = input
   const children = elements.filter((child) => child.parent === element)
   const strip = edgeStrip({element, raster: live, color, shift: {dx: 0, dy: 0}, toward: 'declared'})
   const liveSide = sideFrom({
@@ -47,7 +46,6 @@ function measureDeltas(input: {
     color,
     glyphs: element.live.glyphs.flatMap((glyph) => glyph.boxes),
     strip,
-    nodes,
   })
   const targetSide = sideFrom({
     element,
@@ -58,7 +56,6 @@ function measureDeltas(input: {
     color,
     glyphs: element.texts.map((node) => node.box),
     strip: strip === null ? null : edgeStrip({element, raster: target, color, shift, toward: 'contrast'}),
-    nodes,
   })
   const deltas = kinds.flatMap((kind) => kind.measure({live: liveSide, target: targetSide, color}))
   const opinion = opinionSide({side: liveSide, element, children})
@@ -85,9 +82,8 @@ function sideFrom(input: {
   color: ColorMetric
   glyphs: Box[]
   strip: Box | null
-  nodes: DesignNode[]
 }): Side {
-  const {element, from, children, page, raster, color, glyphs, strip, nodes} = input
+  const {element, from, children, page, raster, color, glyphs, strip} = input
   const box = pickBox({element, from})
   return {
     kind: element.node.kind,
@@ -96,8 +92,8 @@ function sideFrom(input: {
     prev: element.prev === null ? null : pickBox({element: element.prev, from}),
     next: element.next === null ? null : pickBox({element: element.next, from}),
     axis: element.live.axis,
-    flow: directionOn({element, from, nodes}),
-    columns: columnCount({element, from, nodes}),
+    flow: directionOn({element, from}),
+    columns: columnCount({element, from}),
     textBox: contentBox({children, from}),
     ink: inkOn({from, glyphs}),
     lines: lineCount({element, from}),
@@ -229,8 +225,8 @@ function pickBox(input: {element: Element; from: From}): Box {
   return input.from === 'live' ? input.element.liveBox : input.element.targetBox
 }
 
-function directionOn(input: {element: Element; from: From; nodes: DesignNode[]}): Flow | null {
-  const {element, from, nodes} = input
+function directionOn(input: {element: Element; from: From}): Flow | null {
+  const {element, from} = input
   if (from === 'live') {
     const [first, second] = element.live.children.filter(laysOut)
     if (first === undefined || second === undefined) return null
@@ -238,17 +234,17 @@ function directionOn(input: {element: Element; from: From; nodes: DesignNode[]})
   }
   const layout = element.node.layout
   if (layout?.direction === undefined) return null
-  const children = childrenOf({nodes, id: element.node.id})
+  const {children} = element.match
   if (children.length < 2) return null
-  if (laidOutChildren({element, nodes}).length < children.length) return null
+  if (laidOutChildren(element).length < children.length) return null
   if (element.live.columns !== null && bothAxes(layout)) return null
   if (layout.direction === 'stack') return 'column'
   if (layout.direction === 'grid') return 'row'
   return layout.direction
 }
 
-function laidOutChildren(input: {element: Element; nodes: DesignNode[]}): DesignNode[] {
-  return unoverlapped(childrenOf({nodes: input.nodes, id: input.element.node.id}))
+function laidOutChildren(element: Element): {box: Box; match: Match}[] {
+  return unoverlapped(element.match.children.map((match) => ({box: match.node.box, match})))
 }
 
 function unoverlapped<Entry extends {box: Box}>(entries: Entry[]): Entry[] {
@@ -272,21 +268,17 @@ function bothAxes(layout: NonNullable<MatchNode['layout']>): boolean {
   return layout.direction === 'grid' || layout.wrap === true || (layout.runs ?? []).length > 0
 }
 
-function columnCount(input: {element: Element; from: From; nodes: DesignNode[]}): number | null {
-  const {element, from, nodes} = input
+function columnCount(input: {element: Element; from: From}): number | null {
+  const {element, from} = input
   if (element.live.columns === null) return null
   if (from === 'live') {
     const row = unoverlapped(firstRow(flowItems(element.live)))
     if (row.length < 2) return null
     return countedBands(row.map((item) => item.box))
   }
-  const kept = laidOutChildren({element, nodes})
+  const kept = laidOutChildren(element)
   if (kept.length < 2) return null
-  return countedBands(
-    firstRow(kept)
-      .flatMap((node) => leavesUnder({node, nodes}))
-      .map((node) => node.box),
-  )
+  return countedBands(firstRow(kept).flatMap(({match}) => leavesUnder(match)))
 }
 
 function countedBands(boxes: Box[]): number | null {
@@ -315,11 +307,9 @@ function firstRow<Entry extends {box: Box}>(entries: Entry[]): Entry[] {
   return entries.filter(({box}) => box.y < bottomEdge(top.box) - slack && bottomEdge(box) > top.box.y + slack)
 }
 
-function leavesUnder(input: {node: MatchNode; nodes: DesignNode[]}): MatchNode[] {
-  const {node, nodes} = input
-  const children = childrenOf({nodes, id: node.id})
-  if (children.length === 0) return [node]
-  return children.flatMap((child) => leavesUnder({node: child, nodes}))
+function leavesUnder(match: Match): Box[] {
+  if (match.children.length === 0) return [match.node.box]
+  return match.children.flatMap(leavesUnder)
 }
 
 function inkOn(input: {from: From; glyphs: Box[]}): Box | null {
@@ -366,8 +356,4 @@ function estimatedType(element: Element): Partial<LiveStyles> {
   if (typography === undefined) return {}
   const family = typography.family === null ? {} : {fontFamily: typography.family}
   return {fontSize: typography.size, lineHeight: typography.lineHeight, fontWeight: typography.weight, ...family}
-}
-
-function childrenOf(input: {nodes: DesignNode[]; id: string}): DesignNode[] {
-  return input.nodes.find((node) => node.id === input.id)?.children ?? []
 }

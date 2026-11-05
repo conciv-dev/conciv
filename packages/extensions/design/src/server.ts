@@ -67,7 +67,7 @@ export const design = defineExtension({
   })
   const measurer = createMeasurer({color: comparators.color})
   const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color})
-  const css = createCssDesigns({store, words: WORDS})
+  const css = createCssDesigns({store})
   const registrar = createRegistrar({
     adapters: [
       createImageAdapter({reader: comparators.text, segmenter: SEGMENTERS[config.segmenter], roles}),
@@ -97,7 +97,7 @@ export const design = defineExtension({
     provenance,
     registrar,
     css,
-    projections: createProjections({cwd: server.cwd, store, judge, css, registrar}),
+    projections: createProjections({cwd: server.cwd, store, judge, css, registrar, words: WORDS}),
     xrayUrl: ({id, session}) => {
       const origin = server.nativeUrl()
       const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`

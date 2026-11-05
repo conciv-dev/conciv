@@ -9,7 +9,6 @@ import {
   type Design,
   type DesignNode,
   type DesignRuntime,
-  type DesignTree,
   type DiffReport,
   type Fresh,
   type Judging,
@@ -64,12 +63,12 @@ async function freshRun(
   const {grid, rawTiles, reuse} = pixels.reuse({before: settled ?? null, live: live.raster, target: css.raster})
   const texts = measurer.texts({
     components: live.components,
-    runs: textRuns(css.tree),
+    runs: textRuns(css.design.root),
     live: live.raster,
     target: css.raster,
     reuse,
   })
-  const slots = css.tree.nodes.filter((node) => node.kind === 'image').map((node) => node.box)
+  const slots = [...walk({root: css.design.root})].flatMap(({node}) => (node.kind === 'image' ? [node.box] : []))
   const masked = pixels.paintOver({
     onto: live.raster,
     from: css.raster,
@@ -88,12 +87,14 @@ async function freshRun(
     height: compared.height,
   })
   const similarity = rounded(pixels.mean({tiles: scored}))
-  const sections = runtime.css.sections(css.tree)
   const sectionSimilarity = Object.fromEntries(
-    sections.map((section) => [section.id, rounded(pixels.mean({tiles: scored, within: section.box}))]),
+    css.design.root.children.map((section) => [
+      section.id,
+      rounded(pixels.mean({tiles: scored, within: roundedBox(section.box)})),
+    ]),
   )
   clock.lap('similarity')
-  const placements = await runtime.twins.placements(record.id)
+  const twins = await runtime.twins.placements(record.id)
   const pageRoot = pageComponent(live)
   clock.skip()
   const paired = await runtime.pairer({
@@ -102,7 +103,7 @@ async function freshRun(
     decisions,
     previous: base?.root ?? null,
     rasters: {live: live.raster, target: css.raster},
-    twins: placements.map(({node, path}) => ({node, path})),
+    twins: twins.map(({node, path}) => ({node, path})),
     comparators: runtime.comparators,
     budget: TOLERANCES.pairBudgetMs,
   })
@@ -129,7 +130,6 @@ async function freshRun(
   const page0 = {x: 0, y: 0, w: live.viewport.width, h: live.viewport.height}
   const found = await deltas.measure({
     elements,
-    tree: css.tree,
     reuse,
     shift: alignment.global,
     live: live.raster,
@@ -139,13 +139,12 @@ async function freshRun(
     stamp,
   })
   const unmatched = judge.unmatched({
-    tree: css.tree,
     root,
     components: live.components,
     offsets: alignment.offsets,
     measured: found.measured,
   })
-  const {reported, listed} = judge.report({measured: found.measured, input: job.input, placements})
+  const {reported, listed} = judge.report({measured: found.measured, input: job.input, twins})
   const components = await runtime.provenance.attribute({
     ranked: reported,
     page,
@@ -160,10 +159,10 @@ async function freshRun(
     element: entry.element,
     deltas: enriched.get(entry.element) ?? entry.deltas,
   }))
-  const items = judge.items({components: measured, unmatched, tree: css.tree})
-  const warnings = (
-    await deltas.warnings({elements, judged: found.judged, components: live.components, tree: css.tree})
-  ).map((delta) => ({...delta, ...stamp}))
+  const items = judge.items({components: measured, unmatched, root})
+  const warnings = (await deltas.warnings({elements, judged: found.judged, components: live.components, root})).map(
+    (delta) => ({...delta, ...stamp}),
+  )
   const painted = judge.painted(live.components)
   const score = judge.score({items, unmatched, measured, masks: css.dropped, page: page0})
   clock.lap('deltas')
@@ -180,7 +179,6 @@ async function freshRun(
     accepted,
     run: id,
     items,
-    tree: css.tree,
     crop,
   })
   const changed = {
@@ -250,7 +248,7 @@ async function freshRun(
     partial: paired.partial,
     paired: pairedCount,
     changes: changed.changes,
-    ledger: judge.counts({root: run.root}),
+    ledger: judge.counts(run.root.children),
     ...runtime.projections.paths(record.id),
     pinsLost: pinsLost({decisions, root}),
     ...(live.limits === undefined ? {} : {limits: live.limits}),
@@ -268,7 +266,7 @@ async function freshRun(
       report,
       judging,
       measured,
-      placements,
+      twins,
       hinted: {...hinted, paired: pairedCount},
       grid,
       rawTiles,
@@ -287,8 +285,12 @@ async function baseRun(input: {store: Store; id: string}): Promise<Run | null> {
   return stored.find((run) => run.round === top) ?? null
 }
 
-function textRuns(tree: DesignTree): TextRun[] {
-  return tree.nodes.flatMap((node) => (node.kind === 'text' ? [{box: node.box, text: node.text}] : []))
+function textRuns(root: DesignNode): TextRun[] {
+  return [...walk({root})].flatMap(({node}) => (node.kind === 'text' ? [{box: node.box, text: node.text}] : []))
+}
+
+function roundedBox(box: Box): Box {
+  return {x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h)}
 }
 
 function pageComponent(capture: LiveCapture): LiveComponent {

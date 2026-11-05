@@ -7,8 +7,6 @@ import {
   type Delta,
   type DeltaKind,
   type Deltas,
-  type DesignNode,
-  type DesignTree,
   type Element,
   type Geometry,
   type ItemKind,
@@ -90,7 +88,7 @@ async function deltasFor(
 
 async function warningsFor(input: Parameters<Deltas['warnings']>[0] & {liveText: LiveTextReader}): Promise<Delta[]> {
   return [
-    ...drawnWarnings({elements: input.elements, components: input.components, nodes: input.tree.nodes}),
+    ...drawnWarnings({elements: input.elements, components: input.components, root: input.root}),
     ...(await warningDeltas(input)),
   ]
 }
@@ -210,7 +208,6 @@ function sameWords(text: string): string {
 
 function cachedMeasures(input: {
   elements: Element[]
-  tree: DesignTree
   reuse: Reuse | null
   shift: Shift
   live: Raster
@@ -218,24 +215,24 @@ function cachedMeasures(input: {
   page: Box
   sides: Sides
 }): Map<Element, {key: string; deltas: Delta[]}> {
-  const {elements, tree, reuse, shift, live, target, page, sides} = input
+  const {elements, reuse, shift, live, target, page, sides} = input
   return new Map(
     elements.map((element): [Element, {key: string; deltas: Delta[]}] => {
-      const key = measureKey({element, elements, tree, shift})
+      const key = measureKey({element, elements, shift})
       const kept = reuse?.measures.get(key)
       const region = expand({
         box: union([element.liveBox, moved({box: element.liveBox, shift})]),
         by: TOLERANCES.tileSide,
       })
       if (kept !== undefined && reuse !== null && reuse.unchanged(region)) return [element, {key, deltas: kept}]
-      const deltas = sides.measure({element, elements, nodes: tree.nodes, live, target, page, shift})
+      const deltas = sides.measure({element, elements, live, target, page, shift})
       return [element, {key, deltas}]
     }),
   )
 }
 
-function measureKey(input: {element: Element; elements: Element[]; tree: DesignTree; shift: Shift}): string {
-  const {element, elements, tree, shift} = input
+function measureKey(input: {element: Element; elements: Element[]; shift: Shift}): string {
+  const {element, elements, shift} = input
   const boxes = (other: Element | null): Box[] | null => (other === null ? null : [other.liveBox, other.targetBox])
   return JSON.stringify({
     node: element.node,
@@ -246,7 +243,7 @@ function measureKey(input: {element: Element; elements: Element[]; tree: DesignT
     prev: boxes(element.prev),
     next: boxes(element.next),
     under: elements.filter((other) => under({element: other, ancestor: element})).map(boxes),
-    designed: tree.byId.get(element.node.id)?.children.length ?? 0,
+    designed: element.match.children.length,
     shift,
   })
 }
@@ -366,8 +363,8 @@ async function warningDeltas(input: {
   return flagged.flat()
 }
 
-function drawnWarnings(input: {elements: Element[]; components: LiveComponent[]; nodes: DesignNode[]}): Delta[] {
-  const slots = input.nodes.filter((node) => node.kind === 'image')
+function drawnWarnings(input: {elements: Element[]; components: LiveComponent[]; root: Match}): Delta[] {
+  const slots = [...walk({root: input.root})].flatMap(({node}) => (node.node.kind === 'image' ? [node.node] : []))
   const paired = new Map(input.elements.map((element) => [element.live.path, element.node]))
   return flattened(input.components).flatMap((component): Delta[] => {
     if (!component.drawn) return []
