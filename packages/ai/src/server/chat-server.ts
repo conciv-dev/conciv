@@ -335,6 +335,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             finishReason: 'stop',
             timestamp: Date.now(),
           })
+          entry.controller.abort(RUN_CANCEL_REASON)
         }
       }),
     )
