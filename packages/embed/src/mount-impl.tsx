@@ -19,6 +19,7 @@ import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
 import {createEngineLogin, engineConnected, startEngineLogin} from '@conciv/app/engine-login'
+import {engineAddress} from './agent-base.js'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -313,7 +314,7 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const gate = extensions.find((extension) => extension.connectGate)
   if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
   const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, settings, apiBase: found, grabProvider, connectMode: true})
+  if (found) return bootNormal({root, extensions, settings, ...engineAddress(found), grabProvider, connectMode: true})
   return bootConnect({root, extensions, settings, grabProvider})
 }
 
