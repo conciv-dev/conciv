@@ -44,7 +44,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Side Effects
 
-- Creates the `globalThis.__concivBrowserRpcRegistryV3` object (connections keyed by normalized api base) on first use, shared across bundle copies (`registry` in `browser-transport.ts`). Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
+- Creates the `globalThis.__concivBrowserRpcRegistryV3` `Map` (connections keyed by normalized api base) on first use, shared across bundle copies (`registry` in `browser-transport.ts`). Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
 - HTTP calls to `${apiBase}/rpc` through `RPCLink` (`makeRpcClient` in `client.ts`; `fetchLink` in `browser-transport.ts`).
 - Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) when the context has `concivSessionId` (`sessionHeaders`, `browser-transport.ts`).
 - Reads `location.href` when defined (`normalizeApiBase`).
