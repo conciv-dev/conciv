@@ -180,7 +180,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const liveSessions = makeLiveSessions({
     rpc,
     apiBase: () => options.base,
-    generation: () => 0,
+    connection: () => ({generation: 0, connected: connected()}),
     transport: () => options.transport,
     appData: data,
     queryClient,
@@ -208,7 +208,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
     arrivedFromConnect: () => false,
     connectBind: async () => '',
     connectMode: false,
-    connectionGeneration: () => 0,
+    connection: () => ({generation: 0, connected: connected()}),
     apiBase: () => options.base,
     notifyInteractive: () => {},
     theme: () => ({scheme: 'dark', skin: 'conciv'}),

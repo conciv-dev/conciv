@@ -2,7 +2,7 @@ import {createEffect, For, Show, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {MountedSurface} from '@conciv/extension/client'
-import {useConnectionGeneration, useHostTheme} from '../app/context.js'
+import {useConnection, useHostTheme} from '../app/context.js'
 import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
@@ -16,9 +16,9 @@ function decorateHost(element: HTMLDivElement): void {
 
 export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Element {
   let host: HTMLDivElement | undefined
-  const generation = useConnectionGeneration()
+  const connection = useConnection()
   const theme = useHostTheme()
-  const mountKey = () => ({instances: props.instances, generation: generation()})
+  const mountKey = () => ({instances: props.instances, connection: connection()})
   createEffect(() => {
     if (!host) return
     applySchemeClass(host, theme().scheme)

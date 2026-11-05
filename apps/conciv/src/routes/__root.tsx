@@ -101,10 +101,12 @@ function RootComponent() {
     null,
   )
   app.bindActiveSession?.(() => activeSession())
+  const connected = createMemo(() => app.connected())
+  const connection = createMemo(() => ({generation: app.connectionGeneration(), connected: connected()}))
   const liveSessions = makeLiveSessions({
     rpc: app.rpc,
     apiBase: app.apiBase,
-    generation: app.connectionGeneration,
+    connection,
     transport: () => app.settings.transport,
     appData: app.data,
     queryClient: app.queryClient,
@@ -133,7 +135,7 @@ function RootComponent() {
     connectMode: app.connectMode,
     disconnect: app.disconnect,
     grabProvider: app.grabProvider,
-    connectionGeneration: app.connectionGeneration,
+    connection,
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
     theme,

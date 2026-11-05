@@ -148,6 +148,7 @@ function setStatus(state: TrustState, status: TrustStatus): void {
 
 function distrust(state: TrustState, refused: string | undefined): void {
   if (state.status === 'checking' || refused !== state.token) return
+  if (refused === undefined && state.status === 'revoked') return
   if (state.token !== undefined && readStoredToken(state.key) === state.token) writeStoredToken(state.key, undefined)
   state.token = undefined
   setStatus(state, refusedStatus(refused))

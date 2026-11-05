@@ -5,6 +5,7 @@ import {useChatSession, type ChatSession, type ChatTransportPreference} from '@c
 import type {RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
+import type {Connection} from './context.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -16,7 +17,7 @@ export type LiveSessions = {
 export type LiveSessionsDeps = {
   rpc: RpcClient
   apiBase: Accessor<string>
-  generation: Accessor<number>
+  connection: Accessor<Connection>
   transport: Accessor<ChatTransportPreference | undefined>
   appData: AppData
   queryClient: QueryClient
@@ -63,7 +64,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
 
   const liveChat = (sessionId: string): LiveChat => {
     const chat = createMemo((): ChatSession => {
-      deps.generation()
+      deps.connection()
       const session = useChatSession({
         rpc: deps.rpc,
         apiBase: deps.apiBase(),

@@ -1229,9 +1229,6 @@ test.describe('rebind', () => {
       const pageErrors: string[] = []
       page.on('pageerror', (error) => pageErrors.push(String(error)))
       await openLoggedIn(page, kit, host.base)
-      await mountHandle(page, proxyB.base)
-      await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
-      await openLoggedIn(page, kit, host.base)
 
       await mountHandle(page, proxyA.base)
       await openChatPanel(page)
@@ -1249,6 +1246,7 @@ test.describe('rebind', () => {
       const beforeB = proxyB.trafficCount()
       await rebindHandle(page, proxyB.base)
       await proxyA.close()
+      await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
 
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})

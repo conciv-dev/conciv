@@ -3,7 +3,7 @@ import {Show, createSignal, onCleanup, onMount, type JSX} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Portal} from 'solid-js/web'
 import {Button, EnvironmentProvider} from '@conciv/ui-kit-system'
-import {useConnectionGeneration, useHostTheme, useSettings} from '../app/context.js'
+import {useConnection, useHostTheme, useSettings} from '../app/context.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
 import {RefreshButton} from '../shell/refresh-button.js'
@@ -21,12 +21,12 @@ function PipSession(): JSX.Element {
   const params = Route.useParams()
   const navigate = Route.useNavigate()
   const settings = useSettings()
-  const generation = useConnectionGeneration()
+  const connection = useConnection()
   const theme = useHostTheme()
   const [pip, setPip] = createSignal<PipWindow | null>(null)
   const paneKey = () => {
     const sessionId = params().sessionId
-    return sessionId ? {sessionId, generation: generation()} : undefined
+    return sessionId ? {sessionId, connection: connection()} : undefined
   }
   const returnInline = (search: {popOut?: 'lost'}) =>
     void navigate({
