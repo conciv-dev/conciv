@@ -34,8 +34,8 @@ src/
     types.ts           domain types and the slot interfaces
     tolerances.ts      TOLERANCES, designConfig, frame message names, source attribute, property aliases, tolerance counts
   server/
-    target.ts          imageAdapter, TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
-    figma.ts           the Figma adapter: link parsing, FIGMA_SOURCES (rest, document), the node tree to target nodes
+    target.ts          the adapters (imageAdapter, createFigmaAdapter with its link parsing and FIGMA_SOURCES rest and
+                       document), TEXT_READERS (PaddleOCR), ENRICHERS, SEGMENTERS, ROLE_RULES and the registration pipeline
     layout.ts          the layout pass over the segmented tree (direction, gap, align, wrap, padding, runs, sizes)
     deltas.ts          DELTA_KINDS (border, axis and columns included), COLOR_METRICS, sampled fills and glyph ink color, sideFrom
     provenance.ts      MAPPERS, mapDeclaration, the CSS source map, JSX site reading and live text roles
