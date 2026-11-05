@@ -6,9 +6,11 @@ import type {DesignConfig} from './tolerances.js'
 import type {
   ContainerLayout,
   DeltaKindName,
+  Design,
   DesignNode,
   DiffInput,
   DiffReport,
+  Match,
   NodeLayout,
   OcrLine,
   Pairer,
@@ -16,12 +18,20 @@ import type {
   Stage,
   StatusReport,
   Store,
-  TargetAdapter,
+  Deltas,
+  Geometry,
+  Judge,
+  Measurer,
+  Pixels,
+  Twins,
+  Provenancer,
+  Registrar,
   TargetInput,
   TargetRecord,
   TargetResult,
   WatchInput,
   WatchReport,
+  Words,
 } from './defs.js'
 
 export const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -188,6 +198,47 @@ export type DeltaKind = {
 }
 export type Unmatched = DiffReport['unmatched'][number]
 
+export type MatchNode = Match['node']
+export type MatchText = Extract<MatchNode, {kind: 'text'}>
+export type DesignTree = {
+  root: DesignNode
+  nodes: DesignNode[]
+  byId: Map<string, DesignNode>
+  parents: Map<string, DesignNode>
+}
+export type DesignSection = {id: string; kind: DesignNode['kind']; line: string; box: Box; nodes: string[]}
+export type Element = {
+  match: Match
+  live: LiveComponent
+  node: MatchNode
+  texts: MatchText[]
+  source: MeasureSource
+  confidence: number
+  selector: string
+  liveBox: Box
+  targetBox: Box
+  mismatch: number
+  depth: number
+  parent: Element | null
+  host: {selector: string; live: LiveComponent} | null
+  prev: Element | null
+  next: Element | null
+}
+export type Measured = {element: Element; deltas: Delta[]}
+export type Reuse = {textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>; unchanged: (box: Box) => boolean}
+export type LiveText = {role: LiveRole; literals: string[]}
+export type LiveTextReader = (source: SourceLoc | null) => Promise<LiveText | null>
+export type TextJudgement = {verdict: 'text' | 'sample-data' | null; live: string; target: string}
+export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
+export type ScoredTile = {box: Box; similarity: number}
+export type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
+export type Clock = {
+  lap: (phase: Phase) => void
+  skip: () => void
+  timings: () => Omit<DiffReport['timings'], 'carried' | 'longestTask'>
+}
+export type Css = {design: Design; tree: DesignTree; raster: Raster; dropped: Box[]}
+
 export type Winner = {
   selector: string | null
   declaration: string
@@ -237,10 +288,15 @@ export type DesignRuntime = {
   comparators: Comparators
   pairer: Pairer
   ranker: Ranker
-  adapters: TargetAdapter[]
-  deltaKinds: DeltaKind[]
-  mappers: ProvenanceMapper[]
-  cssMap: () => Promise<CssMap>
+  words: Words
+  deltas: Deltas
+  pixels: Pixels
+  geometry: Geometry
+  twins: Twins
+  measurer: Measurer
+  judge: Judge
+  provenance: Provenancer
+  registrar: Registrar
   xrayUrl: (input: {id: string; session: string}) => XrayLink
 }
 

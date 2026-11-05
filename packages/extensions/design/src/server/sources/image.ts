@@ -9,36 +9,28 @@ import {CanvasProcessor, CanvasToolkit} from 'ppu-ocv/canvas'
 import {z} from 'zod'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
-import {countBy, groupBy, partition, range} from 'es-toolkit'
+import {clamp, countBy, groupBy, partition, range} from 'es-toolkit'
 import type {Border, DesignGradient, DesignNode, OcrLine, TargetAdapter} from '../../shared/defs.js'
 import {iconSized, TOLERANCES} from '../../shared/tolerances.js'
 import type {Box, ColorMetric, Raster, RoleRules, Segmenter, TextReader} from '../../shared/types.js'
 import {
   boxMask,
-  cornerRadius,
   crop,
   decodePng,
-  encloses,
   encodePng,
-  expand,
   hex,
-  inkCoverage,
   labelRegions,
-  openMask,
-  overlapping,
   pngBase64,
   readPng,
   rgbAt,
   rgbDistance,
-  sameLine,
   trimToInk,
-  union,
-  type Region,
   type Rgb,
   COLOR_METRICS,
   sampledFills,
   fnv,
 } from '../raster.js'
+import {encloses, expand, overlapping, sameLine, union} from '../../shared/box.js'
 import {isFigmaUrl} from './figma.js'
 import {inferLayout} from './layout.js'
 
@@ -1372,4 +1364,113 @@ async function readModel(input: {storage: Storage; key: string}): Promise<Uint8A
   const bytes = await readRaw(input)
   if (bytes === null) throw new Error('the OCR model files could not be read')
   return bytes
+}
+
+type Region = ReturnType<typeof labelRegions>['regions'][number]
+
+function inkCoverage(input: {raster: Raster; box: Box; background: Rgb; threshold: number}): number {
+  const {raster, box, background, threshold} = input
+  const area = box.w * box.h
+  if (area <= 0) return 0
+  let covered = 0
+  for (let y = box.y; y < box.y + box.h; y += 1) {
+    for (let x = box.x; x < box.x + box.w; x += 1) {
+      if (rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: background}) > threshold) covered += 1
+    }
+  }
+  return covered / area
+}
+
+function cornerRadius(input: {raster: Raster; box: Box; inside: Rgb; outside: Rgb}): number {
+  const {raster, box, inside, outside} = input
+  const limit = Math.floor(Math.min(box.w, box.h) / 2)
+  const right = box.x + box.w - 1
+  const bottom = box.y + box.h - 1
+  const corners = [
+    {corner: {x: box.x, y: box.y}, step: {x: 1, y: 1}},
+    {corner: {x: right, y: box.y}, step: {x: -1, y: 1}},
+    {corner: {x: box.x, y: bottom}, step: {x: 1, y: -1}},
+    {corner: {x: right, y: bottom}, step: {x: -1, y: -1}},
+  ]
+  const depths = corners
+    .map(({corner, step}) => cornerDepth({raster, box, corner, step, inside, outside, limit}))
+    .toSorted((a, b) => a - b)
+  const median = ((depths[1] ?? 0) + (depths[2] ?? 0)) / 2
+  return Math.round(median / DIAGONAL_SHARE)
+}
+
+const DIAGONAL_SHARE = 1 - Math.SQRT1_2
+
+function cornerDepth(input: {
+  raster: Raster
+  box: Box
+  corner: {x: number; y: number}
+  step: {x: number; y: number}
+  inside: Rgb
+  outside: Rgb
+  limit: number
+}): number {
+  const {raster, box, corner, step, inside, outside, limit} = input
+  let depth = 0
+  for (let i = 0; i < limit; i += 1) {
+    const x = corner.x + step.x * i
+    const y = corner.y + step.y * i
+    const fill = fillAt({raster, box, x, y, inside})
+    const span = rgbDistance({a: fill, b: outside})
+    if (span === 0) return depth
+    const covered = Math.min(1, rgbDistance({a: rgbAt({raster, index: y * raster.width + x}), b: outside}) / span)
+    depth += 1 - covered
+    if (covered >= 1) break
+  }
+  return depth
+}
+
+function fillAt(input: {raster: Raster; box: Box; x: number; y: number; inside: Rgb}): Rgb {
+  const {raster, box, x, y, inside} = input
+  const inset = TOLERANCES.interiorInset
+  if (box.w <= inset * 2 || box.h <= inset * 2) return inside
+  const rows = range(box.y + inset, box.y + box.h - inset)
+  const columns = range(box.x + inset, box.x + box.w - inset)
+  const at = {
+    x: clamp(x, box.x + inset, box.x + box.w - inset - 1),
+    y: clamp(y, box.y + inset, box.y + box.h - inset - 1),
+  }
+  const column = lineMedian({raster, indices: rows.map((row) => row * raster.width + at.x)})
+  const row = lineMedian({raster, indices: columns.map((across) => at.y * raster.width + across)})
+  const channel = (c: 0 | 1 | 2): number => Math.min(255, Math.max(0, column[c] + row[c] - inside[c]))
+  return [channel(0), channel(1), channel(2)]
+}
+
+function lineMedian(input: {raster: Raster; indices: number[]}): Rgb {
+  const {raster, indices} = input
+  const channel = (c: number): number => {
+    const sorted = indices.map((index) => raster.data[index * 4 + c] ?? 0).toSorted((a, b) => a - b)
+    return sorted[Math.floor(sorted.length / 2)] ?? 0
+  }
+  return [channel(0), channel(1), channel(2)]
+}
+
+function openMask(input: {mask: Uint8Array; width: number; height: number}): Uint8Array {
+  const {mask, width, height} = input
+  const pass = (source: Uint8Array, keep: (count: number) => boolean): Uint8Array => {
+    const out = new Uint8Array(source.length)
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        let count = 0
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nx = Math.min(width - 1, Math.max(0, x + dx))
+            const ny = Math.min(height - 1, Math.max(0, y + dy))
+            count += source[ny * width + nx] ?? 0
+          }
+        }
+        out[y * width + x] = keep(count) ? 1 : 0
+      }
+    }
+    return out
+  }
+  return pass(
+    pass(mask, (count) => count === 9),
+    (count) => count > 0,
+  )
 }

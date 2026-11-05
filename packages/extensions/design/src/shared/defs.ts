@@ -1,8 +1,38 @@
 import {z} from 'zod'
 import type {Storage} from 'unstorage'
+import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
-import {PLACEHOLDER_KINDS, ROLES, type Comparators, type Item, type LiveComponent, type Raster} from './types.js'
+import {
+  PLACEHOLDER_KINDS,
+  ROLES,
+  type Box,
+  type CapturePath,
+  type Clock,
+  type Comparators,
+  type Delta,
+  type DeltaKind,
+  type DesignSection,
+  type DesignTree,
+  type Element,
+  type Fingerprint,
+  type Framework,
+  type Grid,
+  type Item,
+  type LiveCapture,
+  type LiveComponent,
+  type LiveTextReader,
+  type MatchText,
+  type Measured,
+  type MeasureSource,
+  type Raster,
+  type Reuse,
+  type ScoredTile,
+  type TextJudgement,
+  type TextRun,
+  type TileCache,
+  type Unmatched,
+} from './types.js'
 
 export const DESIGN_EXTENSION_NAME = 'design'
 
@@ -374,6 +404,254 @@ export type Pairer = (input: {
   budget: number
 }) => Promise<{root: Match; partial: boolean; carried: number}>
 
+export type Shift = {dx: number; dy: number}
+
+export type Offset = {match: Match | null; shift: Shift}
+
+export type Geometry = {
+  align(input: {root: Match; live: Raster; exact: boolean}): {global: Shift; offsets: Offset[]}
+  fingerprint(
+    component: Pick<LiveComponent, 'source' | 'key' | 'instance' | 'owner' | 'tag' | 'glyphs' | 'box'>,
+  ): Fingerprint
+  targetBox(input: {node: Match['node']; live: NonNullable<Match['live']>; raster: Raster; exact: boolean}): Box
+  selectors(live: LiveComponent): Map<string, string>
+}
+
+export type Sides = {
+  measure(input: {
+    element: Element
+    elements: Element[]
+    nodes: DesignNode[]
+    live: Raster
+    target: Raster
+    page: Box
+    shift: Shift
+  }): Delta[]
+}
+
+export type Deltas = {
+  kinds: DeltaKind[]
+  elements(input: {
+    root: Match
+    live: LiveComponent
+    raster: Raster
+    exact: boolean
+    source: MeasureSource
+    mismatchAt: (box: Box) => number
+  }): Element[]
+  measure(input: {
+    elements: Element[]
+    tree: DesignTree
+    reuse: Reuse | null
+    shift: Shift
+    live: Raster
+    target: Raster
+    page: Box
+    decisions: Decision[]
+    stamp: Pick<Delta, 'source' | 'confidence' | 'width'>
+  }): Promise<{measured: Measured[]; measures: Map<string, Delta[]>; judged: Map<Element, TextJudgement>}>
+  warnings(input: {
+    elements: Element[]
+    judged: Map<Element, TextJudgement>
+    components: LiveComponent[]
+    tree: DesignTree
+  }): Promise<Delta[]>
+  size(delta: Delta): number
+  sourced(input: {delta: Delta; element: Element}): Delta
+  sameWords(text: string): string
+}
+
+export type Provenancer = {
+  attribute(input: {
+    ranked: {element: Element; report: ComponentReport}[]
+    page: ServerToolPageAccess
+    width: number
+    height: number
+    sourced: Deltas['sourced']
+  }): Promise<ComponentReport[]>
+  liveText: LiveTextReader
+  dispose(): void
+}
+
+export type Pixels = {
+  compare(input: {live: Raster; target: Raster; previous: TileCache | null; clock: Clock}): {
+    mismatch: number
+    mask: Uint8Array
+    width: number
+    height: number
+    tiles: TileCache
+    carried: number
+  }
+  similarity(input: {
+    live: Raster
+    target: Raster
+    mask: Uint8Array
+    differing: Uint8Array
+    width: number
+    height: number
+  }): ScoredTile[]
+  mean(input: {tiles: ScoredTile[]; within?: Box}): number
+  paintOver(input: {onto: Raster; from: Raster; boxes: Box[]}): Raster
+  paintDiff(input: {live: Raster; mask: Uint8Array; width: number}): Raster
+  share(input: {mask: Uint8Array; width: number; height: number; box: Box}): number
+  reuse(input: {
+    before: {grid: Grid; rawTiles: string[]; textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>} | null
+    live: Raster
+    target: Raster
+  }): {grid: Grid; rawTiles: string[]; reuse: Reuse | null}
+}
+
+export type Measurer = {
+  connected(page: ServerToolPageAccess): Promise<void>
+  route(page: ServerToolPageAccess): Promise<string>
+  measure(input: {width?: number; height?: number; timeout?: number; page: ServerToolPageAccess}): Promise<{
+    capture: LiveCapture
+    longestTask?: number
+    pageError?: string
+  }>
+  texts(input: {components: LiveComponent[]; runs: TextRun[]; live: Raster; target: Raster; reuse: Reuse | null}): {
+    agreeing: Box[]
+    masks: Map<string, Box[]>
+  }
+  typography(input: {
+    texts: {node: MatchText; owner: LiveComponent}[]
+    raster: Raster
+    page: ServerToolPageAccess
+  }): Promise<{estimates: Record<string, Typography>; skipped: number}>
+  sources(capture: LiveCapture): MeasureSource[]
+  confidence(capture: LiveCapture): number
+}
+
+export type Round = {
+  score: number[]
+  capturePath: CapturePath | undefined
+  values: Map<string, number | string>
+  capture: string
+  report: DiffReport
+  section: string | undefined
+}
+
+export type Verdict = Pick<DiffReport, 'stage' | 'brief' | 'round' | 'stop' | 'score' | 'rows'>
+
+export type SectionBudget = {id: string; roundsUsed: number; open: boolean; spent: boolean}
+
+export type Placement = {node: string; target: string; path: string; confidence: number}
+
+export type Judging = {
+  items: Item[]
+  score: number[]
+  capturePath: CapturePath | undefined
+  capture: string
+  warnings: Delta[]
+  painted: DiffReport['painted']
+  partial: boolean
+  changed: {changes: Changes; since: number | null}
+  crop: (node: string) => string
+  similarity: {now: number; was: number} | null
+}
+
+export type Judge = {
+  unmatched(input: {
+    tree: DesignTree
+    root: Match
+    components: LiveComponent[]
+    offsets: Offset[]
+    measured: Measured[]
+  }): Unmatched[]
+  items(input: {components: Measured[]; unmatched: Unmatched[]; tree: DesignTree}): Item[]
+  score(input: {items: Item[]; unmatched: Unmatched[]; measured: Measured[]; masks: Box[]; page: Box}): number[]
+  verdict(input: Judging & {priors: Round[]; round: number}): Verdict
+  report(input: {measured: Measured[]; input: DiffInput; placements: Placement[]}): {
+    reported: {element: Element; report: ComponentReport}[]
+    listed: number
+  }
+  hint(input: {
+    attributed: boolean
+    absolute: boolean
+    partial: boolean
+    cut: {listed: number; shown: number; paired: number}
+  }): {hint?: string}
+  painted(components: LiveComponent[]): DiffReport['painted']
+  budgets(input: {sections: DesignSection[]; items: Item[]; rounds: Round[]}): SectionBudget[]
+  round(input: {
+    items: Item[]
+    score: number[]
+    capturePath: CapturePath | undefined
+    capture: string
+    report: DiffReport
+    section: string | undefined
+  }): Round
+  worse(input: {a: number[]; b: number[]}): boolean
+  section(input: {
+    report: DiffReport
+    section: DesignSection
+    judging: Judging | undefined
+    measured: Measured[]
+    rounds: Round[]
+    counts: LedgerCounts
+  }): DiffReport
+  settle(input: {
+    previous: Match | null
+    root: Match
+    accepted: Set<string>
+    run: string
+    items: Item[]
+    tree: DesignTree
+    crop: (node: string) => string
+  }): {root: Match; changes: Changes}
+  counts(input: {root: Match | null; nodes?: string[]}): LedgerCounts
+}
+
+export type Registrar = {
+  register(input: {input: TargetInput; session: string; page: ServerToolPageAccess}): Promise<TargetResult>
+  current(session: string): Promise<TargetRecord>
+}
+
+export type Twins = {
+  link(input: {id: string; session: string}): Promise<void>
+  placements(id: string): Promise<Placement[]>
+  responsive(input: {id: string; design: Design}): Promise<DiffReport['responsive']>
+}
+
+export type VoterName = 'text' | 'kind' | 'structure' | 'style' | 'geometry' | 'pixel' | 'hints' | 'twins'
+
+export type VoteView = {
+  key: string
+  kind: 'text' | 'box' | 'image' | 'element'
+  box: Box
+  lines: Box[]
+  text: string
+  words: string
+  alone: boolean
+  klass: 'heading' | 'text' | 'control' | 'container' | 'media'
+  ink: number | null
+  fill: [number, number, number] | null
+  tokens: string[]
+  parent: VoteView | null
+  rank: number
+  media: boolean
+}
+
+export type VoteContext = {
+  assigned: Map<string, VoteView>
+  diagonal: number
+  nodeRaster: Raster
+  candidateRaster: Raster
+  hashes: Map<string, Uint8Array>
+  twins: Map<string, string>
+  candidates: VoteView[]
+  bestText: Map<string, number>
+  spoken: Record<string, VoteView[]>
+}
+
+export type Voter = {
+  name: VoterName
+  base: number
+  score: (input: {node: VoteView; candidate: VoteView; context: VoteContext}) => number | null
+}
+
+export type Similarity = {voters: Voter[]; text(input: {a: string; b: string}): number}
+
 export type Ranker = (input: {items: Item[]}) => Item[]
 
 export type TargetAdapter = {
@@ -395,7 +673,8 @@ export type Store = {
   remove(input: {id?: string; all?: boolean}): Promise<number>
   runs(id: string): Promise<string[]>
   run(input: {id: string; run: string}): Promise<Run | null>
-  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<void>
+  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<Run>
+  writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
   decisions(id: string): Promise<Decision[]>
   decide(input: {id: string; kind: DecisionKind; anchor: string; value: Decision['value']}): Promise<Decision>
   revoke(input: {id: string; decision: string}): Promise<boolean>
@@ -406,10 +685,17 @@ export type Store = {
 
 export type Words = {
   outline(design: Design): string[]
-  itemSentence(input: {match: Match; delta: Match['deltas'][number]; parent: Match | null}): string
-  changeSentence(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string
-  stalledLine(input: {stage: Stage; score: number[]; unchanged: Item[]}): string
-  flippedLine(input: {items: Item[]; round: number}): string
+  placeholder(framework: Framework): string
+  line(input: {node: DesignNode; scale: number}): string
+  delta(input: {element: Element; delta: Delta}): string
+  entry(input: {entry: Unmatched; tree: DesignTree; unbuilt: Record<string, Unmatched>}): string
+  row(input: {run: ContainerLayout['runs'][number]; members: DesignNode[]; tree: DesignTree}): string
+  subject(input: {node: DesignNode; tree: DesignTree}): string
+  change(input: {changes: Changes; round: number; similarity: {now: number; was: number} | null}): string
+  stalled(input: {stage: Stage; score: number[]; unchanged: Item[]}): string
+  flipped(input: {items: Item[]; round: number}): string
+  painted(count: number): string
+  warning(delta: Delta): string
 }
 
 const UnmatchedSchema = z.object({

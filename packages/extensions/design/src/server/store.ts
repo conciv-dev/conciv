@@ -11,9 +11,9 @@ import {
   type Decision,
   type Store,
   type TargetRecord,
+  type Words,
 } from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import {designOutline, placeholderSource} from './loop.js'
 
 const RUNS_KEPT = 5
 const RUN_KEY = 'run'
@@ -21,7 +21,8 @@ const RECORD_KEY = 'record'
 const CAPTURES = 'captures'
 const DriverBaseSchema = z.object({base: z.string()})
 
-export function createStore(state: Storage): Store {
+export function createStore(input: {state: Storage; words: Words}): Store {
+  const {state, words} = input
   const queue: {tail: Promise<unknown>} = {tail: Promise.resolve()}
 
   function serial<T>(work: () => Promise<T>): Promise<T> {
@@ -78,8 +79,8 @@ export function createStore(state: Storage): Store {
         const earlier = await record(design.id)
         await state.setItemRaw(targetKey(design.id), image)
         await state.setItem(`${design.id}:design`, design)
-        await state.setItem(`${design.id}:design.txt`, designOutline(design).join('\n'))
-        await state.setItem(`${design.id}:placeholder.tsx`, placeholderSource('react'))
+        await state.setItem(`${design.id}:design.txt`, words.outline(design).join('\n'))
+        await state.setItem(`${design.id}:placeholder.tsx`, words.placeholder('react'))
         return writeRecord({
           id: design.id,
           session,
@@ -123,10 +124,22 @@ export function createStore(state: Storage): Store {
     run: ({id, run}) => readItem({state, key: runKey({id, run}), schema: RunSchema}),
     writeRun: async ({run, live, diff}) => {
       const base = `${run.design}:runs:${run.id}`
-      await state.setItemRaw(`${base}:live.png`, live)
-      await state.setItemRaw(`${base}:diff.png`, diff)
-      await state.setItem(runKey({id: run.design, run: run.id}), run)
+      const images = {live: `${base}:live.png`, diff: `${base}:diff.png`}
+      if (live.length > 0) await state.setItemRaw(images.live, live)
+      if (diff.length > 0) await state.setItemRaw(images.diff, diff)
+      const written = RunSchema.parse({
+        ...run,
+        images: {
+          live: keyPath({state, key: images.live}) ?? images.live,
+          diff: keyPath({state, key: images.diff}) ?? images.diff,
+        },
+      })
+      await state.setItem(runKey({id: run.design, run: run.id}), written)
       await prune(run.design)
+      return written
+    },
+    writePlaceholder: async ({id, framework}) => {
+      await state.setItem(`${id}:placeholder.tsx`, words.placeholder(framework))
     },
     decisions,
     decide: ({id, kind, anchor, value}) =>
@@ -153,16 +166,18 @@ export function createStore(state: Storage): Store {
       await Promise.all(stale.map((old) => state.removeItem(old)))
       return key
     },
-    path: (key) => {
-      const mount = state.getMount(key)
-      const driver = DriverBaseSchema.safeParse(mount.driver.options)
-      if (!driver.success) return null
-      return join(resolve(driver.data.base), ...key.slice(mount.base.length).split(':'))
-    },
+    path: (key) => keyPath({state, key}),
   }
 }
 
-export function newStamp(): string {
+function keyPath(input: {state: Storage; key: string}): string | null {
+  const mount = input.state.getMount(input.key)
+  const driver = DriverBaseSchema.safeParse(mount.driver.options)
+  if (!driver.success) return null
+  return join(resolve(driver.data.base), ...input.key.slice(mount.base.length).split(':'))
+}
+
+function newStamp(): string {
   return `${Date.now()}-${randomUUID().slice(0, 4)}`
 }
 

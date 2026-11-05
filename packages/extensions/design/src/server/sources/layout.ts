@@ -3,7 +3,7 @@ import type {ContainerLayout, DesignNode, NodeLayout} from '../../shared/defs.js
 import {TOLERANCES} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
 import type {Box} from '../../shared/types.js'
-import {union} from '../raster.js'
+import {union} from '../../shared/box.js'
 
 export function inferLayout(root: DesignNode): DesignNode {
   const arranged = laidOut(root) ? root : arrangedNode(root)

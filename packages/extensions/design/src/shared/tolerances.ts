@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {ComponentReport, DeltaKindName, DiffReport, Stage, Typography} from './defs.js'
+import type {ComponentReport, DeltaKindName, DiffReport, Match, Stage, Typography} from './defs.js'
 import {uniqBy} from 'es-toolkit'
 import type {Box, Delta, ItemKind} from './types.js'
 
@@ -249,4 +249,26 @@ export function designFamilies(nodes: {kind: string; typography?: Pick<Typograph
     return family === null ? [] : [leadingFamily(family)]
   })
   return uniqBy(families, (family) => family.toLowerCase())
+}
+
+export function glyphSized(input: {text: string; box: Box}): boolean {
+  return input.text.length === 1 && input.box.h < GLYPH_RUN_HEIGHT
+}
+
+export function folded(text: string): string {
+  return text.toLowerCase().split(' ').filter(Boolean).join(' ').trim()
+}
+
+const GLYPH_RUN_HEIGHT = 14
+
+export const INK_SHARE = 0.72
+
+export function isOpaqueHex(color: string): boolean {
+  return color.startsWith('#') && color.length === OPAQUE_HEX_LENGTH
+}
+
+const OPAQUE_HEX_LENGTH = 7
+
+export function glyphRun(node: Match['node']): boolean {
+  return node.kind === 'text' && glyphSized({text: folded(node.text), box: node.box})
 }

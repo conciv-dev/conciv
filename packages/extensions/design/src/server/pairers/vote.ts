@@ -1,234 +1,50 @@
 import {groupBy, intersection, median, minBy, omit, partition, words} from 'es-toolkit'
 import {parse} from 'culori'
-import {SOURCE_ATTR, TOLERANCES, type Tolerances} from '../shared/tolerances.js'
-import type {Box, Fingerprint, Item, LiveComponent, Raster} from '../shared/types.js'
-import type {Decision, DesignNode, Match, Pairer, Ranker} from '../shared/defs.js'
-import {walk} from '../shared/tree.js'
-import {expand, fnv, sameLine, trimToInk, union, type Rgb} from './raster.js'
+import {TOLERANCES, type Tolerances} from '../../shared/tolerances.js'
+import type {Box, Fingerprint, LiveComponent} from '../../shared/types.js'
+import type {
+  Decision,
+  DesignNode,
+  Geometry,
+  Match,
+  Pairer,
+  Similarity,
+  Voter,
+  VoteContext,
+  VoterName,
+  VoteView,
+} from '../../shared/defs.js'
+import {walk} from '../../shared/tree.js'
+import {type Rgb} from '../raster.js'
+import {centre, expand, holds, readingOrder} from '../../shared/box.js'
+import {INK_SHARE, folded} from '../../shared/tolerances.js'
 
-export const PAIRERS = {vote: votePairer} as const satisfies Record<string, Pairer>
-
-export const RANKERS = {impact: impactRanker} as const satisfies Record<string, Ranker>
-
-export function fingerprint(
-  component: Pick<LiveComponent, 'source' | 'key' | 'instance' | 'owner' | 'tag' | 'glyphs' | 'box'>,
-): Fingerprint {
-  return {
-    source: component.source,
-    key: component.key,
-    instance: component.instance,
-    owner: component.owner,
-    tag: component.tag,
-    textHash: fnv(folded(component.glyphs.map((glyph) => glyph.text).join(' '))),
-    box: component.box,
-  }
-}
-
-export function glyphRun(node: Match['node']): boolean {
-  return node.kind === 'text' && glyphSized({text: folded(node.text), box: node.box})
-}
-
-export type Shift = {dx: number; dy: number}
-
-export type Offset = {match: Match | null; shift: Shift}
-
-export function align(input: {root: Match; live: Raster; exact: boolean; tolerances: Tolerances}): {
-  global: Shift
-  offsets: Offset[]
-} {
-  const {root, live, exact, tolerances} = input
-  const paired = [...walk({root})].flatMap(({node, depth}): Seated[] =>
-    depth === 0 || node.live === null ? [] : [{match: node, live: node.live}],
-  )
-  const global = exact ? boxShift(paired) : medianShift(paired.flatMap((seated) => textShift({seated, raster: live})))
-  const moved = (seated: Seated): Shift => relative({a: displacement({seated, raster: live, exact}), b: global})
-  const page: Offset[] = beyond({shift: global, tolerances}) ? [{match: null, shift: global}] : []
-  return {global, offsets: [...page, ...offsetsUnder({match: root, anchor: null, moved, tolerances})]}
-}
-
-export function targetBox(input: {node: Match['node']; live: PairedLive; raster: Raster; exact: boolean}): Box {
-  const {node, live, raster, exact} = input
-  if (node.kind !== 'text' || exact) return node.box
-  const shift = inkShift({node, live, raster})
-  return {...live.box, x: live.box.x + shift.dx, y: live.box.y + shift.dy}
-}
-
-export function selectors(live: LiveComponent): Map<string, string> {
-  return new Map([
-    [live.path, componentSelector({component: live, parent: null, shared: false})],
-    ...selectorsUnder({components: live.children, host: null}),
-  ])
-}
-
-type PairedLive = NonNullable<Match['live']>
-
-type Seated = {match: Match; live: PairedLive}
-
-type TextNode = Extract<Match['node'], {kind: 'text'}>
-
-type BoxNode = Extract<Match['node'], {kind: 'box'}>
-
-const PAGE_SHIFT_PAIRS = 3
-
-function boxShift(paired: Seated[]): Shift {
-  const boxed = paired.filter(({match}) => match.node.kind !== 'text')
-  if (boxed.length < PAGE_SHIFT_PAIRS) return {dx: 0, dy: 0}
-  return medianShift(
-    boxed.map(({match, live}) => ({dx: match.node.box.x - live.box.x, dy: match.node.box.y - live.box.y})),
-  )
-}
-
-function medianShift(shifts: Shift[]): Shift {
-  return {dx: median0(shifts.map((shift) => shift.dx)), dy: median0(shifts.map((shift) => shift.dy))}
-}
-
-function textShift(input: {seated: Seated; raster: Raster}): Shift[] {
-  const {node} = input.seated.match
-  if (node.kind !== 'text') return []
-  return [inkShift({node, live: input.seated.live, raster: input.raster})]
-}
-
-function inkShift(input: {node: TextNode; live: PairedLive; raster: Raster}): Shift {
-  const {node, live, raster} = input
-  const line = nearestLine({lines: live.glyphs.flatMap((glyph) => glyph.boxes), box: node.box})
-  if (line === null) return {dx: 0, dy: 0}
-  const ink = trimToInk({raster, box: line})
-  return {dx: node.box.x - ink.x, dy: node.box.y - ink.y}
-}
-
-function displacement(input: {seated: Seated; raster: Raster; exact: boolean}): Shift {
-  const {seated, raster, exact} = input
-  const {node} = seated.match
-  const ink = exact && node.kind === 'text' ? inkToInk({node, live: seated.live}) : null
-  const target = targetBox({node, live: seated.live, raster, exact})
-  return ink ?? {dx: target.x - seated.live.box.x, dy: target.y - seated.live.box.y}
-}
-
-function inkToInk(input: {node: TextNode; live: PairedLive}): Shift | null {
-  const {node, live} = input
-  const glyphs = live.glyphs.flatMap((glyph) => glyph.boxes)
-  const lines = node.lines.map((line) => line.box)
-  if (glyphs.length === 0 || lines.length === 0) return null
-  const drawn = union(glyphs)
-  const design = union(lines)
-  return {
-    dx: horizontal({design, live: drawn, alignment: live.styles.textAlign}),
-    dy: centre(design).y - centre(drawn).y,
-  }
-}
-
-function horizontal(input: {design: Box; live: Box; alignment: string}): number {
-  const {design, live, alignment} = input
-  if (alignment === 'center') return centre(design).x - centre(live).x
-  if (alignment === 'right' || alignment === 'end') return design.x + design.w - (live.x + live.w)
-  return design.x - live.x
-}
-
-function relative(input: {a: Shift; b: Shift}): Shift {
-  return {dx: input.a.dx - input.b.dx, dy: input.a.dy - input.b.dy}
-}
-
-function beyond(input: {shift: Shift; tolerances: Tolerances}): boolean {
-  const {shift, tolerances} = input
-  return Math.abs(shift.dx) > tolerances.geometryPx || Math.abs(shift.dy) > tolerances.geometryPx
-}
-
-function offsetsUnder(input: {
-  match: Match
-  anchor: Seated | null
-  moved: (seated: Seated) => Shift
-  tolerances: Tolerances
-}): Offset[] {
-  const {anchor, moved, tolerances} = input
-  return input.match.children.flatMap((child) => {
-    const seated = child.live === null ? null : {match: child, live: child.live}
-    const below = offsetsUnder({...input, match: child, anchor: seated ?? anchor})
-    if (seated === null) return below
-    if (anchor !== null && beyond({shift: moved(anchor), tolerances})) return below
-    const shift = moved(seated)
-    return beyond({shift, tolerances}) ? [{match: child, shift}, ...below] : below
-  })
-}
-
-function selectorsUnder(input: {components: LiveComponent[]; host: string | null}): [string, string][] {
-  const keys = input.components.map(sourceKey)
-  return input.components.flatMap((component, position): [string, string][] => {
-    const key = keys[position] ?? null
-    const shared = key !== null && keys.indexOf(key) !== keys.lastIndexOf(key)
-    const selector = componentSelector({component, parent: input.host, shared})
-    return [[component.path, selector], ...selectorsUnder({components: component.children, host: selector})]
-  })
-}
-
-function componentSelector(input: {component: LiveComponent; parent: string | null; shared: boolean}): string {
-  const {component, parent, shared} = input
-  const key = sourceKey(component)
-  if (key === null) return parent === null ? component.tag : `${parent} > ${component.tag}`
-  const selector = `[${SOURCE_ATTR}="${key}"]`
-  return shared ? `${selector}:nth-child(${component.index})` : selector
-}
-
-function sourceKey(component: LiveComponent): string | null {
-  const {source} = component
-  return source === null ? null : `${source.file}:${source.line}:${source.column}`
-}
-
-type KindClass = 'heading' | 'text' | 'control' | 'container' | 'media'
-
-type View = {
-  key: string
-  kind: 'text' | 'box' | 'image' | 'element'
-  box: Box
-  lines: Box[]
-  text: string
-  words: string
-  alone: boolean
-  klass: KindClass
-  ink: number | null
-  fill: Rgb | null
-  tokens: string[]
-  parent: View | null
-  rank: number
-  media: boolean
+export function createVotePairer(input: {similarity: Similarity; geometry: Geometry}): Pairer {
+  return (request) => votePairer({...request, ...input})
 }
 
 type Votes = Record<VoterName, number | null>
 
-type Scored = {candidate: View; score: number; votes: Votes}
+type Scored = {candidate: VoteView; score: number; votes: Votes}
 
-type Context = {
-  assigned: Map<string, View>
-  diagonal: number
-  nodeRaster: Raster
-  candidateRaster: Raster
-  hashes: Map<string, Uint8Array>
-  twins: Map<string, string>
-  candidates: View[]
-  bestText: Map<string, number>
-  spoken: Record<string, View[]>
-}
+type TextNode = Extract<DesignNode, {kind: 'text'}>
 
-type VoterName = 'text' | 'kind' | 'structure' | 'style' | 'geometry' | 'pixel' | 'hints' | 'twins'
-
-type Voter = {
-  name: VoterName
-  base: number
-  score: (input: {node: View; candidate: View; context: Context}) => number | null
-}
+type BoxNode = Extract<DesignNode, {kind: 'box'}>
 
 type State = {boxes: Set<string>; texts: Map<string, Box[]>; trusted: Set<VoterName>}
 
 type VoteInput = {
-  nodes: View[]
-  candidates: View[]
-  context: Context
+  voters: Voter[]
+  nodes: VoteView[]
+  candidates: VoteView[]
+  context: VoteContext
   holders: Map<string, string>
   pins: {node: string; path: string}[]
   tolerances: Tolerances
   deadline: number
 }
 
-type Assignment = {node: View; candidate: View; score: number}
+type Assignment = {node: VoteView; candidate: VoteView; score: number}
 
 type Weights = Map<VoterName, number>
 
@@ -236,7 +52,7 @@ type Pairing = Omit<VoteInput, 'nodes'> & {
   weights: Weights
   floors: Map<string, number>
   state: State
-  views: Map<string, View>
+  views: Map<string, VoteView>
   components: Map<string, LiveComponent>
   records: Map<string, Carried>
   prints: Map<string, Fingerprint>
@@ -251,49 +67,32 @@ type Paired = {match: Match; partial: boolean; carried: number}
 type Held = {node: BoxNode; parent: DesignNode | null; held: DesignNode[]}
 
 const CONTROL_HEIGHT = 48
+
 const CONTROL_WIDTH = 320
+
 const HEADING_INK = 0.72 * 20
-const INK_SHARE = 0.72
-const INK_SPREAD = 0.3
-const SHORT_TEXT = 6
+
 const CONTROL_WORDS = 4
-const GLYPH_RUN_HEIGHT = 14
-const MEDIA_TEXT = 0.4
-const UNDER = 0.6
-const ORDER = 0.4
-const PAGE_SHARE = 0.4
-const LOCAL_SHARE = 0.6
-const LOCAL_REACH = 40
-const X_WEIGHT = 0.5
-const HASH_SIDE = 8
-const HASH_BITS = HASH_SIDE * HASH_SIDE
-const HASH_SAMPLES = 4
-const STYLE_SPREAD = 3
+
 const TIE = 1e-9
+
 const OPAQUE_HEX_LENGTH = 7
+
 const MEDIA_TAGS = new Set(['img', 'svg', 'picture', 'video', 'canvas'])
+
 const CONTROL_TAGS = new Set(['button', 'input', 'select', 'textarea'])
+
 const CONTROL_ROLES = new Set(['button', 'link', 'textbox', 'checkbox', 'radio', 'tab', 'menuitem', 'switch'])
 
-const VOTERS: Voter[] = [
-  {name: 'text', base: 0.3, score: textVote},
-  {name: 'kind', base: 0.1, score: kindVote},
-  {name: 'structure', base: 0.2, score: structureVote},
-  {name: 'style', base: 0.1, score: styleVote},
-  {name: 'geometry', base: 0.2, score: geometryVote},
-  {name: 'pixel', base: 0.1, score: pixelVote},
-  {name: 'hints', base: 0.1, score: hintsVote},
-  {name: 'twins', base: 0.1, score: twinsVote},
-]
-
-function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
-  const {design, live, decisions, previous, rasters, twins, budget} = input
+function votePairer(input: Parameters<Pairer>[0] & {similarity: Similarity; geometry: Geometry}): ReturnType<Pairer> {
+  const {design, live, decisions, previous, rasters, twins, budget, similarity, geometry} = input
+  const {fingerprint} = geometry
   const held = heldNodes(design.root)
   const views = nodeViews({root: design.root, held})
   const nodes = [...views.values()]
   const candidates = elementViews(live.children)
   const components = new Map(flatten(live.children).map((component) => [component.path, component]))
-  const context: Context = {
+  const context: VoteContext = {
     assigned: new Map(),
     diagonal: Math.hypot(design.root.box.w, design.root.box.h) || 1,
     nodeRaster: rasters.target,
@@ -308,6 +107,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
     ),
   }
   const shared = {
+    voters: similarity.voters,
     candidates,
     context,
     holders: textHolders(held),
@@ -317,7 +117,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
   }
   const weights = calibrate({...shared, nodes})
   const trusted = new Set(
-    VOTERS.filter((voter) => (weights.get(voter.name) ?? 0) >= voter.base / 2).map((voter) => voter.name),
+    similarity.voters.filter((voter) => (weights.get(voter.name) ?? 0) >= voter.base / 2).map((voter) => voter.name),
   )
   const pairing: Pairing = {
     ...shared,
@@ -326,7 +126,7 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
     state: {boxes: new Set(), texts: new Map(), trusted},
     views,
     components,
-    records: carriedRecords(previous),
+    records: carriedRecords({previous, fingerprint}),
     prints: new Map(
       candidates.flatMap((candidate): [string, Fingerprint][] => {
         const component = components.get(candidate.key)
@@ -348,9 +148,9 @@ function votePairer(input: Parameters<Pairer>[0]): ReturnType<Pairer> {
 function pairNode(input: {
   node: DesignNode
   live: LiveComponent | null
-  view: View | null
+  view: VoteView | null
   confidence: number
-  pool: View[]
+  pool: VoteView[]
   pairing: Pairing
 }): Paired {
   const {node, live, view, pairing} = input
@@ -389,7 +189,8 @@ function pairNode(input: {
   }
 }
 
-function carriedRecords(previous: Match | null): Map<string, Carried> {
+function carriedRecords(input: {previous: Match | null; fingerprint: Geometry['fingerprint']}): Map<string, Carried> {
+  const {previous, fingerprint} = input
   if (previous === null) return new Map()
   return new Map(
     [...walk({root: previous})].flatMap(({node: match, depth}): [string, Carried][] =>
@@ -413,12 +214,6 @@ function pinsFrom(decisions: Decision[]): {node: string; path: string}[] {
   )
 }
 
-function impactRanker(input: {items: Item[]}): Item[] {
-  return input.items.toSorted(
-    (a, b) => b.confidence * b.size - a.confidence * a.size || a.box.y - b.box.y || a.depth - b.depth,
-  )
-}
-
 function heldNodes(root: DesignNode): Held[] {
   return [...walk({root})].flatMap(({node, parent, depth}): Held[] => {
     if (node.kind !== 'box' || parent === null) return []
@@ -429,7 +224,7 @@ function heldNodes(root: DesignNode): Held[] {
   })
 }
 
-function nodeViews(input: {root: DesignNode; held: Held[]}): Map<string, View> {
+function nodeViews(input: {root: DesignNode; held: Held[]}): Map<string, VoteView> {
   const visits = [...walk({root: input.root})].filter((visit) => visit.depth > 0)
   const said = groupBy(
     visits.flatMap(({node}) => (node.kind === 'text' ? [spaced(node.text)] : [])),
@@ -437,7 +232,7 @@ function nodeViews(input: {root: DesignNode; held: Held[]}): Map<string, View> {
   )
   const ranks = siblingRanks(input.root)
   const controls = controlBoxes(input.held)
-  const views = new Map<string, View>()
+  const views = new Map<string, VoteView>()
   visits.forEach(({node, parent, depth}) => {
     const within = depth > 1 ? parent : null
     views.set(node.id, {
@@ -467,11 +262,6 @@ function siblingRanks(root: DesignNode): Map<string, number> {
       return ordered.map((child, index): [string, number] => [child.id, spread({index, count: ordered.length})])
     }),
   )
-}
-
-function readingOrder(a: Box, b: Box): number {
-  if (sameLine({a, b})) return a.x - b.x
-  return a.y - b.y
 }
 
 function spread(input: {index: number; count: number}): number {
@@ -516,7 +306,7 @@ function standsOut(input: {node: BoxNode; parent: DesignNode | null}): boolean {
   return apart > TOLERANCES.segmentDistance
 }
 
-function nodeClass(input: {node: DesignNode; within: DesignNode | null; controls: Set<string>}): KindClass {
+function nodeClass(input: {node: DesignNode; within: DesignNode | null; controls: Set<string>}): VoteView['klass'] {
   const {node, within, controls} = input
   if (node.kind === 'image') return 'media'
   if (node.kind === 'box') return controls.has(node.id) ? 'control' : 'container'
@@ -537,10 +327,6 @@ function textHolders(held: Held[]): Map<string, string> {
   )
 }
 
-function folded(text: string): string {
-  return text.toLowerCase().split(' ').filter(Boolean).join(' ').trim()
-}
-
 function spaced(text: string): string {
   return text.split(' ').filter(Boolean).join(' ')
 }
@@ -551,13 +337,13 @@ function toRgb(color: string): Rgb | null {
   return [Math.round(parsed.r * 255), Math.round(parsed.g * 255), Math.round(parsed.b * 255)]
 }
 
-function elementViews(components: LiveComponent[]): View[] {
+function elementViews(components: LiveComponent[]): VoteView[] {
   return viewTree({components, parent: null}).filter((view) => !collapsed(view))
 }
 
-type Built = View & {children: View[]}
+type Built = VoteView & {children: VoteView[]}
 
-function viewTree(input: {components: LiveComponent[]; parent: View | null}): Built[] {
+function viewTree(input: {components: LiveComponent[]; parent: VoteView | null}): Built[] {
   const {components, parent} = input
   return components.flatMap((component, index) => {
     const lines = component.glyphs.flatMap((glyph) => glyph.boxes)
@@ -600,7 +386,7 @@ function sameBox(input: {a: Box; b: Box}): boolean {
   return edges.every((edge) => Math.abs(edge) <= TOLERANCES.geometryPx)
 }
 
-function elementClass(input: {component: LiveComponent; lines: Box[]}): KindClass {
+function elementClass(input: {component: LiveComponent; lines: Box[]}): VoteView['klass'] {
   const {component, lines} = input
   if (mediaElement(component)) return 'media'
   if (CONTROL_TAGS.has(component.tag) || CONTROL_ROLES.has(component.role ?? '')) return 'control'
@@ -620,7 +406,8 @@ function elementTokens(component: LiveComponent): string[] {
 }
 
 function calibrate(input: VoteInput): Weights {
-  const base: Weights = new Map(VOTERS.map((voter) => [voter.name, voter.base]))
+  const {voters} = input
+  const base: Weights = new Map(voters.map((voter) => [voter.name, voter.base]))
   const tallies = input.nodes.flatMap((node) => {
     const pool = candidatePool({input, node}).map((candidate) => weighed({input, weights: base, node, candidate}))
     const consensus = pool.reduce<Scored | null>(
@@ -628,7 +415,7 @@ function calibrate(input: VoteInput): Weights {
       null,
     )
     if (consensus === null || consensus.score < input.tolerances.pairFloor) return []
-    return VOTERS.flatMap((voter) => {
+    return voters.flatMap((voter) => {
       const own = pool.filter((entry) => entry.votes[voter.name] !== null)
       if (own.length === 0 || consensus.votes[voter.name] === null) return []
       const top = Math.max(...own.map((entry) => entry.votes[voter.name] ?? 0))
@@ -638,7 +425,7 @@ function calibrate(input: VoteInput): Weights {
   })
   const byVoter = Map.groupBy(tallies, (tally) => tally.name)
   return new Map(
-    VOTERS.map((voter) => {
+    voters.map((voter) => {
       const tally = byVoter.get(voter.name)
       if (tally === undefined) return [voter.name, voter.base]
       const agreement = tally.filter((entry) => entry.agrees).length / tally.length
@@ -647,11 +434,11 @@ function calibrate(input: VoteInput): Weights {
   )
 }
 
-function candidatePool(input: {input: VoteInput; node: View}): View[] {
+function candidatePool(input: {input: VoteInput; node: VoteView}): VoteView[] {
   return input.input.candidates.filter((candidate) => elementCompatible({node: input.node, candidate}))
 }
 
-function elementCompatible(input: {node: View; candidate: View}): boolean {
+function elementCompatible(input: {node: VoteView; candidate: VoteView}): boolean {
   const {node, candidate} = input
   const own = candidate.lines.length > 0 && candidate.text !== ''
   if (node.kind === 'text') return own
@@ -659,11 +446,12 @@ function elementCompatible(input: {node: View; candidate: View}): boolean {
   return true
 }
 
-function weighed(input: {input: VoteInput; weights: Weights; node: View; candidate: View}): Scored {
+function weighed(input: {input: VoteInput; weights: Weights; node: VoteView; candidate: VoteView}): Scored {
   const {node, candidate, weights} = input
   const {context} = input.input
-  const votes = Object.fromEntries(VOTERS.map((voter) => [voter.name, voter.score({node, candidate, context})]))
-  const applied = VOTERS.filter((voter) => votes[voter.name] !== null && votes[voter.name] !== undefined)
+  const {voters} = input.input
+  const votes = Object.fromEntries(voters.map((voter) => [voter.name, voter.score({node, candidate, context})]))
+  const applied = voters.filter((voter) => votes[voter.name] !== null && votes[voter.name] !== undefined)
   const total = applied.reduce((sum, voter) => sum + (weights.get(voter.name) ?? 0), 0)
   const sum = applied.reduce((acc, voter) => acc + (weights.get(voter.name) ?? 0) * (votes[voter.name] ?? 0), 0)
   return {candidate, score: total === 0 ? 0 : sum / total, votes: completeVotes(votes)}
@@ -682,12 +470,6 @@ function completeVotes(votes: Record<string, number | null | undefined>): Votes 
   }
 }
 
-function inside(input: {view: View; anchor: View}): boolean {
-  if (input.view === input.anchor) return true
-  const parent = input.view.parent
-  return parent !== null && inside({view: parent, anchor: input.anchor})
-}
-
 function floors(input: VoteInput & {weights: Weights}): Map<string, number> {
   const {weights} = input
   return new Map(
@@ -698,7 +480,7 @@ function floors(input: VoteInput & {weights: Weights}): Map<string, number> {
   )
 }
 
-function voteLevel(input: Pairing & {nodes: View[]}): Level {
+function voteLevel(input: Pairing & {nodes: VoteView[]}): Level {
   const {weights, state, nodes, context, floors: pools} = input
   if (nodes.length === 0) return {assignments: new Map(), partial: false, carried: 0}
   const pinned = pinsFirst({input, state})
@@ -737,7 +519,7 @@ function voteLevel(input: Pairing & {nodes: View[]}): Level {
   }
 }
 
-function carriedViews(input: Pairing & {nodes: View[]}): Assignment[] {
+function carriedViews(input: Pairing & {nodes: VoteView[]}): Assignment[] {
   const {nodes, candidates, records, prints, tolerances} = input
   return nodes.flatMap((node): Assignment[] => {
     const record = records.get(node.key)
@@ -797,11 +579,11 @@ function carryFirst(input: {input: VoteInput; state: State; carried: Assignment[
   })
 }
 
-function sharesWord(input: {node: View; candidate: View}): boolean {
+function sharesWord(input: {node: VoteView; candidate: VoteView}): boolean {
   return intersection(input.node.text.split(' '), input.candidate.text.split(' ')).length > 0
 }
 
-function displaced(input: {input: VoteInput; state: State; node: View; candidate: View}): boolean {
+function displaced(input: {input: VoteInput; state: State; node: VoteView; candidate: VoteView}): boolean {
   const {node, candidate, state} = input
   const exact = input.input.tolerances.pairExactIou
   if (iou({a: node.box, b: candidate.box}) >= exact) return false
@@ -822,7 +604,7 @@ function pinsFirst(input: {input: VoteInput; state: State}): Assignment[] {
   })
 }
 
-function take(input: {node: View; candidate: View; state: State; context: Context}): void {
+function take(input: {node: VoteView; candidate: VoteView; state: State; context: VoteContext}): void {
   const {node, candidate, state, context} = input
   context.assigned.set(node.key, candidate)
   if (node.kind !== 'text') {
@@ -856,7 +638,7 @@ function edgeDistance(input: {a: Box; b: Box}): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.x + a.w - b.x - b.w) + Math.abs(a.y + a.h - b.y - b.h)
 }
 
-function scoredList(input: {input: VoteInput; weights: Weights; state: State; node: View}): Scored[] {
+function scoredList(input: {input: VoteInput; weights: Weights; state: State; node: VoteView}): Scored[] {
   const {node, state, weights} = input
   const {tolerances} = input.input
   return candidatePool({input: input.input, node})
@@ -865,7 +647,7 @@ function scoredList(input: {input: VoteInput; weights: Weights; state: State; no
     .toSorted((a, b) => b.score - a.score)
 }
 
-function elementGate(input: {node: View; candidate: View; state: State; tolerances: Tolerances}): boolean {
+function elementGate(input: {node: VoteView; candidate: VoteView; state: State; tolerances: Tolerances}): boolean {
   const {node, candidate, state, tolerances} = input
   if (node.kind !== 'text') {
     if (state.boxes.has(candidate.key)) return false
@@ -895,23 +677,13 @@ function iou(input: {a: Box; b: Box}): number {
   return shared / (area0(a) + area0(b) - shared)
 }
 
-function holds(input: {outer: Box; inner: Box}): boolean {
-  const {outer, inner} = input
-  return (
-    inner.x >= outer.x &&
-    inner.y >= outer.y &&
-    inner.x + inner.w <= outer.x + outer.w &&
-    inner.y + inner.h <= outer.y + outer.h
-  )
-}
-
 function greedy(input: {
   input: VoteInput
   weights: Weights
   state: State
   pools: Map<string, number>
   lists: Map<string, Scored[]>
-  views: Map<string, View>
+  views: Map<string, VoteView>
   matched: Assignment[]
 }): {matched: Assignment[]; partial: boolean} {
   const {state, pools, lists, views} = input
@@ -948,17 +720,17 @@ function greedy(input: {
   return greedy({...input, matched: [...input.matched, {node, candidate: top.candidate, score: top.score}]})
 }
 
-function spokenElsewhere(input: {node: View; candidate: View; context: Context}): boolean {
+function spokenElsewhere(input: {node: VoteView; candidate: VoteView; context: VoteContext}): boolean {
   const {node, candidate, context} = input
   if (node.kind !== 'text' || candidate.words === '' || saysSame({node, candidate})) return false
   return (context.spoken[candidate.words] ?? []).some((other) => other !== node && !context.assigned.has(other.key))
 }
 
-function saysSame(input: {node: View; candidate: View}): boolean {
+function saysSame(input: {node: VoteView; candidate: VoteView}): boolean {
   return input.node.words === input.candidate.words
 }
 
-function passes(input: {node: View; list: Scored[]; floor: number; state: State; tolerances: Tolerances}): boolean {
+function passes(input: {node: VoteView; list: Scored[]; floor: number; state: State; tolerances: Tolerances}): boolean {
   const {node, list, floor, state, tolerances} = input
   const [top, runner] = list
   if (top === undefined) return false
@@ -994,209 +766,12 @@ function followTexts(input: {input: VoteInput; weights: Weights; state: State}):
   })
 }
 
-function enclosing(view: View): View | null {
-  const climb = (from: View | null): View | null => {
+function enclosing(view: VoteView): VoteView | null {
+  const climb = (from: VoteView | null): VoteView | null => {
     if (from === null || from.parent === null) return null
     return holds({outer: from.box, inner: view.box}) ? from : climb(from.parent)
   }
   return climb(view.parent)
-}
-
-function textVote(input: {node: View; candidate: View; context: Context}): number | null {
-  const {node, candidate, context} = input
-  if (node.kind !== 'text' || node.text === '') return null
-  if (glyphSized(node)) return null
-  if (candidate.media && holds({outer: candidate.box, inner: node.box})) return 1 - bestText({node, context})
-  if (candidate.text === '') return 0
-  return similarity({a: node.text, b: candidate.text})
-}
-
-function glyphSized(input: {text: string; box: Box}): boolean {
-  return input.text.length === 1 && input.box.h < GLYPH_RUN_HEIGHT
-}
-
-function bestText(input: {node: View; context: Context}): number {
-  const {node, context} = input
-  const known = context.bestText.get(node.key)
-  if (known !== undefined) return known
-  const best = Math.max(
-    0,
-    ...context.candidates
-      .filter((candidate) => candidate.text !== '')
-      .map((candidate) => similarity({a: node.text, b: candidate.text})),
-  )
-  context.bestText.set(node.key, best)
-  return best
-}
-
-function similarity(input: {a: string; b: string}): number {
-  const {a, b} = input
-  if (a === b) return 1
-  if (Math.min(a.length, b.length) < SHORT_TEXT) return 1 - levenshtein({a, b}) / Math.max(a.length, b.length, 1)
-  return dice({a, b})
-}
-
-function levenshtein(input: {a: string; b: string}): number {
-  const a = [...input.a]
-  const b = [...input.b]
-  const first = Array.from({length: b.length + 1}, (_, index) => index)
-  const last = a.reduce(
-    (row, char, i) =>
-      row.reduce<number[]>((next, cost, j) => {
-        if (j === 0) return [i + 1]
-        const replace = (row[j - 1] ?? 0) + (b[j - 1] === char ? 0 : 1)
-        return [...next, Math.min(cost + 1, (next[j - 1] ?? 0) + 1, replace)]
-      }, []),
-    first,
-  )
-  return last.at(-1) ?? 0
-}
-
-function dice(input: {a: string; b: string}): number {
-  const left = bigrams(input.a)
-  const right = bigrams(input.b)
-  if (left.length + right.length === 0) return 0
-  const counts = new Map<string, number>()
-  left.forEach((gram) => counts.set(gram, (counts.get(gram) ?? 0) + 1))
-  const shared = right.filter((gram) => {
-    const count = counts.get(gram) ?? 0
-    if (count === 0) return false
-    counts.set(gram, count - 1)
-    return true
-  }).length
-  return (2 * shared) / (left.length + right.length)
-}
-
-function bigrams(text: string): string[] {
-  const chars = [...text]
-  return chars.slice(1).map((char, index) => `${chars[index] ?? ''}${char}`)
-}
-
-function kindVote(input: {node: View; candidate: View}): number | null {
-  const {node, candidate} = input
-  if (node.klass === candidate.klass) return 1
-  if (node.kind === 'text' && candidate.klass === 'media') return MEDIA_TEXT
-  return 0
-}
-
-function structureVote(input: {node: View; candidate: View; context: Context}): number | null {
-  const {node, candidate, context} = input
-  const order = ORDER * (1 - Math.abs(node.rank - candidate.rank))
-  if (node.parent === null) return UNDER + order
-  const anchor = context.assigned.get(node.parent.key)
-  if (anchor === undefined) return null
-  return (inside({view: candidate, anchor}) ? UNDER : 0) + order
-}
-
-function styleVote(input: {node: View; candidate: View}): number | null {
-  const {node, candidate} = input
-  if (node.kind === 'text') {
-    if (node.ink === null || candidate.ink === null) return null
-    const size = Math.max(node.ink, candidate.ink) / INK_SHARE
-    return Math.max(0, 1 - Math.abs(node.ink - candidate.ink) / (INK_SPREAD * size))
-  }
-  if (node.fill === null || candidate.fill === null) return null
-  const apart = Math.hypot(...node.fill.map((channel, index) => channel - (candidate.fill?.[index] ?? channel)))
-  return Math.max(0, 1 - apart / (TOLERANCES.segmentDistance * STYLE_SPREAD))
-}
-
-function geometryVote(input: {node: View; candidate: View; context: Context}): number | null {
-  const {node, candidate, context} = input
-  const box =
-    node.kind === 'text' ? (nearestLine({lines: candidate.lines, box: node.box}) ?? candidate.box) : candidate.box
-  const page = distance({a: centre(node.box), b: centre(box)}) / context.diagonal
-  const anchor = node.parent === null ? undefined : context.assigned.get(node.parent.key)
-  const nodeOrigin = anchor === undefined || node.parent === null ? {x: 0, y: 0} : node.parent.box
-  const candidateOrigin = anchor === undefined ? {x: 0, y: 0} : anchor.box
-  const a = centre(node.box)
-  const b = centre(box)
-  const local = distance({
-    a: {x: a.x - nodeOrigin.x, y: a.y - nodeOrigin.y},
-    b: {x: b.x - candidateOrigin.x, y: b.y - candidateOrigin.y},
-  })
-  return PAGE_SHARE * Math.max(0, 1 - page) + LOCAL_SHARE * Math.max(0, 1 - local / LOCAL_REACH)
-}
-
-function nearestLine(input: {lines: Box[]; box: Box}): Box | null {
-  const target = centre(input.box)
-  return input.lines.reduce<Box | null>((best, line) => {
-    if (best === null) return line
-    return distance({a: centre(line), b: target}) < distance({a: centre(best), b: target}) ? line : best
-  }, null)
-}
-
-function centre(box: Box): {x: number; y: number} {
-  return {x: box.x + box.w / 2, y: box.y + box.h / 2}
-}
-
-function distance(input: {a: {x: number; y: number}; b: {x: number; y: number}}): number {
-  return Math.hypot(X_WEIGHT * (input.a.x - input.b.x), input.a.y - input.b.y)
-}
-
-function pixelVote(input: {node: View; candidate: View; context: Context}): number | null {
-  const {node, candidate, context} = input
-  const box =
-    node.kind === 'text' ? (nearestLine({lines: candidate.lines, box: node.box}) ?? candidate.box) : candidate.box
-  const a = hashed({raster: context.nodeRaster, box: node.box, context, side: 'node'})
-  const b = hashed({raster: context.candidateRaster, box, context, side: 'candidate'})
-  const differing = a.reduce((sum, bit, index) => sum + (bit === b[index] ? 0 : 1), 0)
-  return 1 - differing / HASH_BITS
-}
-
-function hashed(input: {raster: Raster; box: Box; context: Context; side: string}): Uint8Array {
-  const {raster, box, context} = input
-  const key = `${input.side}:${box.x},${box.y},${box.w},${box.h}`
-  const known = context.hashes.get(key)
-  if (known !== undefined) return known
-  const made = averageHash({raster, box})
-  context.hashes.set(key, made)
-  return made
-}
-
-function averageHash(input: {raster: Raster; box: Box}): Uint8Array {
-  const {raster, box} = input
-  const cells = Float64Array.from({length: HASH_BITS}, (_, cell) => cellLuminance({raster, box, cell}))
-  const mean = cells.reduce((sum, value) => sum + value, 0) / HASH_BITS
-  return Uint8Array.from(cells, (value) => (value > mean ? 1 : 0))
-}
-
-function cellLuminance(input: {raster: Raster; box: Box; cell: number}): number {
-  const {raster, box, cell} = input
-  const cx = cell % HASH_SIDE
-  const cy = (cell - cx) / HASH_SIDE
-  const x0 = Math.max(0, Math.floor(box.x + (cx * box.w) / HASH_SIDE))
-  const y0 = Math.max(0, Math.floor(box.y + (cy * box.h) / HASH_SIDE))
-  const x1 = Math.min(raster.width, Math.max(x0 + 1, Math.floor(box.x + ((cx + 1) * box.w) / HASH_SIDE)))
-  const y1 = Math.min(raster.height, Math.max(y0 + 1, Math.floor(box.y + ((cy + 1) * box.h) / HASH_SIDE)))
-  const stepX = Math.max(1, Math.floor((x1 - x0) / HASH_SAMPLES))
-  const stepY = Math.max(1, Math.floor((y1 - y0) / HASH_SAMPLES))
-  const columns = Math.ceil(Math.max(0, x1 - x0) / stepX)
-  const count = columns * Math.ceil(Math.max(0, y1 - y0) / stepY)
-  if (count === 0) return 0
-  const total = Array.from({length: count}, (_, sample) => {
-    const x = x0 + (sample % columns) * stepX
-    const y = y0 + Math.floor(sample / columns) * stepY
-    return luminanceAt({raster, index: (y * raster.width + x) * 4})
-  }).reduce((sum, value) => sum + value, 0)
-  return total / count
-}
-
-function luminanceAt(input: {raster: Raster; index: number}): number {
-  const {data} = input.raster
-  const {index} = input
-  return (data[index] ?? 0) * 0.299 + (data[index + 1] ?? 0) * 0.587 + (data[index + 2] ?? 0) * 0.114
-}
-
-function hintsVote(input: {node: View; candidate: View}): number | null {
-  const {node, candidate} = input
-  if (candidate.tokens.length === 0) return null
-  const wanted = new Set([node.klass, ...node.text.split(' ')])
-  const matched = candidate.tokens.filter((token) => wanted.has(token)).length
-  return matched === 0 ? null : matched / candidate.tokens.length
-}
-
-function twinsVote(input: {node: View; candidate: View; context: Context}): number | null {
-  return input.context.twins.get(input.node.key) === input.candidate.key ? 1 : null
 }
 
 function flatten(components: LiveComponent[]): LiveComponent[] {
@@ -1205,4 +780,10 @@ function flatten(components: LiveComponent[]): LiveComponent[] {
 
 function median0(values: number[]): number {
   return values.length === 0 ? 0 : median(values)
+}
+
+function inside(input: {view: VoteView; anchor: VoteView}): boolean {
+  if (input.view === input.anchor) return true
+  const parent = input.view.parent
+  return parent !== null && inside({view: parent, anchor: input.anchor})
 }
