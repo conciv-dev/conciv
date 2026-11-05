@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
 } from 'node:fs'
+import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
@@ -57,9 +58,10 @@ import {
   CONCIV_SESSION_HEADER,
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
+  type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -1380,6 +1382,39 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
+      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+        const sessionId = await newSession()
+        const {models} = await chatKit().rpc.meta.models(undefined)
+        const plain = models.find((model) => model.efforts === undefined)
+        if (plain === undefined) throw new Error('the chat harness lists no model without effort')
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
+        script().scriptTurn({toolCalls: [], text: 'thought hard'})
+        await finished(sessionId, 'think about it')
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: null})
+        script().scriptTurn({toolCalls: [], text: 'default effort'})
+        await finished(sessionId, 'again')
+        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
+        await chatKit().rpc.sessions.model({sessionId, model: plain.id})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: plain.id, effort: null})
+        await expect(chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).rejects.toMatchObject({
+          code: 'UNSUPPORTED_EFFORT',
+        })
+      })
+
+      it('a session that has not run a turn yet takes a model and an effort', async () => {
+        const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(
+          await chatKit().rpc.sessions.model({sessionId: SessionId.parse(`conciv_${randomUUID()}`), model: 'sonnet'}),
+        ).toEqual({model: 'sonnet'})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: null, effort: 'high'})
+      })
+
       it('an empty message is answered with a visible "empty" error', async () => {
         const events = await finished(await newSession(), '')
         expect(events.errors().join(' ')).toMatch(/empty/i)
@@ -1426,8 +1461,8 @@ describe('rpc wire', () => {
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
         await slowTurn.done(GUARD)
-        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 200_000})
-        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 200_000})
+        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
+        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
       })
     })
 
@@ -1709,7 +1744,7 @@ describe('rpc wire', () => {
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
         const models = await chatKit().rpc.meta.models(undefined)
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
-        expect(models.defaultModel).toBe('sonnet')
+        expect(models.defaultModel).toBe('opus')
       })
     })
 
@@ -2161,6 +2196,7 @@ return seen`
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
+    reasoning: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -2171,6 +2207,14 @@ return seen`
   }
 
   type TurnInput = string | Record<string, unknown>
+
+  const ALL_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const CHAT_MODELS: HarnessModel[] = [
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'haiku', name: 'Haiku 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
+  ]
 
   type SharedApp = {
     kit: Kit | null
@@ -2323,6 +2367,7 @@ return seen`
   function recordingHarness(base: TestHarness): TestHarness {
     return {
       ...base,
+      models: CHAT_MODELS,
       chatConfig: (deps: HarnessChatDeps) => {
         const failure = cli.launchFailures.shift()
         if (failure !== undefined) throw new Error(failure)
@@ -2332,6 +2377,7 @@ return seen`
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
+              reasoning: options.reasoning?.level,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
@@ -2361,7 +2407,12 @@ return seen`
   }
 
   function usage(promptTokens: number): TokenUsage {
-    return {promptTokens, completionTokens: 1, totalTokens: promptTokens + 1}
+    return {
+      promptTokens,
+      completionTokens: 1,
+      totalTokens: promptTokens + 1,
+      providerUsageDetails: {contextWindow: 1_000_000},
+    }
   }
 
   function chatKit(): Kit {

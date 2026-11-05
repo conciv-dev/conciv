@@ -22,14 +22,14 @@ import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
-import {createMemo, createRoot, createSignal, type JSX} from 'solid-js'
+import {createRoot, createSignal, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import '../src/lib/api-base.js'
 import {HostApiProvider} from '@conciv/extension/host'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import {useChatSession, type ChatTransportPreference} from '@conciv/client'
+import type {ChatTransportPreference} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
 import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
@@ -165,6 +165,7 @@ type AppContextValueOptions = {
   sessionId?: string
   announce?: (message: string) => void
   instances?: ExtensionInstance[]
+  transport?: ChatTransportPreference
 }
 
 function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
@@ -176,12 +177,21 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const announce = options.announce
   const data = makeAppData(rpc, queryClient)
   const connected = () => true
+  const liveSessions = makeLiveSessions({
+    rpc,
+    apiBase: () => options.base,
+    generation: () => 0,
+    transport: () => options.transport,
+    appData: data,
+    queryClient,
+    announce: (message) => announce?.(message),
+  })
   return {
     rpc,
     settings: parseConcivSettings(''),
     environment: {rootNode: document, document},
     data,
-    liveSessions: makeLiveSessions(),
+    liveSessions,
     warmSession: createWarmSession(data, connected, queryClient),
     queryClient,
     announce: (message) => announce?.(message),
@@ -241,22 +251,16 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
-  const app = makeAppContextValue({
-    base: options.base,
-    sessionId: options.sessionId,
-    announce: (message) => setAnnounced((entries) => [...entries, message]),
-    instances,
-  })
-  const {rpc, data, queryClient} = app
   const chatRoot = createRoot((disposeChat) => {
-    const chat = createMemo(() =>
-      useChatSession({
-        rpc,
-        apiBase: options.base,
-        sessionId: options.sessionId,
-        ...(options.transport === undefined ? {} : {connection: {transport: options.transport}}),
-      }),
-    )
+    const app = makeAppContextValue({
+      base: options.base,
+      sessionId: options.sessionId,
+      announce: (message) => setAnnounced((entries) => [...entries, message]),
+      instances,
+      transport: options.transport,
+    })
+    const {data, queryClient} = app
+    const chat = app.liveSessions.open(() => options.sessionId)
     const coordinator = makeRefreshCoordinator({
       chat,
       sessionId: () => options.sessionId,
@@ -264,8 +268,10 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       queryClient,
       announce: app.announce,
     })
-    return {chat, coordinator, dispose: disposeChat}
+    return {app, chat, coordinator, dispose: disposeChat}
   })
+  const {app} = chatRoot
+  const {rpc, data, queryClient} = app
   const pane: PaneContextValue = {
     sessionId: () => options.sessionId,
     running: () => false,

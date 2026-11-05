@@ -264,6 +264,7 @@ function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, inp
     origin: row.origin === 'external' ? 'external' : 'conciv',
     usage: row.usage,
     model: input.model(row.id) ?? row.model,
+    effort: row.effort,
     hidden: row.deletedAt !== null,
     native: nativeRefOf(row),
   }

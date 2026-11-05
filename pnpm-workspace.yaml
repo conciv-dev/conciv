@@ -222,6 +222,17 @@ minimumReleaseAgeExclude:
   - 'lucide-solid'
   - 'tsdown'
 patchedDependencies:
+  # buildUsage (dist/esm/stream/translate.js:34-52 in 1.0.0, same on upstream main) forwards only
+  # total_cost_usd from the SDK result, dropping modelUsage[model].contextWindow, so the context meter
+  # had to guess the window (200k where Haiku 5.5 reports 1M). The patch adds the session model's
+  # contextWindow (the modelUsage entry for the init message's model; the entry with the most input
+  # tokens when that one is missing) to providerUsageDetails.
+  # It also fixes effort on Claude 5 models: CLAUDE_CODE_MODEL_REASONING (dist/esm/model-meta.js) lists
+  # only 4.x ids, so fable, claude-fable-5, claude-opus-5, claude-sonnet-5 and [1m] ids sent no effort,
+  # and the sonnet and haiku aliases (now 5.5, effort low..max) used the old thinking budget. Ids the
+  # EFFORT_MODELS regex matches now fall back to the low..max effort levels.
+  # Drop it once upstream forwards the context window and lists the 5.x models.
+  '@tanstack/ai-claude-code@1.0.0': patches/@tanstack__ai-claude-code@1.0.0.patch
   # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
   # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and

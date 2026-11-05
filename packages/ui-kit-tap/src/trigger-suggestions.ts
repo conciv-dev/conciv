@@ -11,6 +11,7 @@ export type RichTextFieldTriggerItem = {
   description?: string
   group?: string
   categoryId?: string
+  run?: () => void
 }
 
 export type RichTextFieldTriggerCategory = {id: string; label: string; description?: string}
@@ -98,6 +99,12 @@ function anchorRect(dispatch: SuggestionDispatch): AnchoredListboxRect | null {
   return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
 }
 
+function commitItem(dispatch: SuggestionDispatch, item: RichTextFieldTriggerItem): void {
+  if (!item.run) return dispatch.command(item)
+  dispatch.editor.chain().deleteRange(dispatch.range).run()
+  item.run()
+}
+
 function dispatchState(input: {
   char: string
   dispatch: SuggestionDispatch
@@ -114,7 +121,7 @@ function dispatchState(input: {
     status: input.status,
     items: input.carry?.dispatch.items ?? input.dispatch.items,
     rect: input.rect,
-    command: input.dispatch.command,
+    command: (item) => commitItem(input.dispatch, item),
   }
 }
 

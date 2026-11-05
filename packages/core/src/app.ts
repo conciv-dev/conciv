@@ -22,6 +22,7 @@ import {
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, transcriptPathWithin} from '@conciv/harness'
+import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -68,6 +69,7 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
+import {runInOrder} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
@@ -205,7 +207,7 @@ function sessionPort(
   return {
     row: (sessionId) => {
       const row = currentRow(db, sessionId)
-      return row === null ? null : {model: row.model, nativeId: row.harnessSessionId, cwd: row.cwd}
+      return row === null ? null : {model: row.model, effort: row.effort, nativeId: row.harnessSessionId, cwd: row.cwd}
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
     recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),
@@ -342,10 +344,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   assertUniqueExtensionSlugs(extensions)
 
-  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+  const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
   const agentToken = opts.agentToken ?? randomUUID()
   const basePath = agentPath(agentToken)
-  const stateDir = concivStateDir(opts.cfg.stateRoot)
   const browsers = watchTrustedBrowsers(stateDir)
   const trust = makeConnectionTrust(agentToken, browsers)
   const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
@@ -565,11 +567,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
   })
 
-  const dispose = async (): Promise<void> => {
-    for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
-    browsers.close()
-    db.$client.close()
-  }
+  const dispose = (): Promise<void> =>
+    runInOrder(
+      [() => plane.endAllRuns(), ...disposers, () => browsers.close(), () => db.$client.close()],
+      'conciv: disposing the engine failed',
+    )
 
   const fetch = makeEngineGate<unknown>({
     fetch: (request, env) => app.fetch(request, env),

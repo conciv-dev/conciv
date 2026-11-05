@@ -37,7 +37,8 @@ export {
   LIST_PANEL_MESSAGE,
 } from './list-panel.js'
 export {AnchoredListbox, type AnchoredListboxHandle, type AnchoredListboxRect} from './anchored-listbox.js'
-export {Popover, type PopoverApi} from './popover.js'
+export {Popover, usePopover, type PopoverApi, type PopoverMachine} from './popover.js'
+export {Listbox} from './listbox.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'

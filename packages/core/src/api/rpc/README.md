@@ -7,7 +7,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 ## Interface
 
 - `makeRpcRouter(deps)` (`router.ts`): builds the full router
-- RPC `sessions.list`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.compact` (`sessions.ts`, `sessionsRouter`)
+- RPC `sessions.list`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact` (`sessions.ts`, `sessionsRouter`)
 - RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`)
 - RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set`, `captures.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`)
@@ -25,7 +25,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `refuseUnapproved` (`router.ts`): skipped for widget-origin callers; tools with `approval: 'ask'` go through `plane.admitCall` and throw APPROVAL_DENIED on refusal (registry.call, server.reload, server.restart)
 - `callTool` (`router.ts`): throws when a tool has no outputSchema and parses output with it; `NO_BUNDLER` maps to the NO_BUNDLER error
 - `page.reply`, `chat.permissionDecision`, `chat.uiReply` (`router.ts`, `chat.ts`): UNKNOWN_REQUEST when nothing is pending
-- `sessions.rename` / `sessions.model` (`sessions.ts`): NOT_FOUND without a row; `model` throws UNKNOWN_MODEL for a missing or disabled model
+- `sessions.rename` (`sessions.ts`): NOT_FOUND without a row; `sessions.model` / `sessions.effort` create the row first (`ensureRow`, as a turn does), so a session that has not run a turn can switch; `model` throws UNKNOWN_MODEL for a missing or disabled model and resets the session effort to null when the new model does not list it; `sessions.effort` throws UNSUPPORTED_EFFORT unless the session's model (row model, else the harness default, else the first listed) lists the effort, and null always clears it
 - `cleanTitle` (`sessions.ts`): strips control characters, collapses whitespace, truncates to 120 characters
 - `sessions.create` (`sessions.ts`): ids are `conciv_<uuid>` validated with `SessionId.parse`
 

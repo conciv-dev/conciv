@@ -9,7 +9,7 @@ import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
@@ -254,7 +254,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           title: 'conciv',
           icon: CONCIV_MARK_URI,
           type: 'custom-render',
-          renderer: {importFrom: EXTENSIONS_ROUTE, importName: 'default'},
+          renderer: {importFrom: EXTENSIONS_DOCK_ROUTE, importName: 'default'},
         })
         context.rpc.register({
           name: 'conciv:engine-token',
@@ -308,14 +308,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return resolveExtensionsModule(id)
     },
     load(id) {
-      return loadExtensionsModule(
-        id,
-        builtins.clientEntries,
-        apiBase,
-        builtins.embedEntry,
-        builtins.dedupeEntry,
-        docked ? 'dock' : 'page',
-      )
+      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -326,7 +319,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {widget: widgetSettings(options.widget, docked)})
+        return htmlTags(engine.port, {
+          widget: widgetSettings(options.widget, docked),
+          entry: docked ? EXTENSIONS_DOCK_ROUTE : EXTENSIONS_ROUTE,
+        })
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -343,7 +339,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
-      mountWidget(server, apiBase, widgetSettings(options.widget, docked))
+      mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

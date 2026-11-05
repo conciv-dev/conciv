@@ -9,6 +9,7 @@ import {
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
+  ReasoningEffortSchema,
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
@@ -149,6 +150,10 @@ export const contract = {
       .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
+    effort: oc
+      .errors({...notFound, UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'}})
+      .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
+      .output(z.object({effort: ReasoningEffortSchema.nullable()})),
     compact: oc.input(SessionIdInput).output(Ok),
   },
   drafts: {

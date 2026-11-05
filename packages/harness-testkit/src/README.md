@@ -31,7 +31,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 - `call-tool.ts:makeRunTypescript` - rejects after `deadlineMs` (default 60000) and throws when `execute_typescript` is not listed on `/api/mcp`.
 - `mcp-client.ts:connectMcpClient` - a tool result with `isError: true` throws its text.
 - `harness-modes.ts:harnessModes` - the `real` mode runs only when `CI` is unset and the harness binary is on `PATH`.
-- `create-testkit.ts:cleanup` - stops running sessions within 3000 ms (`pTimeout`), then disposes the app and closes the server.
+- `create-testkit.ts:cleanup` - closes the server first, then disposes the app (which ends live runs before closing the database); every step runs even when an earlier one fails, and the failures are rethrown as one `AggregateError`.
 
 ## Side Effects
 

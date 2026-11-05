@@ -1069,22 +1069,24 @@ describe('vite devtools dock', () => {
     symlinkSync(join(dirname(embedDir), 'it'), join(root, 'node_modules', '@conciv', 'it'))
   }
 
-  async function dockServer(
+  async function startDockServer(
     widget?: false,
     builtins: Builtins = NO_BUILTINS,
     root = realpathSync(dirs.tempDir('conciv-dock-')),
     hostHead = '',
     clientAuth = false,
-  ): Promise<string> {
+    hostPlugins: Plugin[] = [],
+  ): Promise<StartedDevServer & {url: string}> {
     if (!existsSync(join(root, 'node_modules', '@conciv', 'it'))) linkConcivIt(root)
     writeFileSync(
       join(root, 'index.html'),
       `<!doctype html><html><head><meta charset="utf-8">${hostHead}<title>host</title></head><body><h1>host</h1></body></html>`,
     )
+    const printed = capturedLogger()
     const server = await createServer({
       root,
       configFile: false,
-      logLevel: 'silent',
+      customLogger: printed.logger,
       server: {host: '127.0.0.1', port: 0},
       plugins: [
         makeViteHook(
@@ -1096,12 +1098,18 @@ describe('vite devtools dock', () => {
           },
         ),
         DevTools({clientAuth}),
+        ...hostPlugins,
       ],
     })
     servers.push(server)
     await server.listen()
     const address = server.httpServer?.address()
-    return `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
+    const url = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}/`
+    return {server, root, terminal: printed.text, url}
+  }
+
+  async function dockServer(...options: Parameters<typeof startDockServer>): Promise<string> {
+    return (await startDockServer(...options)).url
   }
 
   it('fills the dock panel with the widget and keeps it there when the dock entry is reopened', async () => {
@@ -1327,6 +1335,26 @@ describe('vite devtools dock', () => {
     await expectLocator(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 30_000})
     await page.close()
   }, 120_000)
+
+  it('shows the page launcher when the host renders its html without transformIndexHtml', async () => {
+    const serverRenderedHost: Plugin = {
+      name: 'server-rendered-host',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url !== '/') return next()
+          res.setHeader('content-type', 'text/html')
+          res.end(
+            '<!doctype html><html><head><meta charset="utf-8"><title>ssr</title></head><body><h1>ssr</h1></body></html>',
+          )
+        })
+      },
+    }
+    const started = await startDockServer(undefined, NO_BUILTINS, undefined, '', false, [serverRenderedHost])
+    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await page.goto(await magicLinkUrl(started, started.url), {waitUntil: 'domcontentloaded'})
+    await expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
+    await page.close()
+  }, 60_000)
 
   it('runs as the dock when the host html already carries a conciv-widget meta', async () => {
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})

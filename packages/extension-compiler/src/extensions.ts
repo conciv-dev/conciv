@@ -10,6 +10,8 @@ import {dedupeExtensions, EXTENSION_GLOB, type ExtensionEntry} from './dedupe-ex
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
+export const EXTENSIONS_DOCK_RESOLVED_ID = `${EXTENSIONS_RESOLVED_ID}-dock`
+export const EXTENSIONS_DOCK_ROUTE = '/@conciv/extensions-dock.js'
 
 export type Builtins = {
   serverExtensions: readonly AnyExtension[]
