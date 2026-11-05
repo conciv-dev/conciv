@@ -17,10 +17,9 @@ import {
   SEGMENTERS,
   TEXT_READERS,
 } from './server/target.js'
-import {createDiffer, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
+import {buildCssMap, createDiffer, MAPPERS, PIXEL_COMPARATORS, SERVER_STEPS} from './server/differ.js'
 import {watchSettled} from './server/loop.js'
 import {PAIRERS, RANKERS} from './server/pair.js'
-import {buildCssMap, MAPPERS} from './server/provenance.js'
 import {createTargetStore} from './server/store.js'
 import {makeXrayApp, makeXrayRouter} from './server/xray-routes.js'
 

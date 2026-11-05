@@ -49,8 +49,8 @@
       "import": "./dist/server/store.js"
     },
     "./provenance": {
-      "types": "./dist/server/provenance.d.ts",
-      "import": "./dist/server/provenance.js"
+      "types": "./dist/server/differ.d.ts",
+      "import": "./dist/server/differ.js"
     },
     "./text-groups": {
       "types": "./dist/server/differ.d.ts",
