@@ -7,14 +7,13 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 ## Interface
 
 - `AppContext`, `AppContextValue` (`context.ts`): app-wide context
-- `useRpc`, `useSettings`, `useAppData`, `useEnvironment`, `useAppQueryClient`, `useAnnounce`, `useLayers`, `useInstances`, `useConnected`, `useApiBase`, `useLiveSessions`, `useWarmSession` and further accessors (`context.ts`)
-- `makeLiveSessions`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): registry of mounted panes; `activityIn` returns `unmounted` | `idle` | `running`
+- `useRpc`, `useSettings`, `useAppData`, `useEnvironment`, `useAppQueryClient`, `useAnnounce`, `useLayers`, `useInstances`, `useConnected`, `useApiBase`, `useLiveSessions`, `usePaneChat`, `useWarmSession` and further accessors (`context.ts`)
+- `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation); `open(sessionId)` hands a pane that client; `activityIn` returns `unmounted` | `idle` | `running`
 - `PaneContext`, `usePane`, `makePendingAttachmentQueue` (`pane-context.ts`): per-session pane context and a File queue
 - `PaneProvider` (`pane-provider.tsx`): builds the pane context for a `sessionId` (chat, refresh, grab staging, attachments, `newSession`)
 - `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
 - `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
-- `usePaneChat` (`use-pane-chat.ts`): `useChatSession` keyed on session id and connection generation
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session
 
 ## Invariants
@@ -22,7 +21,8 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `context.ts:useAppScope`: throws `<hook> called outside the app provider` when `AppContext` is missing
 - `pane-context.ts:usePane`, `panel-chrome.ts:usePanelChrome`, `reachability.ts:useEngineReachability`: throw when used outside their provider
 - `panel-focus.ts:makePanelComposerFocus.release`: clears the handle only if it is still the current one
-- `live-sessions.ts:activityIn`: a null id or no registered pane gives `unmounted`; `running` if any registered pane for that id is working
+- `live-sessions.ts:activityIn`: a null id or no live chat gives `unmounted`; `running` if that session's chat has a run in progress
+- `live-sessions.ts:makeLiveSessions`: a session's chat stays alive while a pane has it open or while its last run lifecycle (from hydration or the stream) is not terminal, so a session left mid-turn keeps its client until the run settles
 - `warm-session.ts:createWarmSession`: the warm id latches once set; queries run only while `connected()`
 - `pane-provider.tsx:PaneProvider`: `newSession` calls `props.onNewSession` if given, otherwise creates a session over rpc and navigates to it
 
@@ -31,7 +31,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries `sessions.list` and `sessions.resolve`
-- `use-pane-chat.ts:usePaneChat`: opens a chat session through `useChatSession` (`@conciv/client`) against `apiBase`
+- `live-sessions.ts:makeLiveSessions`: opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle invalidates `sessions.list`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
 
 ## Verification
 

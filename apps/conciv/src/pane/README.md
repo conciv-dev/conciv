@@ -16,7 +16,6 @@ The chat pane for one session: transcript, composer with attachments and element
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
 - `paneAttachments`, `returnUnsentToDraft` (`pane-attachments.ts`): image and text attachment adapters; unsent queue goes back to the draft
 - `makeRefreshCoordinator(deps)`, `RefreshCoordinator` (`refresh-coordinator.ts`)
-- `trackSessionActivity(deps)` (`session-activity.ts`): registers the pane in live sessions
 - `useSessionCaptures(sessionId)` (`session-captures.ts`), `useComposerTriggerSources({sessionId, openModelMenu})` (`trigger-sources.ts`): `{triggers, runTyped}`: slash command and tool trigger sources, plus `runTyped(text)` that runs a widget command whose `/<name>` is the whole text; widget commands are the built-in `/model` (opens the model menu) and extension commands from `useInstances()`
 - `QueueStrip` (`queue-strip.tsx`), `PendingApprovals` (`pending-approvals.tsx`), `ContextTracker`, `ContextSummary` (`context-tracker.tsx`), `StatusBar` (`status-bar.tsx`)
 - `Divider`, `CompactSpinner`, `ConversationSkeleton`, `ThinkingBubble` (`indicators.tsx`)
@@ -30,7 +29,6 @@ The chat pane for one session: transcript, composer with attachments and element
 - `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored
 - `draft-storage.ts:makeDraftStorage`: writes are debounced by 300 ms (`WRITE_DELAY_MS`); clearing a non-empty draft cancels the pending write and persists the cleared draft immediately
 - `queue-strip.tsx:QueueStrip`: shows at most 3 queued messages (`VISIBLE_LIMIT`), the rest as an overflow count
-- `session-activity.ts:trackSessionActivity`: sessions are invalidated on unmount only if the pane was observed active
 
 ## Side Effects
 
