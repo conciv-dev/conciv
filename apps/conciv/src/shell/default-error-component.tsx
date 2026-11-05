@@ -1,8 +1,9 @@
-import {createMemo, type JSX} from 'solid-js'
+import {createMemo, onCleanup, onMount, type JSX} from 'solid-js'
 import {useRouteContext, useRouter, type ErrorComponentProps} from '@tanstack/solid-router'
-import {resetBrowserRpcConnection} from '@conciv/contract'
+import {browserRpcConnection, resetBrowserRpcConnection, type TrustListener} from '@conciv/contract'
+import {engineLocked} from '../app/engine-login.js'
 import {ErrorScreen} from './error-screen.js'
-import {classifyRpcError, type RpcErrorClassification} from './rpc-error-message.js'
+import {classifyRpcError, rpcErrorCode, type RpcErrorClassification} from './rpc-error-message.js'
 
 const ENGINE_UNREACHABLE_MESSAGE = "conciv couldn't reach the engine. Check that the dev server is still running."
 const GENERIC_ERROR_MESSAGE = 'Something went wrong. Try again.'
@@ -19,5 +20,13 @@ export function defaultErrorComponent(props: ErrorComponentProps): JSX.Element {
     if (classification().transportFailure) resetBrowserRpcConnection(apiBase()?.() ?? '')
     await router.invalidate()
   }
+  const onTrustChange: TrustListener = (status, previous) => {
+    if (status === 'trusted' && engineLocked(previous)) void retry()
+  }
+  onMount(() => {
+    const trust = browserRpcConnection(apiBase()?.() ?? '').trust
+    if (trust.isTrusted() && rpcErrorCode(props.error) === 'UNAUTHORIZED') void retry()
+    onCleanup(trust.subscribe(onTrustChange))
+  })
   return <ErrorScreen message={classification().message} onRetry={() => void retry()} />
 }

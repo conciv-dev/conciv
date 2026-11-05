@@ -112,15 +112,14 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
   const engine = wireEngine(apiBase, () => {
-    void router.invalidate()
-    void queryClient.invalidateQueries()
+    void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
   })
   const disposeInstances = makeGuardedDisposer(instances, engine.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
     return <>{props.children}</>
   }
-  const router = createRouter({
+  return createRouter({
     routeTree,
     history: config.history,
     scrollRestoration: () => false,
@@ -150,7 +149,6 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       login: config.login,
     },
   })
-  return router
 }
 
 export function disposeConcivRouter(router: ReturnType<typeof createConcivRouter>): void {

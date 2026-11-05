@@ -26,6 +26,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `notice-context.tsx:useNotices`: throws outside `NoticeContextProvider`
 - `engine-notice.tsx:EngineStaleNotice`: one standing notice per engine `fingerprint`; cleared when the engine reports not stale
 - `engine-notice.tsx:EngineUnreachableNotice`: shown only while `sustainedOffline()`; Retry re-runs the login check, then calls `resetBrowserRpcConnection` and `router.invalidate()`
+- `default-error-component.tsx:defaultErrorComponent`: runs its Retry when it mounts on a refused (`UNAUTHORIZED`) error while the engine already trusts this browser, and on a trust flip from untrusted or revoked to trusted while it is shown
 - `rpc-error-message.ts:classifyRpcError`: reachability errors map to the transport message, otherwise the error message or the generic one
 - `refresh-button.tsx:RefreshButton`: disabled while a run is in progress or a refresh is running
 - `effects-surface.tsx:decorateHost`: the effects host is `position: fixed`, `z-index: 2147483000`, marked `data-conciv-effects`
