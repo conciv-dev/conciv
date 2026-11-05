@@ -90,6 +90,8 @@ import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {PAGE_TOOL_DEFS} from '@conciv/extension-page/defs'
 
+const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
@@ -998,6 +1000,41 @@ describe('panel connect', () => {
   }, 30_000)
 })
 
+describe('panel escape', () => {
+  const coreBase = bootedCore('panel-escape')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const thumbnail = () => page.getByRole('button', {name: 'Open pixel.png'})
+  const viewer = () => page.getByRole('dialog', {name: 'pixel.png'})
+  const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+
+  test('Escape in an image viewer closes the viewer and leaves the panel open', async () => {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await seedDraft(rpc, sessionId, {
+      attachments: [{id: 'image-1', type: 'image', name: 'pixel.png', contentType: 'image/png', data: PNG_PIXEL}],
+    })
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(thumbnail(), {timeout: 8000}).toBeVisible()
+    await thumbnail().click()
+    await expect.element(viewer()).toBeVisible()
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(viewer()).not.toBeInTheDocument()
+    await expect.element(launcher()).not.toBeInTheDocument()
+
+    await editor().click()
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(launcher()).toBeVisible()
+  }, 30_000)
+})
+
 describe('panel refresh', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const REPLY_TEXT = 'the transcript that outlives a refresh'
@@ -1252,8 +1289,6 @@ describe('queue strip', () => {
       expect(attached.map((file) => file.type)).toEqual(['image/png'])
     })
   })
-
-  const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
   const EMPTY_HYDRATION: ChatSessionHydration = {messages: [], lastRun: null, pendingApprovals: []}
 

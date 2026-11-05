@@ -27,6 +27,7 @@ import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useConnected,
+  useEnvironment,
   useLayers,
   useLiveSessions,
   useHostTheme,
@@ -188,6 +189,7 @@ function RootChrome(props: {
   const settings = useSettings()
   const theme = useHostTheme()
   const layers = useLayers()
+  const environment = useEnvironment()
   const suppressed = useSuppressed()
   const connected = useConnected()
   const liveSessions = useLiveSessions()
@@ -329,7 +331,7 @@ function RootChrome(props: {
     (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       dismissableLayerOpenAtEscapeCapture =
-        layers.anyOpen() || Boolean(rootEl?.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
+        layers.anyOpen() || Boolean(environment.rootNode.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
     },
     {capture: true},
   )

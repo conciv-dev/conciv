@@ -326,7 +326,13 @@ describe('dialog layout', () => {
       owner,
     )
 
-    await expect.poll(() => shadow.querySelector('[role="dialog"]')?.textContent).toContain('inside the popup')
+    const popup = page.frameLocator(page.elementLocator(frame)).getByRole('dialog', {name: 'Popped out dialog'})
+
+    await expect.element(popup).toMatchAriaInlineSnapshot(`
+      - dialog "Popped out dialog":
+        - paragraph: inside the popup
+    `)
+    expect(shadow.contains(popup.element())).toBe(true)
   })
 
   it('scrolls a long command sideways inside the dialog instead of widening the layout', async () => {
