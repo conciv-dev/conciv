@@ -1,7 +1,7 @@
 import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
 import {z} from 'zod'
-import {makeRpcClient} from '@conciv/contract'
+import {browserRpcConnection, consumeMagicLinkCode, makeBrowserRpcClient} from '@conciv/contract'
 import {collectAttachmentCards, type AnyExtension} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
@@ -146,11 +146,24 @@ function installStorageFixtures(): void {
   document.head.appendChild(fontStyle)
 }
 
+async function loginHost(apiBase: string): Promise<void> {
+  const {trust} = browserRpcConnection(apiBase)
+  const code = consumeMagicLinkCode()
+  if (await trust.requestTrust()) return
+  if (code !== undefined) await trust.requestTrustWithCode(code)
+}
+
 export function startHost(extension: AnyExtension): void {
-  installStorageFixtures()
   const apiBase = metaContent('conciv-api-base')
+  void loginHost(apiBase)
+    .catch((error: unknown) => console.error('[conciv testkit] the host could not log in to the engine', error))
+    .then(() => mountHost(extension, apiBase))
+}
+
+function mountHost(extension: AnyExtension, apiBase: string): void {
+  installStorageFixtures()
   const session = metaContent('conciv-session')
-  const rpc = makeRpcClient(apiBase)
+  const {rpc} = makeBrowserRpcClient(apiBase)
   const clientValue = extension.__client?.()?.value ?? {}
   const cards = collectAttachmentCards([extension])
   const showCardAttachment = (file: File): void => {

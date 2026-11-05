@@ -14,6 +14,7 @@ import {
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {promisify} from 'node:util'
+import {z} from 'zod'
 
 import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/e2e-utils/packed'
 
@@ -32,6 +33,12 @@ const FIXTURE_LOCK = {
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
+
+const DevEndpointSchema = z.object({apiBase: z.string()})
+
+export function agentApiBase(): string {
+  return DevEndpointSchema.parse(JSON.parse(readFileSync(join(DEV_ENDPOINT_DIR, 'dev-endpoint.json'), 'utf8'))).apiBase
+}
 
 function writeFixtureFiles(appDir: string, overrides: Record<string, string>): void {
   mkdirSync(join(appDir, 'app'), {recursive: true})

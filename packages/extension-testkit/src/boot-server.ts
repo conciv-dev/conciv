@@ -4,10 +4,12 @@ import {join} from 'node:path'
 import {start} from '@conciv/core/start'
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessAdapter} from '@conciv/harness'
-import {loginThroughTerminal} from '@conciv/harness-testkit/login'
+import type {TerminalReader} from '@conciv/harness-testkit/login'
 
 export type BootedServer = {
   apiBase: string
+  origin: string
+  terminal: TerminalReader
   extensionContexts: Record<string, unknown>
   stop: () => Promise<void>
 }
@@ -29,9 +31,10 @@ export async function bootExtensionServer(
     },
   })
   const origin = `http://127.0.0.1:${engine.port}`
-  const token = await loginThroughTerminal(origin, () => printed.join('\n'))
   return {
-    apiBase: `${origin}/t/${token}`,
+    apiBase: `${origin}/t/${engine.agentToken}`,
+    origin,
+    terminal: () => printed.join('\n'),
     extensionContexts: engine.extensionContexts,
     stop: () => engine.stop(),
   }

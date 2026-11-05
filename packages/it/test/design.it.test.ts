@@ -19,7 +19,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
-import {requestPrintedCode} from '@conciv/harness-testkit/login'
+import {magicLink} from '@conciv/harness-testkit/login'
 import type {} from '@conciv/extension-design/client'
 import {
   CaptureInputSchema,
@@ -167,7 +167,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
         timeout: PAGE_DRIVER_TIMEOUT_MS,
       })
     })
-  await goto(`/#conciv_otp=${await requestPrintedCode(new URL(apiBase).origin, () => printed.join('\n'))}`)
+  await goto(await magicLink(new URL(apiBase).origin, () => printed.join('\n'), '/'))
   return {
     rpc,
     browser,

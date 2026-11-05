@@ -1,8 +1,9 @@
 import {expect, test, type Page} from '@playwright/test'
-import {loginWidget, trustedApiBase} from '@conciv/e2e-utils/widget'
+import {loginWidget} from '@conciv/e2e-utils/widget'
 import {makeCallTool, resolveSession} from '../packed/engine-client.js'
 import {
   DEV_PORT,
+  agentApiBase,
   ENGINE_PORT,
   SECOND_SENTINEL,
   buildProd,
@@ -115,8 +116,7 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     expect(pageErrors).toEqual([])
     await expect(page.getByText(/Unhandled Runtime Error|Build Error|Failed to compile/i)).toHaveCount(0)
 
-    if (handle === undefined) throw new Error('next dev is not running')
-    const apiBase = await trustedApiBase(`http://127.0.0.1:${ENGINE_PORT}`, handle.logPath)
+    const apiBase = agentApiBase()
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
     await expect(chip(page)).toBeVisible()

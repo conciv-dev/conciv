@@ -4,7 +4,7 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {createLogger, createServer, type Logger, type ViteDevServer} from 'vite'
-import {requestPrintedCode} from '@conciv/harness-testkit/login'
+import {magicLink} from '@conciv/harness-testkit/login'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
 import {makeViteHook} from '../../src/core/vite.js'
@@ -68,8 +68,7 @@ export function capturedLogger(): {logger: Logger; text: () => string} {
 }
 
 export async function magicLinkUrl(started: StartedDevServer, url: string): Promise<string> {
-  const code = await requestPrintedCode(await pageApiBase(started.server), started.terminal)
-  return `${url}#conciv_otp=${code}`
+  return magicLink(await pageApiBase(started.server), started.terminal, url)
 }
 
 export async function pageApiBase(server: ViteDevServer, url = '/'): Promise<string> {

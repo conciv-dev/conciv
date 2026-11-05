@@ -17,7 +17,6 @@ import {serveDir, type ServedHost} from '@conciv/extension-testkit'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
-import {loginThroughTerminal} from '@conciv/harness-testkit/login'
 import {makeViteBridge} from '@conciv/plugin/vite'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {CONCIV_TANSTACK_CLIENT_LABEL} from '../src/client-sentinel.js'
@@ -32,15 +31,8 @@ import {
 } from './helpers.js'
 
 async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
-  const printed: string[] = []
-  const engine = await start({
-    ...opts,
-    print: (text) => {
-      printed.push(text)
-    },
-  })
-  const origin = `http://127.0.0.1:${engine.port}`
-  return {engine, apiBase: `${origin}/t/${await loginThroughTerminal(origin, () => printed.join('\n'))}`}
+  const engine = await start(opts)
+  return {engine, apiBase: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`}
 }
 
 describe('boot', () => {

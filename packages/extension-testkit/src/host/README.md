@@ -8,7 +8,7 @@ Browser page for the test host. It mounts the extension under test (from a virtu
 
 - `index.html`: meta tags `conciv-api-base` / `conciv-session` with placeholders `__CONCIV_API_BASE__` / `__CONCIV_SESSION__`
 - `host-entry.tsx`: calls `startHost(extension)` with the `virtual:conciv-extension-under-test` default export
-- `startHost(extension)` (`host-runtime.tsx`): builds the RPC client and HostApiProvider and renders the composer slot, surface, views, attach form and `FixtureElement`
+- `startHost(extension)` (`host-runtime.tsx`): logs the page in like the widget does (stored token, else the `#conciv_otp` magic link code), then builds the browser RPC client and HostApiProvider and renders the composer slot, surface, views, attach form and `FixtureElement`
 - `MountedViews` / `MountedComposerSlot` / `AttachFixtureForm` (`host-runtime.tsx`)
 - `testkit:attach` CustomEvent (`host-runtime.tsx`): detail {name, type, text} attaches a File
 - `FixtureElement` (`fixture-element.tsx`): 'Comment target', 'Add marker' and 'Fixture input' controls

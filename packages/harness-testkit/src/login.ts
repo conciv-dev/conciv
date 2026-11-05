@@ -30,3 +30,7 @@ export async function exchangePrintedCode(origin: string, code: string): Promise
 export async function loginThroughTerminal(origin: string, terminal: TerminalReader): Promise<string> {
   return exchangePrintedCode(origin, await requestPrintedCode(origin, terminal))
 }
+
+export async function magicLink(origin: string, terminal: TerminalReader, pageUrl: string): Promise<string> {
+  return `${pageUrl}#conciv_otp=${await requestPrintedCode(origin, terminal)}`
+}
