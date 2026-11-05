@@ -11,6 +11,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `DevEndpointSchema` / `DevEndpoint` (`dev-endpoint.ts`): {apiBase, token: string|null, pid}
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
+- `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
 - `writeText` (`fs.ts`): mkdir -p then write
 - `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
 - `withSavedModels(adapter, stateDir)` (`saved-models.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background; with nothing saved it waits for the live list

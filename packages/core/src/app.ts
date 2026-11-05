@@ -64,6 +64,7 @@ import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
+import {runInOrder} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -567,10 +568,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
   })
 
-  const dispose = async (): Promise<void> => {
-    for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
-    db.$client.close()
-  }
+  const dispose = (): Promise<void> =>
+    runInOrder(
+      [() => plane.endAllRuns(), ...disposers, () => db.$client.close()],
+      'conciv: disposing the engine failed',
+    )
 
   return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
 }

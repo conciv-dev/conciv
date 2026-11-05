@@ -61,7 +61,6 @@ import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
-import {trackSessionActivity} from './session-activity.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
 const PAGE_SESSION: PageSessionConfig = {
@@ -231,18 +230,6 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
     ...coreToolCards,
     ...builtinToolCards,
   ]
-
-  trackSessionActivity({
-    sessionId,
-    active: narrating,
-    invalidateSessions: appData.invalidateSessions,
-    onSettle: () => {
-      appData.invalidateSessions()
-      void markers.refetch()
-      captures.refresh()
-      if (!chat.error()) announce('conciv replied.')
-    },
-  })
 
   const compacting = messaging.compacting
 

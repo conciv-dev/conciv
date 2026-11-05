@@ -59,6 +59,7 @@ export type ChatPlane = {
   stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true}>
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
+  endAllRuns: () => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
   driving: (sessionId: SessionId) => boolean
   running: () => Promise<ReadonlySet<string>>
@@ -170,6 +171,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       await server.endRuns(sessionId)
       clearThread(deps.db, sessionId)
     },
+    endAllRuns: () => server.endAllRuns(),
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
     driving: (sessionId) => server.driving(sessionId),
     running: () => runningThreadIds(deps.db),

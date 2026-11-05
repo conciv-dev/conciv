@@ -2,7 +2,6 @@ import {randomUUID} from 'node:crypto'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import pTimeout from 'p-timeout'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
@@ -171,19 +170,13 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         cleanup: async () => {
           sockets.closeAll()
           for (const abort of aborts) abort.abort()
-          const stopLiveSessions = async () => {
-            const sessions = (await rpc.sessions.list({includeHidden: true}).catch(() => [])) ?? []
-            const runningSessions = sessions.filter((meta) => meta.running)
-            const stopActiveRun = async (sessionId: string) => {
-              const {activeRun} = await rpc.chat.hydrate({sessionId})
-              await rpc.chat.stop({sessionId, runIds: activeRun ? [activeRun.runId] : []})
-            }
-            await Promise.all(runningSessions.map((meta) => stopActiveRun(meta.id).catch(() => {})))
-          }
-          await pTimeout(stopLiveSessions(), {milliseconds: 3_000, fallback: () => undefined})
-          await app.dispose()
-          await served.close()
+          const closing = await Promise.allSettled([served.close()])
+          const disposing = await Promise.allSettled([app.dispose()])
           if (ownsStateRoot) rmSync(stateRoot, {recursive: true, force: true, maxRetries: 10, retryDelay: 50})
+          const failures = [...closing, ...disposing].flatMap((outcome) =>
+            outcome.status === 'rejected' ? [outcome.reason] : [],
+          )
+          if (failures.length > 0) throw new AggregateError(failures, 'testkit cleanup failed')
         },
       }
     },
