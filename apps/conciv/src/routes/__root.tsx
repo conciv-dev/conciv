@@ -214,6 +214,7 @@ function RootChrome(props: {
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
   const locked = () => login?.status() === 'untrusted'
+  const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
@@ -246,7 +247,7 @@ function RootChrome(props: {
   }
   const showPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
-    if (!connected()) {
+    if (awaitingLogin()) {
       void router.navigate({to: '/', search: {open: true}, replace: Boolean(quickMatch())})
       return
     }
@@ -383,7 +384,7 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
-  const toggleQuick = () => (connected() ? switchQuick() : showPanel())
+  const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
