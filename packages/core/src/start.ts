@@ -1,3 +1,4 @@
+import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
 import {Hono} from 'hono'
 import {z} from 'zod'
@@ -113,7 +114,7 @@ async function servePort(
 
 function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
   return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) =>
-    console.error('conciv: cleanup after a failed start also failed', failure),
+    console.error('conciv: cleanup after a failed start also failed', inspect(failure, {depth: null})),
   )
 }
 

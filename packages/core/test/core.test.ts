@@ -926,6 +926,7 @@ describe('engine stamp', () => {
         const logged = written.mock.calls.flat().map(String).join('\n')
         expect.soft(failure).toMatchObject({code: 'EADDRINUSE'})
         expect.soft(logged).toContain('conciv: cleanup after a failed start also failed')
+        expect.soft(logged).toContain('extension dispose failed')
       } finally {
         written.mockRestore()
         await new Promise<void>((resolve) => taken.close(() => resolve()))

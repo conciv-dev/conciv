@@ -106,9 +106,9 @@ function parsedJson(payload: string): unknown {
   }
 }
 
-function isServingFrame(payload: string): boolean {
+function isReadyFrame(payload: string): boolean {
   const frame = PushFrameSchema.safeParse(parsedJson(payload))
-  return frame.success && frame.data.channel === 'page-serving' && frame.data.serving
+  return frame.success && frame.data.channel === 'ready'
 }
 
 function isPushSocket(socket: PageWebSocket): boolean {
@@ -119,7 +119,7 @@ function readyOf(socket: PageWebSocket): Promise<boolean> {
   return socket
     .waitForEvent('framereceived', {
       timeout: SUBSCRIBE_TIMEOUT_MS,
-      predicate: (event) => isServingFrame(String(event.payload)),
+      predicate: (event) => isReadyFrame(String(event.payload)),
     })
     .then(
       () => true,
@@ -199,7 +199,7 @@ function watchPagePlane(page: Page): PagePlaneWatch {
         fallback: async () => {
           throw new TimeoutError(
             await explain({
-              line: `no push socket on ${PUSH_WS_PATH} acknowledged that it serves page queries`,
+              line: `no push socket on ${PUSH_WS_PATH} sent the ready frame that marks it serving page queries`,
               journal,
               page,
             }),

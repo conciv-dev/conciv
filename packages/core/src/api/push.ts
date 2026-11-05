@@ -41,8 +41,11 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
       const abort = new AbortController()
       const held: {sink: WSContext | null; page: AbortController | null} = {sink: null, page: null}
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
-      const startServing = (sessionId: SessionId): void => {
-        if (held.page !== null) return
+      const servePage = (sessionId: SessionId, serving: boolean): void => {
+        if (serving === (held.page !== null)) return
+        held.page?.abort()
+        held.page = null
+        if (!serving) return
         const page = new AbortController()
         held.page = page
         pump(
@@ -50,15 +53,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           ({requestId, query}) => send({channel: 'page', requestId, query}),
           'page query',
         )
-      }
-      const stopServing = (): void => {
-        held.page?.abort()
-        held.page = null
-      }
-      const servePage = (sessionId: SessionId, serving: boolean): void => {
-        if (serving) startServing(sessionId)
-        if (!serving) stopServing()
-        send({channel: 'page-serving', serving})
+        send({channel: 'ready'})
       }
       return {
         onOpen: (_event, ws) => {
@@ -67,7 +62,6 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
             ws.close(NO_SESSION_CLOSE_CODE, 'a push socket needs a session id')
             return
           }
-          send({channel: 'ready'})
           pump(deps.events(requested.data, abort.signal), (chunk) => send({channel: 'chat', chunk}), 'session event')
         },
         onMessage: (event, ws) => {

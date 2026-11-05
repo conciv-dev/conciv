@@ -512,41 +512,50 @@ describe('push channel', () => {
   })
 
   describe('a session the page is not showing', () => {
-    async function untilServing(acks: AsyncIterator<boolean>, wanted: boolean): Promise<void> {
-      for (;;) {
-        const next = await acks.next()
-        if (next.done) throw new Error(`the push channel closed before the server acknowledged serving=${wanted}`)
-        if (next.value === wanted) return
+    const pageText = {name: 'page_text', input: {selector: 'body'}}
+    const POLL = {timeout: 4_000, interval: 50}
+
+    function outcomeOf(call: Promise<unknown>): Promise<unknown> {
+      return call.catch((error: unknown) => ({
+        rejected: error instanceof ORPCError ? error.code : 'unexpected',
+        message: error instanceof Error ? error.message : String(error),
+      }))
+    }
+
+    async function answerEvery(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
+      for await (const frame of source) {
+        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
       }
     }
 
-    const pageText = {name: 'page_text', input: {selector: 'body'}}
+    async function answerOnce(source: AsyncIterable<PageQueryFrame>, rpc: RpcClient, text: string): Promise<void> {
+      for await (const frame of source) {
+        await rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text}}})
+        return
+      }
+    }
 
     it('refuses its page tools at once, and serves them again once the page shows it', async () => {
       const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
       const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
       const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
-      const shownAcks = shownChannel.serving(abort.signal)
       void shownChannel.queries(abort.signal)
       const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
-      await untilServing(shownAcks, true)
 
-      await expect(backgroundRpc.registry.call(pageText)).rejects.toMatchObject({
-        code: 'NO_PAGE_CLIENT',
-        message: expect.stringContaining(
-          'the page is showing another session; switch back to this session to use page tools',
-        ),
-      })
+      await expect
+        .poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL)
+        .toMatchObject({
+          rejected: 'NO_PAGE_CLIENT',
+          message: expect.stringContaining(
+            'the page is showing another session; switch back to this session to use page tools',
+          ),
+        })
 
-      const backgroundAcks = backgroundChannel.serving(abort.signal)
-      const arriving = nextQuery(backgroundChannel.queries(abort.signal))
-      await untilServing(backgroundAcks, true)
-      const calling = backgroundRpc.registry.call(pageText)
-      const frame = await arriving
-      await backgroundRpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'shown again'}}})
+      const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
+      await expect.poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL).toEqual({text: 'shown again'})
 
-      expect(await calling).toEqual({text: 'shown again'})
       abort.abort()
+      await serving
       shownChannel.dispose()
       backgroundChannel.dispose()
     }, 15_000)
@@ -554,23 +563,17 @@ describe('push channel', () => {
     it('stops serving page queries once its query loop exits, while the chat stream keeps the socket', async () => {
       const {booted, channel, abort} = await bootWithChannel()
       void channel.events(abort.signal)
-      const acks = channel.serving(abort.signal)
-      const servedOnce = (async () => {
-        for await (const frame of channel.queries()) {
-          await booted.rpc.page.reply({requestId: frame.requestId, outcome: {ok: true, result: {text: 'once'}}})
-          return
-        }
-      })()
-      await untilServing(acks, true)
+      const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
 
-      expect(await booted.rpc.registry.call(pageText)).toEqual({text: 'once'})
+      await expect.poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
       await servedOnce
-      await untilServing(acks, false)
+      await expect
+        .poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL)
+        .toMatchObject({rejected: 'NO_PAGE_CLIENT'})
 
-      await expect(booted.rpc.registry.call(pageText)).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
       abort.abort()
       channel.dispose()
-    }, 5_000)
+    }, 15_000)
   })
 })
 

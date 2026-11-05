@@ -1310,24 +1310,36 @@ describe('vite devtools dock', () => {
     await page.close()
   }, 60_000)
 
-  it('mounts one widget, in the dock, when a framework client-entry module also loads on the page', async () => {
-    const root = realpathSync(dirs.tempDir('conciv-dock-'))
-    mkdirSync(join(root, 'src'))
-    writeFileSync(join(root, 'src', 'client-entry.ts'), 'export {}\n')
-    const page = await browser.newPage({viewport: {width: 1280, height: 800}})
-    const url = await dockServer(
-      undefined,
-      NO_BUILTINS,
-      root,
-      '<script type="module" src="/src/client-entry.ts"></script>',
-    )
-    await page.goto(url, {waitUntil: 'domcontentloaded'})
-    await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
-    const composers = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await composers.first().waitFor({timeout: 30_000})
-    await expectLocator(composers).toHaveCount(1)
-    await page.close()
-  }, 60_000)
+  it.each([
+    {host: 'no conciv-widget meta', hostMeta: ''},
+    {host: 'its own conciv-widget meta', hostMeta: '<meta name="conciv-widget" content="{}">'},
+  ])(
+    'mounts one widget, in the dock, when a framework client-entry module also loads on a page with $host',
+    async ({hostMeta}) => {
+      const root = realpathSync(dirs.tempDir('conciv-dock-'))
+      mkdirSync(join(root, 'src'))
+      writeFileSync(
+        join(root, 'src', 'client-entry.ts'),
+        "await import('virtual:conciv-extensions')\ndocument.title = 'page module evaluated'\nexport {}\n",
+      )
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const url = await dockServer(
+        undefined,
+        NO_BUILTINS,
+        root,
+        `${hostMeta}<script type="module" src="/src/client-entry.ts"></script>`,
+      )
+      await page.goto(url, {waitUntil: 'domcontentloaded'})
+      await expectLocator(page).toHaveTitle('page module evaluated', {timeout: 30_000})
+      await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
+      const composers = page.getByRole('textbox', {name: 'Message the conciv agent'})
+      await composers.first().waitFor({timeout: 30_000})
+      await expectLocator(composers).toHaveCount(1)
+      await expectLocator(page.getByRole('button', {name: /Open conciv chat|Close chat/})).toHaveCount(0)
+      await page.close()
+    },
+    60_000,
+  )
 
   it('mounts the floating page widget when the host conciv-widget meta holds null', async () => {
     const root = realpathSync(dirs.tempDir('conciv-null-meta-'))
