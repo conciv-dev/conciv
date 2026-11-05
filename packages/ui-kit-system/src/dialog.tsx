@@ -1,10 +1,13 @@
 import {Show, type JSX} from 'solid-js'
+import {Portal} from 'solid-js/web'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
+import {useEnvironmentContext} from '@ark-ui/solid/environment'
+import {isShadowRoot} from './realm.js'
 
 const BACKDROP = 'fixed inset-0 z-[2147483646] [background:var(--chat-backdrop)]'
 const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-start justify-center p-4 overflow-y-auto'
 const CONTENT_BASE =
-  'my-auto max-w-[calc(100vw-2rem)] rounded-chat-surface-lg bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg overflow-hidden focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
+  'my-auto max-w-[calc(100vw-2rem)] rounded-chat-surface-lg bg-chat-panel text-chat-text font-chat font-normal text-[0.875rem] leading-[1.45] border border-chat-line shadow-chat-lg overflow-hidden focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
 const SHELL = 'flex flex-col min-h-0 max-h-[calc(100dvh-2rem)]'
 const HEADER = 'shrink-0 px-4 pt-4'
 const TITLE = 'text-chat-text-hi text-sm font-semibold m-0'
@@ -32,6 +35,11 @@ export function Dialog(
     children: JSX.Element
   },
 ): JSX.Element {
+  const environment = useEnvironmentContext()
+  const layer = (): Node => {
+    const root = environment().getRootNode()
+    return isShadowRoot(root) ? root : environment().getDocument().body
+  }
   return (
     <Ark.Root
       open={props.open}
@@ -43,25 +51,27 @@ export function Dialog(
       initialFocusEl={props.initialFocus}
       restoreFocus={props.restoreFocus ?? true}
     >
-      <Ark.Backdrop class={BACKDROP} />
-      <Ark.Positioner class={POSITIONER}>
-        <Ark.Content
-          class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
-          aria-label={props.title === undefined ? props.label : undefined}
-        >
-          <div class={SHELL}>
-            <Show when={props.title}>
-              {(title) => (
-                <div class={HEADER}>
-                  <Ark.Title class={TITLE}>{title()}</Ark.Title>
-                </div>
-              )}
-            </Show>
-            <div class={BODY}>{props.children}</div>
-            <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
-          </div>
-        </Ark.Content>
-      </Ark.Positioner>
+      <Portal mount={layer()}>
+        <Ark.Backdrop class={BACKDROP} />
+        <Ark.Positioner class={POSITIONER}>
+          <Ark.Content
+            class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
+            aria-label={props.title === undefined ? props.label : undefined}
+          >
+            <div class={SHELL}>
+              <Show when={props.title}>
+                {(title) => (
+                  <div class={HEADER}>
+                    <Ark.Title class={TITLE}>{title()}</Ark.Title>
+                  </div>
+                )}
+              </Show>
+              <div class={BODY}>{props.children}</div>
+              <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
+            </div>
+          </Ark.Content>
+        </Ark.Positioner>
+      </Portal>
     </Ark.Root>
   )
 }

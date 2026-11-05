@@ -1,5 +1,4 @@
-import {Match, Show, Switch, createSignal, splitProps, type JSX} from 'solid-js'
-import {Portal} from 'solid-js/web'
+import {Show, createSignal, splitProps, type JSX} from 'solid-js'
 import {Button} from './button.js'
 import {Dialog} from './dialog.js'
 
@@ -19,11 +18,10 @@ const FAILED = 'text-chat-danger text-[0.75rem] break-words'
 export function ZoomableImage(props: {
   src: string
   alt: string
-  portal?: HTMLElement
   thumbnail?: JSX.ButtonHTMLAttributes<HTMLButtonElement>
   imageClass?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['src', 'alt', 'portal', 'thumbnail', 'imageClass'])
+  const [local] = splitProps(props, ['src', 'alt', 'thumbnail', 'imageClass'])
   const [view, setView] = createSignal<View>('closed')
   const actual = () => view() === 'actual'
   const failed = () => {
@@ -69,10 +67,7 @@ export function ZoomableImage(props: {
       >
         <img src={local.src} alt={local.alt} class={local.imageClass ?? THUMBNAIL_IMAGE} onError={fail} />
       </Button>
-      <Switch>
-        <Match when={local.portal}>{(mount) => <Portal mount={mount()}>{viewer()}</Portal>}</Match>
-        <Match when={!local.portal}>{viewer()}</Match>
-      </Switch>
+      {viewer()}
     </Show>
   )
 }
