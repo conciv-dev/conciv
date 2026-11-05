@@ -18,7 +18,7 @@ import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
@@ -1019,12 +1019,22 @@ describe('cli', () => {
         const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
-        const socketWith = (secret: string) =>
-          new WebSocket(`ws://127.0.0.1:${engine.port}/t/${secret}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        const framed = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        framed.addEventListener('open', () => framed.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token})))
-        const [browser, agent] = [socketWith(token), socketWith(engine.agentToken)]
-        await Promise.all([browser, agent, framed].map((socket) => once(socket, 'message')))
+        const serving: PageServingFrame = {channel: 'page-serving', serving: true}
+        const pushSocket = (prefix: string, frames: unknown[]) => {
+          const socket = new WebSocket(
+            `ws://127.0.0.1:${engine.port}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
+          )
+          socket.addEventListener('open', () => frames.forEach((frame) => socket.send(JSON.stringify(frame))))
+          return socket
+        }
+        const framed = pushSocket('', [{type: SOCKET_TRUST_FRAME, token}, serving])
+        const [browser, agent] = [
+          pushSocket(`/t/${token}`, [serving]),
+          pushSocket(`/t/${engine.agentToken}`, [serving]),
+        ]
+        await Promise.all(
+          [browser, agent, framed].map((socket) => once(socket, 'message', {signal: AbortSignal.timeout(3_000)})),
+        )
         const closedCode = async (socket: WebSocket) =>
           z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
             .code
