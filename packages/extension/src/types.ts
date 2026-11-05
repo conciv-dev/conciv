@@ -33,11 +33,12 @@ export type ExtensionServerTool = {
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
+export type ExtensionCommandContext = {sessionId: string}
+
 export type ExtensionCommand = {
   name: string
   description: string
-  argumentHint?: string
-  prompt(args: string): string
+  run: (context: ExtensionCommandContext) => void
 }
 
 export type ToolRenderer = Component<ToolCardProps>
@@ -103,7 +104,7 @@ export type ServerApi<Config> = {
   basePath: string
   stateDir: string
   sessions: ServerSessions
-  harness: ServerHarness
+  harness: (sessionId: SessionId) => ServerHarness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined

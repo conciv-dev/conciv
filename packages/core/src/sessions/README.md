@@ -11,17 +11,18 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 - `rowById` / `currentRow` / `rowByNativeId` / `rowByNativeRef` (`session-rows.ts`)
 - `createRow` / `ensureRow` / `nativeIdFor` / `recordNativeId` (`session-rows.ts`)
 - `resolveRow` / `openNativeRow` / `ensureAgentRow` / `mintExternalRow` / `anonymousExternalRow` (`session-rows.ts`)
-- `tombstoneRow` / `restoreRow` / `recordFirstTitle` / `sweepEmptyRows` (`session-rows.ts`)
-- `listSessionMetas` / `SessionListInput` / `RowScope` (`session-rows.ts`): `SessionMeta[]` sorted by updatedAt descending
+- `tombstoneRow` / `restoreRow` / `recordFirstTitle` / `sweepEmptyRows` / `switchRowHarness` (`session-rows.ts`)
+- `listSessionMetas` / `SessionListInput` / `NativeList` / `RowScope` (`session-rows.ts`): `SessionMeta[]` sorted by updatedAt descending, each carrying its `harnessKind`
 
 ## Invariants
 
-- `listCommands` (`commands.ts`): `{commands: []}` without `harness.commands`; mcpUrl passed only when `capabilities.mcp === 'http'`
+- `listCommands` (`commands.ts`): uses the session's harness (`harnessFor`); `{commands: []}` without `harness.commands`; mcpUrl passed only when `capabilities.mcp === 'http'`
 - `createSessionBus` (`session-bus.ts`): empty listener sets are deleted; `events` unlistens on abort, cancel and finally
 - `session-rows.ts`: rows are validated with `SessionRecordSchema.parse`; default ids are `conciv_<uuid>`
 - `claimNativeRow` (`session-rows.ts`): insert onConflictDoNothing on (harnessKind, cwd, harnessSessionId), then re-read
 - `resolveRow` (`session-rows.ts`): conciv id, then harness id, then latest non-deleted chat row for the cwd (by realpath), then a new id
-- `listSessionMetas` (`session-rows.ts`): skips invalid rows, filters by cwd and deletedAt unless `includeHidden`, materializes unclaimed native sessions
+- `listSessionMetas` (`session-rows.ts`): skips invalid rows, filters by cwd and deletedAt unless `includeHidden`, materializes unclaimed native sessions; a native session is claimed by the row whose current (harnessKind, native id) matches or whose earlier-natives list (`chat_metadata` namespace `conciv.session.earlierNatives`, key = session id, read in one query, zod `.catch([])`) holds it; a hidden owner is undeleted instead of listing the native separately
+- `switchRowHarness` (`session-rows.ts`): one transaction appends the outgoing non-null `{harnessKind, nativeId}` to the session's earlier-natives list, sets `harnessKind`, nulls `harnessSessionId` and `model`, and deletes the session's transcript anchor; the earlier-natives list only claims list entries and never feeds resume
 
 ## Side Effects
 

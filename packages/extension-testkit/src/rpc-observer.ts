@@ -1,9 +1,8 @@
 import type {Page, Request as PageRequest, Response as PageResponse, WebSocket as PageWebSocket} from 'playwright'
-import {procedurePathOf, rpcPayload} from './rpc-payload.js'
+import {procedurePathOf, rpcPayload, samePath} from './rpc-payload.js'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const RPC_SOCKET_MARKER = '/rpc-ws'
-const RPC_HTTP_MARKER = '/rpc/'
 
 export type RpcCallRecord = {
   procedurePath: readonly string[]
@@ -72,10 +71,6 @@ function matchesPattern(actual: unknown, expected: unknown): boolean {
   return Object.is(actual, expected)
 }
 
-function samePath(actual: readonly string[], expected: readonly string[]): boolean {
-  return actual.length === expected.length && actual.every((segment, index) => segment === expected[index])
-}
-
 type Stamp = 'start' | 'completion'
 
 function newerThan(state: CallState, since: number, stamp: Stamp): boolean {
@@ -116,17 +111,10 @@ export function observeRpc(page: Page): RpcObserver {
     }
   }
 
-  const httpProcedurePath = (url: string): readonly string[] | null => {
-    const pathname = new URL(url).pathname
-    const marker = pathname.indexOf(RPC_HTTP_MARKER)
-    if (marker === -1) return null
-    return procedurePathOf(pathname.slice(marker + RPC_HTTP_MARKER.length))
-  }
-
   const httpState = (request: PageRequest): CallState | null => {
     const known = httpCalls.get(request)
     if (known) return known
-    const procedurePath = httpProcedurePath(request.url())
+    const procedurePath = procedurePathOf(request.url())
     if (procedurePath === null) return null
     httpIds.next += 1
     const state: CallState = {

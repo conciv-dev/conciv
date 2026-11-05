@@ -119,7 +119,7 @@ defineExtension({
   configSchema, // optional zod schema; plugin options land here, parsed before .server() sees them
   tools, // AnyToolBuilder[] — see below
   attachments, // AnyAttachmentBuilder[] — see below
-  commands, // ExtensionCommand[] — {name, description, argumentHint?, prompt(args) => string}
+  commands, // ExtensionCommand[] — {name, description, run({sessionId})}; runs in the widget from the / menu (or typed alone and sent), never sent to the agent, replaces a harness command of the same name
   views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
   Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot

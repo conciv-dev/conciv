@@ -1,3 +1,20 @@
+diff --git a/dist/esm/durability.js b/dist/esm/durability.js
+index 8faa1fd76caa87c242db6fdc7488e279e2e874c3..0976fcc69dcf369638c3d0ed1838d98baf6e190a 100644
+--- a/dist/esm/durability.js
++++ b/dist/esm/durability.js
+@@ -137,10 +137,8 @@ function journalOptionsFor(durability, runId) {
+ 		dir: durability.journalDir,
+ 		attach: durability.attach,
+ 		...durability.pollIntervalMs === void 0 ? {} : { pollIntervalMs: durability.pollIntervalMs },
+-		...durability.attach ? {
+-			runs: durability.runs,
+-			...durability.attachWaitMs === void 0 ? {} : { attachWaitMs: durability.attachWaitMs }
+-		} : {}
++		...durability.attachWaitMs === void 0 ? {} : { attachWaitMs: durability.attachWaitMs },
++		...durability.attach ? { runs: durability.runs } : {}
+ 	};
+ }
+ /**
 diff --git a/dist/esm/middleware.d.ts b/dist/esm/middleware.d.ts
 index 329cb4ef0d37dbabcc6942b4da907089dd539f72..21308e8c93847ed1566ead6eb8d63dd164321918 100644
 --- a/dist/esm/middleware.d.ts

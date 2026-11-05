@@ -56,8 +56,8 @@ export function TerminalActions(): JSX.Element {
   const grab = host.useGrab()
   const newSession = host.useNewSession()
   const busy = () => store.busy()
-  const [models, {refetch}] = createResource(async () => {
-    const {models: list} = await rpc.meta.models(undefined)
+  const [models, {refetch}] = createResource(sessionId, async (id) => {
+    const {models: list} = await rpc.meta.models({sessionId: id})
     const stored = store.spawnModel() ?? readStoredModel()
     store.setSpawnModel(stored && list.some((model) => model.id === stored) ? stored : null)
     return list

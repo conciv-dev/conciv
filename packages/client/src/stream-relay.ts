@@ -7,6 +7,7 @@ export async function* readingValues<T>(readable: ReadableStream<T>): AsyncGener
       yield next.value
     }
   } finally {
+    await reader.cancel()
     reader.releaseLock()
   }
 }
@@ -15,6 +16,7 @@ export function relayedValues<T>(
   subscribe: (emit: (value: T) => void) => () => void,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<T> {
+  const held = {stop: () => {}}
   const readable = new ReadableStream<T>({
     start: (controller) => {
       if (abortSignal?.aborted) {
@@ -22,15 +24,17 @@ export function relayedValues<T>(
         return
       }
       const unsubscribe = subscribe((value) => controller.enqueue(value))
-      abortSignal?.addEventListener(
-        'abort',
-        () => {
-          unsubscribe()
-          controller.close()
-        },
-        {once: true},
-      )
+      const onAbort = () => {
+        unsubscribe()
+        controller.close()
+      }
+      held.stop = () => {
+        abortSignal?.removeEventListener('abort', onAbort)
+        unsubscribe()
+      }
+      abortSignal?.addEventListener('abort', onAbort, {once: true})
     },
+    cancel: () => held.stop(),
   })
   return readingValues(readable)
 }

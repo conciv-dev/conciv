@@ -14,7 +14,7 @@ adapter.ts converts RunArgs into child argv (`--mode`, `--cwd`, `--pattern`, `--
 ## Invariants
 
 - `resolveCli` (`run-child.ts`) resolves `playwright/cli` and then `@playwright/test/cli` from the app's cwd, and otherwise throws 'playwright not found in the app (install @playwright/test)'
-- `runTests`/`runList` (`run-child.ts`) throw `describeMissingReport` when stdout does not start with '{'. The message includes the exit code, the signal and the last 500 characters of stderr and stdout (`OUTPUT_TAIL_LENGTH`).
+- `runTests`/`runList` (`run-child.ts`) throw `describeMissingReport` when the JSON report file does not start with '{'. The message includes the exit code, the signal and the last 500 characters of stderr and stdout (`OUTPUT_TAIL_LENGTH`).
 - `runChild` (`run-child.ts`) catches any error, sends `{type:'error', reason}` and exits with code 1; success exits with code 0
 - Name filtering is passed to the CLI as `-g <name>` (`run-child.ts`)
 - runId is always the fixed string `pw1`, and no `file-end` events are sent (`run-child.ts`)
@@ -24,7 +24,8 @@ adapter.ts converts RunArgs into child argv (`--mode`, `--cwd`, `--pattern`, `--
 
 ## Side Effects
 
-- `runCli` (`run-child.ts`) spawns `node <playwright cli> test ... --reporter=json` in the app's cwd with the full `process.env`. That process launches real browsers.
+- `runCli` (`run-child.ts`) spawns `node <playwright cli> test ... --reporter=json` in the app's cwd with the full `process.env` plus `PLAYWRIGHT_JSON_OUTPUT_FILE` pointing at a temp file, so stdout written by the app's config or by Playwright itself never mixes into the report. The temp directory is removed after the run. That process launches real browsers.
+- `runChild` (`run-child.ts`) handles SIGTERM (the driver's `stop`): it kills the Playwright CLI, waits for it to exit, removes the temp report directory, sends `{type:'error'}` and exits with code 1.
 - `send` (`run-child.ts`) calls `writeSync` on fd 3
 - `runChild` (`run-child.ts`) calls `process.exit`
 

@@ -83,7 +83,9 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
         selectionEnd: offsets.end,
         attachments: draft.attachments,
       })
-      .catch(() => {})
+      .catch((error: unknown) => {
+        console.error('[conciv] could not save the draft', error)
+      })
   }
   const write = new Debouncer(persist, {wait: WRITE_DELAY_MS, enabled: false})
   const cached = () => (cache === null ? null : parseDraft(cache))
@@ -109,7 +111,10 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
       selection = offsets
     },
     restore: async (apply, signal) => {
-      const row = await rpc.drafts.get({sessionId}, {signal}).catch(() => null)
+      const row = await rpc.drafts.get({sessionId}, {signal}).catch((error: unknown) => {
+        if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
+        return null
+      })
       if (signal.aborted) return
       try {
         if (row) apply(serverDraft(row))

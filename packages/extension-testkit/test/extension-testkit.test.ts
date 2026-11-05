@@ -28,7 +28,8 @@ describe('boot server', () => {
   test('boots a real extension server reachable over HTTP', async () => {
     const {apiBase, stop} = await bootExtensionServer(ping)
     try {
-      const models = await makeRpcClient(apiBase).meta.models()
+      const rpc = makeRpcClient(apiBase)
+      const models = await rpc.meta.models({sessionId: (await rpc.sessions.create()).sessionId})
       expect(models.harness.id.length).toBeGreaterThan(0)
     } finally {
       await stop()
@@ -39,7 +40,8 @@ describe('boot server', () => {
     const harness = createFakeHarness({id: 'fake-ext-boot', text: 'ok'})
     const {apiBase, stop} = await bootExtensionServer(ping, {harness})
     try {
-      const models = await makeRpcClient(apiBase).meta.models()
+      const rpc = makeRpcClient(apiBase)
+      const models = await rpc.meta.models({sessionId: (await rpc.sessions.create()).sessionId})
       expect(models.harness.id).toBe('fake-ext-boot')
     } finally {
       await stop()
@@ -185,6 +187,24 @@ describe('core kit seams', () => {
 
       expect(rejected.status).toBe(403)
       expect(accepted.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    }, 30_000)
+
+    it('counts an rpc call once it resolves, and never a preflight or a call to another procedure', async () => {
+      const kit = await bootCoreKit({id: 'seams-rpc-served', staleness: () => STALENESS})
+      state.kit = kit
+      const engine = ['meta', 'engine']
+      const before = kit.rpcServed(engine)
+
+      await kit.rpc.meta.engine()
+      const afterCall = kit.rpcServed(engine)
+      await fetch(`${kit.base}/rpc/meta/engine`, {
+        method: 'OPTIONS',
+        headers: {origin: kit.base, 'access-control-request-method': 'POST'},
+      })
+      await kit.rpc.sessions.list({})
+
+      expect(afterCall).toBe(before + 1)
+      expect(kit.rpcServed(engine)).toBe(before + 1)
     }, 30_000)
   })
 })
