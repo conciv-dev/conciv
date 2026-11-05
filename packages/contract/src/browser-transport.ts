@@ -47,16 +47,19 @@ type ConnectionEntry = BrowserRpcConnection & {state: TrustState}
 
 export type ReachabilityListener = (reachable: boolean) => void
 
-type Registry = Map<string, ConnectionEntry>
-
 declare global {
   // eslint-disable-next-line no-var
-  var __concivBrowserRpcRegistryV3: Registry | undefined
+  var __concivBrowserRpcConnectionV4: ConnectionEntry | undefined
 }
 
-function registry(): Registry {
-  globalThis.__concivBrowserRpcRegistryV3 ??= new Map()
-  return globalThis.__concivBrowserRpcRegistryV3
+function currentEntry(key: string): ConnectionEntry | undefined {
+  const current = globalThis.__concivBrowserRpcConnectionV4
+  return current?.state.key === key ? current : undefined
+}
+
+function replaceEntry(entry: ConnectionEntry | undefined): void {
+  globalThis.__concivBrowserRpcConnectionV4?.close()
+  globalThis.__concivBrowserRpcConnectionV4 = entry
 }
 
 function readStoredToken(key: string): string | undefined {
@@ -276,8 +279,7 @@ function fetchConnection(key: string, state: TrustState): ConnectionEntry {
 
 function connectionEntry(apiBase: string): ConnectionEntry {
   const key = normalizeApiBase(apiBase)
-  const connections = registry()
-  const existing = connections.get(key)
+  const existing = currentEntry(key)
   if (existing) return existing
   const created = fetchConnection(key, {
     key,
@@ -285,7 +287,7 @@ function connectionEntry(apiBase: string): ConnectionEntry {
     token: readStoredToken(key),
     events: new EventTarget(),
   })
-  connections.set(key, created)
+  replaceEntry(created)
   return created
 }
 
@@ -294,21 +296,15 @@ export function browserRpcConnection(apiBase: string): BrowserRpcConnection {
 }
 
 export function closeBrowserRpcConnection(apiBase: string): void {
-  const key = normalizeApiBase(apiBase)
-  const connections = registry()
-  const existing = connections.get(key)
-  if (!existing) return
-  connections.delete(key)
-  existing.close()
+  if (currentEntry(normalizeApiBase(apiBase))) replaceEntry(undefined)
 }
 
 export function resetBrowserRpcConnection(apiBase: string): BrowserRpcConnection {
   const key = normalizeApiBase(apiBase)
-  const existing = registry().get(key)
-  closeBrowserRpcConnection(apiBase)
-  if (!existing) return browserRpcConnection(apiBase)
+  const existing = currentEntry(key)
+  if (!existing) return connectionEntry(apiBase)
   const reset = fetchConnection(key, existing.state)
-  registry().set(key, reset)
+  replaceEntry(reset)
   return reset
 }
 

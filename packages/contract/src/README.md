@@ -2,7 +2,7 @@
 
 ## Overview
 
-Defines the oRPC `contract` router between conciv core and its clients (sessions, drafts, markers, navigation, chat, registry, captures, page, server, editor, meta) and the zod row schemas those procedures use. It also provides two client factories: a plain fetch client and a browser client. The browser client shares one connection per api base through `globalThis` registries, retries after a dropped connection, and reports reachability to subscribers. `index.ts` re-exports `rows.ts`, `contract.ts`, `client.ts` and `browser-transport.ts`.
+Defines the oRPC `contract` router between conciv core and its clients (sessions, drafts, markers, navigation, chat, registry, captures, page, server, editor, meta) and the zod row schemas those procedures use. It also provides two client factories: a plain fetch client and a browser client. The browser client keeps one connection, for the one engine the page talks to, in a `globalThis` slot, retries after a dropped connection, and reports reachability to subscribers. `index.ts` re-exports `rows.ts`, `contract.ts`, `client.ts` and `browser-transport.ts`.
 
 ## Interface
 
@@ -44,7 +44,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Side Effects
 
-- Creates the `globalThis.__concivBrowserRpcRegistryV3` `Map` (connections keyed by normalized api base) on first use, shared across bundle copies (`registry` in `browser-transport.ts`). Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
+- Holds the page's one engine connection in `globalThis.__concivBrowserRpcConnectionV4`, shared across bundle copies (`connectionEntry` in `browser-transport.ts`); asking for a different normalized api base closes the held connection and replaces it, and closing a base clears the slot only when it holds that base. Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
 - HTTP calls to `${apiBase}/rpc` through `RPCLink` (`makeRpcClient` in `client.ts`; `fetchLink` in `browser-transport.ts`).
 - Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) when the context has `concivSessionId` (`sessionHeaders`, `browser-transport.ts`).
 - Reads `location.href` when defined (`normalizeApiBase`).
