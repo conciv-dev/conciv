@@ -717,24 +717,18 @@ export function ledgerCounts(ledger: Ledger | null): LedgerCounts {
 export function watchRows(input: {nodes: TargetNode[]; ledger: Ledger | null}): WatchRow[] {
   return input.nodes.map((node): WatchRow => {
     const entry = input.ledger?.nodes[node.id]
-    const base = {
+    return {
       node: node.id,
       ref: node.ref ?? null,
       kind: node.kind,
       text: node.kind === 'text' ? node.text : null,
       box: node.box,
-    }
-    if (entry === undefined) {
-      return {...base, status: 'unbuilt', key: null, source: null, path: null, confidence: null, item: null}
-    }
-    return {
-      ...base,
-      status: entry.status,
-      key: entry.pair?.fingerprint.key ?? null,
-      source: entry.pair?.fingerprint.source ?? null,
-      path: entry.pair?.path ?? null,
-      confidence: entry.pair?.confidence ?? null,
-      item: entry.item?.sentence ?? null,
+      status: entry?.status ?? 'unbuilt',
+      key: entry?.pair?.fingerprint.key ?? null,
+      source: entry?.pair?.fingerprint.source ?? null,
+      path: entry?.pair?.path ?? null,
+      confidence: entry?.pair?.confidence ?? null,
+      item: entry?.item?.sentence ?? null,
     }
   })
 }
