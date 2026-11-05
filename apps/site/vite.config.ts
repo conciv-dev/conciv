@@ -26,6 +26,9 @@ export default defineConfig({
   server: {
     port: 3001,
   },
+  preview: {
+    host: '127.0.0.1',
+  },
   plugins: [
     sourceAnnotations(import.meta.dirname),
     dropOnnxRuntimeWasmFromServerBundle(),

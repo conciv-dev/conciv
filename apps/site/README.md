@@ -22,7 +22,7 @@ Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on pus
 
 ## Interface
 
-- `vite.config.ts`: plugins `sourceAnnotations`, `dropOnnxRuntimeWasmFromServerBundle`, `cloudflare({viteEnvironment: {name: 'ssr'}})`, `mdx`, `tailwindcss`, `tanstackStart({prerender: {enabled: true}})`, `react`, `conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}})`; dev port 3001
+- `vite.config.ts`: plugins `sourceAnnotations`, `dropOnnxRuntimeWasmFromServerBundle`, `cloudflare({viteEnvironment: {name: 'ssr'}})`, `mdx`, `tailwindcss`, `tanstackStart({prerender: {enabled: true}})`, `react`, `conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}})`; dev port 3001; preview (and so the build-time prerender) binds `127.0.0.1`
 - `source.config.ts`: `docs = defineDocs({dir: 'content/docs'})` with `remarkMdxMermaid`
 - `wrangler.jsonc`: Worker `conciv-site` on `conciv.dev` and `www.conciv.dev`, `ASSETS` binding, `preview` env `conciv-site-preview`
 - `brand-assets-alias.ts`: `brandAssetsAlias` maps `@brand-assets` to the `@conciv/brand` package directory
