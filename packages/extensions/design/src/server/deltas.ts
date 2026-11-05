@@ -1,24 +1,31 @@
 import {median, omit, zip} from 'es-toolkit'
-import {CONFUSABLES, iconSized, kindStage, kindTolerance, TOLERANCES} from '../shared/tolerances.js'
-import type {Decision, Deltas, DesignNode, Geometry, Match, Shift, Sides, Stage} from '../shared/defs.js'
-import type {
-  Box,
-  ColorMetric,
-  Delta,
-  DeltaKind,
-  DesignTree,
-  Element,
-  ItemKind,
-  LiveComponent,
-  LiveRole,
-  LiveText,
-  LiveTextReader,
-  MeasureSource,
-  Raster,
-  Reuse,
-  Role,
-  TextJudgement,
-} from '../shared/types.js'
+import {iconSized, kindStage, kindTolerance, TOLERANCES} from '../shared/tolerances.js'
+import {
+  type Box,
+  type ColorMetric,
+  type Decision,
+  type Delta,
+  type DeltaKind,
+  type Deltas,
+  type DesignNode,
+  type DesignTree,
+  type Element,
+  type Geometry,
+  type ItemKind,
+  type LiveComponent,
+  type LiveRole,
+  type LiveText,
+  type LiveTextReader,
+  type Match,
+  type MeasureSource,
+  type Raster,
+  type Reuse,
+  type Role,
+  type Shift,
+  type Sides,
+  type Stage,
+  type TextJudgement,
+} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import {encloses, expand, readingOrder, union} from '../shared/box.js'
 
@@ -475,3 +482,21 @@ function rounded(mismatch: number): number {
 }
 
 const MISMATCH_PRECISION = 10_000
+
+const CONFUSABLES: Record<string, string> = {
+  '›': '>',
+  '»': '>',
+  '‹': '<',
+  '«': '<',
+  '—': '-',
+  '–': '-',
+  '“': '"',
+  '”': '"',
+  '„': '"',
+  '‘': "'",
+  '’': "'",
+  '…': '...',
+  '×': 'x',
+  '•': '-',
+  '·': '-',
+}

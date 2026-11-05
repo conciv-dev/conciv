@@ -1,9 +1,8 @@
 import {setTimeout as delay} from 'node:timers/promises'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {isSessionId, type SessionId} from '@conciv/protocol/chat-types'
-import type {Store} from '../shared/defs.js'
+import {type DesignPage, type Store} from '../shared/defs.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {DesignPage} from '../shared/types.js'
 
 export function watchSettled(input: {
   bundler: BundlerBridge | undefined

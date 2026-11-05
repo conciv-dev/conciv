@@ -1,7 +1,15 @@
 import {median} from 'es-toolkit'
 import {SOURCE_ATTR, type Tolerances} from '../shared/tolerances.js'
-import type {Box, Fingerprint, LiveComponent, Raster} from '../shared/types.js'
-import type {Geometry, Match, Offset, Shift} from '../shared/defs.js'
+import {
+  type Box,
+  type Fingerprint,
+  type Geometry,
+  type LiveComponent,
+  type Match,
+  type Offset,
+  type Raster,
+  type Shift,
+} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import {fnv, trimToInk} from './raster.js'
 import {centre, nearestLine, union} from '../shared/box.js'

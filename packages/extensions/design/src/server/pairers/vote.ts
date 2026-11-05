@@ -1,18 +1,20 @@
 import {groupBy, intersection, median, minBy, omit, partition, words} from 'es-toolkit'
 import {parse} from 'culori'
 import {TOLERANCES, type Tolerances} from '../../shared/tolerances.js'
-import type {Box, Fingerprint, LiveComponent} from '../../shared/types.js'
-import type {
-  Decision,
-  DesignNode,
-  Geometry,
-  Match,
-  Pairer,
-  Similarity,
-  Voter,
-  VoteContext,
-  VoterName,
-  VoteView,
+import {
+  type Box,
+  type Decision,
+  type DesignNode,
+  type Fingerprint,
+  type Geometry,
+  type LiveComponent,
+  type Match,
+  type Pairer,
+  type Similarity,
+  type VoteContext,
+  type VoteView,
+  type Voter,
+  type VoterName,
 } from '../../shared/defs.js'
 import {walk} from '../../shared/tree.js'
 import {type Rgb} from '../raster.js'

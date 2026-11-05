@@ -1,5 +1,5 @@
 import {TOLERANCES} from './tolerances.js'
-import type {Box} from './types.js'
+import type {Box} from './defs.js'
 
 export function union(boxes: Box[]): Box {
   const x = Math.min(...boxes.map((box) => box.x))

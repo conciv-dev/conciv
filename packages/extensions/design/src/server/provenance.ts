@@ -19,26 +19,22 @@ import {
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
-  winnerDef,
-  WinnerResultSchema,
   type ComponentReport,
+  type Delta,
   type DeltaKindName,
+  type Element,
+  type LiveComponent,
+  type LiveRole,
+  type LiveText,
+  type Provenance,
   type Provenancer,
+  type SourceLoc,
+  type Winner,
+  winnerDef,
   type WinnerResult,
+  WinnerResultSchema,
 } from '../shared/defs.js'
-import {declares, LIBRARY_SHEET_MARKER} from '../shared/tolerances.js'
-import type {
-  CssMap,
-  Delta,
-  Element,
-  LiveComponent,
-  LiveRole,
-  LiveText,
-  Provenance,
-  ProvenanceMapper,
-  SourceLoc,
-  Winner,
-} from '../shared/types.js'
+import {propertyAliases} from '../shared/tolerances.js'
 
 export function createProvenance(input: {
   project: Storage
@@ -793,4 +789,33 @@ async function readText(input: {project: Storage; file: string}): Promise<string
 
 function located(input: {site: Site; offset: number}): {line: number; column: number} {
   return positionAt({code: input.site.code, offset: input.offset})
+}
+
+type ProvenanceMapper = {
+  via: Provenance['via']
+  applies(input: {winner: Winner; component: LiveComponent}): boolean
+  map(input: {
+    winner: Winner
+    component: LiveComponent
+    property: string
+    target: number | string
+    cwd: string
+    project: Storage
+    cssMap: CssMap
+  }): Promise<Provenance>
+}
+
+type CssMap = {
+  find(input: {
+    selector: string
+    property: string
+  }): {file: string; line: number; column: number; declaration: string} | null
+}
+
+const LIBRARY_SHEET_MARKER = '/node_modules/'
+
+function declares(input: {declared: string; property: string}): boolean {
+  return propertyAliases(input.property).some(
+    (alias) => alias === input.declared || alias.startsWith(`${input.declared}-`),
+  )
 }

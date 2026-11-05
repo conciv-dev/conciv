@@ -1,20 +1,22 @@
 import {minBy} from 'es-toolkit'
 import {isOpaqueHex, TOLERANCES} from '../shared/tolerances.js'
-import type {DesignNode, Shift, Sides} from '../shared/defs.js'
-import type {
-  Box,
-  ColorMetric,
-  Delta,
-  DeltaKind,
-  Element,
-  Flow,
-  LiveBorder,
-  LiveComponent,
-  LiveStyles,
-  MatchNode,
-  Raster,
-  Side,
-} from '../shared/types.js'
+import {
+  type Box,
+  type ColorMetric,
+  type Delta,
+  type DeltaKind,
+  type DesignNode,
+  type Element,
+  type Flow,
+  type LiveBorder,
+  type LiveComponent,
+  type LiveStyles,
+  type MatchNode,
+  type Raster,
+  type Shift,
+  type Side,
+  type Sides,
+} from '../shared/defs.js'
 import {boundsOf, bottomEdge, rightEdge} from '../shared/box.js'
 import {crop, medianColor, sampledFills} from './raster.js'
 

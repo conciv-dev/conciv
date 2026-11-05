@@ -6,7 +6,7 @@ import type {Storage} from 'unstorage'
 import {differenceCiede2000, parse} from 'culori'
 import {toolError} from '@conciv/extension'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Box, ColorMetric, PixelComparator, Raster} from '../shared/types.js'
+import type {Box, ColorMetric, PixelComparator, Raster} from '../shared/defs.js'
 
 const EDGE_THRESHOLD = 48
 const MINIMUM_TRIM_SIDE = 2

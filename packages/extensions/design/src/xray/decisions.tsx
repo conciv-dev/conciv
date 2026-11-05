@@ -6,6 +6,7 @@ import type {makeExtRpcClient} from '@conciv/extension'
 import {
   MARK_KINDS,
   STAGES,
+  type Box,
   type Decision,
   type DesignNode,
   type DiffReport,
@@ -14,7 +15,6 @@ import {
   type TargetRecord,
 } from '../shared/defs.js'
 import {find, walk} from '../shared/tree.js'
-import type {Box} from '../shared/types.js'
 import type {XrayRouter} from '../server.js'
 import {nodeName, RadioChip, type Row, type RowGroup, type XrayData} from './panel.js'
 

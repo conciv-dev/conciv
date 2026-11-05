@@ -1,7 +1,16 @@
 import {z} from 'zod'
-import type {ComponentReport, DeltaKindName, DiffReport, Match, Stage, Typography} from './defs.js'
+import {
+  type Box,
+  type ComponentReport,
+  type Delta,
+  type DeltaKindName,
+  type DiffReport,
+  type ItemKind,
+  type Match,
+  type Stage,
+  type Typography,
+} from './defs.js'
 import {uniqBy} from 'es-toolkit'
-import type {Box, Delta, ItemKind} from './types.js'
 
 export const TOLERANCES = {
   geometryPx: 2,
@@ -73,26 +82,6 @@ export const TOLERANCES = {
 
 export type Tolerances = typeof TOLERANCES
 
-export const CONFUSABLES: Record<string, string> = {
-  '›': '>',
-  '»': '>',
-  '‹': '<',
-  '«': '<',
-  '—': '-',
-  '–': '-',
-  '“': '"',
-  '”': '"',
-  '„': '"',
-  '‘': "'",
-  '’': "'",
-  '…': '...',
-  '×': 'x',
-  '•': '-',
-  '·': '-',
-}
-
-export const LIBRARY_SHEET_MARKER = '/node_modules/'
-
 export const designConfig = z.object({
   comparator: z.enum(['blazediff', 'pixelmatch']).default('blazediff'),
   color: z.enum(['ciede2000']).default('ciede2000'),
@@ -107,7 +96,7 @@ export const designConfig = z.object({
 export type DesignConfig = z.output<typeof designConfig>
 
 export const SOURCE_ATTR = 'data-conciv-source'
-export const KEY_ATTR = 'data-conciv-key'
+
 export const PLACEHOLDER_ATTR = 'data-conciv-placeholder'
 export const PANE_ATTR = 'data-conciv-design-pane'
 
@@ -188,12 +177,6 @@ export function propertyAliases(property: string): string[] {
     swapSide({property, from: logical, to: physical}),
   ])
   return [property, ...swapped.filter((alias) => alias !== null)]
-}
-
-export function declares(input: {declared: string; property: string}): boolean {
-  return propertyAliases(input.property).some(
-    (alias) => alias === input.declared || alias.startsWith(`${input.declared}-`),
-  )
 }
 
 export function componentAboveTolerance(component: Pick<ComponentReport, 'deltas' | 'mismatch'>): boolean {

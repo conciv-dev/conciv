@@ -6,8 +6,7 @@ import fsDriver from 'unstorage/drivers/fs'
 import {defineExtension} from '@conciv/extension'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {designConfig, TOLERANCES} from './shared/tolerances.js'
-import {BLIND_GUIDE, DESIGN_EXTENSION_NAME, DESIGN_GUIDE} from './shared/defs.js'
-import type {DesignRuntime} from './shared/types.js'
+import {DESIGN_EXTENSION_NAME, DESIGN_GUIDE, type DesignRuntime} from './shared/defs.js'
 import {COLOR_METRICS, PIXEL_COMPARATORS} from './server/raster.js'
 import {createFigmaAdapter} from './server/sources/figma.js'
 import {createImageAdapter, destroyPaddle, ROLE_RULES, SEGMENTERS, TEXT_READERS} from './server/sources/image.js'
@@ -25,6 +24,8 @@ import {createDeltas} from './server/deltas.js'
 import {createPixels} from './server/pixels.js'
 import {createMeasurer} from './server/measure.js'
 import {createJudge} from './server/judge.js'
+import {createCssDesigns} from './server/css.js'
+import {createProjections} from './server/status.js'
 import {createProvenance} from './server/provenance.js'
 import {createRegistrar} from './server/register.js'
 import {createTwins} from './server/twins.js'
@@ -64,6 +65,18 @@ export const design = defineExtension({
     liveText: provenance.liveText,
   })
   const measurer = createMeasurer({color: comparators.color})
+  const judge = createJudge({ranker, words: WORDS, deltas, color: comparators.color})
+  const css = createCssDesigns({store, words: WORDS})
+  const registrar = createRegistrar({
+    adapters: [
+      createImageAdapter({reader: comparators.text, segmenter: SEGMENTERS[config.segmenter], roles}),
+      createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, roles}),
+    ],
+    store,
+    measurer,
+    project,
+    cwd: server.cwd,
+  })
   const runtime: DesignRuntime = {
     cwd: server.cwd,
     blind: config.blind,
@@ -79,18 +92,11 @@ export const design = defineExtension({
     geometry,
     twins: createTwins({store}),
     measurer,
-    judge: createJudge({ranker, words: WORDS, deltas, color: comparators.color}),
+    judge,
     provenance,
-    registrar: createRegistrar({
-      adapters: [
-        createImageAdapter({reader: comparators.text, segmenter: SEGMENTERS[config.segmenter], roles}),
-        createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, roles}),
-      ],
-      store,
-      measurer,
-      project,
-      cwd: server.cwd,
-    }),
+    registrar,
+    css,
+    projections: createProjections({cwd: server.cwd, store, judge, css, registrar}),
     xrayUrl: ({id, session}) => {
       const origin = server.nativeUrl()
       const query = `target=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`
@@ -161,3 +167,5 @@ function sourceChanges(bundler: BundlerBridge | undefined): {
   })
   return {sourceChangedAt: () => last.at, dispose: unsubscribe ?? (() => {})}
 }
+
+const BLIND_GUIDE = "Never open a png or take a screenshot; the tool's numbers are the only view of the page you have."

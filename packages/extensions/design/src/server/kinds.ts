@@ -1,5 +1,5 @@
 import {leadingFamily, sameFamily, TOLERANCES} from '../shared/tolerances.js'
-import type {Box, ColorMetric, Delta, DeltaKind, Gradient, LiveStyles, Side} from '../shared/types.js'
+import type {Box, ColorMetric, Delta, DeltaKind, Gradient, LiveStyles, Side} from '../shared/defs.js'
 import {boundsOf, bottomEdge, rightEdge} from '../shared/box.js'
 
 export function createKinds(): DeltaKind[] {

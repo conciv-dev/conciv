@@ -5,32 +5,29 @@ import {isPageVerbError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {
+  BoxSchema,
   GlyphSchema,
   LiveStylesSchema,
-  measureDef,
   MeasureResultSchema,
   OpinionSchema,
-  renderDef,
+  PLACEHOLDER_KINDS,
   RenderResultSchema,
   SourceLocSchema,
-  BoxSchema,
-  type Measurer,
-  type Typography,
-} from '../shared/defs.js'
-import {sameFamily, TOLERANCES} from '../shared/tolerances.js'
-import {
-  PLACEHOLDER_KINDS,
+  measureDef,
+  renderDef,
   type Box,
   type ColorMetric,
   type LiveCapture,
   type LiveComponent,
   type MatchText,
   type MeasureSource,
+  type Measurer,
   type Raster,
   type Reuse,
-  type TextGroup,
   type TextRun,
-} from '../shared/types.js'
+  type Typography,
+} from '../shared/defs.js'
+import {sameFamily, TOLERANCES} from '../shared/tolerances.js'
 import {expand, intersection, overlapping, sameLine, union} from '../shared/box.js'
 import {crop, decodePng, labelRegions, rgbAt, rgbDistance, sampledFills, trimToInk, type Rgb} from './raster.js'
 
@@ -528,4 +525,13 @@ function weightBy(input: {ratio: number; live: number}): number {
   if (input.ratio >= TOLERANCES.boldCoverage) return BOLD_WEIGHT
   if (input.ratio <= TOLERANCES.regularCoverage) return REGULAR_WEIGHT
   return input.live
+}
+
+type TextGroup = {
+  live: Box[]
+  target: Box[]
+  liveText: string
+  targetText: string
+  agrees: boolean
+  owner: LiveComponent
 }

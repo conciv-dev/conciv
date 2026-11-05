@@ -4,13 +4,14 @@ import {z} from 'zod'
 import {
   DESIGN_ERRORS,
   type Attachments,
+  type Box,
   type ContainerLayout,
   type Design,
   type DesignNode,
   type NodeLayout,
+  type RoleRules,
   type TargetAdapter,
 } from '../../shared/defs.js'
-import type {Box, RoleRules} from '../../shared/types.js'
 import {hex} from '../raster.js'
 import {inferLayout} from './layout.js'
 

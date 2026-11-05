@@ -1,26 +1,27 @@
 import {omit, pick} from 'es-toolkit'
-import type {AnyToolBuilder} from '@conciv/extension'
+import type {AnyToolBuilder, ToolRequest} from '@conciv/extension'
+import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {
-  BLIND_FIELDS,
   captureDef,
+  type CaptureInput,
+  type CaptureResult,
   clearDef,
+  type ClearInput,
+  type ClearResult,
+  type CompactReport,
+  type DesignRuntime,
   diffDef,
+  type Differ,
+  type DiffReport,
   statusDef,
   targetDef,
   watchDef,
   winnerDef,
-  WinnerResultSchema,
-  type CaptureInput,
-  type CaptureResult,
-  type ClearInput,
-  type ClearResult,
-  type CompactReport,
-  type DiffReport,
   type WinnerInput,
   type WinnerResult,
+  WinnerResultSchema,
 } from '../shared/defs.js'
 import {iconSized} from '../shared/tolerances.js'
-import type {DesignContext, ServerStep} from '../shared/types.js'
 import {encodePng} from './raster.js'
 
 export const SERVER_STEPS = [
@@ -117,3 +118,14 @@ const COMPACT_FIELDS = [
   'designPath',
   'placeholderPath',
 ] as const satisfies readonly (keyof CompactReport & keyof DiffReport)[]
+
+const BLIND_FIELDS = ['livePath', 'diffImage', 'capturePath'] as const
+
+type ServerStep<Input, Output> = (
+  input: Input,
+  ctx: DesignContext,
+  request: ToolRequest,
+  page: ServerToolPageAccess,
+) => Promise<Output>
+
+type DesignContext = {design: DesignRuntime; differ: Differ}

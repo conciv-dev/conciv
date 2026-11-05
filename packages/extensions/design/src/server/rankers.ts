@@ -1,5 +1,4 @@
-import type {Ranker} from '../shared/defs.js'
-import type {Item} from '../shared/types.js'
+import {type Item, type Ranker} from '../shared/defs.js'
 
 export function createRanker(): Ranker {
   return impactRanker

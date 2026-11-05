@@ -2,53 +2,25 @@ import {z} from 'zod'
 import type {Storage} from 'unstorage'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {ToolIconKey} from '@conciv/protocol/tool-icon-types'
+import type {ServerApi} from '@conciv/extension'
+import type {SessionId} from '@conciv/protocol/chat-types'
+import type {DesignConfig} from './tolerances.js'
 import {defineTool, type ToolBuilder, type ToolErrors} from '@conciv/extension/tool'
-import {
-  PLACEHOLDER_KINDS,
-  ROLES,
-  type Box,
-  type CapturePath,
-  type Clock,
-  type Comparators,
-  type Delta,
-  type DeltaKind,
-  type DesignSection,
-  type DesignTree,
-  type Element,
-  type Fingerprint,
-  type Framework,
-  type Grid,
-  type Item,
-  type LiveCapture,
-  type LiveComponent,
-  type LiveTextReader,
-  type MatchText,
-  type Measured,
-  type MeasureSource,
-  type Raster,
-  type Reuse,
-  type ScoredTile,
-  type TextJudgement,
-  type TextRun,
-  type TileCache,
-  type Unmatched,
-} from './types.js'
+
+const ROLES = ['placeholder', 'data', 'unknown'] as const
+export type Role = (typeof ROLES)[number]
+export const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 
 export const DESIGN_EXTENSION_NAME = 'design'
 
-export const DESIGN_TOOL_PREFIX = 'design_'
+const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_GUIDE =
   "A design target is registered. Call `design_diff` to measure the live page against it, fix the brief, run it again, and stop when `stop` is set. Do not judge a design match from a screenshot. The brief names rows, columns, gaps and sizing rules; build with flow, flex and grid, never from coordinates. Never draw icons, logos or illustrations: no inline <svg> paths, no data urls, no CSS shapes copied from the image; every image and icon slot takes the Placeholder. Gradients are CSS. `data-conciv-key` attributes are written into the source by the compiler and are each element's identity for the diff: leave them in place, keep an element's key on it when you move or wrap it, and never copy one onto a second element."
 
-export const BLIND_GUIDE =
-  "Never open a png or take a screenshot; the tool's numbers are the only view of the page you have."
-
-export const BLIND_FIELDS = ['livePath', 'diffImage', 'capturePath'] as const
-
 export const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
 export const MARK_KINDS = ['excluded', 'image-slot', 'accept-delta', 'tolerance', 'accept-node'] as const
-export const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
+export const UNANSWERED_HINT = 'the page tab is hidden; bring it to the foreground and run design_diff again'
 
 export function designVerb(name: string): string {
   if (!name.startsWith(DESIGN_TOOL_PREFIX)) throw new Error(`"${name}" is not a design tool`)
@@ -86,13 +58,11 @@ export const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
 
 export type Stage = (typeof STAGES)[number]
 
-export const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
+const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
 
 export type NodeStatus = (typeof NODE_STATUSES)[number]
 
 export const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
-
-export type Stop = (typeof STOPS)[number]
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
@@ -134,7 +104,7 @@ const RowRunSchema = z
   })
   .describe('children of a column or stack that sit on one line, in reading order')
 
-export const ContainerLayoutSchema = z.object({
+const ContainerLayoutSchema = z.object({
   direction: DirectionSchema,
   gap: GapSchema,
   align: AlignSchema.describe('on the cross axis'),
@@ -143,7 +113,7 @@ export const ContainerLayoutSchema = z.object({
   runs: z.array(RowRunSchema),
 })
 
-export const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
+const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
   size: SizeSchema.describe('on the direction axis of the parent'),
   index: z.number().describe('1-based position among the parent children in reading order'),
 })
@@ -182,6 +152,8 @@ export const LiveStylesSchema = z.object({
 })
 
 export const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
+
+export type Glyph = z.output<typeof GlyphSchema>
 
 export const OpinionSchema = z
   .object({box: BoxSchema, confidence: z.number()})
@@ -240,7 +212,9 @@ const ProvenanceSchema = z.object({
   suggest: z.string().optional(),
 })
 
-export const DeltaSchema = ProvenanceSchema.partial().extend({
+export type Provenance = z.output<typeof ProvenanceSchema>
+
+const DeltaSchema = ProvenanceSchema.partial().extend({
   kind: DeltaKindNameSchema,
   side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
   live: z.union([z.number(), z.string()]),
@@ -275,10 +249,14 @@ const TypographySchema = z.object({
 
 const BorderSchema = z.object({width: z.number(), color: z.string()})
 
+export type Border = z.infer<typeof BorderSchema>
+
 const PaintSchema = z.object({
   background: z.string(),
   gradient: z.object({from: z.string(), to: z.string(), axis: z.enum(['vertical', 'horizontal'])}).optional(),
 })
+
+export type Paint = z.infer<typeof PaintSchema>
 
 const DesignNodeKindSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -304,7 +282,7 @@ const DesignNodeBaseSchema = z.object({
   layout: NodeLayoutSchema.partial().optional(),
 })
 
-export const DesignNodeSchema = DesignNodeBaseSchema.extend({
+const DesignNodeSchema = DesignNodeBaseSchema.extend({
   get children() {
     return z.array(DesignNodeSchema)
   },
@@ -318,7 +296,7 @@ export const DesignSchema = z.object({
   root: DesignNodeSchema,
 })
 
-export const MatchSchema = z.object({
+const MatchSchema = z.object({
   node: DesignNodeBaseSchema.and(DesignNodeKindSchema),
   live: LiveComponentSchema.omit({children: true}).nullable().describe('null when the node is unbuilt'),
   confidence: z.number(),
@@ -342,12 +320,12 @@ export const RunSchema = z.object({
   images: z.object({live: z.string(), diff: z.string()}),
 })
 
-export const AttachmentsSchema = z.object({
+const AttachmentsSchema = z.object({
   document: z.unknown().optional(),
   image: z.instanceof(Uint8Array).optional(),
 })
 
-export const DECISION_KINDS = [
+const DECISION_KINDS = [
   'pin',
   'excluded',
   'image-slot',
@@ -380,17 +358,14 @@ export const TargetRecordSchema = z.object({
 
 export type OcrLine = z.infer<typeof OcrLineSchema>
 export type Typography = z.infer<typeof TypographySchema>
-export type TypographyInput = z.input<typeof TypographySchema>
-export type Border = z.infer<typeof BorderSchema>
-export type Paint = z.infer<typeof PaintSchema>
-export type DesignGradient = NonNullable<Paint['gradient']>
+
 export type DesignNode = z.infer<typeof DesignNodeSchema>
 export type Design = z.infer<typeof DesignSchema>
 export type Match = z.infer<typeof MatchSchema>
 export type Run = z.infer<typeof RunSchema>
 export type Attachments = z.infer<typeof AttachmentsSchema>
 export type Decision = z.infer<typeof DecisionSchema>
-export type DecisionKind = Decision['kind']
+type DecisionKind = Decision['kind']
 export type TargetRecord = z.infer<typeof TargetRecordSchema>
 
 export type Pairer = (input: {
@@ -660,7 +635,7 @@ export type TargetAdapter = {
   load(input: {ref: string; scale: number; project: Storage; attachments: Attachments}): Promise<Loaded>
 }
 
-export type Loaded = {design: Design; image: Uint8Array; warnings: string[]}
+type Loaded = {design: Design; image: Uint8Array; warnings: string[]}
 
 export type Store = {
   put(input: {design: Design; image: Uint8Array; session: string; route?: string; name?: string}): Promise<TargetRecord>
@@ -672,6 +647,7 @@ export type Store = {
   list(route?: string): Promise<TargetRecord[]>
   remove(input: {id?: string; all?: boolean}): Promise<number>
   runs(id: string): Promise<string[]>
+  latest(id: string): Promise<Run | null>
   run(input: {id: string; run: string}): Promise<Run | null>
   writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<Run>
   writePlaceholder(input: {id: string; framework: Framework}): Promise<void>
@@ -835,7 +811,7 @@ const RowSchema = z.object({
   crop: CropSchema.optional(),
 })
 
-export const FingerprintSchema = z.object({
+const FingerprintSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable().default(null),
   instance: z.string().nullable().default(null),
@@ -845,27 +821,7 @@ export const FingerprintSchema = z.object({
   box: BoxSchema,
 })
 
-const LedgerEntrySchema = z.object({
-  status: z.enum(NODE_STATUSES),
-  since: z.string().describe('the run the status was reached in'),
-  pair: z
-    .object({path: z.string(), fingerprint: FingerprintSchema, confidence: z.number(), run: z.string()})
-    .nullable()
-    .describe('the last known live pairing, kept after the element is gone until a new pair replaces it'),
-  item: z
-    .object({stage: z.enum(STAGES), size: z.number(), sentence: z.string()})
-    .nullable()
-    .describe('the worst current item of the node'),
-})
-
-export const LedgerSchema = z.object({
-  run: z.string().describe('the run that wrote the ledger'),
-  round: z.number().describe('the round of that run'),
-  nodes: z.record(z.string(), LedgerEntrySchema),
-})
-
-export type Ledger = z.infer<typeof LedgerSchema>
-export type LedgerEntry = z.infer<typeof LedgerEntrySchema>
+export type Fingerprint = z.output<typeof FingerprintSchema>
 
 const LedgerCountsSchema = z
   .object({unbuilt: z.number(), paired: z.number(), done: z.number(), regressed: z.number(), accepted: z.number()})
@@ -1180,6 +1136,8 @@ const WatchRowSchema = z.object({
   item: z.string().nullable().describe('the worst open item of the node, as a sentence'),
 })
 
+export type WatchRow = z.infer<typeof WatchRowSchema>
+
 export const WatchReportSchema = z.object({
   target: z.string(),
   run: z.string().nullable().describe('the run the mapping comes from; null before the first run'),
@@ -1188,7 +1146,7 @@ export const WatchReportSchema = z.object({
   rows: z.array(WatchRowSchema),
   truncated: z.number().describe('rows left out by limit'),
 })
-export type WatchRow = z.infer<typeof WatchRowSchema>
+
 export type WatchReport = z.infer<typeof WatchReportSchema>
 export type WatchInput = z.output<typeof WatchInputSchema>
 
@@ -1418,3 +1376,242 @@ export type StatusReport = z.infer<typeof StatusReportSchema>
 export type CaptureResult = Omit<z.infer<typeof CaptureResultSchema>, 'components'> & {components: LiveComponent[]}
 export type WinnerResult = z.infer<typeof WinnerResultSchema>
 export type ClearResult = z.infer<typeof ClearResultSchema>
+
+export type LiveRole = 'literal' | 'expression' | 'mixed'
+
+export type Box = z.output<typeof BoxSchema>
+export type Raster = {width: number; height: number; data: Uint8Array}
+export type SourceLoc = z.output<typeof SourceLocSchema>
+
+export type Gradient = {from: string; to: string}
+
+export type RoleRules = (input: {text: string; neighbours: string[]}) => {role: Role; confidence: number}
+
+export type LiveBorder = {width: number; style: string; color: string; side: 'top' | 'right' | 'bottom' | 'left'}
+export type LiveStyles = z.output<typeof LiveStylesSchema>
+export type LiveComponent = Omit<z.output<typeof LiveComponentSchema>, 'children'> & {children: LiveComponent[]}
+export type CapturePath = z.output<typeof CapturePathSchema>
+export type MeasureSource = z.output<typeof MeasureSourceSchema>
+export type MirrorLimits = z.output<typeof MirrorLimitsSchema>
+export type LiveCapture = {
+  raster: Raster
+  viewport: {width: number; height: number}
+  route: string
+  components: LiveComponent[]
+  capturePath: CapturePath
+  source: MeasureSource
+  masks: Box[]
+  limits?: MirrorLimits
+  opinion: boolean
+  framework: Framework | null
+}
+export type Framework = 'react' | 'solid'
+
+export type PixelComparator = {
+  name: string
+  compare(input: {a: Raster; b: Raster}): {mismatch: number; mask: Uint8Array; score?: number}
+}
+export type ColorMetric = {name: string; distance(input: {a: string; b: string}): number}
+export type TextRun = {box: Box; text: string}
+
+export type TextReader = {name: string; read(input: {raster: Raster}): Promise<OcrLine[]>}
+type Comparators = {
+  pixel: PixelComparator
+  color: ColorMetric
+  text: TextReader
+}
+
+export type TileRecord = {hash: string; mismatch: number; mask?: string}
+export type TileCache = {
+  side: number
+  columns: number
+  rows: number
+  width: number
+  height: number
+  tiles: TileRecord[]
+}
+export type ItemKind = DeltaKindName | 'unbuilt' | 'extra' | 'offset'
+export type Item = {
+  key: string
+  kind: ItemKind
+  stage: Stage | null
+  size: number
+  confidence: number
+  box: Box
+  depth: number
+  value: number | string
+  sentence: string
+  node?: string
+  source?: SourceLoc
+}
+export type Flow = 'row' | 'column'
+export type Side = {
+  kind: DesignNode['kind']
+  box: Box
+  parent: Box | null
+  prev: Box | null
+  next: Box | null
+  axis: 'row' | 'column' | null
+  flow: Flow | null
+  columns: number | null
+  textBox: Box | null
+  ink: Box | null
+  lines: number | null
+  edge: string | null
+  radius: number | null
+  padding: ContainerLayout['padding'] | null
+  size: NodeLayout['size'] | null
+  styles: Partial<LiveStyles>
+}
+export type Delta = z.output<typeof DeltaSchema>
+export type DeltaKind = {
+  kind: DeltaKindName
+  measure(input: {live: Side; target: Side; color: ColorMetric}): Delta[]
+  read?(side: Side): number | string | null
+}
+export type Unmatched = DiffReport['unmatched'][number]
+
+export type MatchNode = Match['node']
+export type MatchText = Extract<MatchNode, {kind: 'text'}>
+export type DesignTree = {
+  root: DesignNode
+  nodes: DesignNode[]
+  byId: Map<string, DesignNode>
+  parents: Map<string, DesignNode>
+  children(id: string | undefined): DesignNode[]
+  descendants(id: string): DesignNode[]
+  placement(node: DesignNode): Seat | null
+}
+
+export type Seat = {direction: ContainerLayout['direction']; index: number; parent: DesignNode | null}
+export type DesignSection = {id: string; kind: DesignNode['kind']; line: string; box: Box; nodes: string[]}
+export type Element = {
+  match: Match
+  live: LiveComponent
+  node: MatchNode
+  texts: MatchText[]
+  source: MeasureSource
+  confidence: number
+  selector: string
+  liveBox: Box
+  targetBox: Box
+  mismatch: number
+  depth: number
+  parent: Element | null
+  host: {selector: string; live: LiveComponent} | null
+  prev: Element | null
+  next: Element | null
+}
+export type Measured = {element: Element; deltas: Delta[]}
+export type Reuse = {textMasks: Map<string, Box[]>; measures: Map<string, Delta[]>; unchanged: (box: Box) => boolean}
+export type LiveText = {role: LiveRole; literals: string[]}
+export type LiveTextReader = (source: SourceLoc | null) => Promise<LiveText | null>
+export type TextJudgement = {verdict: 'text' | 'sample-data' | null; live: string; target: string}
+export type Grid = {side: number; columns: number; rows: number; width: number; height: number}
+export type ScoredTile = {box: Box; similarity: number}
+export type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
+export type Clock = {
+  lap: (phase: Phase) => void
+  skip: () => void
+  timings: () => Omit<DiffReport['timings'], 'carried' | 'longestTask'>
+}
+export type Css = {design: Design; tree: DesignTree; raster: Raster; dropped: Box[]}
+
+export type Winner = z.output<typeof WinnerSchema>
+export type DesignRuntime = {
+  cwd: string
+  state: Storage
+  project: Storage
+  blind: boolean
+  store: Store
+  comparators: Comparators
+  pairer: Pairer
+  ranker: Ranker
+  words: Words
+  deltas: Deltas
+  pixels: Pixels
+  geometry: Geometry
+  twins: Twins
+  measurer: Measurer
+  judge: Judge
+  provenance: Provenancer
+  registrar: Registrar
+  css: CssDesigns
+  projections: Projections
+  xrayUrl: (input: {id: string; session: string}) => XrayLink
+}
+
+export type XrayLink = {url: string; absolute: boolean}
+
+export type CssDesigns = {
+  load(input: {id: string; decisions: Decision[]}): Promise<Css>
+  sections(tree: DesignTree): DesignSection[]
+}
+
+export type Fresh = {
+  job: RunJob
+  record: TargetRecord
+  page: ServerToolPageAccess
+  css: Css
+  decisions: Decision[]
+  measured: Awaited<ReturnType<Measurer['measure']>>
+  capture: string
+  rounds: Round[]
+  settled: Settled | undefined
+  xray: XrayLink
+  clock: Clock
+}
+
+export type Runner = {
+  fresh(input: Fresh): Promise<{report: DiffReport; settled: Settled; round: Round | null}>
+}
+
+export type Settled = {
+  grid: Grid
+  rawTiles: string[]
+  tiles: TileCache
+  textMasks: Map<string, Box[]>
+  measures: Map<string, Delta[]>
+  capture: string
+  observe: boolean
+  run: Run
+  report: DiffReport
+  judging: Judging
+  measured: Measured[]
+  placements: Placement[]
+  hinted: {attributed: boolean; absolute: boolean; partial: boolean; paired: number}
+}
+
+export type RunJob = {id: string; session: SessionId; observe: boolean; input: DiffInput}
+
+export type Latest = {run: Run; report: DiffReport; items: Item[]}
+
+export type Projections = {
+  status(input: {
+    session: string
+    unanswered: (id: string) => boolean
+    rounds: (id: string) => Round[]
+    latest: (id: string) => Latest | undefined
+  }): Promise<StatusReport>
+  watch(input: {
+    query: WatchInput
+    session: SessionId
+    latest: (id: string) => Latest | undefined
+  }): Promise<WatchReport>
+  paths(id: string): {designPath: string; placeholderPath: string}
+  relative(path: string): string
+}
+
+export type Differ = {
+  register(input: {input: TargetInput; session: SessionId}): Promise<TargetResult>
+  run(input: {input: DiffInput; session: SessionId}): Promise<DiffReport>
+  refresh(input: {session: SessionId}): Promise<void>
+  touch(input: {file: string}): void
+  capture(input: {id: string; session: SessionId}): Promise<DiffReport>
+  accept(input: {id: string}): Promise<TargetRecord>
+  status(input: {session: SessionId}): Promise<StatusReport>
+  watch(input: {input: WatchInput; session: SessionId}): Promise<WatchReport>
+  xray(input: {id: string}): Promise<{report: DiffReport | null; outline: string[]}>
+}
+
+export type DesignPage = ServerApi<DesignConfig>['page']

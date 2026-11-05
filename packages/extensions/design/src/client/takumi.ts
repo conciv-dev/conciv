@@ -1,6 +1,6 @@
 import init, {Painter, type FontLoader, type Matrix, type PaintTree, type TextNode} from 'takumi-paint/no-init'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Box, LiveComponent} from '../shared/types.js'
+import type {Box, LiveComponent} from '../shared/defs.js'
 
 type Opinion = {boxes: Map<string, Box>; confidence: number}
 type OpinionInput = {doc: Document; width: number; height: number; components: LiveComponent[]; wasm: string | null}

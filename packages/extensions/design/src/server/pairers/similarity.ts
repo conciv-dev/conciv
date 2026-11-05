@@ -1,5 +1,4 @@
-import type {Similarity, Voter, VoteContext, VoteView} from '../../shared/defs.js'
-import type {Box, Raster} from '../../shared/types.js'
+import {type Box, type Raster, type Similarity, type VoteContext, type VoteView, type Voter} from '../../shared/defs.js'
 import {centre, distance, holds, nearestLine} from '../../shared/box.js'
 import {INK_SHARE, glyphSized, TOLERANCES} from '../../shared/tolerances.js'
 

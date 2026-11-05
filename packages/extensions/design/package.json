@@ -65,7 +65,7 @@
       "import": "./dist/server/raster.js"
     },
     "./types": {
-      "types": "./dist/shared/types.d.ts"
+      "types": "./dist/shared/defs.d.ts"
     },
     "./xray-routes": {
       "types": "./dist/server.d.ts"

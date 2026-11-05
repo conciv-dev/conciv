@@ -10,9 +10,19 @@ import {z} from 'zod'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {clamp, countBy, groupBy, partition, range} from 'es-toolkit'
-import type {Border, DesignGradient, DesignNode, OcrLine, TargetAdapter} from '../../shared/defs.js'
+import {
+  type Border,
+  type Box,
+  type ColorMetric,
+  type DesignNode,
+  type OcrLine,
+  type Paint,
+  type Raster,
+  type RoleRules,
+  type TargetAdapter,
+  type TextReader,
+} from '../../shared/defs.js'
 import {iconSized, TOLERANCES} from '../../shared/tolerances.js'
-import type {Box, ColorMetric, Raster, RoleRules, Segmenter, TextReader} from '../../shared/types.js'
 import {
   boxMask,
   crop,
@@ -1474,3 +1484,7 @@ function openMask(input: {mask: Uint8Array; width: number; height: number}): Uin
     (count) => count > 0,
   )
 }
+
+type DesignGradient = NonNullable<Paint['gradient']>
+
+type Segmenter = {name: string; segment(input: {raster: Raster; nodes: DesignNode[]}): Promise<DesignNode[]>}

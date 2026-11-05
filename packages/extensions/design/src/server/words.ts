@@ -1,11 +1,18 @@
 import {uniq} from 'es-toolkit'
 import {
   STAGES,
+  type Box,
   type Changes,
   type ContainerLayout,
+  type Delta,
   type Design,
   type DesignNode,
+  type DesignTree,
+  type Element,
+  type Framework,
+  type Item,
   type Stage,
+  type Unmatched,
   type Words,
 } from '../shared/defs.js'
 import {
@@ -18,9 +25,8 @@ import {
   TOLERANCES,
   traced,
 } from '../shared/tolerances.js'
-import type {Box, Delta, DesignTree, Element, Framework, Item, Unmatched} from '../shared/types.js'
 import {union} from '../shared/box.js'
-import {childrenIn, descendantsIn, placement, walk} from '../shared/tree.js'
+import {walk} from '../shared/tree.js'
 
 export const WORDS: Words = {
   outline: designOutline,
@@ -109,7 +115,7 @@ function unbuiltSentence(input: {entry: Unmatched; tree: DesignTree; unbuilt: Re
   const {entry, tree, unbuilt} = input
   const node = tree.nodes.find((candidate) => candidate.id === entry.node)
   if (node === undefined) return `build the ${entry.label ?? 'element'} the design shows`
-  const children = childrenIn({tree, id: node.id})
+  const children = tree.children(node.id)
   if (children.length === 0) return leafSentence({node, tree})
   const layout = node.layout
   const props = properties({layout, children})
@@ -125,7 +131,7 @@ function unbuiltSentence(input: {entry: Unmatched; tree: DesignTree; unbuilt: Re
 
 function leafSentence(input: {node: DesignNode; tree: DesignTree}): string {
   const {node, tree} = input
-  const seat = placement({node, tree})
+  const seat = tree.placement(node)
   const size =
     node.kind === 'box'
       ? ` ${Math.round(node.box.w)}x${Math.round(node.box.h)}${node.paint === undefined ? '' : ` ${node.paint.background}`}`
@@ -179,7 +185,7 @@ function paddingPhrase(padding: ContainerLayout['padding'] | undefined): string[
 
 function containerName(input: {node: DesignNode; tree: DesignTree; withCount: boolean}): string {
   const {node, tree} = input
-  const children = childrenIn({tree, id: node.id})
+  const children = tree.children(node.id)
   const direction = node.layout?.direction ?? 'stack'
   const only = loneText(children)
   if (only !== null) return `a box with ${quoted(only.text)}`
@@ -192,7 +198,7 @@ function childPhrase(input: {node: DesignNode; tree: DesignTree}): string {
   const size = node.layout === undefined ? '' : ` (${node.layout.size})`
   if (node.kind === 'text') return `${quoted(node.text)}${size}`
   if (node.kind === 'image') return `an image${size}`
-  const children = childrenIn({tree, id: node.id})
+  const children = tree.children(node.id)
   if (children.length === 0) return `a box${size}`
   const name = containerName({node, tree, withCount: true})
   const gap = node.layout?.gap
@@ -202,10 +208,10 @@ function childPhrase(input: {node: DesignNode; tree: DesignTree}): string {
 
 function placePhrase(input: {node: DesignNode; tree: DesignTree; box?: Box | undefined}): string {
   const {node, tree} = input
-  const seat = placement({node, tree})
+  const seat = tree.placement(node)
   if (seat === null) return ''
   const index = node.layout?.index ?? 0
-  const previous = childrenIn({tree, id: seat.parent?.id}).find((sibling) => sibling.layout?.index === index - 1)
+  const previous = tree.children(seat.parent?.id).find((sibling) => sibling.layout?.index === index - 1)
   if (previous !== undefined && named({node: previous, tree})) {
     const direction = (seat.parent === null ? tree.root.layout : seat.parent.layout)?.direction
     return ` ${direction === 'row' || direction === 'grid' ? 'after' : 'under'} ${label({node: previous, tree})}`
@@ -262,7 +268,7 @@ function countPhrase(input: {nodes: DesignNode[]; tree: DesignTree}): string {
     nodes.map((node) => {
       if (node.kind === 'text') return NOUNS.text
       if (node.kind === 'image') return NOUNS.image
-      const children = childrenIn({tree, id: node.id})
+      const children = tree.children(node.id)
       return children.length === 0 || loneText(children) !== null ? NOUNS.box : NOUNS.card
     }),
   )
@@ -277,9 +283,7 @@ function loneText(children: DesignNode[]): TextDesign | null {
 }
 
 function textsIn(input: {tree: DesignTree; node: DesignNode}): string[] {
-  return descendantsIn({tree: input.tree, id: input.node.id}).flatMap((node) =>
-    node.kind === 'text' ? [node.text] : [],
-  )
+  return input.tree.descendants(input.node.id).flatMap((node) => (node.kind === 'text' ? [node.text] : []))
 }
 
 function quoted(text: string): string {
@@ -293,7 +297,7 @@ function ordinal(index: number): string {
 }
 
 function allUnbuilt(input: {tree: DesignTree; id: string; unbuilt: Record<string, Unmatched>}): boolean {
-  const children = childrenIn({tree: input.tree, id: input.id})
+  const children = input.tree.children(input.id)
   return children.length > 0 && children.every((child) => child.id in input.unbuilt)
 }
 

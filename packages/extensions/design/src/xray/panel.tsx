@@ -4,12 +4,15 @@ import {compact, minBy, uniq} from 'es-toolkit'
 import {RelativeTime, SegmentGroup, TooltipIconButton} from '@conciv/ui-kit-system'
 import {
   STAGES,
+  type Box,
   type ComponentReport,
-  type DeltaKindName,
   type Decision,
+  type DeltaKindName,
   type DesignNode,
   type DiffReport,
+  type MeasureSource,
   type Run,
+  type SourceLoc,
   type Stage,
   type TargetRecord,
 } from '../shared/defs.js'
@@ -22,7 +25,6 @@ import {
   SOURCE_ATTR,
   traced,
 } from '../shared/tolerances.js'
-import type {Box, MeasureSource, SourceLoc} from '../shared/types.js'
 
 export type Delta = ComponentReport['deltas'][number]
 

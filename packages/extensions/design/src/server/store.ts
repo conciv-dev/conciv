@@ -122,6 +122,10 @@ export function createStore(input: {state: Storage; words: Words}): Store {
     },
     runs,
     run: ({id, run}) => readItem({state, key: runKey({id, run}), schema: RunSchema}),
+    latest: async (id) => {
+      const last = (await runs(id)).at(-1)
+      return last === undefined ? null : readItem({state, key: runKey({id, run: last}), schema: RunSchema})
+    },
     writeRun: async ({run, live, diff}) => {
       const base = `${run.design}:runs:${run.id}`
       const images = {live: `${base}:live.png`, diff: `${base}:diff.png`}

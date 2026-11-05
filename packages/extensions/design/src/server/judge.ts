@@ -2,46 +2,44 @@ import {countBy, keyBy, mapValues, maxBy, omit, pick, uniq, uniqBy} from 'es-too
 import {
   NO_CHANGES,
   STAGES,
+  STOPS,
+  type Box,
+  type CapturePath,
   type Changes,
+  type ColorMetric,
   type ComponentReport,
   type ContainerLayout,
+  type Delta,
+  type Deltas,
   type DesignNode,
+  type DesignSection,
+  type DesignTree,
   type DiffInput,
-  type Offset,
   type DiffReport,
+  type Element,
+  type Item,
   type Judge,
+  type Judging,
   type LedgerCounts,
+  type LiveComponent,
   type Match,
+  type MatchNode,
+  type Measured,
   type NodeStatus,
+  type Offset,
+  type Placement,
+  type Ranker,
   type Round,
   type SectionBudget,
-  type Verdict,
-  type Placement,
-  type Judging,
-  type Ranker,
-  type Deltas,
   type Shift,
+  type SourceLoc,
   type Stage,
-  type Stop,
+  type Unmatched,
+  type Verdict,
   type Words,
 } from '../shared/defs.js'
 import {glyphRun, iconSized, kindStage, isOpaqueHex, TOLERANCES} from '../shared/tolerances.js'
-import type {
-  Box,
-  CapturePath,
-  ColorMetric,
-  Delta,
-  Element,
-  DesignSection,
-  DesignTree,
-  Item,
-  LiveComponent,
-  MatchNode,
-  Measured,
-  SourceLoc,
-  Unmatched,
-} from '../shared/types.js'
-import {childrenIn, descendantsIn, placement, walk} from '../shared/tree.js'
+import {walk} from '../shared/tree.js'
 import {encloses, union} from '../shared/box.js'
 import {boxMask} from './raster.js'
 
@@ -231,11 +229,11 @@ function itemsFrom(input: {
     (node) =>
       node.id in unbuilt &&
       allUnbuilt({tree, id: node.id, unbuilt}) &&
-      childrenIn({tree, id: node.id}).some((child) => !slots.has(child.id)),
+      tree.children(node.id).some((child) => !slots.has(child.id)),
   )
   const covered = new Set([
     ...runs.flatMap((run) => run.children),
-    ...complete.flatMap((node) => descendantsIn({tree, id: node.id}).map((child) => child.id)),
+    ...complete.flatMap((node) => tree.descendants(node.id).map((child) => child.id)),
   ])
   const entries = unmatched
     .filter((entry) => entry.kind !== 'unbuilt' || entry.node === undefined || !covered.has(entry.node))
@@ -524,7 +522,7 @@ function entrySize(entry: Unmatched): number {
 }
 
 function allUnbuilt(input: {tree: DesignTree; id: string; unbuilt: Unbuilt}): boolean {
-  const children = childrenIn({tree: input.tree, id: input.id})
+  const children = input.tree.children(input.id)
   return children.length > 0 && children.every((child) => child.id in input.unbuilt)
 }
 
@@ -599,7 +597,7 @@ function entryLayout(input: {node: DesignNode; tree: DesignTree}): Unmatched['la
   if (own?.size === undefined) return null
   const {direction, size} = own
   if (direction !== undefined) return {direction, size, ...pick(own, CONTAINER_FIELDS)}
-  const seat = placement({node, tree})
+  const seat = tree.placement(node)
   return seat === null ? null : {direction: seat.direction, index: seat.index, size}
 }
 
@@ -917,3 +915,5 @@ type Unbuilt = Record<string, Unmatched>
 type LayoutRun = ContainerLayout['runs'][number]
 
 type Reported = {element: Element; report: ComponentReport}
+
+type Stop = (typeof STOPS)[number]

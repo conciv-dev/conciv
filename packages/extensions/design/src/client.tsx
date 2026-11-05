@@ -18,39 +18,36 @@ import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {sum, uniq} from 'es-toolkit'
 import {
+  type Box,
   DESIGN_EXTENSION_NAME,
+  type Framework,
+  type Glyph,
+  type Gradient,
+  type LiveBorder,
+  type LiveComponent,
+  type LiveStyles,
   measureDef,
-  renderDef,
-  winnerDef,
   type MeasureInput,
   type MeasureResult,
+  type MirrorLimits,
+  PLACEHOLDER_KINDS,
+  renderDef,
   type RenderInput,
   type RenderResult,
+  type SourceLoc,
+  type Winner,
+  winnerDef,
   type WinnerInput,
   type WinnerResult,
 } from './shared/defs.js'
 import {
   designConfig,
-  KEY_ATTR,
   PANE_ATTR,
   PLACEHOLDER_ATTR,
   propertyAliases,
   SOURCE_ATTR,
   TOLERANCES,
 } from './shared/tolerances.js'
-import type {
-  Box,
-  Framework,
-  Glyph,
-  Gradient,
-  LiveBorder,
-  LiveComponent,
-  LiveStyles,
-  MirrorLimits,
-  SourceLoc,
-  Winner,
-} from './shared/types.js'
-import {PLACEHOLDER_KINDS} from './shared/types.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 
@@ -1286,3 +1283,5 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
   }
   return best.winner
 }
+
+const KEY_ATTR = 'data-conciv-key'

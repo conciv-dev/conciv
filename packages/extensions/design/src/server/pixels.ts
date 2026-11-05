@@ -2,8 +2,17 @@ import {createHash} from 'node:crypto'
 import {mean, partition, range} from 'es-toolkit'
 import {ssim} from 'ssim.js'
 import {TOLERANCES} from '../shared/tolerances.js'
-import type {Pixels} from '../shared/defs.js'
-import type {Box, Clock, Grid, PixelComparator, Raster, ScoredTile, TileCache, TileRecord} from '../shared/types.js'
+import {
+  type Box,
+  type Clock,
+  type Grid,
+  type PixelComparator,
+  type Pixels,
+  type Raster,
+  type ScoredTile,
+  type TileCache,
+  type TileRecord,
+} from '../shared/defs.js'
 import {crop, labelRegions} from './raster.js'
 import {expand, intersection, union} from '../shared/box.js'
 
