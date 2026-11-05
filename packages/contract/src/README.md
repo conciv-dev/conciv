@@ -6,7 +6,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 ## Interface
 
-- `contract` (`contract.ts`): oRPC router with `sessions{list,create,resolve,open,restore,rename,delete,model,compact}`, `drafts{get,set}`, `markers{list}`, `navigation{get,set}`, `chat{events,hydrate,stop,permissionDecision,uiReply}` (`events` is an eventIterator), `registry{catalog,call}`, `captures{list}`, `page{symbolicate,changes,clearChanges,queries,reply}` (`queries` is an eventIterator), `server{config,resolve,graph,transform,urls,reload,restart}`, `editor{open,openFromFrames}`, `meta{models,commands,tools,engine}`.
+- `contract` (`contract.ts`): oRPC router with `auth{trust,exchange,requestCode}`, `sessions{list,create,resolve,open,restore,rename,delete,model,compact}`, `drafts{get,set}`, `markers{list}`, `navigation{get,set}`, `chat{events,hydrate,stop,permissionDecision,uiReply}` (`events` is an eventIterator), `registry{catalog,call}`, `captures{list}`, `page{symbolicate,changes,clearChanges,queries,reply}` (`queries` is an eventIterator), `server{config,resolve,graph,transform,urls,reload,restart}`, `editor{open,openFromFrames}`, `meta{models,commands,tools,engine}`.
 - `ChatHydrationSchema` / `ChatHydration`, `ChatPendingApproval` (`contract.ts`): chat hydrate payload (messages, activeRun, lastRun, pendingApprovals, interrupts).
 - `ToolCommandSignatureSchema` / `ToolCommandSignature` (`contract.ts`): registry catalog entry (name, path, binding `server|client`, icon from `TOOL_ICON_KEYS`, label, mutating/mirrors/reachable, approval `'ask'`, input/output schema, errors).
 - `RegistryCallErrorName` (`contract.ts`): `NO_PAGE_CLIENT`, `PAGE_TIMEOUT`, `UNKNOWN_TOOL`, `INVALID_ARGS`, `HANDLER_ERROR`, `APPROVAL_DENIED`.
@@ -18,7 +18,10 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `browserRpcConnection(apiBase)`, `closeBrowserRpcConnection(apiBase)`, `resetBrowserRpcConnection(apiBase)` (`browser-transport.ts`): get, close or recreate the shared connection for a normalized api base.
 - `dynamicBrowserRpcLink(currentApiBase, session?)` (`browser-transport.ts`): ClientLink that resolves the api base per call and puts `concivSessionId` in the call context.
 - `subscribeRpcReachability(apiBase, listener)` -> unsubscribe (`browser-transport.ts`).
-- `ENGINE_UNAUTHORIZED_EVENT` / `announceEngineUnauthorized` / `REVOKED_SOCKET_CLOSE_CODE` (`browser-transport.ts`): the event is dispatched on `window` for every browser rpc call the engine answers with HTTP 401, before the error reaches the caller, and for every engine socket the engine closes with `REVOKED_SOCKET_CLOSE_CODE` (1008) after a revoke.
+- `EngineTrust` on every `BrowserRpcConnection.trust` (`browser-transport.ts`): the one trust owner per api base. `isTrusted()`, `status()` (`checking | trusted | untrusted | unreachable`), `subscribe(listener)`, `requestTrust(tokenSource?)` (stored token first, the token source only when it is missing or refused), `requestTrustWithToken(token)`, `requestTrustWithCode(code)` -> `{token} | {refused}`, `requestAuthCode({reissue?})`, `ensureTrusted()`.
+- `consumeMagicLinkCode()` (`browser-transport.ts`): reads `#conciv_otp=` with `URLSearchParams` and strips it from the URL.
+- `engineHeaders(apiBase)` / `engineWebSocket(apiBase)` (`browser-transport.ts`): the `Authorization: Bearer` header for raw browser fetches, and a `WebSocket` constructor whose sockets send `{type: SOCKET_TRUST_FRAME, token}` on open and mark the connection untrusted on a `REVOKED_SOCKET_CLOSE_CODE` (1008) close.
+- `LOGIN_CODE_PATTERN`, `ExchangeResultSchema`, `SOCKET_TRUST_FRAME`, `SocketTrustFrameSchema`, `ENGINE_TOKEN_MAX_LENGTH` (`contract.ts`).
 - `isRetryableRpcFailure(alive, error)` (`browser-transport.ts`): true only when the connection is alive, the error is not an `ORPCError` and not an `AbortError`.
 - `RPC_UNBOUND_MESSAGE` = `'conciv core not connected yet'` (`browser-transport.ts`, re-exported from `client.ts`); types `RpcClientContext`, `SessionAccessor`, `BrowserRpcConnection`, `ReachabilityListener`.
 
@@ -36,6 +39,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `dynamicBrowserRpcLink.call` throws `RPC_UNBOUND_MESSAGE` when the current api base is null (`browser-transport.ts`).
 - Connections are keyed by `normalizeApiBase` (origin + pathname without trailing slash, resolved against `location.href` when present), so equivalent bases share one connection (`browser-transport.ts`).
 - Retry policy: `CONNECTION_LOSS_RETRIES` = 12 with `CONNECTION_LOSS_RETRY_DELAY_MS` = 250, gated by `isRetryableRpcFailure`; a closed connection is not alive and stops retrying (`browser-transport.ts`).
+- The token is stored under `conciv:engine-token:<normalized api base>` in localStorage; a 401 or a 1008 close for the token currently held forgets it and sets `untrusted`, a refusal for an older token is ignored (`browser-transport.ts`).
 - Only the active connection for a key may report reachability: `voteReachability` ignores votes whose connectionId differs from `activeConnections()` (`browser-transport.ts`).
 
 ## Side Effects

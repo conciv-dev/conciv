@@ -3082,6 +3082,9 @@ importers:
 
   packages/extensions/terminal:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
@@ -3097,9 +3100,6 @@ importers:
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../../ui-kit-terminal
-      '@hono/node-server':
-        specifier: 'catalog:'
-        version: 2.1.5(hono@4.13.14)
       '@lydell/node-pty':
         specifier: ^1.1.0
         version: 1.1.0
@@ -3143,6 +3143,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.5(hono@4.13.14)
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -3664,6 +3667,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../harness-testkit
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -19061,12 +19067,12 @@ snapshots:
 
   '@conciv/extension-terminal@file:packages/extensions/terminal(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(solid-js@1.9.17)(ws@8.22.0)':
     dependencies:
+      '@conciv/contract': link:packages/contract
       '@conciv/extension': link:packages/extension
       '@conciv/protocol': link:packages/protocol
       '@conciv/ui-kit-chat': link:packages/ui-kit-chat
       '@conciv/ui-kit-system': link:packages/ui-kit-system
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal
-      '@hono/node-server': 2.1.5(hono@4.13.14)
       '@lydell/node-pty': 1.1.0
       '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)

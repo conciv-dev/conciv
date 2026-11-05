@@ -11,7 +11,7 @@ import pixelmatch from 'pixelmatch'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
-import {createServer} from 'vite'
+import {createLogger, createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
@@ -19,6 +19,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {requestPrintedCode} from '@conciv/harness-testkit/login'
 import type {} from '@conciv/extension-design/client'
 import {
   CaptureInputSchema,
@@ -123,10 +124,16 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
 async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
+  const printed: string[] = []
   const server = await createServer({
     root: HOST_ROOT,
     configFile: false,
-    logLevel: 'silent',
+    customLogger: {
+      ...createLogger('silent'),
+      info: (message) => {
+        printed.push(message)
+      },
+    },
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
@@ -155,12 +162,12 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
       await page.goto(new URL(to.startsWith('/') ? to : `/?variant=${to}`, origin).href, {
         waitUntil: 'domcontentloaded',
       })
-      await injectWidget(page, apiBase)
+      await injectWidget(page, new URL(apiBase).origin)
       await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {
         timeout: PAGE_DRIVER_TIMEOUT_MS,
       })
     })
-  await goto('/')
+  await goto(`/#conciv_otp=${await requestPrintedCode(new URL(apiBase).origin, () => printed.join('\n'))}`)
   return {
     rpc,
     browser,
@@ -607,12 +614,11 @@ describe('x-ray page', () => {
 
   it('serves the run images and refuses paths outside the design dir', async () => {
     const report = await call('design_diff', {width: 1280})
-    const base = new URL(report.xray).origin
-    expect((await fetch(`${base}/api/ext/design/files/${report.livePath}`)).headers.get('content-type')).toBe(
-      'image/png',
-    )
-    expect(await rawStatus({origin: base, path: '/api/ext/design/files/../../package.json'})).toBe(404)
-    expect(await rawStatus({origin: base, path: '/api/ext/design/files//etc/hosts'})).toBe(404)
+    const xray = new URL(report.xray)
+    const files = `${xray.pathname.slice(0, xray.pathname.indexOf('/api/ext/'))}/api/ext/design/files`
+    expect((await fetch(`${xray.origin}${files}/${report.livePath}`)).headers.get('content-type')).toBe('image/png')
+    expect(await rawStatus({origin: xray.origin, path: `${files}/../../package.json`})).toBe(404)
+    expect(await rawStatus({origin: xray.origin, path: `${files}//etc/hosts`})).toBe(404)
   })
 
   it('renders the rail from the last run and opens the inspector on the first component', async () => {

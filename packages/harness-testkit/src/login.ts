@@ -1,8 +1,7 @@
-import {z} from 'zod'
+import {makeRpcClient} from '@conciv/contract'
 import {until} from './until.js'
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g
-const TokenSchema = z.object({token: z.string().min(1)})
 
 export type TerminalReader = () => string | Promise<string>
 
@@ -12,12 +11,7 @@ function printedCodes(text: string): string[] {
 
 export async function requestPrintedCode(origin: string, terminal: TerminalReader): Promise<string> {
   const seen = printedCodes(await terminal()).length
-  const response = await fetch(`${origin}/auth/code`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({reissue: true}),
-  })
-  if (!response.ok) throw new Error(`the engine refused to print a login code: HTTP ${response.status}`)
+  await makeRpcClient(origin).auth.requestCode({reissue: true})
   const found: {code: string | undefined} = {code: undefined}
   await until(async () => {
     found.code = printedCodes(await terminal())[seen]
@@ -28,14 +22,9 @@ export async function requestPrintedCode(origin: string, terminal: TerminalReade
 }
 
 export async function exchangePrintedCode(origin: string, code: string): Promise<string> {
-  const response = await fetch(`${origin}/auth/exchange`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({code}),
-  })
-  const parsed = TokenSchema.safeParse(await response.json())
-  if (!parsed.success) throw new Error(`the engine refused the printed login code: HTTP ${response.status}`)
-  return parsed.data.token
+  const result = await makeRpcClient(origin).auth.exchange({code})
+  if (!('token' in result)) throw new Error(`the engine refused the printed login code: ${result.refused}`)
+  return result.token
 }
 
 export async function loginThroughTerminal(origin: string, terminal: TerminalReader): Promise<string> {

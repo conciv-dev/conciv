@@ -12,6 +12,7 @@ import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
+import type {AuthRouter} from '../../engine-login.js'
 
 export type ChatContext = {
   harness: HarnessAdapter
@@ -29,6 +30,7 @@ export type RpcDeps = {
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
+  auth: AuthRouter
 }
 
 export const os = implement(contract).$context<RpcContext>()

@@ -15,7 +15,7 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {type EngineStaleness} from '@conciv/contract'
+import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {openDb, type ConcivDb} from '@conciv/db'
 import {defineTool, defineExtension} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
@@ -23,6 +23,7 @@ import {type HarnessAdapter, defineHarness} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
@@ -854,7 +855,7 @@ describe('system prompt', () => {
 describe('engine login', () => {
   const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
 
-  function rawPost(port: number, path: string, headers: Record<string, string>, body = '{"reissue":true}') {
+  function rawPost(port: number, path: string, headers: Record<string, string>, body = '{"json":{"reissue":true}}') {
     const options = {host: '127.0.0.1', port, path, method: 'POST', agent: false}
     return new Promise<{status: number; text: string}>((resolve, reject) => {
       const request = httpRequest({...options, headers: {'content-type': 'application/json', ...headers}}, (res) => {
@@ -919,17 +920,19 @@ describe('engine login', () => {
       expect((await call('not-a-token')).status).toBe(401)
       const post = (path: string, headers: Record<string, string>, body?: string) =>
         rawPost(first.port, path, headers, body)
-      expect((await post('/auth/code', {origin: 'http://conciv.example'})).status).toBe(403)
-      expect((await post('/auth/code', {'content-type': 'text/plain'})).status).toBe(415)
-      expect((await post('/auth/exchange', {'content-type': 'text/plain'}, '{"code":"000000"}')).status).toBe(415)
-      expect((await post('/auth/code', {origin: 'http://localhost:5173'})).status).toBe(200)
+      expect((await post('/rpc/auth/requestCode', {origin: 'http://conciv.example'})).status).toBe(403)
+      expect((await post('/rpc/auth/requestCode', {origin: 'http://localhost:5173'})).status).toBe(200)
       expect(printed.at(-1)).toContain('http://localhost:5173/#conciv_otp=')
       await requestPrintedCode(origin, () => printed.join('\n'))
       expect(printed.at(-1)).toContain(`${origin}/#conciv_otp=`)
-      await expect(exchangePrintedCode(origin, '000000')).rejects.toThrow(/HTTP 401/)
+      await expect(exchangePrintedCode(origin, '000000')).rejects.toThrow(/refused the printed login code: mismatch/)
       const token = await loginThroughTerminal(origin, () => printed.join('\n'))
       expect((await call(token)).status).not.toBe(401)
-      expect((await call(token)).status).not.toBe(401)
+      const bearer = await fetch(`${origin}/rpc/meta/engine`, {
+        method: 'POST',
+        headers: {authorization: `Bearer ${token}`},
+      })
+      expect(bearer.status).not.toBe(401)
       expect(clientRequests.count).toBe(1)
       await first.stop()
       const second = await boot()
@@ -939,8 +942,8 @@ describe('engine login', () => {
           port: first.port,
           token: second.agentToken,
         })
-        const check = (host: string) => rawPost(second.port, '/auth/check', {host}, JSON.stringify({token}))
-        expect(JSON.parse((await check(`localhost:${second.port}`)).text)).toEqual({trusted: true})
+        const check = (host: string) => rawPost(second.port, '/rpc/auth/trust', {host}, JSON.stringify({json: {token}}))
+        expect(JSON.parse((await check(`localhost:${second.port}`)).text)).toMatchObject({json: {trusted: true}})
         expect((await check(`conciv.example:${second.port}`)).status).toBe(403)
         const rebound = {host: `conciv.example:${second.port}`}
         expect((await rawPost(second.port, `/t/${second.agentToken}/rpc/meta/engine`, rebound)).status).toBe(403)
@@ -983,14 +986,55 @@ describe('engine login', () => {
         expect(await refused(`${origin}${route.path}`, route.method), route.path).toBe(!isOpenPath(route.path))
         expect(await refused(`${origin}/t/${made.agentToken}${route.path}`, route.method), route.path).toBe(false)
       }
-      expect(OPEN_PATHS).toEqual(['/health', '/auth/check', '/auth/code', '/auth/exchange', '/native', '/native/*'])
-      const upgrade = (prefix: string): Promise<string> =>
-        new Promise((resolve) => {
-          const socket = new WebSocket(`${origin.replace('http', 'ws')}${prefix}/push-ws`)
-          socket.addEventListener('open', () => resolve('open'))
-          socket.addEventListener('error', () => resolve('refused'))
+      expect(OPEN_PATHS).toEqual([
+        '/health',
+        '/rpc/auth/trust',
+        '/rpc/auth/exchange',
+        '/rpc/auth/requestCode',
+        '/native',
+        '/native/*',
+      ])
+      const auth = makeRpcClient(origin).auth
+      expect(await auth.trust({token: 'not-a-token'})).toEqual({trusted: false})
+      expect(await auth.trust({token: made.agentToken})).toEqual({trusted: true})
+      expect(await auth.exchange({code: '000000'})).toEqual({refused: 'expired'})
+      await expect(refused(`${origin}/rpc/meta/engine`, 'POST')).resolves.toBe(true)
+      const preflight = await fetch(`${origin}/rpc/meta/engine`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://localhost:5173',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization',
+        },
+      })
+      expect([preflight.status, preflight.headers.get('access-control-allow-headers')]).toEqual([
+        204,
+        expect.stringContaining('authorization'),
+      ])
+      const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
+      const pushSocket = (prefix: string, first?: string) =>
+        new Promise<string>((resolve) => {
+          const socket = new WebSocket(
+            `${origin.replace('http', 'ws')}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
+          )
+          socket.addEventListener('open', () => {
+            if (first !== undefined) socket.send(first)
+          })
+          socket.addEventListener('message', (event) => {
+            resolve(String(event.data))
+            socket.close()
+          })
+          socket.addEventListener('close', (event) => resolve(`closed ${event.code}`))
         })
-      expect([await upgrade(''), await upgrade(`/t/${made.agentToken}`)]).toEqual(['refused', 'open'])
+      const frame = (token: string) => JSON.stringify({type: SOCKET_TRUST_FRAME, token})
+      expect(
+        await Promise.all([
+          pushSocket('', frame('not-a-token')),
+          pushSocket('', '{"channel":"ready"}'),
+          pushSocket('', frame(made.agentToken)),
+          pushSocket(`/t/${made.agentToken}`),
+        ]),
+      ).toEqual(['closed 1008', 'closed 1008', '{"channel":"ready"}', '{"channel":"ready"}'])
     } finally {
       await served.close()
       await made.dispose()

@@ -3,7 +3,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import pTimeout from 'p-timeout'
-import {serveApp, type ServedApp} from './serve-app.js'
+import {serveApp} from './serve-app.js'
 import {loginThroughTerminal} from './login.js'
 import type {HarnessAdapter} from '@conciv/harness'
 import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from '@conciv/protocol/chat-types'
@@ -26,7 +26,6 @@ export type BootEnv = {
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
   dispose: () => Promise<void>
-  guardSockets?: (wss: ServedApp['wss']) => void
 }
 export type BootApp = (env: BootEnv) => Promise<BootedApp>
 
@@ -103,7 +102,6 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const terminal = (): string => printed.join('\n')
       const app = await boot({stateRoot, cwd: stateRoot, harness, print: (text) => printed.push(text)})
       let served = await serveApp(app.fetch)
-      app.guardSockets?.(served.wss)
       const token = await loginThroughTerminal(served.base, terminal)
       const base = `${served.base}/t/${token}`
       const wsBase = `${served.wsBase}/t/${token}`
@@ -180,7 +178,6 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         restartServer: async () => {
           await served.close()
           served = await serveApp(app.fetch, {port: served.port})
-          app.guardSockets?.(served.wss)
         },
         cleanup: async () => {
           sockets.closeAll()

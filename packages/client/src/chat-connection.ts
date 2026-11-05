@@ -15,12 +15,7 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {
-  announceEngineUnauthorized,
-  REVOKED_SOCKET_CLOSE_CODE,
-  type ChatHydration,
-  type RpcClient,
-} from '@conciv/contract'
+import {engineHeaders, engineWebSocket, type ChatHydration, type RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
 
@@ -90,26 +85,19 @@ export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
 type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
 
-function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
-  return new Proxy(WebSocket, {
+function trackingWebSocketImpl(apiBase: string, live: Set<WebSocket>): typeof WebSocket {
+  return new Proxy(engineWebSocket(apiBase), {
     construct: (target, args) => {
       const socket: WebSocket = Reflect.construct(target, args)
       live.add(socket)
-      socket.addEventListener(
-        'close',
-        (event) => {
-          live.delete(socket)
-          if (event.code === REVOKED_SOCKET_CLOSE_CODE) announceEngineUnauthorized()
-        },
-        {once: true},
-      )
+      socket.addEventListener('close', () => live.delete(socket), {once: true})
       return socket
     },
   })
 }
 
 function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
-  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(live)})
+  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(apiBase, live)})
   return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
@@ -130,7 +118,7 @@ function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeCon
 }
 
 function overEvents(apiBase: string): Selected {
-  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase))
+  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase), () => ({headers: engineHeaders(apiBase)}))
   return {
     transport: 'fetch',
     adapter: subscribeOver(adapter),

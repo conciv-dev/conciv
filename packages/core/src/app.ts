@@ -58,7 +58,12 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
+import {
+  makeCompositeRpcRouter,
+  RPC_PREFIX,
+  rpcFetchMiddleware,
+  type UpgradeWebSocket,
+} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
@@ -66,10 +71,11 @@ import {logError} from './lib/debug.js'
 import {engineStaleness} from './lib/engine-stamp.js'
 import {
   agentPath,
-  authRoutes,
+  makeAuthRouter,
   makeCodeStore,
+  makeConnectionTrust,
   makeEngineGate,
-  makeEngineTrust,
+  trustingUpgrade,
   watchTrustedBrowsers,
   type GatedFetch,
   type TrustedBrowsers,
@@ -257,7 +263,7 @@ function composeRoutes(
     onShutdown?: () => void
     push: PushDeps
     plane: ChatPlane
-    auth: ReturnType<typeof authRoutes>
+    upgrade: UpgradeWebSocket
   },
 ) {
   return new Hono<{Variables: CoreVars}>()
@@ -274,14 +280,13 @@ function composeRoutes(
     })
     .use(corsMiddleware())
     .get('/health', (c) => c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness()})))
-    .route('/', deps.auth)
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', deps.plane.routes(upgradeWebSocket))
-    .route('/', pushRoutes(deps.push, upgradeWebSocket))
+    .route('/', deps.plane.routes(deps.upgrade))
+    .route('/', pushRoutes(deps.push, deps.upgrade))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -295,7 +300,6 @@ export type MadeApp = {
   fetch: EngineFetch
   agentToken: string
   trustBrowser: TrustedBrowsers['grant']
-  guardSockets: TrustedBrowsers['guard']
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -343,7 +347,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const basePath = agentPath(agentToken)
   const stateDir = concivStateDir(opts.cfg.stateRoot)
   const browsers = watchTrustedBrowsers(stateDir)
-  const trusted = makeEngineTrust(agentToken, browsers)
+  const trust = makeConnectionTrust(agentToken, browsers)
+  const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb(opts.cfg.stateRoot)
   const planeRef: {current: ChatPlane | null} = {current: null}
@@ -405,6 +410,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
+        upgradeWebSocket: socketUpgrade,
       })
       return assembleMounted(extension, result)
     } catch (error) {
@@ -515,6 +521,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
+    auth: makeAuthRouter({
+      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      trust,
+      browsers,
+      now: Date.now,
+    }),
   })
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -539,12 +551,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       staleness,
       onShutdown: opts.onShutdown,
       plane,
-      auth: authRoutes({
-        codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
-        trusted,
-        browsers,
-        now: Date.now,
-      }),
+      upgrade: socketUpgrade,
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
@@ -566,7 +573,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const fetch = makeEngineGate<unknown>({
     fetch: (request, env) => app.fetch(request, env),
-    trusted,
+    trusts: trust.trusts,
     allowedOrigins: opts.allowedOrigins ?? [],
     onTrusted: opts.onTrusted,
   })
@@ -576,7 +583,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     fetch,
     agentToken,
     trustBrowser: browsers.grant,
-    guardSockets: browsers.guard,
     chat: chatDeps,
     plane,
     dispose,

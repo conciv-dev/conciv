@@ -17,7 +17,7 @@ import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
-import {makeRpcClient} from '@conciv/contract'
+import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
@@ -1020,13 +1020,17 @@ describe('cli', () => {
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
         const socketWith = (secret: string) =>
           new WebSocket(`ws://127.0.0.1:${engine.port}/t/${secret}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        const framed = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        framed.addEventListener('open', () => framed.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token})))
         const [browser, agent] = [socketWith(token), socketWith(engine.agentToken)]
-        await Promise.all([browser, agent].map((socket) => once(socket, 'open')))
-        const closed = once(browser, 'close', {signal: AbortSignal.timeout(3_000)})
+        await Promise.all([browser, agent, framed].map((socket) => once(socket, 'message')))
+        const closedCode = async (socket: WebSocket) =>
+          z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
+            .code
+        const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
         await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
-        const [event] = await closed
-        expect([z.object({code: z.number()}).parse(event).code, agent.readyState]).toEqual([1008, WebSocket.OPEN])
+        expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
         await engine.stop()

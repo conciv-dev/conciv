@@ -28,6 +28,9 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `assertAccessToken` (`start.ts`): accessToken must be a UUID
 - `reservePort` (`start.ts`): up to 4 attempts 300ms apart, retrying only on EADDRINUSE; `exact` binds or throws, `preferred` falls back to port 0 with a warning
 - `start` (`start.ts`): with an accessToken the app is mounted under `/t/<token>`; a failed bind or endpoint write disposes the app
+- `makeEngineGate` (`engine-login.ts`): only `OPEN_PATHS` (`/health`, the three `/rpc/auth/*` procedures, `/native`) pass without a token; a token comes as `Authorization: Bearer` (browsers) or the `/t/<token>` path (agents, CLI, MCP), which is forwarded as a bearer header
+- `trustingUpgrade` (`engine-login.ts`): every engine socket (chat, push, extension sockets through `ServerApi.upgradeWebSocket`) is admitted by a bearer header or by a first `{type: 'conciv:trust', token}` frame; anything else is closed with 1008, and a revoke closes every socket held by that token with 1008
+- `makeAuthRouter` (`engine-login.ts`): `auth.exchange` answers `{refused: 'mismatch' | 'expired'}`; five wrong codes retire the printed code
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered
 - `mountExtension` (`app.ts`): a failing extension `__server` is logged and skipped

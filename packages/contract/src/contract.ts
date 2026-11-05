@@ -102,7 +102,38 @@ export const EngineStalenessSchema = z.object({
 
 export type EngineStaleness = z.infer<typeof EngineStalenessSchema>
 
+export const LOGIN_CODE_PATTERN = /^\d{6}$/
+
+export const ExchangeRefusalSchema = z.enum(['mismatch', 'expired'])
+
+export type ExchangeRefusal = z.infer<typeof ExchangeRefusalSchema>
+
+export const ExchangeResultSchema = z.union([
+  z.object({token: z.string().min(1)}),
+  z.object({refused: ExchangeRefusalSchema}),
+])
+
+export type ExchangeResult = z.infer<typeof ExchangeResultSchema>
+
+export const ENGINE_TOKEN_MAX_LENGTH = 512
+
+export const SOCKET_TRUST_FRAME = 'conciv:trust'
+
+export const SocketTrustFrameSchema = z.object({
+  type: z.literal(SOCKET_TRUST_FRAME),
+  token: z.string().max(ENGINE_TOKEN_MAX_LENGTH),
+})
+
+export type SocketTrustFrame = z.infer<typeof SocketTrustFrameSchema>
+
 export const contract = {
+  auth: {
+    trust: oc
+      .input(z.object({token: z.string().max(ENGINE_TOKEN_MAX_LENGTH)}))
+      .output(z.object({trusted: z.boolean()})),
+    exchange: oc.input(z.object({code: z.string().regex(LOGIN_CODE_PATTERN)})).output(ExchangeResultSchema),
+    requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
+  },
   sessions: {
     list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
     create: oc.output(SessionIdInput),

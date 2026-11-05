@@ -2,10 +2,11 @@ import {randomInt, timingSafeEqual} from 'node:crypto'
 import {mkdirSync, watch} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {join} from 'node:path'
-import {Hono, type MiddlewareHandler} from 'hono'
-import type {WebSocket, WebSocketServer} from 'ws'
-import {REVOKED_SOCKET_CLOSE_CODE} from '@conciv/contract'
-import {z} from 'zod'
+import {Hono} from 'hono'
+import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
+import {REVOKED_SOCKET_CLOSE_CODE, SocketTrustFrameSchema, type ExchangeRefusal} from '@conciv/contract'
+import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {
   TRUSTED_BROWSERS_FILE,
   grantBrowser,
@@ -16,14 +17,19 @@ import {
   type BrowserRequester,
 } from '@conciv/protocol/engine-trust'
 import {NATIVE_PAGE_PATH} from './api/native-page.js'
+import {os} from './api/rpc/mount.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {logError} from './lib/debug.js'
 
+export const AUTH_PROCEDURE_PATHS: readonly string[] = [
+  '/rpc/auth/trust',
+  '/rpc/auth/exchange',
+  '/rpc/auth/requestCode',
+]
+
 export const OPEN_PATHS: readonly string[] = [
   '/health',
-  '/auth/check',
-  '/auth/code',
-  '/auth/exchange',
+  ...AUTH_PROCEDURE_PATHS,
   NATIVE_PAGE_PATH,
   `${NATIVE_PAGE_PATH}/*`,
 ]
@@ -42,7 +48,7 @@ export function agentPath(token: string): string {
   return `/t/${token}`
 }
 
-export type ExchangeOutcome = 'trusted' | 'mismatch' | 'expired'
+export type ExchangeOutcome = 'trusted' | ExchangeRefusal
 
 export type CodeStore = {
   request: (requester: BrowserRequester, reissue: boolean) => {expiresAt: number}
@@ -135,12 +141,12 @@ export function describeBrowser(userAgent: string): string {
   return system === undefined ? browser : `${browser} | ${system}`
 }
 
-export type EngineTrust = (token: string) => boolean
+export type EngineSocket = Pick<WSContext, 'close'>
 
 export type TrustedBrowsers = {
   has: (token: string) => boolean
   grant: (requester: BrowserRequester, grantedAt: number) => string
-  guard: (wss: WebSocketServer) => void
+  hold: (socket: EngineSocket, token: string) => () => void
   close: () => void
 }
 
@@ -164,7 +170,7 @@ async function readHashes(stateDir: string): Promise<Set<string>> {
 export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
   mkdirSync(stateDir, {recursive: true})
   const state = {hashes: loadHashes(stateDir), reloads: Promise.resolve()}
-  const sockets = new Map<WebSocket, string>()
+  const sockets = new Map<EngineSocket, string>()
   const reload = (): void => {
     state.reloads = state.reloads
       .then(() => readHashes(stateDir))
@@ -189,74 +195,112 @@ export function watchTrustedBrowsers(stateDir: string): TrustedBrowsers {
       state.hashes.add(tokenHash(token))
       return token
     },
-    guard: (wss) => {
-      wss.on('connection', (socket, request) => {
-        const url = new URL(request.url ?? '/', 'http://engine')
-        const {token} = presentedToken(url.pathname, request.headers.authorization ?? null)
-        if (token === undefined || !state.hashes.has(tokenHash(token))) return
-        sockets.set(socket, tokenHash(token))
-        socket.once('close', () => sockets.delete(socket))
-      })
+    hold: (socket, token) => {
+      const hash = tokenHash(token)
+      if (!state.hashes.has(hash)) return () => {}
+      sockets.set(socket, hash)
+      return () => {
+        sockets.delete(socket)
+      }
     },
     close: () => watcher.close(),
   }
 }
 
-export function makeEngineTrust(agentToken: string, browsers: TrustedBrowsers): EngineTrust {
-  return (token) => sameCode(token, agentToken) || browsers.has(token)
+export type ConnectionTrust = {
+  trusts: (token: string) => boolean
+  trustConnection: (socket: EngineSocket, token: string) => (() => void) | null
+  refuseUntrusted: (socket: EngineSocket) => void
 }
 
-function requesterOf(request: Request): BrowserRequester {
+export function makeConnectionTrust(agentToken: string, browsers: TrustedBrowsers): ConnectionTrust {
+  const trusts = (token: string): boolean => token !== '' && (sameCode(token, agentToken) || browsers.has(token))
   return {
-    browser: describeBrowser(request.headers.get('user-agent') ?? ''),
-    origin: request.headers.get('origin') ?? new URL(request.url).origin,
+    trusts,
+    trustConnection: (socket, token) => (trusts(token) ? browsers.hold(socket, token) : null),
+    refuseUntrusted: (socket) => socket.close(REVOKED_SOCKET_CLOSE_CODE, 'this browser is not trusted'),
   }
 }
 
-const JSON_CONTENT = /^application\/json(\s*;|$)/i
-
-const requireJson: MiddlewareHandler = async (c, next) => {
-  if (!JSON_CONTENT.test(c.req.header('content-type') ?? '')) return c.json({message: 'json required'}, 415)
-  await next()
+function parsedFrame(data: WSMessageReceive): unknown {
+  if (typeof data !== 'string') return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
 }
 
-const CheckSchema = z.object({token: z.string().min(1).max(512)})
-const CodeRequestSchema = z.object({reissue: z.boolean().optional()})
-const ExchangeSchema = z.object({code: z.string().regex(/^\d{6}$/)})
-
-async function jsonBody(request: Request): Promise<unknown> {
-  return request.json().catch(() => null)
+export function trustingUpgrade(upgrade: UpgradeWebSocket, trust: ConnectionTrust): UpgradeWebSocket {
+  return (createEvents) =>
+    upgrade((c) => {
+      const events: WSEvents = createEvents(c)
+      const presented = BEARER.exec(c.req.header('authorization') ?? '')?.[1]
+      const connection: {opened: Event | null; release: (() => void) | null} = {opened: null, release: null}
+      const admit = (token: string, ws: WSContext): void => {
+        connection.release = trust.trustConnection(ws, token)
+        if (connection.release === null) {
+          trust.refuseUntrusted(ws)
+          return
+        }
+        events.onOpen?.(connection.opened ?? new Event('open'), ws)
+      }
+      return {
+        onOpen: (event, ws) => {
+          connection.opened = event
+          if (presented !== undefined) admit(presented, ws)
+        },
+        onMessage: (event, ws) => {
+          const frame = SocketTrustFrameSchema.safeParse(parsedFrame(event.data))
+          if (connection.release !== null) {
+            if (!frame.success) events.onMessage?.(event, ws)
+            return
+          }
+          if (!frame.success) {
+            trust.refuseUntrusted(ws)
+            return
+          }
+          admit(frame.data.token, ws)
+        },
+        onClose: (event, ws) => {
+          if (connection.release === null) return
+          connection.release()
+          events.onClose?.(event, ws)
+        },
+        onError: (event, ws) => {
+          if (connection.release !== null) events.onError?.(event, ws)
+        },
+      }
+    })
 }
 
-export function authRoutes(deps: {
+function requesterOf(context: RpcContext): BrowserRequester {
+  return {
+    browser: describeBrowser(rpcHeader(context, 'user-agent') ?? ''),
+    origin: context.callerOrigin ?? context.origin,
+  }
+}
+
+export function makeAuthRouter(deps: {
   codes: CodeStore
-  trusted: EngineTrust
+  trust: ConnectionTrust
   browsers: TrustedBrowsers
   now: () => number
 }) {
-  return new Hono()
-    .use('/auth/code', requireJson)
-    .use('/auth/exchange', requireJson)
-    .post('/auth/check', async (c) => {
-      const parsed = CheckSchema.safeParse(await jsonBody(c.req.raw))
-      if (!parsed.success) return c.json({message: 'a token is required'}, 400)
-      return c.json({trusted: deps.trusted(parsed.data.token)})
-    })
-    .post('/auth/code', async (c) => {
-      const parsed = CodeRequestSchema.safeParse(await jsonBody(c.req.raw))
-      if (!parsed.success) return c.json({message: 'reissue must be a boolean'}, 400)
-      const requester = requesterOf(c.req.raw)
-      return c.json(deps.codes.request(requester, parsed.data.reissue ?? false))
-    })
-    .post('/auth/exchange', async (c) => {
-      const parsed = ExchangeSchema.safeParse(await jsonBody(c.req.raw))
-      if (!parsed.success) return c.json({reason: 'mismatch'}, 401)
-      const outcome = deps.codes.exchange(parsed.data.code)
-      if (outcome !== 'trusted') return c.json({reason: outcome}, 401)
-      const requester = requesterOf(c.req.raw)
-      return c.json({token: deps.browsers.grant(requester, deps.now())})
-    })
+  return {
+    trust: os.auth.trust.handler(({input}) => ({trusted: deps.trust.trusts(input.token)})),
+    exchange: os.auth.exchange.handler(({input, context}) => {
+      const outcome = deps.codes.exchange(input.code)
+      if (outcome !== 'trusted') return {refused: outcome}
+      return {token: deps.browsers.grant(requesterOf(context), deps.now())}
+    }),
+    requestCode: os.auth.requestCode.handler(({input, context}) =>
+      deps.codes.request(requesterOf(context), input.reissue ?? false),
+    ),
+  }
 }
+
+export type AuthRouter = ReturnType<typeof makeAuthRouter>
 
 export type GatedFetch<Env> = (request: Request, env?: Env) => Response | Promise<Response>
 
@@ -279,9 +323,19 @@ function presentedToken(
   return {token: BEARER.exec(authorization ?? '')?.[1], path: undefined}
 }
 
+function isSocketUpgrade(request: Request): boolean {
+  return request.headers.get('upgrade')?.toLowerCase() === 'websocket'
+}
+
+function withBearer(request: Request, url: URL, token: string): Request {
+  const forwarded = new Request(url, request)
+  forwarded.headers.set('authorization', `Bearer ${token}`)
+  return forwarded
+}
+
 export function makeEngineGate<Env>(opts: {
   fetch: GatedFetch<Env>
-  trusted: EngineTrust
+  trusts: (token: string) => boolean
   allowedOrigins: readonly string[]
   onTrusted?: () => void
 }): GatedFetch<Env> {
@@ -289,11 +343,13 @@ export function makeEngineGate<Env>(opts: {
   return (request, env) => {
     const url = new URL(request.url)
     if (isOpenPath(url.pathname)) return opts.fetch(request, env)
+    if (request.method === 'OPTIONS') return refuse.fetch(request)
     const presented = presentedToken(url.pathname, request.headers.get('authorization'))
-    if (presented.token === undefined || !opts.trusted(presented.token)) return refuse.fetch(request)
+    if (presented.token === undefined && isSocketUpgrade(request)) return opts.fetch(request, env)
+    if (presented.token === undefined || !opts.trusts(presented.token)) return refuse.fetch(request)
     opts.onTrusted?.()
     if (presented.path === undefined) return opts.fetch(request, env)
     url.pathname = presented.path
-    return opts.fetch(new Request(url, request), env)
+    return opts.fetch(withBearer(request, url, presented.token), env)
   }
 }

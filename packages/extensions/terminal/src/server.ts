@@ -1,9 +1,9 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
-import {upgradeWebSocket} from '@hono/node-server'
 import {os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, type ServerApi} from '@conciv/extension'
+import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
@@ -189,52 +189,54 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
 
 export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
-const app = new Hono<TerminalEnv>().get(
-  '/tty',
-  async (c, next) => {
-    const parsed = SessionId.safeParse(c.req.query('session'))
-    if (!parsed.success) return c.text('invalid or missing session', 400)
-    await next()
-  },
-  upgradeWebSocket((c) => {
-    const {tty} = c.var.terminal
-    const url = new URL(c.req.url)
-    const sessionOf = () => {
-      const parsed = SessionId.safeParse(url.searchParams.get('session'))
-      return parsed.success ? tty.get(parsed.data) : undefined
-    }
-    let detach: (() => void) | null = null
-    return {
-      onOpen(_event, ws) {
-        const session = sessionOf()
-        if (!session) {
-          ws.close(4404, 'no terminal for session')
-          return
-        }
-        const cols = Number(url.searchParams.get('cols'))
-        const rows = Number(url.searchParams.get('rows'))
-        if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
-        const sink: TtySink = {
-          data: (chunk) => ws.send(Buffer.from(chunk)),
-          control: (frame) => ws.send(JSON.stringify(frame)),
-        }
-        detach = session.attach(sink)
-      },
-      onMessage(event) {
-        const session = sessionOf()
-        if (!session) return
-        const text = typeof event.data === 'string' ? event.data : ''
-        if (text && !applyControl(session, parseControl(text), text)) session.write(text)
-      },
-      onClose() {
-        detach?.()
-        detach = null
-      },
-    }
-  }),
-)
+function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
+  return new Hono<TerminalEnv>().get(
+    '/tty',
+    async (c, next) => {
+      const parsed = SessionId.safeParse(c.req.query('session'))
+      if (!parsed.success) return c.text('invalid or missing session', 400)
+      await next()
+    },
+    upgradeWebSocket((c) => {
+      const {tty} = c.var.terminal
+      const url = new URL(c.req.url)
+      const sessionOf = () => {
+        const parsed = SessionId.safeParse(url.searchParams.get('session'))
+        return parsed.success ? tty.get(parsed.data) : undefined
+      }
+      let detach: (() => void) | null = null
+      return {
+        onOpen(_event, ws) {
+          const session = sessionOf()
+          if (!session) {
+            ws.close(4404, 'no terminal for session')
+            return
+          }
+          const cols = Number(url.searchParams.get('cols'))
+          const rows = Number(url.searchParams.get('rows'))
+          if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
+          const sink: TtySink = {
+            data: (chunk) => ws.send(Buffer.from(chunk)),
+            control: (frame) => ws.send(JSON.stringify(frame)),
+          }
+          detach = session.attach(sink)
+        },
+        onMessage(event) {
+          const session = sessionOf()
+          if (!session) return
+          const text = typeof event.data === 'string' ? event.data : ''
+          if (text && !applyControl(session, parseControl(text), text)) session.write(text)
+        },
+        onClose() {
+          detach?.()
+          detach = null
+        },
+      }
+    }),
+  )
+}
 
-export type TerminalAppType = typeof app
+export type TerminalAppType = ReturnType<typeof ttyApp>
 
 export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = {}) {
   return defineExtension({name: TERMINAL_NAME}).server((server) => {
@@ -248,7 +250,7 @@ export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = 
           c.set('terminal', runtime)
           await next()
         })
-        .route('/', app),
+        .route('/', ttyApp(server.upgradeWebSocket)),
       dispose: () => tty.shutdown(),
     }
   })

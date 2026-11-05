@@ -51,7 +51,7 @@ describe('extension', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, engine}
   }
 
   function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
@@ -106,7 +106,7 @@ describe('extension', () => {
     it('skips a misconfigured runner (runner=jest stub) without aborting boot', async () => {
       const {base, engine} = await boot({extensions: {'test-runner': {runner: 'jest'}}})
       try {
-        await expect(runnerClient(base).status(undefined)).rejects.toThrow()
+        await expect(runnerClient(base).status(undefined)).rejects.toMatchObject({status: 404})
       } finally {
         await engine.stop()
       }
@@ -135,7 +135,7 @@ describe('extension', () => {
         launchEditor: () => {},
         extensions,
       })
-      const base = `http://127.0.0.1:${engine.port}`
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
       try {
         await expect(runnerClient(base).run({})).rejects.toMatchObject({
           code: 'UNAVAILABLE',
@@ -296,7 +296,7 @@ describe('tool catalog', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, engine}
   }
 
   function runSandbox(base: string, typescriptCode: string): Promise<unknown> {

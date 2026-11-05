@@ -186,7 +186,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser, guardSockets} = await makeApp(appOpts)
+  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser} = await makeApp(appOpts)
 
   let serving: Served
   try {
@@ -195,7 +195,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     await dispose()
     throw error
   }
-  guardSockets(serving.wss)
   const {port, close} = serving
   portRef.port = port
 
