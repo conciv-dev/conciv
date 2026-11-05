@@ -16,6 +16,7 @@ import {dirname, join} from 'node:path'
 import {promisify} from 'node:util'
 import {z} from 'zod'
 
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {NON_INTERACTIVE_ENV, WORKSPACE_ROOT, buildAndPack, installPacked, run} from '@conciv/e2e-utils/packed'
 
 const execFileAsync = promisify(execFile)
@@ -34,10 +35,13 @@ export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
 const DEV_ENDPOINT_DIR = join(tmpdir(), 'conciv-it-dev-endpoint')
 
-const DevEndpointSchema = z.object({apiBase: z.string()})
+const ServerStateSchema = z.object({port: z.number(), token: z.string()})
 
-export function agentApiBase(): string {
-  return DevEndpointSchema.parse(JSON.parse(readFileSync(join(DEV_ENDPOINT_DIR, 'dev-endpoint.json'), 'utf8'))).apiBase
+export function agentApiBase(appDir: string): string {
+  const {port, token} = ServerStateSchema.parse(
+    JSON.parse(readFileSync(join(concivStateDir(appDir), 'server.json'), 'utf8')),
+  )
+  return `http://127.0.0.1:${port}/t/${token}`
 }
 
 function writeFixtureFiles(appDir: string, overrides: Record<string, string>): void {

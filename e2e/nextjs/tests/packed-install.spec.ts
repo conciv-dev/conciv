@@ -117,7 +117,7 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     expect(pageErrors).toEqual([])
     await expect(page.getByText(/Unhandled Runtime Error|Build Error|Failed to compile/i)).toHaveCount(0)
 
-    const apiBase = agentApiBase()
+    const apiBase = agentApiBase(fixture.appDir)
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
     await expect(chip(page)).toBeVisible()
