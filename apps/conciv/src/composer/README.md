@@ -28,8 +28,8 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 - `actions.tsx:openExternal`, `copyConnect`: terminal extension rpc `launch` and `connectCommand`
 - `actions.tsx:copyCommand`: writes the clipboard through `writeClipboardText`
 - `model-selector.tsx:SessionModelPrompt`: `rpc.sessions.model` and `rpc.sessions.effort` mutations, each invalidates sessions and announces a failure
-- `model-selector.tsx:SessionModelPrompt`: `rpc.sessions.switchHarness` mutation, refetches the session's `meta.models`, `meta.commands` and `sessions.list`, re-hydrates the chat, announces `Switched to <model> (<harness>).`, failures go to the notice surface
-- `session-selector.tsx:SessionSelector`: `rpc.sessions.rename` mutation, `sessions.list` query, module-level `instanceSeq` counter
+- `model-selector.tsx:SessionModelPrompt`: `rpc.sessions.switchHarness` mutation, refetches the session's `meta.models`, `meta.commands`, `sessions.list` and `sessions.get`, re-hydrates the chat, announces `Switched to <model> (<harness>).`, failures go to the notice surface
+- `session-selector.tsx:SessionSelector`: `rpc.sessions.rename` mutation, `sessions.list` infinite query (30 per page, the next page loads when the list scrolls to its end), `sessions.get` for the active session, module-level `instanceSeq` counter
 
 ## Verification
 

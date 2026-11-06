@@ -23,6 +23,7 @@ export function makeRefreshCoordinator(deps: RefreshCoordinatorDeps): RefreshCoo
 
   const sessionQueryKeys = (): QueryKey[] => [
     deps.appData.utils.sessions.list.key(),
+    deps.appData.utils.sessions.get.key({input: {sessionId: deps.sessionId()}}),
     deps.appData.utils.markers.list.key({input: {sessionId: deps.sessionId()}}),
     deps.appData.utils.captures.list.key({input: {sessionId: deps.sessionId()}}),
   ]

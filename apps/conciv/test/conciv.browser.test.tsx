@@ -2017,7 +2017,7 @@ describe('panel refresh', () => {
     await coreControl.awaitFaultPending(gate, 1)
 
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByRole('banner').getByText('New session', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('banner').getByText('seed the transcript', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
   })
 
@@ -2552,7 +2552,8 @@ describe('quick add pane', () => {
   const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
-  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> => (await rpc.sessions.list()).map((row) => row.id)
+  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
+    (await rpc.sessions.list({limit: 100})).sessions.map((row) => row.id)
 
   const idsAddedBy = (before: string[], after: string[]): string[] => after.filter((id) => !before.includes(id))
 
@@ -2935,10 +2936,21 @@ describe('route boundary', () => {
 
 describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
+  const OLDER_SESSIONS = 40
+  const DAY_MS = 86_400_000
+  const OLDEST_ID = HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`)
 
   const core = bootedCore('session-selector', {
     resume: true,
-    history: [{id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), messageCount: 3}],
+    history: [
+      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), messageCount: 3},
+      ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
+        id: HarnessSessionId.parse(`older-${index}`),
+        derivedTitle: `older session ${index}`,
+        updatedAt: Date.now() - (index + 1) * DAY_MS,
+        messageCount: 1,
+      })),
+    ],
   })
   const keep = keptPane()
 
@@ -2946,11 +2958,11 @@ describe('session selector', () => {
     await coreControl.releaseTurn()
   })
 
-  async function adoptExternalSession(rpc: RpcClient): Promise<string> {
-    const listed = await rpc.sessions.list()
-    const external = listed.find((meta) => meta.native?.nativeId === EXTERNAL_ID)
-    if (!external?.native) throw new Error('the harness history fixture never reached the session list')
-    const {sessionId} = await rpc.sessions.open(external.native)
+  async function adoptNativeSession(rpc: RpcClient, nativeId: string): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const native = sessions.find((meta) => meta.native?.nativeId === nativeId)?.native
+    if (!native) throw new Error('the harness history fixture never reached the session list')
+    const {sessionId} = await rpc.sessions.open(native)
     return sessionId
   }
 
@@ -2958,7 +2970,7 @@ describe('session selector', () => {
     const rpc = coreRpc(core())
     const activeId = (await rpc.sessions.create()).sessionId
     await rpc.sessions.rename({sessionId: activeId, title: 'the active session'})
-    const externalId = await adoptExternalSession(rpc)
+    const externalId = await adoptNativeSession(rpc, EXTERNAL_ID)
     await coreControl.holdTurn()
     await sendTurn(core(), externalId, 'keep this session busy')
     keep(
@@ -2975,6 +2987,29 @@ describe('session selector', () => {
 
     await expect.element(page.getByRole('option', {name: /a session mid-run.*running/})).toBeVisible()
     await expect.element(page.getByRole('option', {name: /^the active session(?!.*running)/})).toBeVisible()
+  })
+
+  test('scrolling the list to its end loads the next page of sessions', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
+
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
+
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeInTheDocument()
+  })
+
+  test('a session past the first page shows its own title on the trigger', async () => {
+    const sessionId = await adoptNativeSession(coreRpc(core()), OLDEST_ID)
+    keep(
+      mountPane({base: core(), sessionId}, () => (
+        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+      )),
+    )
+
+    await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
   })
 
   test('the selector keeps freshness, message count and origin in the row description', async () => {

@@ -1,13 +1,14 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Button, Combobox, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
-import {useQuery, useMutation} from '@tanstack/solid-query'
+import {skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import Plus from 'lucide-solid/icons/plus'
 import type {SessionMeta} from '@conciv/contract'
+import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
 
@@ -17,6 +18,10 @@ const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
 
 const RUNNING_LABEL = 'running'
+
+const PAGE_SIZE = 30
+
+const END_REACHED_PX = 48
 
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
@@ -67,11 +72,26 @@ export function SessionSelector(props: {
   const announce = useAnnounce()
   const idPrefix = `conciv-session-${++instanceSeq}`
 
-  const list = useQuery(() => appData.utils.sessions.list.queryOptions())
+  const list = useInfiniteQuery(() =>
+    appData.utils.sessions.list.infiniteOptions({
+      input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
+      initialPageParam: null,
+      getNextPageParam: (page) => page.next,
+    }),
+  )
+  const active = useQuery(() => {
+    const sessionId = props.activeId()
+    return appData.utils.sessions.get.queryOptions({input: sessionId === null ? skipToken : {sessionId}})
+  })
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
     harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
-  const rows = (): SessionMeta[] => list.data ?? []
+  const rows = (): SessionMeta[] => list.data?.pages.flatMap((page) => page.sessions) ?? []
+  const loadMoreAtEnd = (scroller: HTMLElement) => {
+    const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+    if (remaining > END_REACHED_PX || !list.hasNextPage || list.isFetchingNextPage) return
+    void list.fetchNextPage()
+  }
   const activeId = () => props.activeId()
 
   const valueArr = (): string[] => {
@@ -93,7 +113,7 @@ export function SessionSelector(props: {
   })
   onMount(() => setNow(Date.now()))
 
-  const activeRow = () => rows().find((s) => s.id === activeId()) ?? null
+  const activeRow = () => active.data ?? null
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
@@ -238,7 +258,7 @@ export function SessionSelector(props: {
               </TooltipIconButton>
             </Show>
           </div>
-          <div class="flex-1 overflow-y-auto">
+          <div class="flex-1 overflow-y-auto" onScroll={(event) => loadMoreAtEnd(event.currentTarget)}>
             <Show when={list.isLoading && rows().length === 0}>
               <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
                 <div class={SKEL} />
@@ -303,6 +323,12 @@ export function SessionSelector(props: {
                 </Combobox.ItemGroup>
               )}
             </For>
+            <Show when={list.isFetchingNextPage}>
+              <div class="px-1 py-1.5" role="status" aria-busy="true">
+                <div class={SKEL} />
+                <span class="sr-only">Loading more sessions…</span>
+              </div>
+            </Show>
           </div>
         </Combobox.Content>
       </Combobox.Positioner>
