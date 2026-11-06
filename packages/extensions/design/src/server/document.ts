@@ -24,8 +24,9 @@ const RULES = [
   'Put each node\'s id on the element that renders it as data-figma="<id>", one element per id.',
   'The dev server stamps data-conciv-key attributes into your JSX as you save; keep them, never strip or rewrite them, and edit around them.',
   'Lay the page out with normal flow, flex and grid: no position absolute, no px width or height on containers or text; sizes come from content, gaps and flex/grid rules, percentages and ratios, so the page stays a page and reflows at other widths.',
-  'Every image, icon and logo is an empty div with no background, border or fill, never a drawn svg, data url or CSS shape.',
-  'Every image, icon and logo div gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
+  'Every node marked image: true is an empty div with no background, border or fill, never a drawn svg, data url or CSS shape.',
+  'Every image div gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
+  'A node not marked image is a box: when it has a solid fill, that fill is its background, whether it is an icon, a logo, a dot or a drawing.',
   'A row whose auto-layout says wrap: WRAP keeps all its children on one line at the design width, exactly as the Figma frame shows them; it may wrap only when the viewport is narrower than the row is in the design, never at 1440.',
 ]
 

@@ -369,7 +369,7 @@ function designNodes(input: {node: FigmaNode; origin: Origin}): DesignNode[] {
   if (bounds === undefined || bounds === null) return childNodes(input)
   const box = boxIn({bounds, origin})
   if (node.type === 'TEXT') return [textNode({node, box, origin})]
-  if (collapses(node)) {
+  if (collapses(node) && !solidFilled(node)) {
     const figma = figmaFacts({node, origin, marks: {image: true, crop: cropped(node)}})
     return [{id: node.id, box, hash: '', figma, kind: 'image', holds: 0, children: []}]
   }
@@ -533,6 +533,10 @@ function cropped(node: FigmaNode): boolean {
 function imageFilled(node: FigmaNode): boolean {
   const fills = (node.fills ?? []).filter((paint) => paint.visible !== false)
   return fills.some((paint) => paint.type === 'IMAGE') && !fills.some((paint) => paint.type === 'SOLID')
+}
+
+function solidFilled(node: FigmaNode): boolean {
+  return (node.fills ?? []).some((paint) => paint.visible !== false && paint.type === 'SOLID')
 }
 
 function visibleChildren(node: FigmaNode): FigmaNode[] {
