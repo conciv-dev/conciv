@@ -3028,7 +3028,7 @@ describe('session selector', () => {
     await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
 
     await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
-    await expect.element(page.getByText('Loading more sessions…')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Loading more…')).not.toBeInTheDocument()
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
   })
 

@@ -318,9 +318,13 @@ export function SessionSelector(props: {
               <Show
                 when={list.isFetchNextPageError}
                 fallback={
-                  <div class="px-1 py-1.5" role="status" aria-busy="true">
-                    <div class={SKEL} />
-                    <span class="sr-only">Loading more sessions…</span>
+                  <div
+                    class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 h-full items-center"
+                    role="status"
+                    aria-busy="true"
+                  >
+                    <span class="rounded-chat-pill bg-chat-text-3 shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
+                    Loading more…
                   </div>
                 }
               >
