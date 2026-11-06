@@ -217,7 +217,7 @@ export function RowBadges(props: {row: Row; data: XrayData; opinions: boolean}):
       props.row.width === null ? null : String(props.row.width),
       props.row.confidence === null ? null : CONFIDENCE.format(props.row.confidence),
     ])
-  const marks = () => props.data.decisions.filter((decision) => props.row.nodes.includes(decision.anchor))
+  const marks = () => made(props.data.decisions).filter((decision) => props.row.nodes.includes(decision.anchor))
   const lost = () => marks().some((decision) => lostPin({decision, data: props.data}))
   const status = () => {
     const [node] = props.row.nodes
@@ -453,9 +453,9 @@ function Decisions(props: {data: XrayData; decider: Decider}): JSX.Element {
     return node === undefined ? decision.anchor : nodeName(node)
   }
   return (
-    <Show when={props.data.decisions.length > 0}>
+    <Show when={made(props.data.decisions).length > 0}>
       <ul aria-label="Decisions" class="m-0 p-0 list-none flex flex-col gap-1">
-        <For each={props.data.decisions}>
+        <For each={made(props.data.decisions)}>
           {(decision) => (
             <li class="text-sm flex flex-wrap gap-2 items-center">
               <span class="badge badge-color-green">{decisionText(decision)}</span>
@@ -549,10 +549,13 @@ function lostPin(input: {decision: Decision; data: XrayData}): boolean {
   return input.decision.kind === 'pin' && (input.data.report?.pinsLost.includes(input.decision.id) ?? false)
 }
 
+function made(decisions: Decision[]): Decision[] {
+  return decisions.filter((decision) => decision.kind !== 'twin' && decision.kind !== 'typography')
+}
+
 function runStamp(path: string | null): string | null {
-  const name = path?.split('/').at(-1)
-  if (name === undefined || !name.startsWith(LIVE_PREFIX)) return null
-  return name.slice(LIVE_PREFIX.length).split('.')[0] ?? null
+  const parts = path?.split('/') ?? []
+  return parts.at(-1) === LIVE_IMAGE ? (parts.at(-2) ?? null) : null
 }
 
 function stageOrder(stage: Stage | null): number {
@@ -574,7 +577,7 @@ function failureText(error: unknown): string {
 
 const INFORMATIONAL = 'informational'
 const GROUP_ORDER: (Stage | typeof INFORMATIONAL)[] = [...STAGES, INFORMATIONAL]
-const LIVE_PREFIX = 'live-'
+const LIVE_IMAGE = 'live.png'
 const TOLERANCE_START = 2
 const CONFIDENCE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 0})
 const SHARE = new Intl.NumberFormat(undefined, {style: 'percent', maximumFractionDigits: 1})

@@ -38,7 +38,8 @@ const TOLERANCES = designConfig.tolerances
 
 function statusOf(input: Parameters<Words['status']>[0] & {phrases: Sayings; cwd: string}): StatusReport {
   const {record, run, design, previous, accepted, phrases, cwd} = input
-  const shown = (path: string): string => (isAbsolute(path) ? relative(cwd, path) : path)
+  const shown = (path: string): string =>
+    isAbsolute(path) && !relative(cwd, path).startsWith('..') ? relative(cwd, path) : path
   const paths = {design: shown(record.paths.design), placeholder: shown(record.paths.placeholder)}
   const sections =
     design === null ? [] : design.root.children.toSorted((a, b) => a.box.y - b.box.y || a.box.x - b.box.x)

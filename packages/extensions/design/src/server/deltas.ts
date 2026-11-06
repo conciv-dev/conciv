@@ -523,7 +523,13 @@ function align(input: {root: Match; raster: Raster; exact: boolean}): {
       )
   const shiftOf = (entry: Seated): Shift => relative({a: displacement({seated: entry, raster, exact}), b: global})
   const page = beyond(global) ? {x: Math.round(global.dx), y: Math.round(global.dy)} : null
-  return {global, page, shifts: new Map(offsetsUnder({match: root, anchor: null, shiftOf}))}
+  const heads = new Set(
+    [...Map.groupBy(seated, (entry) => entry.live.path).values()].flatMap((entries) => {
+      const head = entries.find((entry) => entry.match.node.kind !== 'text') ?? entries[0]
+      return head === undefined ? [] : [head.match]
+    }),
+  )
+  return {global, page, shifts: new Map(offsetsUnder({match: root, anchor: null, shiftOf, heads}))}
 }
 
 function boxShift(seated: Seated[]): Shift {
@@ -580,15 +586,16 @@ function offsetsUnder(input: {
   match: Match
   anchor: Seated | null
   shiftOf: (seated: Seated) => Shift
+  heads: Set<Match>
 }): [Match, Shift][] {
-  const {anchor, shiftOf} = input
+  const {anchor, shiftOf, heads} = input
   return input.match.children.flatMap((child): [Match, Shift][] => {
     const seated = child.live === null ? null : {match: child, live: child.live}
     const below = offsetsUnder({...input, match: child, anchor: seated ?? anchor})
     if (seated === null) return below
     if (anchor !== null && beyond(shiftOf(anchor))) return below
     const shift = shiftOf(seated)
-    return beyond(shift) ? [[child, shift], ...below] : below
+    return beyond(shift) && heads.has(child) ? [[child, shift], ...below] : below
   })
 }
 

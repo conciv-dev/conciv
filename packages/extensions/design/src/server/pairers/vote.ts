@@ -203,10 +203,16 @@ function pairNode(input: {
     nodes: node.children.flatMap((child) => (kept.has(child.id) ? [] : (pairing.views.get(child.id) ?? []))),
     candidates: pool,
   })
+  const missed = node.children.flatMap((child) =>
+    pool === pairing.candidates || kept.has(child.id) || level.assignments.has(child.id)
+      ? []
+      : (pairing.views.get(child.id) ?? []),
+  )
+  const wider = voteLevel({...pairing, nodes: missed, candidates: pairing.candidates})
   const children = node.children.map((child): Paired => {
     const carried = kept.get(child.id)
     if (carried !== undefined) return {match: carried, partial: false, carried: [...walk(carried)].length}
-    const taken = level.assignments.get(child.id)
+    const taken = level.assignments.get(child.id) ?? wider.assignments.get(child.id)
     return pairNode({
       node: child,
       live: taken === undefined ? null : (pairing.components.get(taken.candidate.key) ?? null),
@@ -223,8 +229,8 @@ function pairNode(input: {
       confidence: live === null ? 0 : input.confidence,
       children: children.map((child) => child.match),
     }),
-    partial: level.partial || children.some((child) => child.partial),
-    carried: children.reduce((sum, child) => sum + child.carried, level.carried),
+    partial: level.partial || wider.partial || children.some((child) => child.partial),
+    carried: children.reduce((sum, child) => sum + child.carried, level.carried + wider.carried),
   }
 }
 

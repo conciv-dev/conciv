@@ -7,7 +7,8 @@ import {box} from '../shared/box.js'
 
 export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Phrases; cwd: string}): DiffReport {
   const {run, previous, measured, design, record, paths, phrases, cwd} = input
-  const shown = (path: string): string => (isAbsolute(path) ? relative(cwd, path) : path)
+  const shown = (path: string): string =>
+    isAbsolute(path) && !relative(cwd, path).startsWith('..') ? relative(cwd, path) : path
   const {root} = run
   const visits = [...walk(root)].map(({node, parent, depth}) => ({match: node, parent, depth}))
   const items = input.items.map((item) => ({...item, sentence: phrases.item({item, root})}))
@@ -47,11 +48,12 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
     })
     return said === null ? {} : {hint: said}
   }
-  const since = previous === null ? null : previous.round
+  const since = previous === null || previous.round === 0 ? null : previous.round
   const was = previous?.similarity ?? null
   const trend = was === null || run.similarity === null ? null : {now: run.similarity, was}
-  const told = (verdict: Pick<Run, 'stage' | 'stop' | 'score'> & {changes: Changes; warnings: Delta[]}) =>
-    briefOf({...verdict, items, since, trend, painted, crop, phrases})
+  const told = (
+    verdict: Pick<Run, 'stage' | 'stop' | 'score'> & {changes: Changes; warnings: Delta[]; items?: Item[]},
+  ) => briefOf({items, ...verdict, since, trend, painted, crop, phrases})
   const scope = root.children.find((child) => child.node.id === input.input.section) ?? null
   if (input.input.section === undefined || scope === null) {
     return {
@@ -75,10 +77,11 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
   const inside = (inner: Box | undefined): boolean => inner !== undefined && box.encloses({inner, outer: area})
   const held = (entry: {node?: string | undefined; box?: Box | undefined}): boolean =>
     entry.node === undefined ? inside(entry.box) : nodes.has(entry.node)
-  const scoped = sectionVerdict({scope, items, partial: run.partial})
+  const owned = items.filter((item) => held({node: item.node, box: item.box}))
+  const scoped = sectionVerdict({scope, items: owned, partial: run.partial})
   const scopedChanges = filteredChanges({changes, nodes})
   const scopedWarnings = warnings.filter((warning) => inside(warning.box))
-  const said = told({...scoped, changes: scopedChanges, warnings: scopedWarnings})
+  const said = told({...scoped, changes: scopedChanges, warnings: scopedWarnings, items: owned})
   const reported = components.reported.filter(
     (component) => (component.nodes ?? []).some((node) => nodes.has(node)) || inside(component.live),
   )

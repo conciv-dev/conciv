@@ -262,7 +262,7 @@ const DesignNodeBaseSchema = z.object({
 })
 
 const DesignNodeSchema = DesignNodeBaseSchema.extend({
-  get children() {
+  get children(): z.ZodArray<typeof DesignNodeSchema> {
     return z.array(DesignNodeSchema)
   },
 }).and(DesignNodeKindSchema)

@@ -23,8 +23,11 @@ import {designConfig} from '../shared/tolerances.js'
 import {createRaster} from './raster.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
-  return (input) => runOnce({...input, runtime})
+  const carries = new Map<string, Carry>()
+  return (input) => runOnce({...input, runtime, carries})
 }
+
+type Carry = {run: string; pairs: number; tiles: number}
 
 type Typography = Extract<Decision['value'], {size: number}>
 
@@ -38,8 +41,10 @@ const PAGE_ERROR = 'page-error'
 
 const STRETCHED = 0.85
 
-async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}): ReturnType<Runner> {
-  const {runtime, record, page, observe} = input
+async function runOnce(
+  input: Parameters<Runner>[0] & {runtime: DesignRuntime; carries: Map<string, Carry>},
+): ReturnType<Runner> {
+  const {runtime, record, page, observe, carries} = input
   const {store} = runtime
   const clock = startClock()
   const [stored, decisions, previous, image, rounds] = await Promise.all([
@@ -90,7 +95,7 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
     limit: input.input.limit,
   })
   clock.lap('deltas')
-  await keepTypography({store, id: record.id, root: found.root, decisions})
+  await keepTypography({store, id: record.id, root: found.root, design, decisions})
   clock.lap('typography')
   const advances = observe && !paired.partial
   const id = runId()
@@ -98,7 +103,7 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
     root: found.root,
     extras: found.extras,
     warnings: found.warnings,
-    previous,
+    previous: rounds.at(-1) ?? null,
     rounds: advances ? rounds : rounds.slice(0, -1),
     decisions,
     accepted,
@@ -137,8 +142,10 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
     diff,
   })
   clock.lap('write')
+  carries.set(record.id, {run: run.id, pairs: paired.carried, tiles: found.timings.carried ?? 0})
   return reported({
     ...shared,
+    previous: rounds.at(-1) ?? null,
     run,
     carried: paired.carried,
     timings: found.timings,
@@ -147,6 +154,7 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
 
 type Shared = Parameters<Runner>[0] & {
   runtime: DesignRuntime
+  carries: Map<string, Carry>
   clock: ReturnType<typeof startClock>
   measured: Awaited<ReturnType<DesignRuntime['measurer']['measure']>>
   design: Design
@@ -163,8 +171,9 @@ async function unchanged(input: Shared & {run: Run}): ReturnType<Runner> {
 }
 
 async function counted(input: Shared & {run: Run; rounds: Run[]; accepted: Set<string>}): ReturnType<Runner> {
-  const {runtime, record, run, rounds, decisions, accepted, clock} = input
+  const {runtime, record, run, rounds, decisions, accepted, clock, carries} = input
   const {store} = runtime
+  const carry = carries.get(record.id)
   const id = runId()
   const judged = runtime.judge({
     root: run.root,
@@ -202,7 +211,14 @@ async function counted(input: Shared & {run: Run; rounds: Run[]; accepted: Set<s
     diff: diff ?? new Uint8Array(),
   })
   clock.lap('write')
-  return reported({...input, run: written, carried: 0, timings: {}})
+  const settled = carry?.run === run.id ? carry : null
+  return reported({
+    ...input,
+    previous: rounds.at(-1) ?? null,
+    run: written,
+    carried: settled?.pairs ?? 0,
+    timings: {carried: settled?.tiles ?? 0},
+  })
 }
 
 async function reported(
@@ -224,14 +240,14 @@ async function reported(
     record,
     input: input.input,
     paths: {
-      live: reportPath({cwd: runtime.cwd, path: run.images.live}),
-      diff: reportPath({cwd: runtime.cwd, path: run.images.diff}),
+      live: reportPath({cwd: runtime.cwd, path: store.path(run.images.live) ?? run.images.live}),
+      diff: reportPath({cwd: runtime.cwd, path: store.path(run.images.diff) ?? run.images.diff}),
       xray: runtime.xrayUrl({id: record.id, session: input.session}).url,
     },
     timings: {
       ...clocked,
       ...Object.fromEntries(DELTA_PHASES.map((phase) => [phase, input.timings[phase] ?? clocked[phase]])),
-      carried: {pairs: input.carried, tiles: 0},
+      carried: {pairs: input.carried, tiles: input.timings.carried ?? 0},
       ...(measured.longestTask === undefined ? {} : {longestTask: measured.longestTask}),
     },
     decisions,
@@ -289,7 +305,7 @@ async function countedRounds(input: {store: Store; record: TargetRecord}): Promi
   const accepted = record.acceptedRun === undefined ? -1 : ids.indexOf(record.acceptedRun)
   const loaded = await Promise.all(ids.slice(accepted + 1).map((run) => store.run({id: record.id, run})))
   const rounds = loaded.flatMap((run) => (run === null || run.round === 0 ? [] : [run]))
-  return uniqBy(rounds.toReversed(), (run) => run.round).toReversed()
+  return uniqBy(rounds, (run) => run.round)
 }
 
 function inCss(input: {design: Design; decisions: Decision[]}): {design: Design; excluded: Box[]} {
@@ -425,16 +441,22 @@ function pairedNode(input: {root: Match; id: string}): Match | null {
   return null
 }
 
-async function keepTypography(input: {store: Store; id: string; root: Match; decisions: Decision[]}): Promise<void> {
+async function keepTypography(input: {
+  store: Store
+  id: string
+  root: Match
+  design: Design
+  decisions: Decision[]
+}): Promise<void> {
   const {store, id, decisions} = input
-  const decided = new Set(
-    decisions.filter((decision) => decision.kind === 'typography').map((decision) => decision.anchor),
-  )
+  const decided = new Set([
+    ...decisions.filter((decision) => decision.kind === 'typography').map((decision) => decision.anchor),
+    ...[...walk(input.design.root)].flatMap(({node}) =>
+      node.kind === 'text' && node.typography?.confidence === 1 ? [node.id] : [],
+    ),
+  ])
   const estimates = [...walk(input.root)].flatMap(({node: match}) =>
-    match.node.kind === 'text' &&
-    match.node.typography !== undefined &&
-    match.node.typography.confidence < 1 &&
-    !decided.has(match.node.id)
+    match.node.kind === 'text' && match.node.typography !== undefined && !decided.has(match.node.id)
       ? [{anchor: match.node.id, value: match.node.typography}]
       : [],
   )
@@ -446,7 +468,8 @@ function runId(): string {
 }
 
 function reportPath(input: {cwd: string; path: string}): string {
-  return isAbsolute(input.path) ? relative(input.cwd, input.path) : input.path
+  const inside = relative(input.cwd, input.path)
+  return isAbsolute(input.path) && !inside.startsWith('..') ? inside : input.path
 }
 
 async function responsiveTwins(input: {

@@ -195,9 +195,9 @@ export function rowAboveTolerance(row: Row): boolean {
 }
 
 function runTime(report: DiffReport | null): number | null {
-  const name = report?.livePath.split('/').at(-1)
-  if (name === undefined) return null
-  const at = Number(name.split('-')[1])
+  const run = report?.livePath.split('/').at(-2)
+  if (run === undefined) return null
+  const at = Number(run.split('-')[0])
   return Number.isFinite(at) ? at : null
 }
 

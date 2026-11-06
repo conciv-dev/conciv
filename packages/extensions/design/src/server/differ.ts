@@ -26,7 +26,7 @@ export function createDiffer(input: {
   const trigger = createLanes({
     execute: (job) => {
       const files = [...(edited.get(job.id) ?? [])]
-      edited.set(job.id, new Set())
+      if (job.observe || !edited.has(job.id)) edited.set(job.id, new Set())
       return answeredDiff({job, edited: files, runtime, runner, page: tab(job.session), reports, unanswered})
     },
   })
@@ -35,7 +35,8 @@ export function createDiffer(input: {
     if (record === null) return
     await trigger({id: record.id, session, observe: false, input: DEFAULT_DIFF})
   }
-  const edits = watchSettled({bundler, store, page, refresh})
+  const touch = ({file}: {file: string}): void => edited.forEach((files) => files.add(relative(runtime.cwd, file)))
+  const edits = watchSettled({bundler, store, page, refresh, touch})
   return {
     register: async ({input: target, session, page: access}) => {
       const result = await registerTarget({runtime, target, session, page: access})
@@ -50,7 +51,7 @@ export function createDiffer(input: {
       return trigger({id: record.id, session, observe: true, input: query})
     },
     refresh,
-    touch: ({file}) => edited.forEach((files) => files.add(relative(runtime.cwd, file))),
+    touch,
     capture: ({id, session}) => trigger({id, session, observe: false, input: DEFAULT_DIFF}),
     accept: async ({id}) => {
       const last = (await store.runs(id)).at(-1)
@@ -114,7 +115,7 @@ async function registerTarget(input: {
   const image =
     pictured === undefined
       ? undefined
-      : await readPng({ref: projectRef({ref: pictured, cwd}), project, words: runtime.words})
+      : await readPng({ref: projectRef({ref: pictured, cwd}), project, files: runtime.files, words: runtime.words})
   const loaded = await adapter.load({
     ref: pngBase64(ref) === null ? ref : BASE64_REF,
     scale: target.scale ?? 1,
@@ -125,8 +126,6 @@ async function registerTarget(input: {
       ...(image === undefined ? {} : {image}),
     },
   })
-  const current = await runtime.store.current(session)
-  if (current?.id !== loaded.design.id) await runtime.store.remove({id: loaded.design.id})
   const facts = await runtime.measurer.probe(page).catch(() => null)
   const route = target.route ?? (facts === null ? undefined : pathnameIn(facts.route))
   const record = await runtime.store.put({
@@ -156,15 +155,21 @@ function pathnameIn(route: string): string {
 }
 
 function projectRef(input: {ref: string; cwd: string}): string {
-  return isAbsolute(input.ref) ? relative(input.cwd, input.ref) : input.ref
+  if (!isAbsolute(input.ref)) return input.ref
+  const inside = relative(input.cwd, input.ref)
+  return inside.startsWith('..') ? input.ref : inside
 }
 
 async function readPng(input: {
   ref: string
   project: DesignRuntime['project']
+  files: DesignRuntime['files']
   words: DesignRuntime['words']
 }): Promise<Uint8Array<ArrayBuffer>> {
-  const raw: unknown = await input.project.getItemRaw(input.ref).catch(() => null)
+  const {ref, project, files} = input
+  const raw: unknown = await (ref.startsWith('/') ? files.getItemRaw(ref.slice(1)) : project.getItemRaw(ref)).catch(
+    () => null,
+  )
   if (raw instanceof Uint8Array) return new Uint8Array(raw)
   const bytes = pngBase64(input.ref)
   if (bytes !== null) return bytes
@@ -502,8 +507,9 @@ function watchSettled(input: {
   store: Store
   page: DesignPage
   refresh: (input: {session: string}) => Promise<unknown>
+  touch: (input: {file: string}) => void
 }): {dispose: () => void; quiet: () => Promise<void>} {
-  const {bundler, store, page, refresh} = input
+  const {bundler, store, page, refresh, touch} = input
   const state: {burst: Burst | null; flight: Promise<void>} = {burst: null, flight: Promise.resolve()}
   const settle = async (since: number): Promise<void> => {
     const sessions = new Set((await store.list()).map((record) => record.session).filter(isSessionId))
@@ -534,6 +540,7 @@ function watchSettled(input: {
     }
     state.burst = burst
     burst.files.add(diagnostic.file)
+    touch({file: diagnostic.file})
     clearTimeout(burst.timer)
     burst.timer = setTimeout(() => fire(burst), TOLERANCES.settleQuiet)
   })

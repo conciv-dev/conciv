@@ -9,12 +9,17 @@ import {
   RunSchema,
   TargetRecordSchema,
   type Decision,
+  type Design,
+  type DesignNode,
   type Store,
   type TargetRecord,
   type Words,
 } from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
 
-const RUNS_KEPT = 5
+type Typography = Extract<Decision['value'], {size: number}>
+
+const RUNS_KEPT = designConfig.tolerances.runsKept
 const CAPTURES_KEPT = 20
 const RUN_KEY = 'run'
 const RECORD_KEY = 'record'
@@ -75,13 +80,23 @@ export function createStore(input: {state: Storage; words: Words}): Store {
     await Promise.all(stale.map((run) => removeUnder({state, base: `${id}:runs:${run}`})))
   }
 
+  async function current(session: string): Promise<TargetRecord | null> {
+    const records = await list()
+    const own = records.filter((entry) => entry.session === session).at(-1)
+    if (own !== undefined) return own
+    return records.length === 1 ? (records[0] ?? null) : null
+  }
+
   return {
     put: ({design, image, session, route, name, framework}) =>
       serial(async () => {
         const earlier = await record(design.id)
+        const reregistered = earlier !== null && (await current(session))?.id !== design.id
+        if (reregistered) await removeUnder({state, base: `${design.id}:runs`})
         await state.setItemRaw(targetKey(design.id), image)
         await state.setItem(`${design.id}:design`, design)
-        await state.setItem(`${design.id}:design.txt`, words.outline(design).join('\n'))
+        const outlined = typed({design, decisions: await decisions(design.id)})
+        await state.setItem(`${design.id}:design.txt`, words.outline(outlined).join('\n'))
         await writePlaceholder({state, id: design.id, source: words.placeholder(framework ?? 'react')})
         return writeRecord({
           id: design.id,
@@ -92,7 +107,7 @@ export function createStore(input: {state: Storage; words: Words}): Store {
           ...(name === undefined ? {} : {name}),
           scale: design.scale,
           createdAt: Date.now(),
-          ...(earlier?.acceptedRun === undefined ? {} : {acceptedRun: earlier.acceptedRun}),
+          ...(earlier?.acceptedRun === undefined || reregistered ? {} : {acceptedRun: earlier.acceptedRun}),
           paths: {
             design: keyPath({state, key: `${design.id}:design.txt`}) ?? '',
             placeholder: keyPath({state, key: `${design.id}:placeholder.tsx`}) ?? '',
@@ -101,7 +116,7 @@ export function createStore(input: {state: Storage; words: Words}): Store {
       }),
     design: async (id) => {
       const design = await readItem({state, key: `${id}:design`, schema: DesignSchema})
-      if (design !== null) return design
+      if (design !== null) return typed({design, decisions: await decisions(id)})
       throw toolError('no-target', {
         message: `the stored design target ${id} is unreadable; register the design image again with design_target`,
       })
@@ -111,12 +126,7 @@ export function createStore(input: {state: Storage; words: Words}): Store {
       return readRaw({state, key: imageKey({id, run, kind: kind ?? 'live'})})
     },
     record,
-    current: async (session) => {
-      const records = await list()
-      const own = records.filter((entry) => entry.session === session).at(-1)
-      if (own !== undefined) return own
-      return records.length === 1 ? (records[0] ?? null) : null
-    },
+    current,
     list,
     remove: ({id, all}) =>
       serial(async () => {
@@ -148,7 +158,12 @@ export function createStore(input: {state: Storage; words: Words}): Store {
       serial(async () => {
         await existing(id)
         const decision: Decision = {id: randomUUID().slice(0, 8), kind, anchor, value, at: Date.now()}
-        await state.setItem(decisionsKey(id), [...(await decisions(id)), decision])
+        const all = [...(await decisions(id)), decision]
+        await state.setItem(decisionsKey(id), all)
+        const design = kind === 'typography' ? await readItem({state, key: `${id}:design`, schema: DesignSchema}) : null
+        if (design !== null) {
+          await state.setItem(`${id}:design.txt`, words.outline(typed({design, decisions: all})).join('\n'))
+        }
         return decision
       }),
     revoke: ({id, decision}) =>
@@ -170,6 +185,27 @@ export function createStore(input: {state: Storage; words: Words}): Store {
     },
     path: (key) => keyPath({state, key}),
   }
+}
+
+function typed(input: {design: Design; decisions: Decision[]}): Design {
+  const sizes = new Map(
+    input.decisions.flatMap((decision): [string, Typography][] =>
+      decision.kind === 'typography' &&
+      typeof decision.value === 'object' &&
+      decision.value !== null &&
+      'size' in decision.value
+        ? [[decision.anchor, decision.value]]
+        : [],
+    ),
+  )
+  if (sizes.size === 0) return input.design
+  const retyped = (node: DesignNode): DesignNode => {
+    const children = node.children.map(retyped)
+    const found = sizes.get(node.id)
+    if (node.kind !== 'text' || found === undefined || node.typography?.confidence === 1) return {...node, children}
+    return {...node, typography: found, children}
+  }
+  return {...input.design, root: retyped(input.design.root)}
 }
 
 async function writePlaceholder(input: {state: Storage; id: string; source: string}): Promise<void> {
