@@ -141,9 +141,10 @@ At each width, for each tagged row, by mapping:
   magnitude `much`.
 
 The break checks of `rightcss/reflow.mjs` (`sticksOut`, `overflowX`, `overlaps` over 8 px) run at every width as
-today. The size rows of the gate (`narrower`, `wider`, `shorter`, `taller`) run at every width where the row is
-still a row, on shares of the parent instead of pixels, same tolerances as `gate.ts`. Position rows and pins run
-at the design width only.
+today. No box is judged against the design at any width but the design width: that is ruling 14 of the driver
+rulings (2026-11-01, mirror carry: between designs only self-consistency, overflow, overlap, clip). Gate rows,
+position rows and pins run at the design width only; at every other width the page answers only to its tags and
+to the break checks. Widths other than the tab's are measured in the mirror, as the measurer already does.
 
 ### Paint is judged
 
