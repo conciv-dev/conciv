@@ -257,6 +257,7 @@ const ReflowSchema = z.object({
       why: z.string(),
     }),
   ),
+  rows: z.array(GateRowSchema).describe('tagged rows stacked above their breakpoint or not reflowed under it'),
 })
 
 const ReflowsSchema = z.object({

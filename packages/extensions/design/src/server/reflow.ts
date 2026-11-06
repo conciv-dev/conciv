@@ -1,4 +1,4 @@
-import type {Box, DesignNode, LiveComponent, Reflow} from '../shared/defs.js'
+import type {Box, DesignNode, GateRow, LiveComponent, Reflow} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import type {renderersOf} from './renderers.js'
 
@@ -10,7 +10,8 @@ export function reflowAt(input: {
   overflowX: boolean
 }): Reflow {
   const {root, renderers, width, overflowX} = input
-  const tags = [...walk(root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{...node.reflow, node: node.id}]))
+  const tagged = [...walk(root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{tag: node.reflow, node}]))
+  const tags = tagged.map(({tag, node}) => ({...tag, node: node.id}))
   const page = renderers.of(root.id)[0]
   if (page === undefined) {
     return {
@@ -20,6 +21,7 @@ export function reflowAt(input: {
       overflowX,
       overlaps: [],
       tags: tags.map((tag) => ({...tag, ok: null, why: 'no element'})),
+      rows: [],
     }
   }
   const inside = [...walkWithin(page)].filter(({element}) => renderers.nodeOf(element) !== null)
@@ -33,6 +35,7 @@ export function reflowAt(input: {
     overflowX,
     overlaps: inside.flatMap(({element}) => overlapsUnder({element, renderers})),
     tags: tags.map((tag) => verdictOf({tag, element: renderers.of(tag.node)[0]})),
+    rows: tagged.flatMap(({tag, node}) => twoWay({tag, node, width, element: renderers.of(node.id)[0]})),
   }
 }
 
@@ -101,4 +104,42 @@ function verdictOf(input: {tag: Tag; element: LiveComponent | undefined}): Reflo
   const why =
     outside > 0 ? `${outside} children outside the node` : `${tooNarrow} children narrower than ${least} and not ${how}`
   return {...tag, ok, why}
+}
+
+function twoWay(input: {
+  tag: NonNullable<DesignNode['reflow']>
+  node: DesignNode
+  width: number
+  element: LiveComponent | undefined
+}): GateRow[] {
+  const {tag, node, width, element} = input
+  const {breakpoint} = tag
+  if (element === undefined || breakpoint === undefined || tag.kind === 'scroll') return []
+  const rs = element.children
+    .filter((kid) => kid.styles.position !== ABSOLUTE && kid.bounds.w > 0)
+    .map((kid) => kid.bounds)
+  const [first] = rs
+  if (first === undefined || rs.length < 2) return []
+  const oneLine = rs.every((r) => r.y < first.y + first.h - EDGE_PX && r.y + r.h > first.y + EDGE_PX)
+  const stacked = rs.every((r, index) => {
+    const before = rs[index - 1]
+    return before === undefined || r.y >= before.y + before.h - EDGE_PX
+  })
+  const wide = Math.round(element.bounds.w)
+  const kind = node.gate?.kind ?? node.kind
+  const name = node.figma?.name ?? ''
+  const head = `${kind} ${name} [${node.id}] at ${width} wide`
+  const row = (text: string): GateRow[] => [{node: node.id, key: element.key, kind, name, text, magnitude: 'much'}]
+  if (wide >= breakpoint)
+    return oneLine
+      ? []
+      : row(
+          `${head}: stacked too early; it is ${wide}px wide, at or above its breakpoint ${breakpoint}px, so its children stay on one line`,
+        )
+  const flowed = tag.kind === 'stack' ? stacked : !oneLine
+  if (flowed) return []
+  const how = tag.kind === 'stack' ? 'are not one under another' : 'stay on one line'
+  return row(
+    `${head}: did not ${tag.kind}; it is ${wide}px wide, under its breakpoint ${breakpoint}px, and its children ${how}`,
+  )
 }

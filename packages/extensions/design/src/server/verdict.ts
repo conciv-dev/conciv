@@ -57,6 +57,14 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
           ]
         : []),
       ...(reflow.overflowX ? [`At ${reflow.width} wide the page scrolls sideways.`] : []),
+      ...(reflow.rows.length > 0
+        ? [
+            `At ${reflow.width} wide ${reflow.rows.length} tagged rows do not reflow as tagged: ${reflow.rows
+              .slice(0, MISSING_SHOWN)
+              .map((row) => row.node)
+              .join(', ')}.`,
+          ]
+        : []),
       ...reflow.tags
         .filter((tag) => tag.ok !== true)
         .map((tag) => `At ${reflow.width} wide the ${tag.kind} node ${tag.node} fails: ${tag.why}.`),
