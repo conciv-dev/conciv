@@ -229,15 +229,23 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    async function executeDescription(base: string): Promise<string> {
+    async function executeTool(base: string): Promise<{description: string; sandboxNames: string[]}> {
       const mcp = await connectMcpClient(`${base}/api/mcp`)
       try {
         const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
         if (!tool) throw new Error('execute_typescript not on /api/mcp')
-        return tool.description
+        const listed = await tool.execute({
+          typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))',
+        })
+        const sandboxNames = z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result
+        return {description: tool.description, sandboxNames}
       } finally {
         await mcp.close()
       }
+    }
+
+    async function executeDescription(base: string): Promise<string> {
+      return (await executeTool(base)).description
     }
 
     it('reports the injected probe consistently on /health, rpc meta.engine and the execute tool description', async () => {
@@ -249,7 +257,7 @@ describe('api engine staleness di', () => {
 
       const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const description = await executeDescription(served.base)
+      const {description, sandboxNames} = await executeTool(served.base)
 
       expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
@@ -258,7 +266,10 @@ describe('api engine staleness di', () => {
       expect(description).toContain('Rules of the sandbox:')
       expect(description.length).toBeLessThanOrEqual(4096)
       expect(description).toContain('call discover_tools with their names')
+      expect(description).toContain('More capabilities, by name only: ')
       expect(description).toContain('external_page_insert')
+      expect(sandboxNames.length).toBeGreaterThan(0)
+      expect(sandboxNames.filter((name) => !description.includes(name))).toEqual([])
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 

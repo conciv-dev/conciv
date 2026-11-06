@@ -79,38 +79,54 @@ const SANDBOX_RULES = `Rules of the sandbox:
 
 const DESCRIPTION_BUDGET_CHARS = 4096
 
-const CAPABILITY_NAME = /external_[A-Za-z0-9_]+/g
+const NAMES_ONLY_HEADER = '\n\nMore capabilities, by name only: '
+
+const NAME_SEPARATOR = ', '
+
+type RunnerCapability = CodeRunner['capabilities'][number]
 
 function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
-  const head = `${stalenessNotice(staleness)}${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n`
-  return `${head}${fittedCapabilities(runner, DESCRIPTION_BUDGET_CHARS - head.length)}`
+  const head = `${stalenessNotice(staleness)}${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
+  const names = runner.capabilities.map(sandboxName)
+  const lines = runner.capabilities.map(capabilityLine)
+  const allNamesOnly = `${NAMES_ONLY_HEADER}${names.join(NAME_SEPARATOR)}`
+  const room = DESCRIPTION_BUDGET_CHARS - head.length
+  const described = lines.join('').length <= room ? lines.length : fittingCount(lines, room - allNamesOnly.length)
+  const body = `${head}${lines.slice(0, described).join('')}`
+  return `${body}${namesOnly(names.slice(described), DESCRIPTION_BUDGET_CHARS - body.length)}`
 }
 
-function fittedCapabilities(runner: CodeRunner, budget: number): string {
-  if (runner.systemPrompt.length <= budget) return runner.systemPrompt
-  const intro =
-    runner.discover === null
-      ? 'More capabilities, by name only (their signatures did not fit here):'
-      : 'More capabilities, by name only; call discover_tools with their names for typed signatures:'
-  const allNames = capabilityNames(runner.systemPrompt)
-  const room = budget - intro.length - allNames.join(', ').length - 2
-  const lines = runner.systemPrompt.split('\n')
-  const cut = lines.findIndex((_, index) => lines.slice(0, index + 1).join('\n').length > room)
-  const kept = lines.slice(0, Math.max(cut, 0)).join('\n')
-  const keptNames = new Set(capabilityNames(kept))
-  const rest = capabilityNames(lines.slice(Math.max(cut, 0)).join('\n')).filter((name) => !keptNames.has(name))
-  const listed = `${intro} ${namesWithin(rest, budget - kept.length - intro.length - 3)}`
-  return kept === '' ? listed : `${kept}\n\n${listed}`
+function capabilitiesIntro(runner: CodeRunner): string {
+  if (runner.discover === null) return 'Capabilities:'
+  return 'Capabilities (call discover_tools with their names for typed signatures; it is a separate tool call, not available inside the sandbox):'
 }
 
-function namesWithin(names: string[], budget: number): string {
-  const fitting = names.findIndex((_, index) => names.slice(0, index + 1).join(', ').length > budget - 20)
-  if (fitting === -1) return names.join(', ')
-  return `${names.slice(0, fitting).join(', ')}, and ${names.length - fitting} more`
+function sandboxName(capability: RunnerCapability): string {
+  return `external_${capability.name}`
 }
 
-function capabilityNames(text: string): string[] {
-  return [...new Set(text.match(CAPABILITY_NAME) ?? [])]
+function capabilityLine(capability: RunnerCapability): string {
+  return `\n- ${sandboxName(capability)}: ${capability.description.split('\n')[0] ?? ''}`
+}
+
+function namesOnly(names: string[], room: number): string {
+  if (names.length === 0) return ''
+  const pieces = names.map((name, index) => (index === 0 ? name : `${NAME_SEPARATOR}${name}`))
+  const all = `${NAMES_ONLY_HEADER}${pieces.join('')}`
+  if (all.length <= room) return all
+  const more = `${NAME_SEPARATOR}and ${names.length} more`
+  const listed = fittingCount(pieces, room - NAMES_ONLY_HEADER.length - more.length)
+  return `${NAMES_ONLY_HEADER}${pieces.slice(0, listed).join('')}${NAME_SEPARATOR}and ${names.length - listed} more`
+}
+
+function fittingCount(pieces: string[], room: number): number {
+  return pieces.reduce(
+    (fit, piece) =>
+      fit.full || fit.length + piece.length > room
+        ? {...fit, full: true}
+        : {length: fit.length + piece.length, count: fit.count + 1, full: false},
+    {length: 0, count: 0, full: false},
+  ).count
 }
 
 function decodeDeclaredCode(message: string, declaredCodes: ReadonlySet<string>): string | undefined {
