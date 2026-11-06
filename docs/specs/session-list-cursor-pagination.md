@@ -125,7 +125,7 @@ Measured on real data (81 Claude transcripts, 2.6 GB, the largest 419 MB): a lis
 
 - **Claude and Pi meta and list** never parse a whole transcript.
   - The title comes from the first user message, read by streaming lines from the start and stopping there.
-  - `messageCount` comes from a byte scan that counts newline-delimited records of the user/assistant kinds, without `JSON.parse` of every line. If an exact count can't be had without a parse, the meta gets the closest cheap count the transcript format allows. Report which.
+  - **Size, not message count (decided 2026-11-06).** An exact message count needs reading the whole file, and the maintainer rejected any cache, so `messageCount` goes away. The row shows the transcript's size instead. `HarnessSessionMeta`/`SessionMeta` gain `sizeBytes?: number`: Claude's comes from the SDK's `fileSize`, Pi's and Codex's from the `stat` already done, and OpenCode (sqlite, no file) leaves it out. `messageCount` is removed wherever only the row consumed it. The row renders the size through a ui-kit-system wrapper around Ark's `Format.Byte`, added beside `relative-time.tsx` first. Claude's meta comes from the Claude Agent SDK's `listSessions`/`getSessionInfo` (189 ms for a 30-session page against 13.7 s, and 5 ms for the 400 MB session).
   - `updatedAt` stays the file's mtime.
   - Everything else the meta carries is either read from the head or dropped, if nothing uses it.
 - **Search hits** take their meta from the index document (title, updatedAt, messageCount stored at index time). They don't call `meta()` per hit. A transcript that has gone is caught on the next refresh, not per hit.
