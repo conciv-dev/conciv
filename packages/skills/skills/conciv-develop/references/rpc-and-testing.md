@@ -27,7 +27,7 @@ import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 
 function serverRoom(context: RpcContext): SessionId {
   const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
-  if (!raw) throw new ORPCError('UNAUTHORIZED', {message: `the ${CONCIV_SESSION_HEADER} header is required`})
+  if (!raw) throw new ORPCError('BAD_REQUEST', {message: `the ${CONCIV_SESSION_HEADER} header is required`})
   if (!isSessionId(raw)) throw new ORPCError('BAD_REQUEST', {message: 'malformed session id'})
   return raw
 }

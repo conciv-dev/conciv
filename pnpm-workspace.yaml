@@ -257,5 +257,8 @@ patchedDependencies:
   # conversion mints a fresh one on every read; the patch stores one from generateMessageId. Drop the patch
   # once upstream fixes all four.
   '@tanstack/ai-sandbox@1.0.0': patches/@tanstack__ai-sandbox@1.0.0.patch
+  # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
+  # re-suspending (focus loss in the composer and model search); drop once a solid-query release includes it
+  '@tanstack/solid-query@5.105.0': patches/@tanstack__solid-query@5.105.0.patch
   # vitest-dev/vitest#11709: read cached server modules as utf-8 (fixes #11682 code.charCodeAt crash); drop once a vitest release includes it
   vitest@5.0.5: patches/vitest@5.0.5.patch

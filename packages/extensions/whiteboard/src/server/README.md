@@ -16,7 +16,7 @@ router.ts builds an oRPC router that scopes every procedure to a room taken from
 
 ## Invariants
 
-- `serverRoom` (`router.ts`) throws ORPCError UNAUTHORIZED when the CONCIV_SESSION_HEADER header is missing or blank, and BAD_REQUEST when it fails isSessionId
+- `serverRoom` (`router.ts`) throws ORPCError BAD_REQUEST when the CONCIV_SESSION_HEADER header is missing, blank or fails isSessionId
 - room/sessionId ownership is server-derived: patch schemas in `makeWhiteboardRouter` (`router.ts`) omit id and room/sessionId, and toRow overwrites them with the header room
 - table update procedures in `makeWhiteboardRouter` (`router.ts`) reject an empty patch (refine: at least one mutable field) and throw NOT_FOUND when no row matches id+room
 - `elements.upsert` in `makeWhiteboardRouter` (`router.ts`) throws CONFLICT with data.current when the stored element version is >= the incoming version

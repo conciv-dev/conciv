@@ -74,7 +74,7 @@ import {os} from '@orpc/server'
 import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
-import {HealthSchema, makeApp, type MadeApp} from '../src/app.js'
+import {makeApp, type MadeApp} from '../src/app.js'
 import {resolveConfig, type ResolvedConcivConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
@@ -127,36 +127,13 @@ describe('api connect gate', () => {
   })
 
   describe('token-gated core', () => {
-    it('serves health under the token prefix', async () => {
-      const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
-      expect(res.status).toBe(200)
-      const raw = z.record(z.string(), z.unknown()).parse(await res.json())
-      expect(Object.keys(raw).toSorted()).toEqual(['engine', 'harness', 'ok'])
-      expect(Object.keys(z.record(z.string(), z.unknown()).parse(raw.engine)).toSorted()).toEqual([
-        'bootedAt',
-        'changed',
-        'fingerprint',
-        'stale',
-        'tracked',
-      ])
-      expect(HealthSchema.parse(raw)).toEqual({
-        ok: true,
-        harness: 'fake-gate',
-        engine: {
-          stale: false,
-          changed: [],
-          tracked: expect.arrayContaining(['@conciv/core']),
-          bootedAt: expect.any(Number),
-          fingerprint: expect.any(String),
-        },
-      })
-    })
-
-    it('404s the wrong token and the bare path', async () => {
-      const wrong = await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)
+    it('serves only liveness and the stale flag on health, with or without the token', async () => {
+      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}}
+      const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
       const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect(wrong.status).toBe(404)
-      expect(bare.status).toBe(404)
+      expect([prefixed.status, bare.status]).toEqual([200, 200])
+      expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
+      expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
     })
 
     it('serves rpc under the prefix', async () => {
@@ -246,11 +223,16 @@ describe('api engine staleness di', () => {
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
     const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
     dirs.push(root)
-    const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, staleness})
+    const {fetch, dispose, agentToken} = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      staleness,
+    })
     state.dispose = dispose
-    const served = await serveApp(app.fetch)
+    const served = await serveApp(fetch)
     state.served = served
-    return served
+    return {...served, base: `${served.base}/t/${agentToken}`}
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
@@ -261,7 +243,7 @@ describe('api engine staleness di', () => {
         return INJECTED
       })
 
-      const health = HealthSchema.parse(await (await fetch(`${served.base}/health`)).json())
+      const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
       const mcp = await fetch(`${served.base}/api/mcp`, {
         method: 'POST',
@@ -270,7 +252,7 @@ describe('api engine staleness di', () => {
       })
       const instructions = await mcp.text()
 
-      expect(health.engine).toEqual(INJECTED)
+      expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
       expect(instructions).toContain('@conciv/injected-probe')
       expect(calls.count).toBeGreaterThanOrEqual(3)
@@ -419,7 +401,7 @@ describe('api extension router', () => {
     const client = makeExtRpcClient<ProbeRouter>(kit().base, 'router-probe')
     const result = await client.ping({value: 'hello'})
     expect(result.pong).toBe('hello')
-    expect(result.origin).toBe(kit().base)
+    expect(result.origin).toBe(kit().origin)
   })
 
   test('a non-loopback Origin is rejected on the extension rpc mount', async () => {
@@ -468,7 +450,7 @@ describe('api extension server surfaces', () => {
         interval: 25,
       })
 
-      expect(server.basePath).toBe('')
+      expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
       const surface = server.harness(sessionId)
       expect(surface.id).toBe('claude')
       expect(typeof surface.ttyCommand).toBe('function')
@@ -657,7 +639,7 @@ describe('api harness switching', () => {
     createTestkit(alpha, async (env) => {
       const app = await bootMadeApp(env, {harnesses: [beta, gamma]})
       made.app = app
-      return {fetch: app.app.fetch, dispose: app.dispose}
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
     }).setup(),
   )
 
@@ -892,7 +874,7 @@ describe('api harness switching', () => {
       createTestkit(slow, async (env) => {
         const app = await bootMadeApp(env, {harnesses: [quick]})
         raced.app = app
-        return {fetch: app.app.fetch, dispose: app.dispose}
+        return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
       }).setup(),
     )
     return {
@@ -973,11 +955,11 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
+  function postMcpOverHttp(port: number, host: string, prefix = ''): Promise<Reply> {
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: `${prefix}/api/mcp`, method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -997,7 +979,7 @@ describe('api mcp loopback host', () => {
     }
 
     it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`)
+      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`, new URL(kit().base).pathname)
       expect(reply.status).toBe(200)
       expect(reply.body).toContain('conciv')
     })
@@ -1134,7 +1116,7 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and 404s unprefixed', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed as an open page', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
@@ -1167,7 +1149,7 @@ describe('api native page', () => {
         expect(script.headers.get('content-type')).toContain('javascript')
 
         const unprefixed = await fetch(`${origin}/native`)
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(200)
       } finally {
         await engine.stop()
         rmSync(root, {recursive: true, force: true})
@@ -2161,7 +2143,7 @@ describe('rpc wire', () => {
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
-          code: 'UNAUTHORIZED',
+          code: 'BAD_REQUEST',
         })
         await expect(
           callerWith('not a session').registry.call({name: 'fixture_read', input: {}}),

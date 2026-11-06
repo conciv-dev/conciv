@@ -18,7 +18,7 @@ Built-in `highlight` extension: hold Alt (or drive it from context) to outline t
 ## Side Effects
 
 - `highlight.tsx`: capture-phase `pointermove`, `click`, `keydown`, `scroll` and `resize` listeners on `window` while active
-- `highlight.tsx`: click calls `openSource` from `@conciv/extension/client` against `resolveApiBase()` and shows a toast with `showToast`
+- `highlight.tsx`: click calls `openSource` from `@conciv/extension/client` against the host api base (`useApiBase`) and shows a toast with `showToast`
 - `highlight.tsx`: `requestAnimationFrame` repositioning, cancelled on cleanup
 
 ## Verification

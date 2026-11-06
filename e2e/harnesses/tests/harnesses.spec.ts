@@ -1,5 +1,5 @@
 import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
 type ExpectedModel = {model: string; usable?: false}
@@ -33,7 +33,7 @@ test('full app boots with the configured harness and exposes its real model cata
   const harness = expected[projectName]
 
   const failures = collectFailures(page)
-  await page.goto('/', {waitUntil: 'domcontentloaded'})
+  await loginWidget(page)
   await expectWidgetBoots(page, failures)
 
   const composerTextbox = page.getByRole('textbox', {name: 'Message the conciv agent'})

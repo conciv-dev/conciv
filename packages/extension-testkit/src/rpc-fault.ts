@@ -4,7 +4,7 @@ import {rpcObserverFor} from './rpc-observer.js'
 
 const FAILURE_BODY = {json: {}, meta: []}
 
-const RPC_PREFIX = '/rpc'
+const RPC_PATH = /^(\/t\/[^/]+)?\/rpc(\/|$)/
 
 const ANSWER_TIMEOUT_MS = 15_000
 const RELEASED_GATE_STATUS = 200
@@ -27,7 +27,7 @@ function answeredBy(page: Page, path: readonly string[] | undefined, status: num
 }
 
 function pathMatcher(path: readonly string[] | undefined): UrlMatcher {
-  if (!path) return (url) => url.pathname === RPC_PREFIX || url.pathname.startsWith(`${RPC_PREFIX}/`)
+  if (!path) return (url) => RPC_PATH.test(url.pathname)
   const httpPath = toHttpPath(path)
   return (url) => url.pathname.endsWith(httpPath)
 }
@@ -93,7 +93,7 @@ export async function holdRpcCalls(page: Page): Promise<RpcHold> {
   const held = {value: false}
 
   await page.route(
-    (url) => url.pathname.startsWith('/rpc/') || url.pathname === RPC_PREFIX,
+    (url) => RPC_PATH.test(url.pathname),
     async (route) => {
       if (isPreflight(route) || !held.value) return route.continue()
       await route.abort('connectionrefused')

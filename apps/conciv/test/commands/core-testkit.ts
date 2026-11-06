@@ -3,3 +3,4 @@ export {abortRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testk
 export {failChatTurns} from '@conciv/extension-testkit/chat-fault'
 export {watchPushWire, type PushWireWatch} from '@conciv/extension-testkit/push-wire'
 export {createTerminalExtension} from '@conciv/extension-terminal/server'
+export {requestPrintedCode} from '@conciv/harness-testkit/login'

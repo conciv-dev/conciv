@@ -3,6 +3,8 @@ import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
@@ -22,13 +24,21 @@ export type BootCoreInput = {
   allowedOrigins?: string[]
 }
 
-export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
+export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
+
+export type PointerMove = {deltaX: number; deltaY: number; steps?: number}
+
+export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean; settleMs?: number}
+
+export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
+  | {kind: 'offline'}
+  | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
 
 type Fault = {
@@ -137,7 +147,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   })
   state.kit = kit
   state.push = watchPushWire(ctx.page)
-  return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
+  return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
 }
 
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
@@ -156,6 +166,27 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
+
+const pushSocketsLive: BrowserCommand<[]> = (ctx): number => pushOf(ctx).liveSockets()
+
+const printedCode: BrowserCommand<[]> = (ctx): string => {
+  const code = [
+    ...kitOf(ctx)
+      .terminal()
+      .matchAll(/#conciv_otp=(\d{6})/g),
+  ].at(-1)?.[1]
+  if (code === undefined) throw new Error('the engine printed no login code')
+  return code
+}
+
+const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
+  const kit = kitOf(ctx)
+  const {requestPrintedCode} = await testkitOf(ctx)
+  return requestPrintedCode(kit.origin, kit.terminal)
+}
+
+const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
+  revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
 const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
   const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -226,6 +257,39 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
   }
 }
 
+async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> {
+  const origin = kitOf(ctx).origin
+  const offline = {value: true}
+  const matcher = (url: URL): boolean => url.origin === origin
+  await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
+  return {
+    repair: () => {
+      offline.value = false
+    },
+    dispose: () => ctx.page.unroute(matcher),
+  }
+}
+
+async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector> {
+  const host = new URL(kitOf(ctx).origin).host
+  const detached = {value: true}
+  await ctx.page.routeWebSocket(
+    (url) => url.host === host,
+    (socket) => {
+      if (!detached.value) socket.connectToServer()
+    },
+  )
+  return {
+    repair: () => {
+      detached.value = false
+    },
+    dispose: () => {
+      detached.value = false
+      return Promise.resolve()
+    },
+  }
+}
+
 type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
 
 async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
@@ -280,6 +344,8 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   const testkit = await testkitOf(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
+  if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
   }
@@ -320,10 +386,50 @@ const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, 
   }
 }
 
+const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
+  const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
+  if (!box) throw new Error(`no button named ${name} to point at`)
+  return box
+}
+
+const walkPointer = (ctx: BrowserCommandContext, start: {x: number; y: number}, moves: PointerMove[]) =>
+  moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
+    const at = await previous
+    const next = {x: at.x + move.deltaX, y: at.y + move.deltaY}
+    await ctx.page.mouse.move(next.x, next.y, {steps: move.steps ?? 1})
+    return next
+  }, Promise.resolve(start))
+
+const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
+  const box = await buttonBox(ctx, drag.name)
+  const start = {x: box.x + box.width / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.mouse.down()
+  await walkPointer(ctx, start, drag.moves)
+  if (drag.escape) await ctx.page.keyboard.press('Escape')
+  if (drag.settleMs) await ctx.page.waitForTimeout(drag.settleMs)
+  await ctx.page.mouse.up()
+}
+
+const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) => {
+  const box = await buttonBox(ctx, hover.name)
+  const start = {x: box.x + box.height / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.waitForTimeout(hover.settleMs)
+  await walkPointer(ctx, start, hover.moves)
+  await ctx.page.waitForTimeout(hover.settleMs)
+}
+
 export const coreCommands = {
+  dragButton,
+  hoverButton,
   bootCore,
   closeCore,
   pushSocketsOpened,
+  pushSocketsLive,
+  printedCode,
+  requestCode,
+  revokeBrowsers,
   outsideReload,
   setStaleness,
   holdTurn,

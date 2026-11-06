@@ -1,0 +1,226 @@
+diff --git a/build/dev.cjs b/build/dev.cjs
+index 2012ce9ce056605406fe432194bb88efdfdfa5b0..81671edfd34fa07b13c91a49f22fb0ab6cda0565 100644
+--- a/build/dev.cjs
++++ b/build/dev.cjs
+@@ -234,12 +234,12 @@ function useBaseQuery(options, Observer, queryClient) {
+ 	let resolver = null;
+ 	const [queryResource, { refetch }] = (0, solid_js.createResource)(() => {
+ 		const obs = observer();
+-		return new Promise((resolve, reject) => {
++		const shouldThrowCurrentError = () => observerResult.isError && !observerResult.isFetching && !isRestoring() && (0, _tanstack_query_core.shouldThrowError)(obs.options.throwOnError, [observerResult.error, obs.getCurrentQuery()]);
++		if (solid_js_web.isServer) return new Promise((resolve, reject) => {
+ 			resolver = resolve;
+-			if (solid_js_web.isServer) unsubscribe = createServerSubscriber(resolve, reject);
+-			else if (!unsubscribe && !isRestoring()) unsubscribe = createClientSubscriber();
++			unsubscribe = createServerSubscriber(resolve, reject);
+ 			obs.updateResult();
+-			if (observerResult.isError && !observerResult.isFetching && !isRestoring() && (0, _tanstack_query_core.shouldThrowError)(obs.options.throwOnError, [observerResult.error, obs.getCurrentQuery()])) {
++			if (shouldThrowCurrentError()) {
+ 				setStateWithReconciliation(observerResult);
+ 				return reject(observerResult.error);
+ 			}
+@@ -249,6 +249,28 @@ function useBaseQuery(options, Observer, queryClient) {
+ 			}
+ 			setStateWithReconciliation(observerResult);
+ 		});
++		if (!unsubscribe && !isRestoring()) unsubscribe = createClientSubscriber();
++		obs.updateResult();
++		if (shouldThrowCurrentError()) {
++			setStateWithReconciliation(observerResult);
++			throw observerResult.error;
++		}
++		if (!observerResult.isLoading && observerResult.data !== void 0) {
++			const result = observerResult;
++			if (resolver) {
++				resolver = null;
++				return new Promise((resolve) => resolve(result));
++			}
++			return result;
++		}
++		if (!observerResult.isLoading) {
++			resolver = null;
++			return new Promise((resolve) => resolve(observerResult));
++		}
++		return new Promise((resolve) => {
++			resolver = resolve;
++			setStateWithReconciliation(observerResult);
++		});
+ 	}, {
+ 		storage: createDeepSignal,
+ 		get deferStream() {
+diff --git a/build/dev.js b/build/dev.js
+index 9cccba6f6c3cdf1820848f296b73565652529007..79623a1c4df7f84cad8e1ac5d9b3a7a11194c6f2 100644
+--- a/build/dev.js
++++ b/build/dev.js
+@@ -234,12 +234,12 @@ function useBaseQuery(options, Observer, queryClient) {
+ 	let resolver = null;
+ 	const [queryResource, { refetch }] = createResource(() => {
+ 		const obs = observer();
+-		return new Promise((resolve, reject) => {
++		const shouldThrowCurrentError = () => observerResult.isError && !observerResult.isFetching && !isRestoring() && shouldThrowError(obs.options.throwOnError, [observerResult.error, obs.getCurrentQuery()]);
++		if (isServer) return new Promise((resolve, reject) => {
+ 			resolver = resolve;
+-			if (isServer) unsubscribe = createServerSubscriber(resolve, reject);
+-			else if (!unsubscribe && !isRestoring()) unsubscribe = createClientSubscriber();
++			unsubscribe = createServerSubscriber(resolve, reject);
+ 			obs.updateResult();
+-			if (observerResult.isError && !observerResult.isFetching && !isRestoring() && shouldThrowError(obs.options.throwOnError, [observerResult.error, obs.getCurrentQuery()])) {
++			if (shouldThrowCurrentError()) {
+ 				setStateWithReconciliation(observerResult);
+ 				return reject(observerResult.error);
+ 			}
+@@ -249,6 +249,28 @@ function useBaseQuery(options, Observer, queryClient) {
+ 			}
+ 			setStateWithReconciliation(observerResult);
+ 		});
++		if (!unsubscribe && !isRestoring()) unsubscribe = createClientSubscriber();
++		obs.updateResult();
++		if (shouldThrowCurrentError()) {
++			setStateWithReconciliation(observerResult);
++			throw observerResult.error;
++		}
++		if (!observerResult.isLoading && observerResult.data !== void 0) {
++			const result = observerResult;
++			if (resolver) {
++				resolver = null;
++				return new Promise((resolve) => resolve(result));
++			}
++			return result;
++		}
++		if (!observerResult.isLoading) {
++			resolver = null;
++			return new Promise((resolve) => resolve(observerResult));
++		}
++		return new Promise((resolve) => {
++			resolver = resolve;
++			setStateWithReconciliation(observerResult);
++		});
+ 	}, {
+ 		storage: createDeepSignal,
+ 		get deferStream() {
+diff --git a/build/index.cjs b/build/index.cjs
+index 2f7951a13dcc19f811a17197c6f56e3cebb5d973..7176e1787ae4b9a72b58a21456d27778e054a3cc 100644
+--- a/build/index.cjs
++++ b/build/index.cjs
+@@ -1,3 +1,3 @@
+-Object.defineProperty(exports,Symbol.toStringTag,{value:`Module`});let e=require("@tanstack/query-core"),t=require("solid-js"),n=require("solid-js/web"),r=require("solid-js/store");const i=(0,t.createContext)(void 0),a=`No QueryClient set, use QueryClientProvider to set one`,o=e=>{if(e)return e;let n=(0,t.useContext)(i);if(!n)throw Error(a);return n()},s=e=>{let n=(0,t.useContext)(i);return()=>{let t=e?.();if(t)return t;if(!n)throw Error(a);return n()}},c=e=>((0,t.createRenderEffect)(t=>(t?.(),e.client.mount(),e.client.unmount.bind(e.client))),(0,t.onCleanup)(()=>e.client.unmount()),(0,n.createComponent)(i.Provider,{value:()=>e.client,get children(){return e.children}})),l=(0,t.createContext)(()=>!1),u=()=>(0,t.useContext)(l),d=l.Provider;function f(e,t,n,i){if(n===!1)return t;if(typeof n==`function`){let r=n(e.data,t.data);return{...t,data:r}}let a=t.data;if(e.data===void 0)try{a=structuredClone(a)}catch{}let o=(0,r.reconcile)(a,{key:n})(e.data);return{...t,data:o}}const p=(e,t)=>{if(!n.isServer)return t;let i={...(0,r.unwrap)(t),refetch:void 0};return`fetchNextPage`in t&&(i.fetchNextPage=void 0,i.fetchPreviousPage=void 0),i.hydrationData={state:e.state,queryKey:e.queryKey,queryHash:e.queryHash,...e.meta&&{meta:e.meta}},i};function m(i,a,o){let c=s(o),l=(0,t.createMemo)(()=>c()),d=u(),m=!1,h=(0,t.createMemo)(()=>{let e=l().defaultQueryOptions(i());return e._optimisticResults=d()?`isRestoring`:`optimistic`,e.structuralSharing=!1,n.isServer&&(e.retry=!1,e.throwOnError=!0),e}),g=h(),[_,v]=(0,t.createSignal)(new a(l(),h())),y=_().getOptimisticResult(h()),[b,x]=(0,r.createStore)(y),S=(t,n)=>_().subscribe(r=>{e.notifyManager.batchCalls(()=>{let e=_().getCurrentQuery(),i=p(e,r);r.data!==void 0&&i.isError?(n(i.error),C()):(t(i),C())})()}),C=()=>{m&&=(D?.(),!1)},w=()=>_().subscribe(e=>{y=e,queueMicrotask(()=>{D&&A()})});function T(e){let t=_().options,n=t.reconcile;x(r=>f(r,e,n!==void 0&&n,t.queryHash))}function E(){return[()=>b,e=>{let t=(0,r.unwrap)(b);if(typeof e==`function`&&(e=e(t)),e?.hydrationData){let{hydrationData:t,...n}=e;e=n}T(e)}]}let D=null,O=null,[k,{refetch:A}]=(0,t.createResource)(()=>{let t=_();return new Promise((r,i)=>{if(O=r,n.isServer?D=S(r,i):!D&&!d()&&(D=w()),t.updateResult(),y.isError&&!y.isFetching&&!d()&&(0,e.shouldThrowError)(t.options.throwOnError,[y.error,t.getCurrentQuery()]))return T(y),i(y.error);if(!y.isLoading)return O=null,r(p(t.getCurrentQuery(),y));T(y)})},{storage:E,get deferStream(){return i().deferStream},onHydrated(t,n){if(n.value&&`hydrationData`in n.value&&(0,e.hydrate)(l(),{queries:[{...n.value.hydrationData}]}),D)return;let r={...g};(g.staleTime||!g.initialData)&&n.value&&(r.refetchOnMount=!1),_().setOptions(r),T(_().getOptimisticResult(r)),D=w()}});return(0,t.createComputed)((0,t.on)(l,e=>{D&&D();let t=new a(e,h());v(t),D=w()},{defer:!0})),(0,t.createComputed)((0,t.on)(d,e=>{!e&&!n.isServer&&A()},{defer:!0})),(0,t.onCleanup)(()=>{if(n.isServer&&k.state===`pending`){m=!0;return}D&&=(D(),null),O&&!n.isServer&&(O(y),O=null)}),(0,t.createComputed)((0,t.on)([_,h],([e,t])=>{e.setOptions(t),T(e.getOptimisticResult(t)),A()},{defer:!0})),new Proxy(b,{get(e,t){return t===`data`?b.data===void 0?k()?.data:k.latest?.data:Reflect.get(e,t)}})}function h(n,r){return m((0,t.createMemo)(()=>n()),e.QueryObserver,r)}function g(n,r){return m((0,t.createMemo)(()=>n()),e.InfiniteQueryObserver,r)}function _(n,i){let a=s(i),o=(0,t.createMemo)(()=>a()),c=new e.MutationObserver(o(),n()),l=(...t)=>{c.mutate(t[0],t[1]).catch(e.noop)},[u,d]=(0,r.createStore)({...c.getCurrentResult(),mutate:l,mutateAsync:c.getCurrentResult().mutate});(0,t.createComputed)(()=>{c.setOptions(n())}),(0,t.createComputed)((0,t.on)(()=>u.status,()=>{if(u.isError&&(0,e.shouldThrowError)(c.options.throwOnError,[u.error]))throw u.error}));let f=c.subscribe(e=>{d({...e,mutate:l,mutateAsync:e.mutate})});return(0,t.onCleanup)(f),u}function v(n,i){let a=s(i),o=(0,t.createMemo)(()=>a()),c=u(),l=(0,t.createMemo)(()=>n().queries.map(e=>(0,t.mergeProps)(o().defaultQueryOptions(e),{get _optimisticResults(){return c()?`isRestoring`:`optimistic`}}))),d=new e.QueriesObserver(o(),l(),n().combine?{combine:n().combine}:void 0),[f,p]=(0,r.createStore)(d.getOptimisticResult(l(),n().combine)[1]());(0,t.createRenderEffect)((0,t.on)(()=>n().queries.length,()=>p(d.getOptimisticResult(l(),n().combine)[1]())));let m=(0,t.createMemo)((0,t.on)(()=>f.length,()=>f.map(e=>(0,t.createResource)(()=>new Promise(t=>{e.isFetching&&e.isLoading||t((0,r.unwrap)(e.data))})))));(0,t.batch)(()=>{let e=m();for(let t=0;t<e.length;t++){let n=e[t];n[1].mutate(()=>(0,r.unwrap)(f[t].data)),n[1].refetch()}});let h=[],g=()=>d.subscribe(e=>{h.push(()=>{(0,t.batch)(()=>{let t=m();for(let n=0;n<t.length;n++){let i=t[n],a={...(0,r.unwrap)(e[n])};p(n,(0,r.unwrap)(a)),i[1].mutate(()=>(0,r.unwrap)(f[n].data)),i[1].refetch()}})}),queueMicrotask(()=>{let e=h.pop();e&&e(),h=[]})}),_=e.noop;(0,t.createComputed)(t=>(t?.(),_=c()?e.noop:g(),()=>queueMicrotask(_))),(0,t.onCleanup)(_),(0,t.onMount)(()=>{d.setQueries(l(),n().combine?{combine:n().combine}:void 0)}),(0,t.createComputed)(()=>{d.setQueries(l(),n().combine?{combine:n().combine}:void 0)});let v=e=>({get(t,n){return n===`data`?m()[e][0]():Reflect.get(t,n)}}),y=()=>f.map((e,t)=>new Proxy(e,v(t))),[b,x]=(0,r.createStore)(y());return(0,t.createRenderEffect)(()=>x(y())),b}var y=class extends e.QueryClient{constructor(e={}){super(e)}};function b(e){return e}function x(e,n){let r=s(n),i=(0,t.createMemo)(()=>r()),a=(0,t.createMemo)(()=>i().getQueryCache()),[o,c]=(0,t.createSignal)(i().isFetching(e?.()));return(0,t.createEffect)(()=>{c(i().isFetching(e?.()));let n=a().subscribe(()=>{c(i().isFetching(e?.()))});(0,t.onCleanup)(n)}),o}function S(e){return e}function C(e){return e}function w(e,n){let r=s(n),i=(0,t.createMemo)(()=>r()),a=(0,t.createMemo)(()=>i().getMutationCache()),[o,c]=(0,t.createSignal)(i().isMutating(e?.()));return(0,t.createEffect)(()=>{c(i().isMutating(e?.()));let n=a().subscribe(()=>{c(i().isMutating(e?.()))});(0,t.onCleanup)(n)}),o}function T(e,t){return e.findAll(t.filters).map(e=>t.select?t.select(e):e.state)}function E(n=()=>({}),r){let i=s(r),a=(0,t.createMemo)(()=>i()),o=(0,t.createMemo)(()=>a().getMutationCache()),[c,l]=(0,t.createSignal)(T(o(),n()));return(0,t.createEffect)(()=>{let r=o().subscribe(()=>{let t=(0,e.replaceEqualDeep)(c(),T(o(),n()));c()!==t&&l(t)});(0,t.onCleanup)(r)}),c}
++Object.defineProperty(exports,Symbol.toStringTag,{value:`Module`});let e=require("@tanstack/query-core"),t=require("solid-js"),n=require("solid-js/web"),r=require("solid-js/store");const i=(0,t.createContext)(void 0),a=`No QueryClient set, use QueryClientProvider to set one`,o=e=>{if(e)return e;let n=(0,t.useContext)(i);if(!n)throw Error(a);return n()},s=e=>{let n=(0,t.useContext)(i);return()=>{let t=e?.();if(t)return t;if(!n)throw Error(a);return n()}},c=e=>((0,t.createRenderEffect)(t=>(t?.(),e.client.mount(),e.client.unmount.bind(e.client))),(0,t.onCleanup)(()=>e.client.unmount()),(0,n.createComponent)(i.Provider,{value:()=>e.client,get children(){return e.children}})),l=(0,t.createContext)(()=>!1),u=()=>(0,t.useContext)(l),d=l.Provider;function f(e,t,n,i){if(n===!1)return t;if(typeof n==`function`){let r=n(e.data,t.data);return{...t,data:r}}let a=t.data;if(e.data===void 0)try{a=structuredClone(a)}catch{}let o=(0,r.reconcile)(a,{key:n})(e.data);return{...t,data:o}}const p=(e,t)=>{if(!n.isServer)return t;let i={...(0,r.unwrap)(t),refetch:void 0};return`fetchNextPage`in t&&(i.fetchNextPage=void 0,i.fetchPreviousPage=void 0),i.hydrationData={state:e.state,queryKey:e.queryKey,queryHash:e.queryHash,...e.meta&&{meta:e.meta}},i};function m(i,a,o){let c=s(o),l=(0,t.createMemo)(()=>c()),d=u(),m=!1,h=(0,t.createMemo)(()=>{let e=l().defaultQueryOptions(i());return e._optimisticResults=d()?`isRestoring`:`optimistic`,e.structuralSharing=!1,n.isServer&&(e.retry=!1,e.throwOnError=!0),e}),g=h(),[_,v]=(0,t.createSignal)(new a(l(),h())),y=_().getOptimisticResult(h()),[b,x]=(0,r.createStore)(y),S=(t,n)=>_().subscribe(r=>{e.notifyManager.batchCalls(()=>{let e=_().getCurrentQuery(),i=p(e,r);r.data!==void 0&&i.isError?(n(i.error),C()):(t(i),C())})()}),C=()=>{m&&=(D?.(),!1)},w=()=>_().subscribe(e=>{y=e,queueMicrotask(()=>{D&&A()})});function T(e){let t=_().options,n=t.reconcile;x(r=>f(r,e,n!==void 0&&n,t.queryHash))}function E(){return[()=>b,e=>{let t=(0,r.unwrap)(b);if(typeof e==`function`&&(e=e(t)),e?.hydrationData){let{hydrationData:t,...n}=e;e=n}T(e)}]}let D=null,O=null,[k,{refetch:A}]=(0,t.createResource)(()=>{let t=_(),a=()=>y.isError&&!y.isFetching&&!d()&&(0,e.shouldThrowError)(t.options.throwOnError,[y.error,t.getCurrentQuery()]);if(n.isServer)return new Promise((r,i)=>{if(O=r,D=S(r,i),t.updateResult(),a())return T(y),i(y.error);if(!y.isLoading)return O=null,r(p(t.getCurrentQuery(),y));T(y)});if(!D&&!d()&&(D=w()),t.updateResult(),a())throw T(y),y.error;if(!y.isLoading&&y.data!==void 0){let e=y;return O?(O=null,new Promise(t=>t(e))):e}if(!y.isLoading)return O=null,new Promise(e=>e(y));return new Promise(e=>{O=e,T(y)})},{storage:E,get deferStream(){return i().deferStream},onHydrated(t,n){if(n.value&&`hydrationData`in n.value&&(0,e.hydrate)(l(),{queries:[{...n.value.hydrationData}]}),D)return;let r={...g};(g.staleTime||!g.initialData)&&n.value&&(r.refetchOnMount=!1),_().setOptions(r),T(_().getOptimisticResult(r)),D=w()}});return(0,t.createComputed)((0,t.on)(l,e=>{D&&D();let t=new a(e,h());v(t),D=w()},{defer:!0})),(0,t.createComputed)((0,t.on)(d,e=>{!e&&!n.isServer&&A()},{defer:!0})),(0,t.onCleanup)(()=>{if(n.isServer&&k.state===`pending`){m=!0;return}D&&=(D(),null),O&&!n.isServer&&(O(y),O=null)}),(0,t.createComputed)((0,t.on)([_,h],([e,t])=>{e.setOptions(t),T(e.getOptimisticResult(t)),A()},{defer:!0})),new Proxy(b,{get(e,t){return t===`data`?b.data===void 0?k()?.data:k.latest?.data:Reflect.get(e,t)}})}function h(n,r){return m((0,t.createMemo)(()=>n()),e.QueryObserver,r)}function g(n,r){return m((0,t.createMemo)(()=>n()),e.InfiniteQueryObserver,r)}function _(n,i){let a=s(i),o=(0,t.createMemo)(()=>a()),c=new e.MutationObserver(o(),n()),l=(...t)=>{c.mutate(t[0],t[1]).catch(e.noop)},[u,d]=(0,r.createStore)({...c.getCurrentResult(),mutate:l,mutateAsync:c.getCurrentResult().mutate});(0,t.createComputed)(()=>{c.setOptions(n())}),(0,t.createComputed)((0,t.on)(()=>u.status,()=>{if(u.isError&&(0,e.shouldThrowError)(c.options.throwOnError,[u.error]))throw u.error}));let f=c.subscribe(e=>{d({...e,mutate:l,mutateAsync:e.mutate})});return(0,t.onCleanup)(f),u}function v(n,i){let a=s(i),o=(0,t.createMemo)(()=>a()),c=u(),l=(0,t.createMemo)(()=>n().queries.map(e=>(0,t.mergeProps)(o().defaultQueryOptions(e),{get _optimisticResults(){return c()?`isRestoring`:`optimistic`}}))),d=new e.QueriesObserver(o(),l(),n().combine?{combine:n().combine}:void 0),[f,p]=(0,r.createStore)(d.getOptimisticResult(l(),n().combine)[1]());(0,t.createRenderEffect)((0,t.on)(()=>n().queries.length,()=>p(d.getOptimisticResult(l(),n().combine)[1]())));let m=(0,t.createMemo)((0,t.on)(()=>f.length,()=>f.map(e=>(0,t.createResource)(()=>new Promise(t=>{e.isFetching&&e.isLoading||t((0,r.unwrap)(e.data))})))));(0,t.batch)(()=>{let e=m();for(let t=0;t<e.length;t++){let n=e[t];n[1].mutate(()=>(0,r.unwrap)(f[t].data)),n[1].refetch()}});let h=[],g=()=>d.subscribe(e=>{h.push(()=>{(0,t.batch)(()=>{let t=m();for(let n=0;n<t.length;n++){let i=t[n],a={...(0,r.unwrap)(e[n])};p(n,(0,r.unwrap)(a)),i[1].mutate(()=>(0,r.unwrap)(f[n].data)),i[1].refetch()}})}),queueMicrotask(()=>{let e=h.pop();e&&e(),h=[]})}),_=e.noop;(0,t.createComputed)(t=>(t?.(),_=c()?e.noop:g(),()=>queueMicrotask(_))),(0,t.onCleanup)(_),(0,t.onMount)(()=>{d.setQueries(l(),n().combine?{combine:n().combine}:void 0)}),(0,t.createComputed)(()=>{d.setQueries(l(),n().combine?{combine:n().combine}:void 0)});let v=e=>({get(t,n){return n===`data`?m()[e][0]():Reflect.get(t,n)}}),y=()=>f.map((e,t)=>new Proxy(e,v(t))),[b,x]=(0,r.createStore)(y());return(0,t.createRenderEffect)(()=>x(y())),b}var y=class extends e.QueryClient{constructor(e={}){super(e)}};function b(e){return e}function x(e,n){let r=s(n),i=(0,t.createMemo)(()=>r()),a=(0,t.createMemo)(()=>i().getQueryCache()),[o,c]=(0,t.createSignal)(i().isFetching(e?.()));return(0,t.createEffect)(()=>{c(i().isFetching(e?.()));let n=a().subscribe(()=>{c(i().isFetching(e?.()))});(0,t.onCleanup)(n)}),o}function S(e){return e}function C(e){return e}function w(e,n){let r=s(n),i=(0,t.createMemo)(()=>r()),a=(0,t.createMemo)(()=>i().getMutationCache()),[o,c]=(0,t.createSignal)(i().isMutating(e?.()));return(0,t.createEffect)(()=>{c(i().isMutating(e?.()));let n=a().subscribe(()=>{c(i().isMutating(e?.()))});(0,t.onCleanup)(n)}),o}function T(e,t){return e.findAll(t.filters).map(e=>t.select?t.select(e):e.state)}function E(n=()=>({}),r){let i=s(r),a=(0,t.createMemo)(()=>i()),o=(0,t.createMemo)(()=>a().getMutationCache()),[c,l]=(0,t.createSignal)(T(o(),n()));return(0,t.createEffect)(()=>{let r=o().subscribe(()=>{let t=(0,e.replaceEqualDeep)(c(),T(o(),n()));c()!==t&&l(t)});(0,t.onCleanup)(r)}),c}
+ /* istanbul ignore file */
+ const D=h,O=g,k=_,A=v;exports.IsRestoringProvider=d,exports.QueryClient=y,exports.QueryClientContext=i,exports.QueryClientProvider=c,exports.createInfiniteQuery=O,exports.createIsFetching=x,exports.useIsFetching=x,exports.createIsMutating=w,exports.useIsMutating=w,exports.createMutation=k,exports.createMutationState=E,exports.useMutationState=E,exports.createQueries=A,exports.createQuery=D,exports.infiniteQueryOptions=S,exports.mutationOptions=C,exports.queryOptions=b,exports.useInfiniteQuery=g,exports.useIsRestoring=u,exports.useMutation=_,exports.useQueries=v,exports.useQuery=h,exports.useQueryClient=o,Object.keys(e).forEach(function(t){t!=="default"&&!Object.prototype.hasOwnProperty.call(exports,t)&&Object.defineProperty(exports,t,{enumerable:!0,get:function(){return e[t]}})});
+\ No newline at end of file
+diff --git a/build/index.js b/build/index.js
+index a1c5597744d5ca8ce5ce984d62c81ef4c883ec2e..680cb1aa852742928881b6e21a462196e172b128 100644
+--- a/build/index.js
++++ b/build/index.js
+@@ -1,4 +1,4 @@
+-import{InfiniteQueryObserver as e,MutationObserver as t,QueriesObserver as n,QueryClient as r,QueryObserver as i,hydrate as a,noop as o,notifyManager as s,replaceEqualDeep as c,shouldThrowError as l}from"@tanstack/query-core";import{batch as u,createComputed as d,createContext as f,createEffect as p,createMemo as m,createRenderEffect as h,createResource as g,createSignal as _,mergeProps as v,on as y,onCleanup as b,onMount as x,useContext as S}from"solid-js";import{createComponent as C,isServer as w}from"solid-js/web";import{createStore as T,reconcile as E,unwrap as D}from"solid-js/store";export*from"@tanstack/query-core";const O=f(void 0),k=`No QueryClient set, use QueryClientProvider to set one`,A=e=>{if(e)return e;let t=S(O);if(!t)throw Error(k);return t()},j=e=>{let t=S(O);return()=>{let n=e?.();if(n)return n;if(!t)throw Error(k);return t()}},M=e=>(h(t=>(t?.(),e.client.mount(),e.client.unmount.bind(e.client))),b(()=>e.client.unmount()),C(O.Provider,{value:()=>e.client,get children(){return e.children}})),N=f(()=>!1),P=()=>S(N),F=N.Provider;function I(e,t,n,r){if(n===!1)return t;if(typeof n==`function`){let r=n(e.data,t.data);return{...t,data:r}}let i=t.data;if(e.data===void 0)try{i=structuredClone(i)}catch{}let a=E(i,{key:n})(e.data);return{...t,data:a}}const L=(e,t)=>{if(!w)return t;let n={...D(t),refetch:void 0};return`fetchNextPage`in t&&(n.fetchNextPage=void 0,n.fetchPreviousPage=void 0),n.hydrationData={state:e.state,queryKey:e.queryKey,queryHash:e.queryHash,...e.meta&&{meta:e.meta}},n};function R(e,t,n){let r=j(n),i=m(()=>r()),o=P(),c=!1,u=m(()=>{let t=i().defaultQueryOptions(e());return t._optimisticResults=o()?`isRestoring`:`optimistic`,t.structuralSharing=!1,w&&(t.retry=!1,t.throwOnError=!0),t}),f=u(),[p,h]=_(new t(i(),u())),v=p().getOptimisticResult(u()),[x,S]=T(v),C=(e,t)=>p().subscribe(n=>{s.batchCalls(()=>{let r=p().getCurrentQuery(),i=L(r,n);n.data!==void 0&&i.isError?(t(i.error),E()):(e(i),E())})()}),E=()=>{c&&=(M?.(),!1)},O=()=>p().subscribe(e=>{v=e,queueMicrotask(()=>{M&&R()})});function k(e){let t=p().options,n=t.reconcile;S(r=>I(r,e,n!==void 0&&n,t.queryHash))}function A(){return[()=>x,e=>{let t=D(x);if(typeof e==`function`&&(e=e(t)),e?.hydrationData){let{hydrationData:t,...n}=e;e=n}k(e)}]}let M=null,N=null,[F,{refetch:R}]=g(()=>{let e=p();return new Promise((t,n)=>{if(N=t,w?M=C(t,n):!M&&!o()&&(M=O()),e.updateResult(),v.isError&&!v.isFetching&&!o()&&l(e.options.throwOnError,[v.error,e.getCurrentQuery()]))return k(v),n(v.error);if(!v.isLoading)return N=null,t(L(e.getCurrentQuery(),v));k(v)})},{storage:A,get deferStream(){return e().deferStream},onHydrated(e,t){if(t.value&&`hydrationData`in t.value&&a(i(),{queries:[{...t.value.hydrationData}]}),M)return;let n={...f};(f.staleTime||!f.initialData)&&t.value&&(n.refetchOnMount=!1),p().setOptions(n),k(p().getOptimisticResult(n)),M=O()}});return d(y(i,e=>{M&&M();let n=new t(e,u());h(n),M=O()},{defer:!0})),d(y(o,e=>{!e&&!w&&R()},{defer:!0})),b(()=>{if(w&&F.state===`pending`){c=!0;return}M&&=(M(),null),N&&!w&&(N(v),N=null)}),d(y([p,u],([e,t])=>{e.setOptions(t),k(e.getOptimisticResult(t)),R()},{defer:!0})),new Proxy(x,{get(e,t){return t===`data`?x.data===void 0?F()?.data:F.latest?.data:Reflect.get(e,t)}})}function z(e,t){return R(m(()=>e()),i,t)}function B(t,n){return R(m(()=>t()),e,n)}function V(e,n){let r=j(n),i=m(()=>r()),a=new t(i(),e()),s=(...e)=>{a.mutate(e[0],e[1]).catch(o)},[c,u]=T({...a.getCurrentResult(),mutate:s,mutateAsync:a.getCurrentResult().mutate});d(()=>{a.setOptions(e())}),d(y(()=>c.status,()=>{if(c.isError&&l(a.options.throwOnError,[c.error]))throw c.error}));let f=a.subscribe(e=>{u({...e,mutate:s,mutateAsync:e.mutate})});return b(f),c}function H(e,t){let r=j(t),i=m(()=>r()),a=P(),s=m(()=>e().queries.map(e=>v(i().defaultQueryOptions(e),{get _optimisticResults(){return a()?`isRestoring`:`optimistic`}}))),c=new n(i(),s(),e().combine?{combine:e().combine}:void 0),[l,f]=T(c.getOptimisticResult(s(),e().combine)[1]());h(y(()=>e().queries.length,()=>f(c.getOptimisticResult(s(),e().combine)[1]())));let p=m(y(()=>l.length,()=>l.map(e=>g(()=>new Promise(t=>{e.isFetching&&e.isLoading||t(D(e.data))})))));u(()=>{let e=p();for(let t=0;t<e.length;t++){let n=e[t];n[1].mutate(()=>D(l[t].data)),n[1].refetch()}});let _=[],S=()=>c.subscribe(e=>{_.push(()=>{u(()=>{let t=p();for(let n=0;n<t.length;n++){let r=t[n],i={...D(e[n])};f(n,D(i)),r[1].mutate(()=>D(l[n].data)),r[1].refetch()}})}),queueMicrotask(()=>{let e=_.pop();e&&e(),_=[]})}),C=o;d(e=>(e?.(),C=a()?o:S(),()=>queueMicrotask(C))),b(C),x(()=>{c.setQueries(s(),e().combine?{combine:e().combine}:void 0)}),d(()=>{c.setQueries(s(),e().combine?{combine:e().combine}:void 0)});let w=e=>({get(t,n){return n===`data`?p()[e][0]():Reflect.get(t,n)}}),E=()=>l.map((e,t)=>new Proxy(e,w(t))),[O,k]=T(E());return h(()=>k(E())),O}var U=class extends r{constructor(e={}){super(e)}};function W(e){return e}function G(e,t){let n=j(t),r=m(()=>n()),i=m(()=>r().getQueryCache()),[a,o]=_(r().isFetching(e?.()));return p(()=>{o(r().isFetching(e?.()));let t=i().subscribe(()=>{o(r().isFetching(e?.()))});b(t)}),a}function K(e){return e}function q(e){return e}function J(e,t){let n=j(t),r=m(()=>n()),i=m(()=>r().getMutationCache()),[a,o]=_(r().isMutating(e?.()));return p(()=>{o(r().isMutating(e?.()));let t=i().subscribe(()=>{o(r().isMutating(e?.()))});b(t)}),a}function Y(e,t){return e.findAll(t.filters).map(e=>t.select?t.select(e):e.state)}function X(e=()=>({}),t){let n=j(t),r=m(()=>n()),i=m(()=>r().getMutationCache()),[a,o]=_(Y(i(),e()));return p(()=>{let t=i().subscribe(()=>{let t=c(a(),Y(i(),e()));a()!==t&&o(t)});b(t)}),a}
++import{InfiniteQueryObserver as e,MutationObserver as t,QueriesObserver as n,QueryClient as r,QueryObserver as i,hydrate as a,noop as o,notifyManager as s,replaceEqualDeep as c,shouldThrowError as l}from"@tanstack/query-core";import{batch as u,createComputed as d,createContext as f,createEffect as p,createMemo as m,createRenderEffect as h,createResource as g,createSignal as _,mergeProps as v,on as y,onCleanup as b,onMount as x,useContext as S}from"solid-js";import{createComponent as C,isServer as w}from"solid-js/web";import{createStore as T,reconcile as E,unwrap as D}from"solid-js/store";export*from"@tanstack/query-core";const O=f(void 0),k=`No QueryClient set, use QueryClientProvider to set one`,A=e=>{if(e)return e;let t=S(O);if(!t)throw Error(k);return t()},j=e=>{let t=S(O);return()=>{let n=e?.();if(n)return n;if(!t)throw Error(k);return t()}},M=e=>(h(t=>(t?.(),e.client.mount(),e.client.unmount.bind(e.client))),b(()=>e.client.unmount()),C(O.Provider,{value:()=>e.client,get children(){return e.children}})),N=f(()=>!1),P=()=>S(N),F=N.Provider;function I(e,t,n,r){if(n===!1)return t;if(typeof n==`function`){let r=n(e.data,t.data);return{...t,data:r}}let i=t.data;if(e.data===void 0)try{i=structuredClone(i)}catch{}let a=E(i,{key:n})(e.data);return{...t,data:a}}const L=(e,t)=>{if(!w)return t;let n={...D(t),refetch:void 0};return`fetchNextPage`in t&&(n.fetchNextPage=void 0,n.fetchPreviousPage=void 0),n.hydrationData={state:e.state,queryKey:e.queryKey,queryHash:e.queryHash,...e.meta&&{meta:e.meta}},n};function R(e,t,n){let r=j(n),i=m(()=>r()),o=P(),c=!1,u=m(()=>{let t=i().defaultQueryOptions(e());return t._optimisticResults=o()?`isRestoring`:`optimistic`,t.structuralSharing=!1,w&&(t.retry=!1,t.throwOnError=!0),t}),f=u(),[p,h]=_(new t(i(),u())),v=p().getOptimisticResult(u()),[x,S]=T(v),C=(e,t)=>p().subscribe(n=>{s.batchCalls(()=>{let r=p().getCurrentQuery(),i=L(r,n);n.data!==void 0&&i.isError?(t(i.error),E()):(e(i),E())})()}),E=()=>{c&&=(M?.(),!1)},O=()=>p().subscribe(e=>{v=e,queueMicrotask(()=>{M&&R()})});function k(e){let t=p().options,n=t.reconcile;S(r=>I(r,e,n!==void 0&&n,t.queryHash))}function A(){return[()=>x,e=>{let t=D(x);if(typeof e==`function`&&(e=e(t)),e?.hydrationData){let{hydrationData:t,...n}=e;e=n}k(e)}]}let M=null,N=null,[F,{refetch:R}]=g(()=>{let e=p(),r=()=>v.isError&&!v.isFetching&&!o()&&l(e.options.throwOnError,[v.error,e.getCurrentQuery()]);if(w)return new Promise((t,n)=>{if(N=t,M=C(t,n),e.updateResult(),r())return k(v),n(v.error);if(!v.isLoading)return N=null,t(L(e.getCurrentQuery(),v));k(v)});if(!M&&!o()&&(M=O()),e.updateResult(),r())throw k(v),v.error;if(!v.isLoading&&v.data!==void 0){let e=v;return N?(N=null,new Promise(t=>t(e))):e}if(!v.isLoading)return N=null,new Promise(e=>e(v));return new Promise(e=>{N=e,k(v)})},{storage:A,get deferStream(){return e().deferStream},onHydrated(e,t){if(t.value&&`hydrationData`in t.value&&a(i(),{queries:[{...t.value.hydrationData}]}),M)return;let n={...f};(f.staleTime||!f.initialData)&&t.value&&(n.refetchOnMount=!1),p().setOptions(n),k(p().getOptimisticResult(n)),M=O()}});return d(y(i,e=>{M&&M();let n=new t(e,u());h(n),M=O()},{defer:!0})),d(y(o,e=>{!e&&!w&&R()},{defer:!0})),b(()=>{if(w&&F.state===`pending`){c=!0;return}M&&=(M(),null),N&&!w&&(N(v),N=null)}),d(y([p,u],([e,t])=>{e.setOptions(t),k(e.getOptimisticResult(t)),R()},{defer:!0})),new Proxy(x,{get(e,t){return t===`data`?x.data===void 0?F()?.data:F.latest?.data:Reflect.get(e,t)}})}function z(e,t){return R(m(()=>e()),i,t)}function B(t,n){return R(m(()=>t()),e,n)}function V(e,n){let r=j(n),i=m(()=>r()),a=new t(i(),e()),s=(...e)=>{a.mutate(e[0],e[1]).catch(o)},[c,u]=T({...a.getCurrentResult(),mutate:s,mutateAsync:a.getCurrentResult().mutate});d(()=>{a.setOptions(e())}),d(y(()=>c.status,()=>{if(c.isError&&l(a.options.throwOnError,[c.error]))throw c.error}));let f=a.subscribe(e=>{u({...e,mutate:s,mutateAsync:e.mutate})});return b(f),c}function H(e,t){let r=j(t),i=m(()=>r()),a=P(),s=m(()=>e().queries.map(e=>v(i().defaultQueryOptions(e),{get _optimisticResults(){return a()?`isRestoring`:`optimistic`}}))),c=new n(i(),s(),e().combine?{combine:e().combine}:void 0),[l,f]=T(c.getOptimisticResult(s(),e().combine)[1]());h(y(()=>e().queries.length,()=>f(c.getOptimisticResult(s(),e().combine)[1]())));let p=m(y(()=>l.length,()=>l.map(e=>g(()=>new Promise(t=>{e.isFetching&&e.isLoading||t(D(e.data))})))));u(()=>{let e=p();for(let t=0;t<e.length;t++){let n=e[t];n[1].mutate(()=>D(l[t].data)),n[1].refetch()}});let _=[],S=()=>c.subscribe(e=>{_.push(()=>{u(()=>{let t=p();for(let n=0;n<t.length;n++){let r=t[n],i={...D(e[n])};f(n,D(i)),r[1].mutate(()=>D(l[n].data)),r[1].refetch()}})}),queueMicrotask(()=>{let e=_.pop();e&&e(),_=[]})}),C=o;d(e=>(e?.(),C=a()?o:S(),()=>queueMicrotask(C))),b(C),x(()=>{c.setQueries(s(),e().combine?{combine:e().combine}:void 0)}),d(()=>{c.setQueries(s(),e().combine?{combine:e().combine}:void 0)});let w=e=>({get(t,n){return n===`data`?p()[e][0]():Reflect.get(t,n)}}),E=()=>l.map((e,t)=>new Proxy(e,w(t))),[O,k]=T(E());return h(()=>k(E())),O}var U=class extends r{constructor(e={}){super(e)}};function W(e){return e}function G(e,t){let n=j(t),r=m(()=>n()),i=m(()=>r().getQueryCache()),[a,o]=_(r().isFetching(e?.()));return p(()=>{o(r().isFetching(e?.()));let t=i().subscribe(()=>{o(r().isFetching(e?.()))});b(t)}),a}function K(e){return e}function q(e){return e}function J(e,t){let n=j(t),r=m(()=>n()),i=m(()=>r().getMutationCache()),[a,o]=_(r().isMutating(e?.()));return p(()=>{o(r().isMutating(e?.()));let t=i().subscribe(()=>{o(r().isMutating(e?.()))});b(t)}),a}function Y(e,t){return e.findAll(t.filters).map(e=>t.select?t.select(e):e.state)}function X(e=()=>({}),t){let n=j(t),r=m(()=>n()),i=m(()=>r().getMutationCache()),[a,o]=_(Y(i(),e()));return p(()=>{let t=i().subscribe(()=>{let t=c(a(),Y(i(),e()));a()!==t&&o(t)});b(t)}),a}
+ /* istanbul ignore file */
+ const Z=z,Q=B,$=V,ee=H;export{F as IsRestoringProvider,U as QueryClient,O as QueryClientContext,M as QueryClientProvider,Q as createInfiniteQuery,G as createIsFetching,G as useIsFetching,J as createIsMutating,J as useIsMutating,$ as createMutation,X as createMutationState,X as useMutationState,ee as createQueries,Z as createQuery,K as infiniteQueryOptions,q as mutationOptions,W as queryOptions,B as useInfiniteQuery,P as useIsRestoring,V as useMutation,H as useQueries,z as useQuery,A as useQueryClient};
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/src/useBaseQuery.ts b/src/useBaseQuery.ts
+index bcd9041d18e5c2690dd8f2330bccbfc39debc3be..a64b1bd96a1c80eb9d53778de265bd4e53cde2e2 100644
+--- a/src/useBaseQuery.ts
++++ b/src/useBaseQuery.ts
+@@ -267,34 +267,78 @@ export function useBaseQuery<
+   const [queryResource, { refetch }] = createResource<ResourceData | undefined>(
+     () => {
+       const obs = observer()
+-      return new Promise((resolve, reject) => {
+-        resolver = resolve
+-        if (isServer) {
++      const shouldThrowCurrentError = () =>
++        observerResult.isError &&
++        !observerResult.isFetching &&
++        !isRestoring() &&
++        shouldThrowError(obs.options.throwOnError, [
++          observerResult.error,
++          obs.getCurrentQuery(),
++        ])
++
++      if (isServer) {
++        return new Promise((resolve, reject) => {
++          resolver = resolve
+           unsubscribe = createServerSubscriber(resolve, reject)
+-        } else if (!unsubscribe && !isRestoring()) {
+-          unsubscribe = createClientSubscriber()
+-        }
+-        obs.updateResult()
++          obs.updateResult()
++
++          if (shouldThrowCurrentError()) {
++            setStateWithReconciliation(observerResult)
++            return reject(observerResult.error)
++          }
++          if (!observerResult.isLoading) {
++            resolver = null
++            return resolve(
++              hydratableObserverResult(obs.getCurrentQuery(), observerResult),
++            )
++          }
+ 
+-        if (
+-          observerResult.isError &&
+-          !observerResult.isFetching &&
+-          !isRestoring() &&
+-          shouldThrowError(obs.options.throwOnError, [
+-            observerResult.error,
+-            obs.getCurrentQuery(),
+-          ])
+-        ) {
+           setStateWithReconciliation(observerResult)
+-          return reject(observerResult.error)
+-        }
+-        if (!observerResult.isLoading) {
++        })
++      }
++
++      if (!unsubscribe && !isRestoring()) {
++        unsubscribe = createClientSubscriber()
++      }
++      obs.updateResult()
++
++      if (shouldThrowCurrentError()) {
++        setStateWithReconciliation(observerResult)
++        throw observerResult.error
++      }
++      /**
++       * When data is available and the observer is not in an initial loading
++       * state, we return the result synchronously (a non-thenable) instead of
++       * a resolved Promise. A Promise — even one that resolves within the same
++       * tick — leaves the resource in a pending/refreshing state for at least
++       * a microtask, which makes every enclosing <Suspense> boundary flip to
++       * its fallback and back. That flip detaches and re-inserts the
++       * boundary's DOM, restarting CSS animations and resetting
++       * focus/scroll/iframe state on every background refetch, even though no
++       * fallback is ever painted. Returning a plain value keeps the resource
++       * in its ready state, so Suspense is only triggered by genuine initial
++       * loads.
++       *
++       * The exception is when a previous fetcher promise is still pending
++       * (`resolver` is set): the boundary is already suspended — possibly
++       * inside a transition — and completing through the Promise path keeps
++       * Solid's Suspense/Transition bookkeeping intact.
++       */
++      if (!observerResult.isLoading && observerResult.data !== undefined) {
++        const result = observerResult
++        if (resolver) {
+           resolver = null
+-          return resolve(
+-            hydratableObserverResult(obs.getCurrentQuery(), observerResult),
+-          )
++          return new Promise((resolve) => resolve(result))
+         }
++        return result
++      }
++      if (!observerResult.isLoading) {
++        resolver = null
++        return new Promise((resolve) => resolve(observerResult))
++      }
+ 
++      return new Promise((resolve) => {
++        resolver = resolve
+         setStateWithReconciliation(observerResult)
+       })
+     },

@@ -5,6 +5,7 @@ import {expect} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import type {Browser, Page} from 'playwright'
 import {test as browserTest} from '@conciv/browser-fixture'
+import {magicLink} from '@conciv/harness-testkit/login'
 import {bootCoreKit, type CoreKit} from './core-kit.js'
 import {listenLocal} from './listen-local.js'
 
@@ -78,7 +79,8 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
 
   async function openPage(browser: Browser, host: ServedDir, kit: CoreKit): Promise<Page> {
     const page = await browser.newPage()
-    await page.goto(`${host.base}/?core=${encodeURIComponent(kit.base)}`, {waitUntil: 'domcontentloaded'})
+    const pageUrl = `${host.base}/?core=${encodeURIComponent(kit.origin)}`
+    await page.goto(await magicLink(kit.origin, kit.terminal, pageUrl), {waitUntil: 'domcontentloaded'})
     return page
   }
 

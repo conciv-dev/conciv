@@ -1,6 +1,7 @@
 {
   "$schema": "https://v2-10-3.turborepo.dev/schema.json",
   "globalDependencies": ["pnpm-workspace.yaml", ".oxlintrc.json"],
+  "globalPassThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"],
   "concurrency": "50%",
   "cacheMaxAge": "7d",
   "cacheMaxSize": "10GB",

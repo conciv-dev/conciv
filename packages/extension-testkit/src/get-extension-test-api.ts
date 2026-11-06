@@ -12,6 +12,7 @@ import {
   type DiscoverTools,
   type RunTypescript,
 } from '@conciv/harness-testkit'
+import {magicLink} from '@conciv/harness-testkit/login'
 import {launch, openObservedPage} from './launch.js'
 import {settleTeardown} from './settle-teardown.js'
 
@@ -45,12 +46,11 @@ export {serveDir, type ServedHost} from './serve.js'
 export {fixtureHost} from './fixture-host.js'
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
-  const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {
-    harness: extension.harness,
-  })
+  const engine = await bootExtensionServer(extension.server, {harness: extension.harness})
+  const {apiBase, extensionContexts, stop} = engine
   const session = await resolveSession(apiBase)
-  const {origin, close} = await extension.host({apiBase, session})
-  const {page, context, close: closeBrowser} = await launch(origin)
+  const {origin, close} = await extension.host({apiBase: engine.origin, session})
+  const {page, context, close: closeBrowser} = await launch(await magicLink(engine.origin, engine.terminal, origin))
   return {
     page,
     callTool: makeCallTool(apiBase, session),

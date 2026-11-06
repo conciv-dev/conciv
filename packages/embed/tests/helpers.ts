@@ -11,6 +11,7 @@ import {test, expect, type Page} from '@playwright/test'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
+import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
 import {PageToNativeSchema, type PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 
@@ -49,10 +50,23 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const embedBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
+const AGENT_BASE = /^(?<origin>https?:\/\/[^/]+)\/t\/(?<token>[^/]+)(?<rest>\/.*)?$/
+
+export function browserBase(apiBase: string): string {
+  const groups = AGENT_BASE.exec(apiBase)?.groups
+  if (groups?.origin === undefined) return apiBase
+  return `${groups.origin}${groups.rest ?? ''}`.replace(/\/$/, '')
+}
+
+export async function openLoggedIn(page: Page, kit: EmbedKit, pageUrl: string): Promise<void> {
+  await page.goto('about:blank')
+  await page.goto(await magicLink(kit.origin, kit.terminal, pageUrl), {waitUntil: 'domcontentloaded'})
+}
+
 export function hostPage(opts: {apiBase: string; widget?: string; body?: string}): string {
   return `<!doctype html><html><head>
     <meta charset="utf-8">
-    <meta name="conciv-api-base" content="${opts.apiBase}">
+    <meta name="conciv-api-base" content="${browserBase(opts.apiBase)}">
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
     ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
@@ -147,7 +161,7 @@ export async function proxyTo(targetBase: string, opts: {port?: number} = {}): P
   })
   const {base, port, close} = await listenLocal(server, opts.port ?? 0)
   return {
-    base,
+    base: `${base}${target.pathname.replace(/\/$/, '')}`,
     port,
     trafficCount: () => count + upgrades,
     dropConnections: () => {
@@ -229,6 +243,15 @@ export function chatBox(page: Page) {
   return page.getByRole('textbox', {name: 'Message the conciv agent'})
 }
 
+export async function logInFromPanelNotice(page: Page, kit: EmbedKit, notice: string): Promise<void> {
+  const panel = page.getByRole('dialog', {name: 'conciv chat agent'})
+  await expect(panel.getByRole('alert').filter({hasText: notice})).toBeVisible({timeout: PANEL_TIMEOUT_MS})
+  await panel.getByRole('button', {name: 'Log in'}).click()
+  const firstDigit = page.getByRole('textbox', {name: 'Digit 1 of 6'})
+  await expect(firstDigit).toBeVisible({timeout: PANEL_TIMEOUT_MS})
+  await firstDigit.pressSequentially(await requestPrintedCode(kit.origin, kit.terminal))
+}
+
 export async function openChatPanel(page: Page): Promise<void> {
   await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: PANEL_TIMEOUT_MS})
   await page.getByRole('button', {name: 'Open conciv chat'}).click()
@@ -261,14 +284,14 @@ export async function mountHandle(page: Page, apiBase: string): Promise<void> {
     window.concivTestElement = el
     window.concivTestHandle = window.ConcivHandle.makeHandle(base)
     void window.concivTestHandle.mount(el)
-  }, apiBase)
+  }, browserBase(apiBase))
 }
 
-export async function openHostWithHandle(page: Page, hostBase: string, apiBase: string): Promise<string[]> {
+export async function openHostWithHandle(page: Page, hostBase: string, kit: EmbedKit): Promise<string[]> {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(String(error)))
-  await page.goto(hostBase, {waitUntil: 'domcontentloaded'})
-  await mountHandle(page, apiBase)
+  await openLoggedIn(page, kit, hostBase)
+  await mountHandle(page, kit.base)
   return pageErrors
 }
 
@@ -281,7 +304,7 @@ export async function unmountHandle(page: Page): Promise<void> {
 }
 
 export async function rebindHandle(page: Page, apiBase: string): Promise<void> {
-  await page.evaluate((base) => window.concivTestHandle.rebind(base), apiBase)
+  await page.evaluate((base) => window.concivTestHandle.rebind(base), browserBase(apiBase))
 }
 
 export type NativeBridge = {
@@ -310,9 +333,9 @@ export async function installNativeStub(page: Page): Promise<void> {
 
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 
-export async function openPagePlaneHost(page: Page, base: string): Promise<Page> {
+export async function openPagePlaneHost(page: Page, kit: EmbedKit, base: string): Promise<Page> {
   await awaitPagePlaneSubscribed(page, async () => {
-    await page.goto(base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, kit, base)
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
   })
   return page
@@ -346,7 +369,7 @@ export async function openPanelOnNewSession(page: Page, suite: WidgetSuite): Pro
   const {sessionId} = await suite.kit().rpc.sessions.create()
   const title = `session under test ${sessionId.slice(-12)}`
   await suite.kit().rpc.sessions.rename({sessionId, title})
-  await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+  await openLoggedIn(page, suite.kit(), suite.host().base)
   await openPanel(page)
   await switchToSessionByTitle(page, title)
   return sessionId

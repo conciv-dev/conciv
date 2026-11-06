@@ -10,6 +10,20 @@ import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
 import {foldToolDurations, type ToolPartLike} from '../src/pane/tool-durations.js'
+import {
+  clamp,
+  cornerAt,
+  cornerCoords,
+  directionCorner,
+  offScreenEdge,
+  parsePlacement,
+  presetPlacement,
+  quadrantCorner,
+  stepAxis,
+  throwPath,
+  toPercent,
+  toPixels,
+} from '../src/lib/draggable-physics.js'
 
 describe('draft storage', () => {
   const DRAFTS_GET_PATH = '/rpc/drafts/get'
@@ -333,6 +347,188 @@ describe('tool durations', () => {
         {},
       )
       expect(next).toEqual({})
+    })
+  })
+})
+
+describe('launcher drag physics', () => {
+  describe('throw physics', () => {
+    it('clamps values into range', () => {
+      expect(clamp(5, 0, 10)).toBe(5)
+      expect(clamp(-5, 0, 10)).toBe(0)
+      expect(clamp(50, 0, 10)).toBe(10)
+      expect(clamp(5, 10, 0)).toBe(10)
+    })
+
+    it('advances position by velocity while inside the walls', () => {
+      const {position, velocity} = stepAxis(100, 10, 0, 500)
+      expect(position).toBe(110)
+      expect(velocity).toBeCloseTo(9.5)
+    })
+
+    it('bounces and damps velocity at a wall', () => {
+      const hitMax = stepAxis(495, 20, 0, 500)
+      expect(hitMax.position).toBe(500)
+      expect(hitMax.velocity).toBeCloseTo(-9.5)
+
+      const hitMin = stepAxis(5, -20, 0, 500)
+      expect(hitMin.position).toBe(0)
+      expect(hitMin.velocity).toBeGreaterThan(0)
+    })
+
+    it('a throw decays to a stop inside the walls, bouncing off the one it hits', () => {
+      const bounds = {minX: 0, minY: 0, maxX: 500, maxY: 300}
+      const path = throwPath({x: 250, y: 150}, {x: 40, y: 0}, bounds)
+      const end = path.at(-1)
+      expect(path.length).toBeGreaterThan(10)
+      expect(path.length).toBeLessThan(600)
+      expect(path.some((frame) => frame.x === 500)).toBe(true)
+      expect(end?.x).toBeGreaterThanOrEqual(0)
+      expect(end?.x).toBeLessThan(500)
+      expect(end?.y).toBe(150)
+    })
+
+    it('a release with no speed left has no throw', () => {
+      expect(throwPath({x: 10, y: 10}, {x: 0.05, y: 0.05}, {minX: 0, minY: 0, maxX: 500, maxY: 300})).toEqual([])
+    })
+  })
+
+  describe('hot corners', () => {
+    const bounds = {minX: 8, minY: 8, maxX: 508, maxY: 308}
+
+    it('goes hot only when both axes are near a wall', () => {
+      expect(cornerAt({x: 10, y: 10}, bounds, 72)).toBe('top-left')
+      expect(cornerAt({x: 500, y: 300}, bounds, 72)).toBe('bottom-right')
+      expect(cornerAt({x: 10, y: 300}, bounds, 72)).toBe('bottom-left')
+      expect(cornerAt({x: 500, y: 10}, bounds, 72)).toBe('top-right')
+      expect(cornerAt({x: 10, y: 160}, bounds, 72)).toBeNull()
+      expect(cornerAt({x: 250, y: 10}, bounds, 72)).toBeNull()
+      expect(cornerAt({x: 250, y: 160}, bounds, 72)).toBeNull()
+    })
+
+    it('treats the snap distance as inclusive', () => {
+      expect(cornerAt({x: 80, y: 80}, bounds, 72)).toBe('top-left')
+      expect(cornerAt({x: 81, y: 81}, bounds, 72)).toBeNull()
+    })
+
+    it('anchors a pinned corner to the padded bounds', () => {
+      expect(cornerCoords('top-left', bounds)).toEqual({x: 8, y: 8})
+      expect(cornerCoords('top-right', bounds)).toEqual({x: 508, y: 8})
+      expect(cornerCoords('bottom-left', bounds)).toEqual({x: 8, y: 308})
+      expect(cornerCoords('bottom-right', bounds)).toEqual({x: 508, y: 308})
+    })
+
+    it('keeps a pin on screen when the window is smaller than the launcher', () => {
+      expect(cornerCoords('bottom-right', {minX: 8, minY: 8, maxX: -20, maxY: -20})).toEqual({x: 8, y: 8})
+    })
+  })
+
+  describe('magnetic direction', () => {
+    it('reads a corner from the direction of a nudge alone', () => {
+      expect(directionCorner(-40, -40, null)).toBe('top-left')
+      expect(directionCorner(40, -40, null)).toBe('top-right')
+      expect(directionCorner(-40, 40, null)).toBe('bottom-left')
+      expect(directionCorner(40, 40, null)).toBe('bottom-right')
+    })
+
+    it('keeps the fallback when neither axis leaves the deadzone', () => {
+      expect(directionCorner(4, -4, 'bottom-left')).toBe('bottom-left')
+      expect(directionCorner(0, 0, null)).toBeNull()
+    })
+
+    it('ignores sideways wander on a long drag along one axis', () => {
+      expect(directionCorner(12, -200, 'bottom-left')).toBe('top-left')
+      expect(directionCorner(-12, -200, 'bottom-right')).toBe('top-right')
+      expect(directionCorner(200, 12, 'top-right')).toBe('top-right')
+      expect(directionCorner(200, -12, 'bottom-left')).toBe('bottom-right')
+    })
+
+    it('still reads a diagonal once the minor axis is deliberate', () => {
+      expect(directionCorner(120, -200, 'bottom-left')).toBe('top-right')
+      expect(directionCorner(-120, -200, 'bottom-right')).toBe('top-left')
+    })
+
+    it('falls back to the quadrant the launcher sits in', () => {
+      const size = {width: 56, height: 56}
+      const viewport = {width: 1024, height: 768}
+      expect(quadrantCorner({x: 8, y: 8}, size, viewport)).toBe('top-left')
+      expect(quadrantCorner({x: 960, y: 8}, size, viewport)).toBe('top-right')
+      expect(quadrantCorner({x: 8, y: 704}, size, viewport)).toBe('bottom-left')
+      expect(quadrantCorner({x: 960, y: 704}, size, viewport)).toBe('bottom-right')
+    })
+  })
+
+  describe('off screen edge', () => {
+    const size = {width: 56, height: 56}
+    const viewport = {width: 1024, height: 768}
+
+    it('is null while the launcher centre stays on screen', () => {
+      expect(offScreenEdge({x: 8, y: 8}, size, viewport)).toBeNull()
+      expect(offScreenEdge({x: 960, y: 704}, size, viewport)).toBeNull()
+      expect(offScreenEdge({x: -20, y: 300}, size, viewport)).toBeNull()
+      expect(offScreenEdge({x: 990, y: 300}, size, viewport)).toBeNull()
+    })
+
+    it('reports the edge the centre crosses', () => {
+      expect(offScreenEdge({x: -28, y: 300}, size, viewport)).toBe('left')
+      expect(offScreenEdge({x: 996, y: 300}, size, viewport)).toBe('right')
+      expect(offScreenEdge({x: 300, y: -28}, size, viewport)).toBe('top')
+      expect(offScreenEdge({x: 300, y: 740}, size, viewport)).toBe('bottom')
+    })
+
+    it('prefers a side edge when the centre leaves through a corner', () => {
+      expect(offScreenEdge({x: -40, y: -40}, size, viewport)).toBe('left')
+      expect(offScreenEdge({x: 2000, y: 2000}, size, viewport)).toBe('right')
+    })
+  })
+
+  describe('percent position', () => {
+    it('maps the same percent to the same relative spot at any window size', () => {
+      expect(toPixels(100, 8, 936)).toBe(936)
+      expect(toPixels(0, 8, 936)).toBe(8)
+      expect(toPixels(50, 8, 736)).toBe(372)
+    })
+
+    it('round-trips pixels through a percent', () => {
+      expect(toPixels(toPercent(500, 8, 936), 8, 936)).toBeCloseTo(500)
+    })
+
+    it('keeps the launcher inside the walls', () => {
+      expect(toPercent(2000, 8, 936)).toBe(100)
+      expect(toPercent(-50, 8, 936)).toBe(0)
+      expect(toPixels(250, 8, 936)).toBe(936)
+      expect(toPercent(10, 8, 4)).toBe(0)
+      expect(toPixels(100, 8, 4)).toBe(8)
+    })
+  })
+
+  describe('stored placement', () => {
+    it('reads a stored preset string from before free positions as that corner', () => {
+      expect(parsePlacement('top-left')).toEqual({kind: 'corner', corner: 'top-left'})
+      expect(parsePlacement('bottom-right')).toEqual({kind: 'corner', corner: 'bottom-right'})
+      expect(parsePlacement('middle-left')).toEqual({kind: 'free', x: 0, y: 50})
+    })
+
+    it('reads a corner, a free spot and a hidden edge', () => {
+      expect(parsePlacement('{"kind":"corner","corner":"top-right"}')).toEqual({kind: 'corner', corner: 'top-right'})
+      expect(parsePlacement('{"kind":"free","x":30,"y":62.5}')).toEqual({kind: 'free', x: 30, y: 62.5})
+      expect(parsePlacement('{"kind":"edge","edge":"left","along":40}')).toEqual({
+        kind: 'edge',
+        edge: 'left',
+        along: 40,
+      })
+    })
+
+    it('rejects anything else, so the configured position wins', () => {
+      expect(parsePlacement('nowhere')).toBeUndefined()
+      expect(parsePlacement('{"kind":"free","x":300,"y":10}')).toBeUndefined()
+      expect(parsePlacement('{"kind":"edge","edge":"middle","along":40}')).toBeUndefined()
+      expect(parsePlacement('{"kind":"corner"')).toBeUndefined()
+    })
+
+    it('starts a configured middle preset halfway down its side', () => {
+      expect(presetPlacement('middle-right')).toEqual({kind: 'free', x: 100, y: 50})
+      expect(presetPlacement('top-right')).toEqual({kind: 'corner', corner: 'top-right'})
     })
   })
 })

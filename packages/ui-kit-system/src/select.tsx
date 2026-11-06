@@ -4,7 +4,7 @@ import {Select as Ark} from '@ark-ui/solid/select'
 const TRIGGER =
   'flex items-center justify-between gap-2 w-full min-h-9 py-2 px-2.5 rounded-chat-surface-sm bg-chat-fill text-chat-text text-[0.8125rem] font-chat [border-width:1px] [border-style:solid] border-chat-line cursor-pointer trans-border focus-ring data-[state=open]:border-chat-accent data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const CONTENT =
-  'hidden data-[state=open]:flex data-[state=open]:anim-combo flex-col gap-0.5 z-[2147483647] min-w-[var(--reference-width)] max-h-60 overflow-y-auto rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg p-1 focus-visible:outline-none'
+  'hidden data-[state=open]:flex data-[state=open]:anim-combo flex-col gap-0.5 z-[2147483647] min-w-[var(--reference-width)] max-h-60 overflow-y-auto rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg p-1 font-chat focus-visible:outline-none'
 const ITEM =
   'flex items-center justify-between gap-2 min-h-8 py-1.5 px-2.5 rounded-chat-surface-sm text-[0.8125rem] text-chat-text-2 cursor-pointer select-none outline-none data-[highlighted]:bg-chat-fill-strong data-[highlighted]:text-chat-text data-[state=checked]:text-chat-accent data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const ITEM_GROUP_LABEL = 'py-1.5 px-2.5 text-[0.6875rem] font-chat text-chat-text-3 uppercase tracking-wide'

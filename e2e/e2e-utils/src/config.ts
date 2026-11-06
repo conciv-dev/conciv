@@ -9,9 +9,13 @@ function reporters(): ReporterDescription[] {
   return [['line'], ['json', {outputFile: 'test-results.json'}]]
 }
 
+export function e2eServerLog(port: number): string {
+  return join(tmpdir(), `conciv-e2e-server-${port}.log`)
+}
+
 function serverEntry(command: string, port: number, env: Record<string, string> = {}) {
   return {
-    command,
+    command: `(${command}) 2>&1 | tee ${e2eServerLog(port)}`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,

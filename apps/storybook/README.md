@@ -19,7 +19,7 @@ Solid Storybook (`storybook-solidjs-vite`) that collects stories from `src/` and
 
 ## Side Effects
 
-- `vitest.config.ts`: launches Chrome (`channel: 'chrome'`) through Playwright
+- `vitest.config.ts`: launches Playwright's bundled Chromium in new headless mode (`channel: 'chromium'`)
 
 ## Verification
 

@@ -27,6 +27,7 @@ import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useConnected,
+  useEnvironment,
   useLayers,
   useLiveSessions,
   useHostTheme,
@@ -41,6 +42,7 @@ import {createWarmSession} from '../app/warm-session.js'
 import {EngineReachabilityContext, makeEngineReachability} from '../app/reachability.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
+import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {toRawHotkey} from '../lib/hotkey.js'
@@ -124,7 +126,7 @@ function RootComponent() {
     announce,
     layers,
     suppressed,
-    fabPosition: fab.position,
+    fabAnchor: fab.anchor,
     instances: app.instances,
     connected: app.connected,
     arrivedFromConnect,
@@ -178,7 +180,9 @@ function RootComponent() {
                 politeMessage={politeMessage}
                 assertiveMessage={assertiveMessage}
               />
-              <EffectsSurface instances={app.instances} />
+              <Show when={app.login === undefined || engineConnected(app.login.status())}>
+                <EffectsSurface instances={app.instances} />
+              </Show>
             </HostApiProvider>
           </EngineReachabilityContext.Provider>
         </AppContext.Provider>
@@ -193,9 +197,11 @@ function RootChrome(props: {
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
+  const login = Route.useRouteContext()().login
   const settings = useSettings()
   const theme = useHostTheme()
   const layers = useLayers()
+  const environment = useEnvironment()
   const suppressed = useSuppressed()
   const connected = useConnected()
   const liveSessions = useLiveSessions()
@@ -209,7 +215,10 @@ function RootChrome(props: {
   const rootSearch = Route.useSearch()
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const shutterOpen = () => rootSearch().open === true
+  const locked = () => login !== undefined && engineLocked(login.status())
+  const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
+  const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const warm = useWarmSession()
@@ -238,8 +247,12 @@ function RootChrome(props: {
       }),
     )
   }
-  const openPanel = () => {
+  const showPanel = () => {
     if (!panelOpen()) hostRestoreTarget = rootEl ? hostFocusTarget(rootEl) : null
+    if (awaitingLogin()) {
+      void router.navigate({to: '/', search: {open: true}, replace: Boolean(quickMatch())})
+      return
+    }
     if (panelMatch() || connectMatch()) {
       void setShutter(router, true)
       return
@@ -272,7 +285,7 @@ function RootChrome(props: {
       pendingFabFocus = true
     })
   }
-  const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
+  const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -280,7 +293,7 @@ function RootChrome(props: {
     panelOpen()
     connected()
     launcherVisible()
-    props.fab.position()
+    props.fab.anchor()
     let lastKey = ''
     let stableFrames = 0
     let frame = 0
@@ -305,20 +318,21 @@ function RootChrome(props: {
   const panelCommands = createEventBusClient<PanelCommandEventMap>({pluginId: PANEL_PLUGIN_ID})
 
   onMount(() => {
-    const dockedShutterClosed = settings.surface === 'dock' && panelMatch() && !shutterOpen()
-    if (dockedShutterClosed || (settings.defaultOpen && closedMatch())) void openPanel()
+    const opensOnLoad = () =>
+      (settings.surface === 'dock' && panelMatch() && !shutterOpen()) || (settings.defaultOpen && closedMatch())
+    if (opensOnLoad()) showPanel()
     makeEventListener(window, 'resize', reportPanelState)
     const unsubscribes = [
       panelCommands.on('open', () => {
         revealDock()
-        void openPanel()
+        showPanel()
       }),
       panelCommands.on('close', () => {
         if (panelOpen()) closePanel()
       }),
       panelCommands.on('toggle', () => {
         if (!revealDock()) return togglePanel()
-        void openPanel()
+        showPanel()
       }),
     ]
     eventBus.start()
@@ -337,7 +351,7 @@ function RootChrome(props: {
     (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       dismissableLayerOpenAtEscapeCapture =
-        layers.anyOpen() || Boolean(rootEl?.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
+        layers.anyOpen() || Boolean(environment.rootNode.querySelector(OPEN_DISMISSABLE_LAYER_SELECTOR))
     },
     {capture: true},
   )
@@ -359,7 +373,7 @@ function RootChrome(props: {
     router.history.back()
   }
 
-  const toggleQuick = () => {
+  const switchQuick = () => {
     if (!connected()) return
     const revealed = revealDock()
     if (quickMatch()) {
@@ -372,6 +386,7 @@ function RootChrome(props: {
       replace: settings.surface !== 'dock' && Boolean(panelMatch()),
     })
   }
+  const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
   if (settings.quickTerminal.enabled) {
     for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
@@ -393,8 +408,12 @@ function RootChrome(props: {
           working={working}
           suppressed={suppressed}
           fab={props.fab}
+          locked={() => locked() && !panelOpen()}
           onToggle={togglePanel}
         />
+      </Show>
+      <Show when={loginOpen() ? login : undefined}>
+        {(current) => <EngineLoginDialog trust={current().trust()} onClose={() => void setShutter(router, false)} />}
       </Show>
       <div class="sr-only" role="status" aria-live="polite">
         {props.politeMessage()}

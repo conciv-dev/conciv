@@ -44,7 +44,8 @@ export function ComposerActions(props: {
   const toast = getHostApi().useToast()
   const meta = useSessionModels(() => props.sessionId)
   const harnessName = () => (meta.isSuccess ? meta.data.harness.name : 'the harness')
-  const terminal = terminalRpc()
+  const apiBase = getHostApi().useApiBase()
+  const terminal = () => terminalRpc(apiBase())
 
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
 
@@ -68,9 +69,9 @@ export function ComposerActions(props: {
 
   const openExternal = useMutation(() => ({
     mutationFn: async (): Promise<LaunchOutcome> => {
-      const {ok} = await terminal.launch({sessionId: props.sessionId})
+      const {ok} = await terminal().launch({sessionId: props.sessionId})
       if (ok) return {opened: true, command: null}
-      const {command} = await terminal.connectCommand({sessionId: props.sessionId})
+      const {command} = await terminal().connectCommand({sessionId: props.sessionId})
       return {opened: false, command}
     },
     onSuccess: async (outcome: LaunchOutcome) => {
@@ -84,7 +85,7 @@ export function ComposerActions(props: {
   }))
 
   const copyConnect = useMutation(() => ({
-    mutationFn: () => terminal.connectCommand({sessionId: props.sessionId}),
+    mutationFn: () => terminal().connectCommand({sessionId: props.sessionId}),
     onSuccess: (result: {command: string}) => void copyCommand(notices.notify, result.command),
     onError: (error: unknown) => notices.notify(launchFailure(error), {tone: 'warn'}),
   }))

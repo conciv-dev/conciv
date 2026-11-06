@@ -1,9 +1,9 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
-export type WorkspacePackage = {name: string; browser: boolean; e2e: boolean}
+export type WorkspacePackage = {name: string; e2e: boolean}
 
-export type ShardPlan = {shard: string; chromium: boolean; packages: string[]}
+export type ShardPlan = {shard: string; packages: string[]}
 
 export type E2eShardPlan = {shard: string; harnesses: boolean; packages: string[]}
 
@@ -42,25 +42,10 @@ export const E2E_SHARD_SIZING: ShardSizing = {
   bootstrapShards: 3,
 }
 
-const BROWSER_DEPENDENCY_PREFIXES = ['playwright', '@playwright/', '@vitest/browser']
-
 const VALID_PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function dependencyNames(manifest: Record<string, unknown>): string[] {
-  return ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((field) => {
-    const section = manifest[field]
-    return isRecord(section) ? Object.keys(section) : []
-  })
-}
-
-function usesBrowser(manifest: Record<string, unknown>): boolean {
-  return dependencyNames(manifest).some((name) =>
-    BROWSER_DEPENDENCY_PREFIXES.some((prefix) => name === prefix || name.startsWith(prefix)),
-  )
 }
 
 function hasE2eScript(manifest: Record<string, unknown>): boolean {
@@ -76,7 +61,7 @@ function readPackage(dir: string): WorkspacePackage | null {
     throw new Error(`no usable package name in ${manifestPath}`)
   if (!VALID_PACKAGE_NAME.test(manifest.name))
     throw new Error(`invalid package name in ${manifestPath}: ${manifest.name}`)
-  return {name: manifest.name, browser: usesBrowser(manifest), e2e: hasE2eScript(manifest)}
+  return {name: manifest.name, e2e: hasE2eScript(manifest)}
 }
 
 export function discoverPackages(rootDir: string, groupDirs: string[]): WorkspacePackage[] {
@@ -134,7 +119,6 @@ export function planShards(
   }
   return bins.map((bin) => ({
     shard: bin.shard,
-    chromium: bin.members.some((member) => member.browser),
     packages: bin.members.map((member) => member.name).toSorted((a, b) => a.localeCompare(b)),
   }))
 }

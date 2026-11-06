@@ -1,5 +1,5 @@
 export const LIST_PANEL =
-  'z-[2147483647] min-w-44 rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg p-1 focus-visible:outline-none'
+  'z-[2147483647] min-w-44 rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg p-1 font-chat focus-visible:outline-none'
 
 export const LIST_PANEL_ITEM =
   'flex items-center gap-2 min-h-8 py-1.5 px-2.5 rounded-chat-surface-sm text-[0.8125rem] text-chat-text-2 cursor-pointer select-none outline-none'
