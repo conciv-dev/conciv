@@ -40,6 +40,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-tap": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/intersection-observer": "^2.2.5",
     "@solid-primitives/mutation-observer": "^1.2.4",
     "@solid-primitives/resize-observer": "catalog:",
     "@tanstack/hotkeys": "^0.18.0",

@@ -1,4 +1,5 @@
-import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
+import {createSignal, createEffect, For, Show, onCleanup, onMount, type JSX} from 'solid-js'
+import {createViewportObserver} from '@solid-primitives/intersection-observer'
 import {Button, Combobox, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
@@ -20,8 +21,6 @@ const ACT =
 const RUNNING_LABEL = 'running'
 
 const PAGE_SIZE = 30
-
-const END_REACHED_PX = 48
 
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
@@ -87,10 +86,13 @@ export function SessionSelector(props: {
   const harnessSuffix = (s: SessionMeta): string =>
     harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
   const rows = (): SessionMeta[] => list.data?.pages.flatMap((page) => page.sessions) ?? []
-  const loadMoreAtEnd = (scroller: HTMLElement) => {
-    const remaining = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
-    if (remaining > END_REACHED_PX || !list.hasNextPage || list.isFetchingNextPage) return
-    void list.fetchNextPage()
+  const [observe, {remove: unobserve}] = createViewportObserver()
+  const loadMoreWhenSeen = (sentinel: HTMLElement) => {
+    observe(sentinel, (entry) => {
+      if (!entry.isIntersecting || !list.hasNextPage || list.isFetchingNextPage) return
+      void list.fetchNextPage()
+    })
+    onCleanup(() => unobserve(sentinel))
   }
   const activeId = () => props.activeId()
 
@@ -258,7 +260,7 @@ export function SessionSelector(props: {
               </TooltipIconButton>
             </Show>
           </div>
-          <div class="flex-1 overflow-y-auto" onScroll={(event) => loadMoreAtEnd(event.currentTarget)}>
+          <div class="flex-1 overflow-y-auto">
             <Show when={list.isLoading && rows().length === 0}>
               <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
                 <div class={SKEL} />
@@ -329,6 +331,7 @@ export function SessionSelector(props: {
                 <span class="sr-only">Loading more sessions…</span>
               </div>
             </Show>
+            <div ref={loadMoreWhenSeen} aria-hidden="true" />
           </div>
         </Combobox.Content>
       </Combobox.Positioner>
