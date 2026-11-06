@@ -229,16 +229,21 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    async function executeTool(base: string): Promise<{description: string; sandboxNames: string[]}> {
+    async function executeTool(
+      base: string,
+    ): Promise<{description: string; discoverDescription: string; sandboxNames: string[]}> {
       const mcp = await connectMcpClient(`${base}/api/mcp`)
       try {
-        const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+        const tools = await mcp.tools()
+        const tool = tools.find((entry) => entry.name === 'execute_typescript')
+        const discover = tools.find((entry) => entry.name === 'discover_tools')
+        if (!discover) throw new Error('discover_tools not on /api/mcp')
         if (!tool) throw new Error('execute_typescript not on /api/mcp')
         const listed = await tool.execute({
           typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))',
         })
         const sandboxNames = z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result
-        return {description: tool.description, sandboxNames}
+        return {description: tool.description, discoverDescription: discover.description, sandboxNames}
       } finally {
         await mcp.close()
       }
@@ -257,7 +262,7 @@ describe('api engine staleness di', () => {
 
       const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const {description, sandboxNames} = await executeTool(served.base)
+      const {description, discoverDescription, sandboxNames} = await executeTool(served.base)
 
       expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
@@ -270,6 +275,8 @@ describe('api engine staleness di', () => {
       expect(description).toContain('external_page_insert')
       expect(sandboxNames.length).toBeGreaterThan(0)
       expect(sandboxNames.filter((name) => !description.includes(name))).toEqual([])
+      expect(discoverDescription.length).toBeLessThanOrEqual(4096)
+      expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 
@@ -2492,14 +2499,17 @@ return seen`
         await ended
       })
 
-      it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
+      it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
         expect(found).toContain('Returns JSON matching')
         expect(found).toContain('PROBE_BROKE: the probe broke')
         expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
-        expect(discover.description).toContain('fail with a declared error.')
-        expect(discover.description).not.toContain('PROBE_BROKE')
+        const execute = await mcpTool('execute_typescript')
+        expect(execute.description).toContain('external_fixture_fail')
+        expect(execute.description).not.toContain('PROBE_BROKE')
+        expect(discover.description).toContain('toolNames')
+        expect(discover.description).not.toContain('external_fixture_fail')
       })
 
       it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {
