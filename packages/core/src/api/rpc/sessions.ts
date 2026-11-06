@@ -1,7 +1,14 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
-import {SessionId, type HarnessMenuEntry, type HarnessMeta, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {
+  SessionId,
+  type HarnessMenuEntry,
+  type HarnessMeta,
+  type ReasoningEffort,
+  type SessionRecord,
+} from '@conciv/protocol/chat-types'
+import type {HarnessListCursor, HarnessListPage, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -9,35 +16,60 @@ import {
   ensureRow,
   listSessionMetas,
   openNativeRow,
+  sessionMetaOf,
   resolveRow,
   restoreRow,
   rowById,
   switchRowHarness,
   tombstoneRow,
-  type NativeList,
+  type NativePage,
 } from '../../sessions/session-rows.js'
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
-async function nativeListOf(chat: ChatContext, harness: HarnessAdapter): Promise<NativeList> {
+async function nativePageOf(
+  chat: ChatContext,
+  harness: HarnessAdapter,
+  page: HarnessListPage,
+): Promise<NativePage | null> {
   const history = harness.history
-  if (!harness.capabilities.transcriptHistory || history === undefined) return {harnessKind: harness.id, list: []}
+  if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, list: await history.list(chat.cwd, chat.claudeHome)}
+    return {harnessKind: harness.id, page: await history.list(chat.cwd, page, chat.claudeHome)}
   } catch (error) {
-    logError(`[core] listing the ${harness.id} native sessions failed: ${String(error)}`)
-    return {harnessKind: harness.id, list: []}
+    logError(
+      `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
+    )
+    return null
   }
 }
 
-export async function rpcSessionList(chat: ChatContext, includeHidden: boolean): Promise<SessionMeta[]> {
+async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<HarnessSessionMeta | undefined> {
+  const nativeId = row.harnessSessionId
+  const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
+  if (nativeId === null || history === undefined) return undefined
+  try {
+    return (await history.meta(chat.cwd, nativeId, chat.claudeHome)) ?? undefined
+  } catch (error) {
+    logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    return undefined
+  }
+}
+
+async function rpcSessionList(
+  chat: ChatContext,
+  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
+): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
+  const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit}
+  const nativePages = await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))
   return listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
-    nativeLists: await Promise.all(chat.harnesses.map((harness) => nativeListOf(chat, harness))),
+    nativePages: nativePages.filter((native) => native !== null),
+    page,
     running: await chat.plane.running(),
     model: (sessionId) => modelOf(chat.db, sessionId),
-    includeHidden,
+    includeHidden: input.includeHidden ?? false,
   })
 }
 
@@ -121,7 +153,13 @@ export function sessionsRouter(deps: RpcDeps) {
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }
   return {
-    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
+    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input)),
+    get: os.sessions.get.handler(async ({input, errors}) => {
+      const row = await rowById(db, input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
+      const context = {db, running: await chat.plane.running(), model: (sessionId: SessionId) => modelOf(db, sessionId)}
+      return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+    }),
     create: os.sessions.create.handler(async () => {
       const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
       await createRow(db, {

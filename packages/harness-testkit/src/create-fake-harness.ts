@@ -8,6 +8,7 @@ import {
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
+import {pageAfter} from '@conciv/harness/page'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
@@ -37,7 +38,10 @@ type SharedFields = {
 
 function fixtureHistory(rows: HarnessSessionMeta[]): HarnessHistory {
   return {
-    list: () => Promise.resolve(rows),
+    list: (_cwd, page) => {
+      const paged = pageAfter(rows, page, (row) => ({updatedAt: row.updatedAt, id: row.id}))
+      return Promise.resolve({sessions: paged.items, next: paged.next})
+    },
     messages: () => Promise.resolve([]),
     meta: (_cwd, sessionId) => Promise.resolve(rows.find((row) => row.id === sessionId) ?? null),
     observe: () => ({

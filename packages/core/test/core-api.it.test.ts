@@ -7,6 +7,7 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  utimesSync,
 } from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
@@ -747,8 +748,7 @@ describe('api harness switching', () => {
     expect((await kit().rpc.meta.commands({sessionId})).commands.map((command) => command.name)).toEqual([
       'beta-command',
     ])
-    const listed = (await kit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
-    expect(listed?.harnessKind).toBe('beta')
+    expect((await kit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).harnessKind).toBe('beta')
 
     const replayed = await turn(sessionId, 'third question')
     expect(replayed).toMatchObject({harness: 'beta', resumeSessionId: null, model: undefined})
@@ -829,7 +829,7 @@ describe('api harness switching', () => {
       messageCount: 2,
     })
     const listings = async (includeHidden: boolean) => {
-      const listed = await kit().rpc.sessions.list({includeHidden})
+      const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
       return {
         owner: listed.filter((meta) => meta.id === sessionId).length,
         phantoms: listed.filter((meta) => meta.id !== sessionId && meta.native?.nativeId === owned).length,
@@ -853,7 +853,7 @@ describe('api harness switching', () => {
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
-    const listed = await kit().rpc.sessions.list(undefined)
+    const {sessions: listed} = await kit().rpc.sessions.list(undefined)
     const imported = listed.find((meta) => meta.native?.nativeId === NATIVE_BETA)
     expect(imported).toMatchObject({harnessKind: 'beta', native: {harnessKind: 'beta', nativeId: NATIVE_BETA}})
   })
@@ -1971,7 +1971,10 @@ describe('rpc wire', () => {
         await chatKit().rpc.sessions.delete({sessionId})
         await ended
         expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
-        expect((await chatKit().rpc.sessions.list(undefined)).some((meta) => meta.id === sessionId)).toBe(false)
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.some((meta) => meta.id === sessionId)).toBe(
+          false,
+        )
+        expect((await chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).hidden).toBe(true)
       })
     })
 
@@ -2181,8 +2184,7 @@ describe('rpc wire', () => {
       it('a session option counts its messages right after a turn', async () => {
         const sessionId = await newSession()
         await finished(sessionId, 'count me')
-        const row = (await chatKit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
-        expect(row?.messageCount).toBe(2)
+        expect((await chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).messageCount).toBe(2)
       })
     })
 
@@ -2365,8 +2367,51 @@ describe('rpc wire', () => {
         await adoptedStream.waitFor((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT, GUARD)
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        const listed = await chatKit().rpc.sessions.list({includeHidden: true})
+        writeNativeAt('agent-native-1', 'the agent task', Date.now())
+        const {sessions: listed} = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(listed.filter((meta) => meta.native?.nativeId === 'agent-native-1')).toHaveLength(1)
+      })
+
+      it('pages native transcripts and conciv-only sessions together and materializes a native on its page', async () => {
+        const concivOnly = SessionId.parse(await newSession())
+        const createdAt = (await chatKit().rpc.sessions.get({sessionId: concivOnly})).updatedAt
+        writeNativeAt('paged-future', 'the future task', createdAt + 60_000)
+        writeNativeAt('aaa-paged-tied', 'the tied task', createdAt)
+
+        const first = await chatKit().rpc.sessions.list({limit: 2})
+        expect(first.sessions.map((meta) => meta.native?.nativeId ?? meta.id)).toEqual(['paged-future', concivOnly])
+        expect(first.next).toEqual({updatedAt: createdAt, id: concivOnly})
+
+        const second = await chatKit().rpc.sessions.list({cursor: first.next, limit: 1})
+        expect(second.sessions).toMatchObject([
+          {origin: 'external', title: 'the tied task', updatedAt: createdAt, native: {nativeId: 'aaa-paged-tied'}},
+        ])
+        expect(second.next).toEqual({updatedAt: createdAt, id: 'aaa-paged-tied'})
+        const materialized = second.sessions[0]
+        if (materialized === undefined) throw new Error('the tied native session was not listed')
+        expect(await chatKit().rpc.sessions.get({sessionId: materialized.id})).toEqual(materialized)
+        expect(await chatKit().rpc.sessions.get({sessionId: concivOnly})).toEqual(first.sessions[1])
+      })
+
+      it('a session whose native transcript is gone drops out of the list, and get still answers for it', async () => {
+        writeNativeAt('gone-native', 'a task whose transcript goes away', Date.now() + 120_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: 'gone-native'}})
+        if (listed === undefined) throw new Error('the native session was not listed')
+        rmSync(transcriptPathOf('gone-native'))
+        const after = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
+        const hidden = SessionId.parse(await newSession())
+        await chatKit().rpc.sessions.delete({sessionId: hidden})
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(hidden)
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true, limit: 5})
+        expect(withHidden.sessions.find((meta) => meta.id === hidden)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: hidden})).toMatchObject({id: hidden, hidden: true})
+        await expect(chatKit().rpc.sessions.get({sessionId: NEVER_MADE})).rejects.toMatchObject({code: 'NOT_FOUND'})
       })
 
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
@@ -2384,7 +2429,7 @@ describe('rpc wire', () => {
           code: 'UNKNOWN_MODEL',
         })
         await chatKit().rpc.sessions.delete({sessionId: removed})
-        expect((await chatKit().rpc.sessions.list(undefined)).map((meta) => meta.id)).not.toContain(removed)
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(removed)
         expect(await thread(removed)).toEqual([])
         expect(await threadUserTexts(kept)).toEqual(['title from me'])
       })
@@ -2951,9 +2996,7 @@ return seen`
   }
 
   async function sessionMeta(sessionId: string) {
-    const meta = (await chatKit().rpc.sessions.list({includeHidden: true})).find((entry) => entry.id === sessionId)
-    if (meta === undefined) throw new Error(`session ${sessionId} is not listed`)
-    return meta
+    return chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})
   }
 
   async function compactMarkers(sessionId: string): Promise<number[]> {
@@ -3182,6 +3225,11 @@ return seen`
 
   function transcriptPathOf(nativeId: string): string {
     return requireTranscriptPath(requireClaude())(chatKit().stateRoot, HarnessSessionId.parse(nativeId), app.claudeHome)
+  }
+
+  function writeNativeAt(nativeId: string, task: string, updatedAt: number): void {
+    const path = writeTranscript(nativeId, [JSON.stringify({type: 'user', message: {content: task}})])
+    utimesSync(path, updatedAt / 1000, updatedAt / 1000)
   }
 
   function writeTranscript(nativeId: string, lines: string[]): string {

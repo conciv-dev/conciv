@@ -1,4 +1,4 @@
-import {readdir, stat, readFile} from 'node:fs/promises'
+import {stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -6,13 +6,17 @@ import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
+  HarnessListPage,
   HarnessSessionMeta,
+  HarnessSessionPage,
   HarnessSessionSummary,
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
+import {transcriptPage} from '../_shared/transcript-page.js'
+import {whenMissing} from '../_shared/when-missing.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 export function encodeProjectDir(cwd: string): string {
@@ -373,35 +377,16 @@ export function parseSessionMeta(id: string, jsonl: string, mtime: number): Harn
   return metaFromFold(id, foldTranscript(jsonl), mtime)
 }
 
-const MAX_SESSIONS = 50
 const SUMMARY_TAIL = 12
 
-export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
-  let names: string[]
-  try {
-    names = (await readdir(dir)).filter((n) => n.endsWith('.jsonl'))
-  } catch {
-    return []
-  }
-  const stamped = (
-    await Promise.all(
-      names.map(async (name) => {
-        try {
-          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
-        } catch {
-          return null
-        }
-      }),
-    )
-  ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
-  const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
-  return Promise.all(
-    top.map(async (f) => {
-      const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
-      return parseSessionMeta(f.name.replace(/\.jsonl$/, ''), raw, f.mtime)
-    }),
-  )
+function listSessions(cwd: string, page: HarnessListPage, home: string = homedir()): Promise<HarnessSessionPage> {
+  return transcriptPage(transcriptRoot(cwd, home), page, transcriptId, parseSessionMeta)
+}
+
+function transcriptId(name: string): HarnessSessionId | null {
+  if (!name.endsWith('.jsonl')) return null
+  const parsed = HarnessSessionId.safeParse(name.slice(0, -'.jsonl'.length))
+  return parsed.success ? parsed.data : null
 }
 
 export async function sessionSummary(
@@ -411,9 +396,9 @@ export async function sessionSummary(
 ): Promise<HarnessSessionSummary | null> {
   if (!withinProject(cwd, sessionId, home)) return null
   const path = transcriptPath(cwd, sessionId, home)
-  const info = await stat(path).catch(() => null)
+  const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
-  const raw = await readFile(path, 'utf8').catch(() => '')
+  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   if (!raw) return null
   const state = foldTranscript(raw)
   return {meta: metaFromFold(sessionId, state, info.mtimeMs), tail: state.messages.slice(-SUMMARY_TAIL)}
@@ -441,7 +426,7 @@ export function withinProject(cwd: string, sessionId: string, home: string = hom
 
 async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
   if (!withinProject(cwd, sessionId, home)) return []
-  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
+  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(whenMissing(''))
   return raw ? parseHistory(raw) : []
 }
 

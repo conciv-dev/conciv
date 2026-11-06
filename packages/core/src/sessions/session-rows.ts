@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, inArray, isNull, sql} from 'drizzle-orm'
+import {and, desc, eq, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {
@@ -15,9 +15,15 @@ import {
   SessionId as SessionIdSchema,
   SessionRecordSchema,
 } from '@conciv/protocol/chat-types'
-import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {
+  HarnessListCursor,
+  HarnessListPage,
+  HarnessSessionMeta,
+  HarnessSessionPage,
+} from '@conciv/protocol/harness-types'
 import {anchorKey, chatMetadata, chatThreads, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
+import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
 
 export type RowScope = {db: ConcivDb; harnessKind: string; cwd: string; mintId?: () => SessionId}
@@ -273,68 +279,189 @@ export function switchRowHarness(db: ConcivDb, id: SessionId, harnessKind: strin
   })
 }
 
-async function earlierNatives(db: ConcivDb): Promise<{sessionId: string; key: string}[]> {
-  const stored = await db
-    .select({key: chatMetadata.key, valueJson: chatMetadata.valueJson})
-    .from(chatMetadata)
-    .where(eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE))
-  return stored.flatMap(({key, valueJson}) =>
-    EarlierNativesSchema.parse(valueJson).map((earlier) => ({
-      sessionId: key,
-      key: nativeKey(earlier.harnessKind, earlier.nativeId),
+export type NativePage = {harnessKind: string; page: HarnessSessionPage}
+
+type MetaContext = {
+  db: ConcivDb
+  running: ReadonlySet<string>
+  model: (sessionId: SessionId) => string | null
+}
+
+export type SessionListInput = MetaContext & {
+  cwd: string
+  nativePages: NativePage[]
+  page: HarnessListPage
+  includeHidden: boolean
+}
+
+type NativeSession = {harnessKind: string; meta: HarnessSessionMeta}
+
+type PageEntry =
+  | {kind: 'native'; native: NativeSession; cursor: HarnessListCursor}
+  | {kind: 'row'; row: SessionRecord; cursor: HarnessListCursor}
+
+type ListedSession = {row: SessionRecord; native: HarnessSessionMeta | undefined}
+
+export async function listSessionMetas(
+  input: SessionListInput,
+): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
+  const entries = [...nativeEntries(input.nativePages), ...(await concivOnlyEntries(input))]
+  const merged = pageAfter(entries, input.page, (entry) => entry.cursor)
+  const listed = await listedSessions(merged.items, input)
+  const counts = await storedCounts(
+    input.db,
+    listed.map(({row}) => row.id),
+  )
+  return {sessions: listed.map((session) => rowMeta(session, input, counts)), next: nextCursor(merged, input)}
+}
+
+export async function sessionMetaOf(context: MetaContext, session: ListedSession): Promise<SessionMeta> {
+  return rowMeta(session, context, await storedCounts(context.db, [session.row.id]))
+}
+
+function nativeEntries(pages: NativePage[]): PageEntry[] {
+  return pages.flatMap(({harnessKind, page}) =>
+    page.sessions.map((meta): PageEntry => ({
+      kind: 'native',
+      native: {harnessKind, meta},
+      cursor: {updatedAt: meta.updatedAt, id: meta.id},
     })),
   )
 }
 
-export type NativeList = {harnessKind: string; list: HarnessSessionMeta[]}
-
-type NativeEntry = {harnessKind: string; meta: HarnessSessionMeta}
-
-export type SessionListInput = {
-  db: ConcivDb
-  cwd: string
-  nativeLists: NativeList[]
-  running: ReadonlySet<string>
-  model: (sessionId: SessionId) => string | null
-  includeHidden: boolean
+async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> {
+  const after = input.page.after
+  const listingKinds = input.nativePages.map(({harnessKind}) => harnessKind)
+  const rows = await input.db
+    .select()
+    .from(sessions)
+    .where(
+      and(
+        inArray(sessions.cwd, cwdSpellings(input.cwd)),
+        or(isNull(sessions.harnessSessionId), notInArray(sessions.harnessKind, listingKinds)),
+        input.includeHidden ? undefined : isNull(sessions.deletedAt),
+        after === null
+          ? undefined
+          : or(
+              lt(sessions.updatedAt, after.updatedAt),
+              and(eq(sessions.updatedAt, after.updatedAt), lt(sessions.id, after.id)),
+            ),
+      ),
+    )
+    .orderBy(desc(sessions.updatedAt), desc(sessions.id))
+    .limit(input.page.limit + 1)
+  return rowsInCwd(rows, input.cwd).map((row) => ({
+    kind: 'row',
+    row,
+    cursor: {updatedAt: row.updatedAt, id: HarnessSessionIdSchema.parse(row.id)},
+  }))
 }
 
-type CountedListInput = SessionListInput & {storedCounts: ReadonlyMap<string, number>}
-
-function nativeRefOf(row: SessionRecord): NativeSessionRef | null {
-  if (!row.harnessSessionId) return null
-  return {harnessKind: row.harnessKind, cwd: row.cwd, nativeId: row.harnessSessionId}
+async function listedSessions(entries: PageEntry[], input: SessionListInput): Promise<ListedSession[]> {
+  const natives = entries.filter((entry) => entry.kind === 'native').map((entry) => entry.native)
+  const current = await currentOwners(input, natives)
+  const earlier = await earlierOwners(
+    input,
+    natives.filter((native) => !current.has(keyOf(native))),
+  )
+  const listed = await Promise.all(
+    entries.map((entry) =>
+      entry.kind === 'row'
+        ? {row: entry.row, native: undefined}
+        : listedNative(entry.native, input, current.get(keyOf(entry.native)), earlier.get(keyOf(entry.native))),
+    ),
+  )
+  return listed.filter((session) => session !== null)
 }
 
-type RowFacts = {title: string; updatedAt: number; messageCount: number}
+function nextCursor(
+  merged: {items: PageEntry[]; next: HarnessListCursor | null},
+  input: SessionListInput,
+): HarnessListCursor | null {
+  if (merged.next !== null) return merged.next
+  const last = merged.items.at(-1)
+  const sourcesHaveMore = input.nativePages.some(({page}) => page.next !== null)
+  return sourcesHaveMore && last !== undefined ? last.cursor : null
+}
 
-function rowFacts(row: SessionRecord, native: HarnessSessionMeta | undefined, stored: number | undefined): RowFacts {
-  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: stored ?? 0}
-  return {
-    title: row.title ?? native.derivedTitle,
-    updatedAt: native.updatedAt,
-    messageCount: stored ?? native.messageCount,
+async function currentOwners(input: SessionListInput, natives: NativeSession[]): Promise<Map<string, SessionRecord>> {
+  if (natives.length === 0) return new Map()
+  const rows = await input.db
+    .select()
+    .from(sessions)
+    .where(
+      inArray(
+        sessions.harnessSessionId,
+        natives.map(({meta}) => meta.id),
+      ),
+    )
+  return new Map(
+    rowsInCwd(rows, input.cwd)
+      .filter((row): row is SessionRecord & {harnessSessionId: HarnessSessionId} => row.harnessSessionId !== null)
+      .map((row) => [nativeKey(row.harnessKind, row.harnessSessionId), row]),
+  )
+}
+
+const EarlierOwnerSchema = z.object({
+  ownerId: SessionIdSchema,
+  harnessKind: z.string(),
+  nativeId: HarnessSessionIdSchema,
+})
+
+async function earlierOwners(input: SessionListInput, natives: NativeSession[]): Promise<Map<string, SessionRecord>> {
+  if (natives.length === 0) return new Map()
+  const wanted = new Set(natives.map(keyOf))
+  const nativeId = sql`json_extract(earlier.value, '$.nativeId')`
+  const found = await input.db.all(
+    sql`select ${chatMetadata.key} as ownerId, json_extract(earlier.value, '$.harnessKind') as harnessKind, ${nativeId} as nativeId from ${chatMetadata}, json_each(${chatMetadata.valueJson}) as earlier where ${eq(chatMetadata.namespace, EARLIER_NATIVES_NAMESPACE)} and ${inArray(
+      nativeId,
+      natives.map(({meta}) => meta.id),
+    )}`,
+  )
+  const claims = validRows(EarlierOwnerSchema, found, 'an earlier native session claim').filter((claim) =>
+    wanted.has(nativeKey(claim.harnessKind, claim.nativeId)),
+  )
+  if (claims.length === 0) return new Map()
+  const owners = rowsInCwd(
+    await input.db
+      .select()
+      .from(sessions)
+      .where(
+        inArray(
+          sessions.id,
+          claims.map(({ownerId}) => ownerId),
+        ),
+      ),
+    input.cwd,
+  )
+  const ownerById = new Map(owners.map((owner) => [owner.id, owner]))
+  const owned = claims
+    .map((claim) => ({key: nativeKey(claim.harnessKind, claim.nativeId), owner: ownerById.get(claim.ownerId)}))
+    .filter((entry): entry is {key: string; owner: SessionRecord} => entry.owner !== undefined)
+  return new Map(owned.map(({key, owner}) => [key, owner]))
+}
+
+async function listedNative(
+  native: NativeSession,
+  input: SessionListInput,
+  owner: SessionRecord | undefined,
+  earlierOwner: SessionRecord | undefined,
+): Promise<ListedSession | null> {
+  if (owner) return {row: await visibleRow(owner, input), native: native.meta}
+  if (earlierOwner) {
+    await visibleRow(earlierOwner, input)
+    return null
   }
+  return {row: await materializedRow(native, input), native: native.meta}
 }
 
-const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
-
-function rowMeta(row: SessionRecord, native: HarnessSessionMeta | undefined, input: CountedListInput): SessionMeta {
-  return {
-    ...rowFacts(row, native, input.storedCounts.get(row.id)),
-    harnessKind: row.harnessKind,
-    id: row.id,
-    running: input.running.has(row.id),
-    origin: row.origin === 'external' ? 'external' : 'conciv',
-    usage: row.usage,
-    model: input.model(row.id) ?? row.model,
-    effort: row.effort,
-    hidden: row.deletedAt !== null,
-    native: nativeRefOf(row),
-  }
+async function visibleRow(row: SessionRecord, input: SessionListInput): Promise<SessionRecord> {
+  if (row.deletedAt === null || input.includeHidden) return row
+  await restoreRow(input.db, row.id)
+  return {...row, deletedAt: null}
 }
 
-async function materializeNative(native: NativeEntry, input: CountedListInput): Promise<SessionMeta> {
+async function materializedRow(native: NativeSession, input: SessionListInput): Promise<SessionRecord> {
   const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd: input.cwd}
   const {sessionId} = await openNativeRow(scope, {
     harnessKind: native.harnessKind,
@@ -343,68 +470,67 @@ async function materializeNative(native: NativeEntry, input: CountedListInput): 
   })
   const row = await rowById(input.db, sessionId)
   if (row === null) throw new Error(`session row "${sessionId}" vanished while listing native sessions`)
-  return rowMeta(row, native.meta, input)
+  return row
 }
 
-async function restoredOwnerMeta(
-  owner: SessionRecord,
-  nativeByKey: ReadonlyMap<string, HarnessSessionMeta>,
-  input: CountedListInput,
-): Promise<SessionMeta> {
-  await restoreRow(input.db, owner.id)
-  const native = owner.harnessSessionId
-    ? nativeByKey.get(nativeKey(owner.harnessKind, owner.harnessSessionId))
-    : undefined
-  return rowMeta({...owner, deletedAt: null}, native, input)
+function rowsInCwd(rows: unknown[], cwd: string): SessionRecord[] {
+  return validRows(SessionRecordSchema, rows, 'a session row').filter((row) => sameCwd(row.cwd, cwd))
 }
 
-export async function listSessionMetas(input: SessionListInput): Promise<SessionMeta[]> {
-  const inCwd = (await input.db.select().from(sessions))
-    .map((row) => SessionRecordSchema.safeParse(row))
-    .flatMap((parsed) => {
-      if (parsed.success) return [parsed.data]
-      logError(
-        `[core] a session row failed the session record schema and is left out of the listing: ${parsed.error.message}`,
-      )
-      return []
+function validRows<T>(schema: z.ZodType<T>, rows: unknown[], what: string): T[] {
+  return rows
+    .map((row) => schema.safeParse(row))
+    .filter((parsed) => {
+      if (!parsed.success)
+        logError(`[core] ${what} failed its schema and is left out of the listing: ${parsed.error.message}`)
+      return parsed.success
     })
-    .filter((row) => sameCwd(row.cwd, input.cwd))
-  const listed = (row: SessionRecord): boolean => input.includeHidden || row.deletedAt === null
-  const rows = inCwd.filter(listed)
-  const rowsById = new Map<string, SessionRecord>(inCwd.map((row) => [row.id, row]))
-  const natives = input.nativeLists.flatMap(({harnessKind, list}) => list.map((meta) => ({harnessKind, meta})))
-  const nativeByKey = new Map(natives.map((native) => [nativeKey(native.harnessKind, native.meta.id), native.meta]))
-  const stored = await input.db
+    .map((parsed) => parsed.data)
+}
+
+const keyOf = (native: NativeSession): string => nativeKey(native.harnessKind, native.meta.id)
+
+const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
+
+async function storedCounts(db: ConcivDb, ids: string[]): Promise<Map<string, number>> {
+  if (ids.length === 0) return new Map()
+  const stored = await db
     .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
     .from(chatThreads)
-  const counted = {...input, storedCounts: new Map(stored.map((thread) => [thread.threadId, thread.count]))}
-  const earlierOwners = (await earlierNatives(input.db)).flatMap(({sessionId, key}): [string, SessionRecord][] => {
-    const owner = rowsById.get(sessionId)
-    return owner ? [[key, owner]] : []
-  })
-  const currentOwners = inCwd.flatMap((row): [string, SessionRecord][] =>
-    row.harnessSessionId ? [[nativeKey(row.harnessKind, row.harnessSessionId), row]] : [],
-  )
-  const ownerByKey = new Map([...earlierOwners, ...currentOwners])
-  const ours = rows.map((row) =>
-    rowMeta(
-      row,
-      row.harnessSessionId ? nativeByKey.get(nativeKey(row.harnessKind, row.harnessSessionId)) : undefined,
-      counted,
-    ),
-  )
-  const owned = natives.map((native) => ({
-    native,
-    owner: ownerByKey.get(nativeKey(native.harnessKind, native.meta.id)),
-  }))
-  const hiddenOwners = new Map(
-    owned.flatMap(({owner}): [string, SessionRecord][] => (owner && !listed(owner) ? [[owner.id, owner]] : [])),
-  )
-  const restored = await Promise.all(
-    [...hiddenOwners.values()].map((owner) => restoredOwnerMeta(owner, nativeByKey, counted)),
-  )
-  const unmaterialized = await Promise.all(
-    owned.filter(({owner}) => owner === undefined).map(({native}) => materializeNative(native, counted)),
-  )
-  return [...ours, ...restored, ...unmaterialized].toSorted((a, b) => b.updatedAt - a.updatedAt)
+    .where(inArray(chatThreads.threadId, ids))
+  return new Map(stored.map((thread) => [thread.threadId, thread.count]))
+}
+
+function rowMeta(session: ListedSession, context: MetaContext, counts: ReadonlyMap<string, number>): SessionMeta {
+  const row = session.row
+  return {
+    ...rowFacts(row, session.native, counts.get(row.id)),
+    harnessKind: row.harnessKind,
+    id: row.id,
+    running: context.running.has(row.id),
+    origin: row.origin === 'external' ? 'external' : 'conciv',
+    usage: row.usage,
+    model: context.model(row.id) ?? row.model,
+    effort: row.effort,
+    hidden: row.deletedAt !== null,
+    native: nativeRefOf(row),
+  }
+}
+
+function rowFacts(
+  row: SessionRecord,
+  native: HarnessSessionMeta | undefined,
+  stored: number | undefined,
+): {title: string; updatedAt: number; messageCount: number} {
+  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: stored ?? 0}
+  return {
+    title: row.title ?? native.derivedTitle,
+    updatedAt: native.updatedAt,
+    messageCount: stored ?? native.messageCount,
+  }
+}
+
+function nativeRefOf(row: SessionRecord): NativeSessionRef | null {
+  if (!row.harnessSessionId) return null
+  return {harnessKind: row.harnessKind, cwd: row.cwd, nativeId: row.harnessSessionId}
 }

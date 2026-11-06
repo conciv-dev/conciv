@@ -132,3 +132,4 @@ All tests go in existing files:
 
 1. **Default page size:** 30 (approved).
 2. **`HarnessHistory.meta`** is required when `transcriptHistory` is true (approved).
+3. A session whose native transcript is gone drops out of the list (B, 2026-11-06).

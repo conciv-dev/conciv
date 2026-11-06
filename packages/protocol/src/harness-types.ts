@@ -1,5 +1,6 @@
+import {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import type {HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
+import {HarnessSessionId, type ReasoningEffort, type SessionId} from './chat-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -119,6 +120,14 @@ export type HarnessSessionMeta = {
 
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
+export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: HarnessSessionId})
+
+export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
+
+export type HarnessListPage = {after: HarnessListCursor | null; limit: number}
+
+export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessListCursor | null}
+
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 
 export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
@@ -159,9 +168,9 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 
   contextTokens?(raw: string): number | undefined
 
-  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
+  list(cwd: string, page: HarnessListPage, home?: string): Promise<HarnessSessionPage>
 
-  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
+  meta(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
 
   summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
 }

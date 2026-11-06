@@ -5,12 +5,19 @@ import {join, resolve} from 'node:path'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
+import type {
+  HarnessHistory,
+  HarnessListPage,
+  HarnessSessionMeta,
+  HarnessSessionPage,
+  TranscriptHandle,
+} from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
+import {transcriptPage} from '../_shared/transcript-page.js'
+import {whenMissing} from '../_shared/when-missing.js'
 
-const MAX_SESSIONS = 50
 const MAX_TITLE = 80
 const MAX_PREVIEW = 200
 
@@ -227,8 +234,8 @@ export function sessionIdFromFile(fileName: string): HarnessSessionId {
 function namesIn(dir: string): string[] {
   try {
     return readdirSync(dir)
-  } catch {
-    return []
+  } catch (error) {
+    return whenMissing([])(error)
   }
 }
 
@@ -249,7 +256,7 @@ function containedTranscript(cwd: string, sessionId: string, home?: string): str
 async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
   const path = containedTranscript(cwd, sessionId, home)
   if (path === null) return []
-  const raw = await readFile(path, 'utf8').catch(() => '')
+  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   return raw ? parseHistory(raw) : []
 }
 
@@ -258,7 +265,7 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
     parser: {empty: emptyFold, foldLine, messages: (state) => messagesOf(state.entries)},
     resolvePath: async () => {
       const dir = sessionsDir(cwd, home)
-      const names = await readdir(dir).catch(() => [])
+      const names = await readdir(dir).catch(whenMissing([]))
       const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
       const contained = found ? containedPath(dir, join(dir, found)) : null
       if (contained) return contained
@@ -296,29 +303,23 @@ function sessionMeta(id: HarnessSessionId, raw: string, mtimeMs: number): Harnes
   }
 }
 
-async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  const dir = sessionsDir(cwd, home)
-  const names = await readdir(dir).catch(() => [])
-  const identified = names.flatMap((name) => {
-    if (!name.endsWith('.jsonl')) return []
-    const parsed = HarnessSessionId.safeParse(sessionIdToken(name))
-    return parsed.success ? [{name, id: parsed.data}] : []
-  })
-  const stamped = (
-    await Promise.all(
-      identified.map(async (entry) => {
-        const info = await stat(join(dir, entry.name)).catch(() => null)
-        return info ? {...entry, mtimeMs: info.mtimeMs} : null
-      }),
-    )
-  ).filter((entry) => entry !== null)
-  const top = stamped.toSorted((a, b) => b.mtimeMs - a.mtimeMs).slice(0, MAX_SESSIONS)
-  return Promise.all(
-    top.map(async (file) => {
-      const raw = await readFile(join(dir, file.name), 'utf8').catch(() => '')
-      return sessionMeta(file.id, raw, file.mtimeMs)
-    }),
-  )
+function listSessions(cwd: string, page: HarnessListPage, home: string = homedir()): Promise<HarnessSessionPage> {
+  return transcriptPage(sessionsDir(cwd, home), page, transcriptId, sessionMeta)
+}
+
+function transcriptId(name: string): HarnessSessionId | null {
+  if (!name.endsWith('.jsonl')) return null
+  const parsed = HarnessSessionId.safeParse(sessionIdToken(name))
+  return parsed.success ? parsed.data : null
+}
+
+async function storedMeta(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null> {
+  const path = containedTranscript(cwd, sessionId, home)
+  if (path === null) return null
+  const info = await stat(path).catch(whenMissing(null))
+  if (!info) return null
+  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
+  return raw ? sessionMeta(sessionId, raw, info.mtimeMs) : null
 }
 
 export const piHistory: HarnessHistory = {
@@ -327,4 +328,5 @@ export const piHistory: HarnessHistory = {
   transcriptPath,
   transcriptRoot,
   list: listSessions,
+  meta: storedMeta,
 }
