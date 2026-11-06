@@ -17,7 +17,6 @@ export function createDiffer(input: {
 }): Differ {
   const {runtime, runner, page, bundler} = input
   const {store} = runtime
-  const reports = new Map<string, Reported>()
   const unanswered = new Set<string>()
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
@@ -27,7 +26,7 @@ export function createDiffer(input: {
     execute: (job) => {
       const files = [...(edited.get(job.id) ?? [])]
       if (job.observe || !edited.has(job.id)) edited.set(job.id, new Set())
-      return answeredDiff({job, edited: files, runtime, runner, page: tab(job.session), reports, unanswered})
+      return answeredDiff({job, edited: files, runtime, runner, page: tab(job.session), unanswered})
     },
   })
   const refresh = async ({session}: {session: string}): Promise<void> => {
@@ -61,7 +60,7 @@ export function createDiffer(input: {
     status: ({session}) => targetStatus({runtime, session, unanswered}),
     watch: ({input: query, session}) => watchReport({runtime, session, query}),
     xray: async ({id}) => ({
-      report: await storedReport({reports, store, id}),
+      report: await store.report(id),
       outline: runtime.words.outline(await store.design(id)),
     }),
     dispose: edits.dispose,
@@ -234,18 +233,6 @@ function createLanes(input: {execute: (job: Job) => Promise<DiffReport>}): (job:
   }
 }
 
-type Reported = {run: string; report: DiffReport}
-
-async function storedReport(input: {
-  reports: Map<string, Reported>
-  store: DesignRuntime['store']
-  id: string
-}): Promise<DiffReport | null> {
-  const kept = input.reports.get(input.id)
-  if (kept === undefined) return null
-  return (await input.store.runs(input.id)).includes(kept.run) ? kept.report : null
-}
-
 type Lane = {running: boolean; pending: (PromiseWithResolvers<DiffReport> & {job: Job}) | null}
 
 type Request = {
@@ -254,7 +241,6 @@ type Request = {
   runtime: DesignRuntime
   runner: Runner
   page: ServerToolPageAccess
-  reports: Map<string, Reported>
   unanswered: Set<string>
 }
 
@@ -274,7 +260,7 @@ async function answeredDiff(request: Request): Promise<DiffReport> {
 }
 
 async function runDiff(request: Request): Promise<DiffReport> {
-  const {job, runtime, runner, page, reports} = request
+  const {job, runtime, runner, page} = request
   const record = await runtime.store.record(job.id)
   if (record === null) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-target'})})
   const route = await otherRoute({record, page, measurer: runtime.measurer})
@@ -286,7 +272,7 @@ async function runDiff(request: Request): Promise<DiffReport> {
       words: runtime.words,
     })
   }
-  const {run, report} = await runner({
+  const {report} = await runner({
     record,
     page,
     input: job.input,
@@ -294,7 +280,6 @@ async function runDiff(request: Request): Promise<DiffReport> {
     observe: job.observe,
     edited: request.edited,
   })
-  reports.set(record.id, {run: run.id, report})
   return report
 }
 
@@ -341,8 +326,8 @@ async function pageErrorRound(request: Request & {message: string}): Promise<Dif
 }
 
 async function previousReport(request: Request): Promise<DiffReport> {
-  const {job, runtime, reports} = request
-  const known = await storedReport({reports, store: runtime.store, id: job.id})
+  const {job, runtime} = request
+  const known = await runtime.store.report(job.id)
   if (known !== null) return known
   const record = await runtime.store.record(job.id)
   if (record === null) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-target'})})

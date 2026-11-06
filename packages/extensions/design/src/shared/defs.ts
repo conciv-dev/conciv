@@ -309,6 +309,36 @@ const ItemSchema = z.object({
   residual: z.number().optional(),
 })
 
+const CarriedSchema = z
+  .object({pairs: z.number(), tiles: z.number()})
+  .describe('pairs and pixel tiles reused from the run before because the edit did not touch them')
+
+const PhaseSchema = z.number().default(0)
+
+const LongestTaskSchema = z
+  .number()
+  .describe('the longest main-thread task in whole ms the page ran while the live page was measured')
+
+const TimingsSchema = z
+  .object({
+    capture: PhaseSchema,
+    decode: PhaseSchema,
+    measure: PhaseSchema,
+    mask: PhaseSchema,
+    similarity: PhaseSchema,
+    regions: PhaseSchema,
+    pair: PhaseSchema,
+    typography: PhaseSchema,
+    deltas: PhaseSchema,
+    judge: PhaseSchema,
+    encode: PhaseSchema,
+    write: PhaseSchema,
+    total: PhaseSchema,
+    carried: CarriedSchema.default({pairs: 0, tiles: 0}),
+    longestTask: LongestTaskSchema.optional(),
+  })
+  .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
+
 export const RunSchema = z.object({
   id: z.string(),
   round: z.number(),
@@ -327,6 +357,8 @@ export const RunSchema = z.object({
   sections: z.array(z.object({id: z.string(), similarity: z.number()})),
   partial: z.boolean().describe('pairing hit its time budget'),
   path: CapturePathSchema.describe('how the pixels were captured'),
+  timings: TimingsSchema.describe('the phases the run spent, carried pairs and tiles included'),
+  above: z.number().describe('report elements above tolerance plus unbuilt structure'),
 })
 
 const DECISION_KINDS = [
@@ -464,36 +496,6 @@ const PaintedSchema = z.object({
   sources: z.array(SourceLocSchema),
 })
 
-const CarriedSchema = z
-  .object({pairs: z.number(), tiles: z.number()})
-  .describe('pairs and pixel tiles reused from the run before because the edit did not touch them')
-
-const PhaseSchema = z.number().default(0)
-
-const LongestTaskSchema = z
-  .number()
-  .describe('the longest main-thread task in whole ms the page ran while the live page was measured')
-
-const TimingsSchema = z
-  .object({
-    capture: PhaseSchema,
-    decode: PhaseSchema,
-    measure: PhaseSchema,
-    mask: PhaseSchema,
-    similarity: PhaseSchema,
-    regions: PhaseSchema,
-    pair: PhaseSchema,
-    typography: PhaseSchema,
-    deltas: PhaseSchema,
-    judge: PhaseSchema,
-    encode: PhaseSchema,
-    write: PhaseSchema,
-    total: PhaseSchema,
-    carried: CarriedSchema.default({pairs: 0, tiles: 0}),
-    longestTask: LongestTaskSchema.optional(),
-  })
-  .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
-
 const CropSchema = z
   .string()
   .describe('url of a PNG with the design crop and the live crop of the node side by side, each grown by tileMargin')
@@ -536,7 +538,7 @@ const SimilaritySchema = z
     'mean SSIM over independent 64 px grayscale tiles, tiles wholly inside an image slot left out; 1 is identical',
   )
 
-const DiffReportSchema = z.object({
+export const DiffReportSchema = z.object({
   target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
   mismatch: z.number(),
   similarity: SimilaritySchema.optional(),
@@ -1131,7 +1133,8 @@ export type Store = {
   runs(id: string): Promise<string[]>
   latest(id: string): Promise<Run | null>
   run(input: {id: string; run: string}): Promise<Run | null>
-  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array}): Promise<Run>
+  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array; report: DiffReport}): Promise<Run>
+  report(id: string): Promise<DiffReport | null>
   decisions(id: string): Promise<Decision[]>
   decide(input: {id: string; kind: Decision['kind']; anchor: string; value: Decision['value']}): Promise<Decision>
   revoke(input: {id: string; decision: string}): Promise<boolean>

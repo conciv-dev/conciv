@@ -23,11 +23,8 @@ import {designConfig} from '../shared/tolerances.js'
 import {createRaster} from './raster.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
-  const carries = new Map<string, Carry>()
-  return (input) => runOnce({...input, runtime, carries})
+  return (input) => runOnce({...input, runtime})
 }
-
-type Carry = {run: string; pairs: number; tiles: number}
 
 type Typography = Extract<Decision['value'], {size: number}>
 
@@ -35,16 +32,16 @@ type Twin = Extract<Decision['value'], {target: string}>
 
 type Phase = keyof Omit<DiffReport['timings'], 'total' | 'carried' | 'longestTask'>
 
+type Timings = DiffReport['timings']
+
 const TOLERANCES = designConfig.tolerances
 
 const PAGE_ERROR = 'page-error'
 
 const STRETCHED = 0.85
 
-async function runOnce(
-  input: Parameters<Runner>[0] & {runtime: DesignRuntime; carries: Map<string, Carry>},
-): ReturnType<Runner> {
-  const {runtime, record, page, observe, carries} = input
+async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}): ReturnType<Runner> {
+  const {runtime, record, page, observe} = input
   const {store} = runtime
   const clock = startClock()
   const [stored, decisions, previous, image, rounds] = await Promise.all([
@@ -118,7 +115,17 @@ async function runOnce(
   const live = measured.raster.png()
   const diff = found.diff.png()
   clock.lap('encode')
-  const run = await store.writeRun({
+  return written({
+    ...shared,
+    previous: rounds.at(-1) ?? null,
+    live,
+    diff,
+    timings: timingsOf({
+      clocked: clock.timings(),
+      measured,
+      carried: {pairs: paired.carried, tiles: found.timings.carried ?? 0},
+      phases: found.timings,
+    }),
     run: {
       id,
       round: advances ? rounds.length + 1 : rounds.length,
@@ -128,7 +135,6 @@ async function runOnce(
       score: judged.score,
       stage: judged.stage,
       stop: judged.stop,
-      images: {live: '', diff: ''},
       mismatch: found.mismatch,
       similarity: found.similarity,
       capture,
@@ -138,23 +144,11 @@ async function runOnce(
       partial: paired.partial,
       path: measured.path,
     },
-    live,
-    diff,
-  })
-  clock.lap('write')
-  carries.set(record.id, {run: run.id, pairs: paired.carried, tiles: found.timings.carried ?? 0})
-  return reported({
-    ...shared,
-    previous: rounds.at(-1) ?? null,
-    run,
-    carried: paired.carried,
-    timings: found.timings,
   })
 }
 
 type Shared = Parameters<Runner>[0] & {
   runtime: DesignRuntime
-  carries: Map<string, Carry>
   clock: ReturnType<typeof startClock>
   measured: Awaited<ReturnType<DesignRuntime['measurer']['measure']>>
   design: Design
@@ -166,14 +160,19 @@ type Shared = Parameters<Runner>[0] & {
 }
 
 async function unchanged(input: Shared & {run: Run}): ReturnType<Runner> {
-  const result = await reported({...input, carried: 0, timings: {}})
-  return {run: result.run, report: {...result.report, hint: input.runtime.words.hint({kind: 'unchanged'})}}
+  const timings = timingsOf({
+    clocked: input.clock.timings(),
+    measured: input.measured,
+    carried: {pairs: 0, tiles: 0},
+    phases: {},
+  })
+  const report = await reportOf({...input, timings})
+  return {run: input.run, report: {...report, hint: input.runtime.words.hint({kind: 'unchanged'})}}
 }
 
 async function counted(input: Shared & {run: Run; rounds: Run[]; accepted: Set<string>}): ReturnType<Runner> {
-  const {runtime, record, run, rounds, decisions, accepted, clock, carries} = input
+  const {runtime, record, run, rounds, decisions, accepted, clock} = input
   const {store} = runtime
-  const carry = carries.get(record.id)
   const id = runId()
   const judged = runtime.judge({
     root: run.root,
@@ -195,7 +194,19 @@ async function counted(input: Shared & {run: Run; rounds: Run[]; accepted: Set<s
     store.image({id: record.id, run: run.id, kind: 'live'}),
     store.image({id: record.id, run: run.id, kind: 'diff'}),
   ])
-  const written = await store.writeRun({
+  const own = clock.timings()
+  const settled = run.timings
+  return written({
+    ...input,
+    previous: rounds.at(-1) ?? null,
+    live: live ?? new Uint8Array(),
+    diff: diff ?? new Uint8Array(),
+    timings: {
+      ...settled,
+      judge: own.judge,
+      write: 0,
+      total: settled.total - settled.judge - settled.write + own.judge,
+    },
     run: {
       ...run,
       id,
@@ -207,30 +218,61 @@ async function counted(input: Shared & {run: Run; rounds: Run[]; accepted: Set<s
       section: input.input.section ?? null,
       items: judged.items,
     },
-    live: live ?? new Uint8Array(),
-    diff: diff ?? new Uint8Array(),
-  })
-  clock.lap('write')
-  const settled = carry?.run === run.id ? carry : null
-  return reported({
-    ...input,
-    previous: rounds.at(-1) ?? null,
-    run: written,
-    carried: settled?.pairs ?? 0,
-    timings: {carried: settled?.tiles ?? 0},
   })
 }
 
-async function reported(
+async function written(
   input: Shared & {
-    run: Run
-    carried: number
-    timings: Record<string, number>
+    run: Omit<Run, 'images' | 'timings' | 'above'>
+    previous: Run | null
+    live: Uint8Array
+    diff: Uint8Array
+    timings: Timings
   },
 ): ReturnType<Runner> {
+  const {runtime, clock, timings} = input
+  const run = {...input.run, images: imageKeys({design: input.run.design, run: input.run.id}), timings, above: 0}
+  const report = await reportOf({...input, run})
+  const stored = await runtime.store.writeRun({
+    run: {...run, above: aboveOf(report)},
+    live: input.live,
+    diff: input.diff,
+    report,
+  })
+  clock.lap('write')
+  const write = clock.timings().write
+  return {run: stored, report: {...report, timings: {...timings, write, total: timings.total + write}}}
+}
+
+function imageKeys(input: {design: string; run: string}): Run['images'] {
+  const base = `${input.design}:runs:${input.run}`
+  return {live: `${base}:live.png`, diff: `${base}:diff.png`}
+}
+
+function aboveOf(report: DiffReport): number {
+  const listed = report.components.filter(designConfig.componentAboveTolerance).length
+  const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure').length
+  return listed + unbuilt
+}
+
+function timingsOf(input: {
+  clocked: Omit<Timings, 'carried'>
+  measured: Measured
+  carried: Timings['carried']
+  phases: Record<string, number>
+}): Timings {
+  const {clocked, measured, phases} = input
+  return {
+    ...clocked,
+    ...Object.fromEntries(DELTA_PHASES.map((phase) => [phase, phases[phase] ?? clocked[phase]])),
+    carried: input.carried,
+    ...(measured.longestTask === undefined ? {} : {longestTask: measured.longestTask}),
+  }
+}
+
+async function reportOf(input: Shared & {run: Run; previous: Run | null; timings: Timings}): Promise<DiffReport> {
   const {runtime, record, run, measured, design, decisions} = input
   const {store} = runtime
-  const clocked = input.clock.timings()
   const report = runtime.words.report({
     run,
     previous: input.previous,
@@ -244,22 +286,11 @@ async function reported(
       diff: reportPath({cwd: runtime.cwd, path: store.path(run.images.diff) ?? run.images.diff}),
       xray: runtime.xrayUrl({id: record.id, session: input.session}).url,
     },
-    timings: {
-      ...clocked,
-      ...Object.fromEntries(DELTA_PHASES.map((phase) => [phase, input.timings[phase] ?? clocked[phase]])),
-      carried: {pairs: input.carried, tiles: input.timings.carried ?? 0},
-      ...(measured.longestTask === undefined ? {} : {longestTask: measured.longestTask}),
-    },
+    timings: input.timings,
     decisions,
     twins: input.twins,
   })
-  return {
-    run,
-    report: {
-      ...report,
-      responsive: await responsiveTwins({store, decisions, design}),
-    },
-  }
+  return {...report, responsive: await responsiveTwins({store, decisions, design})}
 }
 
 const DELTA_PHASES = ['capture', 'mask', 'similarity', 'regions'] as const

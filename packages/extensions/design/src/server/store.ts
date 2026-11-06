@@ -6,6 +6,7 @@ import {z} from 'zod'
 import {
   DecisionSchema,
   DesignSchema,
+  DiffReportSchema,
   RunSchema,
   TargetRecordSchema,
   type Decision,
@@ -22,6 +23,7 @@ type Typography = Extract<Decision['value'], {size: number}>
 const RUNS_KEPT = designConfig.tolerances.runsKept
 const CAPTURES_KEPT = 20
 const RUN_KEY = 'run'
+const REPORT_KEY = 'report'
 const RECORD_KEY = 'record'
 const CAPTURES = 'captures'
 const KEY_SEPARATORS = [':', '/', '\\']
@@ -140,7 +142,11 @@ export function createStore(input: {state: Storage; words: Words}): Store {
       const last = (await runs(id)).at(-1)
       return last === undefined ? null : readItem({state, key: runKey({id, run: last}), schema: RunSchema})
     },
-    writeRun: ({run, live, diff}) =>
+    report: async (id) => {
+      const last = (await runs(id)).at(-1)
+      return last === undefined ? null : readItem({state, key: reportKey({id, run: last}), schema: DiffReportSchema})
+    },
+    writeRun: ({run, live, diff, report}) =>
       serial(async () => {
         const images = {
           live: imageKey({id: run.design, run: run.id, kind: 'live'}),
@@ -149,6 +155,7 @@ export function createStore(input: {state: Storage; words: Words}): Store {
         if (live.length > 0) await state.setItemRaw(images.live, live)
         if (diff.length > 0) await state.setItemRaw(images.diff, diff)
         const written = RunSchema.parse({...run, images})
+        await state.setItem(reportKey({id: run.design, run: run.id}), report)
         await state.setItem(runKey({id: run.design, run: run.id}), written)
         await prune(run.design)
         return written
@@ -249,6 +256,10 @@ function imageKey(input: {id: string; run: string; kind: 'live' | 'diff'}): stri
 
 function runKey(input: {id: string; run: string}): string {
   return `${input.id}:runs:${input.run}:${RUN_KEY}`
+}
+
+function reportKey(input: {id: string; run: string}): string {
+  return `${input.id}:runs:${input.run}:${REPORT_KEY}`
 }
 
 function newStamp(): string {
