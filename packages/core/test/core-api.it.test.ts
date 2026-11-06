@@ -256,6 +256,9 @@ describe('api engine staleness di', () => {
       expect(description).toMatch(/^WARNING: this engine is running outdated code/)
       expect(description).toContain('@conciv/injected-probe')
       expect(description).toContain('Rules of the sandbox:')
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toContain('call discover_tools with their names')
+      expect(description).toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 

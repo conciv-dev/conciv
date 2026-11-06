@@ -72,15 +72,45 @@ function stalenessNotice(staleness: EngineStaleness): string {
 `
 }
 
-function executeDescription(capabilities: string, staleness: EngineStaleness): string {
-  return `${stalenessNotice(staleness)}${EXECUTE_DESCRIPTION}
-
-${capabilities}
-
-Rules of the sandbox:
+const SANDBOX_RULES = `Rules of the sandbox:
 - A capability's declared error code arrives as a "CODE: message" prefix on the thrown error's message (typed error objects do not survive the isolate boundary).
 - Each execution is isolated: no state, imports, network, or file system carry over between calls.
 - Oversized results are truncated to an envelope carrying the reason and a head sample; return less data instead of retrying.`
+
+const DESCRIPTION_BUDGET_CHARS = 4096
+
+const CAPABILITY_NAME = /external_[A-Za-z0-9_]+/g
+
+function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
+  const head = `${stalenessNotice(staleness)}${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n`
+  return `${head}${fittedCapabilities(runner, DESCRIPTION_BUDGET_CHARS - head.length)}`
+}
+
+function fittedCapabilities(runner: CodeRunner, budget: number): string {
+  if (runner.systemPrompt.length <= budget) return runner.systemPrompt
+  const intro =
+    runner.discover === null
+      ? 'More capabilities, by name only (their signatures did not fit here):'
+      : 'More capabilities, by name only; call discover_tools with their names for typed signatures:'
+  const allNames = capabilityNames(runner.systemPrompt)
+  const room = budget - intro.length - allNames.join(', ').length - 2
+  const lines = runner.systemPrompt.split('\n')
+  const cut = lines.findIndex((_, index) => lines.slice(0, index + 1).join('\n').length > room)
+  const kept = lines.slice(0, Math.max(cut, 0)).join('\n')
+  const keptNames = new Set(capabilityNames(kept))
+  const rest = capabilityNames(lines.slice(Math.max(cut, 0)).join('\n')).filter((name) => !keptNames.has(name))
+  const listed = `${intro} ${namesWithin(rest, budget - kept.length - intro.length - 3)}`
+  return kept === '' ? listed : `${kept}\n\n${listed}`
+}
+
+function namesWithin(names: string[], budget: number): string {
+  const fitting = names.findIndex((_, index) => names.slice(0, index + 1).join(', ').length > budget - 20)
+  if (fitting === -1) return names.join(', ')
+  return `${names.slice(0, fitting).join(', ')}, and ${names.length - fitting} more`
+}
+
+function capabilityNames(text: string): string[] {
+  return [...new Set(text.match(CAPABILITY_NAME) ?? [])]
 }
 
 function decodeDeclaredCode(message: string, declaredCodes: ReadonlySet<string>): string | undefined {
@@ -233,7 +263,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope) {
   )
   const executeTool = defineTool({
     name: EXECUTE_TOOL_NAME,
-    description: executeDescription(runner.systemPrompt, deps.staleness()),
+    description: executeDescription(runner, deps.staleness()),
     inputSchema: ExecuteInputSchema,
   }).server(async (args) => {
     try {
