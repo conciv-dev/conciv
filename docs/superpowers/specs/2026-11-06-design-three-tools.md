@@ -111,3 +111,55 @@ The tool loop of `figma-loop/brief-tool-loop.md` with the prompt reduced to "cal
 following its rules, then design_watch and fix rows until design_validate says done, at most 8 watches". Pass: on
 OrangeFarm and Pricing, `done` reached, external gate 0 much (the harness gate stays as the independent score), cost at
 or under tag3. Gates while building: typecheck, lint, build; no vitest in this phase.
+
+## Rulings after the three-tools runs (2026-11-06)
+
+The first runs reached `done` on OrangeFarm and Pricing while the pages were wrong in ways the tools did not see.
+These rulings close those holes. They change `design_watch`, `design_validate` and the Figma adapter; nothing else.
+
+### Measurement widths come from the design and the page, never from the tool
+
+`1024` and `768` go. `design_watch` measures the page at a set of widths it derives per target:
+
+1. the design width (the root node's width);
+2. per reflow tag of kind `stack` or `wrap`: its breakpoint, the sum of the children's `minChildWidth` plus the
+   gaps plus the parent's horizontal padding. Measure at the breakpoint and at one pixel under it;
+3. every width named by a media or container query in the page's own stylesheets (the agent chose them; the tool
+   checks them). Measure at each and at one pixel under it;
+4. the floor: the narrowest `minChildWidth` of any leaf in the tree. No width under the floor is measured.
+
+The set is deduplicated and sorted; the reply lists it as `reflow.widths`. Two designs get two different sets.
+
+### The reflow check reads both directions
+
+At each width, for each tagged row, by mapping:
+
+- width at or above the row's breakpoint: the element must still lay out as the design does (flex-direction of
+  the design, children on one line, no wrap). Stacked here is a row `stacked too early`, magnitude `much`.
+- width under the breakpoint: the element must do what the tag says (`stack`: column; `wrap`: more than one line;
+  `scroll`: horizontal overflow inside the element, none on the page). Not doing it is a row `did not <kind>`,
+  magnitude `much`.
+
+The break checks of `rightcss/reflow.mjs` (`sticksOut`, `overflowX`, `overlaps` over 8 px) run at every width as
+today. The size rows of the gate (`narrower`, `wider`, `shorter`, `taller`) run at every width where the row is
+still a row, on shares of the parent instead of pixels, same tolerances as `gate.ts`. Position rows and pins run
+at the design width only.
+
+### Paint is judged
+
+A mapped node with a solid fill gets a `paint` row when the element's computed `background-color` (or `color` for
+a text node) differs from the fill after rounding both to 8-bit channels. Magnitude `much`. Gradient and image
+fills and nodes marked `image` are exempt. `done` counts `paint` rows with `much`.
+
+### Image collapse matches the harness
+
+The adapter collapses a subtree into `image` only when it holds a vector-ish node (`VECTOR`, `BOOLEAN_OPERATION`,
+`STAR`, `LINE`, `ELLIPSE`, `POLYGON`, `REGULAR_POLYGON`) or an image fill, and has no text and no auto-layout.
+A rectangle or frame with a solid fill and no such child is a box, not an image. Check: `design_get` on Pricing
+marks the same `image` set as `$S/figma2/tagged-nodes.json` (27 nodes), and on OrangeFarm the same set as
+`$S/figma5/tagged-nodes.json`.
+
+### One round per change
+
+A `design_watch` whose measured tree equals the last round's (same element keys, same boxes at the design width)
+returns the stored round with `round` unchanged and writes nothing.
