@@ -599,7 +599,11 @@ export const DiffReportSchema = z.object({
     .describe('the Placeholder component every image and icon slot takes; copy it into the page source'),
   design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
   truncated: z
-    .object({components: z.number(), unmatched: z.number()})
+    .object({
+      components: z.number(),
+      unmatched: z.number(),
+      above: z.number().optional().describe('every component above tolerance, before ranking and the `limit` cut'),
+    })
     .optional()
     .describe('how many components and unmatched entries the full report cut to `limit`'),
   section: z

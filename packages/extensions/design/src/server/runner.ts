@@ -250,9 +250,8 @@ function imageKeys(input: {design: string; run: string}): Run['images'] {
 }
 
 function aboveOf(report: DiffReport): number {
-  const listed = report.components.filter(designConfig.componentAboveTolerance).length
   const unbuilt = report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.stage === 'structure').length
-  return listed + unbuilt
+  return (report.truncated?.above ?? 0) + unbuilt
 }
 
 function timingsOf(input: {

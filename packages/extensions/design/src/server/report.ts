@@ -44,7 +44,7 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
     const said = phrases.hint({
       attributed: measured.live.children.length > 0,
       absolute: paths.xray.startsWith('http://') || paths.xray.startsWith('https://'),
-      cut: {listed: components.listed, shown: count, paired},
+      cut: {listed: components.listed.length, shown: count, paired},
     })
     return said === null ? {} : {hint: said}
   }
@@ -69,6 +69,11 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
       paired,
       changes,
       ledger: ledgerCounts(visits.flatMap(({match, depth}) => (depth === 0 ? [] : [match]))),
+      truncated: {
+        components: components.listed.length - components.reported.length,
+        unmatched: 0,
+        above: components.above.length,
+      },
       ...hint(components.reported.length),
     }
   }
@@ -82,9 +87,9 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
   const scopedChanges = filteredChanges({changes, nodes})
   const scopedWarnings = warnings.filter((warning) => inside(warning.box))
   const said = told({...scoped, changes: scopedChanges, warnings: scopedWarnings, items: owned})
-  const reported = components.reported.filter(
-    (component) => (component.nodes ?? []).some((node) => nodes.has(node)) || inside(component.live),
-  )
+  const within = (component: {nodes?: string[] | undefined; live: Box}): boolean =>
+    (component.nodes ?? []).some((node) => nodes.has(node)) || inside(component.live)
+  const reported = components.reported.filter(within)
   const built = [...walk(scope)].some(({node}) => node.live !== null)
   const own = run.sections.find((section) => section.id === scope.node.id)
   return {
@@ -99,6 +104,11 @@ export function buildReport(input: Parameters<Words['report']>[0] & {phrases: Ph
     paired: [...walk(scope)].filter(({node}) => node.live !== null).length,
     changes: scopedChanges,
     ledger: ledgerCounts([...walk(scope)].map(({node}) => node)),
+    truncated: {
+      components: components.listed.filter(within).length - reported.length,
+      unmatched: 0,
+      above: components.above.filter(within).length,
+    },
     section: {id: scope.node.id, line: phrases.line({node: scope.node, scale: 1})},
     scope: 'section',
     page: {stop: run.stop, stage: run.stage, score: run.score, ...similarity},
@@ -111,6 +121,7 @@ type Stage = NonNullable<Run['stage']>
 type Stop = NonNullable<Run['stop']>
 type Changes = DiffReport['changes']
 type Unmatched = DiffReport['unmatched'][number]
+type Spot = {nodes: string[]; live: Box}
 type Node = Match['node']
 type Layout = NonNullable<Node['layout']>
 type Phrases = {
@@ -226,7 +237,7 @@ function componentsOf(input: {
   live: LiveComponent
   input: Parameters<Words['report']>[0]['input']
   twins: {node: string; path: string; target: string}[]
-}): {reported: DiffReport['components']; listed: number} {
+}): {reported: DiffReport['components']; listed: Spot[]; above: Spot[]} {
   const sizes = new Map(input.items.map((item) => [item.key, item.size]))
   const selectors = selectorsOf(input.live)
   const groups = Map.groupBy(
@@ -279,7 +290,8 @@ function componentsOf(input: {
     )
   const shown = ranked.slice(0, input.input.full === true ? ranked.length : input.input.limit)
   return {
-    listed: ranked.length,
+    listed: ranked.map(spotOf),
+    above: above.map(spotOf),
     reported: shown.map((element) => ({
       source: element.live.source,
       tag: element.live.tag,
@@ -294,6 +306,10 @@ function componentsOf(input: {
       ...twinDisagreement({nodes: element.nodes, path: element.path, twins: input.twins}),
     })),
   }
+}
+
+function spotOf(element: {nodes: string[]; live: {box: Box}}): Spot {
+  return {nodes: element.nodes, live: element.live.box}
 }
 
 function twinDisagreement(input: {
