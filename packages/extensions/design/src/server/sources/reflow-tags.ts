@@ -20,7 +20,7 @@ const MIN_SHARE = 0.7
 
 function tagged(node: DesignNode): DesignNode {
   const children = node.children.map(tagged)
-  const reflow = reflowOf(node)
+  const reflow = reflowOf({...node, children})
   return {...node, children, ...(reflow === null ? {} : {reflow})}
 }
 
@@ -32,7 +32,7 @@ function reflowOf(node: DesignNode): Reflow | null {
   const narrowest = Math.min(...ks.map((k) => boxOf(k).w))
   const sum = ks.reduce((total, k) => total + boxOf(k).w, 0)
   const minChildWidth = Math.round(narrowest * MIN_SHARE)
-  const breakpoint = breakpointOf({node, ks, minChildWidth})
+  const breakpoint = rowMinimum({node, ks})
   if (sameComponent(ks) || (sameWidth(ks) && narrowest >= WRAP_NARROWEST))
     return {kind: 'wrap', minChildWidth, breakpoint}
   if (narrowest >= STACK_NARROWEST && sum > STACK_SUM && boxOf(node).w > WIDE_PX)
@@ -40,25 +40,49 @@ function reflowOf(node: DesignNode): Reflow | null {
   return null
 }
 
-function breakpointOf(input: {node: DesignNode; ks: DesignNode[]; minChildWidth: number}): number {
-  const {node, ks, minChildWidth} = input
+function rowMinimum(input: {node: DesignNode; ks: DesignNode[]}): number {
+  const {node, ks} = input
   const columns = ks
-    .map(boxOf)
-    .toSorted((a, b) => a.x - b.x)
-    .reduce<Box[]>((found, box) => {
+    .map((k) => ({box: boxOf(k), least: ownMinimum(k)}))
+    .toSorted((a, b) => a.box.x - b.box.x)
+    .reduce<{box: Box; least: number}[]>((found, column) => {
       const last = found.at(-1)
-      if (last === undefined || box.x >= last.x + last.w - EDGE_PX) return [...found, box]
-      const right = Math.max(last.x + last.w, box.x + box.w)
-      return [...found.slice(0, -1), {...last, w: right - last.x}]
+      const {box} = column
+      if (last === undefined || box.x >= last.box.x + last.box.w - EDGE_PX) return [...found, column]
+      const right = Math.max(last.box.x + last.box.w, box.x + box.w)
+      return [
+        ...found.slice(0, -1),
+        {box: {...last.box, w: right - last.box.x}, least: Math.max(last.least, column.least)},
+      ]
     }, [])
-  const gaps = columns.reduce((total, box, index) => {
-    const before = columns[index - 1]
-    return before === undefined ? total : total + Math.max(0, box.x - before.x - before.w)
-  }, 0)
-  const own = boxOf(node)
-  const left = Math.min(...columns.map((box) => box.x)) - own.x
-  const right = own.x + own.w - Math.max(...columns.map((box) => box.x + box.w))
-  return Math.round(columns.length * minChildWidth + gaps + Math.max(0, left) + Math.max(0, right))
+  const flowGap = node.layout?.direction === undefined ? undefined : node.layout.gap?.px
+  const gaps =
+    flowGap === undefined
+      ? columns.reduce((total, {box}, index) => {
+          const before = columns[index - 1]?.box
+          return before === undefined ? total : total + Math.max(0, box.x - before.x - before.w)
+        }, 0)
+      : flowGap * (columns.length - 1)
+  const least = columns.reduce((total, column) => total + column.least, 0)
+  return Math.round(least + gaps + padding({node, boxes: columns.map((column) => column.box)}))
+}
+
+function ownMinimum(node: DesignNode): number {
+  const least = node.reflow?.minChildWidth
+  if (least !== undefined) return least
+  const ks = kids(node)
+  if (ks.length === 0) return boxOf(node).w
+  if (isRow({node, ks})) return rowMinimum({node, ks})
+  return Math.max(...ks.map(ownMinimum)) + padding({node, boxes: ks.map(boxOf)})
+}
+
+function padding(input: {node: DesignNode; boxes: Box[]}): number {
+  const flow = input.node.layout
+  if (flow?.direction !== undefined && flow.padding !== undefined) return flow.padding.left + flow.padding.right
+  const own = boxOf(input.node)
+  const left = Math.min(...input.boxes.map((box) => box.x)) - own.x
+  const right = own.x + own.w - Math.max(...input.boxes.map((box) => box.x + box.w))
+  return Math.max(0, left) + Math.max(0, right)
 }
 
 function scrolls(input: {node: DesignNode; ks: DesignNode[]}): boolean {
