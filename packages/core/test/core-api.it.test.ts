@@ -12,6 +12,7 @@ import {
 import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
+import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
@@ -69,6 +70,7 @@ import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/ele
 import {type HarnessChatDeps, type HarnessModel, type HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {os} from '@orpc/server'
@@ -2414,6 +2416,55 @@ describe('rpc wire', () => {
         await expect(chatKit().rpc.sessions.get({sessionId: NEVER_MADE})).rejects.toMatchObject({code: 'NOT_FOUND'})
       })
 
+      it('search finds native sessions by a prefix of their message text and keeps no clear text', async () => {
+        writeNativeTurn('search-orchard', 'plan the kiwi orchard', 'the mango grove is planted', Date.now() + 180_000)
+        writeNativeTurn('search-other', 'an unrelated chore', 'done', Date.now() + 170_000)
+
+        expect(await searchedNatives('mang')).toEqual(['search-orchard'])
+        expect(await searchedNatives('KIWI orch')).toEqual(['search-orchard'])
+        expect(await searchedNatives('kiwi chore')).toEqual([])
+        expect(await searchedNatives('"kiwi* OR chore')).toEqual([])
+
+        const stored = storedSearchColumns()
+        expect(stored.length).toBeGreaterThan(0)
+        expect(stored.every((row) => row.title === null && row.body === null)).toBe(true)
+      })
+
+      it('search matches a renamed native session by its new title', async () => {
+        writeNativeTurn('search-renamed', 'the walrus task', 'walrus handled', Date.now() + 160_000)
+        expect(await searchedNatives('falcon')).toEqual([])
+        const listed = (await chatKit().rpc.sessions.list({limit: 100})).sessions.find(
+          (meta) => meta.native?.nativeId === 'search-renamed',
+        )
+        if (listed === undefined) throw new Error('the native session was not listed')
+        await chatKit().rpc.sessions.rename({sessionId: listed.id, title: 'the renamed falcon'})
+
+        const found = await chatKit().rpc.sessions.list({search: 'falcon', limit: 100})
+        expect(found.sessions).toMatchObject([{id: listed.id, title: 'the renamed falcon'}])
+      })
+
+      it('search re-indexes a changed transcript and drops a removed one', async () => {
+        writeNativeTurn('search-changing', 'a first draft', 'drafted', Date.now() + 150_000)
+        expect(await searchedNatives('heron')).toEqual([])
+        writeNativeTurn('search-changing', 'a first draft', 'the heron came back', Date.now() + 155_000)
+        expect(await searchedNatives('heron')).toEqual(['search-changing'])
+
+        rmSync(transcriptPathOf('search-changing'))
+        expect(await searchedNatives('heron')).toEqual([])
+        expect(await searchedNatives('draft')).toEqual([])
+      })
+
+      it('search matches conciv-only sessions on their own title', async () => {
+        const sessionId = SessionId.parse(await newSession())
+        await chatKit().rpc.sessions.rename({sessionId, title: 'ostrich notes 100%'})
+
+        const titles = async (search: string) =>
+          (await chatKit().rpc.sessions.list({search, limit: 100})).sessions.map((meta) => meta.id)
+        expect(await titles('ostr')).toEqual([sessionId])
+        expect(await titles('100%')).toEqual([sessionId])
+        expect(await titles('1_0')).toEqual([])
+      })
+
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
         const [kept, removed] = [await newSession(), await newSession()]
         expect((await chatKit().rpc.markers.list({sessionId: kept})).map((marker) => marker.kind)).toEqual(['new'])
@@ -3230,6 +3281,31 @@ return seen`
   function writeNativeAt(nativeId: string, task: string, updatedAt: number): void {
     const path = writeTranscript(nativeId, [JSON.stringify({type: 'user', message: {content: task}})])
     utimesSync(path, updatedAt / 1000, updatedAt / 1000)
+  }
+
+  function writeNativeTurn(nativeId: string, ask: string, answer: string, updatedAt: number): void {
+    const path = writeTranscript(nativeId, [
+      JSON.stringify({type: 'user', message: {content: ask}}),
+      JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: answer}]}}),
+    ])
+    utimesSync(path, updatedAt / 1000, updatedAt / 1000)
+  }
+
+  async function searchedNatives(search: string): Promise<string[]> {
+    const {sessions: found} = await chatKit().rpc.sessions.list({search, limit: 100})
+    return found.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+  }
+
+  function storedSearchColumns(): {title: unknown; body: unknown}[] {
+    const db = new DatabaseSync(join(concivStateDir(chatKit().stateRoot), 'conciv.db'), {readOnly: true})
+    try {
+      return db
+        .prepare('select title, body from session_search')
+        .all()
+        .map((row) => ({title: row.title, body: row.body}))
+    } finally {
+      db.close()
+    }
   }
 
   function writeTranscript(nativeId: string, lines: string[]): string {

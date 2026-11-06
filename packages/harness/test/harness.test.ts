@@ -2,6 +2,7 @@ import {describe, expect, it, beforeAll, afterEach, test} from 'vitest'
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
+  HarnessHistory,
   HarnessListPage,
   HarnessSessionPage,
   TranscriptHandle,
@@ -83,6 +84,29 @@ function blockingTranscript(path: string, mtimeSec: number): void {
   mkdirSync(join(path, '..'), {recursive: true})
   execFileSync('mkfifo', [path])
   utimesSync(path, mtimeSec, mtimeSec)
+}
+
+async function expectSearchSidecars(history: HarnessHistory, cwd: string, home: string): Promise<void> {
+  const {sessions} = await history.list(cwd, FIRST_PAGE, home)
+  expect(sessions.length).toBeGreaterThan(0)
+  const byId = (first: {id: string}, second: {id: string}) => first.id.localeCompare(second.id)
+  expect((await history.stamps(cwd, home)).toSorted(byId)).toEqual(
+    sessions.map(({id, updatedAt}) => ({id, updatedAt})).toSorted(byId),
+  )
+  const documents = await Promise.all(
+    sessions.map(async (session) => ({
+      session,
+      document: await history.searchDocument(cwd, session.id, home),
+      texts: (await history.messages(cwd, session.id, home)).flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+      ),
+    })),
+  )
+  expect(documents.flatMap(({texts}) => texts).length).toBeGreaterThan(0)
+  for (const {session, document, texts} of documents) {
+    expect(document.title).toBe(session.derivedTitle)
+    for (const text of texts) expect(document.body).toContain(text)
+  }
 }
 
 async function expectPagingContract(
@@ -789,6 +813,25 @@ describe('claude history', () => {
       rmSync(home, {recursive: true, force: true})
     })
 
+    it('stamps every transcript and documents its title and message text for the search index', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const cwd = '/proj/search'
+      seed(
+        home,
+        cwd,
+        'searched',
+        [
+          JSON.stringify({type: 'user', message: {content: 'index the kiwi orchard'}}),
+          JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'the mango grove is indexed'}]}}),
+        ].join('\n') + '\n',
+        2000,
+      )
+      seed(home, cwd, 'other', JSON.stringify({type: 'user', message: {content: 'another task'}}) + '\n', 1000)
+      await expectSearchSidecars(claudeHistory, cwd, home)
+      expect(await claudeHistory.stamps('/no/such', home)).toEqual([])
+      rmSync(home, {recursive: true, force: true})
+    })
+
     it('returns [] for a missing dir', async () => {
       expect(await claudeHistory.list('/no/such', FIRST_PAGE, mkdtempSync(join(tmpdir(), 'conciv-home-')))).toEqual({
         sessions: [],
@@ -1186,6 +1229,10 @@ describe('codex history', () => {
   })
 
   describe('codex history sidecar', () => {
+    it('stamps the recorded threads and documents their title and message text for the search index', async () => {
+      await expectSearchSidecars(history(), PROJECT, state.home)
+    })
+
     it('lists only the sessions recorded for this cwd', async () => {
       const {sessions} = await history().list(PROJECT, FIRST_PAGE, state.home)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
@@ -1895,6 +1942,10 @@ describe('opencode history', () => {
   })
 
   describe('opencode history sidecar', () => {
+    it('stamps the recorded sessions and documents their title and message text for the search index', async () => {
+      await expectSearchSidecars(history(), PROJECT, state.home)
+    })
+
     it('lists only the sessions opened in this directory', async () => {
       const {sessions} = await history().list(PROJECT, FIRST_PAGE, state.home)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
@@ -2155,6 +2206,10 @@ describe('pi history', () => {
   })
 
   describe('pi history sidecar', () => {
+    it('stamps the stored transcripts and documents their title and message text for the search index', async () => {
+      await expectSearchSidecars(history(), PROJECT, state.home)
+    })
+
     it('identifies both pi-named and conciv-named transcripts by their file name', async () => {
       const {sessions} = await history().list(PROJECT, FIRST_PAGE, state.home)
       expect(sessions.map((session) => session.id).toSorted()).toEqual([CONCIV_NAMED, SESSION].toSorted())

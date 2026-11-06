@@ -114,7 +114,7 @@ The picker's search box queries the server. It never filters loaded pages in the
   - **Query:** `search(db, {term, properties: ['title', 'body'], tolerance: 1, where: {updatedAt: {lte: cursor.updatedAt}}, sortBy: {property: 'updatedAt', order: 'DESC'}})`. Core applies the exact `(updatedAt, id)` cursor on the hits and keeps `limit + 1`. The fetch limit covers the hits that share the cursor's `updatedAt`, counted with a `where: {updatedAt: {eq}}` preflight. The page's sessions then come from the harness `meta(cwd, id)`.
   - Harness `list` never sees `search`. Search has one path for every harness.
 - **Core, renamed sessions:** the indexed `title` is the title the picker shows, `row.title ?? native.derivedTitle`. A rename updates that session's Orama document right away.
-- **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\\'` to their SQL page and merge with the index hits by `(updatedAt, id)`, as in section 2.
+- **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\'` to their SQL page and merge with the index hits by `(updatedAt, id)`, as in section 2.
 - **Widget:** the search text goes into the infinite query's key, debounced with `@solid-primitives/scheduled`. A new search starts over from page one. The combobox's `filter` stays off: the server already narrowed the list.
 
 ### 6. Virtual list and load-more row (decided 2026-11-06)

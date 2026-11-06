@@ -128,6 +128,10 @@ export type HarnessListPage = {after: HarnessListCursor | null; limit: number}
 
 export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessListCursor | null}
 
+export type HarnessSessionStamp = {id: HarnessSessionId; updatedAt: number}
+
+export type HarnessSearchDocument = {title: string; body: string}
+
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 
 export type TranscriptFailureReason = (typeof TRANSCRIPT_FAILURES)[number]
@@ -171,6 +175,10 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   list(cwd: string, page: HarnessListPage, home?: string): Promise<HarnessSessionPage>
 
   meta(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
+
+  stamps(cwd: string, home?: string): Promise<HarnessSessionStamp[]>
+
+  searchDocument(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSearchDocument>
 
   summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
 }

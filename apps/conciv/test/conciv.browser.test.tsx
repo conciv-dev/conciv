@@ -3010,7 +3010,7 @@ describe('session selector', () => {
     await expect.element(page.getByRole('option', {name: /^the active session(?!.*running)/})).toBeVisible()
   })
 
-  test('scrolling the list to its end loads the next page of sessions', async () => {
+  test('scrolling the virtual list to its loading row loads the next page of sessions', async () => {
     await mountSelector()
 
     await page.getByRole('button', {name: 'Session: the active session'}).click()
@@ -3019,7 +3019,28 @@ describe('session selector', () => {
 
     await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
 
-    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
+    await expect.element(page.getByText('Loading more sessions…')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+  })
+
+  test('typing a search asks the server and finds a session past the first loaded page', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
+
+    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'older session 39')
+
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^older session 38,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+
+    await userEvent.clear(page.getByPlaceholder('Search sessions…'))
+
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).not.toBeInTheDocument()
   })
 
   test('a session past the first page shows its own title on the trigger', async () => {
