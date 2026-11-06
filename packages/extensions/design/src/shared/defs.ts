@@ -301,7 +301,6 @@ const GetInputSchema = z
     document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
     image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
   })
-  .refine((input) => input.figma !== undefined || input.image !== undefined, {message: 'pass figma or image'})
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
   })
