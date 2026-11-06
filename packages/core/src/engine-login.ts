@@ -328,9 +328,9 @@ function isSocketUpgrade(request: Request): boolean {
 }
 
 function withBearer(request: Request, url: URL, token: string): Request {
-  const forwarded = new Request(url, request)
-  forwarded.headers.set('authorization', `Bearer ${token}`)
-  return forwarded
+  const headers = new Headers(request.headers)
+  headers.set('authorization', `Bearer ${token}`)
+  return new Request(url, {method: request.method, headers, body: request.body, signal: request.signal, duplex: 'half'})
 }
 
 export function makeEngineGate<Env>(opts: {
