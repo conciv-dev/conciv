@@ -5,6 +5,7 @@ import {box} from '../../shared/box.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
 import {createSimilarity} from './similarity.js'
+import {fingerprints} from './fingerprints.js'
 
 export function createVotePairer(): Pairer {
   return (request) => Promise.resolve(pairDesign(request))
@@ -30,11 +31,7 @@ type Assignment = {node: View; candidate: View; score: number}
 
 type Weights = Map<VoterName, number>
 
-type Live = NonNullable<Match['live']>
-
-type Fingerprint = Pick<Live, 'source' | 'key' | 'instance' | 'owner' | 'tag' | 'box'> & {text: string}
-
-type Carried = {path: string; fingerprint: Fingerprint; confidence: number}
+type Fingerprint = ReturnType<typeof fingerprints.of>
 
 type VoteInput = {
   nodes: View[]
@@ -52,7 +49,7 @@ type Pairing = Omit<VoteInput, 'nodes'> & {
   views: Map<string, View>
   byKey: Map<string, View>
   components: Map<string, LiveComponent>
-  records: Map<string, Carried>
+  records: ReturnType<typeof fingerprints.records>
   prints: Map<string, Fingerprint>
   edited: Set<string>
   before: Map<string, Match>
@@ -106,11 +103,11 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     views,
     byKey: new Map(candidates.map((candidate) => [candidate.key, candidate])),
     components,
-    records: carriedRecords(previous?.root ?? null),
+    records: fingerprints.records(previous?.root ?? null),
     prints: new Map(
       candidates.flatMap((candidate): [string, Fingerprint][] => {
         const component = components.get(candidate.key)
-        return component === undefined ? [] : [[candidate.key, fingerprint(component)]]
+        return component === undefined ? [] : [[candidate.key, fingerprints.of(component)]]
       }),
     ),
     edited: new Set(edited),
@@ -153,34 +150,6 @@ function pinsFrom(decisions: Decision[]): {node: string; path: string}[] {
   )
 }
 
-function fingerprint(live: Live): Fingerprint {
-  const {source, key, instance, owner, tag, box: at} = live
-  const text = live.glyphs
-    .map((glyph) => glyph.text)
-    .join(' ')
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .join(' ')
-  return {source, key, instance, owner, tag, box: at, text}
-}
-
-function carriedRecords(previous: Match | null): Map<string, Carried> {
-  if (previous === null) return new Map()
-  return new Map(
-    [...walk(previous)].flatMap(({node: match, depth}): [string, Carried][] =>
-      depth === 0 || match.live === null
-        ? []
-        : [
-            [
-              match.node.id,
-              {path: match.live.path, fingerprint: fingerprint(match.live), confidence: match.confidence},
-            ],
-          ],
-    ),
-  )
-}
-
 function pairNode(input: {
   node: DesignNode
   live: LiveComponent | null
@@ -209,7 +178,7 @@ function pairNode(input: {
       : (pairing.views.get(child.id) ?? []),
   )
   const wider = voteLevel({...pairing, nodes: missed, candidates: pairing.candidates})
-  const children = node.children.map((child): Paired => {
+  const voted = node.children.map((child): Paired => {
     const carried = kept.get(child.id)
     if (carried !== undefined) return {match: carried, partial: false, carried: [...walk(carried)].length}
     const taken = level.assignments.get(child.id) ?? wider.assignments.get(child.id)
@@ -222,6 +191,7 @@ function pairNode(input: {
       pairing,
     })
   })
+  const children = heldLate({node, voted, pairing})
   return {
     match: matched({
       node,
@@ -234,11 +204,30 @@ function pairNode(input: {
   }
 }
 
+function heldLate(input: {node: DesignNode; voted: Paired[]; pairing: Pairing}): Paired[] {
+  const {node, voted, pairing} = input
+  const open = node.children.flatMap((child) =>
+    pairing.context.assigned.has(child.id) ? [] : (pairing.views.get(child.id) ?? []),
+  )
+  const late = new Map(
+    followTexts({input: {...pairing, nodes: open}, weights: pairing.weights, state: pairing.state}).map(
+      (entry) => [entry.node.key, entry] as const,
+    ),
+  )
+  return voted.map((entry, index) => {
+    const follow = late.get(entry.match.node.id)
+    const child = node.children[index]
+    if (follow === undefined || child === undefined) return entry
+    const live = pairing.components.get(follow.candidate.key) ?? null
+    return {...entry, match: matched({node: child, live, confidence: follow.score, children: entry.match.children})}
+  })
+}
+
 function matched(input: {node: DesignNode; live: LiveComponent | null; confidence: number; children: Match[]}): Match {
   const {node, live, confidence, children} = input
   const {children: _children, ...own} = node
   const hash = createHash('sha256')
-    .update(JSON.stringify(live === null ? null : fingerprint(live)))
+    .update(JSON.stringify(live === null ? null : fingerprints.of(live)))
     .update(children.map((child) => child.hash).join(''))
     .digest('hex')
   return {
@@ -411,7 +400,7 @@ function carriedViews(input: Pairing & {nodes: View[]}): Assignment[] {
       const found = prints.get(candidate.key)
       if (found === undefined) return false
       if (wanted.source === null && candidate.key !== record.path) return false
-      return samePrint({a: found, b: wanted})
+      return fingerprints.same({a: found, b: wanted})
     })
     const candidate =
       matches.find((entry) => entry.key === record.path) ??
@@ -423,22 +412,6 @@ function carriedViews(input: Pairing & {nodes: View[]}): Assignment[] {
 function editedFile(input: {view: View; components: Map<string, LiveComponent>; edited: Set<string>}): boolean {
   const file = input.components.get(input.view.key)?.source?.file
   return file !== undefined && input.edited.has(file)
-}
-
-function samePrint(input: {a: Fingerprint; b: Fingerprint}): boolean {
-  const {a, b} = input
-  if (a.key !== null && b.key !== null) return a.key === b.key && a.instance === b.instance
-  const edges = [a.box.x - b.box.x, a.box.y - b.box.y, a.box.w - b.box.w, a.box.h - b.box.h]
-  return (
-    a.tag === b.tag &&
-    a.text === b.text &&
-    locationKey(a.source) === locationKey(b.source) &&
-    edges.every((edge) => Math.abs(edge) <= TOLERANCES.tileMargin)
-  )
-}
-
-function locationKey(source: Fingerprint['source']): string {
-  return source === null ? '' : `${source.file}:${source.line}:${source.column}`
 }
 
 function carryFirst(input: {input: VoteInput; state: State; carried: Assignment[]}): Assignment[] {
