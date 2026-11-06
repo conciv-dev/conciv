@@ -164,3 +164,11 @@ marks the same `image` set as `$S/figma2/tagged-nodes.json` (27 nodes), and on O
 
 A `design_watch` whose measured tree equals the last round's (same element keys, same boxes at the design width)
 returns the stored round with `round` unchanged and writes nothing.
+
+### Rulings after wave 2 (2026-11-06, night)
+
+- A node with a solid fill is a box with that background, whether or not it is an icon, a logo or a drawing. The
+  image rule sentence applies only to nodes marked `image` with an image fill or a collapsed vector subtree without
+  a solid fill of their own. The rule sentences in `document.ts` say so; paint and the rules never contradict.
+- A stack or wrap breakpoint is the sum of each child's own minimum width (its own `minChildWidth`, or its design
+  width for a leaf), plus gaps and padding. No child inherits another child's minimum.
