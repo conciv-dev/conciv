@@ -1,5 +1,6 @@
 import {create, getByID, remove, search, upsert, upsertMultiple} from '@orama/orama'
 import {and, eq, inArray, isNotNull} from 'drizzle-orm'
+import {chunk} from 'es-toolkit'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
@@ -29,7 +30,11 @@ type Indexed = {harness: HarnessAdapter; history: HarnessHistory}
 
 type Hit = {indexed: Indexed; nativeId: HarnessSessionId; documentId: string; cursor: HarnessListCursor}
 
-const REFRESH_PAGE = 100
+const REFRESH_PAGE = 10
+
+const READ_BATCH = 8
+
+const TYPO_MIN_LENGTH = 4
 
 export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   const index = create({schema: {harness: 'enum', title: 'string', body: 'string', updatedAt: 'number'}})
@@ -39,12 +44,17 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       : [],
   )
   const watermarks = new Map<string, number>()
-  const state: {refreshing: Promise<void>} = {refreshing: Promise.resolve()}
+  const state: {refreshing: Promise<void> | null} = {refreshing: null}
 
   const refresh = (): Promise<void> => {
-    const run = () => Promise.all(indexed.map(refreshHarness)).then(() => undefined)
-    state.refreshing = state.refreshing.then(run, run)
-    return state.refreshing
+    if (state.refreshing !== null) return state.refreshing
+    const running = Promise.all(indexed.map(refreshHarness))
+      .then(() => undefined)
+      .finally(() => {
+        state.refreshing = null
+      })
+    state.refreshing = running
+    return running
   }
 
   const refreshHarness = async (source: Indexed): Promise<void> => {
@@ -52,12 +62,14 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     const changed = await changedSince(source.history, deps, watermark)
     if (changed.length === 0) return
     const titles = await rowTitles(deps.db, source.harness.id, changed)
-    const documents = await Promise.all(changed.map((meta) => documentOf(source, deps, meta, titles)))
-    await upsertMultiple(index, documents)
+    for (const batch of chunk(changed, READ_BATCH)) {
+      await upsertMultiple(index, await Promise.all(batch.map((meta) => documentOf(source, deps, meta, titles))))
+    }
     watermarks.set(source.harness.id, Math.max(watermark, ...changed.map((meta) => meta.updatedAt)))
   }
 
   const hitsOf = async (term: string, after: HarnessListCursor | null, limit: number): Promise<Hit[]> => {
+    const tolerance = typoTolerance(term)
     const tied =
       after === null
         ? 0
@@ -65,7 +77,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
             await search(index, {
               term,
               properties: ['title', 'body'],
-              tolerance: 1,
+              tolerance,
               threshold: 0,
               where: {updatedAt: {eq: after.updatedAt}},
               limit: 0,
@@ -74,7 +86,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     const found = await search(index, {
       term,
       properties: ['title', 'body'],
-      tolerance: 1,
+      tolerance,
       threshold: 0,
       where: after === null ? undefined : {updatedAt: {lte: after.updatedAt}},
       sortBy: {property: 'updatedAt', order: 'DESC'},
@@ -185,6 +197,11 @@ async function documentOf(
     body,
     updatedAt: meta.updatedAt,
   }
+}
+
+function typoTolerance(term: string): number {
+  const words = term.split(/\s+/).filter((word) => word !== '')
+  return words.every((word) => word.length >= TYPO_MIN_LENGTH) ? 1 : 0
 }
 
 function documentIdOf(harnessKind: string, nativeId: string): string {

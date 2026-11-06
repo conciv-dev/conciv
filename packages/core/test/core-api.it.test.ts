@@ -2521,6 +2521,14 @@ describe('rpc wire', () => {
           expect(second).toMatchObject({sessions: [{native: {nativeId: 'claude-orchard'}}], next: null})
         })
 
+        it('tolerates typos only when every word has at least four characters', async () => {
+          writeClaudeTurn('claude-item-three', 'review item 3', 'checked')
+          writeClaudeTurn('claude-item-twenty-nine', 'review item 29', 'checked')
+          writeClaudeTurn('claude-item-thirty-nine', 'review item 39', 'checked')
+
+          expect(await found('39')).toEqual(['claude-item-thirty-nine'])
+        })
+
         it('matches a renamed native session by its new title', async () => {
           writeCodexTurn('codex-walrus', 'the walrus task', 'walrus handled')
           expect(await found('falcon')).toEqual([])

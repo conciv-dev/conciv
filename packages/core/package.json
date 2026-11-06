@@ -84,6 +84,7 @@
     "@orama/orama": "3.1.18",
     "@orpc/server": "catalog:",
     "drizzle-orm": "catalog:",
+    "es-toolkit": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
