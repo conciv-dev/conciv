@@ -50,7 +50,7 @@ function judged(input: Request): ReturnType<Judge> {
     ...input.accepted,
     ...input.decisions.filter((decision) => decision.kind === 'accept-node').map((decision) => decision.anchor),
   ])
-  const restated = restate({match: root, depth: 0, before, accepted, run: input.run, items})
+  const restated = restate({match: root, depth: 0, before, accepted, run: input.run, items, seat: null})
   const regressed = newlyRegressed({root: restated, before})
   const rounds = input.rounds.toSorted((a, b) => a.round - b.round)
   const section = input.section === undefined ? null : sectionMatch({root: restated, id: input.section})
@@ -279,16 +279,28 @@ function restate(input: {
   accepted: Set<string>
   run: string
   items: Item[]
+  seat: {path: string; status: Status} | null
 }): Match {
-  const {match, depth, before, accepted, run, items} = input
-  const children = match.children.map((child) => restate({...input, match: child, depth: depth + 1}))
-  if (depth === 0) return {...match, children}
+  const {match, depth, before, accepted, run, items, seat} = input
+  const under = (status: Status): Match[] =>
+    match.children.map((child) =>
+      restate({
+        ...input,
+        match: child,
+        depth: depth + 1,
+        seat: match.live === null || depth === 0 ? null : {path: match.live.path, status},
+      }),
+    )
+  if (depth === 0) return {...match, children: under(match.status)}
   const previous = before.get(match.node.id) ?? null
   const observed: Status =
     match.live === null ? 'unbuilt' : worstItem({items, node: match.node.id}) === null ? 'done' : 'paired'
-  const status = nextStatus({was: previous?.status ?? 'unbuilt', now: observed, accepted: accepted.has(match.node.id)})
+  const status =
+    seat !== null && seat.path === match.live?.path
+      ? seat.status
+      : nextStatus({was: previous?.status ?? 'unbuilt', now: observed, accepted: accepted.has(match.node.id)})
   const since = previous !== null && previous.status === status ? previous.since : run
-  return {...match, status, since, children}
+  return {...match, status, since, children: under(status)}
 }
 
 function nextStatus(input: {was: Status; now: Status; accepted: boolean}): Status {

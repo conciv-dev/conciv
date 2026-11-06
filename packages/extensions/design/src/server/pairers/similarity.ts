@@ -1,4 +1,4 @@
-import {groupBy, median, words} from 'es-toolkit'
+import {groupBy, intersection, median, words} from 'es-toolkit'
 import {parse} from 'culori'
 import type {Box, DesignNode, LiveComponent, Raster} from '../../shared/defs.js'
 import {box} from '../../shared/box.js'
@@ -8,9 +8,9 @@ import {walk} from '../../shared/tree.js'
 export function createSimilarity() {
   return {
     voters: VOTERS,
-    text: textSimilarity,
-    box: {iou, same: sameBox},
-    views: {design: designViews, live: liveViews},
+    text: {similarity: textSimilarity, shares: sharesWord},
+    box: {iou, same: sameBox, apart: edgeDistance},
+    views: {design: designViews, live: liveViews, coinciding, inside, enclosing, compatible: elementCompatible},
   }
 }
 
@@ -290,6 +290,53 @@ function sameBox(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   const edges = [a.x - b.x, a.y - b.y, a.x + a.w - b.x - b.w, a.y + a.h - b.y - b.h]
   return edges.every((edge) => Math.abs(edge) <= TOLERANCES.geometryPx)
+}
+
+function coinciding(input: {node: DesignNode; view: View; candidates: View[]; taken: Set<string>}): Map<string, View> {
+  const {node, view, taken} = input
+  const same = node.children.filter((child) => child.kind !== 'text' && sameBox({a: child.box, b: node.box}))
+  if (same.length === 0) return new Map()
+  const inner = input.candidates.filter(
+    (candidate) =>
+      candidate !== view &&
+      !taken.has(candidate.key) &&
+      sameBox({a: candidate.box, b: view.box}) &&
+      inside({view: candidate, anchor: view}),
+  )
+  const [own = view, ...rest] = [...outer({view, taken}), view, ...inner]
+  return new Map([[node.id, own], ...same.map((child, index): [string, View] => [child.id, rest[index] ?? own])])
+}
+
+function outer(input: {view: View; taken: Set<string>}): View[] {
+  const {view, taken} = input
+  const {parent} = view
+  if (parent === null || taken.has(parent.key) || !sameBox({a: parent.box, b: view.box})) return []
+  return [...outer({view: parent, taken}), parent]
+}
+
+function elementCompatible(input: {node: View; candidate: View}): boolean {
+  const {node, candidate} = input
+  const own = candidate.lines.length > 0 && candidate.text !== ''
+  if (node.kind === 'text') return own
+  if (node.kind === 'image') return !own
+  return true
+}
+
+function sharesWord(input: {node: View; candidate: View}): boolean {
+  return intersection(input.node.text.split(' '), input.candidate.text.split(' ')).length > 0
+}
+
+function enclosing(view: View): View | null {
+  const climb = (from: View | null): View | null => {
+    if (from === null || from.parent === null) return null
+    return box.holds({outer: from.box, inner: view.box}) ? from : climb(from.parent)
+  }
+  return climb(view.parent)
+}
+
+function edgeDistance(input: {a: Box; b: Box}): number {
+  const {a, b} = input
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.x + a.w - b.x - b.w) + Math.abs(a.y + a.h - b.y - b.h)
 }
 
 function designViews(root: DesignNode): {views: Map<string, View>; holders: Map<string, string>} {

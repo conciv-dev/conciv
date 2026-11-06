@@ -122,6 +122,15 @@ export type DesignRuntime = {cwd: string; blind: boolean; state: Storage; projec
 - `DiffReportSchema` is exported from `shared/defs.ts` (export 29) so the store validates the stored report.
 - Pairing parity with the old pairer is a gate: on the OrangeFarm page (`tag3-figma5-1/final-src`) the new pairer pairs every node the old one paired. A box whose parent is paired and whose live counterpart exists is paired; a button is paired to its box, not to a text node inside it.
 
+## Rulings after the first tool loop (2026-11-06)
+
+The first runs where the agent drove its build with `design_diff`, `design_watch` and `design_status` (journal `figma-loop/tool-vs-tag3.md`) found these. Each is a rule of the contract now.
+
+- A design node whose box coincides with its parent's box (within the pairing tolerance) is not unbuilt while its parent is paired. The pairer looks for a live element inside the parent's live element with the coinciding box; one such element is the pair. None: the node is seated on the parent's live element and takes the parent's status. It never votes against its parent for the same element, and it never reads as "build a row of N items" while the page renders it.
+- A measure that comes back from a broken page is not a round. Broken means a page error, or a paired count under half of the previous settled run's paired count when that run paired at all. The runner writes no run, the ledger does not move, and the tool answers `stop: 'unsettled'` with the element count and the sentence "the page did not settle; reload it and diff again". Engine re-runs on save that land on the same broken page are not rounds either.
+- Done does not wait for what cannot be built. Design nodes with zero width or zero height (hairlines, separators drawn as empty frames) are not required; they are never unbuilt and never block `done`. The Figma adapter applies the same icon-collapse rule the harness tagger applies (`dump/collapse-plugin.mjs`, `xycut/tag-reflow.mjs` in the journal), so the tree the tool judges is the tree the agent was given; a node collapsed into an icon is not a separate requirement.
+- One count per word. `design_status.ledger.paired` and `design_diff.counts.paired` are the same number from the same walk. A brief never lists the same element and sentence twice.
+
 ## Files, one export each
 
 | file                           | export                                                                                                                         | reference in the old tree (branch `design-one-tree` at 56fca6f92, or `design-driver-figma` at 1a1ed0175 where named)                             |

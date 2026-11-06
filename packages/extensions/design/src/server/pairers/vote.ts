@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {groupBy, intersection, median, minBy, omit, partition} from 'es-toolkit'
+import {groupBy, median, minBy, omit, partition} from 'es-toolkit'
 import type {Box, Decision, DesignNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {box} from '../../shared/box.js'
 import {designConfig} from '../../shared/tolerances.js'
@@ -158,22 +158,26 @@ function pairNode(input: {
   pool: View[]
   pairing: Pairing
 }): Paired {
-  const {node, live, view, pairing} = input
-  const pool =
-    view === null ? input.pool : pairing.candidates.filter((candidate) => inside({view: candidate, anchor: view}))
+  const {node, pairing} = input
   const kept = new Map(
     node.children.flatMap((child): [string, Match][] => {
       const carried = unchanged({node: child, pairing})
       return carried === null ? [] : [[child.id, carried]]
     }),
   )
+  const {live, view, seats} = seated({...input, kept})
+  const pool =
+    view === null
+      ? input.pool
+      : pairing.candidates.filter((candidate) => SIMILARITY.views.inside({view: candidate, anchor: view}))
+  const open = (child: DesignNode): boolean => !kept.has(child.id) && !seats.has(child.id)
   const level = voteLevel({
     ...pairing,
-    nodes: node.children.flatMap((child) => (kept.has(child.id) ? [] : (pairing.views.get(child.id) ?? []))),
+    nodes: node.children.flatMap((child) => (open(child) ? (pairing.views.get(child.id) ?? []) : [])),
     candidates: pool,
   })
   const missed = node.children.flatMap((child) =>
-    pool === pairing.candidates || kept.has(child.id) || level.assignments.has(child.id)
+    pool === pairing.candidates || !open(child) || level.assignments.has(child.id)
       ? []
       : (pairing.views.get(child.id) ?? []),
   )
@@ -181,12 +185,14 @@ function pairNode(input: {
   const voted = node.children.map((child): Paired => {
     const carried = kept.get(child.id)
     if (carried !== undefined) return {match: carried, partial: false, carried: [...walk(carried)].length}
-    const taken = level.assignments.get(child.id) ?? wider.assignments.get(child.id)
+    const seat = seats.get(child.id)
+    const taken = seat === undefined ? (level.assignments.get(child.id) ?? wider.assignments.get(child.id)) : undefined
+    const candidate = seat ?? taken?.candidate ?? null
     return pairNode({
       node: child,
-      live: taken === undefined ? null : (pairing.components.get(taken.candidate.key) ?? null),
-      view: taken?.candidate ?? null,
-      confidence: taken?.score ?? 0,
+      live: candidate === null ? null : (pairing.components.get(candidate.key) ?? null),
+      view: candidate,
+      confidence: seat === undefined ? (taken?.score ?? 0) : input.confidence,
       pool,
       pairing,
     })
@@ -202,6 +208,26 @@ function pairNode(input: {
     partial: level.partial || wider.partial || children.some((child) => child.partial),
     carried: children.reduce((sum, child) => sum + child.carried, level.carried + wider.carried),
   }
+}
+
+function seated(input: {
+  node: DesignNode
+  live: LiveComponent | null
+  view: View | null
+  pairing: Pairing
+  kept: Map<string, Match>
+}): {live: LiveComponent | null; view: View | null; seats: Map<string, View>} {
+  const {node, live, view, pairing} = input
+  if (view === null || !pairing.views.has(node.id)) return {live, view, seats: new Map()}
+  const children = node.children.filter((child) => !input.kept.has(child.id))
+  const {candidates, state, context} = pairing
+  const seats = SIMILARITY.views.coinciding({node: {...node, children}, view, candidates, taken: state.boxes})
+  seats.forEach((seat, id) => {
+    const at = pairing.views.get(id)
+    if (at !== undefined) take({node: at, candidate: seat, state, context})
+  })
+  const own = seats.get(node.id) ?? view
+  return {live: pairing.components.get(own.key) ?? live, view: own, seats}
 }
 
 function heldLate(input: {node: DesignNode; voted: Paired[]; pairing: Pairing}): Paired[] {
@@ -305,15 +331,7 @@ function calibrate(input: VoteInput): Weights {
 }
 
 function candidatePool(input: {input: VoteInput; node: View}): View[] {
-  return input.input.candidates.filter((candidate) => elementCompatible({node: input.node, candidate}))
-}
-
-function elementCompatible(input: {node: View; candidate: View}): boolean {
-  const {node, candidate} = input
-  const own = candidate.lines.length > 0 && candidate.text !== ''
-  if (node.kind === 'text') return own
-  if (node.kind === 'image') return !own
-  return true
+  return input.input.candidates.filter((candidate) => SIMILARITY.views.compatible({node: input.node, candidate}))
 }
 
 function weighed(input: {input: VoteInput; weights: Weights; node: View; candidate: View}): Scored {
@@ -424,18 +442,14 @@ function carryFirst(input: {input: VoteInput; state: State; carried: Assignment[
   return [...agreeing, ...rest].flatMap((entry) => {
     const {node, candidate} = entry
     if (context.assigned.has(node.key)) return []
-    if (!elementCompatible({node, candidate})) return []
-    if (node.kind === 'text' && !saysSame({node, candidate}) && !sharesWord({node, candidate})) return []
+    if (!SIMILARITY.views.compatible({node, candidate})) return []
+    if (node.kind === 'text' && !saysSame({node, candidate}) && !SIMILARITY.text.shares({node, candidate})) return []
     if (spokenElsewhere({node, candidate, context})) return []
     if (node.kind !== 'text' && !elementGate({node, candidate, state})) return []
     if (node.kind !== 'text' && displaced({input: input.input, state, node, candidate})) return []
     take({node, candidate, state, context})
     return [entry]
   })
-}
-
-function sharesWord(input: {node: View; candidate: View}): boolean {
-  return intersection(input.node.text.split(' '), input.candidate.text.split(' ')).length > 0
 }
 
 function displaced(input: {input: VoteInput; state: State; node: View; candidate: View}): boolean {
@@ -478,7 +492,7 @@ function exactFits(input: {input: VoteInput; weights: Weights; state: State}): A
     .flatMap((node) =>
       candidatePool({input: input.input, node})
         .filter((candidate) => SIMILARITY.box.same({a: node.box, b: candidate.box}))
-        .map((candidate) => ({node, candidate, apart: edgeDistance({a: node.box, b: candidate.box})})),
+        .map((candidate) => ({node, candidate, apart: SIMILARITY.box.apart({a: node.box, b: candidate.box})})),
     )
     .toSorted((a, b) => a.apart - b.apart)
   return fits.flatMap(({node, candidate}): Assignment[] => {
@@ -487,11 +501,6 @@ function exactFits(input: {input: VoteInput; weights: Weights; state: State}): A
     take({node, candidate, state, context})
     return [{node, candidate, score}]
   })
-}
-
-function edgeDistance(input: {a: Box; b: Box}): number {
-  const {a, b} = input
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.x + a.w - b.x - b.w) + Math.abs(a.y + a.h - b.y - b.h)
 }
 
 function scoredList(input: {input: VoteInput; weights: Weights; state: State; node: View}): Scored[] {
@@ -601,24 +610,11 @@ function followTexts(input: {input: VoteInput; weights: Weights; state: State}):
     if (text === undefined || context.assigned.has(node.key)) return []
     const element = context.assigned.get(text)
     if (element === undefined) return []
-    const candidate = element.klass === 'control' || element.klass === 'media' ? element : enclosing(element)
+    const candidate =
+      element.klass === 'control' || element.klass === 'media' ? element : SIMILARITY.views.enclosing(element)
     if (candidate === null || state.boxes.has(candidate.key)) return []
     const {score} = weighed({input: input.input, weights, node, candidate})
     take({node, candidate, state, context})
     return [{node, candidate, score}]
   })
-}
-
-function enclosing(view: View): View | null {
-  const climb = (from: View | null): View | null => {
-    if (from === null || from.parent === null) return null
-    return box.holds({outer: from.box, inner: view.box}) ? from : climb(from.parent)
-  }
-  return climb(view.parent)
-}
-
-function inside(input: {view: View; anchor: View}): boolean {
-  if (input.view === input.anchor) return true
-  const parent = input.view.parent
-  return parent !== null && inside({view: parent, anchor: input.anchor})
 }
