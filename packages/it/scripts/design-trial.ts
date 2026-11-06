@@ -158,7 +158,7 @@ async function hostServer(input: {
         extensions: {design: {blind: input.blind}},
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
-          ...(input.noDesign ? DESIGN_TOOLS.map((tool) => tool.name) : []),
+          ...(input.noDesign ? [getDef, watchDef, validateDef].map((tool) => tool.name) : []),
         ],
       }),
     ],
