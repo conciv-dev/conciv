@@ -34,7 +34,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `editor.open` requires `line` to be an integer >= 1 when present (`EditorOpenInputSchema`).
 - `ToolCommandSignatureSchema` applies `.catch(undefined)` to `icon` and `label` (invalid values become `undefined`); `errors` defaults to `[]` (`contract.ts`).
 - `StreamChunkSchema` checks only that a chunk is a non-null object, then casts it to `ChatEvent` (`contract.ts`).
-- `DraftRowSchema` requires `selectionStart` / `selectionEnd` to be integers >= 0 and maps null `attachments` to `[]`; `drafts.set` input omits `updatedAt` (`rows.ts`, `contract.ts`). `MarkerRowSchema.afterTurn` is an integer >= 0 (`rows.ts`).
+- `DraftRowSchema` requires `selectionStart` / `selectionEnd` to be integers >= 0 and maps null `attachments` to `[]`; `drafts.set` input omits `updatedAt` (`rows.ts`, `contract.ts`). `MarkerRowSchema.afterMessageId` is the id of the message the marker follows, `null` before the first message (`rows.ts`).
 - `BrowserRpcClient.bind` throws `conciv rpc client already bound` when a base is set and `conciv rpc cannot bind an empty api base` for `''` (`client.ts`).
 - `dynamicBrowserRpcLink.call` throws `RPC_UNBOUND_MESSAGE` when the current api base is null (`browser-transport.ts`).
 - Connections are keyed by `normalizeApiBase` (origin + pathname without trailing slash, resolved against `location.href` when present), so equivalent bases share one connection (`browser-transport.ts`).

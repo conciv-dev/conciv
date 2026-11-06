@@ -2232,6 +2232,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
+        const boundary = (await thread(sessionId)).at(-1)?.id
         const sessionStream = await chatKit().events(sessionId)
         script().hold()
         const compacts = Promise.all([
@@ -2246,7 +2247,8 @@ describe('rpc wire', () => {
         expect(lastRunOf(sessionId).kind).toBe('compact')
         expect(lastRunOf(sessionId).messages).toContain('/compact')
         expect(overlapping(runsOf(sessionId))).toBe(false)
-        expect(await compactMarkers(sessionId)).toEqual([4, 4])
+        expect(boundary).toBeDefined()
+        expect(await compactMarkers(sessionId)).toEqual([boundary, boundary])
         expect(await threadUserTexts(sessionId)).toEqual(['one', 'two'])
       })
 
@@ -2371,7 +2373,9 @@ describe('rpc wire', () => {
 
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
         const [kept, removed] = [await newSession(), await newSession()]
-        expect((await chatKit().rpc.markers.list({sessionId: kept})).map((marker) => marker.kind)).toEqual(['new'])
+        expect(await chatKit().rpc.markers.list({sessionId: kept})).toEqual([
+          expect.objectContaining({kind: 'new', afterMessageId: null}),
+        ])
         await finished(kept, 'title from me')
         await finished(removed, 'clear me')
         expect(await sessionMeta(kept)).toMatchObject({origin: 'conciv', title: 'title from me'})
@@ -2956,9 +2960,9 @@ return seen`
     return meta
   }
 
-  async function compactMarkers(sessionId: string): Promise<number[]> {
+  async function compactMarkers(sessionId: string): Promise<(string | null)[]> {
     const markers = await chatKit().rpc.markers.list({sessionId})
-    return markers.filter((marker) => marker.kind === 'compact').map((marker) => marker.afterTurn)
+    return markers.filter((marker) => marker.kind === 'compact').map((marker) => marker.afterMessageId)
   }
 
   async function thread(sessionId: string): Promise<ChatMessage[]> {

@@ -7,7 +7,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Interface
 
 - `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `hydrated`, `pendingApprovals`, and `harnessAt(index)`.
+- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `hydrated`, `pendingApprovals`, and `harnessOf(messageId)`.
 - `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, approved, scope)`, optional `onError`.
 - `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh()` and `close()`.
 - `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
@@ -16,7 +16,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Invariants
 
 - `session.ts:newerRun` - hydration does not overwrite a run that started later, or the same run when it is already terminal.
-- `session.ts:harnessAt` - the harness that produced the message at that index of the last hydration (`messageHarness`), aligned by index because `refresh` keeps rendered ids; `undefined` past the hydrated messages.
+- `session.ts:harnessOf` - the harness that produced a message, by message id, merged from every hydration's `messageHarness`; when `refresh` keeps a rendered id in place of the stored one the harness follows the rendered id; `undefined` for a message no hydration named.
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
 - `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`).
 - `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.

@@ -58,7 +58,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runInProgress: Accessor<boolean>
   hydrated: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
-  harnessAt: (index: number) => string | undefined
+  harnessOf: (messageId: string) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
 }
 
@@ -106,6 +106,16 @@ function withRenderedIds(rendered: readonly ChatMessage[], stored: readonly Chat
   })
 }
 
+function renamedHarnesses(hydration: ChatSessionHydration, shown: readonly ChatMessage[]): Record<string, string> {
+  return Object.fromEntries(
+    hydration.messages.flatMap((message, index): [string, string][] => {
+      const harnessId = hydration.messageHarness[message.id]
+      const shownId = shown[index]?.id
+      return harnessId === undefined || shownId === undefined ? [] : [[shownId, harnessId]]
+    }),
+  )
+}
+
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
 }
@@ -126,19 +136,16 @@ export function createChat(options: CreateChatOptions): Chat {
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
   const [hydrated, setHydrated] = createSignal(false)
-  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: (string | null)[]}>({
+  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
     pending: [],
-    harnesses: [],
+    harnesses: {},
   })
   const connection = options.connect({
     onLifecycle: (lifecycle) => setRunSource({lifecycle, receivedAt: Date.now()}),
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
       setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
-      setServed(
-        'harnesses',
-        reconcile(hydration.messages.map((message) => hydration.messageHarness[message.id] ?? null)),
-      )
+      setServed('harnesses', hydration.messageHarness)
       setHydrated(true)
     },
     onRunError: () => {
@@ -155,16 +162,20 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         return false
       }),
   })
+  const showHydration = (hydration: ChatSessionHydration): void => {
+    const shown = withRenderedIds(chat.messages(), hydration.messages)
+    setServed('harnesses', renamedHarnesses(hydration, shown))
+    chat.setMessages(shown)
+  }
   const refresh = async (): Promise<void> => {
-    const hydration = await connection.refresh()
-    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+    showHydration(await connection.refresh())
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
   const joinedRun = async (runId: string): Promise<boolean> => {
     if (ownsRun(runId)) return false
     const hydration = await connection.refresh()
     if (ownsRun(runId)) return false
-    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+    showHydration(hydration)
     return true
   }
   const chat = useChat({
@@ -252,7 +263,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runInProgress,
     hydrated,
     pendingApprovals: () => served.pending,
-    harnessAt: (index) => served.harnesses[index] ?? undefined,
+    harnessOf: (messageId) => served.harnesses[messageId],
     decide,
   }
 }
