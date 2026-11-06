@@ -1,7 +1,6 @@
 import {
   createEffect,
   createMemo,
-  createResource,
   createSignal,
   For,
   onCleanup,
@@ -19,6 +18,7 @@ import {
   ChatProvider,
   ComposerHandlersProvider,
   NowLine,
+  readComposerDraft,
   Thread,
   ToolProvider,
   useComposerContext,
@@ -54,7 +54,7 @@ import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
-import {makeDraftStorage} from './draft-storage.js'
+import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
 import {useSessionCaptures} from './session-captures.js'
 import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
@@ -108,6 +108,35 @@ function ComposerWiring(props: {onReady: (api: ComposerApi) => void}): JSX.Eleme
   onCleanup(() => pane.grabStaging.disconnect())
   createEffect(() => pane.grabStaging.reconcile(context.attachments()))
   return <></>
+}
+
+function DraftRestore(props: {
+  storage: PaneDraftStorage
+  draftKey: string
+  input: () => ComposerInputHandle | undefined
+}): JSX.Element {
+  const context = useComposerContext()
+  const controller = new AbortController()
+  onCleanup(() => controller.abort())
+  onMount(() => {
+    const input = props.input
+    const draftKey = props.draftKey
+    void props.storage
+      .restore((restored) => {
+        const draft = readComposerDraft(restored.snapshot, draftKey)
+        if (!draft) return
+        context.restoreDraft(draft)
+        if (context.snapshotDraft().draft === restored.text) input()?.select(restored.selection)
+      }, controller.signal)
+      .catch((error: unknown) => {
+        console.error('[conciv] could not restore the draft', error)
+      })
+  })
+  return <></>
+}
+
+function compactingIndicator(compacting: boolean): JSX.Element | undefined {
+  return compacting ? <CompactSpinner /> : undefined
 }
 
 const StoppedMetadataSchema = z.object({tanstack: z.object({stopReason: z.literal('aborted')})})
@@ -194,7 +223,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   }
 
   const captures = useSessionCaptures(sessionId)
-  const [draftStorage] = createResource(() => makeDraftStorage(rpc, sessionId))
+  const draftStorage = makeDraftStorage(rpc, sessionId)
 
   const startedAt = new Map<string, number>()
   const durations = createMemo<Record<string, number>>(
@@ -370,40 +399,36 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                       <ExtensionSurface name="footer" instances={instances} />
                     </div>
                     <Suspense>
-                      <Show when={draftStorage()}>
-                        {(storage) => (
-                          <PaneComposer
-                            draftStorage={storage().storage}
-                            draftKey={sessionId}
-                            placeholder={composerPlaceholder()}
-                            inputLabel="Message the conciv agent"
-                            attachmentAdapter={attachments().adapter}
-                            AttachmentComponent={PaneAttachment}
-                            onInputReady={setInputHandle}
-                            onSelectionChange={storage().noteSelection}
-                            initialSelection={storage().restoredSelection}
-                            busy={compacting() ? <CompactSpinner /> : undefined}
-                            triggers={commandSources.triggers}
-                            prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
-                          >
-                            <Suspense fallback={<ComposerActionsPending />}>
-                              <ComposerActions
-                                sessionId={sessionId}
-                                compacting={compacting()}
-                                onCompact={() => messaging.compact.mutate()}
-                                onNewSession={() => pane.newSession()}
-                                onStageGrab={stageGrab}
-                              />
-                              <ExtensionSurface name="composer" instances={instances} />
-                              <ComposerWiring
-                                onReady={(api) => {
-                                  composerApi.current = api
-                                }}
-                              />
-                            </Suspense>
-                          </PaneComposer>
-                        )}
-                      </Show>
+                      <PaneComposer
+                        draftStorage={draftStorage.storage}
+                        draftKey={sessionId}
+                        placeholder={composerPlaceholder()}
+                        inputLabel="Message the conciv agent"
+                        attachmentAdapter={attachments().adapter}
+                        AttachmentComponent={PaneAttachment}
+                        onInputReady={setInputHandle}
+                        onSelectionChange={draftStorage.noteSelection}
+                        busy={compactingIndicator(compacting())}
+                        triggers={commandSources.triggers}
+                        prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
+                      >
+                        <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
+                        <Suspense fallback={<ComposerActionsPending />}>
+                          <ComposerActions
+                            sessionId={sessionId}
+                            compacting={compacting()}
+                            onCompact={() => messaging.compact.mutate()}
+                            onNewSession={() => pane.newSession()}
+                            onStageGrab={stageGrab}
+                          />
+                          <ExtensionSurface name="composer" instances={instances} />
+                          <ComposerWiring
+                            onReady={(api) => {
+                              composerApi.current = api
+                            }}
+                          />
+                        </Suspense>
+                      </PaneComposer>
                     </Suspense>
                   </Thread.Composer>
                 </Thread>

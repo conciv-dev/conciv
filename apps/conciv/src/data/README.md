@@ -25,7 +25,8 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 ## Side Effects
 
-- `app-data.ts:invalidateSessions`: invalidates the `sessions.list` query in the TanStack QueryClient
+- `app-data.ts:invalidateSessions`: invalidates the `sessions.list` query in the TanStack QueryClient without cancelling an in-flight fetch (`cancelRefetch: false`)
+- `app-data.ts:makeAppData`: sets `sessions.list` query defaults once for every observer: 30 s `staleTime`, no refetch on window focus; freshness comes from `invalidateSessions`
 
 ## Verification
 

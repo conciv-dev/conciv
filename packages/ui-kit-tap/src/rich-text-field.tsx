@@ -27,6 +27,7 @@ export type RichTextFieldHandle = {
   clear: () => void
   insertText: (text: string) => void
   appendText: (text: string) => void
+  select: (selection: RichTextFieldSelection) => void
 }
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -284,6 +285,9 @@ export function RichTextField(props: {
       appendText: (text) => {
         if (editor.isDestroyed) return
         editor.chain().command(appendCommand(text)).run()
+      },
+      select: (selection) => {
+        editor.chain().command(openingSelectionCommand(selection)).run()
       },
     })
   })

@@ -8,6 +8,7 @@ export type SelectionOffsets = {start: number; end: number}
 export type ComposerInputHandle = {
   focus: () => void
   append: (text: string) => void
+  select: (offsets: SelectionOffsets) => void
 }
 
 export type ComposerTriggerSources = {
@@ -23,7 +24,6 @@ export type ComposerInputAdapterProps = {
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
 }
 
 export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Element {
@@ -68,7 +68,6 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onValueChange={composer.setText}
         onSubmit={submit}
         onSelectionChange={props.onSelectionChange}
-        initialSelection={props.initialSelection}
         placeholder={props.placeholder}
         label={props.inputLabel}
         editableClass={props.editableClass}
@@ -80,6 +79,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
           props.onReady?.({
             focus: () => handle.focus(),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
+            select: (offsets) => handle.select(offsets),
           })
         }}
       />

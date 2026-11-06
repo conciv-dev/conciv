@@ -44,6 +44,7 @@ export type FaultSpec =
 type Fault = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
+  answered: () => Promise<void>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }
@@ -249,6 +250,8 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
     pending: () => 0,
     awaitCaptured: () =>
       Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
+    answered: () =>
+      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`)),
     release: () => {
       injector.repair()
       return Promise.resolve()
@@ -315,6 +318,8 @@ async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
       held.routes.length >= count
         ? Promise.resolve()
         : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () =>
+      Promise.reject(new Error('a chat-gate fault streams its answer, so it has no single call to await')),
     release: open,
     dispose: async () => {
       await open()
@@ -362,6 +367,10 @@ const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<str
 
 const releaseFault: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
   await faultOf(ctx, handle).release()
+}
+
+const awaitFaultAnswered: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
+  await faultOf(ctx, handle).answered()
 }
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => faultOf(ctx, handle).pending()
@@ -448,4 +457,5 @@ export const coreCommands = {
   releaseFault,
   faultPending,
   awaitFaultPending,
+  awaitFaultAnswered,
 }
