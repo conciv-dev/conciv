@@ -42,15 +42,23 @@ function reflowOf(node: DesignNode): Reflow | null {
 
 function breakpointOf(input: {node: DesignNode; ks: DesignNode[]; minChildWidth: number}): number {
   const {node, ks, minChildWidth} = input
-  const boxes = ks.map(boxOf).toSorted((a, b) => a.x - b.x)
-  const gaps = boxes.reduce((total, box, index) => {
-    const before = boxes[index - 1]
+  const columns = ks
+    .map(boxOf)
+    .toSorted((a, b) => a.x - b.x)
+    .reduce<Box[]>((found, box) => {
+      const last = found.at(-1)
+      if (last === undefined || box.x >= last.x + last.w - EDGE_PX) return [...found, box]
+      const right = Math.max(last.x + last.w, box.x + box.w)
+      return [...found.slice(0, -1), {...last, w: right - last.x}]
+    }, [])
+  const gaps = columns.reduce((total, box, index) => {
+    const before = columns[index - 1]
     return before === undefined ? total : total + Math.max(0, box.x - before.x - before.w)
   }, 0)
   const own = boxOf(node)
-  const left = Math.min(...boxes.map((box) => box.x)) - own.x
-  const right = own.x + own.w - Math.max(...boxes.map((box) => box.x + box.w))
-  return Math.round(ks.length * minChildWidth + gaps + Math.max(0, left) + Math.max(0, right))
+  const left = Math.min(...columns.map((box) => box.x)) - own.x
+  const right = own.x + own.w - Math.max(...columns.map((box) => box.x + box.w))
+  return Math.round(columns.length * minChildWidth + gaps + Math.max(0, left) + Math.max(0, right))
 }
 
 function scrolls(input: {node: DesignNode; ks: DesignNode[]}): boolean {
