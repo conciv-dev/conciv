@@ -15,7 +15,7 @@ export function itemsOf(input: {root: Match; extras: LiveComponent[]; distance: 
   )
   const unbuilt: Unbuilt = new Map(
     visits.flatMap(({match, parent}) =>
-      match.live === null
+      match.live === null && match.node.box.w > 0 && match.node.box.h > 0
         ? [[match.node.id, {stage: structural({match, parent, root}) ? 'structure' : null}] as const]
         : [],
     ),

@@ -125,6 +125,7 @@ const FIGMA_API = 'https://api.figma.com/v1'
 const JSON_EXTENSION = '.json'
 const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'LINE', 'STAR', 'POLYGON', 'REGULAR_POLYGON'])
 const GROUPS = new Set(['GROUP', 'FRAME', 'INSTANCE', 'COMPONENT'])
+const FRAMES = new Set(['FRAME', 'INSTANCE', 'COMPONENT'])
 const REGULAR_WEIGHT = 400
 const ID_LENGTH = 12
 const MIN_LINES = 2
@@ -534,7 +535,13 @@ function autoLayout(input: {node: FigmaNode; scale: number}): {layout?: Layout} 
 function vectorish(node: FigmaNode): boolean {
   if (VECTORS.has(node.type) || imageFilled(node)) return true
   const shown = visibleChildren(node)
-  return GROUPS.has(node.type) && shown.length > 0 && shown.every(vectorish)
+  if (shown.length === 0) return false
+  if (GROUPS.has(node.type) && shown.every(vectorish)) return true
+  return !FRAMES.has(node.type) && !shown.some(drawsFlow)
+}
+
+function drawsFlow(node: FigmaNode): boolean {
+  return node.type === 'TEXT' || FLOWS.has(node.layoutMode ?? '') || visibleChildren(node).some(drawsFlow)
 }
 
 function imageFilled(node: FigmaNode): boolean {

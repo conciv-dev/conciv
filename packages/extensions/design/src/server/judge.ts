@@ -293,8 +293,9 @@ function restate(input: {
     )
   if (depth === 0) return {...match, children: under(match.status)}
   const previous = before.get(match.node.id) ?? null
+  const flat = match.node.box.w === 0 || match.node.box.h === 0
   const observed: Status =
-    match.live === null ? 'unbuilt' : worstItem({items, node: match.node.id}) === null ? 'done' : 'paired'
+    match.live === null && !flat ? 'unbuilt' : worstItem({items, node: match.node.id}) === null ? 'done' : 'paired'
   const status =
     seat !== null && seat.path === match.live?.path
       ? seat.status
