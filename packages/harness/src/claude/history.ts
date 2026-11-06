@@ -20,6 +20,7 @@ import {containedPath} from '../_shared/contained-path.js'
 import {realpathOrSelf} from '../_shared/cwd.js'
 import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 function encodeProjectDir(cwd: string): string {
@@ -441,8 +442,8 @@ export function withinProject(cwd: string, sessionId: string): boolean {
 
 async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
   if (!withinProject(cwd, sessionId)) return []
-  const raw = await readFile(transcriptPath(cwd, sessionId), 'utf8').catch(whenMissing(''))
-  return raw ? parseHistory(raw) : []
+  const folded = await foldJsonlFile(transcriptPath(cwd, sessionId), emptyFold(), foldLine).catch(whenMissing(null))
+  return folded === null ? [] : folded.messages
 }
 
 export const claudeHistory: HarnessHistory = {

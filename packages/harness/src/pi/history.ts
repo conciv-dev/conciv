@@ -1,5 +1,5 @@
 import {createReadStream, readdirSync} from 'node:fs'
-import {open, readdir, readFile, stat} from 'node:fs/promises'
+import {open, readdir, stat} from 'node:fs/promises'
 import {createInterface} from 'node:readline'
 import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
@@ -18,6 +18,7 @@ import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {transcriptPage, type TranscriptStamp} from '../_shared/transcript-page.js'
 import {whenMissing} from '../_shared/when-missing.js'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 
 const MAX_TITLE = 80
 const TAIL_BYTES = 65_536
@@ -41,22 +42,6 @@ const HeaderSchema = z
 const SessionInfoSchema = z.object({type: z.literal('session_info'), name: z.string()}).loose()
 
 type Entry = z.infer<typeof EntrySchema>
-
-function records(raw: string): unknown[] {
-  return raw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(parseJsonOrNull)
-    .filter((value) => value !== null)
-}
-
-function entriesOf(raw: string): Entry[] {
-  return records(raw).flatMap((record) => {
-    const parsed = EntrySchema.safeParse(record)
-    return parsed.success ? [parsed.data] : []
-  })
-}
 
 export function activePath(entries: Entry[]): Entry[] {
   const byId = new Map(entries.map((entry) => [entry.id, entry]))
@@ -186,10 +171,6 @@ function messagesOf(entries: Entry[]): ChatMessage[] {
   return out
 }
 
-function parseHistory(raw: string): ChatMessage[] {
-  return messagesOf(entriesOf(raw))
-}
-
 function condense(value: string, max: number): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, max)
 }
@@ -229,8 +210,8 @@ function containedTranscript(cwd: string, sessionId: string): string | null {
 async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
   const path = containedTranscript(cwd, sessionId)
   if (path === null) return []
-  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
-  return raw ? parseHistory(raw) : []
+  const folded = await foldJsonlFile(path, emptyFold(), foldLine).catch(whenMissing(null))
+  return folded === null ? [] : messagesOf(folded.entries)
 }
 
 function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {

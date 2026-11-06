@@ -12,6 +12,7 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 
 ## Invariants
 
+- `messages` streams the transcript through `foldJsonlFile` with the same line fold `observe` uses.
 - Transcript reads go through `containedPath(sessionsDir, ...)`; a path outside it yields `[]` messages and `'missing'` from observe (`history.ts`).
 - Only entries on the active `parentId` chain become messages, with cycle protection (`activePath`); a `toolResult` attaches to the last assistant message or opens one (`messagesOf`).
 - `listSessions` keeps `.jsonl` names whose id token passes `HarnessSessionId.safeParse`, returns the 50 newest by mtime, and builds each meta without parsing the transcript: the head is streamed only up to the first user message (title, `createdAt` from the session header), the last 64 KB are scanned for the last `session_info.name`, which wins as the title, and `sizeBytes` and `updatedAt` come from `stat`.

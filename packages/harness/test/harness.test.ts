@@ -1178,6 +1178,17 @@ describe('codex history', () => {
       expect(next.filter((message) => firstIds.has(message.id))).toEqual([])
     })
 
+    it('reads a rollout while the event loop keeps running', async () => {
+      const order: string[] = []
+      setImmediate(() => order.push('timer'))
+
+      await history()
+        .messages(PROJECT, SESSION)
+        .then(() => order.push('read'))
+
+      expect(order).toEqual(['timer', 'read'])
+    })
+
     it('reads the context tokens from the last token_count event', () => {
       expect(history().contextTokens?.(rollout(ROLLOUT_LINES))).toBe(15994)
     })

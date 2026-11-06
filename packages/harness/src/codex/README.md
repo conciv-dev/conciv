@@ -11,7 +11,7 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 - `codex.connect.plan(ctx)` (`index.ts`): argv `codex [resume <id>] [-m <model>] [-c mcp_servers={...}]`.
 - `codexMcpArgs(mcpUrl, concivSessionId)` (`args.ts`): `-c mcp_servers={conciv={url=...,http_headers={<CONCIV_SESSION_HEADER>=...},startup_timeout_sec=30}}` with TOML-escaped strings.
 - `codexHome(env)`, `codexModels(dir)`, `codexDefaultModel(dir)` (`models.ts`).
-- `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, observe, withinProject, contextTokens, list}` (`history.ts`).
+- `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, observe, withinProject, contextTokens, list}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project.
 
 ## Invariants
 

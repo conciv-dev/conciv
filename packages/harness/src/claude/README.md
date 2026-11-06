@@ -26,6 +26,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `--plugin-dir` is added to connect argv only when `CONCIV_PLUGIN_DIR` is non-null (`claudeConnectPlan`, `index.ts`).
 - The Claude config dir is `CLAUDE_CONFIG_DIR`, else `~/.claude` (`claudeConfigDir` from `@conciv/harness-init/claude/state`), the same rule the Agent SDK follows; no Claude history call takes a home.
 - `listSessions` and `sessionMeta` go through the Agent SDK (`listSessions({dir: cwd, includeWorktrees: false})` then `pageAfter`, and `getSessionInfo`): the title is the SDK `summary`, `updatedAt` its `lastModified`, `sizeBytes` its `fileSize`. Sessions the SDK hides (no summary in the head or tail it reads, superseded by a `continued-in` record, non-UUID ids) are not listed and their `meta` is null.
+- `transcriptMessages` streams the transcript through `foldJsonlFile` with the same line fold as `observeTranscript`.
 - `sessionSummary`, `transcriptMessages` and `observeTranscript` refuse session ids whose path escapes `transcriptRoot` (`withinProject` via `containedPath`).
 - History skips sidechain records (`isSidechain`), machinery records in user turns (`isFromMachinery`), `INTERNAL_MARKERS`, `SYNTHETIC_MARKERS` and `MACHINERY_XML_BLOCK`; assistant records sharing `message.id` are merged and tool results attach to the last assistant message (`foldAssistantTurn`, `foldUserTurn`).
 - `MAX_TITLE` 80, `MAX_PREVIEW` 200 (`history.ts`).

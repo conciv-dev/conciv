@@ -17,6 +17,8 @@ import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {codexHome} from './models.js'
 
 const MAX_TITLE = 80
@@ -135,20 +137,19 @@ const TokenCountPayloadSchema = z
 
 export function rolloutCwd(raw: string): string | null {
   for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    let envelope: unknown
-    try {
-      envelope = JSON.parse(trimmed)
-    } catch {
-      continue
-    }
-    const parsed = EnvelopeSchema.safeParse(envelope)
-    if (!parsed.success || parsed.data.type !== 'session_meta') continue
-    const meta = SessionMetaPayloadSchema.safeParse(parsed.data.payload)
-    return meta.success ? (meta.data.cwd ?? null) : null
+    const found = sessionMetaCwd(line)
+    if (found !== undefined) return found
   }
   return null
+}
+
+function sessionMetaCwd(line: string): string | null | undefined {
+  const trimmed = line.trim()
+  if (!trimmed) return undefined
+  const parsed = EnvelopeSchema.safeParse(parseJsonOrNull(trimmed))
+  if (!parsed.success || parsed.data.type !== 'session_meta') return undefined
+  const meta = SessionMetaPayloadSchema.safeParse(parsed.data.payload)
+  return meta.success ? (meta.data.cwd ?? null) : null
 }
 
 function outputText(raw: unknown): string {
@@ -272,10 +273,6 @@ function spineMessages(spine: CodexSpine): ChatMessage[] {
   return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
 }
 
-function parseHistory(raw: string, sessionId: string): ChatMessage[] {
-  return raw.split('\n').reduce(foldLine, emptySpine(sessionId)).messages
-}
-
 function contextTokensFromTranscript(raw: string): number | undefined {
   let total: number | undefined
   for (const line of raw.split('\n')) {
@@ -329,9 +326,21 @@ function rolloutWithinProject(cwd: string, sessionId: string): boolean {
   return projectRollout(cwd, sessionId) !== null
 }
 
+type RolloutFold = {spine: CodexSpine; cwd: string | null | undefined}
+
+function foldRolloutLine(state: RolloutFold, line: string): RolloutFold {
+  if (state.cwd === undefined) state.cwd = sessionMetaCwd(line)
+  state.spine = foldLine(state.spine, line)
+  return state
+}
+
 async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
-  const rollout = projectRollout(cwd, sessionId)
-  return rollout ? parseHistory(rollout.raw, sessionId) : []
+  const path = rolloutPath(sessionId)
+  if (!path) return []
+  const empty: RolloutFold = {spine: emptySpine(sessionId), cwd: undefined}
+  const folded = await foldJsonlFile(path, empty, foldRolloutLine).catch(whenMissing(null))
+  if (folded === null || typeof folded.cwd !== 'string' || !sameCwd(folded.cwd, cwd)) return []
+  return folded.spine.messages
 }
 
 async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
