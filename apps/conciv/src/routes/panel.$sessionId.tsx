@@ -53,7 +53,7 @@ const RAIL_MICROLABEL =
   '[font-family:var(--chat-mono)] text-[length:var(--chat-text-micro)] leading-[1.2] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'
 const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-[5px]'
 const RAIL_TITLE_ROW =
-  'group flex items-center gap-1 min-w-0 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
+  'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
 const RAIL_TITLE_TRIGGER =
   'flex items-center gap-1.5 min-w-0 p-0 bg-transparent [border:none] text-start cursor-pointer rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
