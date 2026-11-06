@@ -103,16 +103,24 @@ sessions: {
 
 The picker's search box queries the server. It never filters loaded pages in the browser.
 
-- **What matches:** the title the picker shows (`row.title ?? native.derivedTitle`) or the session id contains the search text, case-insensitive. A search narrows the list; order and cursor rules stay as in section 1.
-- **Contract:** `sessions.list` input gains `search: z.string().trim().max(200).optional()`. The page type gains it too: `HarnessListPage = {after, limit, search: string | null}`.
-- **Harnesses:**
-  - **Codex** and **OpenCode** add the match to their SQL: `LIKE ? ESCAPE '\'` on the columns their `derivedTitle` comes from, plus the id.
-  - **Claude** and **Pi** walk the stat-sorted files from the cursor. For each file, they read only up to the first user message, which is what the title comes from. They stop once the page is full. The reader stops early; it never folds the whole transcript just to get a title.
-- **Core, renamed sessions:** a native-backed row with its own `title` is matched on that title, not the native one.
-  - Core drops a native page entry when its row title exists and doesn't match.
-  - A third source supplies renamed rows whose title matches: a SQL query for `harness_session_id IS NOT NULL AND title LIKE ?`, then `meta()` for each one's `updatedAt`, filtered by the cursor and merged by `(updatedAt, id)` like the other two sources.
-  - The number of renamed sessions is small, so this source isn't paged in SQL. That is its known ceiling.
-- **Conciv-only rows** add `title LIKE ?` to their SQL page.
+- **What matches:** a native session matches when its title or its message text contains the search words, prefix-matched, through a full-text index. A conciv row matches on its own title. A search narrows the list; order and cursor rules stay as in section 1, so results are newest first, not ranked.
+- **Contract:** `sessions.list` input gains `search: z.string().trim().max(200).optional()`.
+- **The index (core, decided 2026-11-06):**
+  - It's one SQLite FTS5 table in conciv's own database, keyed per `(harness, harnessSessionId)`:
+    ```sql
+    CREATE VIRTUAL TABLE session_search USING fts5(title, body, content='', contentless_delete=1, detail=column)
+    ```
+    plus a plain table `session_search_state(rowid, harness, harness_session_id, indexed_updated_at)`. Both are added through a drizzle migration.
+  - **No message text is stored.** `content=''` keeps only the inverted index; the columns read back as null. `detail=column` drops token positions, so the original text can't be put back together in order. The cost is no phrase queries; prefix queries still work.
+  - **Harness side:** `HarnessHistory` gains `searchDocument(cwd, id, home?): Promise<{title: string; body: string}>`. It gives the title plus the user and assistant message text, read through the same transcript reader the harness already has. It's required when `transcriptHistory` is true, so all four harnesses implement it.
+  - The harness also gains `stamps(cwd, home?): Promise<{id, updatedAt}[]>`, which is metadata only: a stat for Claude and Pi, a cheap SQL select for Codex and OpenCode.
+  - **Freshness:** on a list call with `search`, core calls `stamps`, re-indexes each session whose `updatedAt` is newer than `indexed_updated_at` (delete the row, insert again), and deletes the index rows of sessions that are gone. The first search reads every transcript once; after that, only changed ones. That's the known ceiling: a cold first search on a huge history is slow. The upgrade path is indexing in the background at engine start.
+  - **Query:** `session_search MATCH ?` with every word of the search turned into a quoted prefix term (`"word"*`). User input is never passed as raw FTS syntax. The matching ids are joined to `session_search_state`, filtered by the `(updatedAt, id)` cursor, and limited to `limit + 1`. The page's sessions then come from the harness `meta(cwd, id)`.
+  - Harness `list` itself never sees `search`. The index replaces per-harness matching, with one search path for every harness.
+- **Core, renamed sessions:**
+  - The index's `title` column holds the title the picker shows, `row.title ?? native.derivedTitle`.
+  - Renaming a native-backed session deletes its `session_search_state` row, so the next search re-indexes it under the new name.
+- **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\'` to their SQL page and merge with the index results by `(updatedAt, id)`, as in section 2.
 - **Widget:** the search text goes into the infinite query's key, debounced with `@solid-primitives/scheduled`. A new search starts over from page one. The combobox's `filter` stays off: the server already narrowed the list.
 
 ### 6. Virtual list and load-more row (decided 2026-11-06)
@@ -131,7 +139,7 @@ The picker's list is virtualized with `@tanstack/solid-virtual`, following TanSt
 - No caching of folds or file handles between calls. The previous change took that approach and it is rejected.
 - No change to `messages`, `observe`, or how a single transcript is read.
 - No TanStack DB migration for the widget. The maintainer chose TanStack Query's infinite query.
-- Full-text search inside transcripts: search matches titles and ids only.
+- Ranked results and phrase queries: results stay newest first, and the index keeps no token positions.
 
 ## Overlap with open PRs
 
