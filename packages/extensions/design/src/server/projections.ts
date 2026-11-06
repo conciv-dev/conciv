@@ -1,6 +1,6 @@
 import {isAbsolute, relative} from 'node:path'
 import {countBy, maxBy} from 'es-toolkit'
-import type {Delta, Design, DesignNode, DiffReport, Match, Run, Words} from '../shared/defs.js'
+import type {Design, DesignNode, DiffReport, Match, Run, Words} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 
@@ -28,13 +28,10 @@ type Sayings = {
     crop: (node: string) => string
   }): DiffReport['changes']
   line(input: {node: Match['node']; scale: number}): string
-  structural(input: {match: Match; parent: Match; root: Match}): boolean
   families(root: DesignNode): string[]
   guide: string
   hidden: string
 }
-
-const TOLERANCES = designConfig.tolerances
 
 function statusOf(input: Parameters<Words['status']>[0] & {phrases: Sayings; cwd: string}): StatusReport {
   const {record, run, design, previous, accepted, phrases, cwd} = input
@@ -58,7 +55,7 @@ function statusOf(input: Parameters<Words['status']>[0] & {phrases: Sayings; cwd
         id: record.id,
         width: record.width,
         mismatch: run === null ? null : run.mismatch,
-        above: run === null ? 0 : aboveCount({root: run.root, phrases}),
+        above: run === null ? 0 : run.above,
         lastAt: lastAt === null || !Number.isFinite(lastAt) ? null : lastAt,
       },
     ],
@@ -115,25 +112,6 @@ function roundsUsed(input: {section: string; rounds: Run[]}): number {
   return rounds.filter(
     (run, index) => index > 0 && run.section === input.section && hashes[index] !== hashes[index - 1],
   ).length
-}
-
-function aboveCount(input: {root: Match; phrases: Sayings}): number {
-  const {root, phrases} = input
-  const paths = new Set(
-    [...walk(root)].flatMap(({node, depth}) =>
-      depth === 0 || node.live === null || !node.deltas.some(aboveDelta) ? [] : [node.live.path],
-    ),
-  )
-  const unbuilt = [...walk(root)].filter(
-    ({node, parent}) => parent !== null && node.live === null && phrases.structural({match: node, parent, root}),
-  )
-  return paths.size + unbuilt.length
-}
-
-function aboveDelta(delta: Delta): boolean {
-  if (delta.warning !== undefined) return false
-  if (delta.kind !== 'pixels' || typeof delta.live !== 'number') return true
-  return delta.live >= TOLERANCES.tileGate
 }
 
 function statusNext(input: {

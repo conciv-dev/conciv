@@ -515,7 +515,6 @@ const SAYINGS = {
   item: itemSentence,
   changes: changesOf,
   line: BRIEF.line,
-  structural,
   families: BRIEF.families,
   guide: DESIGN_GUIDE,
   hidden: UNANSWERED_HINT,
