@@ -35,6 +35,8 @@ const SETTLED_FACES: Record<Exclude<ToolRowMark, 'run'>, MarkFace> = {
   pass: {glyph: '✓', label: 'succeeded', tone: 'text-chat-success'},
   warn: {glyph: '✓', label: 'completed with warnings', tone: 'text-chat-warn'},
   fail: {glyph: '✕', label: 'failed', tone: 'text-chat-danger'},
+  denied: {glyph: '⊘', label: 'denied', tone: 'text-chat-warn'},
+  cancelled: {glyph: '⊘', label: 'cancelled', tone: 'text-chat-dim'},
 }
 
 const PENDING_FACE: MarkFace = {glyph: '·', label: 'pending', tone: 'text-chat-dim'}

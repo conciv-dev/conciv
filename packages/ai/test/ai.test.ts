@@ -281,6 +281,45 @@ CREATE TABLE \`chat_threads\` (
     await driven
   })
 
+  it('a provider wait before any output is retried and the run completes', {timeout: 15_000}, async () => {
+    const seen = {calls: 0}
+    const ended = Promise.withResolvers<RunLifecycle>()
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('rate-limited-once', async function* () {
+          seen.calls += 1
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          if (seen.calls === 1) {
+            yield {type: ChatEventType.RUN_ERROR, message: 'rate limited', retryAfterMs: 1, timestamp: Date.now()}
+            return
+          }
+          yield* createTextChunks('answered after the wait')
+          yield {
+            type: ChatEventType.RUN_FINISHED,
+            runId: turn.runId,
+            threadId: turn.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => new Map(),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async (_turn, run) => ended.resolve(run),
+    }
+    const server = await chatServer(hooks, () => undefined)
+    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    const run = await ended.promise
+    expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
+  })
+
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     return createChatServer({

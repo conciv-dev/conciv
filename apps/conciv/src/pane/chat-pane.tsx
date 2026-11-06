@@ -61,6 +61,7 @@ import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
+import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
 const PAGE_SESSION: PageSessionConfig = {
@@ -77,9 +78,6 @@ const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
   'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
-const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
-const RETRY =
-  'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -383,12 +381,11 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         </Show>
                         <Show when={messaging.visibleError()}>
                           {(error) => (
-                            <div class={ERROR} role="alert">
-                              <span class="flex-1">{error().message}</span>
-                              <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                                Retry
-                              </button>
-                            </div>
+                            <RunErrorRow
+                              error={error()}
+                              onRetry={() => void chat.reload()}
+                              onCompact={() => messaging.compact.mutate()}
+                            />
                           )}
                         </Show>
                       </Show>

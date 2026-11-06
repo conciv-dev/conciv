@@ -129,13 +129,21 @@ function Result(): JSX.Element {
   )
 }
 
+const OUTCOME_LABEL: Record<NonNullable<ToolResultPart['outcome']> | 'error', string> = {
+  error: 'Error',
+  denied: 'Denied',
+  cancelled: 'Cancelled',
+}
+
 function ToolError(): JSX.Element {
   const tool = useToolFallback()
   return (
     <Show when={tool.error()}>
       {(message) => (
         <div class={SECTION}>
-          <p class={`${SECTION_LABEL} text-chat-danger`}>Error</p>
+          <p class={`${SECTION_LABEL}  ${tool.result()?.outcome === undefined ? 'text-chat-danger' : 'text-chat-warn'}`}>
+            {OUTCOME_LABEL[tool.result()?.outcome ?? 'error']}
+          </p>
           <p class="text-chat-text-2 m-0 [overflow-wrap:anywhere]">{message()}</p>
         </div>
       )}
