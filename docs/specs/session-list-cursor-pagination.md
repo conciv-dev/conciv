@@ -104,7 +104,7 @@ sessions: {
 The picker's search box queries the server. It never filters loaded pages in the browser.
 
 - **What matches:** a native session matches on its title or its message text through an Orama full-text index, with typo tolerance 1. A conciv-only row matches on its own title. Results keep section 1's order and cursor (newest first), not relevance order.
-- **Contract:** `sessions.list` input gains `search: z.string().trim().max(200).optional()`.
+- **Contract:** search is its own procedure, `sessions.search`, with input `{term: z.string().trim().min(1).max(200), includeHidden?, cursor?, limit}` and the same output as `sessions.list` (`{sessions, next}`). `sessions.list` takes no search input. Inside core, both procedures run the same pipeline (`listSessionMetas`); the only difference is the source of the native pages: harness `list` for `sessions.list`, the index for `sessions.search`.
 - **The index (core, Orama, decided 2026-11-06):**
   - `@orama/orama` (3.1.18, approved) is a dependency of core. There is one in-memory Orama instance per engine, with schema `{harness: 'enum', title: 'string', body: 'string', updatedAt: 'number'}`. The document id is `${harness}:${harnessSessionId}`.
   - **Memory only.** No persistence plugin and no Orama data written to disk; message text never lands in conciv's database. Orama has to keep the documents in memory, because `remove()` re-tokenizes the stored document.
@@ -117,7 +117,7 @@ The picker's search box queries the server. It never filters loaded pages in the
   - Harness `list` never sees `search`. Search has one path for every harness.
 - **Core, renamed sessions:** the indexed `title` is the title the picker shows, `row.title ?? native.derivedTitle`. A rename updates that session's Orama document right away.
 - **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\'` to their SQL page and merge with the index hits by `(updatedAt, id)`, as in section 2.
-- **Widget:** the search text goes into the infinite query's key, debounced with `@solid-primitives/scheduled`. A new search starts over from page one. The combobox's `filter` stays off: the server already narrowed the list.
+- **Widget:** the picker uses `sessions.list.infiniteOptions` when the debounced search is empty and `sessions.search.infiniteOptions` when it isn't; both share the same page handling. A new search starts over from page one. The combobox's `filter` stays off, because the server already narrowed the list. Invalidation covers `sessions.search` keys too.
 
 ### 6. Virtual list and load-more row (decided 2026-11-06)
 
