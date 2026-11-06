@@ -22,7 +22,8 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 - `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.
 - `session.ts:interruptAndFlush` - a newer stop request cancels the flush; all-text queues are joined with a newline into one message.
 - `session.ts:decide` - sends a follow-up message (`Approved: ...`, `Approved for this session: ...` or `Denied: ...`) only when the server returns `startsTurn` and the ask was pending.
-- `session.ts:createChatSession` - `useChat` is configured with `persistence: true`, `live: true`, `queue: 'queue'`.
+- `session.ts:createChatSession` - `useChat` is configured with `persistence: true`, `history: {pageSize: CHAT_HISTORY_PAGE_SIZE}` (50), `live: true`, `queue: 'queue'`.
+- `session.ts:showHydration` - a refresh replaces only the newest page; older pages already loaded stay in front of it.
 
 ## Side Effects
 

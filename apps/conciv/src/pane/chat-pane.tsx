@@ -61,6 +61,7 @@ import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
+import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
@@ -178,9 +179,11 @@ function threadDividers(chat: ChatSession, rows: () => MarkerRow[]): ThreadDivid
     const messages = chat.messages()
     return range(turn.start, turn.end + 1).map((index) => messages[index - 1])
   }
+  const loadedAfter = (message: ChatMessage | undefined): MarkerRow[] =>
+    message === undefined && chat.hasOlderMessages() ? [] : after(message)
   return {
-    before: (turn) => preceding(turn).flatMap(after),
-    trailing: () => after(chat.messages().at(-1)),
+    before: (turn) => preceding(turn).flatMap(loadedAfter),
+    trailing: () => loadedAfter(chat.messages().at(-1)),
     stoppedBefore: (turn) => isStoppedTurn(preceding(turn)[0]),
   }
 }
@@ -205,6 +208,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
 
   const panelFocus = usePanelComposerFocus()
   const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
+  const [threadViewport, setThreadViewport] = createSignal<HTMLElement>()
   createEffect(() => {
     const handle = inputHandle()
     if (!handle) return
@@ -369,9 +373,10 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                 class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
                 <Thread>
-                  <Thread.Viewport>
+                  <Thread.Viewport ref={setThreadViewport}>
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={hydrated()} fallback={<ConversationSkeleton />}>
+                        <OlderMessages chat={chat} viewport={threadViewport()} />
                         <Thread.Welcome>
                           <EmptyStateSlot
                             onStarter={(starter) => void chat.sendMessage(starter)}

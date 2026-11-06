@@ -14,7 +14,7 @@ import {
   approvalAskOf,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
 import {
   engineHeaders,
   engineWebSocket,
@@ -267,7 +267,7 @@ export function chatConnection(
     joinRun: (runId, abortSignal) => noticing(joining(selected, runId, abortSignal), options),
     hydrate,
     transport: () => chosen.transport,
-    refresh: () => hydrate(sessionId),
+    refresh: () => hydrate(sessionId, {limit: CHAT_HISTORY_PAGE_SIZE}),
     close: () => {
       for (const socket of live) socket.close()
       live.clear()

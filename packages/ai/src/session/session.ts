@@ -11,6 +11,7 @@ import {
 import type {QueuedMessage} from '@tanstack/ai-client'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
 
 export type Chat = UseChatReturn
 
@@ -106,6 +107,15 @@ function withRenderedIds(rendered: readonly ChatMessage[], stored: readonly Chat
   })
 }
 
+function olderPagesEnd(rendered: readonly ChatMessage[], page: readonly ChatMessage[]): number {
+  const pageStart = page[0]
+  if (pageStart === undefined) return 0
+  return Math.max(
+    rendered.findIndex((message) => message.id === pageStart.id),
+    0,
+  )
+}
+
 function renamedHarnesses(hydration: ChatSessionHydration, shown: readonly ChatMessage[]): Record<string, string> {
   return Object.fromEntries(
     hydration.messages.flatMap((message, index): [string, string][] => {
@@ -163,9 +173,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       }),
   })
   const showHydration = (hydration: ChatSessionHydration): void => {
-    const shown = withRenderedIds(chat.messages(), hydration.messages)
+    const rendered = chat.messages()
+    const older = rendered.slice(0, olderPagesEnd(rendered, hydration.messages))
+    const shown = withRenderedIds(rendered.slice(older.length), hydration.messages)
     setServed('harnesses', renamedHarnesses(hydration, shown))
-    chat.setMessages(shown)
+    chat.setMessages([...older, ...shown])
   }
   const refresh = async (): Promise<void> => {
     showHydration(await connection.refresh())
@@ -182,6 +194,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     threadId: options.sessionId,
     connection,
     persistence: true,
+    history: {pageSize: CHAT_HISTORY_PAGE_SIZE},
     live: true,
     queue: 'queue',
     onError: options.onError,
