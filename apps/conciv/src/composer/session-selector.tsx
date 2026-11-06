@@ -1,8 +1,15 @@
-import {createSignal, createEffect, For, Show, onCleanup, onMount, type JSX} from 'solid-js'
-import {createViewportObserver} from '@solid-primitives/intersection-observer'
-import {Button, Combobox, TooltipIconButton, TruncatedText} from '@conciv/ui-kit-system'
-import {useListCollection} from '@ark-ui/solid/combobox'
+import {createMemo, createSignal, Show, onMount, type JSX} from 'solid-js'
+import {
+  Button,
+  Combobox,
+  createListCollection,
+  TooltipIconButton,
+  TruncatedText,
+  VirtualList,
+} from '@conciv/ui-kit-system'
+import {createDebouncedValue} from '@tanstack/solid-pacer'
 import {skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
+import {groupBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
@@ -24,7 +31,21 @@ const PAGE_SIZE = 30
 
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
-function bucketOf(updatedAt: number, now: number): 'Today' | 'Yesterday' | 'Earlier' {
+const SEARCH_WAIT_MS = 250
+
+const HEADER_ROW_SIZE = 26
+
+const SESSION_ROW_SIZE = 48
+
+const MORE_ROW_SIZE = 44
+
+const BUCKETS = ['Today', 'Yesterday', 'Earlier'] as const
+
+type Bucket = (typeof BUCKETS)[number]
+
+type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: SessionMeta}
+
+function bucketOf(updatedAt: number, now: number): Bucket {
   const day = 86_400_000
   const startOfToday = now - (now % day)
   if (updatedAt >= startOfToday) return 'Today'
@@ -48,16 +69,17 @@ function metaLabel(s: SessionMeta, now: number): string {
   return `Edited ${relativeTime(s.updatedAt, now)} · ${s.messageCount} messages · ${origin}`
 }
 
-function groupsOf(list: SessionMeta[], now: number): {name: string; items: SessionMeta[]}[] {
-  const order: ('Today' | 'Yesterday' | 'Earlier')[] = ['Today', 'Yesterday', 'Earlier']
-  const byBucket = new Map<string, SessionMeta[]>()
-  for (const s of list) {
-    const b = bucketOf(s.updatedAt, now)
-    const arr = byBucket.get(b) ?? []
-    arr.push(s)
-    byBucket.set(b, arr)
-  }
-  return order.filter((b) => byBucket.has(b)).map((name) => ({name, items: byBucket.get(name) ?? []}))
+function pickerRows(list: SessionMeta[], now: number): PickerRow[] {
+  const byBucket = groupBy(list, (session) => bucketOf(session.updatedAt, now))
+  return BUCKETS.flatMap((name): PickerRow[] => {
+    const sessions = byBucket[name]
+    if (sessions === undefined) return []
+    return [{kind: 'header', name}, ...sessions.map((session): PickerRow => ({kind: 'session', session}))]
+  })
+}
+
+function rowSize(row: PickerRow): number {
+  return row.kind === 'header' ? HEADER_ROW_SIZE : SESSION_ROW_SIZE
 }
 
 export function SessionSelector(props: {
@@ -71,13 +93,17 @@ export function SessionSelector(props: {
   const announce = useAnnounce()
   const idPrefix = `conciv-session-${++instanceSeq}`
 
-  const list = useInfiniteQuery(() =>
-    appData.utils.sessions.list.infiniteOptions({
-      input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
+  const [query, setQuery] = createSignal('')
+  const [debouncedQuery] = createDebouncedValue(query, {wait: SEARCH_WAIT_MS})
+  const search = () => (query().trim() === '' ? '' : debouncedQuery().trim())
+  const list = useInfiniteQuery(() => {
+    const term = search()
+    return appData.utils.sessions.list.infiniteOptions({
+      input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE, search: term || undefined}),
       initialPageParam: null,
       getNextPageParam: (page) => page.next,
-    }),
-  )
+    })
+  })
   const active = useQuery(() => {
     const sessionId = props.activeId()
     return appData.utils.sessions.get.queryOptions({input: sessionId === null ? skipToken : {sessionId}})
@@ -85,14 +111,10 @@ export function SessionSelector(props: {
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
     harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
-  const rows = (): SessionMeta[] => list.data?.pages.flatMap((page) => page.sessions) ?? []
-  const [observe, {remove: unobserve}] = createViewportObserver()
-  const loadMoreWhenSeen = (sentinel: HTMLElement) => {
-    observe(sentinel, (entry) => {
-      if (!entry.isIntersecting || !list.hasNextPage || list.isFetchingNextPage) return
-      void list.fetchNextPage()
-    })
-    onCleanup(() => unobserve(sentinel))
+  const sessionsLoaded = createMemo((): SessionMeta[] => list.data?.pages.flatMap((page) => page.sessions) ?? [])
+  const loadMore = () => {
+    if (!list.hasNextPage || list.isFetchingNextPage || list.isFetchNextPageError) return undefined
+    return list.fetchNextPage()
   }
   const activeId = () => props.activeId()
 
@@ -100,19 +122,21 @@ export function SessionSelector(props: {
     const id = activeId()
     return id ? [id] : []
   }
-  const [query, setQuery] = createSignal('')
   const [now, setNow] = createSignal(0)
-  const {collection, filter, set} = useListCollection<SessionMeta>({
-    initialItems: [],
-    itemToValue: (s) => s.id,
-    itemToString: (s) => s.title,
-    filter: (_text, q, item) => `${item.title} ${item.id}`.toLowerCase().includes(q.toLowerCase()),
-  })
-
-  createEffect(() => {
-    set(rows())
-    if (query()) filter(query())
-  })
+  const collection = createMemo(() =>
+    createListCollection<SessionMeta>({
+      items: sessionsLoaded(),
+      itemToValue: (session) => session.id,
+      itemToString: (session) => session.title,
+    }),
+  )
+  const rows = createMemo(() => pickerRows(sessionsLoaded(), now()))
+  let scrollToRow: ((index: number) => void) | undefined
+  const scrollToItem = (index: number) => {
+    const id = collection().items[index]?.id
+    const row = rows().findIndex((candidate) => candidate.kind === 'session' && candidate.session.id === id)
+    if (row >= 0) scrollToRow?.(row)
+  }
   onMount(() => setNow(Date.now()))
 
   const activeRow = () => active.data ?? null
@@ -156,7 +180,7 @@ export function SessionSelector(props: {
 
   const select = (id: string) => {
     if (!id || id === activeId()) return
-    const title = rows().find((s) => s.id === id)?.title ?? id
+    const title = sessionsLoaded().find((s) => s.id === id)?.title ?? id
     props.onActivate(id)
     announce(`Switched to ${title}`)
   }
@@ -169,21 +193,17 @@ export function SessionSelector(props: {
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
+      scrollToIndexFn={(details) => scrollToItem(details.index)}
       onValueChange={(d) => {
         const id = d.value[0]
         if (id) select(id)
         setQuery('')
-        filter('')
       }}
-      onInputValueChange={(d) => {
-        setQuery(d.inputValue)
-        filter(d.inputValue)
-      }}
+      onInputValueChange={(d) => setQuery(d.inputValue)}
       onOpenChange={(d) => {
         if (d.open) {
           setNow(Date.now())
           setQuery('')
-          filter('')
           appData.invalidateSessions()
         }
       }}
@@ -260,81 +280,109 @@ export function SessionSelector(props: {
               </TooltipIconButton>
             </Show>
           </div>
-          <div class="flex-1 overflow-y-auto">
-            <Show when={list.isLoading && rows().length === 0}>
-              <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
-                <div class={SKEL} />
-                <div class={SKEL} />
-                <div class={SKEL} />
-                <span class="sr-only">Loading sessions…</span>
-              </div>
-            </Show>
-            <Show when={list.isError}>
-              <div
-                class="text-[0.75rem] text-chat-text-3 px-2 py-2.5 flex gap-2 items-center justify-between"
-                role="status"
+          <Show when={list.isLoading && sessionsLoaded().length === 0}>
+            <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
+              <div class={SKEL} />
+              <div class={SKEL} />
+              <div class={SKEL} />
+              <span class="sr-only">Loading sessions…</span>
+            </div>
+          </Show>
+          <Show when={list.isError && !list.isFetchNextPageError}>
+            <div
+              class="text-[0.75rem] text-chat-text-3 px-2 py-2.5 flex gap-2 items-center justify-between"
+              role="status"
+            >
+              <span>Couldn't load sessions</span>
+              <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
+                Retry
+              </Button>
+            </div>
+          </Show>
+          <Show when={list.isSuccess && sessionsLoaded().length === 0 && !list.hasNextPage}>
+            <div class="text-[0.75rem] text-chat-text-3 px-2 py-2.5" role="status">
+              {search() ? 'No sessions match' : 'No other sessions yet'}
+            </div>
+          </Show>
+          <VirtualList
+            class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+            rows={rows()}
+            sizeOf={rowSize}
+            more={list.hasNextPage}
+            moreRowSize={MORE_ROW_SIZE}
+            onReachMore={loadMore}
+            onScroller={(scroll) => {
+              scrollToRow = scroll
+            }}
+            moreRow={
+              <Show
+                when={list.isFetchNextPageError}
+                fallback={
+                  <div class="px-1 py-1.5" role="status" aria-busy="true">
+                    <div class={SKEL} />
+                    <span class="sr-only">Loading more sessions…</span>
+                  </div>
+                }
               >
-                <span>Couldn't load sessions</span>
-                <Button variant="outline" size="sm" onClick={() => void list.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            </Show>
-            <Show when={list.isSuccess && collection().items.length === 0}>
-              <div class="text-[0.75rem] text-chat-text-3 px-2 py-2.5" role="status">
-                {query() ? 'No sessions match' : 'No other sessions yet'}
-              </div>
-            </Show>
-            <For each={groupsOf(collection().items, now())}>
-              {(group) => (
-                <Combobox.ItemGroup>
-                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]">
-                    {group.name}
-                  </Combobox.ItemGroupLabel>
-                  <For each={group.items}>
-                    {(s) => (
-                      <Combobox.Item
-                        item={s}
-                        class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
-                        aria-label={`${s.title}, ${metaLabel(s, now())}${harnessSuffix(s)}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
-                      >
-                        <div class="flex flex-1 flex-col gap-px min-w-0">
-                          <TruncatedText text={s.title}>
-                            <Combobox.ItemText>{s.title}</Combobox.ItemText>
-                          </TruncatedText>
-                          <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
-                            Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
-                            {harnessSuffix(s)}
-                          </span>
-                        </div>
-                        <Show when={s.origin === 'conciv'}>
-                          <Sparkles class="text-chat-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
-                        </Show>
-                        <Show when={s.running}>
-                          <span
-                            class="rounded-chat-pill bg-chat-success shrink-0 size-1.75 anim-pulse"
-                            aria-hidden="true"
-                          />
-                        </Show>
-                        <Combobox.ItemIndicator class="text-chat-accent ml-auto hidden data-[state=checked]:inline-flex">
-                          <Check class="size-5 block" aria-hidden="true" />
-                        </Combobox.ItemIndicator>
-                      </Combobox.Item>
-                    )}
-                  </For>
-                </Combobox.ItemGroup>
-              )}
-            </For>
-            <Show when={list.isFetchingNextPage}>
-              <div class="px-1 py-1.5" role="status" aria-busy="true">
-                <div class={SKEL} />
-                <span class="sr-only">Loading more sessions…</span>
-              </div>
-            </Show>
-            <div ref={loadMoreWhenSeen} aria-hidden="true" />
-          </div>
+                <div
+                  class="text-[0.75rem] text-chat-text-3 px-2 py-1.5 flex gap-2 items-center justify-between"
+                  role="status"
+                >
+                  <span>Couldn't load more sessions</span>
+                  <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
+                    Retry
+                  </Button>
+                </div>
+              </Show>
+            }
+          >
+            {(row) => (
+              <Show
+                when={row.kind === 'session' ? row.session : undefined}
+                fallback={
+                  <div
+                    class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]"
+                    aria-hidden="true"
+                  >
+                    {row.kind === 'header' ? row.name : ''}
+                  </div>
+                }
+              >
+                {(session) => <SessionOption session={session()} now={now()} suffix={harnessSuffix(session())} />}
+              </Show>
+            )}
+          </VirtualList>
         </Combobox.Content>
       </Combobox.Positioner>
     </Combobox.Root>
+  )
+}
+
+function SessionOption(props: {session: SessionMeta; now: number; suffix: string}): JSX.Element {
+  return (
+    <Combobox.Item
+      item={props.session}
+      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
+      aria-label={`${props.session.title}, ${metaLabel(props.session, props.now)}${props.suffix}${props.session.running ? `, ${RUNNING_LABEL}` : ''}`}
+    >
+      <div class="flex flex-1 flex-col gap-px min-w-0">
+        <TruncatedText text={props.session.title}>
+          <Combobox.ItemText>{props.session.title}</Combobox.ItemText>
+        </TruncatedText>
+        <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
+          Edited {relativeTime(props.session.updatedAt, props.now)} · {props.session.messageCount} messages
+          {props.suffix}
+        </span>
+      </div>
+      <Show when={props.session.origin === 'conciv'}>
+        <Sparkles class="text-chat-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
+      </Show>
+      <Show when={props.session.running}>
+        <span class="rounded-chat-pill bg-chat-success shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
+      </Show>
+      <Combobox.ItemIndicator class="text-chat-accent ml-auto hidden data-[state=checked]:inline-flex">
+        <Check class="size-5 block" aria-hidden="true" />
+      </Combobox.ItemIndicator>
+    </Combobox.Item>
   )
 }

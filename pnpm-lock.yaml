@@ -527,9 +527,6 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
-      '@solid-primitives/intersection-observer':
-        specifier: ^2.2.5
-        version: 2.2.5(solid-js@1.9.17)
       '@solid-primitives/mutation-observer':
         specifier: ^1.2.4
         version: 1.2.4(solid-js@1.9.17)
@@ -545,6 +542,9 @@ importers:
       '@tanstack/solid-hotkeys':
         specifier: ^0.17.0
         version: 0.17.0(solid-js@1.9.17)
+      '@tanstack/solid-pacer':
+        specifier: 0.24.0
+        version: 0.24.0(solid-js@1.9.17)
       '@tanstack/solid-query':
         specifier: 'catalog:'
         version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
@@ -10066,11 +10066,6 @@ packages:
 
   '@solid-primitives/event-listener@2.4.6':
     resolution: {integrity: sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw==}
-    peerDependencies:
-      solid-js: ^1.6.12
-
-  '@solid-primitives/intersection-observer@2.2.5':
-    resolution: {integrity: sha512-mhlQETWaS4jjVBBmfFUsUSih5eSqVdYD7bDAjwmhxEAy1bydKTiaCn8g3ARQB1jM/92qyxTcOvTCpPoMIOkaPA==}
     peerDependencies:
       solid-js: ^1.6.12
 
@@ -22728,11 +22723,6 @@ snapshots:
       solid-js: 1.9.17
 
   '@solid-primitives/event-listener@2.4.6(solid-js@1.9.17)':
-    dependencies:
-      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
-      solid-js: 1.9.17
-
-  '@solid-primitives/intersection-observer@2.2.5(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17

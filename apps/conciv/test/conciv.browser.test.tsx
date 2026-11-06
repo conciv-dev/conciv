@@ -2971,6 +2971,12 @@ describe('session selector', () => {
         updatedAt: Date.now() - (index + 1) * DAY_MS,
         messageCount: 1,
       })),
+      {
+        id: HarnessSessionId.parse('kiwi-orchard'),
+        derivedTitle: 'the kiwi orchard plan',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+        messageCount: 1,
+      },
     ],
   })
   const keep = keptPane()
@@ -3018,9 +3024,25 @@ describe('session selector', () => {
     expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
 
     await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
+    await expect.element(page.getByRole('option', {name: /^older session 28,/})).toBeInTheDocument()
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
 
     await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
     await expect.element(page.getByText('Loading more sessions…')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+  })
+
+  test('arrow keys move the highlight to a row outside the virtual window and scroll it into view', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+
+    await userEvent.keyboard('{ArrowUp}')
+
+    await expect
+      .element(page.getByRole('combobox', {name: /search sessions/i}))
+      .toHaveAttribute('aria-activedescendant')
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
   })
 
@@ -3029,18 +3051,17 @@ describe('session selector', () => {
 
     await page.getByRole('button', {name: 'Session: the active session'}).click()
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
+    expect(page.getByRole('option', {name: /^the kiwi orchard plan,/}).elements()).toHaveLength(0)
 
-    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'older session 39')
+    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'kiwi')
 
-    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^older session 38,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
 
     await userEvent.clear(page.getByPlaceholder('Search sessions…'))
 
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^older session 39,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
   })
 
   test('a session past the first page shows its own title on the trigger', async () => {
