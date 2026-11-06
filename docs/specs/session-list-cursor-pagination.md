@@ -119,6 +119,18 @@ The picker's search box queries the server. It never filters loaded pages in the
 - **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\'` to their SQL page and merge with the index hits by `(updatedAt, id)`, as in section 2.
 - **Widget:** the picker uses `sessions.list.infiniteOptions` when the debounced search is empty and `sessions.search.infiniteOptions` when it isn't; both share the same page handling. A new search starts over from page one. The combobox's `filter` stays off, because the server already narrowed the list. Invalidation covers `sessions.search` keys too.
 
+### 5b. Cheap session metadata (decided 2026-11-06)
+
+Measured on real data (81 Claude transcripts, 2.6 GB, the largest 419 MB): a list page took 13.7 s, `sessions.get` for the live session over 10 s, the first search 35 s, and each later search 3-5 s. All of it came from parsing whole transcripts to build `HarnessSessionMeta`.
+
+- **Claude and Pi meta and list** never parse a whole transcript.
+  - The title comes from the first user message, read by streaming lines from the start and stopping there.
+  - `messageCount` comes from a byte scan that counts newline-delimited records of the user/assistant kinds, without `JSON.parse` of every line. If an exact count can't be had without a parse, the meta gets the closest cheap count the transcript format allows. Report which.
+  - `updatedAt` stays the file's mtime.
+  - Everything else the meta carries is either read from the head or dropped, if nothing uses it.
+- **Search hits** take their meta from the index document (title, updatedAt, messageCount stored at index time). They don't call `meta()` per hit. A transcript that has gone is caught on the next refresh, not per hit.
+- **A live session** that changes all the time is re-indexed at most once every 30 s. Between those re-indexes its body can lag behind; its title and updatedAt still come from the walk.
+
 ### 6. Virtual list and load-more row (decided 2026-11-06)
 
 The picker's list is virtualized with `@tanstack/solid-virtual`, following TanStack's infinite-scroll example:
