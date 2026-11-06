@@ -94,7 +94,7 @@ function RoundView(props: {round: Round; id: string; image: (path: string) => st
           </For>
         </tbody>
       </table>
-      <For each={props.round.reflow}>
+      <For each={props.round.reflow.results}>
         {(reflow) => (
           <p class="text-xs m-0">
             {reflow.width}: {reflow.sticksOut.length} stick out ·{' '}

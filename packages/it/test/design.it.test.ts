@@ -394,7 +394,7 @@ describe('store', () => {
     const round: Round = {
       round: 1,
       rows: [],
-      reflow: [],
+      reflow: {widths: [], results: []},
       coverage: {nodes: 1, mapped: 1, rendered: 1, missing: [], unknown: [], dupes: []},
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, rows: 0},
       pixels: {share: 0},
@@ -435,6 +435,8 @@ describe('voter', () => {
       path: 'region',
       sources: ['dom'],
       overflowX: false,
+      queries: [],
+      sheets: '',
       framework: 'react',
       masks: [],
     }
@@ -467,13 +469,14 @@ describe('design_get', () => {
 })
 
 describe('design_watch', () => {
-  it('measures the page into a round with rows, coverage and reflow at 1024 and 768, and counts the rounds', async () => {
+  it('measures the page into a round with rows, coverage and reflow at the widths the design names, and counts the rounds', async () => {
     await goto('target')
     await cardsTarget()
     const first = roundOf(await call('design_watch', {}))
     expect(first.coverage.nodes).toBeGreaterThan(0)
-    expect(first.reflow.map((reflow) => reflow.width)).toEqual([1024, 768])
-    expect(first.reflow[0]?.tags.map((tag) => tag.node)).toEqual(['1:2'])
+    expect(first.reflow.widths.map((entry) => entry.width)).toContain(1200)
+    expect(first.reflow.widths.every((entry) => entry.from.length > 0)).toBe(true)
+    expect(first.reflow.results[0]?.tags.map((tag) => tag.node)).toEqual(['1:2'])
     const second = roundOf(await call('design_watch', {nodes: ['1:10']}))
     expect(second.round).toBe(first.round + 1)
     expect(second.rows.every((row) => row.node === '1:10')).toBe(true)

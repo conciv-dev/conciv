@@ -32,9 +32,25 @@ function reflowOf(node: DesignNode): Reflow | null {
   const narrowest = Math.min(...ks.map((k) => boxOf(k).w))
   const sum = ks.reduce((total, k) => total + boxOf(k).w, 0)
   const minChildWidth = Math.round(narrowest * MIN_SHARE)
-  if (sameComponent(ks) || (sameWidth(ks) && narrowest >= WRAP_NARROWEST)) return {kind: 'wrap', minChildWidth}
-  if (narrowest >= STACK_NARROWEST && sum > STACK_SUM && boxOf(node).w > WIDE_PX) return {kind: 'stack', minChildWidth}
+  const breakpoint = breakpointOf({node, ks, minChildWidth})
+  if (sameComponent(ks) || (sameWidth(ks) && narrowest >= WRAP_NARROWEST))
+    return {kind: 'wrap', minChildWidth, breakpoint}
+  if (narrowest >= STACK_NARROWEST && sum > STACK_SUM && boxOf(node).w > WIDE_PX)
+    return {kind: 'stack', minChildWidth, breakpoint}
   return null
+}
+
+function breakpointOf(input: {node: DesignNode; ks: DesignNode[]; minChildWidth: number}): number {
+  const {node, ks, minChildWidth} = input
+  const boxes = ks.map(boxOf).toSorted((a, b) => a.x - b.x)
+  const gaps = boxes.reduce((total, box, index) => {
+    const before = boxes[index - 1]
+    return before === undefined ? total : total + Math.max(0, box.x - before.x - before.w)
+  }, 0)
+  const own = boxOf(node)
+  const left = Math.min(...boxes.map((box) => box.x)) - own.x
+  const right = own.x + own.w - Math.max(...boxes.map((box) => box.x + box.w))
+  return Math.round(ks.length * minChildWidth + gaps + Math.max(0, left) + Math.max(0, right))
 }
 
 function scrolls(input: {node: DesignNode; ks: DesignNode[]}): boolean {

@@ -141,6 +141,7 @@ const PaintSchema = z.object({
 const ReflowTagSchema = z.object({
   kind: z.enum(['stack', 'wrap', 'scroll']),
   minChildWidth: z.number().optional(),
+  breakpoint: z.number().optional().describe('the row width under which a child would go below minChildWidth'),
 })
 
 const FigmaFactsSchema = z.object({
@@ -258,6 +259,11 @@ const ReflowSchema = z.object({
   ),
 })
 
+const ReflowsSchema = z.object({
+  widths: z.array(z.object({width: z.number(), from: z.array(z.string())})),
+  results: z.array(ReflowSchema),
+})
+
 const CoverageSchema = z.object({
   nodes: z.number().describe('design nodes the gate measures'),
   mapped: z.number().describe('of them, nodes the mapping holds'),
@@ -276,7 +282,7 @@ const PixelsSchema = z.object({share: z.number().describe('share of mismatched p
 export const RoundSchema = z.object({
   round: z.number(),
   rows: z.array(GateRowSchema),
-  reflow: z.array(ReflowSchema),
+  reflow: ReflowsSchema,
   coverage: CoverageSchema,
   counts: CountsSchema,
   pixels: PixelsSchema.nullable(),
@@ -324,7 +330,7 @@ const WatchResultSchema = z.union([
   z.object({
     round: z.number(),
     rows: z.array(GateRowSchema),
-    reflow: z.array(ReflowSchema),
+    reflow: ReflowsSchema,
     coverage: CoverageSchema,
     counts: CountsSchema,
   }),
@@ -336,7 +342,7 @@ const VerdictSchema = z.object({
   reasons: z.array(z.string()),
   counts: CountsSchema.nullable(),
   coverage: CoverageSchema.nullable(),
-  reflow: z.array(ReflowSchema),
+  reflow: ReflowsSchema,
   pixels: PixelsSchema.nullable(),
   rounds: z.number(),
 })
@@ -353,6 +359,8 @@ const MeasureResultSchema = z.object({
   limits: MirrorLimitsSchema.optional(),
   opinion: z.boolean().describe('takumi laid the mirror out as a second opinion'),
   overflowX: z.boolean().default(false).describe('the measured page scrolls sideways'),
+  queries: z.array(z.number()).default([]).describe('the widths the media and container queries of the page name'),
+  sheets: z.string().default('').describe('sha256 of the page stylesheets'),
   framework: z
     .enum(['react', 'solid'])
     .nullable()
@@ -437,7 +445,7 @@ const getDef = designTool({
 const watchDef = designTool({
   verb: 'watch',
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at 1024 and 768 wide, and which nodes are rendered, missing or rendered twice.',
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, and which nodes are rendered, missing or rendered twice.',
   running: 'Measuring the page against the design',
   done: 'Measured the page against the design',
   input: WatchInputSchema,
@@ -563,6 +571,8 @@ export type Measured = {
   path: CapturePath
   sources: MeasureSource[]
   overflowX: boolean
+  queries: number[]
+  sheets: string
   longestTask?: number
   pageError?: string
   framework: 'react' | 'solid'

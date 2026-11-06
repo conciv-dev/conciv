@@ -65,8 +65,12 @@ function tagged(input: {
     ...facts?.fields,
     ...(facts?.absolute === true ? {absolute: true} : {}),
     ...(node.implied === true ? {implied: true} : {}),
-    ...(node.reflow === undefined ? {} : {reflow: node.reflow}),
+    ...(node.reflow === undefined ? {} : {reflow: shownReflow(node.reflow)}),
     ...(key === undefined ? {} : {key}),
     ...(facts === undefined && node.kind === 'text' ? {text: node.text} : {}),
   }
+}
+
+function shownReflow(reflow: NonNullable<DesignNode['reflow']>): NonNullable<Tagged['reflow']> {
+  return {kind: reflow.kind, ...(reflow.minChildWidth === undefined ? {} : {minChildWidth: reflow.minChildWidth})}
 }

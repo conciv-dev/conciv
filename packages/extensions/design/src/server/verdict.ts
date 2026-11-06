@@ -10,7 +10,7 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Verdict {
       reasons: ['No measure yet: call design_watch first.'],
       counts: null,
       coverage: null,
-      reflow: [],
+      reflow: {widths: [], results: []},
       pixels: null,
       rounds: 0,
     }
@@ -50,7 +50,7 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
     ...(missing.length > 0
       ? [`${missing.length} required nodes are not rendered: ${missing.slice(0, MISSING_SHOWN).join(', ')}.`]
       : []),
-    ...round.reflow.flatMap((reflow) => [
+    ...round.reflow.results.flatMap((reflow) => [
       ...(reflow.sticksOut.length > 0
         ? [
             `At ${reflow.width} wide ${reflow.sticksOut.length} nodes stick out of the page: ${reflow.sticksOut.slice(0, MISSING_SHOWN).join(', ')}.`,

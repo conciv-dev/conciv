@@ -5,6 +5,7 @@ import {mappingOf} from './mapping.js'
 import {renderersOf} from './renderers.js'
 import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
+import {widthsOf} from './widths.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
@@ -28,12 +29,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
     if (previous !== undefined && gate.coverage.rendered < previous.coverage.rendered / 2)
       return {unsettled: true, rendered: gate.coverage.rendered}
     await store.writeMapping({id: record.id, mapping})
-    const reflow = []
-    for (const width of REFLOW_WIDTHS) {
-      const narrow = await measurer.measure({page, width, height: REFLOW_HEIGHT})
+    const widths = widthsOf({design, styles: measured.queries})
+    const results = []
+    for (const {width} of widths) {
+      const narrow = width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT})
       const at = renderersOf({live: narrow.live, mapping})
-      reflow.push(reflowAt({root: design.root, renderers: at, live: narrow.live, width, overflowX: narrow.overflowX}))
+      results.push(reflowAt({root: design.root, renderers: at, live: narrow.live, width, overflowX: narrow.overflowX}))
     }
+    const reflow = {widths, results}
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const written: Round = {
       round,
@@ -48,8 +51,6 @@ export function createRunner(runtime: DesignRuntime): Runner {
     return {round, rows: gate.rows, reflow, coverage: gate.coverage, counts: gate.counts}
   }
 }
-
-const REFLOW_WIDTHS = [1024, 768]
 
 const REFLOW_HEIGHT = 900
 

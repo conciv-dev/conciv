@@ -15,6 +15,7 @@ import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
+import {pageQueries} from './client/queries.js'
 
 declare global {
   interface Window {
@@ -54,6 +55,7 @@ type Winner = {
   conditions: string[]
   rulePath: string
 }
+type Measuring = Omit<MeasureResult, 'queries' | 'sheets'>
 type Framework = NonNullable<MeasureResult['framework']>
 type MirrorLimits = NonNullable<MeasureResult['limits']>
 type LiveStyles = LiveComponent['styles']
@@ -182,7 +184,8 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   releaseMirror()
   const pageError = overlayError()
   const measured = size.width === innerWidth ? await measureLive(size) : await measureMirror(size)
-  return pageError === null ? measured : {...measured, pageError}
+  const queried = {...measured, ...(await pageQueries(document))}
+  return pageError === null ? queried : {...queried, pageError}
 }
 
 function overlayError(): string | null {
@@ -193,7 +196,7 @@ function overlayError(): string | null {
   return lines.find((line) => line !== '') ?? OVERLAY_FALLBACK
 }
 
-async function measureLive(size: Size): Promise<MeasureResult> {
+async function measureLive(size: Size): Promise<Measuring> {
   const longestTask = watchLongTasks()
   const components = await collectComponents({root: document, size})
   const masks = canvasBoxes({root: document, size})
@@ -232,7 +235,7 @@ function watchLongTasks(): () => number | null {
   }
 }
 
-async function measureMirror(size: Size): Promise<MeasureResult> {
+async function measureMirror(size: Size): Promise<Measuring> {
   const doc = mirrorDocument(await mirrorAt(size))
   const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
