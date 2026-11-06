@@ -28,8 +28,8 @@ export function encodeSessionDir(cwd: string): string {
     .replace(/[/\\:]/g, '-')}--`
 }
 
-export function sessionsDir(cwd: string, home: string = homedir()): string {
-  return join(home, '.pi', 'agent', 'sessions', encodeSessionDir(cwd))
+export function sessionsDir(cwd: string): string {
+  return join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'), 'sessions', encodeSessionDir(cwd))
 }
 
 const EntrySchema = z
@@ -212,32 +212,32 @@ function namesIn(dir: string): string[] {
   }
 }
 
-function transcriptRoot(cwd: string, home: string = homedir()): string {
-  return sessionsDir(cwd, home)
+function transcriptRoot(cwd: string): string {
+  return sessionsDir(cwd)
 }
 
-function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
-  const dir = sessionsDir(cwd, home)
+function transcriptPath(cwd: string, sessionId: string): string {
+  const dir = sessionsDir(cwd)
   const suffix = `_${sessionId}.jsonl`
   return join(dir, namesIn(dir).find((name) => name.endsWith(suffix)) ?? `${sessionId}.jsonl`)
 }
 
-function containedTranscript(cwd: string, sessionId: string, home?: string): string | null {
-  return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home))
+function containedTranscript(cwd: string, sessionId: string): string | null {
+  return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId))
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
-  const path = containedTranscript(cwd, sessionId, home)
+async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+  const path = containedTranscript(cwd, sessionId)
   if (path === null) return []
   const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   return raw ? parseHistory(raw) : []
 }
 
-function observeTranscript(cwd: string, sessionId: string, home?: string): TranscriptHandle {
+function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<PiFold>({
     parser: {empty: emptyFold, foldLine, messages: (state) => messagesOf(state.entries)},
     resolvePath: async () => {
-      const dir = sessionsDir(cwd, home)
+      const dir = sessionsDir(cwd)
       const names = await readdir(dir).catch(whenMissing([]))
       const found = names.find((name) => name.endsWith(`_${sessionId}.jsonl`))
       const contained = found ? containedPath(dir, join(dir, found)) : null
@@ -319,8 +319,8 @@ async function tailName(path: string, sizeBytes: number): Promise<string | null>
   }
 }
 
-function listSessions(cwd: string, page: HarnessListPage, home: string = homedir()): Promise<HarnessSessionPage> {
-  return transcriptPage(sessionsDir(cwd, home), page, transcriptId, sessionMeta)
+function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+  return transcriptPage(sessionsDir(cwd), page, transcriptId, sessionMeta)
 }
 
 function transcriptId(name: string): HarnessSessionId | null {
@@ -329,8 +329,8 @@ function transcriptId(name: string): HarnessSessionId | null {
   return parsed.success ? parsed.data : null
 }
 
-async function storedMeta(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null> {
-  const path = containedTranscript(cwd, sessionId, home)
+async function storedMeta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null> {
+  const path = containedTranscript(cwd, sessionId)
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (!info) return null

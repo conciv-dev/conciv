@@ -518,7 +518,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('api codex turns', () => {
-  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME}
   const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
   const bin = join(root, 'bin')
   const fakeCodex = [
@@ -554,12 +554,14 @@ describe('api codex turns', () => {
     writeFileSync(join(bin, 'codex'), fakeCodex, {mode: 0o755})
     process.env.PATH = `${bin}:${saved.PATH ?? ''}`
     process.env.HOME = join(root, 'home')
+    process.env.CODEX_HOME = join(root, 'home', '.codex')
   })
   const kit = sharedKit(() => createTestkit(codexHarness, bootCoreApp()).setup())
 
   afterAll(() => {
     process.env.PATH = saved.PATH
     process.env.HOME = saved.HOME
+    process.env.CODEX_HOME = saved.CODEX_HOME
     rmSync(root, {recursive: true, force: true})
   })
 
@@ -2413,9 +2415,8 @@ describe('rpc wire', () => {
 
       describe('search', () => {
         const LIVE_REINDEX_MS = 30_000
-        const searched: {kit: Kit | null; home: string; cwd: string; earlyStamp: number} = {
+        const searched: {kit: Kit | null; cwd: string; earlyStamp: number} = {
           kit: null,
-          home: '',
           cwd: '',
           earlyStamp: 0,
         }
@@ -2430,18 +2431,16 @@ describe('rpc wire', () => {
         }
 
         beforeAll(async () => {
-          searched.home = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-home-')))
           searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
           searched.earlyStamp = writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
-            {cwd: searched.cwd, claudeHome: searched.home, harnesses: [codexHarness]},
+            {cwd: searched.cwd, harnesses: [codexHarness]},
             createTestHarness(requireClaude()),
           )
         }, 60_000)
 
         afterAll(async () => {
           await searched.kit?.cleanup()
-          rmSync(searched.home, {recursive: true, force: true})
           rmSync(searched.cwd, {recursive: true, force: true})
         })
 
@@ -2470,7 +2469,7 @@ describe('rpc wire', () => {
 
         function writeCodexTurn(nativeId: string, ask: string, answer: string): void {
           const cwd = searched.cwd
-          const rollout = join(searched.home, '.codex', 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
+          const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
           mkdirSync(dirname(rollout), {recursive: true})
           writeFileSync(
             rollout,
@@ -2483,7 +2482,7 @@ describe('rpc wire', () => {
               .join('\n') + '\n',
           )
           const updated = nextStamp()
-          const db = new DatabaseSync(join(searched.home, '.codex', 'state_5.sqlite'))
+          const db = new DatabaseSync(join(codexHome(), 'state_5.sqlite'))
           try {
             db.exec(
               `create table if not exists threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
@@ -2533,7 +2532,7 @@ describe('rpc wire', () => {
         })
 
         it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched', async () => {
-          const outside = join(searched.home, 'elsewhere', 'linked.jsonl')
+          const outside = join(searched.cwd, 'elsewhere', 'linked.jsonl')
           mkdirSync(dirname(outside), {recursive: true})
           writeFileSync(outside, JSON.stringify({type: 'user', message: {content: 'a linked pelican'}}) + '\n')
           symlinkSync(outside, claudeTranscriptPath(claudeId('claude-linked')))
@@ -2576,7 +2575,7 @@ describe('rpc wire', () => {
         it('keeps searching the other harnesses while one cannot list its sessions', async () => {
           writeCodexTurn('codex-tern', 'a codex tern', 'seen')
           writeClaudeTurn(claudeId('claude-tern'), 'a claude tern', 'seen')
-          const stateDb = join(searched.home, '.codex', 'state_5.sqlite')
+          const stateDb = join(codexHome(), 'state_5.sqlite')
           renameSync(stateDb, `${stateDb}.kept`)
           writeFileSync(stateDb, 'not a database')
           try {
@@ -3590,4 +3589,10 @@ describe('token charset', () => {
 function claudeId(name: string): string {
   const hex = createHash('sha256').update(name).digest('hex')
   return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join('-')
+}
+
+function codexHome(): string {
+  const home = process.env.CODEX_HOME
+  if (home === undefined) throw new Error('the core test process sets CODEX_HOME')
+  return home
 }

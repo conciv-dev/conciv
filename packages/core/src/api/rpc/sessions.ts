@@ -36,7 +36,7 @@ async function nativePageOf(
   const history = harness.history
   if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, page: await history.list(chat.cwd, page, chat.claudeHome)}
+    return {harnessKind: harness.id, page: await history.list(chat.cwd, page)}
   } catch (error) {
     logError(
       `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
@@ -50,7 +50,7 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
   const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
   if (nativeId === null || history === undefined) return undefined
   try {
-    return (await history.meta(chat.cwd, nativeId, chat.claudeHome)) ?? undefined
+    return (await history.meta(chat.cwd, nativeId)) ?? undefined
   } catch (error) {
     logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return undefined
@@ -117,7 +117,7 @@ export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-  const search = createSessionSearch({db, cwd: chat.cwd, home: chat.claudeHome, harnesses: chat.harnesses})
+  const search = createSessionSearch({db, cwd: chat.cwd, harnesses: chat.harnesses})
   const ensuredRow = async (sessionId: SessionId) => {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)

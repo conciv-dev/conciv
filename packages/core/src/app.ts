@@ -102,8 +102,6 @@ export type MakeAppOpts = {
   extensionConfig?: Record<string, unknown>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
 
-  claudeHome?: string
-
   allowedOrigins?: string[]
 
   harness?: HarnessAdapter
@@ -345,18 +343,18 @@ export type MadeApp = {
   runtime: CoreRuntime
 }
 
-function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
+function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
   const transcriptExists = (token: HarnessSessionId): boolean => {
     if (history === undefined) return false
-    const path = transcriptPathWithin(history, cwd, token, claudeHome)
+    const path = transcriptPathWithin(history, cwd, token)
     return path !== null && existsSync(path)
   }
   return {
     id: harness.id,
     ttyCommand: harness.tty?.command,
     transcriptExists: history?.transcriptPath ? transcriptExists : undefined,
-    transcriptMessages: history ? (token) => history.messages(cwd, token, claudeHome) : undefined,
+    transcriptMessages: history ? (token) => history.messages(cwd, token) : undefined,
     connectPlan: harness.connect?.plan,
   }
 }
@@ -420,8 +418,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const serverHarness = (sessionId: SessionId): ServerHarness =>
-    makeServerHarness(harnessFor(sessionId), opts.cwd, opts.claudeHome)
+  const serverHarness = (sessionId: SessionId): ServerHarness => makeServerHarness(harnessFor(sessionId), opts.cwd)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -512,7 +509,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stateRoot: opts.cfg.stateRoot,
     harnessFor,
     harnessEnv: opts.harnessEnv,
-    claudeHome: opts.claudeHome,
     systemPrompt: {
       systemPromptFile: opts.systemPromptFile,
       systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
@@ -539,7 +535,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     harnessFor,
     cwd: opts.cwd,
     basePath,
-    claudeHome: opts.claudeHome,
     db,
     plane,
   }

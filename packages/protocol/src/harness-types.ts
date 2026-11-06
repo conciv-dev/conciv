@@ -153,24 +153,24 @@ export type TranscriptHandle = {
 export type HarnessTranscriptPaths =
   | {transcriptPath?: undefined; transcriptRoot?: undefined}
   | {
-      transcriptPath(cwd: string, sessionId: HarnessSessionId, home?: string): string
+      transcriptPath(cwd: string, sessionId: HarnessSessionId): string
 
-      transcriptRoot(cwd: string, home?: string): string
+      transcriptRoot(cwd: string): string
     }
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
-  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
+  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 
-  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
+  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
 
   nameFromTranscript?(raw: string): string | null
 
   contextTokens?(raw: string): number | undefined
 
-  list(cwd: string, page: HarnessListPage, home?: string): Promise<HarnessSessionPage>
+  list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
 
-  meta(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
+  meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 
-  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
+  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }

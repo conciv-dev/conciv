@@ -94,7 +94,6 @@ const AnchorSchema = z.object({nativeId: z.string().nullable()}).nullable().catc
 export type TranscriptSource = {
   harnessFor: (sessionId: SessionId) => HarnessAdapter
   stores: ChatStores
-  claudeHome?: string
   toolNames: ReadonlySet<string>
   native: (sessionId: SessionId) => {nativeId: HarnessSessionId; cwd: string; harnessKind: string} | null
   log: (message: string) => void
@@ -116,7 +115,7 @@ export function createTranscriptImporter(source: TranscriptSource): TranscriptIm
       return null
     }
     try {
-      return await history.messages(native.cwd, native.nativeId, source.claudeHome)
+      return await history.messages(native.cwd, native.nativeId)
     } catch (error) {
       source.log(`[chat] reading the transcript of ${native.nativeId} failed: ${String(error)}`)
       return null

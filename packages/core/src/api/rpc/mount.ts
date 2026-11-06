@@ -20,7 +20,6 @@ export type ChatContext = {
   harnessFor: (sessionId: SessionId) => HarnessAdapter
   cwd: string
   basePath: string
-  claudeHome?: string
   db: ConcivDb
   plane: ChatPlane
 }

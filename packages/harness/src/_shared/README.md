@@ -11,7 +11,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 - `acpChatConfig(name, commandOf, defaultModel)` (`acp.ts`): chatConfig that builds an `acp(...)` adapter with `permissions: 'interactive'` and sets `modelOptions.sessionId` when resuming.
 - `unsupportedChatConfig(id, binName)` (`stub.ts`): TextAdapter that yields `RUN_STARTED` then `RUN_ERROR` "<binName> is not installed or not yet supported".
 - `defineStubHarness({id, binName, capabilities})` (`stub.ts`): `defineHarness` wrapper over `unsupportedChatConfig`; no non-test caller in `src`.
-- `containedPath(root, candidate)`, `transcriptPathWithin(history, cwd, sessionId, home?)` (`contained-path.ts`).
+- `containedPath(root, candidate)`, `transcriptPathWithin(history, cwd, sessionId)` (`contained-path.ts`).
 - `makeJsonlHandle(source)` -> TranscriptHandle `{revision(), read(), close()}` over `JsonlSource {parser, resolvePath, verifyHead?}`; types `JsonlParser<State>`, `JsonlSource<State>`; `transcriptFailure(reason, detail)` (`jsonl-handle.ts`).
 - `definedEntries(env)` (`env.ts`): drops env entries whose value is undefined.
 - `lastUserModelText(messages)`, `lastUserImages(messages)` (`text-adapter.ts`): newline-joined text and data images `{mediaType, dataBase64}` from the last user message.

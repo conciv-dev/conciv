@@ -287,14 +287,14 @@ refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
-  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
-  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
+  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
+  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
   nameFromTranscript?(raw: string): string | null
   contextTokens?(raw: string): number | undefined
-  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
-  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
+  list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
+  meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
+  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }
 ```
 

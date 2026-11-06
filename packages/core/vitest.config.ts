@@ -4,7 +4,13 @@ import {join} from 'node:path'
 import {defineConfig} from 'vitest/config'
 import {ciTest} from '@conciv/vitest-config'
 
-const fixtureClaudeConfig = {CLAUDE_CONFIG_DIR: realpathSync(mkdtempSync(join(tmpdir(), 'conciv-claude-config-')))}
+const fixtureHomes = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-harness-homes-')))
+const fixtureHarnessHomes = {
+  CLAUDE_CONFIG_DIR: join(fixtureHomes, 'claude'),
+  CODEX_HOME: join(fixtureHomes, 'codex'),
+  PI_CODING_AGENT_DIR: join(fixtureHomes, 'pi'),
+  XDG_DATA_HOME: join(fixtureHomes, 'data'),
+}
 const realHarnessTests = 'test/core-chat.it.test.ts'
 
 export default defineConfig({
@@ -19,7 +25,7 @@ export default defineConfig({
           include: ['test/**/*.test.ts'],
           exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**', realHarnessTests],
           execArgv: ['--expose-gc'],
-          env: fixtureClaudeConfig,
+          env: fixtureHarnessHomes,
         },
       },
       {
@@ -32,7 +38,7 @@ export default defineConfig({
           name: 'node-quickjs-worker',
           include: ['test/core-api.it.test.ts'],
           execArgv: ['--expose-gc', '--no-addons'],
-          env: fixtureClaudeConfig,
+          env: fixtureHarnessHomes,
         },
       },
     ],

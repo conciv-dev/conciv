@@ -19,7 +19,6 @@ import type {NativePage} from './session-rows.js'
 type SessionSearchDeps = {
   db: ConcivDb
   cwd: string
-  home: string | undefined
   harnesses: readonly HarnessAdapter[]
 }
 
@@ -48,7 +47,7 @@ const SearchDocumentSchema = z.object({
 
 type SearchDocument = z.infer<typeof SearchDocumentSchema>
 
-const REFRESH_PAGE = 10
+const REFRESH_PAGE = Number.MAX_SAFE_INTEGER
 
 const READ_BATCH = 8
 
@@ -102,7 +101,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
     await removeMultiple(index, difference(await documentIdsOf(source), listedIds))
     const now = Date.now()
-    for (const batch of chunk(listed, READ_BATCH)) {
+    const stale = listed.filter(
+      (entry) => !upToDate(getByID(index, documentIdOf(source.harness.id, entry.meta.id)), entry),
+    )
+    for (const batch of chunk(stale, READ_BATCH)) {
       await upsertMultiple(index, await Promise.all(batch.map((entry) => documentOf(source, entry, now))))
     }
     const mismatched = xor(await documentIdsOf(source), listedIds)
@@ -139,7 +141,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         readUpdatedAt: current.readUpdatedAt,
       })
     }
-    const text = await source.history.messages(deps.cwd, entry.meta.id, deps.home).then(
+    const text = await source.history.messages(deps.cwd, entry.meta.id).then(
       (messages) => ({body: textOf(messages), read: true}),
       (error: unknown) => {
         if (current?.read !== false) {
@@ -223,7 +225,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 async function listedSessions(history: HarnessHistory, deps: SessionSearchDeps): Promise<HarnessSessionMeta[]> {
   const collected: HarnessSessionMeta[] = []
   const walk = async (after: HarnessListCursor | null): Promise<HarnessSessionMeta[]> => {
-    const listed = await history.list(deps.cwd, {after, limit: REFRESH_PAGE}, deps.home)
+    const listed = await history.list(deps.cwd, {after, limit: REFRESH_PAGE})
     collected.push(...listed.sessions)
     return listed.next === null ? collected : walk(listed.next)
   }
@@ -250,6 +252,20 @@ async function rowTitles(
     )
   return new Map(
     rows.flatMap((row) => (row.nativeId !== null && row.title !== null ? [[row.nativeId, row.title]] : [])),
+  )
+}
+
+function upToDate(
+  current: Pick<SearchDocument, 'read' | 'readUpdatedAt' | 'updatedAt' | 'title' | 'sizeBytes'> | undefined,
+  entry: Listed,
+): boolean {
+  return (
+    current !== undefined &&
+    current.read &&
+    current.readUpdatedAt === entry.meta.updatedAt &&
+    current.updatedAt === entry.meta.updatedAt &&
+    current.title === entry.title &&
+    current.sizeBytes === entry.meta.sizeBytes
   )
 }
 
