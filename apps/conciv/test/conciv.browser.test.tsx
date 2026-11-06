@@ -540,7 +540,7 @@ describe('chat pane', () => {
   describe('loading the chat history', () => {
     const HYDRATE_PATH = ['chat', 'hydrate']
     const loadError = () => page.getByRole('alert')
-    const retry = () => loadError().getByRole('button', {name: 'Retry'})
+    const retry = () => loadError().getByRole('button', {name: /^Retry/})
 
     async function sessionWithHistory(): Promise<string> {
       const {sessionId} = await newSession()
@@ -564,18 +564,37 @@ describe('chat pane', () => {
       await expect.element(skeleton()).not.toBeInTheDocument()
     })
 
-    test('a failed load shows the error with Retry instead of a skeleton, and Retry brings the conversation back', async () => {
+    test('a failed load reads as a failed load with Retry, survives a failed Retry, and Retry brings the conversation back', async () => {
       const sessionId = await sessionWithHistory()
       const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
       mountChatPane(sessionId)
 
-      await expect.element(retry()).toBeVisible()
-      await expect.element(loadError().getByText('Internal Server Error')).toBeVisible()
+      await expect.element(retry()).toBeEnabled()
+      await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
+      await expect.element(page.getByText('Internal Server Error')).not.toBeInTheDocument()
+      await expect.element(page.getByText('How can I help you today?')).not.toBeInTheDocument()
+      await expect.element(page.getByRole('separator', {name: 'New session'})).not.toBeInTheDocument()
       await expect.element(skeleton()).not.toBeInTheDocument()
       await expect.element(page.getByText('a question from before')).not.toBeInTheDocument()
 
-      await coreControl.releaseFault(broken)
       await retry().click()
+
+      await expect
+        .element(page.getByRole('log', {name: 'Announcements'}))
+        .toMatchTextContent(/conciv could not refresh the conversation\. Try again\./)
+      await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
+      await expect.element(retry()).toBeEnabled()
+      await expect.element(page.getByText('How can I help you today?')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(broken)
+      const held = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+      await retry().click()
+      await coreControl.awaitFaultPending(held, 1)
+
+      await expect.element(retry()).toBeDisabled()
+      await expect.element(retry()).toHaveAccessibleName('Retrying…')
+
+      await coreControl.releaseFault(held)
 
       await expect.element(page.getByText('a question from before')).toBeVisible()
       await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()

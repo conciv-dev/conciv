@@ -56,6 +56,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   runInProgress: Accessor<boolean>
+  loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   harnessAt: (index: number) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
@@ -154,13 +155,8 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   const refresh = async (): Promise<void> => {
     const hydration = await connection.refresh()
-    if (failedLoad()) chat.clear()
+    if (loadFailed()) chat.clear()
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
-  }
-  const failedLoad = (): boolean => chat.messages().length === 0 && chat.error() !== undefined
-  const reload = async (): Promise<void> => {
-    if (!failedLoad()) return chat.reload()
-    await refresh().catch((error: unknown) => options.onError?.(asError(error)))
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
   const joinedRun = async (runId: string): Promise<boolean> => {
@@ -190,6 +186,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
+  const loadFailed = createMemo(() => chat.messages().length === 0 && chat.error() !== undefined)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -246,7 +243,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     ...chat,
     stop,
     refresh,
-    reload,
     interruptAndFlush,
     stopping,
     stopped,
@@ -254,6 +250,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runError,
     sessionRunning,
     runInProgress,
+    loadFailed,
     pendingApprovals: () => served.pending,
     harnessAt: (index) => served.harnesses[index] ?? undefined,
     decide,

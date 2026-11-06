@@ -11,6 +11,7 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
+import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {
   activeToolCall,
@@ -78,8 +79,7 @@ const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
   'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
 const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
-const RETRY =
-  'py-1.5 px-2.5 min-h-8 rounded-chat-surface-sm border border-chat-danger-line bg-transparent text-chat-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-chat shrink-0 trans-bg hover:bg-chat-danger-14'
+const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -178,6 +178,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
   const narrating = () => working() || chat.sessionRunning()
+  const retryingLoad = () => chat.loadFailed() && pane.isRefreshing()
 
   const panelFocus = usePanelComposerFocus()
   const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
@@ -352,12 +353,14 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                   <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={!chat.isHydrating()} fallback={<ConversationSkeleton />}>
-                        <Thread.Welcome>
-                          <EmptyStateSlot
-                            onStarter={(starter) => void chat.sendMessage(starter)}
-                            instances={instances}
-                          />
-                        </Thread.Welcome>
+                        <Show when={!chat.loadFailed()}>
+                          <Thread.Welcome>
+                            <EmptyStateSlot
+                              onStarter={(starter) => void chat.sendMessage(starter)}
+                              instances={instances}
+                            />
+                          </Thread.Welcome>
+                        </Show>
                         <Thread.Messages
                           tools={tools()}
                           attachmentCards={attachments().cards}
@@ -368,7 +371,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={lastTurnStopped()}>
                           <Divider kind="stopped" />
                         </Show>
-                        <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        <Show when={!chat.loadFailed()}>
+                          <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        </Show>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>
@@ -383,10 +388,17 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={messaging.visibleError()}>
                           {(error) => (
                             <div class={ERROR} role="alert">
-                              <span class="flex-1">{error().message}</span>
-                              <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                                Retry
-                              </button>
+                              <span class="flex-1">{chat.loadFailed() ? LOAD_FAILED : error().message}</span>
+                              <Button
+                                variant="outline-danger"
+                                size="sm"
+                                class="shrink-0 min-h-8 font-semibold"
+                                disabled={retryingLoad()}
+                                aria-busy={retryingLoad()}
+                                onClick={() => (chat.loadFailed() ? pane.refresh() : void chat.reload())}
+                              >
+                                {retryingLoad() ? 'Retrying…' : 'Retry'}
+                              </Button>
                             </div>
                           )}
                         </Show>
