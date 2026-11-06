@@ -38,6 +38,8 @@ const TOLERANCES = designConfig.tolerances
 
 const PAGE_ERROR = 'page-error'
 
+const UNSETTLED = 'unsettled'
+
 const STRETCHED = 0.85
 
 async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}): ReturnType<Runner> {
@@ -79,6 +81,8 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
     budget: TOLERANCES.pairBudgetMs,
   })
   clock.lap('pair')
+  const broken = unsettled({root: paired.root, previous, measured})
+  if (broken !== null) throw toolError(UNSETTLED, {message: broken})
   const found = await runtime.deltas.compute({
     root: paired.root,
     design,
@@ -145,6 +149,18 @@ async function runOnce(input: Parameters<Runner>[0] & {runtime: DesignRuntime}):
       path: measured.path,
     },
   })
+}
+
+function unsettled(input: {root: Match; previous: Run | null; measured: Measured}): string | null {
+  const paired = pairedCount(input.root)
+  const before = input.previous === null ? 0 : pairedCount(input.previous.root)
+  if (before === 0 || paired >= before / 2) return null
+  const elements = [...walk(input.measured.live)].length - 1
+  return `${elements} elements on the page, ${paired} paired where the last settled run paired ${before}`
+}
+
+function pairedCount(root: Match): number {
+  return [...walk(root)].filter(({node, depth}) => depth > 0 && node.live !== null).length
 }
 
 type Shared = Parameters<Runner>[0] & {

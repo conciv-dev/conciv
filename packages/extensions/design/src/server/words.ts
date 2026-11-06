@@ -40,6 +40,8 @@ function hintOf(input: Parameters<Words['hint']>[0]): string {
       return `the tab shows ${route} but the design target is the design of ${expected}; navigate the tab to ${expected}, then diff again`
     case 'page-error':
       return `${PAGE_ERROR_BRIEF}: ${error ?? ''}`
+    case 'unsettled':
+      return error === undefined ? UNSETTLED_HINT : `${error}: ${UNSETTLED_HINT}`
     case 'hidden-tab':
       return error === undefined ? UNANSWERED_HINT : `${UNANSWERED_HINT}; ${error}`
     case 'next':
@@ -489,6 +491,8 @@ const UNCHANGED_HINT = 'the page has not changed since the last diff'
 const NO_RUN_MESSAGE = 'the design target has no run yet; run design_diff before accepting'
 
 const PAGE_ERROR_BRIEF = 'the page did not render'
+
+const UNSETTLED_HINT = 'the page did not settle; reload it and diff again'
 
 const HINT = 'no element carries data-conciv-source; the page is not a dev build compiled by the conciv plugin'
 

@@ -89,6 +89,8 @@ const DEFAULT_DIFF: DiffInput = {depth: TOLERANCES.depth, limit: TOLERANCES.limi
 
 const PAGE_ERROR = 'page-error'
 
+const UNSETTLED = 'unsettled'
+
 const SETTLE_TOOL = 'page_hmr'
 
 const SETTLE_WAIT_MS = 5000
@@ -253,6 +255,7 @@ async function answeredDiff(request: Request): Promise<DiffReport> {
     return report
   } catch (error) {
     if (isToolError(error) && error.code === PAGE_ERROR) return pageErrorRound({...request, message: error.message})
+    if (isToolError(error) && error.code === UNSETTLED) return unsettledRound({...request, message: error.message})
     if (!unansweredPage(error)) throw error
     unanswered.add(job.id)
     return unansweredRound({...request, error, started})
@@ -318,10 +321,23 @@ async function pageErrorRound(request: Request & {message: string}): Promise<Dif
   const previous = await previousReport(request)
   return {
     ...omit(previous, ['hint']),
-    stop: null,
+    stop: 'unsettled',
     changes: noChanges(),
     warnings: [{kind: 'text', warning: 'page-error', live: message, target: ''}],
-    brief: [request.runtime.words.hint({kind: 'page-error', error: message})],
+    brief: [
+      request.runtime.words.hint({kind: 'page-error', error: message}),
+      request.runtime.words.hint({kind: 'unsettled'}),
+    ],
+  }
+}
+
+async function unsettledRound(request: Request & {message: string}): Promise<DiffReport> {
+  const previous = await previousReport(request)
+  return {
+    ...omit(previous, ['hint']),
+    stop: 'unsettled',
+    changes: noChanges(),
+    brief: [request.runtime.words.hint({kind: 'unsettled', error: request.message})],
   }
 }
 

@@ -44,7 +44,7 @@ const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
 
 const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
 
-const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget'] as const
+const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget', 'unsettled'] as const
 
 const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
 
@@ -1257,6 +1257,7 @@ export type Words = {
     kind:
       | 'refused-route'
       | 'page-error'
+      | 'unsettled'
       | 'hidden-tab'
       | 'next'
       | 'no-target'
