@@ -90,7 +90,9 @@ const LiveComponentFieldsSchema = z.object({
   tag: z.string(),
   text: z.string(),
   box: BoxSchema.describe('clipped to the measured viewport'),
-  bounds: BoxSchema.default({x: 0, y: 0, w: 0, h: 0}).describe('the page box, unclipped, scroll included'),
+  bounds: BoxSchema.default({x: 0, y: 0, w: 0, h: 0}).describe(
+    'the page box, unclipped and unrounded, scroll included',
+  ),
   scrolls: z.boolean().default(false).describe('its content is wider than its box'),
   textBox: BoxSchema.nullable(),
   glyphs: z.array(GlyphSchema).describe('the text nodes the component paints, each with one box per line'),

@@ -64,7 +64,7 @@ type SourceLoc = NonNullable<LiveComponent['source']>
 
 type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
-type MirrorSlot = {width: number; frame: Promise<HTMLIFrameElement>}
+type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 
 const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
 const EFFECTS_SELECTOR = '[data-conciv-effects]'
@@ -233,7 +233,7 @@ function watchLongTasks(): () => number | null {
 }
 
 async function measureMirror(size: Size): Promise<MeasureResult> {
-  const doc = mirrorDocument(await mirrorAt(size.width))
+  const doc = mirrorDocument(await mirrorAt(size))
   const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
@@ -288,16 +288,16 @@ function releaseMirror(): void {
   )
 }
 
-function mirrorAt(width: number): Promise<HTMLIFrameElement> {
+function mirrorAt(size: Size): Promise<HTMLIFrameElement> {
   const slot = mirrorSlot.current
-  if (slot !== null && slot.width === width) return slot.frame
+  if (slot !== null && slot.width === size.width && slot.height === size.height) return slot.frame
   releaseMirror()
-  const frame = buildMirror(width)
-  mirrorSlot.current = {width, frame}
+  const frame = buildMirror(size)
+  mirrorSlot.current = {...size, frame}
   return frame
 }
 
-async function buildMirror(width: number): Promise<HTMLIFrameElement> {
+async function buildMirror(size: Size): Promise<HTMLIFrameElement> {
   const source = createMirror()
   const tree = snapshot(document, {
     mirror: source,
@@ -314,8 +314,8 @@ async function buildMirror(width: number): Promise<HTMLIFrameElement> {
     cache: createCache(),
     hackCss: false,
     iframeAttributes: {
-      width: String(width),
-      height: String(innerHeight),
+      width: String(size.width),
+      height: String(size.height),
       style: 'border:0',
       tabindex: '-1',
       'aria-hidden': 'true',
@@ -563,10 +563,10 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
 function pageBounds(input: {rect: DOMRect; view: PageWindow}): Box {
   const {rect, view} = input
   return {
-    x: Math.round(rect.left + view.scrollX),
-    y: Math.round(rect.top + view.scrollY),
-    w: Math.round(rect.width),
-    h: Math.round(rect.height),
+    x: rect.left + view.scrollX,
+    y: rect.top + view.scrollY,
+    w: rect.width,
+    h: rect.height,
   }
 }
 
