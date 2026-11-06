@@ -35,6 +35,7 @@ type Options = {
   port: number
   agent: boolean
   blind: boolean
+  noDesign: boolean
 }
 
 type Trial = {rpc: RpcClient; page: Page; id: string; session: SessionId}
@@ -72,10 +73,12 @@ async function main(): Promise<void> {
       render: {type: 'string'},
       agent: {type: 'boolean', default: false},
       blind: {type: 'boolean', default: false},
+      'no-design': {type: 'boolean', default: false},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
-  return serve({options: {...values, width: Number(values.width), port: Number(values.port)}, commands: positionals})
+  const options = {...values, noDesign: values['no-design'], width: Number(values.width), port: Number(values.port)}
+  return serve({options, commands: positionals})
 }
 
 async function render(dir: string): Promise<void> {
@@ -92,7 +95,7 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   const {options} = input
   const target = await targetInput(options)
   const dirs = await trialDirs(options.state)
-  const server = await hostServer({...dirs, port: options.port, agent: options.agent, blind: options.blind})
+  const server = await hostServer({...dirs, ...options})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
   try {
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target})
@@ -139,6 +142,7 @@ async function hostServer(input: {
   port: number
   agent: boolean
   blind: boolean
+  noDesign: boolean
 }): Promise<ViteDevServer> {
   const server = await createServer({
     root: HOST_ROOT,
@@ -152,7 +156,10 @@ async function hostServer(input: {
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
         extensions: {design: {blind: input.blind}},
-        withhold: input.blind ? ['page_screenshot'] : [],
+        withhold: [
+          ...(input.blind ? ['page_screenshot'] : []),
+          ...(input.noDesign ? DESIGN_TOOLS.map((tool) => tool.name) : []),
+        ],
       }),
     ],
   })
