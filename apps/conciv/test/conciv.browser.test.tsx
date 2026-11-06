@@ -1108,6 +1108,27 @@ describe('harness switching', () => {
     await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)')
   })
 
+  test('the menu of a harness with no models keeps focus in its search while the session list refreshes', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.switchHarness({sessionId, harnessId: 'gamma'})
+    await rpc.sessions.rename({sessionId, title: 'Listed before the menu'})
+    const drafts = await faults.install({kind: 'gate', path: ['drafts', 'get']})
+    shell.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(page.getByText('Listed before the menu').first()).toBeVisible()
+    const listing = await faults.install({kind: 'gate', path: ['sessions', 'list']})
+    await coreControl.releaseFault(drafts)
+
+    await userEvent.click(prompt('Gamma'))
+    await expect.element(search()).toHaveFocus()
+    await coreControl.awaitFaultPending(listing, 1)
+    await rpc.sessions.rename({sessionId, title: 'Listed again behind the menu'})
+    await faults.releaseAll()
+
+    await expect.element(page.getByText('Listed again behind the menu').first()).toBeVisible()
+    await expect.element(search()).toHaveFocus()
+  })
+
   test('the search reaches every model of every harness by harness name and by model id', async () => {
     await mountChat(await createSession(coreRpc(core())))
 

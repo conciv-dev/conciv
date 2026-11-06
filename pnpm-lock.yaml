@@ -397,6 +397,7 @@ patchedDependencies:
   '@tanstack/ai-code-mode@1.0.1': a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed
   '@tanstack/ai-sandbox-local-process@1.0.0': 59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f
   '@tanstack/ai-sandbox@1.0.0': 8f6b5e1f0f09d0c70e762f5ee69a05e916f1ed0fa95388b8bca0e868c05f6545
+  '@tanstack/solid-query@5.105.0': 15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde
   vitest@5.0.5: 7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd
 
 importers:
@@ -540,7 +541,7 @@ importers:
         version: 0.17.0(solid-js@1.9.17)
       '@tanstack/solid-query':
         specifier: 'catalog:'
-        version: 5.105.0(solid-js@1.9.17)
+        version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)
@@ -2062,7 +2063,7 @@ importers:
         version: link:../vitest-config
       '@tanstack/solid-query':
         specifier: 'catalog:'
-        version: 5.105.0(solid-js@1.9.17)
+        version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5)
@@ -2888,7 +2889,7 @@ importers:
         version: 1.4.4(solid-js@1.9.17)
       '@tanstack/solid-query':
         specifier: 'catalog:'
-        version: 5.105.0(solid-js@1.9.17)
+        version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
       lucide-solid:
         specifier: 'catalog:'
         version: 1.64.0(solid-js@1.9.17)
@@ -23696,7 +23697,7 @@ snapshots:
       '@tanstack/solid-store': 0.11.2(solid-js@1.9.17)
       solid-js: 1.9.17
 
-  '@tanstack/solid-query@5.105.0(solid-js@1.9.17)':
+  '@tanstack/solid-query@5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)':
     dependencies:
       '@tanstack/query-core': 5.105.0
       solid-js: 1.9.17
