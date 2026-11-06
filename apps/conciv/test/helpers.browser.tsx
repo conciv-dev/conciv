@@ -75,6 +75,7 @@ declare module 'vitest/internal/browser' {
     releaseFault: (handle: string) => Promise<void>
     faultPending: (handle: string) => Promise<number>
     awaitFaultPending: (handle: string, count: number) => Promise<void>
+    awaitFaultAnswered: (handle: string) => Promise<void>
   }
 }
 

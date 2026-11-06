@@ -83,17 +83,18 @@ describe('draft storage', () => {
     })
   })
 
-  test('typing and clearing before the server draft arrives never erases it', async ({kit, core, sessionId}) => {
-    await seedDraft(kit.rpc, sessionId, {text: 'kept on the server'})
+  test('a composer cleared before the server draft arrives clears the server draft', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'stale on the server'})
     const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
     const restored: string[] = []
     await draftStorage.restore((draft) => restored.push(draft.text), new AbortController().signal)
+    await core.awaitRequest(DRAFTS_SET_PATH)
 
-    expect(restored).toEqual(['kept on the server'])
-    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: 'kept on the server'})
+    expect(restored).toEqual([])
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
   })
 
   test('the latest text typed before the server draft arrives is written once it has', async ({

@@ -379,6 +379,28 @@ describe('chat pane', () => {
       await expect.element(input()).toHaveTextContent('what the user typed first')
       await expect.element(input()).not.toHaveTextContent('the stale server text')
     })
+
+    test('a message sent before the server draft arrives leaves no stale draft behind', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {text: 'the draft saved before the send'})
+      const read = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      mountChatPane(sessionId)
+      await input().fill('sent before the saved draft arrived')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByRole('log').getByText('sent before the saved draft arrived')).toBeVisible()
+
+      await coreControl.releaseFault(read)
+      await coreControl.awaitFaultPending(write, 1)
+      await expect.element(input()).not.toHaveTextContent('the draft saved before the send')
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toBeVisible()
+      await expect.element(input()).not.toHaveTextContent('the draft saved before the send')
+    })
   })
 
   test('a rejected send keeps the draft in the composer and tells the user why', async () => {

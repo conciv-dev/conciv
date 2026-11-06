@@ -116,12 +116,14 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
         return null
       })
       if (signal.aborted) return
+      const typed = cached()
+      const cleared = typed !== null && isCleared(typed)
       try {
-        if (row) apply(serverDraft(row))
+        if (row && !cleared) apply(serverDraft(row))
       } finally {
         write.setOptions({enabled: true})
-        const typed = cached()
-        if (typed && !isCleared(typed)) write.maybeExecute(typed)
+        if (typed && (row || !cleared)) write.maybeExecute(typed)
+        if (cleared) write.flush()
       }
     },
   }
