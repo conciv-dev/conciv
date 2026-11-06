@@ -536,6 +536,53 @@ describe('chat pane', () => {
     await coreControl.releaseTurn()
     await expect.element(stopButton()).not.toBeInTheDocument()
   })
+
+  describe('loading the chat history', () => {
+    const HYDRATE_PATH = ['chat', 'hydrate']
+    const loadError = () => page.getByRole('alert')
+    const retry = () => loadError().getByRole('button', {name: 'Retry'})
+
+    async function sessionWithHistory(): Promise<string> {
+      const {sessionId} = await newSession()
+      await runTurn(core(), sessionId, 'a question from before')
+      return sessionId
+    }
+
+    test('shows the loading skeleton first, then the conversation', async () => {
+      const sessionId = await sessionWithHistory()
+      const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+      mountChatPane(sessionId)
+      await coreControl.awaitFaultPending(gate, 1)
+
+      await expect.element(skeleton()).toBeVisible()
+      await expect.element(page.getByText('a question from before')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+
+    test('a failed load shows the error with Retry instead of a skeleton, and Retry brings the conversation back', async () => {
+      const sessionId = await sessionWithHistory()
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      mountChatPane(sessionId)
+
+      await expect.element(retry()).toBeVisible()
+      await expect.element(loadError().getByText('Internal Server Error')).toBeVisible()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+      await expect.element(page.getByText('a question from before')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(broken)
+      await retry().click()
+
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+  })
 })
 
 describe('composer overflow', () => {

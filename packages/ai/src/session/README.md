@@ -7,7 +7,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Interface
 
 - `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `hydrated`, `pendingApprovals`, and `harnessAt(index)`.
+- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `reload`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `pendingApprovals`, and `harnessAt(index)`.
 - `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, approved, scope)`, optional `onError`.
 - `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh()` and `close()`.
 - `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
@@ -17,6 +17,8 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 
 - `session.ts:newerRun` - hydration does not overwrite a run that started later, or the same run when it is already terminal.
 - `session.ts:harnessAt` - the harness that produced the message at that index of the last hydration (`messageHarness`), aligned by index because `refresh` keeps rendered ids; `undefined` past the hydrated messages.
+- `session.ts:failedLoad` - the history load failed when the chat holds no messages but an error; the loading state itself is `useChat`'s `isHydrating`, which goes false on success or failure.
+- `session.ts:reload` - after a failed load there is nothing to resend, so it reloads the history instead; `refresh` clears the stale load error before applying the transcript.
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
 - `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`).
 - `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.
