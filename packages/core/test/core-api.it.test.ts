@@ -12,7 +12,8 @@ import {
   renameSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
-import {writeFile} from 'node:fs/promises'
+import {open, writeFile} from 'node:fs/promises'
+import {execFileSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
@@ -35,6 +36,7 @@ import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
 import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE} from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
+import {isEqual} from 'es-toolkit'
 import {
   createFakeHarness,
   type FakeHarness,
@@ -56,6 +58,7 @@ import {
 } from '@conciv/harness-testkit'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
+import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -2415,10 +2418,10 @@ describe('rpc wire', () => {
 
       describe('search', () => {
         const LIVE_REINDEX_MS = 30_000
-        const searched: {kit: Kit | null; cwd: string; earlyStamp: number} = {
+        const searched: {kit: Kit | null; cwd: string; changes: AsyncIterator<unknown> | null} = {
           kit: null,
           cwd: '',
-          earlyStamp: 0,
+          changes: null,
         }
         const clock = {at: Date.now() + 3_600_000}
         const searchKit = () => {
@@ -2432,14 +2435,16 @@ describe('rpc wire', () => {
 
         beforeAll(async () => {
           searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
-          searched.earlyStamp = writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
+          writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
-            {cwd: searched.cwd, harnesses: [codexHarness]},
+            {cwd: searched.cwd, harnesses: [codexHarness, piHarness]},
             createTestHarness(requireClaude()),
           )
+          searched.changes = await searched.kit.rpc.sessions.changes()
         }, 60_000)
 
         afterAll(async () => {
+          await searched.changes?.return?.()
           await searched.kit?.cleanup()
           rmSync(searched.cwd, {recursive: true, force: true})
         })
@@ -2519,16 +2524,69 @@ describe('rpc wire', () => {
           }
         }
 
+        async function indexedChange(): Promise<void> {
+          if (searched.changes === null) throw new Error('the search kit is not watching session changes')
+          await searched.changes.next()
+        }
+
+        async function foundOnceIndexed(search: string, expected: string[]): Promise<void> {
+          if (isEqual(await found(search), expected)) return
+          await indexedChange()
+          return foundOnceIndexed(search, expected)
+        }
+
         async function listedNativeIds(): Promise<string[]> {
           const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
           return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
         }
 
-        it('builds the index on the first search, so neither boot nor a plain list reads a transcript', async () => {
-          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
-          writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the sandpiper flew', searched.earlyStamp)
+        it('indexes nothing before the first list, then builds in the background and says so when done', async () => {
+          expect(await found('dunlin')).toEqual([])
+          expect(await found('early')).toEqual([])
 
-          expect(await found('sandpiper')).toEqual([claudeId('claude-early')])
+          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
+
+          await foundOnceIndexed('dunlin', [claudeId('claude-early')])
+        })
+
+        it('answers a search during the build at once with title matches, and text matches follow the indexed event', async () => {
+          const puffin = HarnessSessionId.parse('pi-puffin')
+          const path = requireTranscriptPath(piHarness)(searched.cwd, puffin)
+          const head = [
+            {type: 'session', version: 3, id: puffin, timestamp: '2026-11-07T09:00:00.000Z', cwd: searched.cwd},
+            {
+              type: 'message',
+              id: 'u1',
+              parentId: null,
+              message: {role: 'user', content: [{type: 'text', text: 'a puffin colony'}]},
+            },
+          ]
+          const body = [
+            {
+              type: 'message',
+              id: 'a1',
+              parentId: 'u1',
+              message: {role: 'assistant', content: [{type: 'text', text: 'the guillemot dives'}]},
+            },
+          ]
+          const lines = (entries: unknown[]) => entries.map((entry) => `${JSON.stringify(entry)}\n`).join('')
+          mkdirSync(dirname(path), {recursive: true})
+          execFileSync('mkfifo', [path])
+          const titleReader = open(path, 'w')
+          expect(await found('puffin')).toEqual([])
+          const titleWriter = await titleReader
+          await titleWriter.write(lines(head))
+          await titleWriter.close()
+          await foundOnceIndexed('puffin', [puffin])
+
+          const textWriter = await open(path, 'w')
+          expect(await found('guillemot')).toEqual([])
+          await textWriter.write(lines([...head, ...body]))
+          rmSync(path)
+          writeFileSync(path, lines([...head, ...body]))
+          await textWriter.close()
+
+          await foundOnceIndexed('guillemot', [puffin])
         })
 
         it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched', async () => {
@@ -2539,7 +2597,7 @@ describe('rpc wire', () => {
           writeClaudeTurn(claudeId('claude-local'), 'a local pelican', 'kept here')
 
           expect(await listedNativeIds()).not.toContain(claudeId('claude-linked'))
-          expect(await found('pelican')).toEqual([claudeId('claude-local')])
+          await foundOnceIndexed('pelican', [claudeId('claude-local')])
         })
 
         it('indexes a truncated transcript by what it holds, hides the ones Claude cannot title, and the rest stay findable', async () => {
@@ -2567,9 +2625,9 @@ describe('rpc wire', () => {
           expect(listed).toEqual(expect.arrayContaining([claudeId('claude-truncated'), claudeId('claude-plain')]))
           expect(listed).not.toContain(claudeId('claude-odd'))
           expect(listed).not.toContain(claudeId('claude-garbage'))
-          expect(await found('cormorant')).toEqual([claudeId('claude-truncated')])
+          await foundOnceIndexed('cormorant', [claudeId('claude-truncated')])
+          await foundOnceIndexed('gull', [claudeId('claude-plain')])
           expect(await found('plover')).toEqual([])
-          expect(await found('gull')).toEqual([claudeId('claude-plain')])
         })
 
         it('keeps searching the other harnesses while one cannot list its sessions', async () => {
@@ -2579,22 +2637,23 @@ describe('rpc wire', () => {
           renameSync(stateDb, `${stateDb}.kept`)
           writeFileSync(stateDb, 'not a database')
           try {
-            expect(await found('tern')).toEqual([claudeId('claude-tern')])
+            await foundOnceIndexed('tern', [claudeId('claude-tern')])
           } finally {
             renameSync(`${stateDb}.kept`, stateDb)
           }
         })
 
         it('reads a live session text at most every 30 seconds, while its title and time follow the list', async () => {
-          writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel', 'the first reply')
-          expect(await found('kestrel')).toEqual([claudeId('claude-live')])
+          writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel', 'the first wren reply')
+          await foundOnceIndexed('wren', [claudeId('claude-live')])
 
           const stamp = writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel and merlin', 'the osprey arrived')
+          await foundOnceIndexed('merlin', [claudeId('claude-live')])
           expect(await found('osprey')).toEqual([])
           const {sessions: titled} = await searchKit().rpc.sessions.search({term: 'merlin', limit: 10})
           expect(titled).toMatchObject([{native: {nativeId: claudeId('claude-live')}, updatedAt: stamp}])
 
-          await later(LIVE_REINDEX_MS, async () => expect(await found('osprey')).toEqual([claudeId('claude-live')]))
+          await later(LIVE_REINDEX_MS, () => foundOnceIndexed('osprey', [claudeId('claude-live')]))
         })
 
         it('matches message text of sessions from every harness, newest first and paged, and tolerates a typo', async () => {
@@ -2602,7 +2661,7 @@ describe('rpc wire', () => {
           writeCodexTurn('codex-salsa', 'write a salsa recipe', 'mango salsa needs lime')
           writeClaudeTurn(claudeId('claude-chore'), 'an unrelated chore', 'done')
 
-          expect(await found('mango')).toEqual(['codex-salsa', claudeId('claude-orchard')])
+          await foundOnceIndexed('mango', ['codex-salsa', claudeId('claude-orchard')])
           expect(await found('kiwi orchard')).toEqual([claudeId('claude-orchard')])
           expect(await found('lime')).toEqual(['codex-salsa'])
           expect(await found('mangp')).toEqual(['codex-salsa', claudeId('claude-orchard')])
@@ -2618,11 +2677,12 @@ describe('rpc wire', () => {
           writeClaudeTurn(claudeId('claude-item-twenty-nine'), 'review item 29', 'checked')
           writeClaudeTurn(claudeId('claude-item-thirty-nine'), 'review item 39', 'checked')
 
-          expect(await found('39')).toEqual([claudeId('claude-item-thirty-nine')])
+          await foundOnceIndexed('39', [claudeId('claude-item-thirty-nine')])
         })
 
         it('matches a renamed native session by its new title', async () => {
           writeCodexTurn('codex-walrus', 'the walrus task', 'walrus handled')
+          await foundOnceIndexed('walrus', ['codex-walrus'])
           expect(await found('falcon')).toEqual([])
           const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
           const walrus = listed.find((meta) => meta.native?.nativeId === 'codex-walrus')
@@ -2635,13 +2695,14 @@ describe('rpc wire', () => {
 
         it('re-indexes a changed transcript and drops a removed one', async () => {
           writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'drafted')
+          await foundOnceIndexed('drafted', [claudeId('claude-changing')])
           expect(await found('heron')).toEqual([])
 
           writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'the heron came back')
-          await later(LIVE_REINDEX_MS, async () => expect(await found('heron')).toEqual([claudeId('claude-changing')]))
+          await later(LIVE_REINDEX_MS, () => foundOnceIndexed('heron', [claudeId('claude-changing')]))
 
           rmSync(claudeTranscriptPath(claudeId('claude-changing')))
-          expect(await found('heron')).toEqual([])
+          await foundOnceIndexed('heron', [])
         })
 
         it('matches a conciv-only session on its own title, literally', async () => {

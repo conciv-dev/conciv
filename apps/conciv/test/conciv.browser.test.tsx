@@ -2963,6 +2963,7 @@ describe('session selector', () => {
 
   const core = bootedCore('session-selector', {
     resume: true,
+    holdTranscripts: true,
     history: [
       {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
@@ -2975,6 +2976,17 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('kiwi-orchard'),
         derivedTitle: 'the kiwi orchard plan',
         updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('puffin-notes'),
+        derivedTitle: 'the puffin notes',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('seabird-survey'),
+        derivedTitle: 'a seabird survey',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
+        text: 'a puffin colony nests on the cliff',
       },
     ],
   })
@@ -3061,6 +3073,21 @@ describe('session selector', () => {
 
     await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
     await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
+  })
+
+  test('a search typed before indexing finishes shows title matches first, then text matches once it lands', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'puffin')
+
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^a seabird survey,/}).elements()).toHaveLength(0)
+
+    await coreControl.releaseTranscripts()
+
+    await expect.element(page.getByRole('option', {name: /^a seabird survey,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
   })
 
   test('a session past the first page shows its own title on the trigger', async () => {

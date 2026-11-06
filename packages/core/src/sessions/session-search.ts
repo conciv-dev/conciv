@@ -1,6 +1,9 @@
 import {count, create, getByID, removeMultiple, search, upsert, upsertMultiple} from '@orama/orama'
 import {and, eq, inArray, isNotNull} from 'drizzle-orm'
-import {chunk, difference, xor} from 'es-toolkit'
+import {chunk, difference, sortBy, xor} from 'es-toolkit'
+import {setImmediate as yieldToRequests} from 'node:timers/promises'
+import {EventPublisher} from '@orpc/server'
+import {AsyncQueuer} from '@tanstack/pacer'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -14,6 +17,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {pageAfter} from '@conciv/harness/page'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {logError} from '../lib/debug.js'
+import type {SessionsChange} from '@conciv/contract'
 import type {NativePage} from './session-rows.js'
 
 type SessionSearchDeps = {
@@ -23,6 +27,8 @@ type SessionSearchDeps = {
 }
 
 type SessionSearch = {
+  listed(): void
+  changes(signal: AbortSignal | undefined): AsyncIteratorObject<SessionsChange, unknown, void>
   pages(term: string, page: HarnessListPage): Promise<NativePage[]>
   retitle(harnessKind: string, nativeId: HarnessSessionId, title: string): Promise<void>
 }
@@ -31,7 +37,9 @@ type Indexed = {harness: HarnessAdapter; history: HarnessHistory}
 
 type Hit = {harnessKind: string; meta: HarnessSessionMeta}
 
-type Listed = {meta: HarnessSessionMeta; title: string}
+type Listed = {source: Indexed; meta: HarnessSessionMeta; title: string}
+
+type TitlePass = {changed: boolean; unread: Listed[]}
 
 const SearchDocumentSchema = z.object({
   id: z.string(),
@@ -73,86 +81,101 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       ? [{harness, history: harness.history}]
       : [],
   )
-  const state: {refreshing: Promise<void> | null} = {refreshing: null}
+  const state: {started: boolean} = {started: false}
+  const publisher = new EventPublisher<{indexed: SessionsChange}>()
 
-  const refresh = (): Promise<void> => {
-    if (state.refreshing !== null) return state.refreshing
-    const running = Promise.all(
-      indexed.map((source) =>
-        refreshHarness(source).catch((error: unknown) =>
-          logError(
-            `[core] indexing the ${source.harness.id} sessions for search failed, a later search retries: ${String(error)}`,
-          ),
-        ),
-      ),
-    )
-      .then(() => undefined)
-      .finally(() => {
-        state.refreshing = null
-      })
-    state.refreshing = running
-    return running
+  const rebuild = async (): Promise<void> => {
+    const passes = await Promise.all(indexed.map((source) => titlePass(source)))
+    if (passes.some((pass) => pass.changed)) publisher.publish('indexed', {reason: 'indexed'})
+    if (await textPass(passes.flatMap((pass) => pass.unread))) publisher.publish('indexed', {reason: 'indexed'})
   }
 
-  const refreshHarness = async (source: Indexed): Promise<void> => {
-    const metas = await listedSessions(source.history, deps)
-    const titles = await rowTitles(deps.db, source.harness.id, metas)
-    const listed = metas.map((meta): Listed => ({meta, title: titles.get(meta.id) ?? meta.derivedTitle}))
-    const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
-    await removeMultiple(index, difference(await documentIdsOf(source), listedIds))
-    const now = Date.now()
-    const stale = listed.filter(
-      (entry) => !upToDate(getByID(index, documentIdOf(source.harness.id, entry.meta.id)), entry),
-    )
-    for (const batch of chunk(stale, READ_BATCH)) {
-      await upsertMultiple(index, await Promise.all(batch.map((entry) => documentOf(source, entry, now))))
-    }
-    const mismatched = xor(await documentIdsOf(source), listedIds)
-    if (mismatched.length > 0) {
+  const refreshes = new AsyncQueuer<'refresh'>(rebuild, {
+    concurrency: 1,
+    maxSize: 1,
+    started: true,
+    onError: (error) =>
+      logError(`[core] indexing the sessions for search failed, a later search retries: ${String(error)}`),
+  })
+
+  const refresh = (): void => {
+    refreshes.addItem('refresh')
+  }
+
+  const titlePass = async (source: Indexed): Promise<TitlePass> => {
+    try {
+      const metas = await listedSessions(source.history, deps)
+      const titles = await rowTitles(deps.db, source.harness.id, metas)
+      const listed = metas.map((meta): Listed => ({source, meta, title: titles.get(meta.id) ?? meta.derivedTitle}))
+      const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
+      const gone = difference(await documentIdsOf(source), listedIds)
+      await removeMultiple(index, gone)
+      const retitled = listed.filter((entry) => !sameListing(currentOf(entry), entry))
+      await upsertMultiple(index, retitled.map(titleDocumentOf))
+      const mismatched = xor(await documentIdsOf(source), listedIds)
+      if (mismatched.length > 0) {
+        logError(
+          `[core] the ${source.harness.id} search index and its session list disagree on: ${mismatched.join(', ')}`,
+        )
+      }
+      return {changed: gone.length > 0 || retitled.length > 0, unread: listed.filter(unreadNow)}
+    } catch (error) {
       logError(
-        `[core] the ${source.harness.id} search index and its session list disagree on: ${mismatched.join(', ')}`,
+        `[core] indexing the ${source.harness.id} sessions for search failed, a later search retries: ${String(error)}`,
       )
+      return {changed: false, unread: []}
     }
+  }
+
+  const textPass = async (unread: Listed[]): Promise<boolean> => {
+    const ordered = sortBy(unread, [(entry) => entry.meta.sizeBytes ?? 0])
+    for (const batch of chunk(ordered, READ_BATCH)) {
+      await yieldToRequests()
+      const now = Date.now()
+      await upsertMultiple(index, await Promise.all(batch.map((entry) => textDocumentOf(entry, now))))
+    }
+    return ordered.length > 0
+  }
+
+  const currentOf = (entry: Listed) => getByID(index, documentIdOf(entry.source.harness.id, entry.meta.id))
+
+  const unreadNow = (entry: Listed): boolean => {
+    const current = currentOf(entry)
+    if (current === undefined || !current.read) return true
+    if (current.readUpdatedAt === entry.meta.updatedAt) return false
+    return Date.now() - current.readAt >= LIVE_REINDEX_MS
+  }
+
+  const titleDocumentOf = (entry: Listed): SearchDocument => {
+    const current = currentOf(entry)
+    return SearchDocumentSchema.parse({
+      ...listingOf(entry),
+      body: current?.body ?? '',
+      read: current?.read ?? false,
+      readAt: current?.readAt ?? 0,
+      readUpdatedAt: current?.readUpdatedAt ?? 0,
+    })
+  }
+
+  const textDocumentOf = async (entry: Listed, now: number): Promise<SearchDocument> => {
+    const current = currentOf(entry)
+    const text = await entry.source.history.messages(deps.cwd, entry.meta.id).then(
+      (messages) => ({body: textOf(messages), read: true}),
+      (error: unknown) => {
+        if (current === undefined || current.read || current.readAt === 0) {
+          logError(
+            `[core] reading the ${entry.source.harness.id} session ${entry.meta.id} for search failed, it is found by its title until a later search reads it: ${String(error)}`,
+          )
+        }
+        return {body: current?.body ?? '', read: false}
+      },
+    )
+    return SearchDocumentSchema.parse({...listingOf(entry), ...text, readAt: now, readUpdatedAt: entry.meta.updatedAt})
   }
 
   const documentIdsOf = async (source: Indexed): Promise<string[]> => {
     const found = await search(index, {where: {harness: {eq: source.harness.id}}, limit: count(index)})
     return found.hits.map((hit) => hit.id)
-  }
-
-  const documentOf = async (source: Indexed, entry: Listed, now: number): Promise<SearchDocument> => {
-    const id = documentIdOf(source.harness.id, entry.meta.id)
-    const current = getByID(index, id)
-    const fields = {
-      id,
-      harness: source.harness.id,
-      title: entry.title,
-      updatedAt: entry.meta.updatedAt,
-      sizeBytes: entry.meta.sizeBytes,
-    }
-    const fresh = current !== undefined && current.read && current.readUpdatedAt === entry.meta.updatedAt
-    const throttled = current !== undefined && current.read && now - current.readAt < LIVE_REINDEX_MS
-    if (current !== undefined && (fresh || throttled)) {
-      return SearchDocumentSchema.parse({
-        ...fields,
-        body: current.body,
-        read: true,
-        readAt: current.readAt,
-        readUpdatedAt: current.readUpdatedAt,
-      })
-    }
-    const text = await source.history.messages(deps.cwd, entry.meta.id).then(
-      (messages) => ({body: textOf(messages), read: true}),
-      (error: unknown) => {
-        if (current?.read !== false) {
-          logError(
-            `[core] reading the ${source.harness.id} session ${entry.meta.id} for search failed, it is found by its title until a later search reads it: ${String(error)}`,
-          )
-        }
-        return {body: '', read: false}
-      },
-    )
-    return SearchDocumentSchema.parse({...fields, ...text, readAt: now, readUpdatedAt: entry.meta.updatedAt})
   }
 
   const hitsOf = async (term: string, after: HarnessListCursor | null, limit: number): Promise<Hit[]> => {
@@ -199,8 +222,16 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   }
 
   return {
+    listed() {
+      if (state.started) return
+      state.started = true
+      setImmediate(refresh)
+    },
+    changes(signal) {
+      return publisher.subscribe('indexed', {signal})
+    },
     async pages(term, page) {
-      await refresh()
+      if (state.started) refresh()
       const paged = pageAfter(await hitsOf(term, page.after, page.limit), page, (hit) => ({
         updatedAt: hit.meta.updatedAt,
         id: hit.meta.id,
@@ -255,18 +286,26 @@ async function rowTitles(
   )
 }
 
-function upToDate(
-  current: Pick<SearchDocument, 'read' | 'readUpdatedAt' | 'updatedAt' | 'title' | 'sizeBytes'> | undefined,
+function sameListing(
+  current: Pick<SearchDocument, 'updatedAt' | 'title' | 'sizeBytes'> | undefined,
   entry: Listed,
 ): boolean {
   return (
     current !== undefined &&
-    current.read &&
-    current.readUpdatedAt === entry.meta.updatedAt &&
     current.updatedAt === entry.meta.updatedAt &&
     current.title === entry.title &&
     current.sizeBytes === entry.meta.sizeBytes
   )
+}
+
+function listingOf(entry: Listed): Pick<SearchDocument, 'id' | 'harness' | 'title' | 'updatedAt' | 'sizeBytes'> {
+  return {
+    id: documentIdOf(entry.source.harness.id, entry.meta.id),
+    harness: entry.source.harness.id,
+    title: entry.title,
+    updatedAt: entry.meta.updatedAt,
+    sizeBytes: entry.meta.sizeBytes,
+  }
 }
 
 function textOf(messages: ChatMessage[]): string {

@@ -83,6 +83,7 @@
     "@modelcontextprotocol/sdk": "catalog:",
     "@orama/orama": "3.1.18",
     "@orpc/server": "catalog:",
+    "@tanstack/pacer": "catalog:",
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",

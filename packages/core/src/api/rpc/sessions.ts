@@ -162,7 +162,12 @@ export function sessionsRouter(deps: RpcDeps) {
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }
   return {
-    list: os.sessions.list.handler(({input}) => sessionPage(chat, input, null, (page) => listedPages(chat, page))),
+    list: os.sessions.list.handler(async ({input}) => {
+      const page = await sessionPage(chat, input, null, (cursorPage) => listedPages(chat, cursorPage))
+      search.listed()
+      return page
+    }),
+    changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
     search: os.sessions.search.handler(({input}) =>
       sessionPage(chat, input, input.term, (page) => search.pages(input.term, page)),
     ),

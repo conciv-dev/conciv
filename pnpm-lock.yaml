@@ -2173,6 +2173,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      '@tanstack/pacer':
+        specifier: 'catalog:'
+        version: 0.23.1
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -3613,6 +3616,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14

@@ -38,6 +38,10 @@ const SessionListInput = z.object({
 })
 const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
 const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
+
+const SessionsChangeSchema = z.object({reason: z.literal('indexed')})
+
+export type SessionsChange = z.infer<typeof SessionsChangeSchema>
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -150,6 +154,7 @@ export const contract = {
       .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
       .output(SessionPageSchema),
     search: oc.input(SessionSearchInput).output(SessionPageSchema),
+    changes: oc.output(eventIterator(SessionsChangeSchema)),
     get: oc.errors(notFound).input(SessionIdInput).output(SessionMetaSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
