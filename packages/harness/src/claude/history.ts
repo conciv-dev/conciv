@@ -7,19 +7,15 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
   HarnessListPage,
-  HarnessSearchDocument,
   HarnessSessionMeta,
   HarnessSessionPage,
-  HarnessSessionStamp,
   HarnessSessionSummary,
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
-import {searchBody} from '../_shared/search-body.js'
 import {transcriptPage} from '../_shared/transcript-page.js'
-import {transcriptStamps} from '../_shared/transcript-stamps.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
@@ -387,18 +383,6 @@ function listSessions(cwd: string, page: HarnessListPage, home: string = homedir
   return transcriptPage(transcriptRoot(cwd, home), page, transcriptId, parseSessionMeta)
 }
 
-async function sessionStamps(cwd: string, home: string = homedir()): Promise<HarnessSessionStamp[]> {
-  const stamps = await transcriptStamps(transcriptRoot(cwd, home), transcriptId)
-  return stamps.map(({id, updatedAt}) => ({id, updatedAt}))
-}
-
-async function searchDocument(cwd: string, sessionId: string, home?: string): Promise<HarnessSearchDocument> {
-  if (!withinProject(cwd, sessionId, home)) return {title: '', body: ''}
-  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(whenMissing(''))
-  const state = foldTranscript(raw)
-  return {title: state.title ?? '', body: searchBody(state.messages)}
-}
-
 function transcriptId(name: string): HarnessSessionId | null {
   if (!name.endsWith('.jsonl')) return null
   const parsed = HarnessSessionId.safeParse(name.slice(0, -'.jsonl'.length))
@@ -456,7 +440,5 @@ export const claudeHistory: HarnessHistory = {
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
   meta: sessionMeta,
-  stamps: sessionStamps,
-  searchDocument,
   summary: sessionSummary,
 }

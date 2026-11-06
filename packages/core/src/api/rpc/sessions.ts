@@ -24,6 +24,7 @@ import {
   tombstoneRow,
   type NativePage,
 } from '../../sessions/session-rows.js'
+import {createSessionSearch} from '../../sessions/session-search.js'
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
@@ -58,15 +59,23 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
 
 async function rpcSessionList(
   chat: ChatContext,
-  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
+  search: ReturnType<typeof createSessionSearch>,
+  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number; search?: string},
 ): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit}
-  const nativePages = await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))
+  const term = input.search ? input.search : null
+  const nativePages =
+    term === null
+      ? (await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))).filter(
+          (native) => native !== null,
+        )
+      : await search.pages(term, page)
   return listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
-    nativePages: nativePages.filter((native) => native !== null),
+    nativePages,
     page,
+    search: term,
     running: await chat.plane.running(),
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
@@ -109,6 +118,7 @@ export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
+  const search = createSessionSearch({db, cwd: chat.cwd, home: chat.claudeHome, harnesses: chat.harnesses})
   const ensuredRow = async (sessionId: SessionId) => {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)
@@ -153,7 +163,7 @@ export function sessionsRouter(deps: RpcDeps) {
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }
   return {
-    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input)),
+    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, search, input)),
     get: os.sessions.get.handler(async ({input, errors}) => {
       const row = await rowById(db, input.sessionId)
       if (!row) throw errors.NOT_FOUND()
@@ -183,9 +193,11 @@ export function sessionsRouter(deps: RpcDeps) {
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      if (!(await rowById(db, input.sessionId))) throw errors.NOT_FOUND()
+      const row = await rowById(db, input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)
       await db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
+      if (row.harnessSessionId !== null) await search.retitle(row.harnessKind, row.harnessSessionId, title)
       return {title}
     }),
     delete: os.sessions.delete.handler(async ({input}) => {

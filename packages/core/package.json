@@ -81,6 +81,7 @@
     "@hono/node-server": "catalog:",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "catalog:",
+    "@orama/orama": "3.1.18",
     "@orpc/server": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",

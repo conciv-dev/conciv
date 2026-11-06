@@ -8,6 +8,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 - `listCommands` / `mcpUrlFor` / `CommandSource` (`commands.ts`): commands tagged 'mcp', 'plugin' or 'harness'
 - `createSessionBus` / `SessionBus` (`session-bus.ts`): publish, listen, events(sessionId, signal)
+- `createSessionSearch` (`session-search.ts`): one in-memory Orama index per engine over every native session's title and message text, built in the background at start, refreshed from the `list` watermark before each search; hits whose `meta` is gone are removed
 - `rowById` / `currentRow` / `rowByNativeId` / `rowByNativeRef` (`session-rows.ts`)
 - `createRow` / `ensureRow` / `nativeIdFor` / `recordNativeId` (`session-rows.ts`)
 - `resolveRow` / `openNativeRow` / `ensureAgentRow` / `mintExternalRow` / `anonymousExternalRow` (`session-rows.ts`)

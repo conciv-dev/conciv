@@ -292,6 +292,7 @@ export type SessionListInput = MetaContext & {
   nativePages: NativePage[]
   page: HarnessListPage
   includeHidden: boolean
+  search: string | null
 }
 
 type NativeSession = {harnessKind: string; meta: HarnessSessionMeta}
@@ -340,6 +341,7 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
         inArray(sessions.cwd, cwdSpellings(input.cwd)),
         or(isNull(sessions.harnessSessionId), notInArray(sessions.harnessKind, listingKinds)),
         input.includeHidden ? undefined : isNull(sessions.deletedAt),
+        input.search === null ? undefined : sql`${sessions.title} like ${likePattern(input.search)} escape '\\'`,
         after === null
           ? undefined
           : or(
@@ -355,6 +357,10 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
     row,
     cursor: {updatedAt: row.updatedAt, id: HarnessSessionIdSchema.parse(row.id)},
   }))
+}
+
+function likePattern(search: string): string {
+  return `%${search.replace(/[\\%_]/g, (character) => `\\${character}`)}%`
 }
 
 async function listedSessions(entries: PageEntry[], input: SessionListInput): Promise<ListedSession[]> {

@@ -36,7 +36,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 
 - `drafts.set` (`router.ts`): upserts into the `drafts` table
 - `sessions.*` (`sessions.ts`): writes `sessions` and `markers`; `delete` tombstones the row and deletes drafts, plane state, captures and page changes
-- `sessions.list` (`sessions.ts`): reads the transcript history of every available harness with `transcriptHistory`; a harness whose listing throws is logged and contributes nothing
+- `sessions.list` (`sessions.ts`): reads the transcript history of every available harness with `transcriptHistory`; a harness whose listing throws is logged and contributes nothing. With `search`, native sessions come from the in-memory Orama index (`sessions/session-search.ts`) and conciv-only rows match on `title LIKE`
 - `server.reload` / `server.restart` / `editor.open` (`router.ts`): reload or restart the dev server, or open an editor
 
 ## Verification
