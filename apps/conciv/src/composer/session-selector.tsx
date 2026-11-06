@@ -45,6 +45,8 @@ type Bucket = (typeof BUCKETS)[number]
 
 type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: SessionMeta}
 
+type SessionPage = {next: HarnessListCursor | null}
+
 function bucketOf(updatedAt: number, now: number): Bucket {
   const day = 86_400_000
   const startOfToday = now - (now % day)
@@ -98,11 +100,16 @@ export function SessionSelector(props: {
   const search = () => (query().trim() === '' ? '' : debouncedQuery().trim())
   const list = useInfiniteQuery(() => {
     const term = search()
-    return appData.utils.sessions.list.infiniteOptions({
-      input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE, search: term || undefined}),
-      initialPageParam: null,
-      getNextPageParam: (page) => page.next,
-    })
+    const paging = {initialPageParam: null, getNextPageParam: (page: SessionPage) => page.next}
+    return term === ''
+      ? appData.utils.sessions.list.infiniteOptions({
+          input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
+          ...paging,
+        })
+      : appData.utils.sessions.search.infiniteOptions({
+          input: (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE}),
+          ...paging,
+        })
   })
   const active = useQuery(() => {
     const sessionId = props.activeId()

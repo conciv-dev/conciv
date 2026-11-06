@@ -11,7 +11,7 @@ export type AppData = {
 
 export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   const utils = makeQueryUtils(rpc)
-  const sessionKeys = [utils.sessions.list.key(), utils.sessions.get.key()]
+  const sessionKeys = [utils.sessions.list.key(), utils.sessions.search.key(), utils.sessions.get.key()]
   for (const queryKey of sessionKeys) {
     queryClient.setQueryDefaults(queryKey, {staleTime: SESSIONS_STALE_MS, refetchOnWindowFocus: false})
   }

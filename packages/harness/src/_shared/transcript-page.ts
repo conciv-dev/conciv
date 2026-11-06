@@ -2,6 +2,7 @@ import {readdir, readFile, stat} from 'node:fs/promises'
 import {join} from 'node:path'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessListPage, HarnessSessionMeta, HarnessSessionPage} from '@conciv/protocol/harness-types'
+import {containedPath} from './contained-path.js'
 import {pageAfter} from './page.js'
 import {whenMissing} from './when-missing.js'
 
@@ -27,7 +28,7 @@ async function stampedFile(
   idOf: (name: string) => HarnessSessionId | null,
 ): Promise<TranscriptFile | null> {
   const id = idOf(name)
-  if (id === null) return null
+  if (id === null || containedPath(dir, join(dir, name)) === null) return null
   const info = await stat(join(dir, name)).catch(whenMissing(null))
   return info === null ? null : {name, id, updatedAt: Math.round(info.mtimeMs)}
 }

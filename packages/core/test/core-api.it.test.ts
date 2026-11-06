@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
   utimesSync,
+  symlinkSync,
 } from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
@@ -2416,7 +2417,12 @@ describe('rpc wire', () => {
       })
 
       describe('search', () => {
-        const searched: {kit: Kit | null; home: string} = {kit: null, home: ''}
+        const searched: {kit: Kit | null; home: string; cwd: string; earlyStamp: number} = {
+          kit: null,
+          home: '',
+          cwd: '',
+          earlyStamp: 0,
+        }
         const clock = {at: Date.now() + 3_600_000}
         const searchKit = () => {
           if (searched.kit === null) throw new Error('the search kit did not boot')
@@ -2429,8 +2435,10 @@ describe('rpc wire', () => {
 
         beforeAll(async () => {
           searched.home = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-home-')))
+          searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
+          searched.earlyStamp = writeClaudeTurn('claude-early', 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
-            {claudeHome: searched.home, harnesses: [codexHarness]},
+            {cwd: searched.cwd, claudeHome: searched.home, harnesses: [codexHarness]},
             createTestHarness(requireClaude()),
           )
         }, 60_000)
@@ -2438,32 +2446,34 @@ describe('rpc wire', () => {
         afterAll(async () => {
           await searched.kit?.cleanup()
           rmSync(searched.home, {recursive: true, force: true})
+          rmSync(searched.cwd, {recursive: true, force: true})
         })
 
         function claudeTranscriptPath(nativeId: string): string {
-          return requireTranscriptPath(requireClaude())(
-            searchKit().stateRoot,
-            HarnessSessionId.parse(nativeId),
-            searched.home,
-          )
+          return requireTranscriptPath(requireClaude())(searched.cwd, HarnessSessionId.parse(nativeId), searched.home)
         }
 
-        function writeClaudeTurn(nativeId: string, ask: string, answer: string): void {
-          const path = claudeTranscriptPath(nativeId)
-          mkdirSync(dirname(path), {recursive: true})
-          writeFileSync(
-            path,
+        function writeClaudeTurn(nativeId: string, ask: string, answer: string, stamp = nextStamp()): number {
+          writeClaudeLines(
+            nativeId,
             [
               JSON.stringify({type: 'user', message: {content: ask}}),
               JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: answer}]}}),
             ].join('\n') + '\n',
+            stamp,
           )
-          const stamp = nextStamp() / 1000
-          utimesSync(path, stamp, stamp)
+          return stamp
+        }
+
+        function writeClaudeLines(nativeId: string, raw: string, stamp: number): void {
+          const path = claudeTranscriptPath(nativeId)
+          mkdirSync(dirname(path), {recursive: true})
+          writeFileSync(path, raw)
+          utimesSync(path, stamp / 1000, stamp / 1000)
         }
 
         function writeCodexTurn(nativeId: string, ask: string, answer: string): void {
-          const cwd = realpathSync(searchKit().stateRoot)
+          const cwd = searched.cwd
           const rollout = join(searched.home, '.codex', 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
           mkdirSync(dirname(rollout), {recursive: true})
           writeFileSync(
@@ -2501,9 +2511,81 @@ describe('rpc wire', () => {
         }
 
         async function found(search: string): Promise<string[]> {
-          const {sessions: listed} = await searchKit().rpc.sessions.list({search, limit: 100})
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
           return listed.map((meta) => meta.native?.nativeId ?? meta.title)
         }
+
+        async function listedNativeIds(): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+        }
+
+        it('builds the index on the first search, so neither boot nor a plain list reads a transcript', async () => {
+          expect(await listedNativeIds()).toContain('claude-early')
+          writeClaudeTurn('claude-early', 'an early note', 'the sandpiper flew', searched.earlyStamp)
+
+          expect(await found('sandpiper')).toEqual(['claude-early'])
+        })
+
+        it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched', async () => {
+          const outside = join(searched.home, 'elsewhere', 'linked.jsonl')
+          mkdirSync(dirname(outside), {recursive: true})
+          writeFileSync(outside, JSON.stringify({type: 'user', message: {content: 'a linked pelican'}}) + '\n')
+          symlinkSync(outside, claudeTranscriptPath('claude-linked'))
+          writeClaudeTurn('claude-local', 'a local pelican', 'kept here')
+
+          expect(await listedNativeIds()).not.toContain('claude-linked')
+          expect(await found('pelican')).toEqual(['claude-local'])
+        })
+
+        it('indexes truncated, odd and unparseable transcripts by what they hold, and the rest stay findable', async () => {
+          writeClaudeLines(
+            'claude-truncated',
+            JSON.stringify({type: 'user', message: {content: 'a truncated cormorant'}}) +
+              '\n{"type":"assistant","message":{"content":[{"type":"te',
+            nextStamp(),
+          )
+          writeClaudeLines(
+            'claude-odd',
+            [
+              {type: 'user'},
+              {type: 'user', message: {content: 42}},
+              {type: 'assistant', message: {content: 'odd plover'}},
+            ]
+              .map((line) => JSON.stringify(line))
+              .join('\n') + '\nnot json\n',
+            nextStamp(),
+          )
+          writeClaudeLines('claude-garbage', '\u0000 nothing readable\n', nextStamp())
+          writeClaudeTurn('claude-plain', 'a plain gull', 'fine')
+
+          expect(await listedNativeIds()).toEqual(
+            expect.arrayContaining(['claude-truncated', 'claude-odd', 'claude-garbage', 'claude-plain']),
+          )
+          expect(await found('cormorant')).toEqual(['claude-truncated'])
+          expect(await found('plover')).toEqual(['claude-odd'])
+          expect(await found('gull')).toEqual(['claude-plain'])
+        })
+
+        it('keeps searching the other harnesses while one cannot list its sessions', async () => {
+          writeCodexTurn('codex-quiet', 'a quiet start', 'nothing yet')
+          const rollout = join(searched.home, '.codex', 'sessions', 'unreadable-rollout')
+          mkdirSync(rollout, {recursive: true})
+          const db = new DatabaseSync(join(searched.home, '.codex', 'state_5.sqlite'))
+          const stamp = nextStamp()
+          try {
+            db.prepare(
+              'insert or replace into threads (id, rollout_path, cwd, title, first_user_message, created_at, updated_at, created_at_ms, updated_at_ms) values (?,?,?,?,?,?,?,?,?)',
+            ).run('codex-unreadable', rollout, searched.cwd, 'a tern', 'a tern', stamp, stamp, stamp, stamp)
+            writeClaudeTurn('claude-tern', 'a tern too', 'seen')
+
+            expect(await found('tern')).toEqual(['claude-tern'])
+          } finally {
+            db.prepare('delete from threads where id = ?').run('codex-unreadable')
+            db.close()
+            rmSync(rollout, {recursive: true, force: true})
+          }
+        })
 
         it('matches message text of sessions from every harness, newest first and paged, and tolerates a typo', async () => {
           writeClaudeTurn('claude-orchard', 'plan the kiwi orchard', 'the mango grove is planted')
@@ -2515,9 +2597,9 @@ describe('rpc wire', () => {
           expect(await found('lime')).toEqual(['codex-salsa'])
           expect(await found('mangp')).toEqual(['codex-salsa', 'claude-orchard'])
 
-          const first = await searchKit().rpc.sessions.list({search: 'mango', limit: 1})
+          const first = await searchKit().rpc.sessions.search({term: 'mango', limit: 1})
           expect(first.sessions.map((meta) => meta.native?.nativeId)).toEqual(['codex-salsa'])
-          const second = await searchKit().rpc.sessions.list({search: 'mango', cursor: first.next, limit: 1})
+          const second = await searchKit().rpc.sessions.search({term: 'mango', cursor: first.next, limit: 1})
           expect(second).toMatchObject({sessions: [{native: {nativeId: 'claude-orchard'}}], next: null})
         })
 

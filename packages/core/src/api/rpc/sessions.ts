@@ -57,25 +57,24 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
   }
 }
 
-async function rpcSessionList(
+async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
+  const pages = await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))
+  return pages.filter((native) => native !== null)
+}
+
+async function sessionPage(
   chat: ChatContext,
-  search: ReturnType<typeof createSessionSearch>,
-  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number; search?: string},
+  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
+  search: string | null,
+  nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
 ): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit}
-  const term = input.search ? input.search : null
-  const nativePages =
-    term === null
-      ? (await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))).filter(
-          (native) => native !== null,
-        )
-      : await search.pages(term, page)
   return listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
-    nativePages,
+    nativePages: await nativePagesOf(page),
     page,
-    search: term,
+    search,
     running: await chat.plane.running(),
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
@@ -163,7 +162,10 @@ export function sessionsRouter(deps: RpcDeps) {
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }
   return {
-    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, search, input)),
+    list: os.sessions.list.handler(({input}) => sessionPage(chat, input, null, (page) => listedPages(chat, page))),
+    search: os.sessions.search.handler(({input}) =>
+      sessionPage(chat, input, input.term, (page) => search.pages(input.term, page)),
+    ),
     get: os.sessions.get.handler(async ({input, errors}) => {
       const row = await rowById(db, input.sessionId)
       if (!row) throw errors.NOT_FOUND()

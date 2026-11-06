@@ -41,6 +41,7 @@ export function useRefetchSessionHarness(): (sessionId: string) => Promise<void>
       appData.utils.meta.models.key(input),
       appData.utils.meta.commands.key(input),
       appData.utils.sessions.list.key(),
+      appData.utils.sessions.search.key(),
       appData.utils.sessions.get.key(input),
     ]
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({queryKey, refetchType: 'all'})))
