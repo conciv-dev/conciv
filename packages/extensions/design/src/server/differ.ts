@@ -17,7 +17,7 @@ export function createDiffer(input: {
 }): Differ {
   const {runtime, runner, page, bundler} = input
   const {store} = runtime
-  const reports = new Map<string, DiffReport>()
+  const reports = new Map<string, Reported>()
   const unanswered = new Set<string>()
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
@@ -60,7 +60,10 @@ export function createDiffer(input: {
     },
     status: ({session}) => targetStatus({runtime, session, unanswered}),
     watch: ({input: query, session}) => watchReport({runtime, session, query}),
-    xray: async ({id}) => ({report: reports.get(id) ?? null, outline: runtime.words.outline(await store.design(id))}),
+    xray: async ({id}) => ({
+      report: await storedReport({reports, store, id}),
+      outline: runtime.words.outline(await store.design(id)),
+    }),
     dispose: edits.dispose,
   }
 }
@@ -231,6 +234,18 @@ function createLanes(input: {execute: (job: Job) => Promise<DiffReport>}): (job:
   }
 }
 
+type Reported = {run: string; report: DiffReport}
+
+async function storedReport(input: {
+  reports: Map<string, Reported>
+  store: DesignRuntime['store']
+  id: string
+}): Promise<DiffReport | null> {
+  const kept = input.reports.get(input.id)
+  if (kept === undefined) return null
+  return (await input.store.runs(input.id)).includes(kept.run) ? kept.report : null
+}
+
 type Lane = {running: boolean; pending: (PromiseWithResolvers<DiffReport> & {job: Job}) | null}
 
 type Request = {
@@ -239,7 +254,7 @@ type Request = {
   runtime: DesignRuntime
   runner: Runner
   page: ServerToolPageAccess
-  reports: Map<string, DiffReport>
+  reports: Map<string, Reported>
   unanswered: Set<string>
 }
 
@@ -271,7 +286,7 @@ async function runDiff(request: Request): Promise<DiffReport> {
       words: runtime.words,
     })
   }
-  const {report} = await runner({
+  const {run, report} = await runner({
     record,
     page,
     input: job.input,
@@ -279,7 +294,7 @@ async function runDiff(request: Request): Promise<DiffReport> {
     observe: job.observe,
     edited: request.edited,
   })
-  reports.set(record.id, report)
+  reports.set(record.id, {run: run.id, report})
   return report
 }
 
@@ -327,8 +342,8 @@ async function pageErrorRound(request: Request & {message: string}): Promise<Dif
 
 async function previousReport(request: Request): Promise<DiffReport> {
   const {job, runtime, reports} = request
-  const known = reports.get(job.id)
-  if (known !== undefined) return known
+  const known = await storedReport({reports, store: runtime.store, id: job.id})
+  if (known !== null) return known
   const record = await runtime.store.record(job.id)
   if (record === null) throw toolError('no-target', {message: runtime.words.hint({kind: 'no-target'})})
   return blankReport({record, xray: runtime.xrayUrl({id: record.id, session: job.session}).url})
