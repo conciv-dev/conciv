@@ -11,43 +11,6 @@ const DESIGN_EXTENSION_NAME = 'design'
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
-const NO_TARGET_MESSAGE = 'no design target is registered; register the design image with design_target'
-
-const DELTA_KIND_NAMES = [
-  'inset-left',
-  'inset-right',
-  'inset-top',
-  'inset-bottom',
-  'gap-before',
-  'gap-after',
-  'align',
-  'padding',
-  'fontSize',
-  'lineHeight',
-  'fontWeight',
-  'font',
-  'background',
-  'foreground',
-  'radius',
-  'border',
-  'axis',
-  'columns',
-  'sizing',
-  'width',
-  'height',
-  'lines',
-  'text',
-  'pixels',
-] as const
-
-const STAGES = ['structure', 'content', 'geometry', 'paint'] as const
-
-const NODE_STATUSES = ['unbuilt', 'paired', 'done', 'regressed', 'accepted'] as const
-
-const STOPS = ['done', 'residual-only', 'oscillating', 'stalled', 'budget', 'unsettled'] as const
-
-const DeltaKindNameSchema = z.enum(DELTA_KIND_NAMES)
-
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
@@ -110,6 +73,9 @@ const LiveStylesSchema = z.object({
   textAlign: z.string().describe('the computed text-align'),
   radius: z.number(),
   position: z.string(),
+  display: z.string().default(''),
+  flexDirection: z.string().default(''),
+  overflowX: z.string().default('visible'),
   sizing: z
     .object({width: SizingSchema, height: SizingSchema})
     .describe('fixed when the element own rule or inline style sets the property to a px length'),
@@ -139,24 +105,21 @@ const LiveComponentFieldsSchema = z.object({
   key: z
     .string()
     .nullable()
-    .describe(
-      "the data-conciv-key the compiler wrote into the source, the element's identity for the diff; null without one",
-    ),
+    .describe("the data-conciv-key the compiler wrote into the source, the element's identity; null without one"),
+  figma: z.string().nullable().default(null).describe('the data-figma attribute: the design node the element declares'),
   instance: z
     .string()
     .nullable()
     .default(null)
-    .describe(
-      'the call-site keys and React keys of the fiber chain from the root, which tell copies of one key apart; null when the framework is unknown',
-    ),
+    .describe('the call-site keys and React keys of the fiber chain from the root; null when the framework is unknown'),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
-  box: BoxSchema,
+  box: BoxSchema.describe('clipped to the measured viewport'),
+  bounds: BoxSchema.default({x: 0, y: 0, w: 0, h: 0}).describe('the page box, unclipped, scroll included'),
+  scrolls: z.boolean().default(false).describe('its content is wider than its box'),
   textBox: BoxSchema.nullable(),
-  glyphs: z
-    .array(GlyphSchema)
-    .describe('the text nodes the component paints, each with one box per line, grown by the anti-aliasing halo'),
+  glyphs: z.array(GlyphSchema).describe('the text nodes the component paints, each with one box per line'),
   axis: z.enum(['row', 'column']).nullable(),
   columns: z.number().nullable().describe('track count of grid-template-columns, null when not a grid'),
   styles: LiveStylesSchema,
@@ -186,37 +149,7 @@ const LiveComponentSchema = LiveComponentFieldsSchema.extend({
   },
 })
 
-const ProvenanceSchema = z.object({
-  via: z.enum(['sx', 'style', 'className', 'css', 'emotion', 'styled', 'library', 'source', 'unknown']),
-  file: z.string().optional(),
-  line: z.number().optional(),
-  column: z.number().optional(),
-  declaration: z.string().optional(),
-  selector: z.string().optional(),
-  suggest: z.string().optional(),
-})
-
-const DeltaSchema = ProvenanceSchema.partial().extend({
-  kind: DeltaKindNameSchema,
-  side: z.enum(['left', 'right', 'top', 'bottom', 'x', 'y']).optional(),
-  live: z.union([z.number(), z.string()]),
-  target: z.union([z.number(), z.string()]),
-  source: MeasureSourceSchema.optional().describe('dom when read in the tab, mirror when read in the mirror'),
-  confidence: z.number().optional(),
-  width: z.number().optional().describe('the design width the delta was measured at'),
-  lineHeight: z.number().optional().describe('the design line height a lines delta is sized by'),
-  box: BoxSchema.optional().describe('the live box of the element a warning is about'),
-  opinion: z
-    .object({source: z.literal('takumi'), live: z.union([z.number(), z.string()]), confidence: z.number()})
-    .optional()
-    .describe('the same value read from the takumi layout; shown, never scored'),
-  warning: z
-    .enum(['sample-data', 'typography-skipped', 'svg-drawn', 'page-error'])
-    .optional()
-    .describe(
-      'sample-data: the live text is a literal equal to sample data in the design; render it from the data instead. typography-skipped: live is the number of text samples the page did not render, so their type was not estimated. svg-drawn: a picture the page draws where the design has an image or icon slot; replace it with the Placeholder. page-error: live is the error the dev server shows instead of the page; the run counted nothing',
-    ),
-})
+export const LiveComponentsSchema = z.array(LiveComponentSchema)
 
 const OcrLineSchema = z.object({box: BoxSchema, text: z.string(), confidence: z.number()})
 
@@ -235,6 +168,31 @@ const PaintSchema = z.object({
   background: z.string(),
   gradient: z.object({from: z.string(), to: z.string(), axis: z.enum(['vertical', 'horizontal'])}).optional(),
 })
+
+const ReflowTagSchema = z.object({
+  kind: z.enum(['stack', 'wrap', 'scroll']),
+  minChildWidth: z.number().optional(),
+})
+
+const FigmaFactsSchema = z
+  .object({
+    type: z.string(),
+    name: z.string(),
+    absolute: z.boolean(),
+    mode: z.string().nullable().describe('the auto-layout mode, null without auto layout'),
+    box: BoxSchema.describe('the exact frame-relative box, unrounded'),
+    fields: z.record(z.string(), z.unknown()).describe('the remaining node fields as design_get returns them'),
+  })
+  .describe('what the Figma file says about the node')
+
+const GateFactsSchema = z
+  .object({
+    kind: z.string(),
+    leaf: z.boolean(),
+    parent: z.string().nullable().describe('the node the gate measures the position against'),
+    direction: z.enum(['row', 'column']).optional(),
+  })
+  .describe('how the gate reads the node: its kind, whether it holds flow, its parent, the direction of a group')
 
 const DesignNodeKindSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -259,6 +217,10 @@ const DesignNodeBaseSchema = z.object({
   box: BoxSchema.describe('design px'),
   hash: z.string().describe('sha256 of the node own fields plus its children hashes'),
   layout: NodeLayoutSchema.partial().optional(),
+  figma: FigmaFactsSchema.optional(),
+  gate: GateFactsSchema.optional(),
+  implied: z.boolean().optional().describe('a group the layout implies and the file does not draw'),
+  reflow: ReflowTagSchema.optional(),
 })
 
 const DesignNodeSchema = DesignNodeBaseSchema.extend({
@@ -280,445 +242,147 @@ const MatchSchema = z.object({
   live: LiveComponentFieldsSchema.nullable().describe('null when the node is unbuilt'),
   hash: z.string().describe('sha256 of the live fingerprint plus the children hashes'),
   confidence: z.number(),
-  source: MeasureSourceSchema,
-  deltas: z.array(DeltaSchema).describe('empty when the node is clean'),
-  status: z.enum(NODE_STATUSES),
-  since: z.string().describe('the run that reached the status'),
-  shift: z.object({x: z.number(), y: z.number()}).nullable().describe('how far the paired element sits off its place'),
   get children(): z.ZodArray<typeof MatchSchema> {
     return z.array(MatchSchema)
   },
 })
 
-const ItemSchema = z.object({
-  key: z.string(),
-  kind: z.union([DeltaKindNameSchema, z.enum(['unbuilt', 'extra', 'offset'])]),
-  stage: z.enum(STAGES).nullable(),
-  size: z.number(),
-  confidence: z.number(),
-  box: BoxSchema,
-  depth: z.number(),
-  value: z.union([z.number(), z.string()]),
-  sentence: z.string(),
-  node: z.string().optional(),
-  source: SourceLocSchema.optional(),
-  demoted: z.boolean().optional(),
-  flipped: z.number().optional(),
-  spent: z.number().optional(),
-  unpaired: z.number().optional(),
-  residual: z.number().optional(),
-})
-
-const CarriedSchema = z
-  .object({pairs: z.number(), tiles: z.number()})
-  .describe('pairs and pixel tiles reused from the run before because the edit did not touch them')
-
-const PhaseSchema = z.number().default(0)
-
-const LongestTaskSchema = z
-  .number()
-  .describe('the longest main-thread task in whole ms the page ran while the live page was measured')
-
-const TimingsSchema = z
-  .object({
-    capture: PhaseSchema,
-    decode: PhaseSchema,
-    measure: PhaseSchema,
-    mask: PhaseSchema,
-    similarity: PhaseSchema,
-    regions: PhaseSchema,
-    pair: PhaseSchema,
-    typography: PhaseSchema,
-    deltas: PhaseSchema,
-    judge: PhaseSchema,
-    encode: PhaseSchema,
-    write: PhaseSchema,
-    total: PhaseSchema,
-    carried: CarriedSchema.default({pairs: 0, tiles: 0}),
-    longestTask: LongestTaskSchema.optional(),
-  })
-  .describe('whole milliseconds spent in each phase of the run, zero for a phase the run skipped')
-
-export const RunSchema = z.object({
-  id: z.string(),
-  round: z.number(),
-  design: z.string().describe('the id of the design the run measured'),
-  root: MatchSchema,
-  extras: z.array(LiveComponentSchema).describe('live elements no design node claimed'),
-  score: z.array(z.number()),
-  stage: z.enum(STAGES).nullable(),
-  stop: z.enum(STOPS).nullable(),
-  images: z.object({live: z.string(), diff: z.string()}),
-  mismatch: z.number(),
-  similarity: z.number().nullable(),
-  capture: z.string(),
-  section: z.string().nullable(),
-  items: z.array(ItemSchema),
-  sections: z.array(z.object({id: z.string(), similarity: z.number()})),
-  partial: z.boolean().describe('pairing hit its time budget'),
-  path: CapturePathSchema.describe('how the pixels were captured'),
-  timings: TimingsSchema.describe('the phases the run spent, carried pairs and tiles included'),
-  above: z.number().describe('report elements above tolerance plus unbuilt structure'),
-})
-
-const DECISION_KINDS = [
-  'pin',
-  'excluded',
-  'image-slot',
-  'accept-delta',
-  'tolerance',
-  'accept-node',
-  'twin',
-  'typography',
-] as const
-
-export const DecisionSchema = z.object({
-  id: z.string(),
-  kind: z.enum(DECISION_KINDS),
-  anchor: z.string(),
-  value: z.union([
-    z.string(),
-    z.number(),
-    TypographySchema,
-    z.object({target: z.string(), node: z.string()}),
-    z.null(),
-  ]),
-  at: z.number(),
-})
-
 export const TargetRecordSchema = z.object({
   id: z.string(),
   session: z.string().default(''),
+  ref: z.string().describe('the source ref: fileKey/nodeId of a Figma frame, the image path otherwise'),
   route: z.string().optional(),
   width: z.number(),
   height: z.number(),
-  name: z.string().optional(),
   scale: z.number(),
   createdAt: z.number(),
-  acceptedRun: z.string().optional(),
-  paths: z
-    .object({design: z.string(), placeholder: z.string()})
-    .describe('absolute paths of the outline and placeholder files'),
 })
 
-const UnmatchedSchema = z.object({
-  kind: z
-    .enum(['unbuilt', 'extra', 'offset'])
-    .describe(
-      'unbuilt: a design node nothing renders; extra: an element the design lacks; offset: a misplaced element',
-    ),
-  target: BoxSchema.optional(),
-  live: BoxSchema.optional(),
-  source: SourceLocSchema.optional(),
-  label: z.string().optional().describe('the design text of an unbuilt text node, or its kind'),
-  stage: z.enum(STAGES).nullable().optional().describe('the stage the entry counts in; null when it is informational'),
-  shift: z.object({dx: z.number(), dy: z.number()}).optional().describe('how far an offset entry moved, in px'),
-  node: z.string().optional().describe('the design node of an unbuilt or offset entry'),
-  layout: z
-    .object({
-      direction: DirectionSchema,
-      size: SizeSchema,
-      index: z.number().optional(),
-      gap: GapSchema.optional(),
-      align: AlignSchema.optional(),
-      wrap: z.boolean().optional(),
-      padding: PaddingSchema.optional(),
-    })
-    .optional()
-    .describe(
-      'an unbuilt container: its own layout; an unbuilt child: the direction of its parent, its 1-based index there and its size',
-    ),
-})
-
-const ResponsiveSchema = z.object({
-  target: z.string().describe('the other design target'),
-  width: z.number(),
-  twins: z.number().describe('nodes of this design with a twin in the other one'),
-  absent: z.array(z.string()).describe('nodes of this design the other one lacks'),
-  reordered: z.array(z.string()).describe('nodes whose reading order changes between the two'),
-  stretched: z.array(z.string()).describe('nodes that span the width in one design and not in the other'),
-})
-
-const WinnerSchema = z.object({
-  selector: z.string().nullable(),
-  declaration: z.string(),
-  value: z.string(),
-  important: z.boolean(),
-  inline: z.boolean(),
-  inherited: z.boolean(),
-  sheet: z.object({
-    href: z.string().nullable(),
-    viteDevId: z.string().nullable(),
-    emotion: z.boolean(),
-    styled: z.boolean(),
-    adopted: z.boolean(),
+export const MappingSchema = z.array(
+  z.object({
+    figma: z.object({fileKey: z.string(), nodeId: z.string()}),
+    conciv: z.string().describe('the data-conciv-key of the element that renders the node'),
+    source: z.enum(['declared', 'voted']),
+    round: z.number().describe('the round that wrote the entry'),
   }),
-  conditions: z.array(z.string()),
-  rulePath: z.string(),
+)
+
+const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other'])
+
+const GateRowSchema = z.object({
+  node: z.string(),
+  key: z.string().nullable().describe('the conciv key of the element the row measured'),
+  kind: z.string().describe('the kind of the design node'),
+  name: z.string(),
+  text: z.string(),
+  magnitude: MagnitudeSchema,
 })
 
-const TargetResultSchema = z.object({
-  id: z.string(),
-  route: z.string().optional(),
+const ReflowSchema = z.object({
   width: z.number(),
-  height: z.number(),
-  scale: z.number(),
-  text: z.object({runs: z.number(), error: z.string().optional()}).optional(),
-  stage: z.enum(STAGES).nullable().optional().describe('the stage of run 0, measured at registration'),
-  brief: z.array(z.string()).optional().describe('what to fix first, from run 0'),
-  next: z.string(),
-})
-
-const ComponentReportSchema = z.object({
-  source: SourceLocSchema.nullable(),
-  tag: z.string(),
-  selector: z.string(),
-  live: BoxSchema,
-  target: BoxSchema.nullable(),
-  mismatch: z.number(),
-  deltas: z.array(DeltaSchema),
-  children: z.number(),
-  nodes: z.array(z.string()).optional().describe('the design nodes paired with this component'),
-  path: z.string().optional().describe('where the component sits in the page tree'),
-  twinDisagreement: z
-    .object({target: z.string(), path: z.string()})
-    .optional()
-    .describe('the twin of the paired node in another design is paired to this other component'),
-})
-
-const RouteItemSchema = z
-  .object({live: z.string(), target: z.string()})
-  .describe('the tab shows another route than the design target; nothing was measured')
-
-const PaintedSchema = z.object({
-  count: z.number().describe('outermost absolutely or fixed positioned elements whose parent is not positioned'),
-  total: z.number().describe('measured components'),
-  sources: z.array(SourceLocSchema),
-})
-
-const CropSchema = z
-  .string()
-  .describe('url of a PNG with the design crop and the live crop of the node side by side, each grown by tileMargin')
-
-const RowSchema = z.object({
-  sentence: z.string(),
-  stage: z.enum(STAGES),
-  node: z.string().optional().describe('the design node of the item'),
-  source: SourceLocSchema.optional().describe('the source location of the live element'),
-  crop: CropSchema.optional(),
-})
-
-const LedgerCountsSchema = z
-  .object({unbuilt: z.number(), paired: z.number(), done: z.number(), regressed: z.number(), accepted: z.number()})
-  .describe('design nodes per ledger status')
-
-type LedgerCounts = z.infer<typeof LedgerCountsSchema>
-
-const ChangeSchema = z.object({node: z.string(), sentence: z.string(), crop: CropSchema})
-
-const ChangesSchema = z
-  .object({
-    done: z.array(ChangeSchema).describe('nodes newly clean'),
-    regressed: z.array(ChangeSchema).describe('nodes that were done and are dirty or unpaired again'),
-    paired: z.array(ChangeSchema).describe('nodes paired for the first time'),
-    lost: z.array(ChangeSchema).describe('nodes whose stored element is gone from the page'),
-    moved: z.array(ChangeSchema).describe('nodes whose element is still there with its box elsewhere'),
-  })
-  .describe('what the run changed against the ledger before it')
-
-type Changes = z.infer<typeof ChangesSchema>
-
-const NO_CHANGES: Changes = {done: [], regressed: [], paired: [], lost: [], moved: []}
-const NO_COUNTS: LedgerCounts = {unbuilt: 0, paired: 0, done: 0, regressed: 0, accepted: 0}
-const NODE_KINDS = ['text', 'box', 'image'] as const
-
-const SimilaritySchema = z
-  .number()
-  .describe(
-    'mean SSIM over independent 64 px grayscale tiles, tiles wholly inside an image slot left out; 1 is identical',
-  )
-
-export const DiffReportSchema = z.object({
-  target: z.object({id: z.string(), route: z.string().optional(), width: z.number()}),
-  mismatch: z.number(),
-  similarity: SimilaritySchema.optional(),
-  sectionSimilarity: z
-    .record(z.string(), z.number())
-    .default({})
-    .describe('the similarity of each section, keyed by section id, over the tiles centred in its box'),
-  diffImage: z.string(),
-  livePath: z.string(),
-  xray: z.string(),
-  components: z.array(ComponentReportSchema),
-  unmatched: z.array(UnmatchedSchema),
-  hint: z.string().optional(),
-  route: RouteItemSchema.optional(),
-  warnings: z
-    .array(DeltaSchema)
-    .default([])
-    .describe('outside every count; hard-coded sample data to replace, text samples left without a type estimate'),
-  painted: PaintedSchema.nullable()
-    .default(null)
-    .describe('the page is laid out by absolute positioning; outside every count'),
-  segmentation: z
-    .enum(['full', 'partial'])
-    .optional()
-    .describe('partial when image regions cover much of the design, so boxes inside them are not read'),
-  capturePath: CapturePathSchema.optional().describe('how the pixels of this run were taken'),
-  sources: z.array(MeasureSourceSchema).default([]).describe('where the boxes and styles were read'),
-  limits: MirrorLimitsSchema.optional().describe('what the mirror could not reproduce'),
-  stage: z.enum(STAGES).nullable().default(null).describe('the stage to fix now: the first with an item'),
-  brief: z.array(z.string()).default([]).describe('what to fix this round, in order'),
-  round: z.number().default(0).describe('design_diff calls since the target was registered'),
-  stop: z.enum(STOPS).nullable().default(null).describe('why the loop ends; null while it goes on'),
-  score: z
-    .array(z.number())
-    .default([])
-    .describe('unpaired share, structure, content, geometry, paint, residual share; lower is better'),
-  responsive: z.array(ResponsiveSchema).default([]).describe('how this design relates to the other designs'),
-  partial: z
-    .boolean()
-    .default(false)
-    .describe('pairing hit its time budget before every node was paired; the round was not counted'),
-  paired: z.number().default(0).describe('design nodes paired with a live element in this run'),
-  pinsLost: z.array(z.string()).default([]).describe('pin decisions whose node or element is gone'),
-  timings: TimingsSchema.default(TimingsSchema.parse({})),
-  rows: z
-    .array(RowSchema)
-    .default([])
-    .describe('the first ten items of the stage, in brief order, then the next stage items the brief carries'),
-  changes: ChangesSchema.default(NO_CHANGES),
-  ledger: LedgerCountsSchema.default(NO_COUNTS),
-  designPath: z
-    .string()
-    .default('')
-    .describe('the design as an indented outline, one line per node; read it before building'),
-  placeholderPath: z
-    .string()
-    .default('')
-    .describe('the Placeholder component every image and icon slot takes; copy it into the page source'),
-  design: z.array(z.string()).optional().describe('the lines of the design outline, with full: true'),
-  truncated: z
-    .object({
-      components: z.number(),
-      unmatched: z.number(),
-      above: z.number().optional().describe('every component above tolerance, before ranking and the `limit` cut'),
-    })
-    .optional()
-    .describe('how many components and unmatched entries the full report cut to `limit`'),
-  section: z
-    .object({id: z.string(), line: z.string()})
-    .optional()
-    .describe('the section the report is scoped to: its id and its outline line'),
-  scope: z.literal('section').optional().describe('set when the report lists one section only'),
-  page: z
-    .object({
-      stop: z.enum(STOPS).nullable(),
-      stage: z.enum(STAGES).nullable(),
-      score: z.array(z.number()),
-      similarity: SimilaritySchema.optional(),
-    })
-    .optional()
-    .describe('the whole-page stop, stage and score of a section report'),
-})
-
-const CompactReportSchema = DiffReportSchema.pick({
-  target: true,
-  round: true,
-  stage: true,
-  stop: true,
-  score: true,
-  mismatch: true,
-  similarity: true,
-  brief: true,
-  timings: true,
-  rows: true,
-  xray: true,
-  diffImage: true,
-  livePath: true,
-  capturePath: true,
-  sources: true,
-  partial: true,
-  hint: true,
-  painted: true,
-  changes: true,
-  designPath: true,
-  placeholderPath: true,
-  section: true,
-  scope: true,
-  page: true,
-})
-  .extend({
-    diffImage: z.string().optional().describe('the diff image of this run; absent in a blind run'),
-    livePath: z.string().optional().describe('the live capture of this run; absent in a blind run'),
-    capturePath: CapturePathSchema.optional().describe('how the pixels of this run were taken; absent in a blind run'),
-    counts: z
-      .object({
-        components: z.number(),
-        paired: z.number(),
-        unbuilt: z.number(),
-        icons: z.number(),
-        unmatched: z.number(),
-        warnings: z.number(),
-        done: z.number(),
-        regressed: z.number(),
-        drawn: z.number(),
-      })
-      .describe(
-        'how many components the full report lists, how many nodes paired, how many are unbuilt, how many of the unbuilt are icon slots the agent may fill at will, how many unmatched entries and warnings the full report holds, how many nodes the ledger holds done and regressed, and how many pictures the page draws where the design has an image or icon slot',
-      ),
-  })
-  .loose()
-  .describe('pass `full: true` for the full report with every component and delta')
-
-const StatusReportSchema = z.object({
-  route: z.string().optional(),
-  targets: z.array(
-    z.object({
-      id: z.string(),
-      width: z.number(),
-      mismatch: z.number().nullable(),
-      above: z.number(),
-      lastAt: z.number().nullable(),
+  rootHeight: z.number(),
+  sticksOut: z.array(z.string()).describe('nodes whose element runs outside the root box'),
+  overflowX: z.boolean().describe('the page scrolls sideways'),
+  overlaps: z.array(z.tuple([z.string(), z.string()])).describe('sibling elements that cover each other'),
+  tags: z.array(
+    ReflowTagSchema.extend({
+      node: z.string(),
+      ok: z.boolean().nullable().describe('null when no element renders the node'),
+      why: z.string(),
     }),
   ),
-  done: z.boolean(),
-  score: z.array(z.number()).optional(),
-  similarity: SimilaritySchema.optional(),
-  round: z.number().optional(),
-  stop: z.enum(STOPS).nullable().optional(),
-  acceptedRun: z.string().optional(),
-  next: z.string().optional(),
-  reregister: z.boolean().optional().describe('the stored target is unreadable; register the design image again'),
-  ledger: LedgerCountsSchema.optional(),
-  changes: ChangesSchema.optional().describe('what the latest run changed'),
-  designPath: z.string().optional().describe('the design as an indented outline, one line per node'),
-  placeholderPath: z.string().optional().describe('the Placeholder component every image and icon slot takes'),
-  sections: z
-    .array(
-      z.object({
-        id: z.string(),
-        kind: z.enum(NODE_KINDS),
-        line: z.string().describe('the outline line of the section without its section prefix'),
-        ledger: LedgerCountsSchema,
-        roundsUsed: z
-          .number()
-          .describe(
-            'counted rounds scoped to the section whose changes touched a node of it; at the round budget it stops',
-          ),
-        similarity: SimilaritySchema.optional(),
-      }),
-    )
-    .optional()
-    .describe('the top-level nodes of the design in document order; pass an id to design_diff as section'),
 })
 
-const CaptureResultSchema = z.object({
-  path: z.string(),
-  width: z.number(),
-  height: z.number(),
-  route: z.string(),
-  components: z.array(LiveComponentWireSchema),
+const CoverageSchema = z.object({
+  nodes: z.number().describe('design nodes the gate measures'),
+  mapped: z.number().describe('of them, nodes the mapping holds'),
+  rendered: z.number().describe('of them, nodes an element renders now'),
+  missing: z.array(z.string()).describe('nodes no element renders'),
+  unknown: z.array(z.string()).describe('data-figma values that name no design node'),
+  dupes: z.array(z.string()).describe('nodes rendered by more than one element'),
+})
+
+const CountsSchema = z.object({
+  much: z.number(),
+  noticeably: z.number(),
+  slightly: z.number(),
+  pins: z.number(),
+  other: z.number(),
+  rows: z.number(),
+})
+
+const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
+
+export const RoundSchema = z.object({
+  round: z.number(),
+  rows: z.array(GateRowSchema),
+  reflow: z.array(ReflowSchema),
+  coverage: CoverageSchema,
+  counts: CountsSchema,
+  pixels: PixelsSchema.nullable(),
+  at: z.number(),
+})
+
+const TaggedNodeSchema = z
+  .object({
+    id: z.string(),
+    type: z.string(),
+    name: z.string(),
+    within: z.string().nullable(),
+    depth: z.number(),
+    box: BoxSchema,
+    implied: z.boolean().optional(),
+    reflow: ReflowTagSchema.optional(),
+    key: z.string().optional(),
+  })
+  .loose()
+
+const GetInputSchema = z
+  .object({
+    figma: z
+      .url()
+      .optional()
+      .describe('the Figma frame link: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>'),
+    document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
+    image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
+  })
+  .refine((input) => input.figma !== undefined || input.image !== undefined, {message: 'pass figma or image'})
+  .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
+    message: 'document goes with figma and image',
+  })
+
+const GetResultSchema = z.object({
+  target: z.string(),
+  root: z.string(),
+  count: z.number(),
+  viewport: z.object({width: z.number(), height: z.number()}),
+  rules: z.array(z.string()),
+  nodes: z.array(TaggedNodeSchema),
+})
+
+const WatchInputSchema = z.object({
+  nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only'),
+})
+
+const WatchResultSchema = z.union([
+  z.object({
+    round: z.number(),
+    rows: z.array(GateRowSchema),
+    reflow: z.array(ReflowSchema),
+    coverage: CoverageSchema,
+    counts: CountsSchema,
+  }),
+  z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()}),
+])
+
+const VerdictSchema = z.object({
+  verdict: z.enum(['done', 'not yet', 'stalled']),
+  reasons: z.array(z.string()),
+  counts: CountsSchema.nullable(),
+  coverage: CoverageSchema.nullable(),
+  reflow: z.array(ReflowSchema),
+  pixels: PixelsSchema.nullable(),
+  rounds: z.number(),
 })
 
 const MeasureResultSchema = z.object({
@@ -732,138 +396,27 @@ const MeasureResultSchema = z.object({
   masks: z.array(BoxSchema),
   limits: MirrorLimitsSchema.optional(),
   opinion: z.boolean().describe('takumi laid the mirror out as a second opinion'),
+  overflowX: z.boolean().default(false).describe('the measured page scrolls sideways'),
   framework: z
     .enum(['react', 'solid'])
     .nullable()
     .default(null)
     .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
-  longestTask: LongestTaskSchema.optional(),
+  longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
 })
 
-const RenderSchema = z.object({
-  text: z.string(),
-  font: z.string(),
-  size: z.number(),
-  weight: z.number(),
-  color: z.string(),
-  background: z.string(),
-})
-
-const RenderResultSchema = z.object({images: z.array(z.string())})
-
-const WinnerResultSchema = z.record(z.string(), WinnerSchema.nullable())
-
-const ClearResultSchema = z.object({removed: z.number()})
-
 const Width = z.number().int().positive()
 
-const TargetInputSchema = z
-  .object({
-    image: z
-      .string()
-      .meta({format: 'path'})
-      .optional()
-      .describe('path of a PNG under the project, or the PNG as base64'),
-    figma: z
-      .url()
-      .optional()
-      .describe('link of a Figma frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>'),
-    document: z
-      .unknown()
-      .optional()
-      .describe('the frame as the Figma REST nodes document, when the engine has no FIGMA_API_KEY; pass the image too'),
-    scale: z.number().positive().optional().describe('image pixels per CSS pixel: 2 for a retina export, 1 by default'),
-    route: z
-      .string()
-      .optional()
-      .describe('a label for the route the image is the design of; defaults to the live route'),
-    name: z.string().optional().describe('a name for the target'),
-  })
-  .refine((input) => input.document !== undefined || (input.image === undefined) !== (input.figma === undefined), {
-    message: 'pass image or figma, not both',
-  })
-  .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
-    message: 'document goes with figma and image',
-  })
-
-const DiffInputSchema = z.object({
-  depth: z.number().int().min(1).max(6).default(3).describe('how deep to descend into the component tree'),
-  limit: z.number().int().min(1).max(60).default(12).describe('how many components to report'),
-  full: z.boolean().optional().describe('return the full report with every component and delta'),
-  section: z
-    .string()
-    .optional()
-    .describe('a section id from design_status.sections; the run stays whole-page, the report lists that section only'),
-})
-
-const StatusInputSchema = z.object({})
-
-const WatchInputSchema = z.object({
-  key: z.string().optional().describe('return the node paired to this data-conciv-key'),
-  ref: z.string().optional().describe('return the node with this design id, the Figma node id for a Figma target'),
-  node: z.string().optional().describe('return this node'),
-  status: z.enum(NODE_STATUSES).optional().describe('return the nodes in this ledger status'),
-  limit: z.number().int().positive().default(400).describe('at most this many rows'),
-})
-
-const WatchRowSchema = z.object({
-  node: z.string(),
-  ref: z.string().nullable().describe('the design id the node came from; the Figma node id, null for an image target'),
-  kind: z.enum(NODE_KINDS),
-  text: z.string().nullable().describe('the text of a text node'),
-  box: BoxSchema,
-  status: z.enum(NODE_STATUSES),
-  key: z.string().nullable().describe('the data-conciv-key of the paired element'),
-  source: SourceLocSchema.nullable(),
-  path: z.string().nullable().describe('the paired element as a child-position path'),
-  confidence: z.number().nullable(),
-  item: z.string().nullable().describe('the worst open item of the node, as a sentence'),
-})
-
-const WatchReportSchema = z.object({
-  target: z.string(),
-  run: z.string().nullable().describe('the run the mapping comes from; null before the first run'),
-  live: z.boolean().describe('true when the mapping comes from the page watcher and is newer than the stored ledger'),
-  counts: LedgerCountsSchema,
-  rows: z.array(WatchRowSchema),
-  truncated: z.number().describe('rows left out by limit'),
-})
-
-const CaptureInputSchema = z.object({
-  height: Width.optional().describe('height of the captured area in px; defaults to the viewport height'),
-  timeout: z.number().int().positive().optional().describe('how long the page may take to answer, in ms'),
-})
-
 const MeasureInputSchema = z.object({
-  width: Width.optional().describe('the design width; the mirror is read when it differs from the tab width'),
-  height: Width.optional().describe('the design height'),
+  width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
+  height: Width.optional().describe('the height to capture'),
   timeout: z.number().int().positive().optional(),
-})
-
-const RenderInputSchema = z.object({
-  renders: z.array(RenderSchema),
-  timeout: z.number().int().positive().optional(),
-})
-
-const WinnerInputSchema = z.object({
-  selector: z.string().describe('CSS selector of the element'),
-  properties: z.array(z.string()).describe('CSS properties to explain'),
-  width: Width.optional().describe(
-    'design width the element was measured at; the mirror at this width is read instead of the tab',
-  ),
-  height: Width.optional().describe('viewport height the element was captured at'),
-})
-
-const ClearInputSchema = z.object({
-  target: z.string().optional().describe('target id to remove; defaults to the current target'),
-  all: z.literal(true).optional().describe('remove every target'),
 })
 
 const DESIGN_ERRORS = {
   'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
-  'no-target': {message: NO_TARGET_MESSAGE},
-  'unknown-section': {message: 'the design has no section with that id'},
+  'no-target': {message: 'no design is registered; call design_get with the Figma link'},
   'figma-link': {
     message: 'the Figma link must point at a frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>',
   },
@@ -886,15 +439,11 @@ type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBui
 function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   verb: string
   summary: string
-  mutating: boolean
-  icon: 'edit' | 'read'
   running: string
   done: string
   input: z.ZodObject<Shape>
   output: Out
-  hint: string
   keywords: readonly string[]
-  positional?: string
   catalog?: boolean
 }): DesignToolDef<Shape, Out> {
   return defineTool({
@@ -906,173 +455,85 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
     meta: {
       summary: spec.summary,
       category: DESIGN_EXTENSION_NAME,
-      icon: spec.icon,
+      icon: 'read',
       label: {running: spec.running, done: spec.done},
-      hint: spec.hint,
-      mutating: spec.mutating,
+      hint: spec.summary,
+      mutating: false,
       mirrors: false,
       capture: 'none',
       keywords: spec.keywords,
-      ...(spec.positional === undefined ? {} : {positional: spec.positional}),
       ...(spec.catalog === undefined ? {} : {catalog: spec.catalog}),
     },
   })
 }
 
-const targetDef = designTool({
-  verb: 'target',
-  summary: 'register a design image or a Figma frame as the target',
-  mutating: true,
-  icon: 'edit',
-  running: 'Registering the design target',
-  done: 'Registered the design target',
-  input: TargetInputSchema,
-  output: TargetResultSchema,
-  hint: 'the image becomes the current target of the session; build or edit the page, then run design_diff',
-  keywords: ['design', 'mockup', 'image', 'figma', 'png'],
-  positional: 'image',
-})
-
-const diffDef = designTool({
-  verb: 'diff',
-  summary: 'compare the live page with the current design target and rank the components that differ',
-  mutating: false,
-  icon: 'read',
-  running: 'Comparing with the design',
-  done: 'Compared with the design',
-  input: DiffInputSchema,
-  output: CompactReportSchema,
-  hint: 'fix the brief and rows in order, then diff again',
-  keywords: ['design', 'compare', 'pixels', 'deltas', 'visual'],
-})
-
-const statusDef = designTool({
-  verb: 'status',
-  summary: 'report whether the live page matches the current design target',
-  mutating: false,
-  icon: 'read',
-  running: 'Reading the design status',
-  done: 'Read the design status',
-  input: StatusInputSchema,
-  output: StatusReportSchema,
-  hint: 'done is true once the last diff of the current target has nothing above tolerance',
-  keywords: ['design', 'done', 'progress'],
+const getDef = designTool({
+  verb: 'get',
+  summary:
+    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design.',
+  running: 'Reading the design',
+  done: 'Read the design',
+  input: GetInputSchema,
+  output: GetResultSchema,
+  keywords: ['design', 'figma', 'frame', 'nodes', 'build'],
 })
 
 const watchDef = designTool({
   verb: 'watch',
-  summary: 'the live mapping of design nodes to the page: status, source key, source line, as the page is built',
-  mutating: false,
-  icon: 'read',
-  running: 'Reading the design mapping',
-  done: 'Read the design mapping',
+  summary:
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at 1024 and 768 wide, and which nodes are rendered, missing or rendered twice.',
+  running: 'Measuring the page against the design',
+  done: 'Measured the page against the design',
   input: WatchInputSchema,
-  output: WatchReportSchema,
-  hint: 'look up a node by key, ref or node; without a filter the rows list every design node; runs no diff',
-  keywords: ['design', 'mapping', 'pairs', 'figma', 'key'],
+  output: WatchResultSchema,
+  keywords: ['design', 'measure', 'rows', 'reflow', 'mapping'],
 })
 
-const captureDef = designTool({
-  verb: 'capture',
-  summary: 'capture the live page at the tab width as a PNG with its component tree',
-  mutating: false,
-  icon: 'read',
-  running: 'Capturing the page',
-  done: 'Captured the page',
-  input: CaptureInputSchema,
-  output: CaptureResultSchema,
-  hint: 'returns the path of the PNG, never the bytes',
-  keywords: ['design', 'capture', 'screenshot', 'components'],
+const validateDef = designTool({
+  verb: 'validate',
+  summary:
+    'Says whether the page is done against the design, judged on the last measure: done, not yet with the reasons, or stalled when the large differences stopped falling.',
+  running: 'Validating the page',
+  done: 'Validated the page',
+  input: z.object({}),
+  output: VerdictSchema,
+  keywords: ['design', 'done', 'verdict'],
 })
 
 const measureDef = designTool({
   verb: 'measure',
-  summary: 'measure the page at the design width: components, pixels and how they were taken',
-  mutating: false,
-  icon: 'read',
+  summary: 'measure the page at a width: components, pixels and how they were taken',
   running: 'Measuring the page',
   done: 'Measured the page',
   input: MeasureInputSchema,
   output: MeasureResultSchema,
-  hint: 'called by design_diff; the mirror stands in for the tab when the widths differ',
   keywords: ['design', 'measure'],
   catalog: false,
 })
 
-const renderDef = designTool({
-  verb: 'render',
-  summary: 'render strings in the page fonts as PNGs for the type estimate',
-  mutating: false,
-  icon: 'read',
-  running: 'Rendering text',
-  done: 'Rendered text',
-  input: RenderInputSchema,
-  output: RenderResultSchema,
-  hint: 'called by design_diff',
-  keywords: ['design', 'typography'],
-  catalog: false,
-})
+export const DESIGN_TOOLS = [getDef, watchDef, validateDef, measureDef] as const
 
-const winnerDef = designTool({
-  verb: 'winner',
-  summary: 'name the CSS declaration that wins each property of an element',
-  mutating: false,
-  icon: 'read',
-  running: 'Finding the winning styles',
-  done: 'Found the winning styles',
-  input: WinnerInputSchema,
-  output: WinnerResultSchema,
-  hint: 'null for a property whose computed value no declaration explains',
-  keywords: ['design', 'css', 'cascade', 'specificity', 'style'],
-})
-
-const clearDef = designTool({
-  verb: 'clear',
-  summary: 'remove design targets',
-  mutating: true,
-  icon: 'edit',
-  running: 'Clearing design targets',
-  done: 'Cleared design targets',
-  input: ClearInputSchema,
-  output: ClearResultSchema,
-  hint: 'removes one target by id, the current target, or every target with all',
-  keywords: ['design', 'remove', 'reset'],
-})
-
-export const DESIGN_TOOLS = [
-  targetDef,
-  diffDef,
-  statusDef,
-  watchDef,
-  captureDef,
-  measureDef,
-  renderDef,
-  winnerDef,
-  clearDef,
-] as const
-
-type Stage = (typeof STAGES)[number]
-type Stop = (typeof STOPS)[number]
 type Rgb = [number, number, number]
 type Grid = {side: number; columns: number; rows: number; width: number; height: number}
 type MeasureSource = z.output<typeof MeasureSourceSchema>
 type CapturePath = z.output<typeof CapturePathSchema>
-type TargetInput = z.output<typeof TargetInputSchema>
-type DiffInput = z.output<typeof DiffInputSchema>
-type TargetResult = z.infer<typeof TargetResultSchema>
-type StatusReport = z.infer<typeof StatusReportSchema>
-type WatchInput = z.output<typeof WatchInputSchema>
-type WatchReport = z.infer<typeof WatchReportSchema>
+type GetInput = z.output<typeof GetInputSchema>
 
 export type Box = z.output<typeof BoxSchema>
 export type Design = z.infer<typeof DesignSchema>
 export type DesignNode = z.infer<typeof DesignNodeSchema>
-export type Run = z.infer<typeof RunSchema>
 export type Match = z.infer<typeof MatchSchema>
-export type Delta = z.output<typeof DeltaSchema>
-export type Decision = z.infer<typeof DecisionSchema>
 export type TargetRecord = z.infer<typeof TargetRecordSchema>
 export type LiveComponent = z.output<typeof LiveComponentSchema>
+export type Mapping = z.output<typeof MappingSchema>
+export type Round = z.output<typeof RoundSchema>
+export type GateRow = z.output<typeof GateRowSchema>
+export type Reflow = z.output<typeof ReflowSchema>
+export type Coverage = z.output<typeof CoverageSchema>
+export type Counts = z.output<typeof CountsSchema>
+export type Verdict = z.output<typeof VerdictSchema>
+export type Got = z.output<typeof GetResultSchema>
+export type Watched = z.output<typeof WatchResultSchema>
 export type Raster = {
   width: number
   height: number
@@ -1104,7 +565,6 @@ export type Raster = {
   cutout(box: Box): Raster
   beside(input: {others: Raster[]; gap: number}): Raster
 }
-export type DiffReport = z.infer<typeof DiffReportSchema>
 
 export type TargetAdapter = {
   kind: string
@@ -1120,31 +580,17 @@ export type TargetAdapter = {
 }
 
 export type Store = {
-  put(input: {
-    design: Design
-    image: Uint8Array
-    session: string
-    route?: string
-    name?: string
-    framework?: 'react' | 'solid'
-  }): Promise<TargetRecord>
+  put(input: {design: Design; image: Uint8Array; session: string; route?: string}): Promise<TargetRecord>
   design(id: string): Promise<Design>
-  image(input: {id: string; run?: string; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
-  record(id: string): Promise<TargetRecord | null>
+  image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
+  mapping(id: string): Promise<Mapping>
+  writeMapping(input: {id: string; mapping: Mapping}): Promise<void>
+  writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
+  round(input: {id: string; round: number}): Promise<Round | null>
+  rounds(id: string): Promise<Round[]>
+  clear(id: string): Promise<void>
   current(session: string): Promise<TargetRecord | null>
-  list(route?: string): Promise<TargetRecord[]>
-  remove(input: {id?: string; all?: boolean}): Promise<number>
-  runs(id: string): Promise<string[]>
-  latest(id: string): Promise<Run | null>
-  run(input: {id: string; run: string}): Promise<Run | null>
-  writeRun(input: {run: Run; live: Uint8Array; diff: Uint8Array; report: DiffReport}): Promise<Run>
-  report(id: string): Promise<DiffReport | null>
-  decisions(id: string): Promise<Decision[]>
-  decide(input: {id: string; kind: Decision['kind']; anchor: string; value: Decision['value']}): Promise<Decision>
-  revoke(input: {id: string; decision: string}): Promise<boolean>
-  accept(input: {id: string; run: string}): Promise<TargetRecord>
-  writeCapture(png: Uint8Array): Promise<string>
-  path(key: string): string | null
+  list(): Promise<TargetRecord[]>
 }
 
 export type Measurer = {
@@ -1157,146 +603,35 @@ export type Measured = {
   live: LiveComponent
   raster: Raster
   route: string
+  width: number
   path: CapturePath
   sources: MeasureSource[]
-  confidence: number
+  overflowX: boolean
   longestTask?: number
   pageError?: string
   framework: 'react' | 'solid'
   masks: Box[]
-  limits?: DiffReport['limits']
 }
 
 export type Pairer = (input: {
   design: Design
   measured: Measured
   target: Raster
-  previous: Run | null
-  decisions: Decision[]
-  twins: {node: string; path: string; confidence: number}[]
-  edited: string[]
+  pins: {node: string; path: string}[]
   budget: number
-}) => Promise<{root: Match; partial: boolean; carried: number}>
+}) => Promise<{root: Match; partial: boolean}>
 
-export type Deltas = {
-  compute(input: {
-    root: Match
-    design: Design
-    measured: Measured
-    target: Raster
-    previous: Run | null
-    decisions: Decision[]
-    page: ServerToolPageAccess
-    project: Storage
-    excluded: Box[]
-    limit: number
-  }): Promise<{
-    root: Match
-    extras: LiveComponent[]
-    warnings: Delta[]
-    mismatch: number
-    similarity: number | null
-    diff: Raster
-    sections: {id: string; similarity: number}[]
-    timings: Record<string, number>
-  }>
-  dispose(): void
-}
-
-export type Judge = (input: {
-  root: Match
-  extras: LiveComponent[]
-  warnings: Delta[]
-  previous: Run | null
-  rounds: Run[]
-  decisions: Decision[]
-  accepted: Set<string>
-  run: string
-  section?: string
-  capture: string
-  path: Run['path']
-  partial: boolean
-  excluded: Box[]
-}) => {root: Match; score: number[]; stage: Stage | null; stop: Stop | null; items: Run['items']}
-
-export type Words = {
-  outline(design: Design): string[]
-  placeholder(framework: 'react' | 'solid'): string
-  guide(input: {blind: boolean}): string
-  report(input: {
-    run: Run
-    previous: Run | null
-    items: Run['items']
-    measured: Measured
-    design: Design
-    record: TargetRecord
-    input: DiffInput
-    paths: {live: string; diff: string; xray: string}
-    timings: DiffReport['timings']
-    decisions: Decision[]
-    twins: Parameters<Pairer>[0]['twins']
-  }): DiffReport
-  status(input: {
-    record: TargetRecord
-    run: Run | null
-    design: Design | null
-    previous: Run | null
-    accepted: Run | null
-    rounds: Run[]
-    unanswered: boolean
-    blind: boolean
-  }): StatusReport
-  watch(input: {
-    record: TargetRecord
-    run: Run | null
-    design: Design
-    input: WatchInput
-    previous: Run | null
-  }): WatchReport
-  hint(input: {
-    kind:
-      | 'refused-route'
-      | 'page-error'
-      | 'unsettled'
-      | 'hidden-tab'
-      | 'next'
-      | 'no-target'
-      | 'image-unreadable'
-      | 'unchanged'
-      | 'unknown-section'
-      | 'no-run'
-    route?: string
-    expected?: string
-    error?: string
-    section?: string
-  }): string
-}
-
-export type Runner = (input: {
-  record: TargetRecord
-  page: ServerToolPageAccess
-  input: DiffInput
-  session: string
-  observe: boolean
-  edited: string[]
-}) => Promise<{run: Run; report: DiffReport}>
+export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<Watched>
 
 export type Differ = {
-  register(input: {input: TargetInput; session: string; page: ServerToolPageAccess}): Promise<TargetResult>
-  run(input: {input: DiffInput; session: string}): Promise<DiffReport>
-  refresh(input: {session: string}): Promise<void>
-  touch(input: {file: string}): void
-  capture(input: {id: string; session: string}): Promise<DiffReport>
-  accept(input: {id: string}): Promise<TargetRecord>
-  status(input: {session: string}): Promise<StatusReport>
-  watch(input: {input: WatchInput; session: string}): Promise<WatchReport>
-  xray(input: {id: string}): Promise<{report: DiffReport | null; outline: string[]}>
+  get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<Got>
+  watch(input: {nodes: string[] | undefined; session: string}): Promise<Watched>
+  validate(input: {session: string}): Promise<Verdict>
   dispose(): void
 }
 
 export type DesignRuntime = {
   cwd: string
-  blind: boolean
   state: Storage
   project: Storage
   files: Storage
@@ -1304,8 +639,5 @@ export type DesignRuntime = {
   adapters: TargetAdapter[]
   measurer: Measurer
   pairer: Pairer
-  deltas: Deltas
-  judge: Judge
-  words: Words
-  xrayUrl(input: {id: string; session: string}): {url: string; absolute: boolean}
+  comparator: string
 }
