@@ -64,9 +64,8 @@ import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
 import {z} from 'zod'
 import {containedPath, transcriptPathWithin} from '../src/_shared/contained-path.js'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
-import {runAdapterTurn} from '@conciv/ai/testkit'
+import {fakeText, runAdapterTurn} from '@conciv/ai/testkit'
 import {lastUserModelText} from '../src/_shared/text-adapter.js'
-import {scriptedRunChunks} from './helpers.js'
 import {opencode} from '../src/opencode/index.js'
 import {storagePath, opencodeHistory} from '../src/opencode/history.js'
 import {pi} from '../src/pi/index.js'
@@ -1414,12 +1413,12 @@ describe('contained path', () => {
 
 describe('make text adapter', () => {
   test('makeTextAdapter drives chat() with the provided stream fn', async () => {
-    const adapter = makeTextAdapter('scripted', async function* (options) {
-      yield* scriptedRunChunks(`echo:${lastUserModelText(options.messages)}`)
-    })
+    const model = fakeText()
+    model.setResponses([({request}) => ({text: `echo:${lastUserModelText(request.messages)}`})])
+    const adapter = makeTextAdapter('scripted', (options) => model.chatStream(options))
     const chunks = await runAdapterTurn(adapter, [{role: 'user', content: 'hi'}])
-    const content = chunks.find((chunk) => chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT)
-    expect(content && 'delta' in content ? content.delta : undefined).toBe('echo:hi')
+    const text = chunks.flatMap((chunk) => (chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : []))
+    expect(text.join('')).toBe('echo:hi')
     expect(chunks.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
   })
 })
@@ -2192,7 +2191,7 @@ describe('registry', () => {
         imageInput: false,
         init: 'none',
       },
-      chatConfig: () => ({adapter: makeTextAdapter(id, async function* () {})}),
+      chatConfig: () => ({adapter: fakeText()}),
     })
   }
 
@@ -2237,7 +2236,7 @@ describe('registry', () => {
           imageInput: false,
           init: 'none',
         },
-        chatConfig: () => ({adapter: makeTextAdapter('x', async function* () {})}),
+        chatConfig: () => ({adapter: fakeText()}),
         history: {
           messages: () => Promise.resolve([]),
           observe: () => handle,
