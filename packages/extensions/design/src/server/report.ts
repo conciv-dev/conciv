@@ -195,7 +195,10 @@ function briefOf(
   const ordered = items.filter((item) => item.stage !== null && item.stage === stage)
   const later = stage === null ? [] : STAGES.slice(STAGES.indexOf(stage) + 1)
   const next = later.find((candidate) => items.some((item) => item.stage === candidate))
-  const following = items.filter((item) => item.stage === next).slice(0, TOLERANCES.briefNext)
+  const following = uniqBy(
+    items.filter((item) => item.stage === next),
+    (item) => item.sentence,
+  ).slice(0, TOLERANCES.briefNext)
   const unchanged = items.filter((item) => item.demoted === true)
   const flipped = items.flatMap((item) => (item.flipped === undefined ? [] : [{item, round: item.flipped}]))
   const [flip] = flipped
@@ -207,7 +210,7 @@ function briefOf(
     ...(input.painted === null ? [] : [phrases.painted(input.painted.count)]),
     ...(flip === undefined ? [] : [phrases.flipped({items: flipped.map((entry) => entry.item), round: flip.round})]),
     ...input.warnings.map(phrases.warning),
-    ...ordered.slice(0, TOLERANCES.briefSize).map((item) => item.sentence),
+    ...uniq(ordered.map((item) => item.sentence)).slice(0, TOLERANCES.briefSize),
     ...following.map((item) => `${item.stage} next: ${item.sentence}`),
   ]
   const rows = [...ordered.slice(0, ROW_LIMIT), ...following].flatMap((item) =>

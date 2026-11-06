@@ -449,7 +449,7 @@ function reportHint(input: {
   const hints = [
     cut.listed <= cut.shown
       ? null
-      : `showing ${cut.shown} of ${cut.paired} paired components, those with deltas first; full: true lists up to limit of each and truncated says how many more`,
+      : `showing ${cut.shown} of ${cut.paired} components on an element, those with deltas first; full: true lists up to limit of each and truncated says how many more`,
     input.attributed ? null : HINT,
     input.absolute ? null : ORIGIN_HINT,
   ].filter((hint) => hint !== null)

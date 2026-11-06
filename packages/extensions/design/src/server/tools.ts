@@ -29,8 +29,8 @@ function shaped(input: {report: DiffReport; design: string[] | null; limit: numb
   const {report} = input
   const counts = {
     components: report.components.length,
-    paired: report.paired,
-    unbuilt: report.unmatched.filter((entry) => entry.kind === 'unbuilt').length,
+    paired: report.ledger.paired,
+    unbuilt: report.ledger.unbuilt,
     icons: report.unmatched.filter(
       (entry) =>
         entry.kind === 'unbuilt' &&
