@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
-import {useQuery} from '@tanstack/solid-query'
-import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
+import {useMutation, useQuery} from '@tanstack/solid-query'
+import {Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
   coalesceTurns,
@@ -12,7 +12,7 @@ import {
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
 import X from 'lucide-solid/icons/x'
-import Ellipsis from 'lucide-solid/icons/ellipsis'
+import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import Unplug from 'lucide-solid/icons/unplug'
@@ -52,8 +52,13 @@ const RAIL_LEFT = 'flex flex-1 flex-col justify-center min-w-0 gap-[3px]'
 const RAIL_MICROLABEL =
   '[font-family:var(--chat-mono)] text-[length:var(--chat-text-micro)] leading-[1.2] uppercase tracking-[0.14em] [color:var(--chat-microlabel)] whitespace-nowrap'
 const RAIL_SEPARATOR = 'chat-rail-context-full [color:var(--chat-separator)] px-[5px]'
-const RAIL_TITLE =
-  'min-w-0 truncate [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
+const RAIL_TITLE_ROW =
+  'group flex items-center gap-1 min-w-0 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
+const RAIL_TITLE = 'min-w-0 truncate'
+const RAIL_TITLE_TRIGGER =
+  'flex items-center gap-1.5 min-w-0 p-0 bg-transparent [border:none] text-start cursor-pointer rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
+const RAIL_TITLE_RENAME =
+  'size-7 shrink-0 [&[hidden]]:hidden invisible opacity-0 [transition:opacity_120ms_var(--chat-ease),visibility_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100'
 const GHOST =
   'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
 const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
@@ -193,7 +198,6 @@ function PanelSession(): JSX.Element {
     queryClient,
     announce,
   })
-  const sessionMenuLabel = () => (coordinator.isRefreshing() ? 'Refreshing the conversation' : 'Session options')
 
   const turns = createMemo(() => coalesceTurns(chat().messages()))
   const latestRollup = createMemo<TurnRollup | undefined>(() => {
@@ -219,7 +223,21 @@ function PanelSession(): JSX.Element {
   }
   const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
   const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
-  const taskTitle = () => row()?.title || 'New session'
+  const rename = useMutation(() => ({
+    mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
+    onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
+    onError: () => announce('Rename failed', true),
+    onSettled: () => appData.invalidateSessions(),
+  }))
+  const taskTitle = () =>
+    rename.isPending && rename.variables ? rename.variables.title : row()?.title || 'New session'
+  const commitTitle = (value: string) => {
+    const title = value.trim()
+    if (!title || title === taskTitle()) return
+    rename.mutate({sessionId: params().sessionId, title})
+  }
+  const titleMenuLabel = () =>
+    `${taskTitle()}, ${coordinator.isRefreshing() ? 'refreshing the conversation' : 'session options'}`
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
     ...views().map((view) => ({
@@ -248,32 +266,60 @@ function PanelSession(): JSX.Element {
   return (
     <PaneContext.Provider value={paneValue}>
       <header class={RAIL}>
-        <div class={RAIL_LEFT}>
-          <span class={RAIL_MICROLABEL}>
-            <span class="chat-rail-context-full">
-              CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
+        <Popover.Root positioning={{placement: 'bottom-start'}}>
+          <div class={RAIL_LEFT}>
+            <span class={RAIL_MICROLABEL}>
+              <span class="chat-rail-context-full">
+                CONCIV <span class={RAIL_SEPARATOR}>/</span> {taskContext()}
+              </span>
+              <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
             </span>
-            <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
-          </span>
-          <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
-        </div>
-        <Popover.Root positioning={{placement: 'bottom-end'}}>
-          <TooltipIconButtonSlot tooltip={sessionMenuLabel()}>
-            {(buttonProps) => (
-              <Popover.Trigger
-                asChild={(triggerProps) => (
-                  <button {...buttonProps()} {...triggerProps()} class={GHOST} aria-busy={coordinator.isRefreshing()}>
-                    <Show
-                      when={coordinator.isRefreshing()}
-                      fallback={<Ellipsis class="size-4 block" aria-hidden="true" />}
-                    >
-                      <RefreshCw class="size-4 block [transform-origin:center] anim-tool-spin" aria-hidden="true" />
-                    </Show>
-                  </button>
+            <Editable.Root
+              class={RAIL_TITLE_ROW}
+              activationMode="none"
+              translations={{edit: 'Rename session', input: 'Session title'}}
+              onValueCommit={(details) => commitTitle(details.value)}
+            >
+              <Editable.Context>
+                {(titleEditor) => (
+                  <>
+                    <Editable.Area class={titleEditor().editing ? 'flex-1' : undefined}>
+                      <Editable.Input />
+                      <Show when={!titleEditor().editing}>
+                        <Popover.Trigger
+                          class={RAIL_TITLE_TRIGGER}
+                          aria-label={titleMenuLabel()}
+                          aria-busy={coordinator.isRefreshing() || rename.isPending}
+                        >
+                          <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
+                          <Show when={coordinator.isRefreshing()}>
+                            <RefreshCw
+                              class="size-3.5 block shrink-0 [color:var(--chat-text-2)] [transform-origin:center] anim-tool-spin"
+                              aria-hidden="true"
+                            />
+                          </Show>
+                        </Popover.Trigger>
+                      </Show>
+                    </Editable.Area>
+                    <TooltipIconButtonSlot tooltip="Rename session" class={RAIL_TITLE_RENAME} side="bottom">
+                      {(buttonProps) => (
+                        <Editable.EditTrigger
+                          asChild={(triggerProps) => (
+                            <button
+                              {...buttonProps()}
+                              {...triggerProps({onClick: () => titleEditor().setValue(taskTitle())})}
+                            >
+                              <Pencil class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
+                            </button>
+                          )}
+                        />
+                      )}
+                    </TooltipIconButtonSlot>
+                  </>
                 )}
-              />
-            )}
-          </TooltipIconButtonSlot>
+              </Editable.Context>
+            </Editable.Root>
+          </div>
           <Popover.Positioner>
             <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
               <span class={RAIL_MENU_LABEL}>Session</span>

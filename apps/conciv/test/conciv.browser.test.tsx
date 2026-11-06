@@ -2458,8 +2458,8 @@ describe('panel refresh', () => {
 
   const reply = () => page.getByText(REPLY_TEXT)
   const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
-  const sessionMenu = () => page.getByRole('button', {name: 'Session options'})
-  const refreshingMenu = () => page.getByRole('button', {name: 'Refreshing the conversation'})
+  const sessionMenu = () => page.getByRole('button', {name: /session options$/})
+  const refreshingMenu = () => page.getByRole('button', {name: /refreshing the conversation$/})
   const refreshRow = () => page.getByRole('button', {name: 'Refresh the conversation'})
 
   test('a session list still loading never hides the title or the view tabs behind skeletons', async () => {
@@ -2503,6 +2503,120 @@ describe('panel refresh', () => {
     await expect.element(reply()).toBeVisible()
     await expect.element(skeleton()).not.toBeInTheDocument()
   }, 30_000)
+})
+
+describe('panel title', () => {
+  const TITLE = 'the titled session'
+  const RENAMED = 'renamed from the header'
+
+  const coreBase = bootedCore('panel-title')
+  const harness = createShellHarness(coreBase)
+  const faults = trackedFaults()
+
+  afterEach(harness.dispose)
+
+  const header = () => page.getByRole('banner')
+  const titleButton = (title: string) => header().getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+  const pencil = () => header().getByRole('button', {name: 'Rename session'})
+  const titleInput = () => header().getByRole('textbox', {name: 'Session title'})
+  const menu = () => page.getByRole('dialog', {name: 'Session options'})
+  const microlabel = () => header().getByText(/(ACTIVE|LAST) TASK/)
+
+  async function mountTitled(): Promise<void> {
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(titleButton(TITLE), {timeout: 8000}).toBeVisible()
+  }
+
+  test('clicking the title opens the session menu with the session list, and no separate options button remains', async () => {
+    await mountTitled()
+
+    await expect.element(header().getByRole('button', {name: 'Session options', exact: true})).not.toBeInTheDocument()
+    await titleButton(TITLE).click()
+
+    await expect.element(menu()).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${TITLE}`})
+      .click()
+    await expect.element(page.getByRole('option', {name: new RegExp(`^${TITLE}`)})).toBeVisible()
+  })
+
+  test('the pencil stays hidden at rest and appears on hover and on keyboard focus', async () => {
+    await mountTitled()
+
+    await expect.element(pencil()).not.toBeInTheDocument()
+    await titleButton(TITLE).hover()
+    await expect.element(pencil()).toBeVisible()
+
+    await microlabel().hover()
+    await expect.element(pencil()).not.toBeInTheDocument()
+
+    await titleButton(TITLE).click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await microlabel().hover()
+    await expect.element(titleButton(TITLE)).toHaveFocus()
+    await expect.element(pencil()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(pencil()).toHaveFocus()
+    await expect.element(pencil()).toBeVisible()
+  })
+
+  test('the pencil turns the title into an input, and Enter renames it in the header and the session list', async () => {
+    await mountTitled()
+
+    await titleButton(TITLE).hover()
+    await pencil().click()
+    await expect.element(titleInput()).toHaveValue(TITLE)
+    await expect.element(pencil()).not.toBeInTheDocument()
+    await titleInput().fill(RENAMED)
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(titleButton(RENAMED), {timeout: 8000}).toBeVisible()
+    await expect.element(titleInput()).not.toBeInTheDocument()
+    await expect.element(pencil()).toHaveFocus()
+    await titleButton(RENAMED).click()
+    await menu()
+      .getByRole('button', {name: `Session: ${RENAMED}`})
+      .click()
+    await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED}`)})).toBeVisible()
+  })
+
+  test('Escape cancels the edit and an empty title never commits', async () => {
+    await mountTitled()
+
+    await titleButton(TITLE).hover()
+    await pencil().click()
+    await titleInput().fill('a discarded title')
+    await userEvent.keyboard('{Escape}')
+    await expect.element(titleInput()).not.toBeInTheDocument()
+    await expect.element(header()).toBeVisible()
+    await expect.element(pencil()).toHaveFocus()
+    await expect.element(titleButton(TITLE)).toBeVisible()
+
+    await pencil().click()
+    await expect.element(titleInput()).toHaveValue(TITLE)
+    await titleInput().fill('   ')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(titleInput()).not.toBeInTheDocument()
+    await expect.element(titleButton(TITLE)).toBeVisible()
+  })
+
+  test('a failed rename announces the failure and keeps the old title', async () => {
+    await mountTitled()
+    await faults.install({kind: 'fail', path: ['sessions', 'rename']})
+
+    await titleButton(TITLE).hover()
+    await pencil().click()
+    await titleInput().fill(RENAMED)
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(page.getByRole('alert'), {timeout: 8000}).toHaveTextContent('Rename failed')
+    await expect.element(titleButton(TITLE)).toBeVisible()
+  })
 })
 
 describe('panel view tabs', () => {
@@ -2616,7 +2730,7 @@ describe('panel view tabs', () => {
     const replied = () => page.getByText('conciv replied.')
     const option = (name: RegExp) => page.getByRole('option', {name})
     const openSessions = async (active: string) => {
-      await page.getByRole('button', {name: 'Session options'}).click()
+      await page.getByRole('button', {name: /session options$/}).click()
       await page.getByRole('button', {name: `Session: ${active}`}).click()
     }
     type Titles = {running: string; other: string}
@@ -3344,7 +3458,7 @@ describe('engine login', () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
-    await page.getByRole('button', {name: 'Session options'}).click()
+    await page.getByRole('button', {name: /session options$/}).click()
     await page.getByRole('button', {name: 'Refresh the conversation'}).click()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
