@@ -334,6 +334,96 @@ describe('chat pane', () => {
     await expect.element(page.getByText(`↳ in ${HERO_LABEL}`)).toBeVisible()
   })
 
+  describe('the composer never waits on the server draft', () => {
+    const DRAFT_GET_PATH = ['drafts', 'get']
+
+    test('a stalled draft read still renders a composer that accepts typing', async () => {
+      const {sessionId} = await newSession()
+      await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toBeVisible()
+      await input().fill('typed while the draft is loading')
+      await expect.element(input()).toHaveTextContent('typed while the draft is loading')
+    })
+
+    test('a server draft that arrives late fills a composer the user has not touched', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {
+        text: 'restored once the read lands',
+        attachments: [persistedGrab('grab-late', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await expect.element(input()).toBeVisible()
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(input()).toHaveTextContent('restored once the read lands')
+      await expect.element(snapshot()).toBeVisible()
+    })
+
+    test('a server draft that arrives after the user typed keeps their text and adds its attachments', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {
+        text: 'the stale server text',
+        attachments: [persistedGrab('grab-merged', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await input().fill('what the user typed first')
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(snapshot()).toBeVisible()
+      await expect.element(input()).toHaveTextContent('what the user typed first')
+      await expect.element(input()).not.toHaveTextContent('the stale server text')
+    })
+
+    test('a server draft that arrives after the user typed its exact text leaves their caret where they put it', async () => {
+      const {rpc, sessionId} = await newSession()
+      await rpc.drafts.set({
+        sessionId,
+        text: 'the same words',
+        selectionStart: 0,
+        selectionEnd: 0,
+        attachments: [persistedGrab('grab-caret', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await input().fill('the same words')
+
+      await coreControl.releaseFault(gate)
+      await expect.element(snapshot()).toBeVisible()
+      await expect.element(input()).toHaveFocus()
+      await userEvent.keyboard('!')
+
+      await expect.element(input()).toHaveTextContent('the same words!')
+    })
+
+    test('a message sent before the server draft arrives leaves no stale draft behind', async () => {
+      const {rpc, sessionId} = await newSession()
+      await seedDraft(rpc, sessionId, {text: 'the draft saved before the send'})
+      const read = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      const write = await faults.install({kind: 'gate', path: ['drafts', 'set']})
+      mountChatPane(sessionId)
+      await input().fill('sent before the saved draft arrived')
+      await userEvent.keyboard('{Enter}')
+      await expect.element(page.getByRole('log').getByText('sent before the saved draft arrived')).toBeVisible()
+
+      await coreControl.releaseFault(read)
+      await coreControl.awaitFaultPending(write, 1)
+      await expect.element(input()).not.toHaveTextContent('the draft saved before the send')
+      await coreControl.releaseFault(write)
+      await coreControl.awaitFaultAnswered(write)
+      active.pane?.dispose()
+      mountChatPane(sessionId)
+
+      await expect.element(input()).toBeVisible()
+      await expect.element(input()).not.toHaveTextContent('the draft saved before the send')
+    })
+  })
+
   test('a rejected send keeps the draft in the composer and tells the user why', async () => {
     const {sessionId} = await newSession()
     await faults.install({kind: 'chat-refused', status: 500})
@@ -1113,16 +1203,17 @@ describe('harness switching', () => {
     const sessionId = await createSession(rpc)
     await rpc.sessions.switchHarness({sessionId, harnessId: 'gamma'})
     await rpc.sessions.rename({sessionId, title: 'Listed before the menu'})
-    const drafts = await faults.install({kind: 'gate', path: ['drafts', 'get']})
     shell.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(page.getByText('Listed before the menu').first()).toBeVisible()
-    const listing = await faults.install({kind: 'gate', path: ['sessions', 'list']})
-    await coreControl.releaseFault(drafts)
 
     await userEvent.click(prompt('Gamma'))
     await expect.element(search()).toHaveFocus()
-    await coreControl.awaitFaultPending(listing, 1)
+    const listing = await faults.install({kind: 'gate', path: ['sessions', 'list']})
     await rpc.sessions.rename({sessionId, title: 'Listed again behind the menu'})
+    const turn = await sendTurn(core(), sessionId, 'a run another client sent')
+    await turn.awaitTurnEnd()
+    turn.close()
+    await coreControl.awaitFaultPending(listing, 1)
     await faults.releaseAll()
 
     await expect.element(page.getByText('Listed again behind the menu').first()).toBeVisible()
@@ -1753,7 +1844,7 @@ describe('pane composer attachments', () => {
     return {id: name, type: 'document', name, contentType: 'text/plain', data: btoa(name)}
   }
 
-  function mountWithStagedNotes(text: string, initialSelection?: {start: number; end: number}) {
+  function mountWithStagedNotes(text: string, caret?: {start: number; end: number}) {
     const storage = memoryStorage()
     storage.setItem(
       'attachments',
@@ -1775,14 +1866,18 @@ describe('pane composer attachments', () => {
               placeholder="Ask anything…"
               inputLabel="Message"
               attachmentAdapter={createTextAttachmentAdapter()}
-              initialSelection={initialSelection}
               onInputReady={(handle) => inputs.push(handle)}
             />
           </ComposerHandlersProvider>
         </ChatProvider>
       </EngineReachabilityContext.Provider>
     ))
-    return {focus: () => inputs[0]?.focus()}
+    const focus = () => {
+      const handle = inputs[0]
+      if (caret) handle?.select(caret)
+      handle?.focus()
+    }
+    return {focus}
   }
 
   const removeButton = (name: string) => page.getByRole('button', {name: `Remove ${name}`})
@@ -2543,13 +2638,13 @@ describe('quick refresh', () => {
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const refresh = () => page.getByRole('button', {name: 'Refresh the conversation'})
 
-  test('the quick terminal pane bar carries refresh while the composer is still loading', async () => {
+  test('the quick terminal pane bar carries refresh and a usable composer while the draft is still loading', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
     harness.mountShell(`/quick?panes=${sessionId}&focus=0`)
 
     await expect.element(refresh(), {timeout: 8000}).toBeVisible()
-    await expect.element(editor()).not.toBeInTheDocument()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
 
     await coreControl.releaseFault(gate)
 
