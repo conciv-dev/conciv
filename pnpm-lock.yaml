@@ -524,6 +524,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../../packages/ui-kit-tap
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)

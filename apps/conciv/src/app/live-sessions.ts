@@ -1,6 +1,7 @@
-import {createEffect, createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
+import {createMemo, createRoot, onCleanup, onMount, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
-import {useQuery, type QueryClient} from '@tanstack/solid-query'
+import {consumeEventIterator} from '@orpc/client'
+import type {QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
 import {browserRpcConnection, type RpcClient} from '@conciv/contract'
@@ -106,22 +107,13 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     return {sessionId, chat, dispose}
   }
 
-  const sessionChanges = useQuery(
-    () => ({
-      ...deps.appData.utils.sessions.changes.experimental_liveOptions(),
-      staleTime: Number.POSITIVE_INFINITY,
-      refetchOnWindowFocus: false,
-      retry: true,
-    }),
-    () => deps.queryClient,
-  )
-  createEffect(
-    on(
-      () => sessionChanges.dataUpdatedAt,
-      () => deps.appData.invalidateSessions(),
-      {defer: true},
-    ),
-  )
+  onMount(() => {
+    const stop = consumeEventIterator(deps.rpc.sessions.changes(), {
+      onEvent: () => deps.appData.invalidateSessions(),
+      onError: (error) => console.error('[conciv] watching the session search index failed', error),
+    })
+    onCleanup(() => void stop())
+  })
 
   const chats = createMemo<LiveChat[]>((previous) => {
     const ids = wanted()

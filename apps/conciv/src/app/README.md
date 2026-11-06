@@ -33,7 +33,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `pane-provider.tsx:openNewSession`: `rpc.sessions.create`, invalidates the sessions cache, navigates to `/panel/$sessionId`
 - `pane-provider.tsx:PaneProvider`: grab staging calls `rpc.page.symbolicate`
 - `warm-session.ts:createWarmSession`: queries the first `sessions.list` page with `limit: 1` (the newest session) and `sessions.resolve`
-- `live-sessions.ts:makeLiveSessions`: subscribes once to `sessions.changes` (a live query) and invalidates the session queries on each `indexed` event, so a search typed while core is still indexing picks up the text matches when they land; opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `sessions.get`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
+- `live-sessions.ts:makeLiveSessions`: subscribes once on mount to `sessions.changes` (`consumeEventIterator`, stopped on cleanup) and invalidates the session queries on each `indexed` event, so a search typed while core is still indexing picks up the text matches when they land; opens chat sessions through `useChatSession` (`@conciv/client`) against `apiBase`; a terminal run lifecycle (streamed, or hydrated for the watched run) invalidates `sessions.list`, `sessions.get`, `markers.list` and `captures.list` and, for `completed`, announces the reply, whichever tab or session is showing
 
 ## Verification
 
