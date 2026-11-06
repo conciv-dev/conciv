@@ -2521,6 +2521,8 @@ describe('panel title', () => {
   const titleInput = () => header().getByRole('textbox', {name: 'Session title'})
   const menu = () => page.getByRole('dialog', {name: 'Session options'})
   const microlabel = () => header().getByText(/(ACTIVE|LAST) TASK/)
+  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const OTHER = 'the other session'
 
   async function mountTitled(): Promise<void> {
     const rpc = coreRpc(coreBase())
@@ -2541,6 +2543,54 @@ describe('panel title', () => {
       .getByRole('button', {name: `Session: ${TITLE}`})
       .click()
     await expect.element(page.getByRole('option', {name: new RegExp(`^${TITLE}`)})).toBeVisible()
+    await composer().click()
+    await expect.element(menu()).not.toBeInTheDocument()
+  })
+
+  test('hovering the title opens the session menu, and moving away closes it', async () => {
+    await mountTitled()
+
+    await titleButton(TITLE).hover()
+    await expect.element(menu(), {timeout: 4000}).toBeVisible()
+    await composer().hover()
+    await expect.element(menu(), {timeout: 4000}).not.toBeInTheDocument()
+  })
+
+  test('Enter and Space on the focused title open the menu, and Escape closes it back onto the title', async () => {
+    await mountTitled()
+
+    await titleButton(TITLE).click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton(TITLE)).toHaveFocus()
+    await microlabel().hover()
+
+    await userEvent.keyboard('{Enter}')
+    await expect.element(menu()).toBeVisible()
+    await expect.element(menu().getByRole('button', {name: `Session: ${TITLE}`})).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton(TITLE)).toHaveFocus()
+
+    await userEvent.keyboard(' ')
+    await expect.element(menu()).toBeVisible()
+  })
+
+  test('a session picked from the selector inside the hover menu switches the session before the menu closes', async () => {
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    await mountTitled()
+
+    await titleButton(TITLE).hover()
+    await expect.element(menu(), {timeout: 4000}).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${TITLE}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER}`)}).click()
+
+    await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
   })
 
   test('the pencil stays hidden at rest and appears on hover and on keyboard focus', async () => {

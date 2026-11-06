@@ -141,23 +141,27 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
 
   return (
     <Show when={props.usage && derived().hasData}>
-      <HoverCard
-        label="Model context usage"
-        triggerClass="text-chat-text-2 px-1.5 py-0.5 rounded-chat-surface-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-chat-text-hi hover:bg-chat-fill-soft"
-        trigger={
+      <HoverCard.Root openDelay={0} closeDelay={120}>
+        <HoverCard.Trigger
+          class="text-chat-text-2 px-1.5 py-0.5 rounded-chat-surface-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-chat-text-hi hover:bg-chat-fill-soft"
+          aria-label="Model context usage"
+        >
           <TrackerBadge percent={derived().percent} fallbackTokens={props.usage ? billingTokens(props.usage) : 0} />
-        }
-      >
-        <ContextMeter percent={derived().percent} used={derived().used ?? 0} max={derived().maxTokens ?? 0} />
-        <div class="p-3 flex flex-col gap-1.5">
-          <UsageRow label="Input" tokens={props.usage?.inputTokens} />
-          <UsageRow label="Output" tokens={props.usage?.outputTokens} />
-          <UsageRow label="Cache read" tokens={props.usage?.cacheReadTokens} />
-          <UsageRow label="Cache write" tokens={props.usage?.cacheWriteTokens} />
-          <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
-        </div>
-        <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />
-      </HoverCard>
+        </HoverCard.Trigger>
+        <HoverCard.Positioner>
+          <HoverCard.Content class="w-60 overflow-hidden text-[0.75rem]">
+            <ContextMeter percent={derived().percent} used={derived().used ?? 0} max={derived().maxTokens ?? 0} />
+            <div class="p-3 flex flex-col gap-1.5">
+              <UsageRow label="Input" tokens={props.usage?.inputTokens} />
+              <UsageRow label="Output" tokens={props.usage?.outputTokens} />
+              <UsageRow label="Cache read" tokens={props.usage?.cacheReadTokens} />
+              <UsageRow label="Cache write" tokens={props.usage?.cacheWriteTokens} />
+              <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
+            </div>
+            <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />
+          </HoverCard.Content>
+        </HoverCard.Positioner>
+      </HoverCard.Root>
     </Show>
   )
 }
