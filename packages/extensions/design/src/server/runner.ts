@@ -1,5 +1,7 @@
+import {createHash} from 'node:crypto'
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, Raster, Round, Runner} from '../shared/defs.js'
+import type {DesignRuntime, Measured, Raster, Round, Runner, Watched} from '../shared/defs.js'
+import {walk} from '../shared/tree.js'
 import {createRaster} from './raster.js'
 import {mappingOf} from './mapping.js'
 import {renderersOf} from './renderers.js'
@@ -20,6 +22,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const measured = await measurer.measure({page, width: record.width, height: record.height})
     if (measured.pageError !== undefined) return {unsettled: true, rendered: 0, error: measured.pageError}
     const previous = rounds.at(-1)
+    const tree = treeOf(measured)
+    if (previous !== undefined && previous.tree === tree) return shown(previous)
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
@@ -46,6 +50,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       counts: gate.counts,
       pixels: {share: pixels.share},
       at: Date.now(),
+      tree,
     }
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
     return {round, rows: gate.rows, reflow, coverage: gate.coverage, counts: gate.counts}
@@ -53,6 +58,19 @@ export function createRunner(runtime: DesignRuntime): Runner {
 }
 
 const REFLOW_HEIGHT = 900
+
+function treeOf(measured: Measured): string {
+  const elements = [...walk(measured.live)].flatMap(({node, depth}) =>
+    depth === 0 ? [] : [[node.key, node.figma, Object.values(node.bounds).map(Math.round), node.styles]],
+  )
+  return createHash('sha256')
+    .update(JSON.stringify({sheets: measured.sheets, elements}))
+    .digest('hex')
+}
+
+function shown(round: Round): Watched {
+  return {round: round.round, rows: round.rows, reflow: round.reflow, coverage: round.coverage, counts: round.counts}
+}
 
 function compared(input: {live: Raster; target: Raster; comparator: string}): {share: number; diff: Uint8Array} {
   const {live, target} = input

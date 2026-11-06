@@ -399,6 +399,7 @@ describe('store', () => {
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, rows: 0},
       pixels: {share: 0},
       at: 1,
+      tree: '',
     }
     await store.writeRound({id: 'store-1', round, live: blankPng({width: 100, height: 50}), diff: new Uint8Array()})
     expect((await store.rounds('store-1')).map((entry) => entry.round)).toEqual([1])
@@ -469,7 +470,7 @@ describe('design_get', () => {
 })
 
 describe('design_watch', () => {
-  it('measures the page into a round with rows, coverage and reflow at the widths the design names, and counts the rounds', async () => {
+  it('measures the page into a round with rows, coverage and reflow at the widths the design names, and an unchanged page is the same round', async () => {
     await goto('target')
     await cardsTarget()
     const first = roundOf(await call('design_watch', {}))
@@ -478,7 +479,7 @@ describe('design_watch', () => {
     expect(first.reflow.widths.every((entry) => entry.from.length > 0)).toBe(true)
     expect(first.reflow.results[0]?.tags.map((tag) => tag.node)).toEqual(['1:2'])
     const second = roundOf(await call('design_watch', {nodes: ['1:10']}))
-    expect(second.round).toBe(first.round + 1)
+    expect(second.round).toBe(first.round)
     expect(second.rows.every((row) => row.node === '1:10')).toBe(true)
     const listed = await xrayRpc.xray.rounds({id: (await cardsTarget()).target})
     expect(listed.rounds.map((round: Round) => round.round)).toContain(second.round)

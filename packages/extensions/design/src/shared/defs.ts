@@ -288,6 +288,7 @@ export const RoundSchema = z.object({
   counts: CountsSchema,
   pixels: PixelsSchema.nullable(),
   at: z.number(),
+  tree: z.string().default('').describe('sha256 of the measured keys, boxes and styles and the page stylesheets'),
 })
 
 const TaggedNodeSchema = z
