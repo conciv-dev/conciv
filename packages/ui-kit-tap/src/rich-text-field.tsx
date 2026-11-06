@@ -287,6 +287,7 @@ export function RichTextField(props: {
         editor.chain().command(appendCommand(text)).run()
       },
       select: (selection) => {
+        if (editor.isDestroyed) return
         editor.chain().command(openingSelectionCommand(selection)).run()
       },
     })

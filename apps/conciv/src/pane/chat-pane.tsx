@@ -122,11 +122,12 @@ function DraftRestore(props: {
     const input = props.input
     const draftKey = props.draftKey
     void props.storage
-      .restore((restored) => {
+      .restore((restored, edited) => {
         const draft = readComposerDraft(restored.snapshot, draftKey)
         if (!draft) return
+        const untouched = !edited && context.snapshotDraft().draft === ''
         context.restoreDraft(draft)
-        if (context.snapshotDraft().draft === restored.text) input()?.select(restored.selection)
+        if (untouched) input()?.select(restored.selection)
       }, controller.signal)
       .catch((error: unknown) => {
         console.error('[conciv] could not restore the draft', error)

@@ -17,7 +17,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   })
   return {
     utils,
-    invalidateSessions: () =>
-      queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}, {cancelRefetch: false}),
+    invalidateSessions: () => queryClient.invalidateQueries({queryKey: utils.sessions.list.key()}),
   }
 }
