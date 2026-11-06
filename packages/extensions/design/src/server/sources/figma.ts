@@ -76,6 +76,7 @@ const FIGMA_HOST = 'figma.com'
 const FIGMA_API = 'https://api.figma.com/v1'
 const JSON_EXTENSION = '.json'
 const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'LINE', 'STAR', 'POLYGON', 'REGULAR_POLYGON'])
+const DRAWINGS = new Set([...VECTORS, 'ELLIPSE'])
 const FRAMES = new Set(['FRAME', 'INSTANCE', 'COMPONENT'])
 const REGULAR_WEIGHT = 400
 const ID_LENGTH = 12
@@ -498,7 +499,17 @@ function autoLayout(input: {node: FigmaNode; scale: number}): {layout?: Layout} 
 
 function collapses(node: FigmaNode): boolean {
   if (VECTORS.has(node.type)) return true
-  return visibleChildren(node).length > 0 && !hasTextBelow(node) && !hasLayoutBelow(node) && !FRAMES.has(node.type)
+  return (
+    visibleChildren(node).length > 0 &&
+    !hasTextBelow(node) &&
+    !hasLayoutBelow(node) &&
+    !FRAMES.has(node.type) &&
+    holdsDrawing(node)
+  )
+}
+
+function holdsDrawing(node: FigmaNode): boolean {
+  return DRAWINGS.has(node.type) || imageFilled(node) || visibleChildren(node).some(holdsDrawing)
 }
 
 function hasTextBelow(node: FigmaNode): boolean {
@@ -520,7 +531,8 @@ function cropped(node: FigmaNode): boolean {
 }
 
 function imageFilled(node: FigmaNode): boolean {
-  return (node.fills ?? []).some((paint) => paint.type === 'IMAGE' && paint.visible !== false)
+  const fills = (node.fills ?? []).filter((paint) => paint.visible !== false)
+  return fills.some((paint) => paint.type === 'IMAGE') && !fills.some((paint) => paint.type === 'SOLID')
 }
 
 function visibleChildren(node: FigmaNode): FigmaNode[] {
