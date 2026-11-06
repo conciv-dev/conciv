@@ -1,6 +1,7 @@
 import {differenceCiede2000, parse} from 'culori'
 import {z} from 'zod'
-import type {Box, Delta, DiffReport, Judge, Raster, Run} from './defs.js'
+
+type Rgb = [number, number, number]
 
 export const designConfig = Object.assign(
   z.object({
@@ -86,83 +87,13 @@ export const designConfig = Object.assign(
       placeholder: 'data-conciv-placeholder',
       pane: 'data-conciv-design-pane',
     },
-    kindStage,
-    kindTolerance,
     propertyAliases,
-    componentAboveTolerance,
-    traced,
-    deltaSentence,
-    setVia,
-    at,
-    iconSized,
     folded,
     hex,
     rgbDistance,
     colorMetrics: {ciede2000},
   } as const,
 )
-
-type ItemKind = ReturnType<Judge>['items'][number]['kind']
-
-type Stage = NonNullable<Run['stage']>
-
-type ComponentReport = DiffReport['components'][number]
-
-type Rgb = ReturnType<Raster['rgb']>
-
-function kindStage(kind: ItemKind): Stage | null {
-  return KIND_STAGES[kind]
-}
-
-const KIND_STAGES = {
-  unbuilt: 'structure',
-  axis: 'structure',
-  columns: 'structure',
-  sizing: 'geometry',
-  text: 'content',
-  fontSize: 'content',
-  lineHeight: 'content',
-  fontWeight: 'content',
-  font: 'content',
-  offset: 'geometry',
-  'inset-left': 'geometry',
-  'inset-right': 'geometry',
-  'inset-top': 'geometry',
-  'inset-bottom': 'geometry',
-  'gap-before': 'geometry',
-  'gap-after': 'geometry',
-  padding: 'geometry',
-  align: 'geometry',
-  width: 'geometry',
-  height: 'geometry',
-  lines: 'geometry',
-  background: 'paint',
-  foreground: 'paint',
-  radius: 'paint',
-  border: 'paint',
-  pixels: 'paint',
-  extra: null,
-} as const satisfies Record<ItemKind, Stage | null>
-
-function kindTolerance(kind: Delta['kind']): number {
-  switch (kind) {
-    case 'fontSize':
-    case 'lineHeight':
-      return FONT_TOLERANCE
-    case 'fontWeight':
-      return WEIGHT_STEP
-    case 'columns':
-      return 1
-    case 'pixels':
-      return designConfig.tolerances.pixelGate
-    default:
-      return designConfig.tolerances.geometryPx
-  }
-}
-
-const FONT_TOLERANCE = 0.5
-
-const WEIGHT_STEP = 100
 
 function propertyAliases(property: string): string[] {
   const swapped = SIDES.flatMap(([physical, logical]) => [
@@ -189,40 +120,6 @@ function swapSide(input: {property: string; from: string; to: string}): string |
 }
 
 const BOXES = ['padding', 'margin', 'border'] as const
-
-function componentAboveTolerance(component: Pick<ComponentReport, 'deltas' | 'mismatch'>): boolean {
-  return component.deltas.length > 0 || component.mismatch >= designConfig.tolerances.tileGate
-}
-
-function traced(delta: Delta): boolean {
-  return delta.via !== undefined && delta.via !== 'unknown' && delta.file !== undefined
-}
-
-function deltaSentence(delta: Delta): string {
-  if (delta.kind === 'text') return `change the text from ${delta.live} to ${delta.target}${at(delta)}`
-  if (delta.kind === 'pixels') {
-    return `renders unlike the design in ${Math.round(Number(delta.live) * PERCENT)}% of its box while the measure finds no difference (check the capture crop in the xray, or a style the measure does not read)`
-  }
-  return `${delta.kind} is ${delta.live} where the design has ${delta.target}${setVia(delta)}`
-}
-
-const PERCENT = 100
-
-function setVia(delta: Delta): string {
-  if (!traced(delta)) return ''
-  const declared = delta.declaration === undefined ? '' : `, declared as \`${delta.declaration}\``
-  const suggestion = delta.suggest === undefined ? '' : `; ${delta.suggest}`
-  return `, set via ${delta.via}${at(delta)}${declared}${suggestion}`
-}
-
-function at(delta: Delta): string {
-  if (delta.file === undefined) return ''
-  return delta.line === undefined ? ` at ${delta.file}` : ` at ${delta.file}:${delta.line}`
-}
-
-function iconSized(box: Box): boolean {
-  return box.w < designConfig.tolerances.iconSlotSide && box.h < designConfig.tolerances.iconSlotSide
-}
 
 function folded(text: string): string {
   return text.toLowerCase().split(' ').filter(Boolean).join(' ').trim()

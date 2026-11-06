@@ -2,14 +2,12 @@ import '@unocss/reset/tailwind.css'
 import '@conciv/ui-kit-system/tokens.css'
 import 'virtual:uno.css'
 import './xray.css'
-import {RouterProvider} from '@tanstack/solid-router'
 import {render} from 'solid-js/web'
-import {loadFixture} from '../../test/dev-fixture.js'
-import {createXrayRouter, standaloneContext} from './router.js'
+import {Rounds} from './rounds.js'
 
 const mount = document.querySelector('[data-design-xray]')
-const fixture = import.meta.env.DEV ? (id: string) => loadFixture({id}) : null
+const page = new URL(window.location.href)
+const at = page.pathname.indexOf('/api/ext/')
+const apiBase = at === -1 ? page.origin : `${page.origin}${page.pathname.slice(0, at)}`
 
-if (mount !== null) {
-  render(() => <RouterProvider router={createXrayRouter({context: standaloneContext({fixture})})} />, mount)
-}
+if (mount !== null) render(() => <Rounds apiBase={apiBase} session={page.searchParams.get('session')} />, mount)

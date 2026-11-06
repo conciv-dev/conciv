@@ -3,7 +3,14 @@ import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {isPageVerbError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
-import {DESIGN_TOOLS, RunSchema, type LiveComponent, type Measured, type Measurer, type Raster} from '../shared/defs.js'
+import {
+  DESIGN_TOOLS,
+  LiveComponentsSchema,
+  type LiveComponent,
+  type Measured,
+  type Measurer,
+  type Raster,
+} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {createRaster} from './raster.js'
 
@@ -18,7 +25,7 @@ export function createMeasurer(_input: {config: DesignConfig}): Measurer {
     measure: async (request) => {
       await widgetConnected({page: request.page, tolerances})
       const reply = await askMeasure({...request, timeout: request.timeout ?? tolerances.measureTimeoutMs})
-      return measuredFrom({reply, tolerances})
+      return measuredFrom(reply)
     },
     dispose: () => undefined,
   }
@@ -28,13 +35,11 @@ type DesignConfig = z.output<typeof designConfig>
 
 type Tolerances = typeof designConfig.tolerances
 
-const [, , , , , measureDef] = DESIGN_TOOLS
+const [, , , measureDef] = DESIGN_TOOLS
 
 const MeasureReplySchema = measureDef.outputSchema ?? z.never()
 
 type MeasureReply = z.output<typeof MeasureReplySchema>
-
-const LiveComponentsSchema = RunSchema.shape.extras
 
 const PROBE_HEIGHT = 1
 
@@ -49,6 +54,9 @@ const ROOT_STYLES = {
   textAlign: 'start',
   radius: 0,
   position: 'static',
+  display: 'block',
+  flexDirection: 'row',
+  overflowX: 'visible',
   sizing: {width: 'fixed', height: 'fixed'},
   border: {width: 0, style: 'none', color: '', side: 'top'},
   gradient: null,
@@ -87,21 +95,20 @@ async function askMeasure(input: {
   )
 }
 
-function measuredFrom(input: {reply: MeasureReply; tolerances: Tolerances}): Measured {
-  const {reply, tolerances} = input
+function measuredFrom(reply: MeasureReply): Measured {
   const raster = createRaster(Buffer.from(reply.image, 'base64'))
   return {
     live: pageRoot({reply, raster}),
     raster,
     route: reply.route,
+    width: reply.width,
     path: reply.capturePath,
     sources: reply.opinion ? [reply.source, 'takumi'] : [reply.source],
-    confidence: reply.limits === undefined || reply.limits.inlineWidths === 0 ? 1 : tolerances.inlineWidthConfidence,
+    overflowX: reply.overflowX,
     ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
     framework: frameworkOf(reply),
     masks: reply.masks,
-    ...(reply.limits === undefined ? {} : {limits: reply.limits}),
   }
 }
 
@@ -115,11 +122,14 @@ function pageRoot(input: {reply: MeasureReply; raster: Raster}): LiveComponent {
   return {
     source: null,
     key: null,
+    figma: null,
     instance: null,
     owner: null,
     tag: 'body',
     text: '',
     box: {x: 0, y: 0, w: reply.width, h: reply.height},
+    bounds: {x: 0, y: 0, w: reply.width, h: reply.height},
+    scrolls: false,
     textBox: null,
     glyphs: [],
     axis: null,

@@ -9,17 +9,15 @@ const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 
 const DESIGN_EXTENSION_NAME = 'design'
 
+const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
+
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
 
-const MirrorLimitsSchema = z.object({
-  canvases: z.number().describe('canvas elements, blank in the mirror and masked'),
-  fonts: z.array(z.string()).describe('font families added through the FontFace API, missing in the mirror'),
-  inlineWidths: z.number().describe('elements with an inline width or height, laid out as the live page left them'),
-})
+const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
 
 const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
 
@@ -29,9 +27,7 @@ const DirectionSchema = z.enum(['row', 'column', 'grid', 'stack'])
 
 const SizeSchema = z.enum(['fill', 'fit', 'fixed'])
 
-const GapSchema = z
-  .object({px: z.number(), uniform: z.boolean()})
-  .describe('the median distance between consecutive children; uniform when every gap is within tolerance of it')
+const GapSchema = z.object({px: z.number(), uniform: z.boolean()})
 
 const AlignSchema = z.enum(['start', 'center', 'end', 'stretch'])
 
@@ -76,42 +72,20 @@ const LiveStylesSchema = z.object({
   display: z.string().default(''),
   flexDirection: z.string().default(''),
   overflowX: z.string().default('visible'),
-  sizing: z
-    .object({width: SizingSchema, height: SizingSchema})
-    .describe('fixed when the element own rule or inline style sets the property to a px length'),
-  border: z
-    .object({
-      width: z.number(),
-      style: z.string(),
-      color: z.string(),
-      side: z.enum(['top', 'right', 'bottom', 'left']),
-    })
-    .describe('the widest painted border side, the top one when none is painted'),
-  gradient: z
-    .object({from: z.string(), to: z.string()})
-    .nullable()
-    .default(null)
-    .describe('the first and last stop of the first linear-gradient in background-image, null when there is none'),
+  sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed when its own rule sets px'),
+  border: z.object({width: z.number(), style: z.string(), color: z.string(), side: z.enum(BORDER_SIDES)}),
+  gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
 })
 
 const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
 
-const OpinionSchema = z
-  .object({box: BoxSchema, confidence: z.number()})
-  .describe('the box takumi lays the component out at, beside the mirror box; never scored')
+const OpinionSchema = z.object({box: BoxSchema, confidence: z.number()})
 
 const LiveComponentFieldsSchema = z.object({
   source: SourceLocSchema.nullable(),
-  key: z
-    .string()
-    .nullable()
-    .describe("the data-conciv-key the compiler wrote into the source, the element's identity; null without one"),
+  key: z.string().nullable().describe('the data-conciv-key the compiler wrote, null without one'),
   figma: z.string().nullable().default(null).describe('the data-figma attribute: the design node the element declares'),
-  instance: z
-    .string()
-    .nullable()
-    .default(null)
-    .describe('the call-site keys and React keys of the fiber chain from the root; null when the framework is unknown'),
+  instance: z.string().nullable().default(null).describe('the call-site and React keys of the fiber chain'),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
@@ -128,15 +102,8 @@ const LiveComponentFieldsSchema = z.object({
   index: z.number().describe('position among the DOM siblings, 1-based'),
   path: z.string().describe('sibling positions from the root joined by /, with s entering a shadow root'),
   opinion: OpinionSchema.optional(),
-  drawn: z
-    .boolean()
-    .default(false)
-    .describe('an svg with path, polygon or circle children, an img with a data: src, or a canvas'),
-  placeholder: z
-    .enum(PLACEHOLDER_KINDS)
-    .nullable()
-    .default(null)
-    .describe('the kind of the Placeholder whose root this is, null for any other element'),
+  drawn: z.boolean().default(false).describe('an svg with shapes, an img with a data: src, or a canvas'),
+  placeholder: z.enum(PLACEHOLDER_KINDS).nullable().default(null).describe('the kind of the Placeholder it roots'),
 })
 
 const LiveComponentWireSchema = LiveComponentFieldsSchema.extend({
@@ -174,25 +141,21 @@ const ReflowTagSchema = z.object({
   minChildWidth: z.number().optional(),
 })
 
-const FigmaFactsSchema = z
-  .object({
-    type: z.string(),
-    name: z.string(),
-    absolute: z.boolean(),
-    mode: z.string().nullable().describe('the auto-layout mode, null without auto layout'),
-    box: BoxSchema.describe('the exact frame-relative box, unrounded'),
-    fields: z.record(z.string(), z.unknown()).describe('the remaining node fields as design_get returns them'),
-  })
-  .describe('what the Figma file says about the node')
+const FigmaFactsSchema = z.object({
+  type: z.string(),
+  name: z.string(),
+  absolute: z.boolean(),
+  mode: z.string().nullable().describe('the auto-layout mode, null without auto layout'),
+  box: BoxSchema.describe('the exact frame-relative box, unrounded'),
+  fields: z.record(z.string(), z.unknown()).describe('the remaining node fields as design_get returns them'),
+})
 
-const GateFactsSchema = z
-  .object({
-    kind: z.string(),
-    leaf: z.boolean(),
-    parent: z.string().nullable().describe('the node the gate measures the position against'),
-    direction: z.enum(['row', 'column']).optional(),
-  })
-  .describe('how the gate reads the node: its kind, whether it holds flow, its parent, the direction of a group')
+const GateFactsSchema = z.object({
+  kind: z.string(),
+  leaf: z.boolean(),
+  parent: z.string().nullable().describe('the node the gate measures the position against'),
+  direction: z.enum(['row', 'column']).optional(),
+})
 
 const DesignNodeKindSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -302,14 +265,9 @@ const CoverageSchema = z.object({
   dupes: z.array(z.string()).describe('nodes rendered by more than one element'),
 })
 
-const CountsSchema = z.object({
-  much: z.number(),
-  noticeably: z.number(),
-  slightly: z.number(),
-  pins: z.number(),
-  other: z.number(),
-  rows: z.number(),
-})
+const Count = z.number()
+
+const CountsSchema = z.object({much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count})
 
 const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
 
@@ -339,10 +297,7 @@ const TaggedNodeSchema = z
 
 const GetInputSchema = z
   .object({
-    figma: z
-      .url()
-      .optional()
-      .describe('the Figma frame link: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>'),
+    figma: z.url().optional().describe('the Figma frame link, with its node-id'),
     document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
     image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
   })

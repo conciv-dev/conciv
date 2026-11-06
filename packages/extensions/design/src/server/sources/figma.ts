@@ -16,6 +16,10 @@ import {designConfig} from '../../shared/tolerances.js'
 import {createRaster} from '../raster.js'
 import {inferLayout} from './layout.js'
 import {assignRoles} from './roles.js'
+import {structured} from './structure.js'
+import {reflowTagged} from './reflow-tags.js'
+import {figmaSchemas} from './figma-schema.js'
+import {figmaFacts} from './figma-facts.js'
 
 export function createFigmaAdapter(input: {token: string | null; config: DesignConfig}): TargetAdapter {
   const {token, config} = input
@@ -40,73 +44,21 @@ export function createFigmaAdapter(input: {token: string | null; config: DesignC
   }
 }
 
-const [targetDef] = DESIGN_TOOLS
-const FIGMA_LINK_MESSAGE = targetDef.errors?.['figma-link'].message
-const FIGMA_SOURCE_MESSAGE = targetDef.errors?.['figma-source'].message
+const [getDef] = DESIGN_TOOLS
+const FIGMA_LINK_MESSAGE = getDef.errors?.['figma-link'].message
+const FIGMA_SOURCE_MESSAGE = getDef.errors?.['figma-source'].message
 
 type FigmaLink = {fileKey: string; nodeId: string}
 type Attachments = {document?: unknown; image?: Uint8Array}
 type Fetched = {document: FigmaDocument; image: Uint8Array; version: string}
 
-const ColorSchema = z.looseObject({r: z.number(), g: z.number(), b: z.number(), a: z.number().optional()})
-const PointSchema = z.looseObject({x: z.number(), y: z.number()})
-const PaintSchema = z.looseObject({
-  type: z.string(),
-  visible: z.boolean().optional(),
-  color: ColorSchema.optional(),
-  opacity: z.number().optional(),
-  gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
-  gradientHandlePositions: z.array(PointSchema).optional(),
-})
-const BoundsSchema = z.looseObject({x: z.number(), y: z.number(), width: z.number(), height: z.number()})
-const FigmaNodeSchema = z.looseObject({
-  id: z.string(),
-  name: z.string(),
-  type: z.string(),
-  visible: z.boolean().optional(),
-  absoluteBoundingBox: BoundsSchema.nullable().optional(),
-  characters: z.string().optional(),
-  style: z
-    .looseObject({
-      fontSize: z.number().optional(),
-      fontFamily: z.string().optional(),
-      fontWeight: z.number().optional(),
-      lineHeightPx: z.number().optional(),
-    })
-    .optional(),
-  fills: z.array(PaintSchema).optional(),
-  strokes: z.array(PaintSchema).optional(),
-  strokeWeight: z.number().optional(),
-  cornerRadius: z.number().optional(),
-  rectangleCornerRadii: z.array(z.number()).optional(),
-  layoutMode: z.string().optional(),
-  layoutWrap: z.string().optional(),
-  itemSpacing: z.number().optional(),
-  paddingTop: z.number().optional(),
-  paddingRight: z.number().optional(),
-  paddingBottom: z.number().optional(),
-  paddingLeft: z.number().optional(),
-  counterAxisAlignItems: z.string().optional(),
-  layoutPositioning: z.string().optional(),
-  layoutSizingHorizontal: z.string().optional(),
-  layoutSizingVertical: z.string().optional(),
-  layoutGrow: z.number().optional(),
-  get children() {
-    return z.array(FigmaNodeSchema).optional()
-  },
-})
-const FigmaDocumentSchema = z.looseObject({
-  nodes: z.record(z.string(), z.looseObject({document: FigmaNodeSchema}).nullable()),
-  version: z.string().optional(),
-  lastModified: z.string().optional(),
-})
-const FigmaImagesSchema = z.looseObject({images: z.record(z.string(), z.string().nullable())})
+const {document: FigmaDocumentSchema, images: FigmaImagesSchema} = figmaSchemas
 
-type FigmaDocument = z.infer<typeof FigmaDocumentSchema>
-type FigmaNode = z.infer<typeof FigmaNodeSchema>
-type FigmaPaint = z.infer<typeof PaintSchema>
-type Bounds = z.infer<typeof BoundsSchema>
-type Color = z.infer<typeof ColorSchema>
+type FigmaDocument = z.infer<typeof figmaSchemas.document>
+type FigmaNode = z.infer<typeof figmaSchemas.node>
+type FigmaPaint = z.infer<typeof figmaSchemas.paint>
+type Bounds = z.infer<typeof figmaSchemas.bounds>
+type Color = z.infer<typeof figmaSchemas.color>
 type BoxNode = Extract<DesignNode, {kind: 'box'}>
 type TextNode = Extract<DesignNode, {kind: 'text'}>
 type Layout = NonNullable<DesignNode['layout']>
@@ -124,7 +76,6 @@ const FIGMA_HOST = 'figma.com'
 const FIGMA_API = 'https://api.figma.com/v1'
 const JSON_EXTENSION = '.json'
 const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'LINE', 'STAR', 'POLYGON', 'REGULAR_POLYGON'])
-const GROUPS = new Set(['GROUP', 'FRAME', 'INSTANCE', 'COMPONENT'])
 const FRAMES = new Set(['FRAME', 'INSTANCE', 'COMPONENT'])
 const REGULAR_WEIGHT = 400
 const ID_LENGTH = 12
@@ -275,9 +226,9 @@ function designRoot(input: {frame: FigmaNode; scale: number; raster: Raster; con
   const {frame, scale, raster, config} = input
   const bounds = frame.absoluteBoundingBox ?? {x: 0, y: 0, width: 0, height: 0}
   const origin = {x: bounds.x, y: bounds.y, scale}
-  const root = boxNode({node: frame, box: boxIn({bounds, origin}), scale, children: childNodes({node: frame, origin})})
+  const root = boxNode({node: frame, box: boxIn({bounds, origin}), origin, children: childNodes({node: frame, origin})})
   const sampled = {...root, children: root.children.map((child) => painted({node: child, raster, config}))}
-  return hashed(inferLayout(assignRoles(sampled)))
+  return hashed(reflowTagged(structured(inferLayout(assignRoles(sampled)))))
 }
 
 function painted(input: {node: DesignNode; raster: Raster; config: DesignConfig}): DesignNode {
@@ -298,6 +249,7 @@ function painted(input: {node: DesignNode; raster: Raster; config: DesignConfig}
       box: node.box,
       hash: '',
       ...(node.layout === undefined ? {} : {layout: node.layout}),
+      ...(node.figma === undefined ? {} : {figma: node.figma}),
       kind: 'image',
       holds: 0,
       children: [],
@@ -415,9 +367,17 @@ function designNodes(input: {node: FigmaNode; origin: Origin}): DesignNode[] {
   const bounds = node.absoluteBoundingBox
   if (bounds === undefined || bounds === null) return childNodes(input)
   const box = boxIn({bounds, origin})
-  if (node.type === 'TEXT') return [textNode({node, box, scale: origin.scale})]
-  if (vectorish(node)) return [{id: node.id, box, hash: '', kind: 'image', holds: 0, children: []}]
-  return [boxNode({node, box, scale: origin.scale, children: childNodes(input)})]
+  if (node.type === 'TEXT') return [textNode({node, box, origin})]
+  if (collapses(node)) {
+    const figma = figmaFacts({node, origin, marks: {image: true, crop: cropped(node)}})
+    return [{id: node.id, box, hash: '', figma, kind: 'image', holds: 0, children: []}]
+  }
+  const children = childNodes(input)
+  if (imageFilled(node) && children.length === 0) {
+    const figma = figmaFacts({node, origin, marks: {image: true, crop: false}})
+    return [{id: node.id, box, hash: '', figma, kind: 'image', holds: 0, children}]
+  }
+  return [boxNode({node, box, origin, children})]
 }
 
 function childNodes(input: {node: FigmaNode; origin: Origin}): DesignNode[] {
@@ -458,8 +418,9 @@ function boxIn(input: {bounds: Bounds; origin: Origin}): Box {
   }
 }
 
-function textNode(input: {node: FigmaNode; box: Box; scale: number}): TextNode {
-  const {node, box, scale} = input
+function textNode(input: {node: FigmaNode; box: Box; origin: Origin}): TextNode {
+  const {node, box, origin} = input
+  const {scale} = origin
   const text = node.characters ?? ''
   const size = node.style?.fontSize
   const family = node.style?.fontFamily ?? null
@@ -480,6 +441,7 @@ function textNode(input: {node: FigmaNode; box: Box; scale: number}): TextNode {
     id: node.id,
     box,
     hash: '',
+    figma: figmaFacts({node, origin, marks: {image: false, crop: false}}),
     kind: 'text',
     text,
     lines: [{box, text, confidence: 1}],
@@ -489,8 +451,9 @@ function textNode(input: {node: FigmaNode; box: Box; scale: number}): TextNode {
   }
 }
 
-function boxNode(input: {node: FigmaNode; box: Box; scale: number; children: DesignNode[]}): BoxNode {
-  const {node, box, scale, children} = input
+function boxNode(input: {node: FigmaNode; box: Box; origin: Origin; children: DesignNode[]}): BoxNode {
+  const {node, box, origin, children} = input
+  const {scale} = origin
   const paint = paintOf(node.fills ?? [])
   const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
   const color = stroke?.color
@@ -498,6 +461,7 @@ function boxNode(input: {node: FigmaNode; box: Box; scale: number; children: Des
     id: node.id,
     box,
     hash: '',
+    figma: figmaFacts({node, origin, marks: {image: imageFilled(node), crop: false}}),
     kind: 'box',
     ...(paint === null ? {} : {paint}),
     ...autoLayout({node, scale}),
@@ -532,16 +496,27 @@ function autoLayout(input: {node: FigmaNode; scale: number}): {layout?: Layout} 
   }
 }
 
-function vectorish(node: FigmaNode): boolean {
-  if (VECTORS.has(node.type) || imageFilled(node)) return true
-  const shown = visibleChildren(node)
-  if (shown.length === 0) return false
-  if (GROUPS.has(node.type) && shown.every(vectorish)) return true
-  return !FRAMES.has(node.type) && !shown.some(drawsFlow)
+function collapses(node: FigmaNode): boolean {
+  if (VECTORS.has(node.type)) return true
+  return visibleChildren(node).length > 0 && !hasTextBelow(node) && !hasLayoutBelow(node) && !FRAMES.has(node.type)
 }
 
-function drawsFlow(node: FigmaNode): boolean {
-  return node.type === 'TEXT' || FLOWS.has(node.layoutMode ?? '') || visibleChildren(node).some(drawsFlow)
+function hasTextBelow(node: FigmaNode): boolean {
+  return node.type === 'TEXT' || visibleChildren(node).some(hasTextBelow)
+}
+
+function hasLayoutBelow(node: FigmaNode): boolean {
+  return FLOWS.has(node.layoutMode ?? '') || visibleChildren(node).some(hasLayoutBelow)
+}
+
+function cropped(node: FigmaNode): boolean {
+  const own = node.absoluteBoundingBox
+  if (own === undefined || own === null) return false
+  return visibleChildren(node).some((child) => {
+    const bounds = child.absoluteBoundingBox
+    if (!imageFilled(child) || VECTORS.has(child.type) || bounds === undefined || bounds === null) return false
+    return bounds.width > own.width + 1 || bounds.height > own.height + 1
+  })
 }
 
 function imageFilled(node: FigmaNode): boolean {

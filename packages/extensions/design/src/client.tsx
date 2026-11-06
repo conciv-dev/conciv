@@ -1,13 +1,6 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
-import {
-  createCache,
-  createMirror,
-  createSandboxedIframe,
-  rebuildIntoSandboxedIframe,
-  snapshot,
-  stringifyRule,
-} from 'rrweb-snapshot'
+import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
 import {createRoot, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import ScanSearch from 'lucide-solid/icons/scan-search'
@@ -16,7 +9,7 @@ import type {HostWiring} from '@conciv/extension/host'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
-import {sum, uniq} from 'es-toolkit'
+import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
 import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
@@ -35,7 +28,7 @@ declare global {
   }
 }
 
-const [, , , , , measureDef, renderDef, winnerDef] = DESIGN_TOOLS
+const [, , , measureDef] = DESIGN_TOOLS
 const DESIGN_EXTENSION_NAME = 'design'
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const satisfies readonly NonNullable<
   LiveComponent['placeholder']
@@ -50,11 +43,17 @@ type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
 type MeasureResult = Omit<z.output<NonNullable<(typeof measureDef)['outputSchema']>>, 'components'> & {
   components: LiveComponent[]
 }
-type RenderInput = z.output<(typeof renderDef)['inputSchema']>
-type RenderResult = z.output<NonNullable<(typeof renderDef)['outputSchema']>>
-type WinnerInput = z.output<(typeof winnerDef)['inputSchema']>
-type WinnerResult = z.output<NonNullable<(typeof winnerDef)['outputSchema']>>
-type Winner = NonNullable<WinnerResult[string]>
+type Winner = {
+  selector: string | null
+  declaration: string
+  value: string
+  important: boolean
+  inline: boolean
+  inherited: boolean
+  sheet: {href: string | null; viteDevId: string | null; emotion: boolean; styled: boolean; adopted: boolean}
+  conditions: string[]
+  rulePath: string
+}
 type Framework = NonNullable<MeasureResult['framework']>
 type MirrorLimits = NonNullable<MeasureResult['limits']>
 type LiveStyles = LiveComponent['styles']
@@ -75,10 +74,6 @@ const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
 const LIVE_EXCLUDE = [WIDGET_ROOT_SELECTOR, EFFECTS_SELECTOR, `[${PANE_ATTR}]`, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
-const SCRATCH_SIZE = 4096
-const SCRATCH_PAD = 4
-const SCRATCH_MARGIN = 64
-const GLYPH_WIDTH = 0.75
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
@@ -104,11 +99,7 @@ const mirrorSlot: {current: MirrorSlot | null} = {current: null}
 const engineBase: {current: (() => string) | null} = {current: null}
 const region: {stream: MediaStream | null} = {stream: null}
 
-const CLIENT_TOOLS = [
-  measureDef.client(measureStep),
-  renderDef.client(renderStep),
-  winnerDef.client(winnerStep),
-] as const
+const CLIENT_TOOLS = [measureDef.client(measureStep)] as const
 
 type PaneState = {open: boolean; engaged: boolean; picking: boolean; grab: Grab | null}
 type Grab = HostWiring['grab']
@@ -132,7 +123,6 @@ function Component(): JSX.Element {
 function Surface(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
   const {YieldFocus} = host
-  const toast = host.useToast()
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
   const scheme = host.useColorScheme()
@@ -149,7 +139,6 @@ function Surface(): JSX.Element {
             session={sessionId()}
             dark={scheme() === 'dark'}
             hidden={pane.state.picking}
-            tab={{capturePixels, pick: pane.pick, find: pageElement, toast}}
             onClose={pane.close}
           />
         </Show>
@@ -222,6 +211,7 @@ async function measureLive(size: Size): Promise<MeasureResult> {
     source: 'dom',
     masks,
     opinion: false,
+    overflowX: sidewaysScroll(document),
     framework: pageFramework(),
     ...(longest === null ? {} : {longestTask: longest}),
   }
@@ -258,6 +248,7 @@ async function measureMirror(size: Size): Promise<MeasureResult> {
     masks,
     limits: mirrorLimits(doc),
     opinion: opinion !== null,
+    overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
   }
 }
@@ -383,14 +374,6 @@ function childPosition(input: {parent: ParentNode; element: Element}): number {
   return [...input.parent.children].indexOf(input.element) + 1
 }
 
-function pageElement(selector: string): Element | null {
-  try {
-    return document.querySelector(selector)
-  } catch {
-    return null
-  }
-}
-
 function canvasBoxes(input: {root: Document; size: Size}): Box[] {
   return [...input.root.querySelectorAll('canvas')]
     .map((canvas) => clipped({rect: canvas.getBoundingClientRect(), size: input.size}))
@@ -502,88 +485,6 @@ function locationRoute(): string {
   return location.pathname + location.search
 }
 
-async function renderStep(input: RenderInput): Promise<RenderResult> {
-  const host = offscreenHost()
-  try {
-    const frame = createSandboxedIframe({
-      root: host,
-      iframeAttributes: {...scratchSize(input.renders), style: 'border:0'},
-    })
-    const doc = mirrorDocument(frame)
-    const style = doc.createElement('style')
-    style.textContent = ['body{margin:0}', ...fontFaces()].join('\n')
-    doc.head.append(style)
-    const spans = input.renders.map((render) => {
-      const span = doc.createElement('span')
-      span.textContent = render.text
-      span.setAttribute('style', scratchStyle(render))
-      doc.body.append(span)
-      return span
-    })
-    await Promise.all(input.renders.map((render) => doc.fonts.load(`${render.weight} ${render.size}px ${render.font}`)))
-    await doc.fonts.ready
-    const capture = await snapdom(doc.body, {dpr: 1, exclude: MIRROR_EXCLUDE, excludeMode: 'remove', embedFonts: true})
-    const bitmap = await createImageBitmap(await capture.toBlob({format: 'png'}))
-    const images = await Promise.all(
-      spans.map((span, index) =>
-        cropped({bitmap, rect: span.getBoundingClientRect(), background: input.renders[index]?.background ?? ''}),
-      ),
-    )
-    bitmap.close()
-    return {images}
-  } finally {
-    host.remove()
-  }
-}
-
-function scratchSize(renders: RenderInput['renders']): {width: string; height: string} {
-  const width = Math.max(0, ...renders.map((render) => render.text.length * render.size * GLYPH_WIDTH))
-  const height = sum(renders.map((render) => render.size * NORMAL_LINE_HEIGHT + SCRATCH_PAD * 3))
-  return {
-    width: String(Math.ceil(Math.min(SCRATCH_SIZE, width + SCRATCH_MARGIN))),
-    height: String(Math.ceil(Math.min(SCRATCH_SIZE, height + SCRATCH_MARGIN))),
-  }
-}
-
-function fontFaces(): string[] {
-  return [...document.styleSheets].flatMap((sheet) =>
-    [...(readRules(sheet) ?? [])]
-      .filter((rule) => rule instanceof CSSFontFaceRule)
-      .map((rule) => stringifyRule(rule, sheet.href)),
-  )
-}
-
-function scratchStyle(render: RenderInput['renders'][number]): string {
-  return [
-    'display:block',
-    'width:max-content',
-    'white-space:pre',
-    'line-height:normal',
-    `padding:${SCRATCH_PAD}px`,
-    `margin-bottom:${SCRATCH_PAD}px`,
-    `font-family:${render.font}`,
-    `font-size:${render.size}px`,
-    `font-weight:${render.weight}`,
-    `color:${render.color}`,
-    `background:${render.background}`,
-  ].join(';')
-}
-
-async function cropped(input: {bitmap: ImageBitmap; rect: DOMRect; background: string}): Promise<string> {
-  const x = Math.floor(input.rect.left)
-  const y = Math.floor(input.rect.top)
-  const w = Math.max(1, Math.ceil(input.rect.right) - x)
-  const h = Math.max(1, Math.ceil(input.rect.bottom) - y)
-  const canvas = new OffscreenCanvas(w, h)
-  const context = canvas.getContext('2d')
-  if (context !== null) {
-    context.fillStyle = input.background
-    context.fillRect(0, 0, w, h)
-    context.drawImage(input.bitmap, x, y, w, h, 0, 0, w, h)
-  }
-  return base64(await canvas.convertToBlob({type: 'image/png'}))
-}
-
 async function collectComponents(input: {root: Document; size: Size}): Promise<LiveComponent[]> {
   const view = input.root.defaultView
   if (view === null) return []
@@ -633,6 +534,9 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
   return {
     source: readSource(el),
     key: el.getAttribute(KEY_ATTR),
+    figma: el.getAttribute(FIGMA_ATTR),
+    bounds: pageBounds({rect: el.getBoundingClientRect(), view}),
+    scrolls: el.scrollWidth > el.clientWidth + SCROLL_SLACK,
     owner: ownerPath(el),
     instance: instancePath(el),
     tag: el.tagName.toLowerCase(),
@@ -654,6 +558,23 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     placeholder: PLACEHOLDER_KINDS.find((kind) => kind === el.getAttribute(PLACEHOLDER_ATTR)) ?? null,
     children: await collectUnder(input),
   }
+}
+
+function pageBounds(input: {rect: DOMRect; view: PageWindow}): Box {
+  const {rect, view} = input
+  return {
+    x: Math.round(rect.left + view.scrollX),
+    y: Math.round(rect.top + view.scrollY),
+    w: Math.round(rect.width),
+    h: Math.round(rect.height),
+  }
+}
+
+function sidewaysScroll(doc: Document): boolean {
+  const scroller = doc.scrollingElement
+  const view = doc.defaultView
+  if (scroller === null || view === null) return false
+  return scroller.scrollWidth > view.innerWidth
 }
 
 function drawnPicture(el: Element): boolean {
@@ -875,6 +796,9 @@ function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: 
     textAlign: style.textAlign,
     radius: Number.parseFloat(style.borderTopLeftRadius) || 0,
     position: style.position,
+    display: style.display,
+    flexDirection: style.flexDirection,
+    overflowX: style.overflowX,
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
     border: readBorder(style),
     gradient: gradientStops(style.backgroundImage),
@@ -963,23 +887,6 @@ function siblingIndex(el: Element): number {
   const parent = el.parentElement
   if (parent === null) return 1
   return [...parent.children].indexOf(el) + 1
-}
-
-async function winnerStep(input: WinnerInput): Promise<WinnerResult> {
-  const realm = await realmAt(input.width)
-  const element = realm.doc.querySelector(input.selector)
-  if (element === null) return Object.fromEntries(input.properties.map((property) => [property, null]))
-  const scan = scanSheets(realm)
-  return Object.fromEntries(
-    input.properties.map((property) => [property, winningDeclaration({element, property, scan})]),
-  )
-}
-
-async function realmAt(width: number | undefined): Promise<Realm> {
-  if (width === undefined || width === innerWidth) return {doc: document, view: window}
-  const view = mirrorDocument(await mirrorAt(width)).defaultView
-  if (view === null) return {doc: document, view: window}
-  return {doc: view.document, view}
 }
 
 type Sheet = Winner['sheet']
@@ -1285,3 +1192,5 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
 }
 
 const KEY_ATTR = 'data-conciv-key'
+const FIGMA_ATTR = 'data-figma'
+const SCROLL_SLACK = 2

@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
-import {groupBy, median, minBy, omit, partition} from 'es-toolkit'
-import type {Box, Decision, DesignNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
+import {groupBy, median, omit} from 'es-toolkit'
+import type {Box, DesignNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {box} from '../../shared/box.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
@@ -31,8 +31,6 @@ type Assignment = {node: View; candidate: View; score: number}
 
 type Weights = Map<VoterName, number>
 
-type Fingerprint = ReturnType<typeof fingerprints.of>
-
 type VoteInput = {
   nodes: View[]
   candidates: View[]
@@ -47,17 +45,12 @@ type Pairing = Omit<VoteInput, 'nodes'> & {
   floors: Map<string, number>
   state: State
   views: Map<string, View>
-  byKey: Map<string, View>
   components: Map<string, LiveComponent>
-  records: ReturnType<typeof fingerprints.records>
-  prints: Map<string, Fingerprint>
-  edited: Set<string>
-  before: Map<string, Match>
 }
 
-type Level = {assignments: Map<string, Assignment>; partial: boolean; carried: number}
+type Level = {assignments: Map<string, Assignment>; partial: boolean}
 
-type Paired = {match: Match; partial: boolean; carried: number}
+type Paired = {match: Match; partial: boolean}
 
 const SIMILARITY = createSimilarity()
 
@@ -66,8 +59,8 @@ const TOLERANCES = designConfig.tolerances
 const TIE = 1e-9
 
 function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
-  const {design, measured, target, previous, decisions, twins, edited, budget} = input
-  const root = pruned({node: design.root, dropped: droppedAnchors(decisions)})
+  const {design, measured, target, pins, budget} = input
+  const root = design.root
   const {views, holders} = SIMILARITY.views.design(root)
   const nodes = [...views.values()]
   const candidates = SIMILARITY.views.live(measured.live.children)
@@ -82,7 +75,7 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     nodeRaster: target,
     candidateRaster: measured.raster,
     hashes: new Map(),
-    twins: new Map(twins.map((twin) => [twin.node, {path: twin.path, confidence: twin.confidence}])),
+    twins: new Map(),
     candidates,
     bestText: new Map(),
     spoken: groupBy(
@@ -90,7 +83,7 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       (node) => node.words,
     ),
   }
-  const shared = {candidates, context, holders, pins: pinsFrom(decisions), deadline: Date.now() + budget}
+  const shared = {candidates, context, holders, pins, deadline: Date.now() + budget}
   const weights = calibrate({...shared, nodes})
   const trusted = new Set(
     SIMILARITY.voters.filter((voter) => (weights.get(voter.name) ?? 0) >= voter.base / 2).map((voter) => voter.name),
@@ -101,21 +94,9 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     floors: floors({...shared, nodes, weights}),
     state: {boxes: new Set(), texts: new Map(), trusted},
     views,
-    byKey: new Map(candidates.map((candidate) => [candidate.key, candidate])),
     components,
-    records: fingerprints.records(previous?.root ?? null),
-    prints: new Map(
-      candidates.flatMap((candidate): [string, Fingerprint][] => {
-        const component = components.get(candidate.key)
-        return component === undefined ? [] : [[candidate.key, fingerprints.of(component)]]
-      }),
-    ),
-    edited: new Set(edited),
-    before: new Map(
-      previous === null ? [] : [...walk(previous.root)].map(({node: match}) => [match.node.id, match] as const),
-    ),
   }
-  const {match, partial, carried} = pairNode({
+  const {match, partial} = pairNode({
     node: root,
     live: measured.live,
     view: null,
@@ -123,31 +104,7 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     pool: candidates,
     pairing,
   })
-  return {root: match, partial, carried}
-}
-
-function droppedAnchors(decisions: Decision[]): Set<string> {
-  return new Set(
-    decisions
-      .filter((decision) => decision.kind === 'excluded' || decision.kind === 'image-slot')
-      .map((decision) => decision.anchor),
-  )
-}
-
-function pruned(input: {node: DesignNode; dropped: Set<string>}): DesignNode {
-  const {node, dropped} = input
-  const children = node.children
-    .filter((child) => !dropped.has(child.id))
-    .map((child) => pruned({node: child, dropped}))
-  return {...node, children}
-}
-
-function pinsFrom(decisions: Decision[]): {node: string; path: string}[] {
-  return decisions.flatMap((decision) =>
-    decision.kind === 'pin' && typeof decision.value === 'string'
-      ? [{node: decision.anchor, path: decision.value}]
-      : [],
-  )
+  return {root: match, partial}
 }
 
 function pairNode(input: {
@@ -159,18 +116,12 @@ function pairNode(input: {
   pairing: Pairing
 }): Paired {
   const {node, pairing} = input
-  const kept = new Map(
-    node.children.flatMap((child): [string, Match][] => {
-      const carried = unchanged({node: child, pairing})
-      return carried === null ? [] : [[child.id, carried]]
-    }),
-  )
-  const {live, view, seats} = seated({...input, kept})
+  const {live, view, seats} = seated(input)
   const pool =
     view === null
       ? input.pool
       : pairing.candidates.filter((candidate) => SIMILARITY.views.inside({view: candidate, anchor: view}))
-  const open = (child: DesignNode): boolean => !kept.has(child.id) && !seats.has(child.id)
+  const open = (child: DesignNode): boolean => !seats.has(child.id)
   const level = voteLevel({
     ...pairing,
     nodes: node.children.flatMap((child) => (open(child) ? (pairing.views.get(child.id) ?? []) : [])),
@@ -183,8 +134,6 @@ function pairNode(input: {
   )
   const wider = voteLevel({...pairing, nodes: missed, candidates: pairing.candidates})
   const voted = node.children.map((child): Paired => {
-    const carried = kept.get(child.id)
-    if (carried !== undefined) return {match: carried, partial: false, carried: [...walk(carried)].length}
     const seat = seats.get(child.id)
     const taken = seat === undefined ? (level.assignments.get(child.id) ?? wider.assignments.get(child.id)) : undefined
     const candidate = seat ?? taken?.candidate ?? null
@@ -206,22 +155,18 @@ function pairNode(input: {
       children: children.map((child) => child.match),
     }),
     partial: level.partial || wider.partial || children.some((child) => child.partial),
-    carried: children.reduce((sum, child) => sum + child.carried, level.carried + wider.carried),
   }
 }
 
-function seated(input: {
-  node: DesignNode
+function seated(input: {node: DesignNode; live: LiveComponent | null; view: View | null; pairing: Pairing}): {
   live: LiveComponent | null
   view: View | null
-  pairing: Pairing
-  kept: Map<string, Match>
-}): {live: LiveComponent | null; view: View | null; seats: Map<string, View>} {
+  seats: Map<string, View>
+} {
   const {node, live, view, pairing} = input
   if (view === null || !pairing.views.has(node.id)) return {live, view, seats: new Map()}
-  const children = node.children.filter((child) => !input.kept.has(child.id))
   const {candidates, state, context} = pairing
-  const seats = SIMILARITY.views.coinciding({node: {...node, children}, view, candidates, taken: state.boxes})
+  const seats = SIMILARITY.views.coinciding({node, view, candidates, taken: state.boxes})
   seats.forEach((seat, id) => {
     const at = pairing.views.get(id)
     if (at !== undefined) take({node: at, candidate: seat, state, context})
@@ -261,45 +206,8 @@ function matched(input: {node: DesignNode; live: LiveComponent | null; confidenc
     live: live === null ? null : omit(live, ['children']),
     hash,
     confidence,
-    source: 'dom',
-    deltas: [],
-    status: live === null ? 'unbuilt' : 'paired',
-    since: '',
-    shift: null,
     children,
   }
-}
-
-function unchanged(input: {node: DesignNode; pairing: Pairing}): Match | null {
-  const {node, pairing} = input
-  const before = pairing.before.get(node.id)
-  if (before === undefined) return null
-  const match = rebuilt({node, before, pairing})
-  if (match === null || match.hash !== before.hash) return null
-  ;[...walk(match)].forEach(({node: entry}) => {
-    const view = pairing.views.get(entry.node.id)
-    const candidate = entry.live === null ? undefined : pairing.byKey.get(entry.live.path)
-    if (view === undefined || candidate === undefined) return
-    take({node: view, candidate, state: pairing.state, context: pairing.context})
-  })
-  return match
-}
-
-function rebuilt(input: {node: DesignNode; before: Match; pairing: Pairing}): Match | null {
-  const {node, before, pairing} = input
-  if (before.live === null || before.node.hash !== node.hash) return null
-  const {path} = before.live
-  const pin = pairing.pins.find((entry) => entry.node === node.id)
-  if (pin !== undefined && pin.path !== path) return null
-  if (node.kind !== 'text' && pairing.state.boxes.has(path)) return null
-  const component = pairing.components.get(path)
-  if (component === undefined) return null
-  const children = node.children.flatMap((child) => {
-    const prior = before.children.find((entry) => entry.node.id === child.id)
-    return (prior === undefined ? null : rebuilt({node: child, before: prior, pairing})) ?? []
-  })
-  if (children.length !== node.children.length) return null
-  return matched({node, live: component, confidence: before.confidence, children})
 }
 
 function calibrate(input: VoteInput): Weights {
@@ -368,10 +276,9 @@ function floors(input: VoteInput & {weights: Weights}): Map<string, number> {
 
 function voteLevel(input: Pairing & {nodes: View[]}): Level {
   const {weights, state, nodes, context, floors: pools} = input
-  if (nodes.length === 0) return {assignments: new Map(), partial: false, carried: 0}
+  if (nodes.length === 0) return {assignments: new Map(), partial: false}
   const pinned = pinsFirst({input, state})
   const fitted = exactFits({input, weights, state})
-  const carried = carryFirst({input, state, carried: carriedViews(input)})
   const views = new Map(nodes.map((node) => [node.key, node]))
   const open = (held: boolean): Map<string, Scored[]> =>
     new Map(
@@ -386,7 +293,7 @@ function voteLevel(input: Pairing & {nodes: View[]}): Level {
     pools,
     lists: open(false),
     views,
-    matched: [...pinned, ...fitted, ...carried],
+    matched: [...pinned, ...fitted],
   })
   const followed = followTexts({input, weights, state})
   const result = greedy({
@@ -401,65 +308,7 @@ function voteLevel(input: Pairing & {nodes: View[]}): Level {
   return {
     assignments: new Map(result.matched.map((entry) => [entry.node.key, entry])),
     partial: first.partial || result.partial,
-    carried: carried.length,
   }
-}
-
-function carriedViews(input: Pairing & {nodes: View[]}): Assignment[] {
-  const {nodes, records, prints, components, edited} = input
-  const candidates = input.candidates.toSorted(
-    (a, b) => Number(editedFile({view: b, components, edited})) - Number(editedFile({view: a, components, edited})),
-  )
-  return nodes.flatMap((node): Assignment[] => {
-    const record = records.get(node.key)
-    if (record === undefined) return []
-    const wanted = record.fingerprint
-    const matches = candidates.filter((candidate) => {
-      const found = prints.get(candidate.key)
-      if (found === undefined) return false
-      if (wanted.source === null && candidate.key !== record.path) return false
-      return fingerprints.same({a: found, b: wanted})
-    })
-    const candidate =
-      matches.find((entry) => entry.key === record.path) ??
-      minBy(matches, (entry) => Math.hypot(entry.box.x - wanted.box.x, entry.box.y - wanted.box.y))
-    return candidate === undefined ? [] : [{node, candidate, score: record.confidence}]
-  })
-}
-
-function editedFile(input: {view: View; components: Map<string, LiveComponent>; edited: Set<string>}): boolean {
-  const file = input.components.get(input.view.key)?.source?.file
-  return file !== undefined && input.edited.has(file)
-}
-
-function carryFirst(input: {input: VoteInput; state: State; carried: Assignment[]}): Assignment[] {
-  const {state} = input
-  const {context} = input.input
-  const [agreeing, rest] = partition(
-    input.carried,
-    ({node, candidate}) => node.kind === 'text' && saysSame({node, candidate}),
-  )
-  return [...agreeing, ...rest].flatMap((entry) => {
-    const {node, candidate} = entry
-    if (context.assigned.has(node.key)) return []
-    if (!SIMILARITY.views.compatible({node, candidate})) return []
-    if (node.kind === 'text' && !saysSame({node, candidate}) && !SIMILARITY.text.shares({node, candidate})) return []
-    if (spokenElsewhere({node, candidate, context})) return []
-    if (node.kind !== 'text' && !elementGate({node, candidate, state})) return []
-    if (node.kind !== 'text' && displaced({input: input.input, state, node, candidate})) return []
-    take({node, candidate, state, context})
-    return [entry]
-  })
-}
-
-function displaced(input: {input: VoteInput; state: State; node: View; candidate: View}): boolean {
-  const {node, candidate, state} = input
-  const exact = TOLERANCES.pairExactIou
-  if (SIMILARITY.box.iou({a: node.box, b: candidate.box}) >= exact) return false
-  return candidatePool({input: input.input, node}).some(
-    (other) =>
-      other !== candidate && !state.boxes.has(other.key) && SIMILARITY.box.iou({a: node.box, b: other.box}) >= exact,
-  )
 }
 
 function pinsFirst(input: {input: VoteInput; state: State}): Assignment[] {
