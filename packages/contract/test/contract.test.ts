@@ -128,7 +128,7 @@ describe('rows', () => {
         id: 'conciv_1',
         title: 'hello',
         updatedAt: 1,
-        messageCount: 0,
+        sizeBytes: 0,
         running: false,
         origin: 'conciv',
         usage: null,

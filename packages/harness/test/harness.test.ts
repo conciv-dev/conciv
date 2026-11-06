@@ -58,7 +58,7 @@ import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
 import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
-import {mkdtemp, mkdir, realpath, symlink, writeFile} from 'node:fs/promises'
+import {mkdtemp, mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
@@ -691,7 +691,6 @@ describe('claude history', () => {
         ...machineryLines,
       ].join('\n')
       const meta = parseSessionMeta('s', jsonl, 1)
-      expect(meta.messageCount).toBe(2)
       expect(meta.lastMessage).toBe('done')
     })
   })
@@ -764,7 +763,7 @@ describe('claude history', () => {
       )
       const out = (await claudeHistory.list(cwd, FIRST_PAGE, home)).sessions
       expect(out.map((s) => s.id)).toEqual(['new', 'old'])
-      expect(out[0]).toMatchObject({derivedTitle: 'newer task', messageCount: 2})
+      expect(out[0]).toMatchObject({derivedTitle: 'newer task'})
       rmSync(home, {recursive: true, force: true})
     })
 
@@ -1192,7 +1191,7 @@ describe('codex history', () => {
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'List the files',
         lastMessage: 'Two files.',
-        messageCount: 2,
+        sizeBytes: expect.any(Number),
         model: 'gpt-5.5',
         totalTokens: 32017,
         updatedAt: 1785417797467,
@@ -1900,7 +1899,6 @@ describe('opencode history', () => {
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'Count the files',
-        messageCount: 2,
         model: 'openai/gpt-5.6-sol',
         totalTokens: 420,
         updatedAt: 1785305469728,
@@ -1995,7 +1993,7 @@ describe('opencode history', () => {
         {after: {updatedAt: 2_000_000, id: HarnessSessionId.parse(PAGED_IDS.tieHigh)}, limit: 1},
         home,
       )
-      expect(lastPage.sessions).toMatchObject([{id: PAGED_IDS.tieLow, messageCount: 2}])
+      expect(lastPage.sessions).toMatchObject([{id: PAGED_IDS.tieLow}])
     })
 
     it('returns nothing when there is no opencode database', async () => {
@@ -2165,13 +2163,42 @@ describe('pi history', () => {
     it('lists the sessions stored under the cwd directory', async () => {
       const {sessions} = await history().list(PROJECT, FIRST_PAGE, state.home)
       const found = sessions.find((session) => session.id === SESSION)
-      expect(found).toMatchObject({
+      expect(found).toEqual({
         id: SESSION,
         derivedTitle: 'count the files',
-        lastMessage: 'One file.',
-        messageCount: 3,
-        model: 'claude-opus-4-6',
+        updatedAt: expect.any(Number),
+        sizeBytes: Buffer.byteLength(jsonl(LINES)),
         createdAt: Date.parse('2026-07-30T09:45:14.653Z'),
+      })
+    })
+
+    it('reads a session meta from the head up to the first prompt, never the transcript after it', async () => {
+      const home = await mkdtemp(join(tmpdir(), 'pi-head-'))
+      const dir = sessionsDir(PROJECT, home)
+      await mkdir(dir, {recursive: true})
+      const live = HarnessSessionId.parse('live-head')
+      const path = join(dir, `2026-07-30T09-45-14-653Z_${live}.jsonl`)
+      execFileSync('mkfifo', [path])
+      const writer = open(path, 'w')
+      const meta = history().meta(PROJECT, live, home)
+      const handle = await writer
+      try {
+        await handle.write(`${jsonl(LINES.slice(0, 3))}{"type":"message","id":"still-writ`)
+        expect(await meta).toMatchObject({id: live, derivedTitle: 'count the files', sizeBytes: 0})
+      } finally {
+        await handle.close()
+      }
+    })
+
+    it('titles a session by the last name its transcript records', async () => {
+      const home = await mkdtemp(join(tmpdir(), 'pi-named-'))
+      const dir = sessionsDir(PROJECT, home)
+      await mkdir(dir, {recursive: true})
+      const named = [...LINES, {type: 'session_info', id: 'n1', parentId: 'kept1', name: 'the renamed count'}]
+      await writeFile(join(dir, FILE), jsonl(named), 'utf8')
+      expect(await history().meta(PROJECT, SESSION, home)).toMatchObject({
+        derivedTitle: 'the renamed count',
+        sizeBytes: Buffer.byteLength(jsonl(named)),
       })
     })
 
@@ -2594,7 +2621,6 @@ describe('transcript handles', () => {
         {id: 'h1', role: 'user', parts: [{type: 'text', content: 'main prompt'}]},
         {id: 'h2', role: 'assistant', parts: [{type: 'text', content: 'main answer'}]},
       ])
-      expect(parseSessionMeta('side', jsonl, 5).messageCount).toBe(2)
     })
 
     it('folds line by line to exactly what the whole-file parser produces', async () => {
@@ -2620,7 +2646,7 @@ describe('transcript handles', () => {
       expect(summary.meta).toMatchObject({
         id: 'summary',
         derivedTitle: 'rename the settings panel',
-        messageCount: claudeParse(raw).length,
+        sizeBytes: Buffer.byteLength(raw),
         model: 'claude-opus-4-8',
       })
       expect(summary.tail).toEqual(expected.messages.slice(-12))

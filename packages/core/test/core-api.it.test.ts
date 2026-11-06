@@ -621,7 +621,7 @@ describe('api harness switching', () => {
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
   const betaTranscripts: HarnessSessionMeta[] = [
-    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, messageCount: 2},
+    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
     createFakeHarness({
@@ -828,7 +828,6 @@ describe('api harness switching', () => {
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
       updatedAt: 6,
-      messageCount: 2,
     })
     const listings = async (includeHidden: boolean) => {
       const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
@@ -857,7 +856,11 @@ describe('api harness switching', () => {
   it('lists the native sessions of every available harness, labelled by harness', async () => {
     const {sessions: listed} = await kit().rpc.sessions.list(undefined)
     const imported = listed.find((meta) => meta.native?.nativeId === NATIVE_BETA)
-    expect(imported).toMatchObject({harnessKind: 'beta', native: {harnessKind: 'beta', nativeId: NATIVE_BETA}})
+    expect(imported).toMatchObject({
+      harnessKind: 'beta',
+      sizeBytes: 2048,
+      native: {harnessKind: 'beta', nativeId: NATIVE_BETA},
+    })
   })
 
   function racedApp() {
@@ -2182,12 +2185,6 @@ describe('rpc wire', () => {
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       })
-
-      it('a session option counts its messages right after a turn', async () => {
-        const sessionId = await newSession()
-        await finished(sessionId, 'count me')
-        expect((await chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).messageCount).toBe(2)
-      })
     })
 
     describe('tools and models list', () => {
@@ -2417,6 +2414,7 @@ describe('rpc wire', () => {
       })
 
       describe('search', () => {
+        const LIVE_REINDEX_MS = 30_000
         const searched: {kit: Kit | null; home: string; cwd: string; earlyStamp: number} = {
           kit: null,
           home: '',
@@ -2515,6 +2513,15 @@ describe('rpc wire', () => {
           return listed.map((meta) => meta.native?.nativeId ?? meta.title)
         }
 
+        async function later(elapsed: number, check: () => Promise<void>): Promise<void> {
+          vi.useFakeTimers({toFake: ['Date'], now: Date.now() + elapsed + 1})
+          try {
+            await check()
+          } finally {
+            vi.useRealTimers()
+          }
+        }
+
         async function listedNativeIds(): Promise<string[]> {
           const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
           return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
@@ -2568,23 +2575,26 @@ describe('rpc wire', () => {
         })
 
         it('keeps searching the other harnesses while one cannot list its sessions', async () => {
-          writeCodexTurn('codex-quiet', 'a quiet start', 'nothing yet')
-          const rollout = join(searched.home, '.codex', 'sessions', 'unreadable-rollout')
-          mkdirSync(rollout, {recursive: true})
-          const db = new DatabaseSync(join(searched.home, '.codex', 'state_5.sqlite'))
-          const stamp = nextStamp()
+          writeCodexTurn('codex-tern', 'a tern', 'seen')
+          const unlistable = claudeTranscriptPath('claude-unlistable')
+          mkdirSync(unlistable, {recursive: true})
           try {
-            db.prepare(
-              'insert or replace into threads (id, rollout_path, cwd, title, first_user_message, created_at, updated_at, created_at_ms, updated_at_ms) values (?,?,?,?,?,?,?,?,?)',
-            ).run('codex-unreadable', rollout, searched.cwd, 'a tern', 'a tern', stamp, stamp, stamp, stamp)
-            writeClaudeTurn('claude-tern', 'a tern too', 'seen')
-
-            expect(await found('tern')).toEqual(['claude-tern'])
+            expect(await found('tern')).toEqual(['codex-tern'])
           } finally {
-            db.prepare('delete from threads where id = ?').run('codex-unreadable')
-            db.close()
-            rmSync(rollout, {recursive: true, force: true})
+            rmSync(unlistable, {recursive: true, force: true})
           }
+        })
+
+        it('reads a live session text at most every 30 seconds, while its title and time follow the list', async () => {
+          writeClaudeTurn('claude-live', 'a busy kestrel', 'the first reply')
+          expect(await found('kestrel')).toEqual(['claude-live'])
+
+          const stamp = writeClaudeTurn('claude-live', 'a busy kestrel and merlin', 'the osprey arrived')
+          expect(await found('osprey')).toEqual([])
+          const {sessions: titled} = await searchKit().rpc.sessions.search({term: 'merlin', limit: 10})
+          expect(titled).toMatchObject([{native: {nativeId: 'claude-live'}, updatedAt: stamp}])
+
+          await later(LIVE_REINDEX_MS, async () => expect(await found('osprey')).toEqual(['claude-live']))
         })
 
         it('matches message text of sessions from every harness, newest first and paged, and tolerates a typo', async () => {
@@ -2628,7 +2638,7 @@ describe('rpc wire', () => {
           expect(await found('heron')).toEqual([])
 
           writeClaudeTurn('claude-changing', 'a first draft', 'the heron came back')
-          expect(await found('heron')).toEqual(['claude-changing'])
+          await later(LIVE_REINDEX_MS, async () => expect(await found('heron')).toEqual(['claude-changing']))
 
           rmSync(claudeTranscriptPath('claude-changing'))
           expect(await found('heron')).toEqual([])

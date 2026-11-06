@@ -15,7 +15,7 @@ import type {
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
-import {transcriptPage} from '../_shared/transcript-page.js'
+import {transcriptPage, type TranscriptStamp} from '../_shared/transcript-page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
@@ -360,12 +360,12 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
-function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSessionMeta {
+function metaFromFold(id: string, state: ClaudeFold, mtime: number, jsonl: string): HarnessSessionMeta {
   return {
     id: HarnessSessionId.parse(id),
     derivedTitle: state.title ?? '',
     updatedAt: Math.round(mtime),
-    messageCount: state.messages.length,
+    sizeBytes: Buffer.byteLength(jsonl),
     model: state.model,
     totalTokens: state.totalTokens,
     lastMessage: state.lastText,
@@ -373,14 +373,19 @@ function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSess
   }
 }
 
+async function readSessionMeta(id: string, path: string, stamp: TranscriptStamp): Promise<HarnessSessionMeta | null> {
+  const raw = await readFile(path, 'utf8').catch(whenMissing(null))
+  return raw === null ? null : parseSessionMeta(id, raw, stamp.updatedAt)
+}
+
 export function parseSessionMeta(id: string, jsonl: string, mtime: number): HarnessSessionMeta {
-  return metaFromFold(id, foldTranscript(jsonl), mtime)
+  return metaFromFold(id, foldTranscript(jsonl), mtime, jsonl)
 }
 
 const SUMMARY_TAIL = 12
 
 function listSessions(cwd: string, page: HarnessListPage, home: string = homedir()): Promise<HarnessSessionPage> {
-  return transcriptPage(transcriptRoot(cwd, home), page, transcriptId, parseSessionMeta)
+  return transcriptPage(transcriptRoot(cwd, home), page, transcriptId, readSessionMeta)
 }
 
 function transcriptId(name: string): HarnessSessionId | null {
@@ -401,7 +406,7 @@ export async function sessionSummary(
   const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   if (!raw) return null
   const state = foldTranscript(raw)
-  return {meta: metaFromFold(sessionId, state, info.mtimeMs), tail: state.messages.slice(-SUMMARY_TAIL)}
+  return {meta: metaFromFold(sessionId, state, info.mtimeMs, raw), tail: state.messages.slice(-SUMMARY_TAIL)}
 }
 
 export async function sessionMeta(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null> {

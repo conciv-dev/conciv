@@ -1,6 +1,7 @@
-import {createMemo, createSignal, Show, onMount, type JSX} from 'solid-js'
+import {createMemo, createSignal, createUniqueId, Show, onMount, type JSX} from 'solid-js'
 import {
   Button,
+  ByteSize,
   Combobox,
   createListCollection,
   TooltipIconButton,
@@ -64,11 +65,6 @@ function relativeTime(updatedAt: number, now: number): string {
   if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
   const d = Math.round(h / 24)
   return `${d} day${d === 1 ? '' : 's'} ago`
-}
-
-function metaLabel(s: SessionMeta, now: number): string {
-  const origin = s.origin === 'conciv' ? 'started in conciv' : 'started externally'
-  return `Edited ${relativeTime(s.updatedAt, now)} · ${s.messageCount} messages · ${origin}`
 }
 
 function pickerRows(list: SessionMeta[], now: number): PickerRow[] {
@@ -369,19 +365,41 @@ export function SessionSelector(props: {
   )
 }
 
+function SessionSize(props: {sizeBytes: number | undefined}): JSX.Element {
+  return (
+    <Show when={props.sizeBytes}>
+      {(sizeBytes) => (
+        <>
+          {' · '}
+          <ByteSize value={sizeBytes()} />
+        </>
+      )}
+    </Show>
+  )
+}
+
 function SessionOption(props: {session: SessionMeta; now: number; suffix: string}): JSX.Element {
+  const labelId = createUniqueId()
   return (
     <Combobox.Item
       item={props.session}
       class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
-      aria-label={`${props.session.title}, ${metaLabel(props.session, props.now)}${props.suffix}${props.session.running ? `, ${RUNNING_LABEL}` : ''}`}
+      aria-labelledby={labelId}
     >
+      <span id={labelId} class="sr-only">
+        {props.session.title}, Edited {relativeTime(props.session.updatedAt, props.now)}
+        <SessionSize sizeBytes={props.session.sizeBytes} />
+        {props.session.origin === 'conciv' ? ' · started in conciv' : ' · started externally'}
+        {props.suffix}
+        {props.session.running ? `, ${RUNNING_LABEL}` : ''}
+      </span>
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
           <Combobox.ItemText>{props.session.title}</Combobox.ItemText>
         </TruncatedText>
         <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
-          Edited {relativeTime(props.session.updatedAt, props.now)} · {props.session.messageCount} messages
+          Edited {relativeTime(props.session.updatedAt, props.now)}
+          <SessionSize sizeBytes={props.session.sizeBytes} />
           {props.suffix}
         </span>
       </div>

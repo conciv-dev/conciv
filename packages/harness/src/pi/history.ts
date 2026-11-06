@@ -1,5 +1,6 @@
-import {readdirSync} from 'node:fs'
-import {readdir, readFile, stat} from 'node:fs/promises'
+import {createReadStream, readdirSync} from 'node:fs'
+import {open, readdir, readFile, stat} from 'node:fs/promises'
+import {createInterface} from 'node:readline'
 import {homedir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {z} from 'zod'
@@ -15,11 +16,11 @@ import type {
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
-import {transcriptPage} from '../_shared/transcript-page.js'
+import {transcriptPage, type TranscriptStamp} from '../_shared/transcript-page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 
 const MAX_TITLE = 80
-const MAX_PREVIEW = 200
+const TAIL_BYTES = 65_536
 
 export function encodeSessionDir(cwd: string): string {
   return `--${resolve(cwd)
@@ -38,7 +39,6 @@ const HeaderSchema = z
   .object({type: z.literal('session'), id: z.string(), timestamp: z.string().optional(), cwd: z.string().optional()})
   .loose()
 const SessionInfoSchema = z.object({type: z.literal('session_info'), name: z.string()}).loose()
-const ModelChangeSchema = z.object({type: z.literal('model_change'), modelId: z.string()}).loose()
 
 type Entry = z.infer<typeof EntrySchema>
 
@@ -194,33 +194,6 @@ function condense(value: string, max: number): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, max)
 }
 
-function textOf(message: ChatMessage): string {
-  const part = message.parts.find((candidate) => candidate.type === 'text')
-  return part && part.type === 'text' ? part.content : ''
-}
-
-function sessionName(raw: string): string | null {
-  const names = records(raw).flatMap((record) => {
-    const parsed = SessionInfoSchema.safeParse(record)
-    return parsed.success ? [parsed.data.name] : []
-  })
-  return names.at(-1) ?? null
-}
-
-function sessionModel(raw: string): string | null {
-  const models = records(raw).flatMap((record) => {
-    const parsed = ModelChangeSchema.safeParse(record)
-    return parsed.success ? [parsed.data.modelId] : []
-  })
-  return models.at(-1) ?? null
-}
-
-function headerOf(raw: string): z.infer<typeof HeaderSchema> | null {
-  const first = records(raw).at(0)
-  const parsed = HeaderSchema.safeParse(first)
-  return parsed.success ? parsed.data : null
-}
-
 function sessionIdToken(fileName: string): string {
   const stem = fileName.replace(/\.jsonl$/, '')
   const separator = stem.indexOf('_')
@@ -274,32 +247,75 @@ function observeTranscript(cwd: string, sessionId: string, home?: string): Trans
   })
 }
 
-function firstUserText(messages: ChatMessage[]): string {
-  const first = messages.find((message) => message.role === 'user')
-  return first ? textOf(first) : ''
-}
-
-function lastText(messages: ChatMessage[]): string | null {
-  const last = messages.at(-1)
-  return last ? condense(textOf(last), MAX_PREVIEW) || null : null
-}
-
 function startedAt(timestamp: string | undefined): number | undefined {
   const parsed = timestamp ? Date.parse(timestamp) : NaN
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-function sessionMeta(id: HarnessSessionId, raw: string, mtimeMs: number): HarnessSessionMeta {
-  const header = headerOf(raw)
-  const messages = parseHistory(raw)
+type MetaHead = {createdAt: number | undefined; name: string | null; firstUser: string | null}
+
+async function sessionMeta(
+  id: HarnessSessionId,
+  path: string,
+  stamp: TranscriptStamp,
+): Promise<HarnessSessionMeta | null> {
+  const head = await metaHead(path).catch(whenMissing(null))
+  if (head === null) return null
+  const name = (await tailName(path, stamp.sizeBytes)) ?? head.name
   return {
     id,
-    derivedTitle: condense(sessionName(raw) ?? firstUserText(messages), MAX_TITLE),
-    updatedAt: Math.round(mtimeMs),
-    messageCount: messages.length,
-    model: sessionModel(raw),
-    lastMessage: lastText(messages),
-    createdAt: startedAt(header?.timestamp),
+    derivedTitle: condense(name ?? head.firstUser ?? '', MAX_TITLE),
+    updatedAt: stamp.updatedAt,
+    sizeBytes: stamp.sizeBytes,
+    createdAt: head.createdAt,
+  }
+}
+
+async function metaHead(path: string): Promise<MetaHead> {
+  const stream = createReadStream(path, {encoding: 'utf8'})
+  const head: MetaHead = {createdAt: undefined, name: null, firstUser: null}
+  try {
+    for await (const line of createInterface({input: stream, crlfDelay: Number.POSITIVE_INFINITY})) {
+      const record = parseJsonOrNull(line.trim())
+      const header = HeaderSchema.safeParse(record)
+      if (header.success) head.createdAt = startedAt(header.data.timestamp)
+      const info = SessionInfoSchema.safeParse(record)
+      if (info.success) head.name = info.data.name
+      head.firstUser = firstUserOf(record)
+      if (head.firstUser !== null) return head
+    }
+    return head
+  } finally {
+    stream.destroy()
+  }
+}
+
+function firstUserOf(record: unknown): string | null {
+  const entry = EntrySchema.safeParse(record)
+  if (!entry.success || entry.data.type !== 'message') return null
+  const spoken = spokenMessage(entry.data.message)
+  if (spoken === null || spoken.role !== 'user') return null
+  const text = spoken.parts.find((part) => part.type === 'text')
+  return text !== undefined && text.type === 'text' ? text.content : null
+}
+
+async function tailName(path: string, sizeBytes: number): Promise<string | null> {
+  if (sizeBytes === 0) return null
+  const length = Math.min(sizeBytes, TAIL_BYTES)
+  const handle = await open(path, 'r')
+  try {
+    const {buffer, bytesRead} = await handle.read(Buffer.alloc(length), 0, length, sizeBytes - length)
+    const names = buffer
+      .toString('utf8', 0, bytesRead)
+      .split('\n')
+      .filter((line) => line.includes('"session_info"'))
+      .flatMap((line) => {
+        const info = SessionInfoSchema.safeParse(parseJsonOrNull(line.trim()))
+        return info.success ? [info.data.name] : []
+      })
+    return names.at(-1) ?? null
+  } finally {
+    await handle.close()
   }
 }
 
@@ -318,8 +334,7 @@ async function storedMeta(cwd: string, sessionId: HarnessSessionId, home?: strin
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
-  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
-  return raw ? sessionMeta(sessionId, raw, info.mtimeMs) : null
+  return sessionMeta(sessionId, path, {updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size})
 }
 
 export const piHistory: HarnessHistory = {

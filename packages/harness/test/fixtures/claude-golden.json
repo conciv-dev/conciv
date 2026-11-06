@@ -68,7 +68,7 @@
     "id": "fixture",
     "derivedTitle": "rename the settings panel",
     "updatedAt": 1785417797467,
-    "messageCount": 5,
+    "sizeBytes": 1526,
     "model": "claude-opus-4-8",
     "totalTokens": 18,
     "lastMessage": "Shipped the change.",

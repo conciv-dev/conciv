@@ -8,7 +8,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 - `listCommands` / `mcpUrlFor` / `CommandSource` (`commands.ts`): commands tagged 'mcp', 'plugin' or 'harness'
 - `createSessionBus` / `SessionBus` (`session-bus.ts`): publish, listen, events(sessionId, signal)
-- `createSessionSearch` (`session-search.ts`): one in-memory Orama index per engine over every native session's title and message text, built on the first search (nothing is read at engine start or by a plain list), refreshed from the `list` watermark before each search; every document is parsed by a zod schema before it is inserted; a session whose `messages` throws is indexed by title with `read: false`, logged once, and its body retried on each later refresh; a harness whose `list` throws is logged and the others keep indexing; a listed session missing from the index after a refresh is logged; hits whose `meta` is gone are removed, a hit whose `meta` throws is logged and left out of that page
+- `createSessionSearch` (`session-search.ts`): one in-memory Orama index per engine over every native session's title and message text, built on the first search (nothing is read at engine start or by a plain list), refreshed before each search by walking every `list` page: sessions no longer listed are removed, each listed session's title, `updatedAt` and `sizeBytes` are updated from the walk, and its text is re-read when it is new, unread, or changed and last read at least 30 s ago (`LIVE_REINDEX_MS`); hits take their meta from the index document, never from `meta()`; every document is parsed by a zod schema before it is inserted; a session whose `messages` throws is indexed by title with `read: false`, logged once, and its body retried on each later refresh; a harness whose `list` throws is logged and the others keep indexing; ids where the index and the walk disagree after a refresh are logged
 - `rowById` / `currentRow` / `rowByNativeId` / `rowByNativeRef` (`session-rows.ts`)
 - `createRow` / `ensureRow` / `nativeIdFor` / `recordNativeId` (`session-rows.ts`)
 - `resolveRow` / `openNativeRow` / `ensureAgentRow` / `mintExternalRow` / `anonymousExternalRow` (`session-rows.ts`)
@@ -27,7 +27,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 ## Side Effects
 
-- `session-rows.ts`: SQLite reads and writes on `sessions`; reads `chatThreads` message counts
+- `session-rows.ts`: SQLite reads and writes on `sessions`
 - `listSessionMetas` (`session-rows.ts`): inserts or undeletes rows while listing; `logError` for invalid rows
 - `listCommands` (`commands.ts`): calls the harness adapter's `commands`
 

@@ -2964,18 +2964,17 @@ describe('session selector', () => {
   const core = bootedCore('session-selector', {
     resume: true,
     history: [
-      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), messageCount: 3},
+      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
         derivedTitle: `older session ${index}`,
         updatedAt: Date.now() - (index + 1) * DAY_MS,
-        messageCount: 1,
+        sizeBytes: 1536,
       })),
       {
         id: HarnessSessionId.parse('kiwi-orchard'),
         derivedTitle: 'the kiwi orchard plan',
         updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
-        messageCount: 1,
       },
     ],
   })
@@ -3075,13 +3074,18 @@ describe('session selector', () => {
     await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
   })
 
-  test('the selector keeps freshness, message count and origin in the row description', async () => {
+  test('the selector keeps freshness, transcript size and origin in the row description', async () => {
     await mountSelector()
 
     await page.getByRole('button', {name: 'Session: the active session'}).click()
 
     await expect
-      .element(page.getByRole('option', {name: /a session mid-run.*\d+ messages.*started externally/}))
+      .element(
+        page.getByRole('option', {name: /^a session mid-run, Edited [^·]+ · 2\.4\sMB · started externally, running$/}),
+      )
+      .toBeVisible()
+    await expect
+      .element(page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/}))
       .toBeVisible()
   })
 })

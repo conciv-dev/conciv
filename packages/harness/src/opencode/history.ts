@@ -52,7 +52,6 @@ const SessionRowSchema = z
 
 const DataRowSchema = z.object({id: z.string(), data: z.string()}).loose()
 const PartRowSchema = z.object({message_id: z.string(), data: z.string()}).loose()
-const CountRowSchema = z.object({session_id: z.string(), total: z.number()}).loose()
 const StatRowSchema = z.object({latest: z.number().nullish(), parts: z.number().nullish()}).loose()
 
 function rowsOf<T extends z.ZodType>(schema: T, rows: unknown[]): z.infer<T>[] {
@@ -151,17 +150,6 @@ async function transcriptMessages(cwd: string, sessionId: string, home: string =
   })
 }
 
-function messageCounts(db: DatabaseSync, ids: string[]): Map<string, number> {
-  if (ids.length === 0) return new Map()
-  const placeholders = ids.map(() => '?').join(',')
-  const rows = db
-    .prepare(
-      `select session_id, count(*) as total from message where session_id in (${placeholders}) group by session_id`,
-    )
-    .all(...ids)
-  return new Map(rowsOf(CountRowSchema, rows).map((row) => [row.session_id, row.total]))
-}
-
 async function listSessions(cwd: string, page: HarnessListPage, home: string = homedir()): Promise<HarnessSessionPage> {
   const after = page.after
   return withDatabase<HarnessSessionPage>(home, {sessions: [], next: null}, (db) => {
@@ -178,11 +166,7 @@ async function listSessions(cwd: string, page: HarnessListPage, home: string = h
         ),
     )
     const paged = pageAfter(rows, page, (row) => ({updatedAt: row.time_updated ?? 0, id: row.id}))
-    const counts = messageCounts(
-      db,
-      paged.items.map((row) => row.id),
-    )
-    return {sessions: paged.items.map((row) => sessionMeta(row, counts)), next: paged.next}
+    return {sessions: paged.items.map(sessionMeta), next: paged.next}
   })
 }
 
@@ -194,16 +178,15 @@ async function storedMeta(
   return withDatabase<HarnessSessionMeta | null>(home, null, (db) => {
     const row = sessionRow(db, sessionId)
     if (!row || !sameCwd(row.directory, cwd)) return null
-    return sessionMeta(row, messageCounts(db, [row.id]))
+    return sessionMeta(row)
   })
 }
 
-function sessionMeta(row: z.infer<typeof SessionRowSchema>, counts: Map<string, number>): HarnessSessionMeta {
+function sessionMeta(row: z.infer<typeof SessionRowSchema>): HarnessSessionMeta {
   return {
     id: row.id,
     derivedTitle: condense(row.title, MAX_TITLE),
     updatedAt: row.time_updated ?? 0,
-    messageCount: counts.get(row.id) ?? 0,
     model: row.model ?? null,
     totalTokens: (row.tokens_input ?? 0) + (row.tokens_output ?? 0),
     lastMessage: null,

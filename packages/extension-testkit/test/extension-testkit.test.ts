@@ -143,11 +143,11 @@ describe('core kit seams', () => {
   })
 
   describe('bootCoreKit seams', () => {
-    it('adopts the harness transcript rows as external sessions with their message counts', async () => {
+    it('adopts the harness transcript rows as external sessions with their transcript sizes', async () => {
       const kit = await bootCoreKit({
         id: 'seams-history',
         history: [
-          {id: HarnessSessionId.parse('native-1'), derivedTitle: 'A native session', updatedAt: 1_700, messageCount: 7},
+          {id: HarnessSessionId.parse('native-1'), derivedTitle: 'A native session', updatedAt: 1_700, sizeBytes: 7},
         ],
       })
       state.kit = kit
@@ -156,7 +156,7 @@ describe('core kit seams', () => {
       const adopted = sessions.find((meta) => meta.native?.nativeId === 'native-1')
 
       expect(adopted?.origin).toBe('external')
-      expect(adopted?.messageCount).toBe(7)
+      expect(adopted?.sizeBytes).toBe(7)
       expect(adopted?.title).toBe('A native session')
       expect(adopted?.running).toBe(false)
     }, 30_000)

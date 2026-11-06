@@ -106,10 +106,11 @@ for I/O errors, `'corrupt'` when the file exists but its content fails a structu
 ## `list()`: enumerate past sessions
 
 `listSessions` (`packages/harness/src/codex/history.ts:325-342`) queries a SQLite `threads` table
-scoped by `cwd`, then re-reads each row's own rollout file to compute a fresh `messageCount` via the
-same `parseHistory`. If your CLI has no session-index database, an alternative is scanning its
+scoped by `cwd`, then `stat`s each row's rollout file for its `sizeBytes`; it never parses a
+transcript to build a meta. If your CLI has no session-index database, an alternative is scanning its
 transcript directory (`packages/harness/src/codex/history.ts:279-297`,
 `rolloutEntries`/`scanForRollout` — used as the `list()`-independent fallback path when a specific
-session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt,
-messageCount}` (`packages/protocol/src/harness-types.ts:142-151`); the rest (`model`, `totalTokens`,
-`lastMessage`, `createdAt`) are best-effort.
+session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt}`
+(`packages/protocol/src/harness-types.ts`); `sizeBytes` (the transcript file's size, shown in the session
+picker) and the rest (`model`, `totalTokens`, `lastMessage`, `createdAt`) are best-effort. Build a meta from
+cheap reads only (a `stat`, the head up to the first prompt), never a whole-transcript parse.

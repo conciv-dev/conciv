@@ -111,7 +111,7 @@ export type HarnessSessionMeta = {
   id: HarnessSessionId
   derivedTitle: string
   updatedAt: number
-  messageCount: number
+  sizeBytes?: number
   model?: string | null
   totalTokens?: number
   lastMessage?: string | null

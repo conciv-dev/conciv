@@ -21,7 +21,7 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatThreads, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMetadata, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -309,15 +309,11 @@ export async function listSessionMetas(
   const entries = [...nativeEntries(input.nativePages), ...(await concivOnlyEntries(input))]
   const merged = pageAfter(entries, input.page, (entry) => entry.cursor)
   const listed = await listedSessions(merged.items, input)
-  const counts = await storedCounts(
-    input.db,
-    listed.map(({row}) => row.id),
-  )
-  return {sessions: listed.map((session) => rowMeta(session, input, counts)), next: nextCursor(merged, input)}
+  return {sessions: listed.map((session) => rowMeta(session, input)), next: nextCursor(merged, input)}
 }
 
-export async function sessionMetaOf(context: MetaContext, session: ListedSession): Promise<SessionMeta> {
-  return rowMeta(session, context, await storedCounts(context.db, [session.row.id]))
+export function sessionMetaOf(context: MetaContext, session: ListedSession): SessionMeta {
+  return rowMeta(session, context)
 }
 
 function nativeEntries(pages: NativePage[]): PageEntry[] {
@@ -498,19 +494,10 @@ const keyOf = (native: NativeSession): string => nativeKey(native.harnessKind, n
 
 const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
 
-async function storedCounts(db: ConcivDb, ids: string[]): Promise<Map<string, number>> {
-  if (ids.length === 0) return new Map()
-  const stored = await db
-    .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
-    .from(chatThreads)
-    .where(inArray(chatThreads.threadId, ids))
-  return new Map(stored.map((thread) => [thread.threadId, thread.count]))
-}
-
-function rowMeta(session: ListedSession, context: MetaContext, counts: ReadonlyMap<string, number>): SessionMeta {
+function rowMeta(session: ListedSession, context: MetaContext): SessionMeta {
   const row = session.row
   return {
-    ...rowFacts(row, session.native, counts.get(row.id)),
+    ...rowFacts(row, session.native),
     harnessKind: row.harnessKind,
     id: row.id,
     running: context.running.has(row.id),
@@ -526,14 +513,9 @@ function rowMeta(session: ListedSession, context: MetaContext, counts: ReadonlyM
 function rowFacts(
   row: SessionRecord,
   native: HarnessSessionMeta | undefined,
-  stored: number | undefined,
-): {title: string; updatedAt: number; messageCount: number} {
-  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt, messageCount: stored ?? 0}
-  return {
-    title: row.title ?? native.derivedTitle,
-    updatedAt: native.updatedAt,
-    messageCount: stored ?? native.messageCount,
-  }
+): {title: string; updatedAt: number; sizeBytes?: number} {
+  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt}
+  return {title: row.title ?? native.derivedTitle, updatedAt: native.updatedAt, sizeBytes: native.sizeBytes}
 }
 
 function nativeRefOf(row: SessionRecord): NativeSessionRef | null {

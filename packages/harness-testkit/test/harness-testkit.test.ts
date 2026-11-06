@@ -307,9 +307,9 @@ describe('create fake harness', () => {
           id: HarnessSessionId.parse('external-1'),
           derivedTitle: 'An external session',
           updatedAt: 1_700,
-          messageCount: 7,
+          sizeBytes: 7,
         },
-        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800, messageCount: 2},
+        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800},
       ]
       const harness = createFakeHarness({history: rows})
 

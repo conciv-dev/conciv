@@ -1,5 +1,5 @@
 import {existsSync, readdirSync, readFileSync, type Dirent} from 'node:fs'
-import {readFile} from 'node:fs/promises'
+import {stat} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
@@ -348,12 +348,12 @@ async function listSessions(cwd: string, page: HarnessListPage, home: string = h
 }
 
 async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta> {
-  const raw = await readFile(row.rollout_path, 'utf8').catch(whenMissing(''))
+  const info = await stat(row.rollout_path).catch(whenMissing(null))
   return {
     id: row.id,
     derivedTitle: firstText(row),
     updatedAt: millis(row.updated_at_ms, row.updated_at),
-    messageCount: parseHistory(raw, row.id).length,
+    sizeBytes: info?.size,
     model: row.model ?? null,
     totalTokens: row.tokens_used ?? 0,
     lastMessage: condense(row.preview, MAX_PREVIEW) || null,
