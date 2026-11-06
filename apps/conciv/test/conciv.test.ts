@@ -1,7 +1,7 @@
 import {expect, test as baseTest, describe, it, test} from 'vitest'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
-import {appendDraft, makeDraftStorage} from '../src/pane/draft-storage.js'
+import {appendDraft, makeDraftStorage, type ServerDraft} from '../src/pane/draft-storage.js'
 import {createSession, seedDraft, proxyTo, type ProxyCore} from './helpers.node.js'
 import type {Grab} from '@conciv/grab'
 import {resolveGrabSource} from '../src/pane/grab-source-resolve.js'
@@ -89,11 +89,22 @@ describe('draft storage', () => {
 
     draftStorage.storage.setItem('any', composerDraft('typed early'))
     draftStorage.storage.setItem('any', composerDraft(''))
-    const restored: string[] = []
-    await draftStorage.restore((draft) => restored.push(draft.text), new AbortController().signal)
+    const restored: ServerDraft[] = []
+    await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
     await core.awaitRequest(DRAFTS_SET_PATH)
 
     expect(restored).toEqual([])
+    expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
+  })
+
+  test('clearing a restored draft before its first write reaches the server', async ({kit, core, sessionId}) => {
+    await seedDraft(kit.rpc, sessionId, {text: 'restored then cleared'})
+    const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
+    await draftStorage.restore(() => {}, new AbortController().signal)
+
+    draftStorage.storage.setItem('any', composerDraft(''))
+    await core.awaitRequest(DRAFTS_SET_PATH)
+
     expect(await storedDraft(kit.rpc, sessionId)).toMatchObject({text: ''})
   })
 
@@ -129,8 +140,8 @@ describe('draft storage', () => {
     core.fail(DRAFTS_GET_PATH)
 
     const draftStorage = makeDraftStorage(makeRpcClient(core.base), sessionId)
-    const restored: string[] = []
-    await draftStorage.restore((draft) => restored.push(draft.text), new AbortController().signal)
+    const restored: ServerDraft[] = []
+    await draftStorage.restore((draft) => restored.push(draft), new AbortController().signal)
 
     expect(restored).toEqual([])
     expect(draftStorage.storage.getItem('any')).toBeNull()

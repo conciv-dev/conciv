@@ -23,12 +23,12 @@ type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 
 type DraftRow = NonNullable<Awaited<ReturnType<RpcClient['drafts']['get']>>>
 
-export type ServerDraft = {snapshot: WebStorage; text: string; selection: SelectionOffsets}
+export type ServerDraft = {snapshot: WebStorage; selection: SelectionOffsets}
 
 export type PaneDraftStorage = {
   storage: WebStorage
   noteSelection: (offsets: SelectionOffsets) => void
-  restore: (apply: (restored: ServerDraft) => void, signal: AbortSignal) => Promise<void>
+  restore: (apply: (restored: ServerDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -53,7 +53,6 @@ function serverDraft(row: DraftRow): ServerDraft {
   const serialized = JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
   return {
     snapshot: {getItem: () => serialized, setItem: () => {}},
-    text: row.text,
     selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
   }
 }
@@ -102,7 +101,7 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
           return
         }
         write.cancel()
-        if (!stored || isCleared(stored)) return
+        if (stored && isCleared(stored)) return
         write.maybeExecute(parsed)
         write.flush()
       },
@@ -119,7 +118,7 @@ export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftSt
       const typed = cached()
       const cleared = typed !== null && isCleared(typed)
       try {
-        if (row && !cleared) apply(serverDraft(row))
+        if (row && !cleared) apply(serverDraft(row), typed !== null)
       } finally {
         write.setOptions({enabled: true})
         if (typed && (row || !cleared)) write.maybeExecute(typed)

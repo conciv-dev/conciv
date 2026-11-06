@@ -18,9 +18,7 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
   return {
     utils,
     invalidateSessions: async () => {
-      await Promise.all(
-        sessionKeys.map((queryKey) => queryClient.invalidateQueries({queryKey}, {cancelRefetch: false})),
-      )
+      await Promise.all(sessionKeys.map((queryKey) => queryClient.invalidateQueries({queryKey})))
     },
   }
 }

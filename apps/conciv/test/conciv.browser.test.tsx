@@ -380,6 +380,27 @@ describe('chat pane', () => {
       await expect.element(input()).not.toHaveTextContent('the stale server text')
     })
 
+    test('a server draft that arrives after the user typed its exact text leaves their caret where they put it', async () => {
+      const {rpc, sessionId} = await newSession()
+      await rpc.drafts.set({
+        sessionId,
+        text: 'the same words',
+        selectionStart: 0,
+        selectionEnd: 0,
+        attachments: [persistedGrab('grab-caret', HERO_GRAB)],
+      })
+      const gate = await faults.install({kind: 'gate', path: DRAFT_GET_PATH})
+      mountChatPane(sessionId, grabOptions(HERO_GRAB))
+      await input().fill('the same words')
+
+      await coreControl.releaseFault(gate)
+      await expect.element(snapshot()).toBeVisible()
+      await expect.element(input()).toHaveFocus()
+      await userEvent.keyboard('!')
+
+      await expect.element(input()).toHaveTextContent('the same words!')
+    })
+
     test('a message sent before the server draft arrives leaves no stale draft behind', async () => {
       const {rpc, sessionId} = await newSession()
       await seedDraft(rpc, sessionId, {text: 'the draft saved before the send'})
