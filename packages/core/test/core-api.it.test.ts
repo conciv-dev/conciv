@@ -1975,6 +1975,33 @@ describe('rpc wire', () => {
       })
     })
 
+    describe('history paging', () => {
+      it('hydrate serves the newest page and walks back page by page to the first message', async () => {
+        const sessionId = await newSession()
+        for (const text of ['one', 'two', 'three']) await finished(sessionId, text)
+        const full = (await chatKit().rpc.chat.hydrate({sessionId})).messages.map((message) => message.id)
+        expect(full).toHaveLength(6)
+
+        const newest = await chatKit().rpc.chat.hydrate({sessionId, limit: 4})
+        expect(newest.messages.map((message) => message.id)).toEqual(full.slice(2))
+        expect(newest.page).toEqual({truncated: true, cursor: full[2]})
+        expect(Object.keys(newest.messageHarness).every((id) => full.slice(2).includes(id))).toBe(true)
+        expect(newest.lastRun).toMatchObject({phase: 'completed'})
+
+        const older = await chatKit().rpc.chat.hydrate({sessionId, limit: 4, before: full[2]})
+        expect(older.messages.map((message) => message.id)).toEqual(full.slice(0, 2))
+        expect(older.page).toEqual({truncated: false})
+        expect(older.lastRun).toEqual({...newest.lastRun, serverNow: expect.any(Number)})
+      })
+
+      it('hydrate refuses a page size that is not a positive integer', async () => {
+        const sessionId = await newSession()
+        for (const limit of [0, -1, 1.5]) {
+          await expect(chatKit().rpc.chat.hydrate({sessionId, limit})).rejects.toMatchObject({code: 'BAD_REQUEST'})
+        }
+      })
+    })
+
     describe('resume after reload', () => {
       it('an idle session reloads to the exact empty shape', async () => {
         expect(await chatKit().hydrate(await newSession())).toEqual({

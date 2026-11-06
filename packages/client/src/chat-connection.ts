@@ -15,7 +15,13 @@ import {
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import {engineHeaders, engineWebSocket, type ChatHydration, type RpcClient} from '@conciv/contract'
+import {
+  engineHeaders,
+  engineWebSocket,
+  type ChatHistoryWindow,
+  type ChatHydration,
+  type RpcClient,
+} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
 
@@ -36,7 +42,7 @@ export type ChatConnectionOptions = {
 
 export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
-  hydrate: (threadId: string) => Promise<ChatHydration>
+  hydrate: (threadId: string, window?: ChatHistoryWindow) => Promise<ChatHydration>
   transport: () => ChatTransport | null
   refresh: () => Promise<ChatHydration>
   close: () => void
@@ -243,8 +249,8 @@ export function chatConnection(
     options.onTransport?.(choice.transport)
     return choice
   })
-  const hydrate = async (threadId: string): Promise<ChatHydration> => {
-    const hydration = await rpc.chat.hydrate({sessionId: threadId})
+  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+    const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }

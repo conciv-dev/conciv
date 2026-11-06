@@ -405,6 +405,26 @@ describe('chat refresh', () => {
       expect(userTexts((await connection.refresh()).messages)).toContain('led from the server')
     }, 60_000)
 
+    it('hydrate asks the server for one page and walks back with the cursor', async () => {
+      kit = await bootClientKit()
+      const sessionId = await kit.session()
+      for (const [index, text] of ['first', 'second'].entries()) {
+        const turn = await kit.turn(text, {session: sessionId, runId: `paged-${index}`})
+        await turn.done({hangGuardMs: 20_000})
+      }
+      const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
+
+      const newest = await connection.hydrate(sessionId, {limit: 2})
+      expect(userTexts(newest.messages)).toContain('second')
+      expect(userTexts(newest.messages)).not.toContain('first')
+      expect(newest.page).toMatchObject({truncated: true})
+
+      const cursor = newest.page?.truncated ? newest.page.cursor : undefined
+      const older = await connection.hydrate(sessionId, {limit: 2, before: cursor})
+      expect(userTexts(older.messages)).toContain('first')
+      expect(older.page).toEqual({truncated: false})
+    }, 60_000)
+
     it('refreshes without ever opening a stream', async () => {
       kit = await bootClientKit()
       const sessionId = await kit.session()
