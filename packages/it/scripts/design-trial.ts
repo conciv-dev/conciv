@@ -13,15 +13,8 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {makeExtRpcClient} from '@conciv/extension'
-import {
-  CompactReportSchema,
-  MARK_KINDS,
-  WatchReportSchema,
-  type CompactReport,
-  type TargetInput,
-  type WatchRow,
-} from '@conciv/extension-design/defs'
-import type {XrayRouter} from '@conciv/extension-design/xray-routes'
+import {DESIGN_TOOLS, DecisionSchema} from '@conciv/extension-design/defs'
+import type {XrayRouter} from '@conciv/extension-design/server'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
 
@@ -42,7 +35,8 @@ const TargetSchema = z.object({
   brief: z.array(z.string()).default([]),
   next: z.string(),
 })
-const MarkKindSchema = z.enum(MARK_KINDS)
+const MarkKindSchema = DecisionSchema.shape.kind.exclude(['pin', 'twin', 'typography'])
+const [targetDef, diffDef, , watchDef] = DESIGN_TOOLS
 
 type Options = {
   route: string
@@ -66,6 +60,10 @@ type Trial = {
 
 type TrialDirs = {stateRoot: string; devEndpointDir: string; temporary: string[]}
 
+type CompactReport = z.output<NonNullable<typeof diffDef.outputSchema>>
+type WatchReport = z.output<NonNullable<typeof watchDef.outputSchema>>
+type WatchRow = WatchReport['rows'][number]
+type TargetInput = z.input<typeof targetDef.inputSchema>
 type Row = CompactReport['rows'][number]
 
 type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
@@ -73,16 +71,20 @@ type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
 const COMMANDS: Record<string, Command> = {
   diff: async ({trial}) => {
     const started = performance.now()
-    const report = CompactReportSchema.parse(await trial.rpc.registry.call({name: 'design_diff', input: {}}))
+    const report = outputOf({
+      schema: diffDef.outputSchema,
+      raw: await trial.rpc.registry.call({name: 'design_diff', input: {}}),
+    })
     print(diffTable({report, ms: Math.round(performance.now() - started)}))
   },
   status: async ({trial}) => {
     print(JSON.stringify(await trial.rpc.registry.call({name: 'design_status', input: {}})))
   },
   watch: async ({trial, args}) => {
-    const report = WatchReportSchema.parse(
-      await trial.rpc.registry.call({name: 'design_watch', input: watchQuery(args)}),
-    )
+    const report = outputOf({
+      schema: watchDef.outputSchema,
+      raw: await trial.rpc.registry.call({name: 'design_watch', input: watchQuery(args)}),
+    })
     print(
       [
         `run ${shown(report.run)} live ${report.live} counts ${JSON.stringify(report.counts)}`,
@@ -301,6 +303,11 @@ function watchQuery(args: string[]): Record<string, string> {
       return field === undefined ? ['key', arg] : [field, arg.slice(field.length + 1)]
     }),
   )
+}
+
+function outputOf<Schema extends z.ZodType>(input: {schema: Schema | undefined; raw: unknown}): z.output<Schema> {
+  if (input.schema === undefined) throw new Error('the design tool declares no output schema')
+  return input.schema.parse(input.raw)
 }
 
 function watchLine(row: WatchRow): string {

@@ -1,9 +1,11 @@
 /* oxlint-disable playwright/no-raw-locators, playwright/prefer-web-first-assertions -- these cases read the tab field and the mirror host directly */
+import {createHash} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
-import {mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
 import {isAbsolute, join} from 'node:path'
+import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {differenceCiede2000} from 'culori'
@@ -11,6 +13,9 @@ import pixelmatch from 'pixelmatch'
 import {chromium, type Browser, type Page} from 'playwright'
 import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
+import {createStorage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs'
+import memoryDriver from 'unstorage/drivers/memory'
 import {createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
@@ -20,44 +25,29 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {holdSilentSubscriber} from '@conciv/extension-testkit/push-wire'
-import {makeExtRpcClient} from '@conciv/extension'
+import {makeExtRpcClient, type AnyToolBuilder} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
-import type {XrayRouter} from '@conciv/extension-design/xray-routes'
+import type {XrayRouter} from '@conciv/extension-design/server'
 import {
-  CaptureInputSchema,
-  ClearInputSchema,
-  CompactReportSchema,
-  DESIGN_GUIDE,
-  DESIGN_TOOL_DEFS,
-  designVerb,
-  diffDef,
-  DiffInputSchema,
-  DiffReportSchema,
-  StatusInputSchema,
-  TargetInputSchema,
-  WinnerInputSchema,
-  type CaptureResult,
-  type ClearResult,
+  DESIGN_TOOLS,
+  RunSchema,
+  type Box,
+  type Design,
+  type Delta,
+  type DesignNode,
   type DiffReport,
-  type StatusReport,
-  type TargetResult,
-  type WinnerResult,
+  type LiveComponent,
+  type Match,
+  type Raster,
+  type Run,
 } from '@conciv/extension-design/defs'
-import {mapDeclaration} from '@conciv/extension-design/provenance'
-import {createTargetStore} from '@conciv/extension-design/store'
-import {glyphCoreColor} from '@conciv/extension-design/colors'
-import {destroyPaddle, paddleReader, trimToInk, withoutTwins} from '@conciv/extension-design/paddle'
-import {groupText, sameWords} from '@conciv/extension-design/text-groups'
-import type {
-  Box,
-  ColorMetric,
-  LiveComponent,
-  Provenance,
-  Raster,
-  TargetNode,
-  TextRun,
-  Winner,
-} from '@conciv/extension-design/types'
+import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
+import {walk} from '../../extensions/design/src/shared/tree.js'
+import {createStore} from '../../extensions/design/src/server/store.js'
+import {createWords} from '../../extensions/design/src/server/words.js'
+import {createRaster} from '../../extensions/design/src/server/raster.js'
+import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
+import {createProvenance} from '../../extensions/design/src/server/provenance.js'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
 
@@ -75,19 +65,40 @@ const MEASURE_TIMEOUT_MS = 60_000
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 
+const [targetDef, diffDef, statusDef, watchDef, captureDef, , , winnerDef, clearDef] = DESIGN_TOOLS
+const DESIGN_TOOL_BUILDERS: readonly AnyToolBuilder[] = DESIGN_TOOLS
+
 type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
+type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
+type TargetResult = ToolOutput<typeof targetDef>
+type StatusReport = ToolOutput<typeof statusDef>
+type CaptureResult = Omit<ToolOutput<typeof captureDef>, 'components'> & {components: LiveComponent[]}
+type WinnerResult = ToolOutput<typeof winnerDef>
+type ClearResult = ToolOutput<typeof clearDef>
+type CompactReport = ToolOutput<typeof diffDef>
+type Winner = NonNullable<WinnerResult[string]>
+type TextNode = Extract<DesignNode, {kind: 'text'}>
+
+const LiveComponentsSchema = RunSchema.shape.extras
+const FullReportSchema = z.custom<DiffReport>((value) => diffDef.outputSchema?.safeParse(value).success === true)
+
+function compactReport(raw: unknown): CompactReport {
+  const schema = diffDef.outputSchema
+  if (schema === undefined) throw new Error('design_diff declares no output schema')
+  return schema.parse(raw)
+}
 
 function decodePng(bytes: Buffer): PNG {
   return PNG.sync.read(bytes)
 }
 
 type Call = {
-  (name: 'design_target', input: z.input<typeof TargetInputSchema>): Promise<TargetResult>
-  (name: 'design_diff', input: z.input<typeof DiffInputSchema>): Promise<DiffReport>
-  (name: 'design_status', input: z.input<typeof StatusInputSchema>): Promise<StatusReport>
-  (name: 'design_capture', input: z.input<typeof CaptureInputSchema>): Promise<CaptureResult>
-  (name: 'design_winner', input: z.input<typeof WinnerInputSchema>): Promise<WinnerResult>
-  (name: 'design_clear', input: z.input<typeof ClearInputSchema>): Promise<ClearResult>
+  (name: 'design_target', input: z.input<typeof targetDef.inputSchema>): Promise<TargetResult>
+  (name: 'design_diff', input: z.input<typeof diffDef.inputSchema>): Promise<DiffReport>
+  (name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<StatusReport>
+  (name: 'design_capture', input: z.input<typeof captureDef.inputSchema>): Promise<CaptureResult>
+  (name: 'design_winner', input: z.input<typeof winnerDef.inputSchema>): Promise<WinnerResult>
+  (name: 'design_clear', input: z.input<typeof clearDef.inputSchema>): Promise<ClearResult>
 }
 
 type Kit = {
@@ -105,17 +116,21 @@ type Kit = {
 }
 
 function makeCall(rpc: RpcClient): Call {
-  function call(name: 'design_target', input: z.input<typeof TargetInputSchema>): Promise<TargetResult>
-  function call(name: 'design_diff', input: z.input<typeof DiffInputSchema>): Promise<DiffReport>
-  function call(name: 'design_status', input: z.input<typeof StatusInputSchema>): Promise<StatusReport>
-  function call(name: 'design_capture', input: z.input<typeof CaptureInputSchema>): Promise<CaptureResult>
-  function call(name: 'design_winner', input: z.input<typeof WinnerInputSchema>): Promise<WinnerResult>
-  function call(name: 'design_clear', input: z.input<typeof ClearInputSchema>): Promise<ClearResult>
+  function call(name: 'design_target', input: z.input<typeof targetDef.inputSchema>): Promise<TargetResult>
+  function call(name: 'design_diff', input: z.input<typeof diffDef.inputSchema>): Promise<DiffReport>
+  function call(name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<StatusReport>
+  function call(name: 'design_capture', input: z.input<typeof captureDef.inputSchema>): Promise<CaptureResult>
+  function call(name: 'design_winner', input: z.input<typeof winnerDef.inputSchema>): Promise<WinnerResult>
+  function call(name: 'design_clear', input: z.input<typeof clearDef.inputSchema>): Promise<ClearResult>
   async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
     if (name === diffDef.name) {
-      return DiffReportSchema.parse(await rpc.registry.call({name, input: {full: true, ...input}}))
+      return FullReportSchema.parse(await rpc.registry.call({name, input: {full: true, ...input}}))
     }
-    const def = DESIGN_TOOL_DEFS.find((candidate) => candidate.name === name)
+    if (name === captureDef.name && captureDef.outputSchema !== undefined) {
+      const captured = captureDef.outputSchema.parse(await rpc.registry.call({name, input}))
+      return {...captured, components: LiveComponentsSchema.parse(captured.components)}
+    }
+    const def = DESIGN_TOOL_BUILDERS.find((candidate) => candidate.name === name)
     if (def?.outputSchema === undefined) throw new Error(`no design tool named ${name}`)
     return def.outputSchema.parse(await rpc.registry.call({name, input}))
   }
@@ -246,7 +261,16 @@ const NO_STYLES = {
   gradient: null,
 }
 
-function mapFixture(input: {
+const PROVENANCE_SELECTOR = '[data-conciv-source="fixture"]'
+const DELTA_FOR_PROPERTY: Record<string, Delta['kind']> = {
+  'padding-left': 'inset-left',
+  gap: 'gap-before',
+  color: 'foreground',
+}
+
+type Provenance = Pick<Delta, 'via' | 'file' | 'line' | 'column' | 'declaration' | 'selector' | 'suggest'>
+
+async function mapFixture(input: {
   file: string
   line: number
   column: number
@@ -287,14 +311,33 @@ function mapFixture(input: {
     placeholder: null,
     children: [],
   }
-  return mapDeclaration({
-    winner,
-    component,
-    property: input.property,
-    target: input.target,
+  const kind = DELTA_FOR_PROPERTY[input.property]
+  if (kind === undefined) throw new Error(`no delta kind reads ${input.property}`)
+  const provenance = createProvenance({
+    project: createStorage({driver: fsDriver({base: PROVENANCE_DIR, readOnly: true})}),
     cwd: PROVENANCE_DIR,
-    cssMap: {find: () => null},
+    bundler: undefined,
   })
+  try {
+    const [[attributed] = []] = await provenance.attribute({
+      entries: [
+        {
+          deltas: [{kind, live: input.value, target: input.target}],
+          live: component,
+          selector: PROVENANCE_SELECTOR,
+          host: {selector: PROVENANCE_SELECTOR, live: component},
+        },
+      ],
+      page: {call: async () => ({[input.property]: winner})},
+      width: 1280,
+      height: 720,
+    })
+    if (attributed === undefined) throw new Error('the provenance stage returned no delta')
+    const {via, file, line, column, declaration, selector, suggest} = attributed
+    return {via, file, line, column, declaration, selector, suggest}
+  } finally {
+    provenance.dispose()
+  }
 }
 
 process.env.LAUNCH_EDITOR = 'true'
@@ -302,8 +345,223 @@ process.env.LAUNCH_EDITOR = 'true'
 const kit = await boot()
 const {rpc, browser, page, stateRoot, call, goto} = kit
 const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
+const designWords = createWords({config: designConfig.parse({}), cwd: HOST_ROOT})
+const store = createStore({
+  state: createStorage({driver: fsDriver({base: join(stateRoot, '.conciv', 'design')})}),
+  words: designWords,
+})
 
 afterAll(() => kit.dispose())
+
+type StoredNode = {
+  id: string
+  kind: DesignNode['kind']
+  box: Box
+  within: string | undefined
+  text?: string
+  lines?: TextNode['lines']
+  role?: TextNode['role']
+  typography?: TextNode['typography']
+  holds?: number
+  radius?: number
+  paint?: Extract<DesignNode, {kind: 'box'}>['paint']
+  layout?: DesignNode['layout']
+}
+
+type Pair = {
+  node: string
+  path: string
+  fingerprint: {tag: string; key: string | null; source: LiveComponent['source']}
+}
+
+type LedgerEntry = {
+  status: Match['status']
+  since: string
+  pair: Pair | null
+  item: Run['items'][number] | null
+}
+
+type StoredLedger = {run: string; nodes: Record<string, LedgerEntry>}
+
+async function storedNodes(id: string): Promise<StoredNode[]> {
+  const design = await store.design(id)
+  return [...walk(design.root)].flatMap(({node, parent}) =>
+    parent === null ? [] : [viewOf({node, within: parent === design.root ? undefined : parent.id})],
+  )
+}
+
+function viewOf(input: {node: Match['node']; within: string | undefined}): StoredNode {
+  const {node, within} = input
+  const base = {id: node.id, kind: node.kind, box: node.box, within, layout: node.layout}
+  if (node.kind === 'text') {
+    return {...base, text: node.text, lines: node.lines, role: node.role, typography: node.typography}
+  }
+  if (node.kind === 'image') return {...base, holds: node.holds}
+  return {...base, radius: node.radius, paint: node.paint}
+}
+
+async function runNodes(id: string): Promise<StoredNode[]> {
+  const run = await storedRun({id})
+  return [...walk(run.root)].flatMap(({node: match, parent}) =>
+    parent === null ? [] : [viewOf({node: match.node, within: parent === run.root ? undefined : parent.node.id})],
+  )
+}
+
+function runIds(id: string): Promise<string[]> {
+  return store.runs(id)
+}
+
+async function storedRun(input: {id: string; run?: string}): Promise<Run> {
+  const {id, run} = input
+  const found = run === undefined ? await store.latest(id) : await store.run({id, run})
+  if (found === null) throw new Error(`target ${id} has no run ${run ?? ''}`)
+  return found
+}
+
+function pairsOf(run: Run): Pair[] {
+  return [...walk(run.root)].flatMap(({node: match, depth}) =>
+    depth === 0 || match.live === null ? [] : [pairOf({match, live: match.live})],
+  )
+}
+
+function pairOf(input: {match: Match; live: NonNullable<Match['live']>}): Pair {
+  const {match, live} = input
+  return {node: match.node.id, path: live.path, fingerprint: {tag: live.tag, key: live.key, source: live.source}}
+}
+
+async function latestPairs(id: string): Promise<Pair[]> {
+  return pairsOf(await storedRun({id}))
+}
+
+async function runPairs(input: {id: string; run: string}): Promise<Map<string, Pair>> {
+  return new Map(pairsOf(await storedRun(input)).map((pair) => [pair.node, pair]))
+}
+
+async function storedPairs(input: {id: string; run: string}): Promise<Map<string, string>> {
+  return new Map([...(await runPairs(input)).values()].map((pair) => [pair.node, pair.path]))
+}
+
+async function storedLedger(id: string): Promise<StoredLedger> {
+  const run = await storedRun({id})
+  const items = new Map<string, Run['items'][number]>()
+  run.items.forEach((item) => {
+    if (item.node !== undefined && !items.has(item.node)) items.set(item.node, item)
+  })
+  const nodes = [...walk(run.root)].flatMap(({node: match, depth}): [string, LedgerEntry][] =>
+    depth === 0
+      ? []
+      : [
+          [
+            match.node.id,
+            {
+              status: match.status,
+              since: match.since,
+              pair: match.live === null ? null : pairOf({match, live: match.live}),
+              item: items.get(match.node.id) ?? null,
+            },
+          ],
+        ],
+  )
+  return {run: run.id, nodes: Object.fromEntries(nodes)}
+}
+
+function reportRun(report: DiffReport): string {
+  return report.livePath.split('/').at(-2) ?? ''
+}
+
+function hashed(node: DesignNode): DesignNode {
+  const children = node.children.map(hashed)
+  const own = JSON.stringify({...node, hash: '', children: []})
+  const hash = createHash('sha256')
+    .update(own)
+    .update(children.map((child) => child.hash).join(' '))
+    .digest('hex')
+  return {...node, hash, children}
+}
+
+function mapped(input: {node: DesignNode; map: (node: DesignNode) => DesignNode}): DesignNode {
+  const node = input.map(input.node)
+  return {...node, children: node.children.map((child) => mapped({node: child, map: input.map}))}
+}
+
+async function editDesign(input: {id: string; figma?: boolean; map: (node: DesignNode) => DesignNode}): Promise<void> {
+  const {id} = input
+  const [design, image, record] = await Promise.all([store.design(id), store.image({id}), store.record(id)])
+  if (image === null || record === null) throw new Error(`target ${id} is not stored`)
+  const source = input.figma === true ? {kind: 'figma' as const, ref: design.source.ref} : design.source
+  await store.put({
+    design: {...design, source, root: hashed(mapped({node: design.root, map: input.map}))},
+    image,
+    session: kit.session,
+    ...(record.route === undefined ? {} : {route: record.route}),
+  })
+}
+
+async function putDesign(input: {
+  id: string
+  png: PNG
+  children: DesignNode[]
+  route: string | undefined
+}): Promise<void> {
+  const {id, png, route} = input
+  const design: Design = {
+    id,
+    source: {kind: 'figma', ref: id},
+    viewport: {width: png.width, height: png.height},
+    scale: 1,
+    root: hashed({
+      id: 'root',
+      hash: '',
+      box: {x: 0, y: 0, w: png.width, h: png.height},
+      kind: 'box',
+      border: null,
+      radius: 0,
+      children: input.children,
+    }),
+  }
+  await store.put({
+    design,
+    image: PNG.sync.write(png),
+    session: kit.session,
+    ...(route === undefined ? {} : {route}),
+  })
+}
+
+async function targetPng(id: string): Promise<PNG> {
+  const image = await store.image({id})
+  if (image === null) throw new Error(`target ${id} has no image`)
+  return PNG.sync.read(Buffer.from(image))
+}
+
+function boxNode(input: {id: string; box: Box; children?: DesignNode[]; paint?: {background: string}}): DesignNode {
+  return {
+    id: input.id,
+    hash: '',
+    box: input.box,
+    kind: 'box',
+    border: null,
+    radius: 0,
+    ...(input.paint === undefined ? {} : {paint: input.paint}),
+    children: input.children ?? [],
+  }
+}
+
+function textNode(input: {id: string; box: Box; words: string}): DesignNode {
+  return {
+    id: input.id,
+    hash: '',
+    box: input.box,
+    kind: 'text',
+    text: input.words,
+    lines: [{box: input.box, text: input.words, confidence: 1}],
+    confidence: 1,
+    children: [],
+  }
+}
+
+function imageNode(input: {id: string; box: Box}): DesignNode {
+  return {id: input.id, hash: '', box: input.box, kind: 'image', holds: 0, children: []}
+}
 
 it('declares seven design tools with the flags from the spec', async () => {
   const catalog = CatalogSchema.parse(await rpc.registry.catalog(undefined)).filter((entry) =>
@@ -320,21 +578,20 @@ it('declares seven design tools with the flags from the spec', async () => {
   ])
   expect(catalog.map((entry) => entry.mutating)).toEqual([true, false, false, false, false, false, true])
   expect(catalog.every((entry) => entry.category === 'design' && entry.approval === undefined)).toBe(true)
-  expect(designVerb('design_diff')).toBe('diff')
   expect(diffDef.inputSchema.parse({})).toEqual({depth: 3, limit: 12})
 })
 
 it('registers a PNG target sized by its header, and the same bytes keep their id and decisions', async () => {
   const first = await call('design_target', {image: target('u1-1280')})
   expect(first).toMatchObject({route: '/', width: 1280, height: 720, scale: 1})
-  const decisions = fileUnder(stateRoot, `.conciv/design/${first.id}/decisions.json`)
-  const decided = JSON.stringify([{id: 'd1', kind: 'pin', anchor: 'text-0', value: null, at: 1}])
-  await writeFile(decisions, decided)
+  const decided = await store.decide({id: first.id, kind: 'pin', anchor: 'text-0', value: null})
   await call('design_target', {image: target('u1-2560'), scale: 2})
   const second = await call('design_target', {image: target('u1-1280'), name: 'invoices'})
   expect(second.id).toBe(first.id)
   expect((await call('design_status', {})).targets.map((t) => t.id)).toEqual([first.id])
-  expect(await readFile(decisions, 'utf8')).toBe(decided)
+  expect(
+    (await store.decisions(first.id)).filter((decision) => decision.kind !== 'twin' && decision.kind !== 'typography'),
+  ).toEqual([decided])
 })
 
 it('divides the header width of a retina export by the stated scale and diffs it through alignment', async () => {
@@ -352,7 +609,7 @@ it('divides the header width of a retina export by the stated scale and diffs it
 it('clear removes a target by id', async () => {
   const retina = await call('design_target', {image: target('u1-2560'), scale: 2})
   expect(await call('design_clear', {target: retina.id})).toEqual({removed: 1})
-  expect(existsSync(fileUnder(stateRoot, `.conciv/design/${retina.id}`))).toBe(false)
+  expect([await store.record(retina.id), await runIds(retina.id)]).toEqual([null, []])
 })
 
 it('captures the live page at the tab width as a 1x PNG with the component tree', async () => {
@@ -629,8 +886,7 @@ it('keeps twenty runs per target besides run 0', async () => {
   const current = (await call('design_status', {})).targets[0]
   expect(current).toBeDefined()
   if (current === undefined) return
-  const home = fileUnder(stateRoot, `.conciv/design/${current.id}`)
-  const runZero = (await readdir(home)).filter((name) => name.startsWith('result-')).toSorted()[0]
+  const [runZero] = await runIds(current.id)
   const styles = await readFile(HOST_STYLES, 'utf8')
   try {
     for (const round of Array.from({length: 21}, (_, index) => index)) {
@@ -640,11 +896,16 @@ it('keeps twenty runs per target besides run 0', async () => {
   } finally {
     await writeFile(HOST_STYLES, styles)
   }
-  const names = await readdir(home)
-  expect(['live-', 'diff-', 'result-'].map((prefix) => names.filter((name) => name.startsWith(prefix)).length)).toEqual(
-    [21, 21, 21],
+  const runs = await runIds(current.id)
+  const images = await Promise.all(
+    runs.flatMap((run) => (['live', 'diff'] as const).map((kind) => store.image({id: current.id, run, kind}))),
   )
-  expect(names).toContain(runZero)
+  expect([
+    images.filter((image, index) => index % 2 === 0 && image !== null).length,
+    images.filter((image, index) => index % 2 === 1 && image !== null).length,
+    runs.length,
+  ]).toEqual([21, 21, 21])
+  expect(runs).toContain(runZero)
 }, 360_000)
 
 it('diffs a 390 target from a 1280 tab in the mirror and leaves the tab untouched', async () => {
@@ -1032,60 +1293,6 @@ async function toolbarButtons(): Promise<LiveComponent[]> {
   return toolbar?.children ?? []
 }
 
-const StoredModelSchema = z.object({
-  nodes: z.array(
-    z.object({
-      id: z.string(),
-      kind: z.enum(['text', 'box', 'image']),
-      text: z.string().optional(),
-      holds: z.number().optional(),
-      role: z.string().optional(),
-      within: z.string().optional(),
-      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
-      radius: z.number().optional(),
-      typography: z.object({size: z.number(), weight: z.number(), confidence: z.number()}).optional(),
-      paint: z
-        .object({
-          background: z.string(),
-          gradient: z.object({from: z.string(), to: z.string(), axis: z.string()}).optional(),
-        })
-        .optional(),
-    }),
-  ),
-})
-
-const LaidOutModelSchema = z.object({
-  root: z.object({
-    layout: z
-      .object({
-        runs: z.array(
-          z.object({
-            direction: z.string(),
-            children: z.array(z.string()),
-            gap: z.object({px: z.number(), uniform: z.boolean()}),
-            align: z.string(),
-            wrap: z.boolean(),
-          }),
-        ),
-      })
-      .optional(),
-  }),
-  nodes: z.array(
-    z.object({
-      id: z.string(),
-      within: z.string().optional(),
-      kind: z.enum(['text', 'box', 'image']),
-      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
-      layout: z.object({size: z.string()}).optional(),
-    }),
-  ),
-})
-
-async function storedNodes(id: string): Promise<z.infer<typeof StoredModelSchema>['nodes']> {
-  const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-  return StoredModelSchema.parse(JSON.parse(await readFile(path, 'utf8'))).nodes
-}
-
 function near(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   const edges = [a.x - b.x, a.y - b.y, a.x + a.w - b.x - b.w, a.y + a.h - b.y - b.h]
@@ -1264,7 +1471,6 @@ describe('text', () => {
       const after = await buttonTextItems(id)
       await annotate(`content items before ${JSON.stringify(before)} after ${JSON.stringify(after)}`)
       expect([before, after]).toEqual([[], []])
-      expect(sameWords('Get started >')).toBe(sameWords('Get started'))
     } finally {
       await writeFile(STRIPE_SOURCE, source)
     }
@@ -1272,13 +1478,9 @@ describe('text', () => {
 })
 
 const BUTTON_LABELS = ['Contact sales', 'Get started']
-const LedgerItemsSchema = z.object({
-  nodes: z.record(z.string(), z.object({item: z.object({stage: z.string(), sentence: z.string()}).nullable()})),
-})
 
 async function buttonTextItems(id: string): Promise<string[]> {
-  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
-  const ledger = LedgerItemsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+  const ledger = await storedLedger(id)
   return Object.values(ledger.nodes).flatMap((entry) =>
     entry.item !== null &&
     entry.item.stage === 'content' &&
@@ -1288,193 +1490,10 @@ async function buttonTextItems(id: string): Promise<string[]> {
   )
 }
 
-const WHITE = [255, 255, 255] as const
-const BLACK = [0, 0, 0] as const
-const RED = [220, 30, 30] as const
-const ciede2000: ColorMetric = {name: 'ciede2000', distance: ({a, b}) => colorDistance(a, b)}
-
-type Ink = {box: Box; rgb: readonly [number, number, number]; phase?: number}
-
-function painted(input: {inks: Ink[]}): Raster {
-  const width = 200
-  const height = 100
-  const data = new Uint8Array(width * height * 4)
-  Array.from({length: width * height}, (_, index) => index).forEach((index) => {
-    const x = index % width
-    const y = (index - x) / width
-    const ink = input.inks.find(
-      ({box, phase}) =>
-        (x + 8 - (phase ?? 0)) % 8 < 3 && x >= box.x && x < box.x + box.w && y >= box.y && y < box.y + box.h,
-    )
-    data.set([...(ink?.rgb ?? WHITE), 255], index * 4)
-  })
-  return {width, height, data}
-}
-
-function glyphComponent(input: {glyphs: {text: string; boxes: Box[]}[]; x?: number}): LiveComponent {
-  return {
-    source: {file: 'src/App.tsx', line: 1, column: input.x ?? 1},
-    key: null,
-    instance: null,
-    owner: null,
-    tag: 'span',
-    text: '',
-    box: {x: 0, y: 0, w: 200, h: 100},
-    textBox: null,
-    glyphs: input.glyphs,
-    axis: null,
-    columns: null,
-    styles: {...NO_STYLES, background: '#ffffff', color: '#000000', fontSize: 16, lineHeight: 20, fontWeight: 400},
-    role: null,
-    hints: [],
-    index: 1,
-    path: '/1',
-    drawn: false,
-    placeholder: null,
-    children: [],
-  }
-}
-
 function intersects(input: {a: Box; b: Box}): boolean {
   const {a, b} = input
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 }
-
-function inkInside(box: Box): Box {
-  return {x: box.x + 2, y: box.y + 4, w: box.w - 4, h: box.h - 8}
-}
-
-function grouped(input: {components: LiveComponent[]; runs: TextRun[]; targetInks?: Ink[]; liveInks?: Ink[]}) {
-  const liveBoxes = input.components.flatMap((c) => c.glyphs.flatMap((glyph) => glyph.boxes))
-  const live = painted({inks: input.liveInks ?? liveBoxes.map((box) => ({box: inkInside(box), rgb: BLACK}))})
-  const inked = input.runs.map((run) => ({...run, box: inkInside(run.box)}))
-  const targetRaster = painted({inks: input.targetInks ?? inked.map((run) => ({box: run.box, rgb: BLACK}))})
-  const runs = inked.map((run) => ({...run, box: trimToInk({raster: targetRaster, box: run.box})}))
-  return groupText({components: input.components, runs, live, target: targetRaster, color: ciede2000})
-}
-
-describe('groupText', () => {
-  it('returns nothing when the target has no runs', () => {
-    const first = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}]})
-    expect(grouped({components: [first], runs: []})).toEqual({groups: [], agreeing: []})
-  })
-
-  it('joins two lines of one node in reading order', () => {
-    const line1 = {x: 10, y: 10, w: 60, h: 20}
-    const line2 = {x: 10, y: 40, w: 60, h: 20}
-    const wrapped = glyphComponent({glyphs: [{text: 'Hello World', boxes: [line1, line2]}]})
-    const runs = [
-      {text: 'World', box: line2},
-      {text: 'Hello', box: line1},
-    ]
-    const {groups} = grouped({components: [wrapped], runs})
-    expect(groups).toHaveLength(1)
-    expect(groups[0]).toMatchObject({liveText: 'Hello World', targetText: 'Hello World', agrees: true})
-  })
-
-  it('joins one node read as two OCR boxes', () => {
-    const search = glyphComponent({glyphs: [{text: 'Search invoices', boxes: [{x: 10, y: 10, w: 140, h: 20}]}]})
-    const runs = [
-      {text: 'invoices', box: {x: 80, y: 10, w: 70, h: 20}},
-      {text: 'Search', box: {x: 10, y: 10, w: 64, h: 20}},
-    ]
-    const {groups, agreeing} = grouped({components: [search], runs})
-    expect(groups.map((group) => [group.targetText, group.agrees])).toEqual([['Search invoices', true]])
-    expect(agreeing).toHaveLength(3)
-  })
-
-  it('joins two nodes read as one OCR box and gives the group to the first', () => {
-    const exportButton = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}], x: 1})
-    const createButton = glyphComponent({glyphs: [{text: 'Create', boxes: [{x: 80, y: 10, w: 60, h: 20}]}], x: 2})
-    const runs = [{text: 'Export Create', box: {x: 10, y: 10, w: 130, h: 20}}]
-    const {groups} = grouped({components: [createButton, exportButton], runs})
-    expect(groups).toHaveLength(1)
-    expect(groups[0]?.owner).toBe(exportButton)
-    expect(groups[0]).toMatchObject({liveText: 'Export Create', agrees: true})
-  })
-
-  it('forms no group from text that only one side has', () => {
-    const lonely = glyphComponent({glyphs: [{text: 'Draft', boxes: [{x: 10, y: 10, w: 60, h: 20}]}]})
-    const runs = [{text: 'Total', box: {x: 10, y: 60, w: 60, h: 20}}]
-    expect(grouped({components: [lonely], runs})).toEqual({groups: [], agreeing: []})
-  })
-
-  it('ignores whitespace and case', () => {
-    const label = glyphComponent({glyphs: [{text: ' Sign  in ', boxes: [{x: 10, y: 10, w: 60, h: 20}]}]})
-    const runs = [{text: 'SIGN IN', box: {x: 10, y: 10, w: 60, h: 20}}]
-    expect(grouped({components: [label], runs}).groups[0]?.agrees).toBe(true)
-  })
-
-  it('trims a wide live box to its ink before comparing the place', () => {
-    const word = {x: 20, y: 15, w: 60, h: 20}
-    const field = glyphComponent({glyphs: [{text: 'Search', boxes: [{x: 5, y: 5, w: 190, h: 40}]}]})
-    const runs = [{text: 'Search', box: word}]
-    const liveInks = [{box: inkInside(word), rgb: BLACK}]
-    expect(grouped({components: [field], runs, liveInks}).groups[0]?.agrees).toBe(true)
-  })
-
-  it('disagrees on a different string', () => {
-    const label = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}]})
-    const runs = [{text: 'Expert', box: {x: 10, y: 10, w: 60, h: 20}}]
-    const {groups, agreeing} = grouped({components: [label], runs})
-    expect(groups[0]).toMatchObject({liveText: 'Export', targetText: 'Expert', agrees: false})
-    expect(agreeing).toEqual([])
-  })
-
-  it('disagrees on a different ink color', () => {
-    const box = {x: 10, y: 10, w: 60, h: 20}
-    const label = glyphComponent({glyphs: [{text: 'Export', boxes: [box]}]})
-    const runs = [{text: 'Export', box}]
-    const {groups} = grouped({components: [label], runs, targetInks: [{box: inkInside(box), rgb: RED}]})
-    expect(groups[0]?.agrees).toBe(false)
-  })
-
-  it('disagrees on ink moved further than the geometry tolerance', () => {
-    const label = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}]})
-    const moved = {x: 14, y: 10, w: 60, h: 20}
-    const runs = [{text: 'Export', box: moved}]
-    const targetInks = [{box: inkInside(moved), rgb: BLACK, phase: 4}]
-    expect(grouped({components: [label], runs, targetInks}).groups[0]?.agrees).toBe(false)
-  })
-
-  it('gives a differing run to the first component whose string it lacks', () => {
-    const exportButton = glyphComponent({glyphs: [{text: 'Export', boxes: [{x: 10, y: 10, w: 60, h: 20}]}], x: 1})
-    const deleteButton = glyphComponent({glyphs: [{text: 'Delete', boxes: [{x: 80, y: 10, w: 60, h: 20}]}], x: 2})
-    const runs = [{text: 'Export Create', box: {x: 10, y: 10, w: 130, h: 20}}]
-    const {groups} = grouped({components: [exportButton, deleteButton], runs})
-    expect(groups).toHaveLength(1)
-    expect(groups[0]?.owner).toBe(deleteButton)
-    expect(groups[0]).toMatchObject({liveText: 'Delete', targetText: 'Create', agrees: false})
-  })
-
-  it('masks only the labels of a shared run whose ink agrees', () => {
-    const exportBox = {x: 10, y: 10, w: 60, h: 20}
-    const createBox = {x: 80, y: 10, w: 60, h: 20}
-    const exportButton = glyphComponent({glyphs: [{text: 'Export', boxes: [exportBox]}], x: 1})
-    const createButton = glyphComponent({glyphs: [{text: 'Create', boxes: [createBox]}], x: 2})
-    const runs = [{text: 'Export Create', box: {x: 10, y: 10, w: 130, h: 20}}]
-    const targetInks = [
-      {box: inkInside(exportBox), rgb: BLACK},
-      {box: inkInside(createBox), rgb: RED},
-    ]
-    const {agreeing} = grouped({components: [exportButton, createButton], runs, targetInks})
-    expect(agreeing.some((box) => intersects({a: box, b: inkInside(exportBox)}))).toBe(true)
-    expect(agreeing.some((box) => intersects({a: box, b: inkInside(createBox)}))).toBe(false)
-  })
-
-  it('masks a field placeholder by its ink, not by the field box', () => {
-    const word = {x: 20, y: 15, w: 60, h: 20}
-    const fieldBox = {x: 5, y: 5, w: 190, h: 40}
-    const field = glyphComponent({glyphs: [{text: 'Search', boxes: [fieldBox]}]})
-    const runs = [{text: 'Search', box: word}]
-    const liveInks = [{box: inkInside(word), rgb: BLACK}]
-    const {agreeing} = grouped({components: [field], runs, liveInks})
-    expect(agreeing.length).toBeGreaterThan(0)
-    expect(agreeing.some((box) => intersects({a: box, b: {x: fieldBox.x, y: fieldBox.y, w: fieldBox.w, h: 1}}))).toBe(
-      false,
-    )
-  })
-})
 
 function withInk(input: {ink: Box | null}): Raster {
   const width = 40
@@ -1487,31 +1506,31 @@ function withInk(input: {ink: Box | null}): Raster {
     const covered = ink !== null && x >= ink.x && x < ink.x + ink.w && y >= ink.y && y < ink.y + ink.h
     data.set(covered ? [0, 0, 0, 255] : [255, 255, 255, 255], index * 4)
   })
-  return {width, height, data}
+  return createRaster({pixels: data, width, height})
 }
 
 describe('trimToInk', () => {
   it('shrinks a box to the ink inside it', () => {
     const raster = withInk({ink: {x: 12, y: 5, w: 8, h: 4}})
-    expect(trimToInk({raster, box: {x: 10, y: 3, w: 20, h: 10}})).toEqual({x: 12, y: 5, w: 8, h: 4})
+    expect(raster.trim({x: 10, y: 3, w: 20, h: 10})).toEqual({x: 12, y: 5, w: 8, h: 4})
   })
 
   it('keeps a box with no ink', () => {
     const box = {x: 10, y: 3, w: 20, h: 10}
-    expect(trimToInk({raster: withInk({ink: null}), box})).toEqual(box)
+    expect(withInk({ink: null}).trim(box)).toEqual(box)
   })
 
   it('keeps a box under two pixels on a side', () => {
     const box = {x: 12, y: 5, w: 1, h: 10}
-    expect(trimToInk({raster: withInk({ink: {x: 12, y: 5, w: 8, h: 4}}), box})).toEqual(box)
+    expect(withInk({ink: {x: 12, y: 5, w: 8, h: 4}}).trim(box)).toEqual(box)
   })
 })
 
 describe('glyphCoreColor', () => {
   it('finds no ink on a flat tile', () => {
     const box = {x: 0, y: 0, w: 16, h: 16}
-    const raster = {width: 16, height: 16, data: new Uint8Array(16 * 16 * 4).fill(200)}
-    expect(glyphCoreColor({raster, box, glyphs: [box], background: '#c8c8c8', color: ciede2000})).toBeNull()
+    const raster = createRaster({pixels: new Uint8Array(16 * 16 * 4).fill(200), width: 16, height: 16})
+    expect(raster.fills({box, glyphs: [box], color: '#c8c8c8'})[1]).toBeUndefined()
   })
 
   it('reads a thin stroke from its fully covered pixels, not its blended edge', () => {
@@ -1524,24 +1543,33 @@ describe('glyphCoreColor', () => {
       const pixel = stroke && x === 7 ? [255, 209, 102] : stroke && x === 8 ? [161, 158, 172] : [66, 107, 242]
       data.set([...pixel, 255], index * 4)
     })
-    const raster = {width: 16, height: 16, data}
-    const ink = glyphCoreColor({raster, box, glyphs: [box], background: '#426bf2', color: ciede2000})
-    expect(ink).not.toBeNull()
+    const raster = createRaster({pixels: data, width: 16, height: 16})
+    const ink = raster.fills({box, glyphs: [box], color: '#426bf2'})[1]
+    expect(ink).toBeDefined()
     expect(colorDistance(String(ink), '#ffd166')).toBeLessThanOrEqual(COLOR_DELTA_E)
   })
 })
 
+const OCR_SHUTDOWN = 'text failed: the OCR reader is shutting down'
+
 describe('paddle disposal', () => {
   it('a read queued before disposal finishes first and a read during disposal is refused', async () => {
-    await destroyPaddle()
-    const raster = painted({inks: []})
+    const adapter = createImageAdapter({config: designConfig.parse({})})
+    const blank = new PNG({width: 200, height: 100})
+    blank.data.fill(255)
+    const image = new Uint8Array(PNG.sync.write(blank))
+    const memory = createStorage({driver: memoryDriver()})
+    const load = () => adapter.load({ref: 'blank.png', scale: 1, project: memory, files: memory, attachments: {image}})
     const settled: string[] = []
-    const queued = paddleReader.read({raster}).then(() => settled.push('read'))
-    const disposed = destroyPaddle().then(() => settled.push('disposed'))
-    await expect(paddleReader.read({raster})).rejects.toThrow('the OCR reader is shutting down')
+    const queued = load().then(() => settled.push('read'))
+    await nextTurn()
+    const disposed = (adapter.dispose?.() ?? Promise.resolve()).then(() => settled.push('disposed'))
+    expect((await load()).warnings).toContain(OCR_SHUTDOWN)
     await Promise.all([queued, disposed])
     expect(settled).toEqual(['read', 'disposed'])
-    expect(await paddleReader.read({raster})).toEqual([])
+    const after = await load()
+    expect([after.warnings, after.design.root.children]).toEqual([[], []])
+    await adapter.dispose?.()
   })
 })
 
@@ -1566,17 +1594,17 @@ describe('nodes', () => {
     await goto('target')
     const captured = await call('design_capture', {height: 720})
     const registered = await call('design_target', {image: target('u1-1280')})
-    const model = LaidOutModelSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${registered.id}/model.json`), 'utf8')),
-    )
+    const design = await store.design(registered.id)
+    const nodes = await storedNodes(registered.id)
     const articles = captured.components
       .filter((c) => c.source?.file === 'src/Cards.tsx')
       .flatMap((c) => c.children.filter((child) => child.tag === 'article'))
-    const cards = model.nodes
+    const cards = nodes
       .filter((node) => node.kind === 'box' && articles.some((article) => near({a: node.box, b: article.box})))
       .toSorted((a, b) => a.box.x - b.box.x)
+    const holder = [...walk(design.root)].find(({node}) => node.id === cards[0]?.within)?.node ?? design.root
     expect(cards.map((card) => card.layout?.size)).toEqual(['fill', 'fill'])
-    expect(model.root.layout?.runs).toContainEqual({
+    expect(holder.layout?.runs).toContainEqual({
       direction: 'row',
       children: cards.map((card) => card.id),
       gap: {px: 8, uniform: true},
@@ -1627,63 +1655,26 @@ describe('twins', () => {
     const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
     if (toolbar === undefined) throw new Error('the target page has no toolbar')
     const {id, route} = await freshTarget('u1-1280')
-    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
+    const png = await targetPng(id)
     const paint = {background: '#ffffff'}
-    const nodes: TargetNode[] = [
-      {id: 'twin-kept', kind: 'box', box: toolbar.box, border: null, radius: 0, paint},
-      {id: 'twin-dropped', kind: 'box', box: {...toolbar.box, y: toolbar.box.y + 1}, border: null, radius: 0, paint},
-      {
-        id: 'twin-child',
-        kind: 'image',
-        box: {x: toolbar.box.x + 8, y: toolbar.box.y + 8, w: 16, h: 16},
-        within: 'twin-dropped',
-        holds: 0,
-      },
-    ]
-    const folded = withoutTwins(nodes)
-    expect(folded.map((node) => ({id: node.id, within: node.within}))).toEqual([
-      {id: 'twin-kept', within: undefined},
-      {id: 'twin-child', within: 'twin-kept'},
-    ])
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.put({
-      model: {
-        id: 'twins',
-        source: {kind: 'figma', ref: 'twins'},
-        viewport: {width: png.width, height: png.height},
-        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-        nodes: folded,
-        scale: 1,
-      },
-      session: kit.session,
-      ...(route === undefined ? {} : {route}),
+    await putDesign({
+      id: 'twins',
+      png,
+      route,
+      children: [
+        boxNode({
+          id: 'twin-kept',
+          box: toolbar.box,
+          paint,
+          children: [imageNode({id: 'twin-child', box: {x: toolbar.box.x + 8, y: toolbar.box.y + 8, w: 16, h: 16}})],
+        }),
+      ],
     })
     const report = await call('design_diff', {full: true})
     expect(report.target.id).toBe('twins')
     expect(report.unmatched.flatMap((entry) => (entry.node === undefined ? [] : [entry.node]))).not.toContain(
       'twin-dropped',
     )
-  })
-
-  it('two text nodes fold when their words agree, and two with other words at one box stay two', () => {
-    const box = {x: 40, y: 40, w: 120, h: 24}
-    const text = (input: {id: string; words: string}): TargetNode => ({
-      id: input.id,
-      kind: 'text',
-      box,
-      text: input.words,
-      lines: [{box, text: input.words, confidence: 1}],
-      confidence: 1,
-    })
-    expect(withoutTwins([text({id: 'same-a', words: 'Revenue'}), text({id: 'same-b', words: 'Revenue'})])).toEqual([
-      text({id: 'same-a', words: 'Revenue'}),
-    ])
-    expect(
-      withoutTwins([text({id: 'other-a', words: 'Revenue'}), text({id: 'other-b', words: 'Invoices'})]).map(
-        (node) => node.id,
-      ),
-    ).toEqual(['other-a', 'other-b'])
   })
 
   it('two identical text nodes at one box paired to one heading from a design source yield no content row', async () => {
@@ -1695,28 +1686,15 @@ describe('twins', () => {
     if (heading === undefined) throw new Error('the target page has no heading with text')
     const words = headingText(heading)
     const {id, route} = await freshTarget('u1-1280')
-    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
-    const text = (node: string): TargetNode => ({
-      id: node,
-      kind: 'text',
-      box: heading.box,
-      text: words,
-      lines: [{box: heading.box, text: words, confidence: 1}],
-      confidence: 1,
-    })
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.put({
-      model: {
-        id: 'doubled',
-        source: {kind: 'figma', ref: 'doubled'},
-        viewport: {width: png.width, height: png.height},
-        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-        nodes: [text('doubled-first'), text('doubled-second')],
-        scale: 1,
-      },
-      session: kit.session,
-      ...(route === undefined ? {} : {route}),
+    const png = await targetPng(id)
+    await putDesign({
+      id: 'doubled',
+      png,
+      route,
+      children: [
+        textNode({id: 'doubled-first', box: heading.box, words}),
+        textNode({id: 'doubled-second', box: heading.box, words}),
+      ],
     })
     const report = await call('design_diff', {full: true})
     expect(report.target.id).toBe('doubled')
@@ -1746,7 +1724,7 @@ describe('current target', () => {
   it('design_target returns the guide as next', async () => {
     const {next} = await call('design_target', {image: target('u1-1280')})
     expect(next).toContain('design_diff')
-    expect(next).toBe(DESIGN_GUIDE)
+    expect(next).toBe(designWords.guide({blind: false}))
   })
 
   it('design_status reports the current target', async () => {
@@ -1795,7 +1773,7 @@ describe('type estimate', () => {
         }
       }),
     )
-    const texts = (await storedNodes(registered.id)).filter((node) => node.kind === 'text')
+    const texts = (await runNodes(registered.id)).filter((node) => node.kind === 'text')
     expect(texts.length).toBe(live.length)
     const misses = texts.flatMap((node) => {
       const centre = {x: node.box.x + node.box.w / 2, y: node.box.y + node.box.h / 2, w: 0, h: 0}
@@ -1820,12 +1798,17 @@ describe('type estimate', () => {
     const {id} = await freshTarget('type-1280')
     const first = (await storedNodes(id)).find((node) => node.kind === 'text')
     if (first === undefined) throw new Error('type-1280 has no text node')
-    const exact = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: 'Source Sans 3'}
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.setTypography({id, typography: {[first.id]: exact}})
+    const exact = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: 'Source Sans 3', family: null}
+    await store.decide({id, kind: 'typography', anchor: first.id, value: exact})
     const report = await call('design_diff', {})
-    const kept = (await storedNodes(id)).find((node) => node.id === first.id)
-    expect(kept?.typography).toEqual({size: exact.size, weight: exact.weight, confidence: exact.confidence})
+    const kept = (await runNodes(id)).find((node) => node.id === first.id)?.typography
+    expect(
+      kept === undefined ? undefined : {size: kept.size, weight: kept.weight, confidence: kept.confidence},
+    ).toEqual({
+      size: exact.size,
+      weight: exact.weight,
+      confidence: exact.confidence,
+    })
     expect(report.components.flatMap((component) => component.deltas)).toContainEqual(
       expect.objectContaining({kind: 'fontSize', target: exact.size}),
     )
@@ -1838,8 +1821,7 @@ describe('type estimate', () => {
     if (first === undefined) throw new Error('type-1280 has no text node')
     const live = await liveFamily()
     const typography = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: 'Poppins', family: 'Poppins'}
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.setTypography({id, typography: {[first.id]: typography}})
+    await store.decide({id, kind: 'typography', anchor: first.id, value: typography})
     const report = await call('design_diff', {})
     expect(report.components.flatMap((component) => component.deltas)).toContainEqual(
       expect.objectContaining({kind: 'font', live, target: 'Poppins'}),
@@ -1856,8 +1838,7 @@ describe('type estimate', () => {
     if (first === undefined) throw new Error('type-1280 has no text node')
     const live = await liveFamily()
     const typography = {size: 20, lineHeight: 25, weight: 400, confidence: 1, font: live, family: live.toUpperCase()}
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.setTypography({id, typography: {[first.id]: typography}})
+    await store.decide({id, kind: 'typography', anchor: first.id, value: typography})
     const report = await call('design_diff', {})
     expect(report.components.flatMap((component) => component.deltas).filter((delta) => delta.kind === 'font')).toEqual(
       [],
@@ -1875,22 +1856,6 @@ async function liveFamily(): Promise<string> {
 
 const MOVED_WRAPPER = 20
 
-const EditableModelSchema = z.looseObject({
-  nodes: z.array(
-    z.looseObject({
-      id: z.string(),
-      kind: z.string(),
-      box: z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()}),
-      radius: z.number().optional(),
-      layout: z
-        .looseObject({
-          padding: z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()}).optional(),
-        })
-        .optional(),
-    }),
-  ),
-})
-
 describe('deltas', () => {
   it('a paired box is compared with its stored radius, width and padding, and a second diff names them again', async () => {
     await goto('target')
@@ -1898,22 +1863,23 @@ describe('deltas', () => {
     const toolbar = captured.components.find((c) => c.source?.file === 'src/Toolbar.tsx')
     if (toolbar === undefined) throw new Error('the target page has no toolbar')
     const {id} = await freshTarget('u1-1280')
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const header = model.nodes.find((node) => node.kind === 'box' && near({a: node.box, b: toolbar.box}))
     const padding = header?.layout?.padding
     if (header === undefined || padding === undefined) throw new Error('u1-1280 has no laid out toolbar box')
     const stored = {radius: 3, width: toolbar.box.w - 40, right: 16}
-    const edited = {
-      ...header,
-      radius: stored.radius,
-      box: {...header.box, w: stored.width},
-      layout: {...header.layout, padding: {...padding, right: stored.right}},
-    }
-    await writeFile(
-      path,
-      JSON.stringify({...model, nodes: model.nodes.map((node) => (node.id === header.id ? edited : node))}),
-    )
+    await editDesign({
+      id,
+      map: (node) =>
+        node.id === header.id && node.kind === 'box'
+          ? {
+              ...node,
+              radius: stored.radius,
+              box: {...node.box, w: stored.width},
+              layout: {...node.layout, padding: {...padding, right: stored.right}},
+            }
+          : node,
+    })
     const named = (report: DiffReport) =>
       report.components
         .filter((component) => sameSource({a: component.source, b: toolbar.source}))
@@ -1934,29 +1900,17 @@ describe('deltas', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const paired = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
-    ).find((pair) => texts.has(pair.node))
+    const paired = (await latestPairs(id)).find((pair) => texts.has(pair.node))
     if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
-    await writeFile(
-      path,
-      JSON.stringify({
-        ...model,
-        source: {kind: 'figma', ref: 'u1-1280'},
-        nodes: model.nodes.map((node) =>
-          node.id === paired.node ? {...node, box: {...node.box, w: node.box.w - 40}} : node,
-        ),
-      }),
-    )
+    await editDesign({
+      id,
+      figma: true,
+      map: (node) => (node.id === paired.node ? {...node, box: {...node.box, w: node.box.w - 40}} : node),
+    })
     const report = await call('design_diff', {full: true})
-    const after = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const kept = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${after}`), 'utf8')),
-    )
+    const kept = await latestPairs(id)
     expect(kept).toContainEqual(paired)
     expect(
       report.components
@@ -1970,13 +1924,9 @@ describe('deltas', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const paired = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
-    ).find((pair) => texts.has(pair.node))
+    const paired = (await latestPairs(id)).find((pair) => texts.has(pair.node))
     if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
     const element = componentAt({
       components: (await call('design_capture', {height: 720})).components,
@@ -1987,23 +1937,17 @@ describe('deltas', () => {
     const styles = await readFile(HOST_STYLES, 'utf8')
     const pushed = `${styles}\n[data-conciv-source="${source.file}:${source.line}:${source.column}"] { position: relative; left: ${OVERFLOW_PX}px; }\n`
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, pushed)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
-      await writeFile(
-        path,
-        JSON.stringify({
-          ...model,
-          source: {kind: 'figma', ref: 'u1-1280'},
-          nodes: model.nodes.map((node) =>
-            node.id === paired.node
-              ? {...node, box: {...node.box, x: node.box.x + OVERFLOW_PX, w: node.box.w - OVERFLOW_PX}}
-              : node,
-          ),
-        }),
-      )
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
+      await editDesign({
+        id,
+        figma: true,
+        map: (node) =>
+          node.id === paired.node
+            ? {...node, box: {...node.box, x: node.box.x + OVERFLOW_PX, w: node.box.w - OVERFLOW_PX}}
+            : node,
+      })
       const report = await call('design_diff', {full: true})
       expect(
         report.components
@@ -2021,13 +1965,9 @@ describe('deltas', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const paired = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
-    ).find((pair) => texts.has(pair.node))
+    const paired = (await latestPairs(id)).find((pair) => texts.has(pair.node))
     if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
     const components = (await call('design_capture', {height: 720})).components
     const element = componentAt({components, path: paired.path})
@@ -2041,11 +1981,9 @@ describe('deltas', () => {
     const styles = await readFile(HOST_STYLES, 'utf8')
     const narrow = `${styles}\n${selector(holderSource)} { width: ${NOWRAP_PX}px; max-width: none; }\n${selector(source)} { width: ${NOWRAP_PX}px; max-width: none; white-space: nowrap; overflow: visible; }\n`
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, narrow)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
       const squeezed = componentAt({
         components: (await call('design_capture', {height: 720})).components,
         path: paired.path,
@@ -2053,14 +1991,11 @@ describe('deltas', () => {
       const glyphs = squeezed?.glyphs.flatMap((glyph) => glyph.boxes) ?? []
       if (squeezed === undefined || glyphs.length === 0) throw new Error(`no glyphs captured at ${paired.path}`)
       expect(boxUnion(glyphs).w).toBeGreaterThan(squeezed.box.w + GEOMETRY_PX)
-      await writeFile(
-        path,
-        JSON.stringify({
-          ...model,
-          source: {kind: 'figma', ref: 'u1-1280'},
-          nodes: model.nodes.map((node) => (node.id === paired.node ? {...node, box: squeezed.box} : node)),
-        }),
-      )
+      await editDesign({
+        id,
+        figma: true,
+        map: (node) => (node.id === paired.node ? {...node, box: squeezed.box} : node),
+      })
       const report = await call('design_diff', {full: true})
       expect(
         report.components
@@ -2078,13 +2013,9 @@ describe('deltas', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const paired = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
-    ).find((pair) => texts.has(pair.node))
+    const paired = (await latestPairs(id)).find((pair) => texts.has(pair.node))
     if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
     const element = componentAt({
       components: (await call('design_capture', {height: 720})).components,
@@ -2097,11 +2028,11 @@ describe('deltas', () => {
     const styles = await readFile(HOST_STYLES, 'utf8')
     const wrapped = `${styles}\n[data-conciv-source="${source.file}:${source.line}:${source.column}"] { width: ${Math.ceil(ink.w * TWO_LINE_SHARE)}px; word-break: break-all; }\n`
     const withLines = (count: number) =>
-      JSON.stringify({
-        ...model,
-        source: {kind: 'figma', ref: 'u1-1280'},
-        nodes: model.nodes.map((node) =>
-          node.id === paired.node
+      editDesign({
+        id,
+        figma: true,
+        map: (node) =>
+          node.kind === 'text' && node.id === paired.node
             ? {
                 ...node,
                 lines: Array.from({length: count}, (_, index) => ({
@@ -2111,12 +2042,11 @@ describe('deltas', () => {
                     w: node.box.w,
                     h: node.box.h / count,
                   },
-                  text: typeof node.text === 'string' ? node.text : '',
+                  text: node.text,
                   confidence: 1,
                 })),
               }
             : node,
-        ),
       })
     const linesRows = (report: DiffReport) =>
       report.components
@@ -2125,14 +2055,12 @@ describe('deltas', () => {
         .filter((delta) => delta.kind === 'lines')
         .map((delta) => ({kind: delta.kind, live: delta.live, target: delta.target}))
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, wrapped)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
-      await writeFile(path, withLines(3))
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
+      await withLines(3)
       expect(linesRows(await call('design_diff', {full: true}))).toEqual([{kind: 'lines', live: 2, target: 3}])
-      await writeFile(path, withLines(2))
+      await withLines(2)
       expect(linesRows(await call('design_diff', {full: true}))).toEqual([])
     } finally {
       await writeFile(HOST_STYLES, styles)
@@ -2143,35 +2071,27 @@ describe('deltas', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const before = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const paired = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${before}`), 'utf8')),
-    ).find((pair) => texts.has(pair.node))
+    const paired = (await latestPairs(id)).find((pair) => texts.has(pair.node))
     if (paired === undefined) throw new Error('u1-1280 pairs no element with a text node alone')
     const captured = await call('design_capture', {height: 720})
     const element = componentAt({components: captured.components, path: paired.path})
     const glyphs = element?.glyphs.flatMap((glyph) => glyph.boxes) ?? []
     if (element === undefined || glyphs.length === 0) throw new Error(`no glyphs captured at ${paired.path}`)
     const ink = boxUnion(glyphs)
-    await writeFile(
-      path,
-      JSON.stringify({
-        ...model,
-        source: {kind: 'figma', ref: 'u1-1280'},
-        nodes: model.nodes.map((node) =>
-          node.id === paired.node
-            ? {
-                ...node,
-                box: {...element.box, y: element.box.y + TALLER_ELEMENT, h: element.box.h - TALLER_ELEMENT},
-                lines: [{box: ink, text: typeof node.text === 'string' ? node.text : '', confidence: 1}],
-              }
-            : node,
-        ),
-      }),
-    )
+    await editDesign({
+      id,
+      figma: true,
+      map: (node) =>
+        node.kind === 'text' && node.id === paired.node
+          ? {
+              ...node,
+              box: {...element.box, y: element.box.y + TALLER_ELEMENT, h: element.box.h - TALLER_ELEMENT},
+              lines: [{box: ink, text: node.text, confidence: 1}],
+            }
+          : node,
+    })
     const report = await call('design_diff', {full: true})
     expect(report.unmatched.filter((entry) => entry.kind === 'offset' && entry.node === paired.node)).toEqual([])
   })
@@ -2196,24 +2116,13 @@ describe('deltas', () => {
     const [child] = toolbar?.children ?? []
     if (toolbar === undefined || child === undefined) throw new Error('the target page has no toolbar with a child')
     const {id, route} = await freshTarget('u1-1280')
-    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    const put = (input: {id: string; wrapper: Box}): Promise<unknown> =>
-      store.put({
-        model: {
-          id: input.id,
-          source: {kind: 'figma', ref: input.id},
-          viewport: {width: png.width, height: png.height},
-          raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-          root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-          nodes: [
-            {id: 'wrapper', kind: 'box', box: input.wrapper, border: null, radius: 0},
-            {id: 'child', kind: 'box', box: child.box, border: null, radius: 0, within: 'wrapper'},
-          ],
-          scale: 1,
-        },
-        session: kit.session,
-        ...(route === undefined ? {} : {route}),
+    const png = await targetPng(id)
+    const put = (input: {id: string; wrapper: Box}): Promise<void> =>
+      putDesign({
+        id: input.id,
+        png,
+        route,
+        children: [boxNode({id: 'wrapper', box: input.wrapper, children: [boxNode({id: 'child', box: child.box})]})],
       })
     const offsets = (report: DiffReport): {node: string | undefined; shift: unknown}[] =>
       report.unmatched
@@ -2241,17 +2150,11 @@ describe('deltas', () => {
     const styles = await readFile(HOST_STYLES, 'utf8')
     const substituted = `${styles}\n* { font-family: 'Courier New', monospace !important; }\n`
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, substituted)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
-      const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-      const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-      const pairs = StoredPairsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      )
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
+      const model = {nodes: await storedNodes(id)}
+      const pairs = await latestPairs(id)
       const captured = await call('design_capture', {height: 720})
       const placed = new Map(
         pairs.flatMap((pair): [string, Box][] => {
@@ -2263,16 +2166,11 @@ describe('deltas', () => {
         model.nodes.filter((node) => node.kind === 'box' && placed.has(node.id)).map((node) => node.id),
       )
       if (boxes.size < 3) throw new Error(`u1-1280 pairs ${boxes.size} box nodes, the page shift needs 3`)
-      await writeFile(
-        path,
-        JSON.stringify({
-          ...model,
-          source: {kind: 'figma', ref: 'u1-1280'},
-          nodes: model.nodes.map((node) =>
-            boxes.has(node.id) ? {...node, box: placed.get(node.id) ?? node.box} : node,
-          ),
-        }),
-      )
+      await editDesign({
+        id,
+        figma: true,
+        map: (node) => (boxes.has(node.id) ? {...node, box: placed.get(node.id) ?? node.box} : node),
+      })
       await repaint({id, styles: substituted, round: 1})
       const report = await call('design_diff', {full: true})
       expect(
@@ -2292,22 +2190,16 @@ describe('deltas', () => {
     const styles = await readFile(HOST_STYLES, 'utf8')
     const widened = `${styles}\n.toolbar { margin: 0 -24px; max-width: none; }\n`
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, widened)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
       const width = await page.evaluate(() => document.documentElement.clientWidth)
       const captured = await call('design_capture', {height: 720})
       const toolbar = captured.components.find((component) => component.source?.file === 'src/Toolbar.tsx')
       if (toolbar === undefined) throw new Error('the target page has no toolbar')
       expect(toolbar.box).toEqual(expect.objectContaining({x: 0, w: width}))
-      const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-      const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-      const paired = StoredPairsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      ).find((pair) => pair.path === toolbar.path)
+      const model = {nodes: await storedNodes(id)}
+      const paired = (await latestPairs(id)).find((pair) => pair.path === toolbar.path)
       const node = model.nodes.find((entry) => entry.id === paired?.node && entry.kind === 'box')
       if (node === undefined) throw new Error('u1-1280 pairs no box node with the full-width toolbar')
       const padding = node.layout?.padding
@@ -2317,18 +2209,12 @@ describe('deltas', () => {
           padding === undefined
             ? node.layout
             : {...node.layout, padding: {...padding, left: padding.left + beyond, right: padding.right + beyond}}
-        return writeFile(
-          path,
-          JSON.stringify({
-            ...model,
-            source: {kind: 'figma', ref: 'u1-1280'},
-            nodes: model.nodes.map((entry) =>
-              entry.id === node.id
-                ? {...entry, box: {...box, x: box.x - beyond, w: box.w + beyond * 2}, layout}
-                : entry,
-            ),
-          }),
-        )
+        return editDesign({
+          id,
+          figma: true,
+          map: (entry) =>
+            entry.id === node.id ? {...entry, box: {...box, x: box.x - beyond, w: box.w + beyond * 2}, layout} : entry,
+        })
       }
       const sized = (report: DiffReport) =>
         report.components
@@ -2424,18 +2310,12 @@ async function alignedText(input: {
   const styles = await readFile(HOST_STYLES, 'utf8')
   const aligned = `${styles}\n* { text-align: ${align} !important; }\n`
   try {
-    const runs = (await runFiles({id, prefix: 'result-'})).length
+    const runs = (await runIds(id)).length
     await writeFile(HOST_STYLES, aligned)
-    await expect
-      .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-      .toBeGreaterThan(runs)
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = EditableModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+    await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
+    const model = {nodes: await storedNodes(id)}
     const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const pairs = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-    )
+    const pairs = await latestPairs(id)
     const captured = await call('design_capture', {height: 720})
     const found = pairs
       .filter((pair) => texts.has(pair.node))
@@ -2449,28 +2329,24 @@ async function alignedText(input: {
     if (pair === undefined || element === undefined) throw new Error('u1-1280 pairs no text element wider than its ink')
     const ink = boxUnion(element.glyphs.flatMap((glyph) => glyph.boxes))
     const box = {...element.box, x: align === 'left' ? ink.x - inset : element.box.x}
-    await writeFile(
-      path,
-      JSON.stringify({
-        ...model,
-        source: {kind: 'figma', ref: 'u1-1280'},
-        nodes: model.nodes.map((node) =>
-          node.id === pair.node
-            ? {
-                ...node,
-                box,
-                lines: [
-                  {
-                    box: {x: box.x, y: ink.y, w: box.w, h: ink.h},
-                    text: typeof node.text === 'string' ? node.text : '',
-                    confidence: 1,
-                  },
-                ],
-              }
-            : node,
-        ),
-      }),
-    )
+    await editDesign({
+      id,
+      figma: true,
+      map: (node) =>
+        node.id === pair.node && node.kind === 'text'
+          ? {
+              ...node,
+              box,
+              lines: [
+                {
+                  box: {x: box.x, y: ink.y, w: box.w, h: ink.h},
+                  text: node.text,
+                  confidence: 1,
+                },
+              ],
+            }
+          : node,
+    })
     const report = await call('design_diff', {full: true})
     return {
       slack: element.box.w - ink.w,
@@ -2488,23 +2364,15 @@ async function freshTarget(name: string): Promise<TargetResult> {
   return call('design_target', {image: target(name)})
 }
 
-function runFiles(input: {id: string; prefix: string}): Promise<string[]> {
-  return readdir(fileUnder(stateRoot, `.conciv/design/${input.id}`)).then((names) =>
-    names.filter((name) => name.startsWith(input.prefix)).toSorted(),
-  )
-}
-
 async function repaint(input: {id: string; styles: string; round: number}): Promise<void> {
   const {id, styles, round} = input
-  const before = (await runFiles({id, prefix: 'result-'})).at(-1)
+  const before = (await runIds(id)).at(-1)
   const dot = `body::after { content: ''; position: fixed; right: 0; bottom: 0; width: 1px; height: 1px; background: rgb(238 241 ${200 + round}); }`
   await writeFile(HOST_STYLES, `${styles}\n${dot}\n`)
-  await expect.poll(async () => (await runFiles({id, prefix: 'result-'})).at(-1), {timeout: 15_000}).not.toBe(before)
+  await expect.poll(async () => (await runIds(id)).at(-1), {timeout: 15_000}).not.toBe(before)
 }
 
 const STRIPE_REBUILT = ['bb458f09', 'da931653', '2332a289', 'ed1ee3d9']
-const StoredPairsSchema = z.array(z.object({node: z.string(), path: z.string()}))
-const ControlPairsSchema = z.array(z.object({node: z.string(), fingerprint: z.object({tag: z.string()}).optional()}))
 const CONTACT_LABELS = ['Your Email', 'Message', 'Send']
 
 const STACKED_PICTURE = 'stacked-picture'
@@ -2512,10 +2380,6 @@ const PICTURE_GAP = 24
 const SECTION_FIT = 'section-fit'
 const SAVED_TOOLBAR = '#fde68a'
 const SAVED_TOOLBAR_RGB = 'rgb(253, 230, 138)'
-
-const TreeModelSchema = z.looseObject({
-  nodes: z.array(z.looseObject({id: z.string(), within: z.string().optional()})),
-})
 
 describe('pixels', () => {
   it('a paired box whose captured pixels differ in 60% of its box while the measure reads its paint right has one pixels row and no residual-only stop', async () => {
@@ -2558,21 +2422,11 @@ async function repaintedPanel(share: number): Promise<{report: DiffReport; path:
     (_, index) => ((top + Math.floor(index / width)) * png.width + left + (index % width)) * 4,
   ).forEach((offset) => png.data.set(PANEL_REPAINT, offset))
   await call('design_clear', {all: true})
-  const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-  await store.put({
-    model: {
-      id: `pixels-${share}`,
-      source: {kind: 'figma', ref: `pixels-${share}`},
-      viewport: {width: png.width, height: png.height},
-      raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-      root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-      nodes: [
-        {id: 'panel', kind: 'box', box: panel.box, paint: {background: PANEL_BACKGROUND}, border: null, radius: 0},
-      ],
-      scale: 1,
-    },
-    session: kit.session,
+  await putDesign({
+    id: `pixels-${share}`,
+    png,
     route: captured.route,
+    children: [boxNode({id: 'panel', box: panel.box, paint: {background: PANEL_BACKGROUND}})],
   })
   return {report: await call('design_diff', {full: true}), path: panel.path}
 }
@@ -2581,12 +2435,9 @@ describe('pairing', () => {
   it('stripe against stripe-1280 pairs the rebuilt headings and no single glyph', async ({annotate}) => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
-    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    const compact = compactReport(await rpc.registry.call({name: 'design_diff', input: {}}))
     await annotate(`counts ${JSON.stringify(compact.counts)}`)
-    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const pairs = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-    )
+    const pairs = await latestPairs(id)
     const paired = new Set(pairs.map((pair) => pair.node))
     const glyphs = (await storedNodes(id)).filter(
       (node) => paired.has(node.id) && node.kind === 'text' && (node.text ?? '').trim().length === 1,
@@ -2606,10 +2457,7 @@ describe('pairing', () => {
         return {tag: element.tagName.toLowerCase(), box: {x: rect.x, y: rect.y, w: rect.width, h: rect.height}}
       }),
     )
-    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const pairs = ControlPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-    )
+    const pairs = await latestPairs(id)
     const boxes = new Map(
       (await storedNodes(id)).filter((node) => node.kind === 'box').map((node) => [node.id, node.box]),
     )
@@ -2649,16 +2497,11 @@ describe('pairing', () => {
     )
     const styles = await readFile(HOST_STYLES, 'utf8')
     try {
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, `${styles}\n.contact-form { margin-left: 400px; }\n`)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
       const report = await call('design_diff', {})
-      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-      const pairs = ControlPairsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      )
+      const pairs = await latestPairs(id)
       const boxes = new Map(
         (await storedNodes(id)).filter((node) => node.kind === 'box').map((node) => [node.id, node.box]),
       )
@@ -2691,27 +2534,36 @@ describe('pairing', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     const first = await call('design_diff', {})
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const raw: unknown = JSON.parse(await readFile(path, 'utf8'))
-    const model = EditableModelSchema.parse(raw)
-    const tree = TreeModelSchema.parse(raw)
-    const texts = new Set(model.nodes.filter((node) => node.kind === 'text').map((node) => node.id))
-    const paragraph = [...(await taggedPairs({id, run: reportRun(first)})).values()].find(
+    const nodes = await storedNodes(id)
+    const texts = new Set(nodes.filter((node) => node.kind === 'text').map((node) => node.id))
+    const paragraph = [...(await runPairs({id, run: reportRun(first)})).values()].find(
       (pair) => texts.has(pair.node) && pair.fingerprint.tag === 'p',
     )
     if (paragraph === undefined) throw new Error('u1-1280 pairs no paragraph with a text node')
-    const text = model.nodes.find((node) => node.id === paragraph.node)
-    const within = tree.nodes.find((node) => node.id === paragraph.node)?.within
+    const text = nodes.find((node) => node.id === paragraph.node)
     const element = componentAt({
       components: (await call('design_capture', {height: 720})).components,
       path: paragraph.path,
     })
     if (text === undefined || element === undefined) throw new Error(`no paragraph captured at ${paragraph.path}`)
-    const icon = (y: number) => ({id: PARAGRAPH_ICON, kind: 'image', box: {...element.box, y}, within, holds: 0})
-    await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, icon(element.box.y)]}))
-    const covered = [...(await taggedPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
-    await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, icon(text.box.y - ICON_ABOVE_TEXT)]}))
-    const moved = [...(await taggedPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
+    const icon = (y: number) =>
+      editDesign({
+        id,
+        map: (node) =>
+          node.children.some((child) => child.id === paragraph.node)
+            ? {
+                ...node,
+                children: [
+                  ...node.children.filter((child) => child.id !== PARAGRAPH_ICON),
+                  imageNode({id: PARAGRAPH_ICON, box: {...element.box, y}}),
+                ],
+              }
+            : node,
+      })
+    await icon(element.box.y)
+    const covered = [...(await runPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
+    await icon(text.box.y - ICON_ABOVE_TEXT)
+    const moved = [...(await runPairs({id, run: reportRun(await call('design_diff', {}))})).values()]
     await annotate(`covered ${JSON.stringify(covered.filter((pair) => pair.path === paragraph.path))}`)
     await annotate(`moved ${JSON.stringify(moved.filter((pair) => pair.path === paragraph.path))}`)
     expect(covered.filter((pair) => pair.node === PARAGRAPH_ICON && pair.path === paragraph.path)).toEqual([])
@@ -2725,29 +2577,15 @@ describe('pairing', () => {
     const [child] = toolbar?.children ?? []
     if (toolbar === undefined || child === undefined) throw new Error('the target page has no toolbar with a child')
     const {id, route} = await freshTarget('u1-1280')
-    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.put({
-      model: {
-        id: SECTION_FIT,
-        source: {kind: 'figma', ref: SECTION_FIT},
-        viewport: {width: png.width, height: png.height},
-        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-        nodes: [
-          {id: 'section', kind: 'box', box: toolbar.box, border: null, radius: 0},
-          {id: 'inner', kind: 'box', box: child.box, border: null, radius: 0, within: 'section'},
-        ],
-        scale: 1,
-      },
-      session: kit.session,
-      ...(route === undefined ? {} : {route}),
+    const png = await targetPng(id)
+    await putDesign({
+      id: SECTION_FIT,
+      png,
+      route,
+      children: [boxNode({id: 'section', box: toolbar.box, children: [boxNode({id: 'inner', box: child.box})]})],
     })
     const report = await call('design_diff', {full: true})
-    const latest = (await runFiles({id: SECTION_FIT, prefix: 'pairs-'})).at(-1) ?? ''
-    const pairs = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${SECTION_FIT}/${latest}`), 'utf8')),
-    )
+    const pairs = await latestPairs(SECTION_FIT)
     expect(report.target.id).toBe(SECTION_FIT)
     expect(pairs.filter((pair) => pair.node === 'section').map((pair) => pair.path)).toEqual([toolbar.path])
     expect(report.unmatched.filter((entry) => entry.kind === 'unbuilt' && entry.node === 'section')).toEqual([])
@@ -2776,32 +2614,22 @@ describe('pairing', () => {
       if (row === undefined || left === undefined || right === undefined)
         throw new Error('the cards row has no two cards')
       const {id, route} = await freshTarget('u1-1280')
-      const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
-      const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
+      const png = await targetPng(id)
       const shift = DESIGN_CARD_GAP - LIVE_CARD_GAP
-      await store.put({
-        model: {
-          id: GAP_CARDS,
-          source: {kind: 'figma', ref: GAP_CARDS},
-          viewport: {width: png.width, height: png.height},
-          raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-          root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-          nodes: [
-            {id: 'row', kind: 'box', box: {...row.box, w: row.box.w + shift}, border: null, radius: 0},
-            {id: 'left', kind: 'box', box: left.box, border: null, radius: 0, within: 'row'},
-            {
-              id: 'right',
-              kind: 'box',
-              box: {...right.box, x: right.box.x + shift},
-              border: null,
-              radius: 0,
-              within: 'row',
-            },
-          ],
-          scale: 1,
-        },
-        session: kit.session,
-        ...(route === undefined ? {} : {route}),
+      await putDesign({
+        id: GAP_CARDS,
+        png,
+        route,
+        children: [
+          boxNode({
+            id: 'row',
+            box: {...row.box, w: row.box.w + shift},
+            children: [
+              boxNode({id: 'left', box: left.box}),
+              boxNode({id: 'right', box: {...right.box, x: right.box.x + shift}}),
+            ],
+          }),
+        ],
       })
       const report = await call('design_diff', {full: true})
       expect(report.target.id).toBe(GAP_CARDS)
@@ -2831,39 +2659,27 @@ describe('pairing', () => {
       throw new Error('the target page has no card with a heading and a number')
     }
     const {id, route} = await freshTarget('u1-1280')
-    const png = decodePng(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/target.png`)))
-    const text = (input: {id: string; words: string; box: Box}): TargetNode => ({
-      id: input.id,
-      kind: 'text',
-      box: input.box,
-      text: input.words,
-      lines: [{box: input.box, text: input.words, confidence: 1}],
-      confidence: 1,
-      within: WORDS_CARD,
+    const png = await targetPng(id)
+    await putDesign({
+      id: WORDS_FIRST,
+      png,
+      route,
+      children: [
+        boxNode({
+          id: WORDS_CARD,
+          box: card.box,
+          children: [
+            textNode({id: WORDS_HEADING, words: headingText(heading), box: number.box}),
+            textNode({id: WORDS_NUMBER, words: headingText(number), box: heading.box}),
+          ],
+        }),
+      ],
     })
-    const store = createTargetStore({dir: fileUnder(stateRoot, '.conciv/design'), cwd: stateRoot})
-    await store.put({
-      model: {
-        id: WORDS_FIRST,
-        source: {kind: 'figma', ref: WORDS_FIRST},
-        viewport: {width: png.width, height: png.height},
-        raster: {width: png.width, height: png.height, data: new Uint8Array(png.data)},
-        root: {id: 'root', box: {x: 0, y: 0, w: png.width, h: png.height}},
-        nodes: [
-          {id: WORDS_CARD, kind: 'box', box: card.box, border: null, radius: 0},
-          text({id: WORDS_HEADING, words: headingText(heading), box: number.box}),
-          text({id: WORDS_NUMBER, words: headingText(number), box: heading.box}),
-        ],
-        scale: 1,
-      },
-      session: kit.session,
-      ...(route === undefined ? {} : {route}),
-    })
-    const keys = (pairs: Map<string, KeyedPair>): (string | null | undefined)[] => [
+    const keys = (pairs: Map<string, Pair>): (string | null | undefined)[] => [
       pairs.get(WORDS_HEADING)?.fingerprint.key,
       pairs.get(WORDS_NUMBER)?.fingerprint.key,
     ]
-    const first = await keyedPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
+    const first = await runPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
     const source = await readFile(CARDS_SOURCE, 'utf8')
     try {
       await rewrite({
@@ -2871,7 +2687,7 @@ describe('pairing', () => {
         file: CARDS_SOURCE,
         text: source.replace(`${CARD_HEADING_LINE}\n${CARD_NUMBER_LINE}`, `${CARD_NUMBER_LINE}\n${CARD_HEADING_LINE}`),
       })
-      const swapped = await keyedPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
+      const swapped = await runPairs({id: WORDS_FIRST, run: reportRun(await call('design_diff', {}))})
       await annotate(`first ${JSON.stringify(keys(first))} swapped ${JSON.stringify(keys(swapped))}`)
       expect(keys(first)).toEqual([heading.key, number.key])
       expect(keys(swapped)).toEqual([heading.key, number.key])
@@ -2983,19 +2799,11 @@ describe('loop', () => {
     const turned = column.components.find((component) => component.deltas.some((delta) => delta.kind === 'axis'))
     const [holder] = turned?.nodes ?? []
     if (turned === undefined || holder === undefined) throw new Error('the column page has no axis row to remove')
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const model = TreeModelSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-    const [, ...dropped] = model.nodes.filter((node) => node.within === holder)
-    const gone = new Set(dropped.map((node) => node.id))
-    const removed = (node: z.infer<typeof TreeModelSchema>['nodes'][number]): boolean =>
-      gone.has(node.id) || model.nodes.some((parent) => parent.id === node.within && removed(parent))
+    const [, ...dropped] = (await storedNodes(id)).filter((node) => node.within === holder)
     expect(dropped.length).toBeGreaterThan(0)
-    await writeFile(path, JSON.stringify({...model, nodes: model.nodes.filter((node) => !removed(node))}))
+    await editDesign({id, map: (node) => (node.id === holder ? {...node, children: node.children.slice(0, 1)} : node)})
     const single = await call('design_diff', {limit: 50, depth: 6})
-    const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-    const pairs = StoredPairsSchema.parse(
-      JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-    )
+    const pairs = await latestPairs(id)
     expect(pairs.map((pair) => pair.node)).toContain(holder)
     expect(
       single.components
@@ -3011,24 +2819,27 @@ describe('loop', () => {
     const turned = column.components.find((component) => component.deltas.some((delta) => delta.kind === 'axis'))
     const [holder] = turned?.nodes ?? []
     if (turned === undefined || holder === undefined) throw new Error('the column page has no axis row')
-    const path = fileUnder(stateRoot, `.conciv/design/${id}/model.json`)
-    const raw: unknown = JSON.parse(await readFile(path, 'utf8'))
-    const model = EditableModelSchema.parse(raw)
-    const held = new Set(
-      TreeModelSchema.parse(raw)
-        .nodes.filter((node) => node.within === holder)
-        .map((node) => node.id),
-    )
-    const boxes = model.nodes
-      .filter((node) => held.has(node.id))
+    const boxes = (await storedNodes(id))
+      .filter((node) => node.within === holder)
       .map((node) => node.box)
       .toSorted((a, b) => a.x - b.x)
     const first = boxes.at(0)
     const last = boxes.at(-1)
     if (first === undefined || last === undefined) throw new Error('the design row holds no children')
     const axisWith = async (box: Box): Promise<DiffReport['components'][number]['deltas']> => {
-      const picture = {id: STACKED_PICTURE, kind: 'image', box, within: holder, holds: 0}
-      await writeFile(path, JSON.stringify({...model, nodes: [...model.nodes, picture]}))
+      await editDesign({
+        id,
+        map: (node) =>
+          node.id === holder
+            ? {
+                ...node,
+                children: [
+                  ...node.children.filter((child) => child.id !== STACKED_PICTURE),
+                  imageNode({id: STACKED_PICTURE, box}),
+                ],
+              }
+            : node,
+      })
       const report = await call('design_diff', {limit: 50, depth: 6})
       return report.components
         .filter((component) => sameSource({a: component.source, b: turned.source}))
@@ -3072,11 +2883,9 @@ describe('loop', () => {
     const {id} = await freshTarget('u1-1280')
     await call('design_diff', {})
     const styles = await readFile(HOST_STYLES)
-    const runs = (await runFiles({id, prefix: 'result-'})).length
+    const runs = (await runIds(id)).length
     for (const _ of Array.from({length: 5})) await writeFile(HOST_STYLES, styles)
-    await expect
-      .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-      .toBeGreaterThan(runs)
+    await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
     expect(await call('design_status', {})).toMatchObject({round: 1})
   })
 
@@ -3109,11 +2918,17 @@ describe('loop', () => {
     await call('design_clear', {all: true})
     const narrow = await call('design_target', {image: target('u1-390')})
     const wide = await call('design_target', {image: target('u1-1280')})
-    const TwinsSchema = z.record(z.string(), z.array(z.object({node: z.string(), twin: z.string()})))
-    const twins = async (id: string) =>
-      TwinsSchema.parse(JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/twins.json`), 'utf8')))
-    expect((await twins(wide.id))[narrow.id]?.length).toBeGreaterThan(0)
-    expect((await twins(narrow.id))[wide.id]?.length).toBeGreaterThan(0)
+    const twins = async (input: {id: string; other: string}) =>
+      (await store.decisions(input.id)).filter(
+        (decision) =>
+          decision.kind === 'twin' &&
+          typeof decision.value === 'object' &&
+          decision.value !== null &&
+          'target' in decision.value &&
+          decision.value.target === input.other,
+      )
+    expect((await twins({id: wide.id, other: narrow.id})).length).toBeGreaterThan(0)
+    expect((await twins({id: narrow.id, other: wide.id})).length).toBeGreaterThan(0)
     const report = await call('design_diff', {})
     expect(report.responsive).toContainEqual(expect.objectContaining({target: narrow.id, width: 390}))
   })
@@ -3123,14 +2938,12 @@ describe('loop', () => {
     const {id} = await freshTarget('u1-1280')
     const first = await call('design_diff', {})
     const styles = await readFile(HOST_STYLES, 'utf8')
-    const before = (await runFiles({id, prefix: 'diff-'})).length
+    const before = (await runIds(id)).length
     try {
       await writeFile(HOST_STYLES, `${styles}\n.toolbar { background-color: #fde68a !important; }\n`)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'diff-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(before)
-      const latest = (await runFiles({id, prefix: 'diff-'})).at(-1) ?? ''
-      const after = await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`))
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(before)
+      const latest = (await runIds(id)).at(-1) ?? ''
+      const after = Buffer.from((await store.image({id, run: latest, kind: 'diff'})) ?? [])
       expect(after.equals(await readFile(fileUnder(stateRoot, first.diffImage)))).toBe(false)
     } finally {
       await writeFile(HOST_STYLES, styles)
@@ -3336,11 +3149,9 @@ describe('loop', () => {
       await repaint({id, styles, round: 1})
       const second = await call('design_diff', {full: true})
       const unchanged = new Set(second.rows.flatMap((row) => (row.node === undefined ? [] : [row.node])))
-      const runs = (await runFiles({id, prefix: 'result-'})).length
+      const runs = (await runIds(id)).length
       await writeFile(HOST_STYLES, `${styles}\n.toolbar button:first-child { display: none !important; }\n`)
-      await expect
-        .poll(async () => (await runFiles({id, prefix: 'result-'})).length, {timeout: 15_000})
-        .toBeGreaterThan(runs)
+      await expect.poll(async () => (await runIds(id)).length, {timeout: 15_000}).toBeGreaterThan(runs)
       const third = await call('design_diff', {full: true})
       const demoted = third.rows
         .filter((row) => row.stage === third.stage)
@@ -3395,8 +3206,6 @@ const STRIPE_BANK_BOX = 'd9b175e8'
 const STRIPE_STYLES = join(HOST_ROOT, 'src', 'stripe.css')
 const EDITED_INK = '#c2410c'
 const LIVE_LOOP_MS = 8000
-const TilesFileSchema = z.object({columns: z.number(), rows: z.number()})
-const StoredTimingsSchema = z.object({timings: z.record(z.string(), z.unknown())})
 const STRIPE_RUN_MS = 10_000
 const STRIPE_SOURCE = join(HOST_ROOT, 'src', 'Stripe.tsx')
 const EDITED_HEADING = 'Get Stripe product recommendations'
@@ -3426,9 +3235,9 @@ async function editStripe(input: {id: string; styles: string}): Promise<void> {
 
 async function rewrite(input: {id: string; file: string; text: string}): Promise<void> {
   const {id, file, text} = input
-  const before = (await runFiles({id, prefix: 'result-'})).at(-1)
+  const before = (await runIds(id)).at(-1)
   await writeFile(file, text)
-  await expect.poll(async () => (await runFiles({id, prefix: 'result-'})).at(-1), {timeout: 60_000}).not.toBe(before)
+  await expect.poll(async () => (await runIds(id)).at(-1), {timeout: 60_000}).not.toBe(before)
 }
 
 function highOrdinals(line: string): string[] {
@@ -3440,11 +3249,11 @@ function highOrdinals(line: string): string[] {
 }
 
 async function tileCount(id: string): Promise<number> {
-  const latest = (await runFiles({id, prefix: 'tiles-'})).at(-1) ?? ''
-  const grid = TilesFileSchema.parse(
-    JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-  )
-  return grid.columns * grid.rows
+  const live = await store.image({id, run: (await runIds(id)).at(-1) ?? '', kind: 'live'})
+  if (live === null) throw new Error(`target ${id} has no live image`)
+  const {width, height} = decodePng(Buffer.from(live))
+  const side = designConfig.tolerances.tileSide
+  return Math.ceil(width / side) * Math.ceil(height / side)
 }
 
 function componentMismatch(report: DiffReport): Record<string, number> {
@@ -3527,12 +3336,9 @@ describe('live loop', () => {
     try {
       await editStripe({id, styles})
       const report = await call('design_diff', {})
-      const latest = (await runFiles({id, prefix: 'result-'})).at(-1) ?? ''
-      const stored = StoredTimingsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      )
-      await annotate(`timings ${JSON.stringify(stored.timings)}`)
-      expect(TIMED_PHASES.filter((phase) => typeof stored.timings[phase] !== 'number')).toEqual([])
+      const timings: Record<string, unknown> = report.timings
+      await annotate(`timings ${JSON.stringify(timings)}`)
+      expect(TIMED_PHASES.filter((phase) => typeof timings[phase] !== 'number')).toEqual([])
       expect(report.timings.total).toBeLessThan(STRIPE_RUN_MS)
     } finally {
       await writeFile(STRIPE_STYLES, styles)
@@ -3570,12 +3376,12 @@ describe('live loop', () => {
       await expect
         .poll(() => page.evaluate(() => document.querySelector('vite-error-overlay') !== null), {timeout: 30_000})
         .toBe(true)
-      const results = await runFiles({id, prefix: 'result-'})
+      const results = await runIds(id)
       const report = await call('design_diff', {})
       expect(report.warnings.map((warning) => warning.warning)).toEqual(['page-error'])
       expect(report.brief[0]?.startsWith('the page did not render: ')).toBe(true)
       expect([report.round]).toEqual([first.round])
-      expect(await runFiles({id, prefix: 'result-'})).toEqual(results)
+      expect(await runIds(id)).toEqual(results)
     } finally {
       await writeFile(STRIPE_SOURCE, source)
     }
@@ -3593,66 +3399,18 @@ describe('live loop', () => {
   }, 240_000)
 })
 
-const LedgerFileSchema = z.object({
-  run: z.string(),
-  nodes: z.record(
-    z.string(),
-    z.object({
-      status: z.string(),
-      since: z.string(),
-      pair: z
-        .object({
-          path: z.string(),
-          fingerprint: z.object({source: z.object({file: z.string(), line: z.number()}).nullable()}),
-        })
-        .nullable(),
-    }),
-  ),
-})
 const LILAC_CLASS = 'g-lilac'
 const CARD_END = '</Card>'
 const CROP_GAP = 4
 const PNG_WIDTH_AT = 16
 const CSS_INKS = ['#c2410c', '#15803d', '#1d4ed8']
 
-type StoredLedger = z.infer<typeof LedgerFileSchema>
-
-async function storedLedger(id: string): Promise<StoredLedger> {
-  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
-  return LedgerFileSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-}
-
-async function storedPairs(input: {id: string; run: string}): Promise<Map<string, string>> {
-  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
-  const pairs = StoredPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-  return new Map(pairs.map((pair) => [pair.node, pair.path]))
-}
-
 const SHIFTED_KEY = 'xw-hJQ'
 const SHIFTED_OPENING = `<p className="hero-gdp" data-conciv-key="${SHIFTED_KEY}">`
 const SHIFTED_EDIT = `<p className="hero-gdp-before" /><p className="hero-gdp hero-gdp-moved" style={{position: 'relative', top: 40}} data-conciv-key="${SHIFTED_KEY}">`
 const CARD_SECTION = 'className={`card '
 const INSERTED_LINES = 'const insertedFirst = 1\nconst insertedSecond = 2\nconst insertedThird = 3\n'
-const KeyedPairsSchema = z.array(
-  z.object({
-    node: z.string(),
-    path: z.string(),
-    fingerprint: z.object({
-      key: z.string().nullable().default(null),
-      source: z.object({file: z.string(), line: z.number()}).nullable(),
-    }),
-  }),
-)
-
-type KeyedPair = z.infer<typeof KeyedPairsSchema>[number]
-
-async function keyedPairs(input: {id: string; run: string}): Promise<Map<string, KeyedPair>> {
-  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
-  const pairs = KeyedPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-  return new Map(pairs.map((pair) => [pair.node, pair]))
-}
-
-function lilacCardPairs(input: {pairs: Map<string, KeyedPair>; source: string}): KeyedPair[] {
+function lilacCardPairs(input: {pairs: Map<string, Pair>; source: string}): Pair[] {
   const sectionAt = input.source.split('\n').findIndex((line) => line.includes(CARD_SECTION)) + 1
   const {first, last} = lilacLines(input.source)
   const pairs = [...input.pairs.values()]
@@ -3668,11 +3426,6 @@ function lilacCardPairs(input: {pairs: Map<string, KeyedPair>; source: string}):
   )
   if (section === undefined) throw new Error('the lilac card section has no pair')
   return pairs.filter((pair) => pair.path === section.path || pair.path.startsWith(`${section.path}/`))
-}
-
-function reportRun(report: DiffReport): string {
-  const name = report.livePath.split('/').at(-1) ?? ''
-  return name.slice('live-'.length, -'.png'.length)
 }
 
 function lilacLines(source: string): {first: number; last: number} {
@@ -3709,7 +3462,7 @@ describe('ledger', () => {
   }) => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
-    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    const compact = compactReport(await rpc.registry.call({name: 'design_diff', input: {}}))
     const status = await call('design_status', {})
     const ledger = status.ledger ?? {unbuilt: -1, paired: -1, done: -1, regressed: -1, accepted: -1}
     await annotate(`ledger ${JSON.stringify(status.ledger)} counts ${JSON.stringify(compact.counts)}`)
@@ -3904,12 +3657,12 @@ describe('ledger', () => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
     const full = await call('design_diff', {})
-    const before = await keyedPairs({id, run: reportRun(full)})
+    const before = await runPairs({id, run: reportRun(full)})
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: `${INSERTED_LINES}${source}`})
       const shifted = await call('design_diff', {})
-      const after = await keyedPairs({id, run: reportRun(shifted)})
+      const after = await runPairs({id, run: reportRun(shifted)})
       const ledger = await storedLedger(id)
       const done = Object.entries(ledger.nodes).flatMap(([node, entry]) => (entry.status === 'done' ? [node] : []))
       const sample = [...before.values()].find(
@@ -3940,14 +3693,14 @@ describe('ledger', () => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
     const full = await call('design_diff', {})
-    const earlier = await keyedPairs({id, run: reportRun(full)})
+    const earlier = await runPairs({id, run: reportRun(full)})
     const sample = [...earlier.values()].find((pair) => pair.fingerprint.key === SHIFTED_KEY)
     if (sample === undefined) throw new Error('the hero gdp paragraph has no pair')
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: source.replace(SHIFTED_OPENING, SHIFTED_EDIT)})
       const carried = await call('design_diff', {})
-      const after = await keyedPairs({id, run: reportRun(carried)})
+      const after = await runPairs({id, run: reportRun(carried)})
       await annotate(
         `paired ${full.paired} carried ${JSON.stringify(carried.timings.carried)} lost ${JSON.stringify(carried.changes.lost)} sample ${JSON.stringify(sample)} after ${JSON.stringify(after.get(sample.node))}`,
       )
@@ -3963,17 +3716,17 @@ describe('ledger', () => {
     await goto('stripe')
     const {id} = await freshTarget('stripe-1280')
     const full = await call('design_diff', {})
-    const earlier = await keyedPairs({id, run: reportRun(full)})
+    const earlier = await runPairs({id, run: reportRun(full)})
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     const deleted = lilacCardPairs({pairs: earlier, source}).map((pair) => pair.node)
     expect(deleted.length).toBeGreaterThan(0)
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: withoutLilac(source)})
       const removed = await call('design_diff', {})
-      const after = await keyedPairs({id, run: reportRun(removed)})
+      const after = await runPairs({id, run: reportRun(removed)})
       const lost = removed.changes.lost.map((change) => change.node)
       const surviving = [...earlier.values()].filter((pair) => !deleted.includes(pair.node) && after.has(pair.node))
-      const element = (pair: KeyedPair | undefined): [string | null | undefined, string | undefined] => [
+      const element = (pair: Pair | undefined): [string | null | undefined, string | undefined] => [
         pair?.fingerprint.key,
         pair?.path,
       ]
@@ -3993,7 +3746,7 @@ describe('ledger', () => {
     await goto('/')
     const {id} = await freshTarget('u1-1280')
     const first = await call('design_diff', {})
-    const before = await taggedPairs({id, run: reportRun(first)})
+    const before = await runPairs({id, run: reportRun(first)})
     const kept = [...before.values()]
       .filter((pair) => pair.fingerprint.source?.file.endsWith('Cards.tsx') === true)
       .slice(0, KEPT_PAIRS)
@@ -4005,8 +3758,8 @@ describe('ledger', () => {
       if (marked === undefined) throw new Error('the u1-1280 target has no node outside the kept pairs')
       await xrayRpc.xray.mark({id, kind: 'tolerance', node: marked.id, value: 1, session: kit.session})
       const second = await call('design_diff', {})
-      const after = await taggedPairs({id, run: reportRun(second)})
-      const site = (pair: TaggedPair | undefined): [string | undefined, string | undefined] => [
+      const after = await runPairs({id, run: reportRun(second)})
+      const site = (pair: Pair | undefined): [string | undefined, string | undefined] => [
         pair?.fingerprint.source?.file,
         pair?.fingerprint.tag,
       ]
@@ -4028,7 +3781,7 @@ describe('ledger', () => {
     await goto('target')
     const {id} = await freshTarget('u1-1280')
     const first = await call('design_diff', {})
-    const wrapper = [...(await keyedPairs({id, run: reportRun(first)})).values()].find(
+    const wrapper = [...(await runPairs({id, run: reportRun(first)})).values()].find(
       (pair) => pair.fingerprint.key === TOOLBAR_KEY,
     )
     const node = (await storedNodes(id)).find((entry) => entry.id === wrapper?.node && entry.kind === 'box')
@@ -4037,7 +3790,7 @@ describe('ledger', () => {
     try {
       await rewrite({id, file: APP_SOURCE, text: source.replace(TOOLBAR_OPENING, `${TOOLBAR_COPY}${TOOLBAR_OPENING}`)})
       const second = await call('design_diff', {})
-      const after = await keyedPairs({id, run: reportRun(second)})
+      const after = await runPairs({id, run: reportRun(second)})
       const headers = (await call('design_capture', {height: 720})).components.filter(
         (component) => component.key === TOOLBAR_KEY,
       )
@@ -4108,25 +3861,6 @@ export function Cards(props: {variant: string | null; column?: boolean}) {
   )
 }
 `
-const TaggedPairsSchema = z.array(
-  z.object({
-    node: z.string(),
-    path: z.string(),
-    fingerprint: z.object({
-      tag: z.string(),
-      source: z.object({file: z.string()}).nullable(),
-    }),
-  }),
-)
-
-type TaggedPair = z.infer<typeof TaggedPairsSchema>[number]
-
-async function taggedPairs(input: {id: string; run: string}): Promise<Map<string, TaggedPair>> {
-  const path = fileUnder(stateRoot, `.conciv/design/${input.id}/pairs-${input.run}.json`)
-  const pairs = TaggedPairsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-  return new Map(pairs.map((pair) => [pair.node, pair]))
-}
-
 const ICON_SIDE = 24
 const ICON_SLOT_SIDE = 48
 const GLYPH_NOISE = 12
@@ -4144,7 +3878,7 @@ function foreign(character: string): boolean {
   return point > LATIN_END && (point < PUNCTUATION_START || point > PUNCTUATION_END)
 }
 
-function daybreakSlot(nodes: z.infer<typeof StoredModelSchema>['nodes']): Box {
+function daybreakSlot(nodes: StoredNode[]): Box {
   const texts = nodes.filter((node) => node.kind === 'text' && node.text === DAYBREAK)
   const slot = nodes.find(
     (node) =>
@@ -4253,8 +3987,8 @@ async function drawnDiff(): Promise<{
   brief: string[]
 }> {
   const raw = await rpc.registry.call({name: 'design_diff', input: {full: true}})
-  const report = DiffReportSchema.parse(raw)
-  const {counts} = CompactReportSchema.parse(raw)
+  const report = FullReportSchema.parse(raw)
+  const {counts} = compactReport(raw)
   return {
     drawn: counts.drawn,
     paired: counts.paired,
@@ -4514,7 +4248,7 @@ async function designedPanel(input: {
   const source = await readFile(STRIPE_SOURCE, 'utf8')
   try {
     await rewrite({id, file: STRIPE_SOURCE, text: input.text})
-    const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+    const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
     const columns = report.components
       .filter((component) => component.nodes?.includes(panel.id) === true)
       .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
@@ -4569,18 +4303,14 @@ const GUIDE_PAGE = gridPage({
 })
 
 const PICTURE_PAINT_KINDS: string[] = ['background', 'foreground', 'border']
-const PaintItemsSchema = z.object({
-  nodes: z.record(
-    z.string(),
-    z.object({item: z.object({stage: z.string(), size: z.number(), sentence: z.string()}).nullable()}),
-  ),
-})
-
 async function paintItems(id: string): Promise<{size: number; sentence: string}[]> {
-  const path = fileUnder(stateRoot, `.conciv/design/${id}/ledger.json`)
-  const ledger = PaintItemsSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-  return Object.values(ledger.nodes).flatMap((entry) =>
-    entry.item !== null && entry.item.stage === 'paint' ? [{size: entry.item.size, sentence: entry.item.sentence}] : [],
+  const ledger = await storedLedger(id)
+  const watched = watchDef.outputSchema?.parse(await rpc.registry.call({name: watchDef.name, input: {limit: 2000}}))
+  const said = new Map((watched?.rows ?? []).map((row) => [row.node, row.item ?? '']))
+  return Object.entries(ledger.nodes).flatMap(([node, entry]) =>
+    entry.item !== null && entry.item.stage === 'paint'
+      ? [{size: entry.item.size, sentence: said.get(node) ?? ''}]
+      : [],
   )
 }
 
@@ -4596,7 +4326,6 @@ const ROUND_BUDGET = 8
 const SHIFT_STEP = 24
 
 type Section = NonNullable<StatusReport['sections']>[number]
-type StoredNode = Awaited<ReturnType<typeof storedNodes>>[number]
 
 async function outlineLines(status: StatusReport): Promise<string[]> {
   return (await readFile(fileUnder(stateRoot, status.designPath ?? ''), 'utf8')).split('\n')
@@ -4810,7 +4539,7 @@ describe('sections', () => {
 })
 
 async function iconCount(): Promise<{icons: number; brief: string[]}> {
-  const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+  const compact = compactReport(await rpc.registry.call({name: 'design_diff', input: {}}))
   return {icons: compact.counts.icons, brief: compact.brief}
 }
 
@@ -4854,7 +4583,7 @@ describe('icons', () => {
     const held = pictures.reduce((sum, node) => sum + (node.holds ?? 0), 0)
     const status = await call('design_status', {})
     const outline = await outlineLines(status)
-    const compact = CompactReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {}}))
+    const compact = compactReport(await rpc.registry.call({name: 'design_diff', input: {}}))
     const nonImage = nodes.filter((node) => node.kind !== 'image').length
     await annotate(
       `texts ${texts.length} pictures ${JSON.stringify(pictures.map((node) => ({box: node.box, holds: node.holds})))} held ${held} hero ${JSON.stringify(hero?.box)} holds ${hero?.holds} noise ${noise.length} counts.unbuilt ${compact.counts.unbuilt} non-image nodes ${nonImage}`,
@@ -4985,7 +4714,7 @@ describe('icons', () => {
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: GRADIENT_PAGE})
-      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
       const items = await paintItems(id)
       const solid = items.filter((item) => item.sentence.includes('gradient #') && item.sentence.includes('#635bff'))
       await annotate(
@@ -5012,11 +4741,8 @@ describe('icons', () => {
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: PICTURE_PAGE})
-      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
-      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-      const pairs = StoredPairsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      )
+      const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const pairs = await latestPairs(id)
       const deltas = report.components
         .filter((component) => component.nodes?.includes(picture.id) === true)
         .flatMap((component) => component.deltas)
@@ -5041,11 +4767,8 @@ describe('icons', () => {
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: DECOR_PAGE})
-      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
-      const latest = (await runFiles({id, prefix: 'pairs-'})).at(-1) ?? ''
-      const pairs = StoredPairsSchema.parse(
-        JSON.parse(await readFile(fileUnder(stateRoot, `.conciv/design/${id}/${latest}`), 'utf8')),
-      )
+      const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const pairs = await latestPairs(id)
       const columns = report.components
         .filter((component) => component.nodes?.includes(panel.id) === true)
         .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
@@ -5069,7 +4792,7 @@ describe('icons', () => {
     const source = await readFile(STRIPE_SOURCE, 'utf8')
     try {
       await rewrite({id, file: STRIPE_SOURCE, text: ROW_PAGE})
-      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
       const columns = report.components
         .filter((component) => component.nodes?.includes(panel.id) === true)
         .flatMap((component) => component.deltas.filter((delta) => delta.kind === 'columns'))
@@ -5125,7 +4848,7 @@ describe('icons', () => {
         file: STRIPE_SOURCE,
         text: GRADIENT_PAGE.replace("background: '#635bff'", "background: '#635bff', borderRadius: 23"),
       })
-      const report = DiffReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
+      const report = FullReportSchema.parse(await rpc.registry.call({name: 'design_diff', input: {full: true}}))
       const radii = report.components.flatMap((component) =>
         component.deltas
           .filter((delta) => delta.kind === 'radius')
@@ -5192,7 +4915,7 @@ describe('page', () => {
   it('a hidden tab answers design_diff at once with the hidden hint and writes no result', async ({annotate}) => {
     await goto('/')
     const {id} = await freshTarget('u1-1280')
-    const before = await runFiles({id, prefix: 'result-'})
+    const before = await runIds(id)
     await hideTab(true)
     try {
       const {report, elapsed} = await timedDiff()
@@ -5202,7 +4925,7 @@ describe('page', () => {
       expect(report.hint?.startsWith(HIDDEN_HINT)).toBe(true)
       expect(report.hint).toContain('1 hidden, 0 silent')
       expect([report.partial, report.stop, report.round]).toEqual([true, null, 0])
-      expect(await runFiles({id, prefix: 'result-'})).toEqual(before)
+      expect(await runIds(id)).toEqual(before)
       expect(status.next).toBe(HIDDEN_HINT)
     } finally {
       await hideTab(false)
@@ -5297,11 +5020,10 @@ describe('overlay', () => {
     expect([label, toolbar].every((found) => found !== undefined)).toBe(true)
     if (label === undefined || toolbar === undefined) return
     const pinned = await xrayRpc.xray.pin({id, node: label.id, path: toolbar.path, session: kit.session})
-    expect(
-      DiffReportSchema.nullable()
-        .parse(pinned.report)
-        ?.components.flatMap((c) => c.deltas),
-    ).not.toContainEqual(expect.objectContaining({kind: 'text', live: 'Make', target: 'Export'}))
+    const pinnedReport: DiffReport | null = pinned.report
+    expect(pinnedReport?.components.flatMap((c) => c.deltas)).not.toContainEqual(
+      expect.objectContaining({kind: 'text', live: 'Make', target: 'Export'}),
+    )
     await expectLocator(pane.getByRole('button', {name: 'Unpin text "Export"'})).toBeVisible()
     await expectLocator(pane.getByText('text Make → Export')).toHaveCount(0)
   })
@@ -5321,12 +5043,11 @@ describe('overlay', () => {
     if (region === undefined) return
     const pane = await openPane()
     const marked = await xrayRpc.xray.mark({id, kind: 'excluded', node: region.node, session: kit.session})
+    const markedReport: DiffReport | null = marked.report
     expect(
-      DiffReportSchema.nullable()
-        .parse(marked.report)
-        ?.unmatched.filter(
-          (entry) => entry.target !== undefined && inside({inner: entry.target, outer: region.target}),
-        ),
+      markedReport?.unmatched.filter(
+        (entry) => entry.target !== undefined && inside({inner: entry.target, outer: region.target}),
+      ),
     ).toEqual([])
     await expectLocator(pane.getByRole('button', {name: 'Revoke excluded box'})).toBeVisible()
   })

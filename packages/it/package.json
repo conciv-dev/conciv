@@ -99,6 +99,7 @@
     "tsdown": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "unstorage": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
