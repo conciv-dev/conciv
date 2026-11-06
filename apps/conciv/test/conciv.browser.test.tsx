@@ -3085,7 +3085,9 @@ describe('session selector', () => {
       )
       .toBeVisible()
     await expect
-      .element(page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/}))
+      .element(
+        page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/, selected: true}),
+      )
       .toBeVisible()
   })
 })

@@ -9,8 +9,9 @@ import {
   readdirSync,
   utimesSync,
   symlinkSync,
+  renameSync,
 } from 'node:fs'
-import {randomUUID} from 'node:crypto'
+import {createHash, randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
@@ -1657,21 +1658,16 @@ describe('rpc wire', () => {
     })
 
     it('send rebuilds history from the transcript when the harness cannot resume (C3)', async () => {
-      const claudeHome = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-home-')))
       const harness = createTestHarness(requireClaude())
       const noResume: TestHarness = Object.assign({}, harness, {
         capabilities: Object.assign({}, harness.capabilities, {resume: false as const}),
       })
-      const kit = await bootKit({claudeHome}, noResume)
+      const kit = await bootKit({}, noResume)
       cleanups.push(() => kit.cleanup())
       const sessionId = await kit.session()
       const first = await kit.turn('first question', {session: sessionId, runId: 'wire-7'})
       await first.done({hangGuardMs: 10_000})
-      const transcript = requireTranscriptPath(noResume)(
-        kit.stateRoot,
-        HarnessSessionId.parse(`fake-${sessionId}`),
-        claudeHome,
-      )
+      const transcript = requireTranscriptPath(noResume)(kit.stateRoot, HarnessSessionId.parse(`fake-${sessionId}`))
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
         transcript,
@@ -1763,11 +1759,10 @@ describe('rpc wire', () => {
 
   describe('chat', () => {
     beforeAll(async () => {
-      app.claudeHome = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-chat-home-')))
       app.harness = recordingHarness(createTestHarness(requireClaude()))
       app.kit = await createTestkit(
         app.harness,
-        bootCoreApp({claudeHome: app.claudeHome, extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS}),
+        bootCoreApp({extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS}),
       ).setup()
       app.widget = await connectWidget(app.kit, answerFor)
       app.mcpSession = await newSession()
@@ -1778,7 +1773,6 @@ describe('rpc wire', () => {
       app.widget?.end()
       await app.mcp?.close()
       await app.kit?.cleanup()
-      rmSync(app.claudeHome, {recursive: true, force: true})
     })
 
     beforeEach(() => {
@@ -2364,28 +2358,31 @@ describe('rpc wire', () => {
         const adoptedStream = await chatKit().events(adopted)
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'native-adopt-1'})
         await adoptedStream.waitFor((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT, GUARD)
-        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        writeNativeAt('agent-native-1', 'the agent task', Date.now())
+        const agentNative = claudeId('agent-native-1')
+        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: agentNative})
+        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: agentNative})
+        writeNativeAt(agentNative, 'the agent task', Date.now())
         const {sessions: listed} = await chatKit().rpc.sessions.list({includeHidden: true})
-        expect(listed.filter((meta) => meta.native?.nativeId === 'agent-native-1')).toHaveLength(1)
+        expect(listed.filter((meta) => meta.native?.nativeId === agentNative)).toHaveLength(1)
       })
 
       it('pages native transcripts and conciv-only sessions together and materializes a native on its page', async () => {
         const concivOnly = SessionId.parse(await newSession())
         const createdAt = (await chatKit().rpc.sessions.get({sessionId: concivOnly})).updatedAt
-        writeNativeAt('paged-future', 'the future task', createdAt + 60_000)
-        writeNativeAt('aaa-paged-tied', 'the tied task', createdAt)
+        const future = claudeId('paged-future')
+        const tied = '00000000-0000-4000-8000-000000000000'
+        writeNativeAt(future, 'the future task', createdAt + 60_000)
+        writeNativeAt(tied, 'the tied task', createdAt)
 
         const first = await chatKit().rpc.sessions.list({limit: 2})
-        expect(first.sessions.map((meta) => meta.native?.nativeId ?? meta.id)).toEqual(['paged-future', concivOnly])
+        expect(first.sessions.map((meta) => meta.native?.nativeId ?? meta.id)).toEqual([future, concivOnly])
         expect(first.next).toEqual({updatedAt: createdAt, id: concivOnly})
 
         const second = await chatKit().rpc.sessions.list({cursor: first.next, limit: 1})
         expect(second.sessions).toMatchObject([
-          {origin: 'external', title: 'the tied task', updatedAt: createdAt, native: {nativeId: 'aaa-paged-tied'}},
+          {origin: 'external', title: 'the tied task', updatedAt: createdAt, native: {nativeId: tied}},
         ])
-        expect(second.next).toEqual({updatedAt: createdAt, id: 'aaa-paged-tied'})
+        expect(second.next).toEqual({updatedAt: createdAt, id: tied})
         const materialized = second.sessions[0]
         if (materialized === undefined) throw new Error('the tied native session was not listed')
         expect(await chatKit().rpc.sessions.get({sessionId: materialized.id})).toEqual(materialized)
@@ -2393,11 +2390,12 @@ describe('rpc wire', () => {
       })
 
       it('a session whose native transcript is gone drops out of the list, and get still answers for it', async () => {
-        writeNativeAt('gone-native', 'a task whose transcript goes away', Date.now() + 120_000)
+        const gone = claudeId('gone-native')
+        writeNativeAt(gone, 'a task whose transcript goes away', Date.now() + 120_000)
         const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
-        expect(listed).toMatchObject({native: {nativeId: 'gone-native'}})
+        expect(listed).toMatchObject({native: {nativeId: gone}})
         if (listed === undefined) throw new Error('the native session was not listed')
-        rmSync(transcriptPathOf('gone-native'))
+        rmSync(transcriptPathOf(gone))
         const after = await chatKit().rpc.sessions.list({includeHidden: true})
         expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
         expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
@@ -2434,7 +2432,7 @@ describe('rpc wire', () => {
         beforeAll(async () => {
           searched.home = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-home-')))
           searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
-          searched.earlyStamp = writeClaudeTurn('claude-early', 'an early note', 'the dunlin flew')
+          searched.earlyStamp = writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
             {cwd: searched.cwd, claudeHome: searched.home, harnesses: [codexHarness]},
             createTestHarness(requireClaude()),
@@ -2448,7 +2446,7 @@ describe('rpc wire', () => {
         })
 
         function claudeTranscriptPath(nativeId: string): string {
-          return requireTranscriptPath(requireClaude())(searched.cwd, HarnessSessionId.parse(nativeId), searched.home)
+          return requireTranscriptPath(requireClaude())(searched.cwd, HarnessSessionId.parse(nativeId))
         }
 
         function writeClaudeTurn(nativeId: string, ask: string, answer: string, stamp = nextStamp()): number {
@@ -2528,32 +2526,32 @@ describe('rpc wire', () => {
         }
 
         it('builds the index on the first search, so neither boot nor a plain list reads a transcript', async () => {
-          expect(await listedNativeIds()).toContain('claude-early')
-          writeClaudeTurn('claude-early', 'an early note', 'the sandpiper flew', searched.earlyStamp)
+          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
+          writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the sandpiper flew', searched.earlyStamp)
 
-          expect(await found('sandpiper')).toEqual(['claude-early'])
+          expect(await found('sandpiper')).toEqual([claudeId('claude-early')])
         })
 
         it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched', async () => {
           const outside = join(searched.home, 'elsewhere', 'linked.jsonl')
           mkdirSync(dirname(outside), {recursive: true})
           writeFileSync(outside, JSON.stringify({type: 'user', message: {content: 'a linked pelican'}}) + '\n')
-          symlinkSync(outside, claudeTranscriptPath('claude-linked'))
-          writeClaudeTurn('claude-local', 'a local pelican', 'kept here')
+          symlinkSync(outside, claudeTranscriptPath(claudeId('claude-linked')))
+          writeClaudeTurn(claudeId('claude-local'), 'a local pelican', 'kept here')
 
-          expect(await listedNativeIds()).not.toContain('claude-linked')
-          expect(await found('pelican')).toEqual(['claude-local'])
+          expect(await listedNativeIds()).not.toContain(claudeId('claude-linked'))
+          expect(await found('pelican')).toEqual([claudeId('claude-local')])
         })
 
-        it('indexes truncated, odd and unparseable transcripts by what they hold, and the rest stay findable', async () => {
+        it('indexes a truncated transcript by what it holds, hides the ones Claude cannot title, and the rest stay findable', async () => {
           writeClaudeLines(
-            'claude-truncated',
+            claudeId('claude-truncated'),
             JSON.stringify({type: 'user', message: {content: 'a truncated cormorant'}}) +
               '\n{"type":"assistant","message":{"content":[{"type":"te',
             nextStamp(),
           )
           writeClaudeLines(
-            'claude-odd',
+            claudeId('claude-odd'),
             [
               {type: 'user'},
               {type: 'user', message: {content: 42}},
@@ -2563,62 +2561,65 @@ describe('rpc wire', () => {
               .join('\n') + '\nnot json\n',
             nextStamp(),
           )
-          writeClaudeLines('claude-garbage', '\u0000 nothing readable\n', nextStamp())
-          writeClaudeTurn('claude-plain', 'a plain gull', 'fine')
+          writeClaudeLines(claudeId('claude-garbage'), '\u0000 nothing readable\n', nextStamp())
+          writeClaudeTurn(claudeId('claude-plain'), 'a plain gull', 'fine')
 
-          expect(await listedNativeIds()).toEqual(
-            expect.arrayContaining(['claude-truncated', 'claude-odd', 'claude-garbage', 'claude-plain']),
-          )
-          expect(await found('cormorant')).toEqual(['claude-truncated'])
-          expect(await found('plover')).toEqual(['claude-odd'])
-          expect(await found('gull')).toEqual(['claude-plain'])
+          const listed = await listedNativeIds()
+          expect(listed).toEqual(expect.arrayContaining([claudeId('claude-truncated'), claudeId('claude-plain')]))
+          expect(listed).not.toContain(claudeId('claude-odd'))
+          expect(listed).not.toContain(claudeId('claude-garbage'))
+          expect(await found('cormorant')).toEqual([claudeId('claude-truncated')])
+          expect(await found('plover')).toEqual([])
+          expect(await found('gull')).toEqual([claudeId('claude-plain')])
         })
 
         it('keeps searching the other harnesses while one cannot list its sessions', async () => {
-          writeCodexTurn('codex-tern', 'a tern', 'seen')
-          const unlistable = claudeTranscriptPath('claude-unlistable')
-          mkdirSync(unlistable, {recursive: true})
+          writeCodexTurn('codex-tern', 'a codex tern', 'seen')
+          writeClaudeTurn(claudeId('claude-tern'), 'a claude tern', 'seen')
+          const stateDb = join(searched.home, '.codex', 'state_5.sqlite')
+          renameSync(stateDb, `${stateDb}.kept`)
+          writeFileSync(stateDb, 'not a database')
           try {
-            expect(await found('tern')).toEqual(['codex-tern'])
+            expect(await found('tern')).toEqual([claudeId('claude-tern')])
           } finally {
-            rmSync(unlistable, {recursive: true, force: true})
+            renameSync(`${stateDb}.kept`, stateDb)
           }
         })
 
         it('reads a live session text at most every 30 seconds, while its title and time follow the list', async () => {
-          writeClaudeTurn('claude-live', 'a busy kestrel', 'the first reply')
-          expect(await found('kestrel')).toEqual(['claude-live'])
+          writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel', 'the first reply')
+          expect(await found('kestrel')).toEqual([claudeId('claude-live')])
 
-          const stamp = writeClaudeTurn('claude-live', 'a busy kestrel and merlin', 'the osprey arrived')
+          const stamp = writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel and merlin', 'the osprey arrived')
           expect(await found('osprey')).toEqual([])
           const {sessions: titled} = await searchKit().rpc.sessions.search({term: 'merlin', limit: 10})
-          expect(titled).toMatchObject([{native: {nativeId: 'claude-live'}, updatedAt: stamp}])
+          expect(titled).toMatchObject([{native: {nativeId: claudeId('claude-live')}, updatedAt: stamp}])
 
-          await later(LIVE_REINDEX_MS, async () => expect(await found('osprey')).toEqual(['claude-live']))
+          await later(LIVE_REINDEX_MS, async () => expect(await found('osprey')).toEqual([claudeId('claude-live')]))
         })
 
         it('matches message text of sessions from every harness, newest first and paged, and tolerates a typo', async () => {
-          writeClaudeTurn('claude-orchard', 'plan the kiwi orchard', 'the mango grove is planted')
+          writeClaudeTurn(claudeId('claude-orchard'), 'plan the kiwi orchard', 'the mango grove is planted')
           writeCodexTurn('codex-salsa', 'write a salsa recipe', 'mango salsa needs lime')
-          writeClaudeTurn('claude-chore', 'an unrelated chore', 'done')
+          writeClaudeTurn(claudeId('claude-chore'), 'an unrelated chore', 'done')
 
-          expect(await found('mango')).toEqual(['codex-salsa', 'claude-orchard'])
-          expect(await found('kiwi orchard')).toEqual(['claude-orchard'])
+          expect(await found('mango')).toEqual(['codex-salsa', claudeId('claude-orchard')])
+          expect(await found('kiwi orchard')).toEqual([claudeId('claude-orchard')])
           expect(await found('lime')).toEqual(['codex-salsa'])
-          expect(await found('mangp')).toEqual(['codex-salsa', 'claude-orchard'])
+          expect(await found('mangp')).toEqual(['codex-salsa', claudeId('claude-orchard')])
 
           const first = await searchKit().rpc.sessions.search({term: 'mango', limit: 1})
           expect(first.sessions.map((meta) => meta.native?.nativeId)).toEqual(['codex-salsa'])
           const second = await searchKit().rpc.sessions.search({term: 'mango', cursor: first.next, limit: 1})
-          expect(second).toMatchObject({sessions: [{native: {nativeId: 'claude-orchard'}}], next: null})
+          expect(second).toMatchObject({sessions: [{native: {nativeId: claudeId('claude-orchard')}}], next: null})
         })
 
         it('tolerates typos only when every word has at least four characters', async () => {
-          writeClaudeTurn('claude-item-three', 'review item 3', 'checked')
-          writeClaudeTurn('claude-item-twenty-nine', 'review item 29', 'checked')
-          writeClaudeTurn('claude-item-thirty-nine', 'review item 39', 'checked')
+          writeClaudeTurn(claudeId('claude-item-three'), 'review item 3', 'checked')
+          writeClaudeTurn(claudeId('claude-item-twenty-nine'), 'review item 29', 'checked')
+          writeClaudeTurn(claudeId('claude-item-thirty-nine'), 'review item 39', 'checked')
 
-          expect(await found('39')).toEqual(['claude-item-thirty-nine'])
+          expect(await found('39')).toEqual([claudeId('claude-item-thirty-nine')])
         })
 
         it('matches a renamed native session by its new title', async () => {
@@ -2634,13 +2635,13 @@ describe('rpc wire', () => {
         })
 
         it('re-indexes a changed transcript and drops a removed one', async () => {
-          writeClaudeTurn('claude-changing', 'a first draft', 'drafted')
+          writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'drafted')
           expect(await found('heron')).toEqual([])
 
-          writeClaudeTurn('claude-changing', 'a first draft', 'the heron came back')
-          await later(LIVE_REINDEX_MS, async () => expect(await found('heron')).toEqual(['claude-changing']))
+          writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'the heron came back')
+          await later(LIVE_REINDEX_MS, async () => expect(await found('heron')).toEqual([claudeId('claude-changing')]))
 
-          rmSync(claudeTranscriptPath('claude-changing'))
+          rmSync(claudeTranscriptPath(claudeId('claude-changing')))
           expect(await found('heron')).toEqual([])
         })
 
@@ -2963,7 +2964,6 @@ return seen`
     widget: FakeWidget | null
     mcp: McpClient | null
     mcpSession: string
-    claudeHome: string
     mcpTools: () => Promise<McpTool[]>
   }
 
@@ -2973,7 +2973,6 @@ return seen`
     widget: null,
     mcp: null,
     mcpSession: '',
-    claudeHome: '',
     mcpTools: async () => {
       if (app.mcp === null) throw new Error('the MCP client is not connected')
       return app.mcp.tools()
@@ -3464,7 +3463,7 @@ return seen`
   }
 
   function transcriptPathOf(nativeId: string): string {
-    return requireTranscriptPath(requireClaude())(chatKit().stateRoot, HarnessSessionId.parse(nativeId), app.claudeHome)
+    return requireTranscriptPath(requireClaude())(chatKit().stateRoot, HarnessSessionId.parse(nativeId))
   }
 
   function writeNativeAt(nativeId: string, task: string, updatedAt: number): void {
@@ -3587,3 +3586,8 @@ describe('token charset', () => {
     }
   })
 })
+
+function claudeId(name: string): string {
+  const hex = createHash('sha256').update(name).digest('hex')
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join('-')
+}

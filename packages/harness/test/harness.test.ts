@@ -1,4 +1,4 @@
-import {describe, expect, it, beforeAll, afterEach, test} from 'vitest'
+import {describe, expect, it, beforeAll, afterAll, afterEach, test} from 'vitest'
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
@@ -48,10 +48,10 @@ import {
   parseSessionMeta,
   claudeHistory,
   contextTokensFromTranscript,
-  encodeProjectDir,
   withinProject,
   parseHistory as claudeParse,
   transcriptPath,
+  transcriptRoot,
 } from '../src/claude/history.js'
 import {claudeMcpArgs, mcpServerConfig} from '../src/claude/args.js'
 import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
@@ -459,12 +459,23 @@ describe('claude connect plan', () => {
 })
 
 describe('claude history', () => {
-  function seed(home: string, cwd: string, id: string, body: string, mtimeSec: number) {
-    const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
-    mkdirSync(dir, {recursive: true})
-    const p = join(dir, `${id}.jsonl`)
-    writeFileSync(p, body)
-    utimesSync(p, mtimeSec, mtimeSec)
+  const CLAUDE_IDS = {
+    older: '00000000-0000-4000-8000-00000000000a',
+    newer: '00000000-0000-4000-8000-00000000000b',
+    hidden: '00000000-0000-4000-8000-00000000000c',
+  }
+  const CLAUDE_PAGED_IDS = {
+    newest: '00000000-0000-4000-8000-000000000001',
+    tieHigh: '00000000-0000-4000-8000-000000000003',
+    tieLow: '00000000-0000-4000-8000-000000000002',
+    oldest: '00000000-0000-4000-8000-000000000000',
+  }
+
+  function seed(cwd: string, id: string, body: string, mtimeSec: number) {
+    const path = transcriptPath(cwd, id)
+    mkdirSync(join(path, '..'), {recursive: true})
+    writeFileSync(path, body)
+    utimesSync(path, mtimeSec, mtimeSec)
   }
 
   describe('parseHistory', () => {
@@ -747,61 +758,55 @@ describe('claude history', () => {
   })
 
   describe('listSessions', () => {
-    it('lists newest-first with title + count', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+    it('lists newest first under the Claude config dir, titled and sized the way Claude shows them', async () => {
       const cwd = '/proj/x'
-      seed(home, cwd, 'old', JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
-      seed(
-        home,
-        cwd,
-        'new',
-        [
-          JSON.stringify({type: 'user', message: {content: 'newer task'}}),
-          JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}}),
-        ].join('\n') + '\n',
-        2000,
-      )
-      const out = (await claudeHistory.list(cwd, FIRST_PAGE, home)).sessions
-      expect(out.map((s) => s.id)).toEqual(['new', 'old'])
-      expect(out[0]).toMatchObject({derivedTitle: 'newer task'})
-      rmSync(home, {recursive: true, force: true})
+      const newer = [
+        JSON.stringify({type: 'user', message: {content: 'newer task'}}),
+        JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}}),
+      ].join('\n')
+      seed(cwd, CLAUDE_IDS.older, JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
+      seed(cwd, CLAUDE_IDS.newer, newer + '\n', 2000)
+      seed(cwd, CLAUDE_IDS.hidden, JSON.stringify({type: 'assistant', message: {content: []}}) + '\n', 3000)
+      const out = (await claudeHistory.list(cwd, FIRST_PAGE)).sessions
+      expect(out).toEqual([
+        expect.objectContaining({
+          id: CLAUDE_IDS.newer,
+          derivedTitle: 'newer task',
+          updatedAt: 2_000_000,
+          sizeBytes: Buffer.byteLength(newer + '\n'),
+        }),
+        expect.objectContaining({id: CLAUDE_IDS.older, derivedTitle: 'first task', updatedAt: 1_000_000}),
+      ])
+      expect(await claudeHistory.meta(cwd, HarnessSessionId.parse(CLAUDE_IDS.newer))).toEqual(out[0])
+      expect(await claudeHistory.meta(cwd, HarnessSessionId.parse(CLAUDE_IDS.hidden))).toBeNull()
+      rmSync(transcriptRoot(cwd), {recursive: true, force: true})
     })
 
-    it('pages newest first, breaks updatedAt ties by id, and reads only the transcripts on the page', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+    it('pages newest first and breaks updatedAt ties by id', async () => {
       const cwd = '/proj/paged'
       const body = JSON.stringify({type: 'user', message: {content: 'paged task'}}) + '\n'
-      seed(home, cwd, 'newest', body, 3000)
-      seed(home, cwd, 'tie-b', body, 2000)
-      seed(home, cwd, 'tie-a', body, 2000)
-      const oldest = transcriptPath(cwd, 'oldest', home)
-      blockingTranscript(oldest, 1000)
+      seed(cwd, CLAUDE_PAGED_IDS.newest, body, 3000)
+      seed(cwd, CLAUDE_PAGED_IDS.tieHigh, body, 2000)
+      seed(cwd, CLAUDE_PAGED_IDS.tieLow, body, 2000)
+      seed(cwd, CLAUDE_PAGED_IDS.oldest, body, 1000)
       await expectPagingContract(
-        (page) => claudeHistory.list(cwd, page, home),
-        PAGED_IDS,
+        (page) => claudeHistory.list(cwd, page),
+        CLAUDE_PAGED_IDS,
         2_000_000,
-        async () => {
-          rmSync(oldest)
-          seed(home, cwd, 'oldest', body, 1000)
-        },
+        async () => {},
       )
-      rmSync(home, {recursive: true, force: true})
+      rmSync(transcriptRoot(cwd), {recursive: true, force: true})
     })
 
     it('returns [] for a missing dir', async () => {
-      expect(await claudeHistory.list('/no/such', FIRST_PAGE, mkdtempSync(join(tmpdir(), 'conciv-home-')))).toEqual({
-        sessions: [],
-        next: null,
-      })
+      expect(await claudeHistory.list('/no/such', FIRST_PAGE)).toEqual({sessions: [], next: null})
     })
   })
 
   describe('withinProject', () => {
     it('rejects traversal and accepts a normal id', () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      expect(withinProject('/proj', '../../etc/passwd', home)).toBe(false)
-      expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222', home)).toBe(true)
-      rmSync(home, {recursive: true, force: true})
+      expect(withinProject('/proj', '../../etc/passwd')).toBe(false)
+      expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222')).toBe(true)
     })
   })
 
@@ -1408,11 +1413,11 @@ describe('contained path', () => {
     for (const dir of scratch.splice(0)) rmSync(dir, {recursive: true, force: true})
   })
 
-  function claudeHome(cwd: string): string {
-    const home = mkdtempSync(join(tmpdir(), 'conciv-contain-home-'))
-    scratch.push(home)
-    mkdirSync(join(home, '.claude', 'projects', encodeProjectDir(cwd)), {recursive: true})
-    return home
+  function claudeProject(cwd: string): string {
+    const root = transcriptRoot(cwd)
+    scratch.push(root)
+    mkdirSync(root, {recursive: true})
+    return root
   }
 
   describe('containedPath refuses anything that lands outside the root', () => {
@@ -1445,37 +1450,37 @@ describe('contained path', () => {
     it('yields a path for an ordinary token', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
-      const home = claudeHome(cwd)
+      const root = claudeProject(cwd)
       const token = HarnessSessionId.parse('018f3a2b-4c5d-6e7f')
-      writeFileSync(join(home, '.claude', 'projects', encodeProjectDir(cwd), `${token}.jsonl`), '')
-      expect(transcriptPathWithin(claudeHistory, cwd, token, home)).not.toBeNull()
+      writeFileSync(join(root, `${token}.jsonl`), '')
+      expect(transcriptPathWithin(claudeHistory, cwd, token)).not.toBeNull()
     })
 
     it('refuses a token whose transcript is a symlink out of the project directory', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       const outside = mkdtempSync(join(tmpdir(), 'conciv-outside-'))
       scratch.push(cwd, outside)
-      const home = claudeHome(cwd)
+      const root = claudeProject(cwd)
       const secret = join(outside, 'secret.jsonl')
       writeFileSync(secret, 'TOP SECRET')
       const token = HarnessSessionId.parse('018f3a2b-dead-beef')
-      symlinkSync(secret, join(home, '.claude', 'projects', encodeProjectDir(cwd), `${token}.jsonl`))
-      expect(transcriptPathWithin(claudeHistory, cwd, token, home)).toBeNull()
+      symlinkSync(secret, join(root, `${token}.jsonl`))
+      expect(transcriptPathWithin(claudeHistory, cwd, token)).toBeNull()
     })
 
     it('refuses a traversing token even when the brand parse is bypassed', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
-      const home = claudeHome(cwd)
+      claudeProject(cwd)
       const traversal = UncheckedHarnessSessionId.parse('../../secret')
-      expect(transcriptPathWithin(claudeHistory, cwd, traversal, home)).toBeNull()
+      expect(transcriptPathWithin(claudeHistory, cwd, traversal)).toBeNull()
     })
 
     it('yields nothing for a history that declares no transcript path', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
       const pathless = {...claudeHistory, transcriptPath: undefined, transcriptRoot: undefined}
-      expect(transcriptPathWithin(pathless, cwd, HarnessSessionId.parse('tok'), claudeHome(cwd))).toBeNull()
+      expect(transcriptPathWithin(pathless, cwd, HarnessSessionId.parse('tok'))).toBeNull()
     })
   })
 })
@@ -2491,21 +2496,21 @@ describe('transcript handles', () => {
   const CLAUDE_CWD = '/workspace/claude.demo'
 
   describe('claude transcript handle', () => {
-    const state = {home: ''}
-
     beforeAll(async () => {
-      state.home = await mkdtemp(join(tmpdir(), 'claude-handle-'))
-      await mkdir(join(state.home, '.claude', 'projects', encodeProjectDir(CLAUDE_CWD)), {recursive: true})
+      await mkdir(transcriptRoot(CLAUDE_CWD), {recursive: true})
+    })
+
+    afterAll(() => {
+      rmSync(transcriptRoot(CLAUDE_CWD), {recursive: true, force: true})
     })
 
     const seed = (id: string, body: string): string => {
-      const path = transcriptPath(CLAUDE_CWD, id, state.home)
+      const path = transcriptPath(CLAUDE_CWD, id)
       writeFileSync(path, body)
       return path
     }
 
-    const observe = (id: string): TranscriptHandle =>
-      claudeHistory.observe(CLAUDE_CWD, HarnessSessionId.parse(id), state.home)
+    const observe = (id: string): TranscriptHandle => claudeHistory.observe(CLAUDE_CWD, HarnessSessionId.parse(id))
 
     it('reads only the bytes appended since the previous read', async () => {
       const first = userLine('aaa')
@@ -2576,7 +2581,7 @@ describe('transcript handles', () => {
     })
 
     it('reports an unreadable transcript as a typed failure', async () => {
-      mkdirSync(transcriptPath(CLAUDE_CWD, 'directory', state.home), {recursive: true})
+      mkdirSync(transcriptPath(CLAUDE_CWD, 'directory'), {recursive: true})
       const handle = observe('directory')
       expect(failure(await handle.read()).reason).toBe('unreadable')
       handle.close()
@@ -2640,7 +2645,7 @@ describe('transcript handles', () => {
     it('summarises a transcript with one read: meta plus a message tail', async () => {
       const raw = fixture('claude-transcript.jsonl')
       seed('summary', raw)
-      const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'), state.home)
+      const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'))
       if (!summary) throw new Error('expected a summary')
       const expected = golden('claude-golden.json')
       expect(summary.meta).toMatchObject({
@@ -2650,7 +2655,7 @@ describe('transcript handles', () => {
         model: 'claude-opus-4-8',
       })
       expect(summary.tail).toEqual(expected.messages.slice(-12))
-      expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'), state.home)).toBeNull()
+      expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'))).toBeNull()
     })
   })
 
