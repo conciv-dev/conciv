@@ -99,11 +99,39 @@ sessions: {
 - `invalidateSessions` (`data/app-data.ts`) and `refresh-coordinator.ts` invalidate both `sessions.list` and `sessions.get` keys. Query keys already prefix-match by procedure.
 - `harness-testkit/src/create-testkit.ts` cleanup pages through the list until `next` is null.
 
+### 5. Search on the server (decided 2026-11-06)
+
+The picker's search box queries the server. It never filters loaded pages in the browser.
+
+- **What matches:** the title the picker shows (`row.title ?? native.derivedTitle`) or the session id contains the search text, case-insensitive. A search narrows the list; order and cursor rules stay as in section 1.
+- **Contract:** `sessions.list` input gains `search: z.string().trim().max(200).optional()`. The page type gains it too: `HarnessListPage = {after, limit, search: string | null}`.
+- **Harnesses:**
+  - **Codex** and **OpenCode** add the match to their SQL: `LIKE ? ESCAPE '\'` on the columns their `derivedTitle` comes from, plus the id.
+  - **Claude** and **Pi** walk the stat-sorted files from the cursor. For each file, they read only up to the first user message, which is what the title comes from. They stop once the page is full. The reader stops early; it never folds the whole transcript just to get a title.
+- **Core, renamed sessions:** a native-backed row with its own `title` is matched on that title, not the native one.
+  - Core drops a native page entry when its row title exists and doesn't match.
+  - A third source supplies renamed rows whose title matches: a SQL query for `harness_session_id IS NOT NULL AND title LIKE ?`, then `meta()` for each one's `updatedAt`, filtered by the cursor and merged by `(updatedAt, id)` like the other two sources.
+  - The number of renamed sessions is small, so this source isn't paged in SQL. That is its known ceiling.
+- **Conciv-only rows** add `title LIKE ?` to their SQL page.
+- **Widget:** the search text goes into the infinite query's key, debounced with `@solid-primitives/scheduled`. A new search starts over from page one. The combobox's `filter` stays off: the server already narrowed the list.
+
+### 6. Virtual list and load-more row (decided 2026-11-06)
+
+The picker's list is virtualized with `@tanstack/solid-virtual`, following TanStack's infinite-scroll example:
+
+- The rows are flat: date-group headers and sessions are both virtual items.
+- When `hasNextPage` is true, `count` is the row count plus one, and the extra last row is a visible "Loading more…" row.
+- The next page is fetched from the virtualizer's `onChange` callback when the last virtual item is the loader row and no fetch is running. That callback is an event; there is no `createEffect`.
+- The `@solid-primitives/intersection-observer` dependency and the sentinel div are removed.
+- The combobox stays an Ark Combobox with keyboard navigation working. Use Ark's virtualized combobox pattern, `scrollToIndexFn`.
+- If ui-kit-system's `combobox.tsx` lacks what this needs, add it there first.
+
 ## Out of scope
 
 - No caching of folds or file handles between calls. The previous change took that approach and it is rejected.
 - No change to `messages`, `observe`, or how a single transcript is read.
 - No TanStack DB migration for the widget. The maintainer chose TanStack Query's infinite query.
+- Full-text search inside transcripts: search matches titles and ids only.
 
 ## Overlap with open PRs
 
