@@ -12,7 +12,7 @@ export function createMeasurer(_input: {config: DesignConfig}): Measurer {
   return {
     probe: async (page) => {
       await widgetConnected({page, tolerances})
-      const reply = await askMeasure({page, height: PROBE_HEIGHT, timeout: tolerances.measureTimeoutMs})
+      const reply = await askMeasure({page, height: PROBE_HEIGHT, timeout: PROBE_TIMEOUT_MS})
       return {route: reply.route, framework: frameworkOf(reply)}
     },
     measure: async (request) => {
@@ -37,6 +37,8 @@ type MeasureReply = z.output<typeof MeasureReplySchema>
 const LiveComponentsSchema = RunSchema.shape.extras
 
 const PROBE_HEIGHT = 1
+
+const PROBE_TIMEOUT_MS = 3000
 
 const ROOT_STYLES = {
   color: 'rgb(0, 0, 0)',
