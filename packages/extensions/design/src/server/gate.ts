@@ -1,3 +1,5 @@
+import {formatHex8, parse} from 'culori'
+import {z} from 'zod'
 import type {Box, Counts, Coverage, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import type {renderersOf} from './renderers.js'
@@ -34,7 +36,7 @@ export function gateOf(input: {
 
 type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
 
-type Row = {head: string; measured?: {a: number; b: number; position: boolean}}
+type Row = {head: string; measured?: {a: number; b: number; position: boolean}; paint?: boolean}
 
 type Record = {
   id: string
@@ -44,6 +46,7 @@ type Record = {
   parent: string | null
   leaf: boolean
   direction?: 'row' | 'column'
+  fill: {color: string; text: boolean} | null
 }
 
 const FAR_PX = 24
@@ -58,6 +61,9 @@ const SLIGHT_SHARE = 0.15
 const NOTICE_SHARE = 0.4
 const NOTICE_PX = 96
 const FLAT_KINDS = new Set(['text', 'line'])
+const SOLID = 'solid'
+const CLEAR = 'transparent'
+const FillsSchema = z.array(z.object({type: z.string(), color: z.string().optional(), opacity: z.number().optional()}))
 
 function recordsOf(root: DesignNode): Record[] {
   return [...walk(root)].flatMap(({node, parent}): Record[] => {
@@ -73,9 +79,35 @@ function recordsOf(root: DesignNode): Record[] {
         parent: gate.parent,
         leaf: gate.leaf,
         ...(gate.direction === undefined ? {} : {direction: gate.direction}),
+        fill: fillOf(node),
       },
     ]
   })
+}
+
+function fillOf(node: DesignNode): Record['fill'] {
+  if (node.kind === 'image' || node.figma?.fields.image === true) return null
+  const fills = FillsSchema.safeParse(node.figma?.fields.fills)
+  const [fill] = fills.success ? fills.data : []
+  if (fill === undefined || fills.data?.length !== 1 || fill.type !== SOLID || fill.color === undefined) return null
+  const parsed = parse(fill.color)
+  if (parsed === undefined) return null
+  return {color: paintKey(formatHex8({...parsed, alpha: fill.opacity ?? 1})), text: node.kind === 'text'}
+}
+
+function paintKey(hex: string): string {
+  return hex.endsWith('00') ? CLEAR : hex
+}
+
+function paintRows(input: {label: string; r: Record; d: LiveComponent}): Row[] {
+  const {label, r, d} = input
+  if (r.fill === null) return []
+  const shown = r.fill.text ? d.styles.color : d.styles.background
+  const parsed = parse(shown)
+  const live = parsed === undefined ? shown : paintKey(formatHex8(parsed))
+  if (live === r.fill.color) return []
+  const property = r.fill.text ? 'color' : 'background-color'
+  return [{head: `${label}: paint ${property} ${live} where the design fills ${r.fill.color}`, paint: true}]
 }
 
 function imageGate(input: {node: DesignNode; parent: DesignNode | null}): NonNullable<DesignNode['gate']> {
@@ -124,6 +156,7 @@ function rowsOf(input: {
       ? [{head: `${label}: flex-direction ${dir}; the design is a ${want}`}]
       : []),
     ...(parent === undefined || pd === undefined ? [] : positionRows({label, r, box, parent, pd})),
+    ...paintRows({label, r, d}),
   ]
 }
 
@@ -165,6 +198,7 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
 function worded(input: {record: Record; element: LiveComponent; row: Row}): GateRow {
   const {record, element, row} = input
   const base = {node: record.id, key: element.key, kind: record.kind, name: record.name}
+  if (row.paint === true) return {...base, text: row.head, magnitude: 'much'}
   if (row.measured === undefined)
     return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}
   const magnitude = magnitudeOf(row.measured)
