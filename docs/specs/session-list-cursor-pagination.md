@@ -103,24 +103,18 @@ sessions: {
 
 The picker's search box queries the server. It never filters loaded pages in the browser.
 
-- **What matches:** a native session matches when its title or its message text contains the search words, prefix-matched, through a full-text index. A conciv row matches on its own title. A search narrows the list; order and cursor rules stay as in section 1, so results are newest first, not ranked.
+- **What matches:** a native session matches on its title or its message text through an Orama full-text index, with typo tolerance 1. A conciv-only row matches on its own title. Results keep section 1's order and cursor (newest first), not relevance order.
 - **Contract:** `sessions.list` input gains `search: z.string().trim().max(200).optional()`.
-- **The index (core, decided 2026-11-06):**
-  - It's one SQLite FTS5 table in conciv's own database, keyed per `(harness, harnessSessionId)`:
-    ```sql
-    CREATE VIRTUAL TABLE session_search USING fts5(title, body, content='', contentless_delete=1, detail=column)
-    ```
-    plus a plain table `session_search_state(rowid, harness, harness_session_id, indexed_updated_at)`. Both are added through a drizzle migration.
-  - **No message text is stored.** `content=''` keeps only the inverted index; the columns read back as null. `detail=column` drops token positions, so the original text can't be put back together in order. The cost is no phrase queries; prefix queries still work.
-  - **Harness side:** `HarnessHistory` gains `searchDocument(cwd, id, home?): Promise<{title: string; body: string}>`. It gives the title plus the user and assistant message text, read through the same transcript reader the harness already has. It's required when `transcriptHistory` is true, so all four harnesses implement it.
-  - The harness also gains `stamps(cwd, home?): Promise<{id, updatedAt}[]>`, which is metadata only: a stat for Claude and Pi, a cheap SQL select for Codex and OpenCode.
-  - **Freshness:** on a list call with `search`, core calls `stamps`, re-indexes each session whose `updatedAt` is newer than `indexed_updated_at` (delete the row, insert again), and deletes the index rows of sessions that are gone. The first search reads every transcript once; after that, only changed ones. That's the known ceiling: a cold first search on a huge history is slow. The upgrade path is indexing in the background at engine start.
-  - **Query:** `session_search MATCH ?` with every word of the search turned into a quoted prefix term (`"word"*`). User input is never passed as raw FTS syntax. The matching ids are joined to `session_search_state`, filtered by the `(updatedAt, id)` cursor, and limited to `limit + 1`. The page's sessions then come from the harness `meta(cwd, id)`.
-  - Harness `list` itself never sees `search`. The index replaces per-harness matching, with one search path for every harness.
-- **Core, renamed sessions:**
-  - The index's `title` column holds the title the picker shows, `row.title ?? native.derivedTitle`.
-  - Renaming a native-backed session deletes its `session_search_state` row, so the next search re-indexes it under the new name.
-- **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\'` to their SQL page and merge with the index results by `(updatedAt, id)`, as in section 2.
+- **The index (core, Orama, decided 2026-11-06):**
+  - `@orama/orama` (3.1.18, approved) is a dependency of core. There is one in-memory Orama instance per engine, with schema `{harness: 'enum', title: 'string', body: 'string', updatedAt: 'number'}`. The document id is `${harness}:${harnessSessionId}`.
+  - **Memory only.** No persistence plugin and no Orama data written to disk; message text never lands in conciv's database. Orama has to keep the documents in memory, because `remove()` re-tokenizes the stored document.
+  - **Harness side:** `HarnessHistory` gains `stamps(cwd, home?): Promise<{id, updatedAt}[]>`, which is metadata only: a stat for Claude and Pi, a cheap SQL select for Codex and OpenCode. It also gains `searchDocument(cwd, id, home?): Promise<{title: string; body: string}>`: the title plus the user and assistant message text, read through the harness's existing transcript reader. Both are required when `transcriptHistory` is true, so all four harnesses implement them.
+  - **Build:** the index is built in the background when the engine starts, with `insertMultiple` in batches so the event loop stays free. A search that arrives before the build finishes waits for it. Build errors are logged and surfaced as a failed search, never swallowed.
+  - **Freshness:** each search first calls `stamps`. A session whose stored `updatedAt` is older gets re-indexed (`remove` then `insert`), a new session is inserted, and a gone session is removed. Measured on this repo: 19 Claude transcripts with 6 MB of message text took about 2.5 s to read and index, used about 12 MB of heap, and searched in under 10 ms.
+  - **Query:** `search(db, {term, properties: ['title', 'body'], tolerance: 1, where: {updatedAt: {lte: cursor.updatedAt}}, sortBy: {property: 'updatedAt', order: 'DESC'}})`. Core applies the exact `(updatedAt, id)` cursor on the hits and keeps `limit + 1`. The fetch limit covers the hits that share the cursor's `updatedAt`, counted with a `where: {updatedAt: {eq}}` preflight. The page's sessions then come from the harness `meta(cwd, id)`.
+  - Harness `list` never sees `search`. Search has one path for every harness.
+- **Core, renamed sessions:** the indexed `title` is the title the picker shows, `row.title ?? native.derivedTitle`. A rename updates that session's Orama document right away.
+- **Conciv-only rows** (never sent, so no transcript) add `title LIKE ? ESCAPE '\\'` to their SQL page and merge with the index hits by `(updatedAt, id)`, as in section 2.
 - **Widget:** the search text goes into the infinite query's key, debounced with `@solid-primitives/scheduled`. A new search starts over from page one. The combobox's `filter` stays off: the server already narrowed the list.
 
 ### 6. Virtual list and load-more row (decided 2026-11-06)
@@ -139,7 +133,8 @@ The picker's list is virtualized with `@tanstack/solid-virtual`, following TanSt
 - No caching of folds or file handles between calls. The previous change took that approach and it is rejected.
 - No change to `messages`, `observe`, or how a single transcript is read.
 - No TanStack DB migration for the widget. The maintainer chose TanStack Query's infinite query.
-- Ranked results and phrase queries: results stay newest first, and the index keeps no token positions.
+- Relevance ordering: results stay newest first.
+- Embeddings and semantic search: a follow-up PR (a local model via `@huggingface/transformers` feeding Orama vector fields).
 
 ## Overlap with open PRs
 
