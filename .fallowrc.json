@@ -102,6 +102,7 @@
   "ignoreDependencies": [
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
+    "@tanstack/ai-mcp",
     "collections",
     "@conciv/app-extensions",
     "conciv",

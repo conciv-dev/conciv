@@ -93,6 +93,9 @@ catalogs:
     '@tanstack/ai-isolate-quickjs':
       specifier: 1.0.0
       version: 1.0.0
+    '@tanstack/ai-mcp':
+      specifier: 1.0.0
+      version: 1.0.0
     '@tanstack/ai-opencode':
       specifier: 1.0.0
       version: 1.0.0
@@ -1739,6 +1742,9 @@ importers:
       '@tanstack/ai-isolate-quickjs':
         specifier: 'catalog:'
         version: 1.0.0(@tanstack/ai-code-mode@1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
+      '@tanstack/ai-mcp':
+        specifier: 'catalog:'
+        version: 1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)
@@ -2161,12 +2167,12 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
-      '@modelcontextprotocol/sdk':
-        specifier: 'catalog:'
-        version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      '@tanstack/ai-mcp':
+        specifier: 'catalog:'
+        version: 1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -10497,6 +10503,15 @@ packages:
     resolution: {integrity: sha512-/62KNZYPYlvCIWwpNlRkuh2CxYr8EWuUcB30GQi9BRUV2bM6ooD1HnHwZ4aefKXee7WIjFN+l98UktycXyQ7Ug==}
     peerDependencies:
       '@tanstack/ai-code-mode': ^1.0.0
+
+  '@tanstack/ai-mcp@1.0.0':
+    resolution: {integrity: sha512-HPjtpK1nb7WKaAr5cE1/DlcDR/BJyLYeYoMcuS64V7ZefCJvF/6Dj0yb+Elt9B4dZpJ85SWRBzNyf7qGjJI1hQ==}
+    hasBin: true
+    peerDependencies:
+      '@tanstack/ai-harness': ^0.1.0
+    peerDependenciesMeta:
+      '@tanstack/ai-harness':
+        optional: true
 
   '@tanstack/ai-opencode@1.0.0':
     resolution: {integrity: sha512-OfgvswdMixZiB5qBW2yJm67tCpiG4i3o4O/7ADHkEIt3TYUoyepdasQQOlpl4O27ebVKPTUQZK8rNeY3AlenYw==}
@@ -23158,6 +23173,16 @@ snapshots:
     dependencies:
       '@tanstack/ai-code-mode': 1.0.1(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
       quickjs-emscripten: 0.31.0
+
+  '@tanstack/ai-mcp@1.0.0(@opentelemetry/api@1.9.1)(zod@4.6.7)':
+    dependencies:
+      '@modelcontextprotocol/client': 2.4.0
+      '@modelcontextprotocol/server': 2.4.0
+      '@tanstack/ai': 1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      jose: 6.2.13
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - zod
 
   '@tanstack/ai-opencode@1.0.0(@tanstack/ai-sandbox@1.0.0(patch_hash=8f6b5e1f0f09d0c70e762f5ee69a05e916f1ed0fa95388b8bca0e868c05f6545)(@cfworker/json-schema@4.1.1)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))(@tanstack/ai@1.0.1(@opentelemetry/api@1.9.1)(zod@4.6.7))':
     dependencies:

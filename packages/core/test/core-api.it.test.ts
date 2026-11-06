@@ -205,13 +205,6 @@ describe('api engine staleness di', () => {
     fingerprint: 'injected1234',
   }
 
-  const INITIALIZE = JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'staleness-di-test', version: '0'}},
-  })
-
   afterEach(async () => {
     await state.served?.close()
     await state.dispose?.()
@@ -236,7 +229,18 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    it('reports the injected probe consistently on /health, rpc meta.engine and the mcp instructions', async () => {
+    async function executeDescription(base: string): Promise<string> {
+      const mcp = await connectMcpClient(`${base}/api/mcp`)
+      try {
+        const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
+        if (!tool) throw new Error('execute_typescript not on /api/mcp')
+        return tool.description
+      } finally {
+        await mcp.close()
+      }
+    }
+
+    it('reports the injected probe consistently on /health, rpc meta.engine and the execute tool description', async () => {
       const calls = {count: 0}
       const served = await serveWithProbe(() => {
         calls.count += 1
@@ -245,17 +249,21 @@ describe('api engine staleness di', () => {
 
       const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const mcp = await fetch(`${served.base}/api/mcp`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json', accept: 'application/json, text/event-stream'},
-        body: INITIALIZE,
-      })
-      const instructions = await mcp.text()
+      const description = await executeDescription(served.base)
 
       expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
-      expect(instructions).toContain('@conciv/injected-probe')
+      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description).toContain('@conciv/injected-probe')
+      expect(description).toContain('Rules of the sandbox:')
       expect(calls.count).toBeGreaterThanOrEqual(3)
+    }, 20_000)
+
+    it('the execute tool description says nothing about staleness while the engine matches the code on disk', async () => {
+      const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
+      const description = await executeDescription(served.base)
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description).not.toMatch(/outdated|restart the dev server/i)
     }, 20_000)
   })
 })
@@ -989,6 +997,23 @@ describe('api mcp loopback host', () => {
       expect(reply.status).toBe(403)
       expect(reply.body).toBe('forbidden host')
       expect(reply.body).not.toContain('origin')
+    })
+  })
+
+  describe('/api/mcp engine gate (IT, real http)', () => {
+    const kit = sharedKit(() => bootKit())
+
+    it('an MCP client without the agent token is refused with 401', async () => {
+      await expect(connectMcpClient(`${new URL(kit().base).origin}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
+
+    it('an MCP client on the token-scoped path lists the tools', async () => {
+      const mcp = await connectMcpClient(`${kit().base}/api/mcp`)
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
     })
   })
 })
@@ -2401,7 +2426,7 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).not.toContain('fixture_echo')
+        expect(description).toContain('external_fixture_echo')
       })
 
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
