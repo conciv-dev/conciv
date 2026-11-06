@@ -217,6 +217,7 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
     return async (env) => {
       seedTree(env.stateRoot)
       return {
+        agentToken: 'fake-token',
         fetch: (request) =>
           new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
             headers: {'content-type': 'application/json'},
@@ -251,6 +252,7 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
   it('reports a failed app dispose together with a failed state root removal', async () => {
     const locked = {dir: ''}
     const boot: BootApp = async (env) => ({
+      agentToken: 'fake-token',
       fetch: (request) =>
         new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
           headers: {'content-type': 'application/json'},

@@ -1,7 +1,9 @@
 import {expect, test, type Page} from '@playwright/test'
+import {loginWidget} from '@conciv/e2e-utils/widget'
 import {makeCallTool, resolveSession} from '../packed/engine-client.js'
 import {
   DEV_PORT,
+  agentApiBase,
   ENGINE_PORT,
   SECOND_SENTINEL,
   buildProd,
@@ -46,13 +48,6 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     if (fixture !== undefined) teardownFixture(fixture)
   })
 
-  async function openWidget(page: Page): Promise<void> {
-    const launcher = page.getByRole('button', {name: 'Open conciv chat'})
-    await launcher.waitFor({state: 'visible', timeout: 60_000})
-    await launcher.click()
-    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 60_000})
-  }
-
   function chip(page: Page) {
     return page
       .getByRole('dialog', {name: 'conciv chat agent'})
@@ -60,8 +55,10 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
   }
 
   async function gotoAndOpen(page: Page): Promise<void> {
-    await page.goto(`http://localhost:${DEV_PORT}/`, {waitUntil: 'domcontentloaded', timeout: 60_000})
-    await openWidget(page)
+    if (handle === undefined) throw new Error('next dev is not running')
+    await loginWidget(page, `http://localhost:${DEV_PORT}/`, handle.logPath)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 60_000})
   }
 
   async function restartFresh(page: Page, webpack: boolean): Promise<void> {
@@ -120,7 +117,7 @@ test.describe.serial('folder-installed extension on packed Next 16.2 (turbopack 
     expect(pageErrors).toEqual([])
     await expect(page.getByText(/Unhandled Runtime Error|Build Error|Failed to compile/i)).toHaveCount(0)
 
-    const apiBase = `http://127.0.0.1:${ENGINE_PORT}`
+    const apiBase = agentApiBase(fixture.appDir)
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     await expect(callTool('tanstack_router_state', {})).rejects.toThrow(/TanStack router not found on page/)
     await expect(chip(page)).toBeVisible()

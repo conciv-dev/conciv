@@ -1,3 +1,4 @@
+import {upgradeWebSocket} from '@hono/node-server'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import type {AnyRouter} from '@orpc/server'
@@ -112,6 +113,7 @@ export async function startTerminalServer(
     harness: opts.harnessOf ?? (() => harness),
     symbolicate: async () => null,
     nativeUrl: () => undefined,
+    upgradeWebSocket,
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

@@ -45,7 +45,8 @@ export function Dialog(
       open={props.open}
       onOpenChange={(d) => props.onOpenChange?.(d.open)}
       role={props.role ?? 'dialog'}
-      modal
+      modal={false}
+      trapFocus
       closeOnEscape={props.dismissable ?? false}
       closeOnInteractOutside={props.dismissable ?? false}
       initialFocusEl={props.initialFocus}
@@ -57,6 +58,7 @@ export function Dialog(
           <Ark.Content
             class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
             aria-label={props.title === undefined ? props.label : undefined}
+            aria-modal="true"
           >
             <div class={SHELL}>
               <Show when={props.title}>

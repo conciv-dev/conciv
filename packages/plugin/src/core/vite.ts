@@ -141,6 +141,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
@@ -220,6 +221,9 @@ type DevToolsContext = {
       renderer: {importFrom: string; importName: string}
     }) => void
   }
+  rpc: {
+    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+  }
 }
 
 type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
@@ -237,6 +241,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let deferToTsd = false
   let managedExcludes: string[] = []
   let docked = false
+  let devServer: ViteDevServer | undefined
   return {
     name: 'conciv',
     apply: 'serve',
@@ -250,6 +255,17 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           icon: CONCIV_MARK_URI,
           type: 'custom-render',
           renderer: {importFrom: EXTENSIONS_DOCK_ROUTE, importName: 'default'},
+        })
+        context.rpc.register({
+          name: 'conciv:engine-token',
+          type: 'action',
+          handler: () => {
+            if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
+            return engine.trustBrowser(
+              {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
+              Date.now(),
+            )
+          },
         })
       },
     },
@@ -322,6 +338,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
+      devServer = server
       mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },

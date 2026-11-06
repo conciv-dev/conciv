@@ -20,7 +20,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 
 ## Invariants
 
-- `headerSessionId` / `callerScope` (`mount.ts`): a malformed session header throws BAD_REQUEST; a missing one on a session-scoped procedure throws UNAUTHORIZED
+- `headerSessionId` / `callerScope` (`mount.ts`): a malformed session header throws BAD_REQUEST; a missing one on a session-scoped procedure throws BAD_REQUEST too, so a 401 only ever means the login gate refused
 - `registry.call` (`router.ts`): UNKNOWN_TOOL when the session has no such tool; page errors map through `PAGE_ERROR_NAME`
 - `refuseUnapproved` (`router.ts`): skipped for widget-origin callers; tools with `approval: 'ask'` go through `plane.admitCall` and throw APPROVAL_DENIED on refusal (registry.call, server.reload, server.restart)
 - `callTool` (`router.ts`): throws when a tool has no outputSchema and parses output with it; `NO_BUNDLER` maps to the NO_BUNDLER error

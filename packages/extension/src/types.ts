@@ -8,6 +8,7 @@ import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/h
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
+import type {UpgradeWebSocket} from './rpc-mount.js'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -108,6 +109,7 @@ export type ServerApi<Config> = {
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined
+  upgradeWebSocket: UpgradeWebSocket
 }
 
 export type ServerResult<Context> = {

@@ -3,7 +3,6 @@ import type {QueryClient} from '@tanstack/solid-query'
 import type {RpcClient} from '@conciv/contract'
 import type {ChatSession} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
-import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
@@ -12,6 +11,7 @@ import type {ExtensionInstance} from '../extension/extension-slots.js'
 import type {LiveSessions} from './live-sessions.js'
 import type {WarmSession} from './warm-session.js'
 import type {HostTheme} from '../lib/color-scheme.js'
+import type {LauncherAnchor} from '../lib/draggable-position.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -24,7 +24,7 @@ export type AppContextValue = {
   announce: (message: string, assertive?: boolean) => void
   layers: LayerStack
   suppressed: () => '' | undefined
-  fabPosition: Accessor<TriggerPosition>
+  fabAnchor: Accessor<LauncherAnchor>
   instances: ExtensionInstance[]
   connected: () => boolean
   arrivedFromConnect: () => boolean
@@ -90,8 +90,8 @@ export function useSuppressed(): () => '' | undefined {
   return useAppScope('useSuppressed', (app) => app.suppressed)
 }
 
-export function useFabPosition(): Accessor<TriggerPosition> {
-  return useAppScope('useFabPosition', (app) => app.fabPosition)
+export function useFabAnchor(): Accessor<LauncherAnchor> {
+  return useAppScope('useFabAnchor', (app) => app.fabAnchor)
 }
 
 export function useInstances(): ExtensionInstance[] {

@@ -1,11 +1,12 @@
+import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
-import {Hono} from 'hono'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
 import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import {agentPath} from './engine-login.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -17,6 +18,7 @@ import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/serve
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
 import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {BrowserRequester} from '@conciv/protocol/engine-trust'
 
 export type PortRequest = {exact: number} | {preferred: number}
 
@@ -32,6 +34,7 @@ export type StartOpts = {
   accessToken?: string
   onClientRequest?: () => void
   onShutdown?: () => void
+  print?: (text: string) => void
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
@@ -41,6 +44,8 @@ export type StartOpts = {
 
 export type Engine = {
   port: number
+  agentToken: string
+  trustBrowser: (requester: BrowserRequester, grantedAt: number) => string
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -105,10 +110,10 @@ function serveRequestedPort(
 async function servePort(
   fetchHandler: FetchHandler,
   request: PortRequest | undefined,
-  stateFile: string,
+  state: {file: string; token: string},
 ): Promise<Served> {
-  const serving = await serveRequestedPort(fetchHandler, request, stateFile)
-  writePersistedPort(stateFile, serving.port)
+  const serving = await serveRequestedPort(fetchHandler, request, state.file)
+  writePersistedPort(state.file, {port: serving.port, token: state.token})
   return serving
 }
 
@@ -155,15 +160,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
     () => Date.now(),
   )
 
+  const agentToken = opts.accessToken ?? randomUUID()
   const portRef = {port: 0}
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
-    const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
+    const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : process.env), CONCIV_TOKEN: agentToken}
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
   const tokenScopedBase = (): string | undefined => {
     if (portRef.port === 0) return undefined
-    const prefix = opts.accessToken ? `/t/${opts.accessToken}` : ''
-    return `http://127.0.0.1:${portRef.port}${prefix}`
+    return `http://127.0.0.1:${portRef.port}${agentPath(agentToken)}`
   }
   const nativeUrl = (): string | undefined => {
     if (!opts.nativePageDir) return undefined
@@ -173,7 +178,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const appOpts: MakeAppOpts = {
     cfg,
     cwd: opts.root,
-    basePath: opts.accessToken ? `/t/${opts.accessToken}` : '',
+    agentToken,
+    print: opts.print,
+    onTrusted: onceNotifier(opts.onClientRequest),
     bridge: opts.bridge,
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
@@ -187,21 +194,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
     nativePageDir: opts.nativePageDir,
     nativeUrl,
   }
-  const {app, dispose, extensionContexts} = await makeApp(appOpts)
+  const {fetch: fetchHandler, dispose, extensionContexts, trustBrowser} = await makeApp(appOpts)
 
-  const notifyClient = onceNotifier(opts.onClientRequest)
-  const served = opts.accessToken
-    ? new Hono()
-        .use(async (_context, next) => {
-          notifyClient()
-          await next()
-        })
-        .mount(`/t/${opts.accessToken}`, app.fetch)
-    : app
-  const fetchHandler: FetchHandler = served.fetch.bind(served)
   let serving: Served
   try {
-    serving = await servePort(fetchHandler, opts.port, paths.server)
+    serving = await servePort(fetchHandler, opts.port, {file: paths.server, token: agentToken})
   } catch (error) {
     await cleanupAfterFailedStart([dispose])
     throw error
@@ -217,7 +214,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
       writePrivateFile(endpoint.path, endpoint.contents)
     }
     if (opts.nativePageDir && base) {
-      writeDevEndpoint(endpointDir, {apiBase: base, token: opts.accessToken ?? null, pid: process.pid})
+      writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
     }
   } catch (error) {
     await cleanupAfterFailedStart([close, dispose])
@@ -233,8 +230,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
   return {
     port,
+    agentToken,
     cfg,
     extensionContexts,
+    trustBrowser,
     stop: async () => {
       clearEndpoint()
       await runInOrder([close, dispose], 'conciv: stopping the engine failed')

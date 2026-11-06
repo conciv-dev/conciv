@@ -1,7 +1,7 @@
 import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
-import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
+import {engineHeaders, makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from '@conciv/client'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import {
@@ -18,6 +18,8 @@ import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
 import {createShadowRoot} from '@conciv/app/shadow'
 import {resolveApiBase} from '@conciv/app/api-base'
+import {createEngineLogin, engineConnected, startEngineLogin} from '@conciv/app/engine-login'
+import {engineAddress} from './agent-base.js'
 import {makeNavigationStorage} from './navigation-storage.js'
 import type {ConcivInit} from './mount.js'
 
@@ -54,7 +56,7 @@ function connectPath(settings: {defaultOpen: boolean}): string {
 function makeDisconnect(getApiBase: () => string | undefined): () => void {
   return () => {
     const base = getApiBase()
-    if (base) void fetch(`${base}/api/shutdown`, {method: 'POST'}).catch(() => {})
+    if (base) void fetch(`${base}/api/shutdown`, {method: 'POST', headers: engineHeaders(base)}).catch(() => {})
     setTimeout(() => window.location.reload(), 150)
   }
 }
@@ -75,6 +77,7 @@ type SessionPagePlaneConfig = {
   rpc: RpcClient
   driver: () => PageDriver
   redoOnChange: () => unknown
+  trusted: () => boolean
 }
 
 function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => void} {
@@ -83,7 +86,7 @@ function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => 
       config.redoOnChange()
       const sessionId = config.session()
       const apiBase = config.apiBase()
-      if (!sessionId || apiBase === '') return
+      if (!sessionId || apiBase === '' || !config.trusted()) return
       const channel = acquirePushChannel({apiBase, sessionId})
       const plane = startPagePlane({
         source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
@@ -126,6 +129,7 @@ type BootNormalConfig = {
   apiBase: string
   grabProvider?: GrabProvider
   connectMode?: boolean
+  engineToken?: () => Promise<string>
 }
 
 type MountedRouter = {options: {context: {instances: {extension: AnyExtension; effects: readonly ClientEffect[]}[]}}}
@@ -149,6 +153,11 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const [connectionGeneration, setConnectionGeneration] = createSignal(0)
   const [apiBase, setApiBase] = createSignal(config.apiBase)
+  const login = createRoot((dispose) => ({
+    ...createEngineLogin({apiBase, tokenSource: config.engineToken}),
+    dispose,
+  }))
+  const trusted = startEngineLogin(login)
 
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
@@ -157,11 +166,14 @@ function bootNormal(config: BootNormalConfig): BootResult {
       rpc,
       driver: () => driver,
       redoOnChange: connectionGeneration,
+      trusted: () => login.status() === 'trusted',
     }),
   )
 
   const restore: {apply: (href: string) => void} = {apply: () => {}}
-  const storage = makeNavigationStorage(rpc, (href) => restore.apply(href))
+  const storage = makeNavigationStorage(rpc, {ready: trusted, isTrusted: () => login.trust().isTrusted()}, (href) =>
+    restore.apply(href),
+  )
   const hostRouter = window.__TSR_ROUTER__
   const interactive = createInteractiveSignal()
   const router = createConcivRouter({
@@ -170,7 +182,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     environment: {rootNode: config.root, document},
     settings: config.settings,
     extensions: config.extensions,
-    connected: () => true,
+    connected: () => engineConnected(login.status()),
     connectMode: config.connectMode,
     disconnect: config.connectMode ? makeDisconnect(apiBase) : undefined,
     grabProvider: config.grabProvider,
@@ -178,6 +190,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     connectionGeneration,
     bindActiveSession: activeSession.bind,
     notifyInteractive: interactive.notify,
+    login,
   })
   window.__TSR_ROUTER__ = hostRouter
   const driver = makeDomPageDriver({tools: mountedClientTools(router), effects: mountedClientEffects(router)})
@@ -201,6 +214,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     setApiBase(nextApiBase)
     router.options.context.queryClient.clear()
     setConnectionGeneration((generation) => generation + 1)
+    void login.requestTrust()
   }
 
   const boot = {href: router.state.location.href, moved: false}
@@ -221,6 +235,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
     closeConnection,
+    login.dispose,
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), rebind, interactive: interactive.promise}
@@ -244,6 +259,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
       rpc: deferred.rpc,
       driver: () => driver,
       redoOnChange: apiBase,
+      trusted: () => true,
     }),
   )
   const bindApiBase = (nextApiBase: string) => {
@@ -292,12 +308,13 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const extensions = [pageExtension, ...supplied]
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
+  const engineToken = init.engineToken
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider})
+  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider, engineToken})
   const gate = extensions.find((extension) => extension.connectGate)
   if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
   const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, settings, apiBase: found, grabProvider, connectMode: true})
+  if (found) return bootNormal({root, extensions, settings, ...engineAddress(found), grabProvider, connectMode: true})
   return bootConnect({root, extensions, settings, grabProvider})
 }
 

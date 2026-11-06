@@ -215,7 +215,7 @@ describe('prefixed serving', () => {
           headers,
           body: JSON.stringify(initialize),
         })
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(401)
       },
     )
 

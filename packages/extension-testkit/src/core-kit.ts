@@ -49,7 +49,8 @@ export async function bootCoreKit(opts: {
   const captured: {runtime?: CoreRuntime} = {}
   const served: (readonly string[])[] = []
   const kit = await createTestkit(harness, async (env) => {
-    const {app, dispose, runtime} = await makeApp({
+    const {fetch, dispose, runtime, agentToken} = await makeApp({
+      print: env.print,
       cfg: {
         enabled: true,
         widgetUrl: undefined,
@@ -72,14 +73,15 @@ export async function bootCoreKit(opts: {
     })
     captured.runtime = runtime
     return {
-      fetch: async (...fetchArguments: Parameters<typeof app.fetch>) => {
+      fetch: async (...fetchArguments: Parameters<typeof fetch>) => {
         const [request] = fetchArguments
-        const response = await app.fetch(...fetchArguments)
+        const response = await fetch(...fetchArguments)
         const procedurePath = procedurePathOf(request.url)
-        if (procedurePath && request.method !== 'OPTIONS') served.push(procedurePath)
+        if (procedurePath && request.method !== 'OPTIONS' && response.status !== 401) served.push(procedurePath)
         return response
       },
       dispose,
+      agentToken,
     }
   }).setup()
   const runtime = captured.runtime

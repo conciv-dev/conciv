@@ -113,6 +113,10 @@
       "types": "./dist/state-types.d.ts",
       "import": "./dist/state-types.js"
     },
+    "./engine-trust": {
+      "types": "./dist/engine-trust.d.ts",
+      "import": "./dist/engine-trust.js"
+    },
     "./event-bus": {
       "types": "./dist/event-bus.d.ts",
       "import": "./dist/event-bus.js"

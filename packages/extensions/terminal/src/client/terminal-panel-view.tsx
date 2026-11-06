@@ -4,6 +4,7 @@ import {ORPCError} from '@orpc/client'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
 import {getExtensionApi} from '@conciv/extension'
+import {engineWebSocket} from '@conciv/contract'
 import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 import {terminalClient, terminalUrl} from './rpc.js'
@@ -73,6 +74,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   }
   const model = createTerminalModel({
     url: (terminal) => wsUrl(apiBase(), sessionId(), terminal.cols, terminal.rows),
+    socket: engineWebSocket(apiBase()),
     beforeConnect: async (terminal) => {
       setOpenFailed(null)
       await openTerminal(terminal.cols, terminal.rows).catch((error: Error) => {

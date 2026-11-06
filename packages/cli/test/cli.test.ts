@@ -2,6 +2,7 @@ import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, 
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
 import {execFileSync, spawnSync} from 'node:child_process'
+import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -13,6 +14,12 @@ import {design} from '@conciv/extension-design/server'
 import {createServer as createHttpServer, type Server} from 'node:http'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {engineOrigin} from '../src/engine-origin.js'
+import {runRevoke} from '../src/auth.js'
+import {start as startEngine} from '@conciv/core'
+import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
+import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {initCommand, runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
@@ -964,6 +971,81 @@ describe('cli', () => {
     test('a malformed server.json falls through to 5173 instead of throwing', () => {
       const project = projectWith('{"port": "not a number"')
       expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
+    })
+
+    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
+      const project = projectWith(JSON.stringify({port: 41234, token: 'from-file'}))
+      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
+      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
+    })
+
+    test('auth revoke lists, revokes one and revokes every trusted browser', () => {
+      const project = projectWith(JSON.stringify({port: 41234}))
+      const stateDir = join(project.root, '.conciv')
+      const kept = grantBrowser(stateDir, {browser: 'Chrome 1', origin: 'http://localhost:1'}, 1)
+      grantBrowser(stateDir, {browser: 'Firefox 2', origin: 'http://localhost:2'}, 2)
+      const [first, second] = readTrustedBrowsers(stateDir)
+      expect(runRevoke({all: false, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [], trusted: [first, second]},
+      })
+      expect(runRevoke({id: second?.id, all: false, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [second], trusted: [first]},
+      })
+      expect(isTrustedBrowser(stateDir, kept)).toBe(true)
+      expect(() => runRevoke({id: 'nope', all: false, cwd: project.nested})).toThrow(
+        'no trusted browser has the id "nope"',
+      )
+      expect(runRevoke({all: true, cwd: project.nested})).toEqual({
+        report: 'json',
+        data: {revoked: [first], trusted: []},
+      })
+      expect(isTrustedBrowser(stateDir, kept)).toBe(false)
+    })
+
+    test('auth revoke locks a browser out of the running engine without a restart', async () => {
+      const project = projectWith(null)
+      const printed: string[] = []
+      const engine = await startEngine({
+        options: {harnessBin: 'true', stateRoot: project.root, systemPrompt: false},
+        root: project.root,
+        launchEditor: () => {},
+        print: (text) => printed.push(text),
+      })
+      try {
+        const origin = `http://127.0.0.1:${engine.port}`
+        const token = await loginThroughTerminal(origin, () => printed.join('\n'))
+        const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
+        expect(await call()).not.toBe(401)
+        const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
+        const serving: PageServingFrame = {channel: 'page-serving', serving: true}
+        const pushSocket = (prefix: string, frames: unknown[]) => {
+          const socket = new WebSocket(
+            `ws://127.0.0.1:${engine.port}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
+          )
+          socket.addEventListener('open', () => frames.forEach((frame) => socket.send(JSON.stringify(frame))))
+          return socket
+        }
+        const framed = pushSocket('', [{type: SOCKET_TRUST_FRAME, token}, serving])
+        const [browser, agent] = [
+          pushSocket(`/t/${token}`, [serving]),
+          pushSocket(`/t/${engine.agentToken}`, [serving]),
+        ]
+        await Promise.all(
+          [browser, agent, framed].map((socket) => once(socket, 'message', {signal: AbortSignal.timeout(3_000)})),
+        )
+        const closedCode = async (socket: WebSocket) =>
+          z.object({code: z.number()}).parse((await once(socket, 'close', {signal: AbortSignal.timeout(3_000)}))[0])
+            .code
+        const closed = Promise.all([closedCode(browser), closedCode(framed)])
+        runRevoke({all: true, cwd: project.nested})
+        await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
+        expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
+        agent.close()
+      } finally {
+        await engine.stop()
+      }
     })
   })
 

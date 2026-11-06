@@ -44,6 +44,7 @@ function handshakeResponse(upstream: IncomingMessage): string {
 
 export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   const target = new URL(targetBase)
+  const prefix = target.pathname.replace(/\/$/, '')
   const refused = new Set<string>()
   const piped = new Set<Duplex>()
   const completions: Completion[] = []
@@ -61,7 +62,7 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   }
 
   const server: Server = createServer((req, res) => {
-    const pathname = new URL(req.url ?? '/', target).pathname
+    const pathname = new URL(req.url ?? '/', target).pathname.slice(prefix.length)
     res.on('finish', () => settle(pathname))
     if (refused.has(pathname)) {
       res.writeHead(500, {'content-type': 'text/plain'})
@@ -113,7 +114,7 @@ export async function proxyTo(targetBase: string): Promise<ProxyCore> {
   })
   const {base, close} = await listenLocal(server)
   return {
-    base,
+    base: `${base}${prefix}`,
     awaitRequest: (pathname, options = {}) => {
       const since = options.since ?? sequence.next
       if (completions.some((entry) => entry.pathname === pathname && entry.at > since)) return Promise.resolve()

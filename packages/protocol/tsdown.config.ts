@@ -25,6 +25,7 @@ export default defineConfig({
     'src/tool-view-types.ts',
     'src/connect-ports.ts',
     'src/state-types.ts',
+    'src/engine-trust.ts',
     'src/event-bus.ts',
   ],
   format: 'esm',

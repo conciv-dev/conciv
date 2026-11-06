@@ -36,23 +36,25 @@ function build(): Story {
   return {
     render: () => <Demo />,
     play: async ({canvasElement}) => {
-      const c = within(canvasElement)
-      const trigger = c.getByRole('button', {name: 'Select model'})
+      const canvas = within(canvasElement)
+      const trigger = canvas.getByRole('button', {name: 'Select model'})
       await expect(trigger).toHaveTextContent('Claude Opus 4.8')
       await userEvent.click(trigger)
       const search = await waitFor(() => {
         expect(trigger).toHaveAttribute('aria-expanded', 'true')
-        return c.getByPlaceholderText('Search models…')
+        const field = canvas.getByPlaceholderText('Search models…')
+        expect(field).toHaveFocus()
+        return field
       })
       await expect(search).toBeVisible()
 
-      await expect(c.getByRole('group', {name: 'Reasoning effort'})).toBeVisible()
+      await expect(canvas.getByRole('group', {name: 'Reasoning effort'})).toBeVisible()
 
       await userEvent.type(search, 'haiku')
-      await waitFor(() => expect(c.queryByText('Claude Sonnet 4.6')).toBeNull())
-      await expect(c.getByText('Claude Haiku 4.5')).toBeVisible()
+      await waitFor(() => expect(canvas.queryByText('Claude Sonnet 4.6')).toBeNull())
+      await expect(canvas.getByText('Claude Haiku 4.5')).toBeVisible()
 
-      await userEvent.click(c.getByText('Claude Haiku 4.5'))
+      await userEvent.click(canvas.getByText('Claude Haiku 4.5'))
       await waitFor(() => expect(trigger).toHaveTextContent('Claude Haiku 4.5'))
 
       await expect(trigger).not.toHaveTextContent('Medium')

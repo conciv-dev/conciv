@@ -2,7 +2,8 @@ import {Hono} from 'hono'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
-import type {UpgradeWebSocket, WSContext} from 'hono/ws'
+import type {WSContext} from 'hono/ws'
+import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
 
 export type PageQuery = {requestId: string; query: unknown}
@@ -12,7 +13,7 @@ export type PushDeps = {
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
-const NO_SESSION_CLOSE_CODE = 1008
+const NO_SESSION_CLOSE_CODE = 4400
 
 async function forward<T>(source: AsyncIterable<T>, emit: (item: T) => void): Promise<void> {
   for await (const item of source) emit(item)

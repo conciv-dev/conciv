@@ -3,9 +3,10 @@ import {difference, partition, uniq} from 'es-toolkit'
 import type {QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
 import {useChatSession, type ChatSession, type ChatTransportPreference} from '@conciv/client'
-import type {RpcClient} from '@conciv/contract'
+import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import {isRunPhaseTerminal, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import type {AppData} from '../data/app-data.js'
+import {engineLocked} from './engine-login.js'
 
 export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
@@ -74,9 +75,10 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
     const chat = createMemo((): ChatSession => {
       deps.generation()
+      const apiBase = deps.apiBase()
       const session = useChatSession({
         rpc: deps.rpc,
-        apiBase: deps.apiBase(),
+        apiBase,
         sessionId,
         connection: {
           transport: deps.transport(),
@@ -91,7 +93,12 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
               : start(sessionId, lifecycle),
         },
       })
+      const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+        if (status === 'trusted' && engineLocked(previous))
+          session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+      })
       onCleanup(() => {
+        stopTrust()
         if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
       })
       return session

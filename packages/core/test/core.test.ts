@@ -16,7 +16,7 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {type EngineStaleness} from '@conciv/contract'
+import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {defineTool, defineExtension} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
@@ -24,6 +24,7 @@ import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {eq} from 'drizzle-orm'
 import getPort from 'get-port'
@@ -43,6 +44,11 @@ import {makeSessionPrimitives, type SessionPrimitives} from '../src/runtime/prim
 import {type CoreRuntime} from '../src/runtime/scope-types.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
+import {makeApp} from '../src/app.js'
+import {CODE_LIFETIME_MS, OPEN_PATHS, isOpenPath, makeCodeStore} from '../src/engine-login.js'
+import {serveHono} from '@conciv/serve'
+import {Hono} from 'hono'
+import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
 import {chunkWithInlineMap, cleanupChunks, makeChatFixture, type ChatFixture} from './helpers.js'
 
 describe('api mcp instructions', () => {
@@ -51,7 +57,6 @@ describe('api mcp instructions', () => {
   describe('mcp server instructions', () => {
     it('says nothing about staleness while the engine matches the code on disk', () => {
       const text = serverInstructions('page', FRESH)
-
       expect(text).not.toMatch(/outdated|restart the dev server/i)
     })
   })
@@ -198,7 +203,7 @@ describe('chat plane', () => {
         launchEditor: () => {},
         harness: cliHarness(cli),
       })
-      const turn = await fetch(`http://127.0.0.1:${engine.port}${CHAT_SSE_PATH}`, {
+      const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
         method: 'POST',
         headers: {'content-type': 'application/json'},
         body: turnBody(sessionId('engine-stop'), 'engine-stop-run', 'keep talking'),
@@ -469,34 +474,6 @@ describe('chat plane', () => {
   }
 })
 
-describe('client request hook', () => {
-  test('onClientRequest fires once on the first token request', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-client-request-hook-'))
-    let fired = 0
-    try {
-      const engine = await start({
-        options: {harnessBin: 'true', stateRoot: root},
-        root,
-        launchEditor: () => {},
-        accessToken: '0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e',
-        onClientRequest: () => {
-          fired += 1
-        },
-      })
-      try {
-        expect(fired).toBe(0)
-        await fetch(`http://127.0.0.1:${engine.port}/t/0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e/health`)
-        await fetch(`http://127.0.0.1:${engine.port}/t/0b6f9c2e-8f6d-4a5c-9e1f-2d3a4b5c6d7e/health`)
-        expect(fired).toBe(1)
-      } finally {
-        await engine.stop()
-      }
-    } finally {
-      rmSync(root, {recursive: true, force: true})
-    }
-  })
-})
-
 describe('config', () => {
   const saved = {...process.env}
   afterEach(() => {
@@ -746,40 +723,6 @@ describe('editor symbolicate', () => {
   })
 })
 
-describe('engine port', () => {
-  function bootEngine(root: string) {
-    return start({
-      options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
-      root,
-      launchEditor: () => {},
-    })
-  }
-
-  function recordedPort(root: string): unknown {
-    return JSON.parse(readFileSync(statePaths(root).server, 'utf8'))
-  }
-
-  test('start reuses the port persisted in the state dir across restarts', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-engine-port-'))
-    try {
-      const first = await bootEngine(root)
-      const firstPort = first.port
-      await first.stop()
-      expect(recordedPort(root)).toEqual({port: firstPort})
-
-      const second = await bootEngine(root)
-      try {
-        expect(second.port).toBe(firstPort)
-      } finally {
-        await second.stop()
-      }
-      expect(recordedPort(root)).toEqual({port: firstPort})
-    } finally {
-      rmSync(root, {recursive: true, force: true})
-    }
-  })
-})
-
 describe('engine stamp', () => {
   const dirs: string[] = []
 
@@ -809,10 +752,8 @@ describe('engine stamp', () => {
         {label: '@conciv/tools', path: tools},
       ])
       expect(probe().stale).toBe(false)
-
       writeFileSync(tools, 'export const b = 2')
       ageForward(tools, 5)
-
       expect(probe().stale).toBe(true)
       expect(probe().changed).toEqual(['@conciv/tools'])
     })
@@ -820,10 +761,8 @@ describe('engine stamp', () => {
     it('stays fresh when a rebuild rewrites identical bytes and only moves the mtime forward', () => {
       const path = tmpFile('core.js', 'export const a = 1')
       const probe = makeStalenessProbe([{label: '@conciv/core', path}])
-
       writeFileSync(path, 'export const a = 1')
       ageForward(path, 5)
-
       expect(probe().stale).toBe(false)
       expect(probe().changed).toEqual([])
     })
@@ -832,11 +771,8 @@ describe('engine stamp', () => {
       const path = tmpFile('core.js', 'export const a = 1')
       const probe = makeStalenessProbe([{label: '@conciv/core', path}])
       const first = probe().fingerprint
-
       expect(probe().fingerprint).toBe(first)
-
       writeFileSync(path, 'export const a = 2')
-
       expect(probe().fingerprint).not.toBe(first)
     })
   })
@@ -861,7 +797,7 @@ describe('engine stamp', () => {
         const engine = await start({options: {harnessBin: 'true', stateRoot: root}, root, launchEditor: () => {}})
         try {
           const {mcpUrl} = recordedEndpoint(root)
-          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/api/mcp`)
+          expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}/api/mcp`)
           expect(statSync(join(statePaths(root).dir, 'mcp-endpoint.json')).mode & 0o777).toBe(0o600)
           const response = await fetch(mcpUrl, {
             method: 'POST',
@@ -955,10 +891,8 @@ describe('page bus inflight teardown', () => {
     const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
     await Promise.resolve()
-
     unsubscribe()
     bus.subscribe(SESSION, () => {})
-
     expect(bus.resolve(SESSION, requestIdOf(frames), {ok: true, result: {clicked: 'yes'}})).toBe(true)
     await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
   }, 10_000)
@@ -1132,5 +1066,197 @@ describe('system prompt', () => {
       extensions: {ios: {projectRoot: '/app/'}},
     })
     expect(prompt).toBe('simulator iPhone 17 Pro in /app')
+  })
+})
+
+describe('engine login', () => {
+  const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
+
+  function rawPost(port: number, path: string, headers: Record<string, string>, body = '{"json":{"reissue":true}}') {
+    const options = {host: '127.0.0.1', port, path, method: 'POST', agent: false}
+    return new Promise<{status: number; text: string}>((resolve, reject) => {
+      const request = httpRequest({...options, headers: {'content-type': 'application/json', ...headers}}, (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => resolve({status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString('utf8')}))
+      })
+      request.on('error', reject)
+      request.end(body)
+    })
+  }
+
+  function codeStore() {
+    const clock = {now: 1_000}
+    const printed: string[] = []
+    const store = makeCodeStore({now: () => clock.now, print: (text) => printed.push(text)})
+    const lastCode = (): string => /#conciv_otp=(\d{6})/.exec(printed.at(-1) ?? '')?.[1] ?? ''
+    return {clock, printed, store, lastCode}
+  }
+
+  test('a code expires after five minutes and asking again without reissue prints nothing new', () => {
+    const {clock, printed, store, lastCode} = codeStore()
+    store.request(requester, false)
+    store.request(requester, false)
+    expect(printed).toHaveLength(1)
+    expect(printed[0]).toContain('Chrome 156 | macOS at http://localhost:5173')
+    clock.now += CODE_LIFETIME_MS
+    expect(store.exchange(lastCode())).toBe('expired')
+  })
+
+  test('five wrong codes, a success and a reissue each retire the code', () => {
+    const {store, lastCode} = codeStore()
+    store.request(requester, false)
+    const first = lastCode()
+    const wrong = first === '000000' ? '111111' : '000000'
+    for (const _ of [1, 2, 3, 4, 5]) expect(store.exchange(wrong)).toBe('mismatch')
+    expect(store.exchange(first)).toBe('expired')
+    store.request(requester, false)
+    const second = lastCode()
+    store.request(requester, true)
+    expect(store.exchange(second)).not.toBe('trusted')
+    expect(store.exchange(lastCode())).toBe('trusted')
+    expect(store.exchange(lastCode())).toBe('expired')
+  })
+
+  test('the gate refuses until a printed code is exchanged, and the browser stays trusted across a restart', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-login-'))
+    const printed: string[] = []
+    const clientRequests = {count: 0}
+    const boot = () =>
+      start({
+        options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
+        root,
+        launchEditor: () => {},
+        print: (text) => printed.push(text),
+        onClientRequest: () => (clientRequests.count += 1),
+      })
+    try {
+      const first = await boot()
+      const origin = `http://127.0.0.1:${first.port}`
+      const call = (token: string) => fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})
+      expect((await call('not-a-token')).status).toBe(401)
+      const post = (path: string, headers: Record<string, string>, body?: string) =>
+        rawPost(first.port, path, headers, body)
+      expect((await post('/rpc/auth/requestCode', {origin: 'http://conciv.example'})).status).toBe(403)
+      expect((await post('/rpc/auth/requestCode', {origin: 'http://localhost:5173'})).status).toBe(200)
+      expect(printed.at(-1)).toContain('http://localhost:5173/#conciv_otp=')
+      await requestPrintedCode(origin, () => printed.join('\n'))
+      expect(printed.at(-1)).toContain(`${origin}/#conciv_otp=`)
+      await expect(exchangePrintedCode(origin, '000000')).rejects.toThrow(/refused the printed login code: mismatch/)
+      const token = await loginThroughTerminal(origin, () => printed.join('\n'))
+      expect((await call(token)).status).not.toBe(401)
+      const bearer = await fetch(`${origin}/rpc/meta/engine`, {
+        method: 'POST',
+        headers: {authorization: `Bearer ${token}`},
+      })
+      expect(bearer.status).not.toBe(401)
+      expect(clientRequests.count).toBe(1)
+      await first.stop()
+      const second = await boot()
+      try {
+        expect(second.port).toBe(first.port)
+        expect(JSON.parse(readFileSync(statePaths(root).server, 'utf8'))).toEqual({
+          port: first.port,
+          token: second.agentToken,
+        })
+        const check = (host: string) => rawPost(second.port, '/rpc/auth/trust', {host}, JSON.stringify({json: {token}}))
+        expect(JSON.parse((await check(`localhost:${second.port}`)).text)).toMatchObject({json: {trusted: true}})
+        expect((await check(`conciv.example:${second.port}`)).status).toBe(403)
+        const rebound = {host: `conciv.example:${second.port}`}
+        expect((await rawPost(second.port, `/t/${second.agentToken}/rpc/meta/engine`, rebound)).status).toBe(403)
+      } finally {
+        await second.stop()
+      }
+    } finally {
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('every route the engine registers refuses an unknown caller except the declared open paths', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-gate-'))
+    const probe = defineExtension({name: 'probe'}).server(() => ({
+      context: {},
+      app: new Hono().get('/ping', (c) => c.text('pong')),
+    }))
+    const made = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      extensions: [probe],
+      nativePageDir: root,
+    })
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    try {
+      const origin = `http://127.0.0.1:${served.port}`
+      const routes = made.app.routes.map((route) => ({
+        method: route.method === 'ALL' ? 'GET' : route.method,
+        path: route.path.replaceAll(/:[^/]+|\*/g, 'x'),
+      }))
+      expect(routes.map((route) => route.path)).toEqual(
+        expect.arrayContaining(['/api/ext/probe/ping', '/chat-ws', '/push-ws']),
+      )
+      const refused = async (url: string, method: string): Promise<boolean> => {
+        const response = await fetch(url, {method, ...(method === 'GET' ? {} : {body: '{}'})})
+        return response.status === 401 && (await response.text()).includes('"unauthorized"')
+      }
+      for (const route of routes) {
+        expect(await refused(`${origin}${route.path}`, route.method), route.path).toBe(!isOpenPath(route.path))
+        expect(await refused(`${origin}/t/${made.agentToken}${route.path}`, route.method), route.path).toBe(false)
+      }
+      expect(OPEN_PATHS).toEqual([
+        '/health',
+        '/rpc/auth/trust',
+        '/rpc/auth/exchange',
+        '/rpc/auth/requestCode',
+        '/native',
+        '/native/*',
+      ])
+      const auth = makeRpcClient(origin).auth
+      expect(await auth.trust({token: 'not-a-token'})).toEqual({trusted: false})
+      expect(await auth.trust({token: made.agentToken})).toEqual({trusted: true})
+      expect(await auth.exchange({code: '000000'})).toEqual({refused: 'expired'})
+      await expect(refused(`${origin}/rpc/meta/engine`, 'POST')).resolves.toBe(true)
+      const preflight = await fetch(`${origin}/rpc/meta/engine`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://localhost:5173',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'authorization',
+        },
+      })
+      expect([preflight.status, preflight.headers.get('access-control-allow-headers')]).toEqual([
+        204,
+        expect.stringContaining('authorization'),
+      ])
+      const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
+      const serving = JSON.stringify({channel: 'page-serving', serving: true})
+      const pushSocket = (prefix: string, ...frames: string[]) =>
+        new Promise<string>((resolve) => {
+          const socket = new WebSocket(
+            `${origin.replace('http', 'ws')}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
+          )
+          socket.addEventListener('open', () => {
+            for (const sent of [...frames, serving]) socket.send(sent)
+          })
+          socket.addEventListener('message', (event) => {
+            resolve(String(event.data))
+            socket.close()
+          })
+          socket.addEventListener('close', (event) => resolve(`closed ${event.code}`))
+        })
+      const frame = (token: string) => JSON.stringify({type: SOCKET_TRUST_FRAME, token})
+      expect(
+        await Promise.all([
+          pushSocket('', frame('not-a-token')),
+          pushSocket('', '{"channel":"ready"}'),
+          pushSocket('', frame(made.agentToken)),
+          pushSocket(`/t/${made.agentToken}`),
+        ]),
+      ).toEqual(['closed 1008', 'closed 1008', '{"channel":"ready"}', '{"channel":"ready"}'])
+    } finally {
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
   })
 })

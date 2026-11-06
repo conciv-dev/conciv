@@ -7,6 +7,7 @@ import {
   type PageServingFrame,
   type PushFrame,
 } from '@conciv/protocol/push-types'
+import {engineWebSocket} from '@conciv/contract'
 import {relayedValues} from './stream-relay.js'
 
 export type PageQueryFrame = {requestId: string; query: unknown}
@@ -53,6 +54,7 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
     maxReconnectionDelay: MAX_RECONNECT_DELAY_MS,
     minUptime: MIN_UPTIME_MS,
     connectionTimeout: CONNECTION_TIMEOUT_MS,
+    WebSocket: engineWebSocket(options.apiBase),
   })
   socket.addEventListener('message', (event) => {
     const frame = decoded(event.data)

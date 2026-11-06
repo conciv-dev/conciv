@@ -7,7 +7,6 @@ import {openSource} from '@conciv/extension/client'
 import {addRef, describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import {elementAt} from '../lib/element-at.js'
-import {resolveApiBase} from '../lib/api-base.js'
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
 
@@ -33,6 +32,7 @@ const OPEN_RESULT: Record<OpenSourceResult, {tone: 'success' | 'error'; label: (
 }
 
 function HighlightInspector(props: {onExit: () => void; session: () => string | null}): JSX.Element {
+  const apiBase = getHostApi().useApiBase()
   const refs: Refs = {map: new Map(), n: 0}
   const [hovered, setHovered] = createSignal<Hovered | null>(null)
   let lastX = -1
@@ -56,7 +56,7 @@ function HighlightInspector(props: {onExit: () => void; session: () => string | 
     e.preventDefault()
     e.stopPropagation()
     const loc = await locate(h.host, (el) => addRef(el, refs))
-    const result = loc ? await openSource(resolveApiBase(), loc, props.session) : 'no-source'
+    const result = loc ? await openSource(apiBase(), loc, props.session) : 'no-source'
     const out = OPEN_RESULT[result]
     showToast(out.label(h.file ?? h.tag), out.tone)
   }

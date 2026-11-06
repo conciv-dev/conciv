@@ -1247,6 +1247,7 @@ describe('harness switching', () => {
 describe('launch actions', () => {
   const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
   const LAUNCH_PATH = ['ext', 'terminal', 'launch']
+  const STALE_API_BASE = 'http://127.0.0.1:1'
 
   const core = bootedCore('launch-actions', {displayName: 'Claude', connect: true, terminal: true, resume: true})
   const keep = keptPane()
@@ -1315,6 +1316,22 @@ describe('launch actions', () => {
     expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
   })
 
+  test('after a rebind, opening externally reaches the engine the widget is bound to, not the page api base it booted on', async () => {
+    window.__CONCIV_API_BASE__ = STALE_API_BASE
+    try {
+      await mountActions()
+      const before = await coreControl.terminalLaunches()
+
+      await openMenu()
+      await page.getByText('Open in Claude').click()
+
+      await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
+      expect((await coreControl.terminalLaunches()) - before).toBe(1)
+    } finally {
+      delete window.__CONCIV_API_BASE__
+    }
+  })
+
   test('a launch failure is surfaced instead of swallowed', async () => {
     const fault = await faults.install({kind: 'fail', path: LAUNCH_PATH, status: 500})
     await mountActions()
@@ -1358,6 +1375,181 @@ describe('launcher activity', () => {
 
     await expect.element(launcher(), {timeout: 8000}).toHaveAttribute('aria-busy', 'false')
   }, 30_000)
+})
+
+describe('launcher drag', () => {
+  const core = bootedCore('launcher-drag')
+  const harness = createShellHarness(core)
+  const POSITION_KEY = 'conciv-fab-position'
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(POSITION_KEY)
+  })
+
+  const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+  const minimize = () => page.getByRole('button', {name: 'Minimize conciv chat'})
+  const edgeTab = () => page.getByRole('button', {name: 'Show conciv launcher'})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const capture = (name: string) => page.screenshot({path: `__screenshots__/launcher-drag/${name}.png`})
+
+  test('a drag off the right edge tucks the launcher into a tab without opening the chat, and the tab brings it back', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: -100, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+    await expect.element(launcher()).not.toBeInTheDocument()
+    await expect.element(editor()).not.toBeInTheDocument()
+    await capture('tucked-right')
+    await edgeTab().click()
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await expect.element(launcher()).toHaveFocus()
+    await capture('restored-right')
+  })
+
+  test('a tucked launcher stays tucked after a reload, and Enter on the focused tab restores it', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -1200, deltaY: -200, steps: 16}]})
+    await expect.element(edgeTab()).toBeVisible()
+    harness.dispose()
+    harness.mountShell('/')
+    await expect.element(edgeTab()).toBeVisible()
+    await expect.element(launcher()).not.toBeInTheDocument()
+    await userEvent.tab()
+    await expect.element(edgeTab()).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(launcher()).toHaveFocus()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await capture('restored-left-keyboard')
+  })
+
+  test('Escape mid-drag drops the gesture, so a release past the edge leaves the launcher where it was', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}], escape: true})
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(edgeTab()).not.toBeInTheDocument()
+    await capture('escape-cancelled')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: 400, deltaY: 0, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a release within reach of a corner pins the launcher into it', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({
+      name: 'Open conciv chat',
+      moves: [{deltaX: -844, deltaY: -544, steps: 20}],
+      settleMs: 300,
+    })
+    await capture('pinned-top-left')
+    await launcher().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await capture('pinned-top-left-panel')
+    await minimize().click()
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -90, deltaY: 0, steps: 6}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a release in the open leaves the launcher where it was dropped, under the grab point', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({
+      name: 'Open conciv chat',
+      moves: [{deltaX: -454, deltaY: -304, steps: 20}],
+      settleMs: 300,
+    })
+    await capture('free-centre')
+    await launcher().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await capture('free-centre-panel')
+    await minimize().click()
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -520, deltaY: 0, steps: 12}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  test('a press that moves 4px or less is a click and one that moves 5px is a drag that never toggles the chat', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -5, deltaY: 0}], settleMs: 100})
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -3, deltaY: 0}]})
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('arrows nudge the focused launcher and Shift with an arrow pins it to a corner that a reload keeps', async () => {
+    await page.viewport(1000, 700)
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(launcher()).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowUp}')
+    await capture('keyboard-nudged')
+    await userEvent.keyboard('{Shift>}{ArrowUp}{ArrowLeft}{/Shift}')
+    await capture('keyboard-top-left')
+    await expect.element(launcher()).toHaveFocus()
+    await expect.element(editor()).not.toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell('/')
+    await expect.element(launcher()).toBeVisible()
+    await capture('keyboard-top-left-reloaded')
+    await coreControl.dragButton({name: 'Open conciv chat', moves: [{deltaX: -150, deltaY: 0, steps: 8}]})
+    await expect.element(edgeTab()).toBeVisible()
+  })
+
+  const LOCKED_NAME = 'Unauthorized. Authorize conciv'
+  const locked = () => page.getByRole('button', {name: LOCKED_NAME})
+  const unauthorized = () => locked().getByText('Unauthorized')
+  const mountLocked = () => harness.mountShell('/', [], {login: {apiBase: new URL(core()).origin}})
+  const leaveLocked = () => coreControl.hoverButton({name: LOCKED_NAME, settleMs: 0, moves: [{deltaX: 0, deltaY: 200}]})
+
+  test('the locked launcher dropped just right of the middle grows its pill to the right and its robot stays put', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await coreControl.dragButton({name: LOCKED_NAME, moves: [{deltaX: -424, deltaY: -304, steps: 20}], settleMs: 300})
+    await leaveLocked()
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 70, deltaY: 0}]})
+    await expect.element(unauthorized()).toBeVisible()
+    await capture('locked-right-of-middle-open')
+    await leaveLocked()
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+  })
+
+  test('the locked launcher pinned in the bottom-right corner grows its pill to the left inside the window while its robot stays put', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await capture('locked-bottom-right-closed')
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -30, deltaY: 0}]})
+    await expect.element(unauthorized()).toBeVisible()
+    await expect.element(unauthorized()).toBeInViewport({ratio: 1})
+    await capture('locked-bottom-right-open')
+  })
+
+  test('the locked launcher dropped near the right edge without room for its pill grows it to the left and its robot stays put', async () => {
+    await page.viewport(1000, 700)
+    mountLocked()
+    await expect.element(locked()).toBeVisible()
+    await coreControl.dragButton({name: LOCKED_NAME, moves: [{deltaX: -60, deltaY: -300, steps: 20}], settleMs: 300})
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: -120, deltaY: 0}]})
+    await expect.element(unauthorized()).toBeVisible()
+    await expect.element(unauthorized()).toBeInViewport({ratio: 1})
+    await capture('locked-near-right-edge-open')
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 0, deltaY: 200}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+    await coreControl.hoverButton({name: LOCKED_NAME, settleMs: 500, moves: [{deltaX: 50, deltaY: 0}]})
+    await expect.element(unauthorized()).not.toBeVisible()
+  })
 })
 
 describe('notices', () => {
@@ -2388,6 +2580,238 @@ describe('reachability flows', () => {
     await expect.element(engineUnreachableNotice()).not.toBeInTheDocument()
 
     await coreControl.releaseFault(refused)
+  }, 30_000)
+})
+
+const SURFACE_PROBE_NAME = 'surface-probe'
+
+const surfaceProbe = defineExtension({
+  name: SURFACE_PROBE_NAME,
+  Surface: () => <p>surface probe on {getExtensionApi(SURFACE_PROBE_NAME).useApiBase()()}</p>,
+}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof surfaceProbe> {}
+}
+
+describe('engine login', () => {
+  const core = bootedCore('engine-login')
+  const harness = createShellHarness(core)
+  const faults = trackedFaults()
+  const origin = (): string => new URL(core()).origin
+  const storageKey = (): string => `conciv:engine-token:${origin()}`
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(storageKey())
+  })
+
+  const locked = () => page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
+  const opener = () => page.getByRole('button', {name: 'Open conciv chat'})
+  const dialog = () => page.getByRole('dialog', {name: 'Authorize conciv'})
+  const firstDigit = () => page.getByRole('textbox', {name: 'Digit 1 of 6'})
+  const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const reloginNotice = () =>
+    page.getByRole('alert').filter({hasText: 'This browser is no longer authorized to use conciv.'})
+  const loginNotice = () => page.getByRole('alert').filter({hasText: 'Log in to use conciv on this page.'})
+
+  test('nothing pops up on load, the locked launcher opens the code dialog, and Escape dismisses it', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await locked().hover()
+    await expect.element(locked().getByText('Unauthorized')).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await locked().click()
+    await expect.element(dialog()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await expect.element(locked()).toBeVisible()
+  })
+
+  test('a wrong code is refused inline and clears the boxes, and the printed code opens the panel', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await locked().click()
+    await expect.element(firstDigit()).toBeVisible()
+    const code = await coreControl.printedCode()
+    await userEvent.type(firstDigit(), code === '000000' ? '111111' : '000000')
+    await expect.element(dialog().getByRole('alert')).toMatchTextContent(/That code didn.t match/)
+    await expect.element(firstDigit()).toHaveValue('')
+    await userEvent.type(firstDigit(), code)
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('the magic link logs in on load and is removed from the URL', async () => {
+    const code = await coreControl.requestCode()
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#conciv_otp=${code}`)
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.poll(() => localStorage.getItem(storageKey())).not.toBeNull()
+    await expect.element(opener()).toBeVisible()
+    expect(window.location.hash).toBe('')
+  })
+
+  test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
+    harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    await expect.element(page.getByText(/surface probe on/)).not.toBeInTheDocument()
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(page.getByText(`surface probe on ${origin()}`, {exact: true})).toBeInTheDocument()
+  }, 30_000)
+
+  test('Send a new code prints a fresh code, and only the fresh code opens the panel', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await locked().click()
+    await expect.element(firstDigit()).toBeVisible()
+    await expect
+      .poll(() =>
+        coreControl.printedCode().then(
+          () => true,
+          () => false,
+        ),
+      )
+      .toBe(true)
+    const first = await coreControl.printedCode()
+    await dialog().getByRole('button', {name: 'Send a new code'}).click()
+    await expect.element(dialog().getByRole('status')).toMatchTextContent(/A new code was printed/)
+    await expect.poll(() => coreControl.printedCode()).not.toBe(first)
+    await userEvent.type(firstDigit(), first)
+    await expect.element(dialog().getByRole('alert')).toMatchTextContent(/That code didn.t match/)
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('the host token source is asked only when there is no trusted stored token', async () => {
+    const minted = {count: 0}
+    const tokenSource = async (): Promise<string> => {
+      minted.count += 1
+      const result = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+      if (!('token' in result)) throw new Error(`the engine refused the test code: ${result.refused}`)
+      return result.token
+    }
+    const mountTrusted = async (): Promise<void> => {
+      harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource}})
+      await opener().click()
+      await expect.element(editor(), {timeout: 8000}).toBeVisible()
+      harness.dispose()
+    }
+    await mountTrusted()
+    await mountTrusted()
+    expect(minted.count).toBe(1)
+    localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    await mountTrusted()
+    expect(minted.count).toBe(2)
+  }, 30_000)
+
+  test('a stored token the engine no longer trusts locks the launcher and is forgotten', async () => {
+    localStorage.setItem(storageKey(), 'a-token-the-engine-never-granted')
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await expect.element(locked()).toBeVisible()
+    expect(localStorage.getItem(storageKey())).toBeNull()
+  })
+
+  const unlock = async (): Promise<void> => {
+    await locked().click()
+    await userEvent.type(firstDigit(), await coreControl.printedCode())
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }
+
+  test('a revoked browser whose sockets the engine cannot reach locks on its next engine call', async () => {
+    await faults.install({kind: 'detached-sockets'})
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
+    await page.getByRole('button', {name: 'Session options'}).click()
+    await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    expect(localStorage.getItem(storageKey())).toBeNull()
+  }, 30_000)
+
+  test('revoking a browser while its panel is open keeps the panel open behind a log-in notice, and the code restores it in place', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(editor()).toBeVisible()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBe(0)
+    await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+    await expect.element(dialog()).toBeVisible()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await expect.element(editor()).toHaveFocus()
+    await coreControl.scriptTurn({toolCalls: [], text: 'Back in after the new code.'})
+    await editor().fill('are we back')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.element(page.getByText('Back in after the new code.')).toBeVisible()
+  }, 30_000)
+
+  test('revoking a browser keeps the earlier conversation on screen behind the notice, and the code resumes it in place', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await coreControl.scriptTurn({toolCalls: [], text: 'Answer before the revoke.'})
+    await editor().fill('first question')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    const earlierAnswer = () => page.getByRole('log').getByText('Answer before the revoke.')
+    await expect.element(earlierAnswer()).toBeVisible()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.revokeBrowsers()
+    await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
+    await expect.element(earlierAnswer()).toBeVisible()
+    await expect.element(page.getByRole('status', {name: 'Loading conversation'})).not.toBeInTheDocument()
+    await reloginNotice().getByRole('button', {name: 'Log in'}).click()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await expect.element(earlierAnswer()).toBeVisible()
+    await expect.poll(() => coreControl.pushSocketsLive()).toBeGreaterThan(0)
+    await coreControl.scriptTurn({toolCalls: [], text: 'Answer after the new code.'})
+    await editor().fill('second question')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.element(page.getByRole('log').getByText('Answer after the new code.')).toBeVisible()
+    await expect.element(earlierAnswer()).toBeVisible()
+  }, 30_000)
+
+  test('revoking a browser while its panel is closed locks the launcher', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await unlock()
+    await page.getByRole('button', {name: 'Close chat'}).click()
+    await expect.element(opener()).toBeVisible()
+    await coreControl.revokeBrowsers()
+    await expect.element(locked(), {timeout: 8000}).toBeVisible()
+    await expect.element(reloginNotice()).not.toBeInTheDocument()
+    await locked().click()
+    await expect.element(dialog()).toBeVisible()
+  }, 30_000)
+
+  test('Retry on the unreachable screen checks the login again: untrusted asks to log in inside the panel, trusted opens it', async () => {
+    const retryWhileOffline = async (): Promise<void> => {
+      const offline = await faults.install({kind: 'offline'})
+      harness.mountShell('/', [], {login: {apiBase: origin()}})
+      await opener().click()
+      const screen = page.getByRole('alert').filter({hasText: /couldn.t reach the engine/})
+      await expect.element(screen, {timeout: 8000}).toBeVisible()
+      await coreControl.releaseFault(offline)
+      await screen.getByRole('button', {name: 'Retry'}).click()
+    }
+    await retryWhileOffline()
+    await expect.element(loginNotice(), {timeout: 8000}).toBeVisible()
+    await loginNotice().getByRole('button', {name: 'Log in'}).click()
+    await userEvent.type(firstDigit(), await coreControl.requestCode())
+    await expect.element(loginNotice()).not.toBeInTheDocument()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    harness.dispose()
+    await retryWhileOffline()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('an unreachable engine opens the panel onto the error screen instead of the login', async () => {
+    harness.mountShell('/', [], {login: {apiBase: 'http://127.0.0.1:9'}})
+    await opener().click()
+    await expect.element(page.getByText(/couldn.t reach the engine/), {timeout: 8000}).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
   }, 30_000)
 })
 

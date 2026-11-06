@@ -68,6 +68,7 @@ export function makeRpcRouter(deps: RpcDeps) {
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
   return os.router({
+    auth: deps.auth,
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     drafts: {
