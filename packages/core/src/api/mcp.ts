@@ -16,6 +16,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
+import corePackage from '../../package.json' with {type: 'json'}
 import {
   cappedText,
   cappedValue,
@@ -318,7 +319,7 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   )
   const server = createMCPServer({
     name: 'conciv',
-    version: '0.0.0',
+    version: corePackage.version,
     tools: await sessionTools(c.var.mcp, scope),
     onerror: (error) => logError(`[mcp] ${error.message}`),
   })

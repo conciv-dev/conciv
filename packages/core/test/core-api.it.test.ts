@@ -80,6 +80,7 @@ import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
+import corePackage from '../package.json' with {type: 'json'}
 import {
   bootKit,
   bootMadeApp,
@@ -278,6 +279,16 @@ describe('api engine staleness di', () => {
       expect(discoverDescription.length).toBeLessThanOrEqual(4096)
       expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
+    }, 20_000)
+
+    it('reports the core package version as the MCP server version', async () => {
+      const served = await serveWithProbe(() => INJECTED)
+      const mcp = await connectMcpClient(`${served.base}/api/mcp`)
+      try {
+        expect(mcp.serverVersion()).toBe(corePackage.version)
+      } finally {
+        await mcp.close()
+      }
     }, 20_000)
 
     it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
