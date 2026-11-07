@@ -10,6 +10,7 @@ export function sourceCatalog(input: {extension: string; sources: Record<string,
     fields: Object.entries(entry.fields).map(([name, field]) => catalogField({name, field})),
     order,
     writable: entry.writable === true,
+    sort: entry.order ?? [],
   }))
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE `sources` ADD `sort` text DEFAULT '[]' NOT NULL;

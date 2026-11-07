@@ -28,6 +28,7 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
         source: source.source,
         fields: source.fields.map((field) => field.name),
         writable: source.writable,
+        order: source.sort,
       })),
     read: async ({extension, ...query}: SourceRead & {extension?: string}) => {
       const source = sourceOf({extension, name: query.from})
@@ -37,7 +38,7 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
         sql`, `,
       )
       const where = query.where === undefined ? sql`` : sql` where ${predicate({node: parsed(query.where), source})}`
-      const order = (query.order ?? []).map(
+      const order = (query.order ?? source.sort).map(
         ({field, dir}) => sql`${expressionOf({source, name: field})} ${dir === 'desc' ? sql`desc` : sql`asc`}`,
       )
       const sorted = order.length === 0 ? sql`` : sql` order by ${sql.join(order, sql`, `)}`

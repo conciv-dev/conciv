@@ -12,6 +12,8 @@ const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: fro
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
+const RoundOf = z.object({round: z.number()})
+
 const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
 const queryDef = designDataTool({
@@ -129,14 +131,15 @@ async function recorded<Reply>(input: {
 }): Promise<Reply> {
   const {ctx, tool, session} = input
   const started = Date.now()
-  const write = (outcome: {replyBytes: number | null; error: string | null}) =>
+  const write = (outcome: {replyBytes: number | null; error: string | null; round: number | null}) =>
     ctx.design.store.writeToolCall({session, tool, input: input.input, durationMs: Date.now() - started, ...outcome})
   try {
     const reply = await input.call()
-    await write({replyBytes: Buffer.byteLength(JSON.stringify(reply)), error: null})
+    const round = RoundOf.safeParse(reply).data?.round ?? null
+    await write({replyBytes: Buffer.byteLength(JSON.stringify(reply)), error: null, round})
     return reply
   } catch (error) {
-    await write({replyBytes: null, error: error instanceof Error ? error.message : String(error)})
+    await write({replyBytes: null, error: error instanceof Error ? error.message : String(error), round: null})
     throw error
   }
 }
