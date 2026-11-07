@@ -67,6 +67,7 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
 import {EngineStaleNotice} from '../src/shell/engine-notice.js'
+import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {HostApiProvider} from '@conciv/extension/host'
@@ -604,6 +605,28 @@ describe('chat pane', () => {
       await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
       await expect.element(loadError()).not.toBeInTheDocument()
       await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+
+    test('Refresh on a failed load reopens the conversation, with no error row left and no prompt sent again', async () => {
+      const sessionId = await sessionWithHistory()
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      active.pane = mountPane({base: core(), sessionId}, () => (
+        <>
+          <RefreshButton />
+          <ChatPane sessionId={sessionId} />
+        </>
+      ))
+
+      await expect.element(retry()).toBeEnabled()
+      await coreControl.releaseFault(broken)
+      await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('button', {name: 'Refresh the conversation'})).toBeEnabled()
+      expect(page.getByText('a question from before').elements()).toHaveLength(1)
+      expect(page.getByText(UNSCRIPTED_REPLY).elements()).toHaveLength(1)
     })
 
     test('Retry after a failed load joins the run already in flight, so the rest of the reply arrives and the pane settles', async () => {
