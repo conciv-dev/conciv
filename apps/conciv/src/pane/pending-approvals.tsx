@@ -3,8 +3,9 @@ import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ApprovalAsk} from '@conciv/protocol/chat-event-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {TracePermissionBlock} from '@conciv/ui-kit-chat/tools'
+import {TURN_MEASURE_CLASS} from '@conciv/ui-kit-chat'
 
-const LIST = 'relative flex flex-col min-w-0 p-0 m-0 list-none'
+const LIST = `relative flex flex-col min-w-0 p-0 m-0 list-none self-stretch ${TURN_MEASURE_CLASS}`
 
 function askPart(ask: ApprovalAsk): ToolCallPart {
   return {
