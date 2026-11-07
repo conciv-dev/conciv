@@ -1,6 +1,7 @@
 import {formatHex8, parse} from 'culori'
 import {z} from 'zod'
 import type {Box, Counts, Coverage, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {renderersOf} from './renderers.js'
 
@@ -62,11 +63,12 @@ const NOTICE_PX = 96
 const FLAT_KINDS = new Set(['text', 'line'])
 const SOLID = 'solid'
 const CLEAR = 'transparent'
+const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
 const FillsSchema = z.array(z.object({type: z.string(), color: z.string().optional(), opacity: z.number().optional()}))
 
 function recordsOf(root: DesignNode): Record[] {
   return [...walk(root)].flatMap(({node, parent}): Record[] => {
-    const box = node.figma?.box ?? node.box
+    const box = {...(node.figma?.box ?? node.box), h: heightOf(node)}
     const gate = node.gate ?? (node.figma === undefined ? imageGate({node, parent}) : undefined)
     if (gate === undefined) return []
     return [
@@ -81,6 +83,33 @@ function recordsOf(root: DesignNode): Record[] {
         fill: fillOf(node),
       },
     ]
+  })
+}
+
+function heightOf(node: DesignNode): number {
+  const box = node.figma?.box ?? node.box
+  const flow = FlowSchema.safeParse(node.figma?.fields.layout)
+  const kids = node.children.filter((kid) => kid.figma?.absolute !== true)
+  if (!flow.success || kids.length === 0 || !inFlow({kids, ...flow.data})) return box.h
+  const [top = 0, , bottom = 0] = flow.data.pad
+  const heights = kids.map(heightOf)
+  const content =
+    flow.data.mode === 'VERTICAL'
+      ? heights.reduce((sum, h) => sum + h, 0) + flow.data.gap * (kids.length - 1)
+      : Math.max(...heights)
+  return Math.max(box.h, top + content + bottom)
+}
+
+function inFlow(input: {kids: DesignNode[]; mode: 'HORIZONTAL' | 'VERTICAL'; gap: number}): boolean {
+  const {kids, gap} = input
+  const axis = input.mode === 'VERTICAL' ? ('y' as const) : ('x' as const)
+  const size = input.mode === 'VERTICAL' ? ('h' as const) : ('w' as const)
+  return kids.every((kid, index) => {
+    const before = kids[index - 1]
+    if (before === undefined) return true
+    const a = before.figma?.box ?? before.box
+    const b = kid.figma?.box ?? kid.box
+    return Math.abs(b[axis] - (a[axis] + a[size] + gap)) <= designConfig.tolerances.geometryPx
   })
 }
 
