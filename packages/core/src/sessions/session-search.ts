@@ -136,11 +136,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const textPass = async (running: Running, unread: Listed[]): Promise<boolean> => {
     const ordered = sortBy(unread, [(entry) => entry.meta.sizeBytes ?? 0])
-    for (const entry of ordered) await readInto(running, entry, Date.now())
-    return ordered.length > 0
+    return ordered.reduce<Promise<boolean>>(async (previous, entry) => {
+      const changed = await previous
+      return (await readInto(running, entry, Date.now())) || changed
+    }, Promise.resolve(false))
   }
 
-  const readInto = async (running: Running, entry: Listed, now: number): Promise<void> => {
+  const readInto = async (running: Running, entry: Listed, now: number): Promise<boolean> => {
     const current = entry.current
     const text = await entry.source.history.messages(deps.cwd, entry.meta.id).then(textOf, (error: unknown) => {
       if (current === undefined || current.read || current.readAt === 0) {
@@ -154,6 +156,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       {listing: listingOf(entry), text, readAt: now, readUpdatedAt: entry.meta.updatedAt},
       {signal: running.stopped.signal},
     )
+    return text !== null
   }
 
   const hitsOf = async (
