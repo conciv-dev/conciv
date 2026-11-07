@@ -15,13 +15,18 @@ export async function mappingOf(input: {
   const fileKey = record.ref.split('/')[0] ?? record.ref
   const matched = (selector: string): string[] => measured.matches.get(selector) ?? []
   const ambiguous = input.stored.filter((item) => matched(item.selector).length > 1)
-  const stored = input.stored.filter((item) => matched(item.selector).length === 1)
+  const resolved = input.stored.filter((item) => matched(item.selector).length === 1)
+  const stored = resolved.filter(trusted)
+  const provisional = new Map(
+    resolved.filter((item) => !trusted(item)).map((item) => [item.figma.nodeId, item] as const),
+  )
   const left = input.stored.filter((item) => matched(item.selector).length === 0).map((item) => item.figma.nodeId)
   const nodes = new Set([...walk(design.root)].map(({node}) => node.id))
   const mapped = new Set(stored.map((item) => item.figma.nodeId))
   const unmapped = [...nodes].filter((node) => !mapped.has(node))
   const dupes = ambiguous.map((item) => item.figma.nodeId)
-  if (unmapped.length === 0) return {mapping: stored, matches: measured.matches, dupes, candidates: [], notRendered: []}
+  if (unmapped.length === 0)
+    return {mapping: stored, matches: measured.matches, dupes, candidates: [], notRendered: [], provisional: 0}
   const pins = stored.flatMap((item) => {
     const [path] = matched(item.selector)
     return path === undefined ? [] : [{node: item.figma.nodeId, path}]
@@ -52,23 +57,30 @@ export async function mappingOf(input: {
   })
   const matches = new Map(measured.matches)
   voted.forEach((vote) => matches.set(vote.selector, matches.get(vote.selector) ?? [vote.path]))
+  const written = voted.map((vote): Mapping[number] => {
+    const before = provisional.get(vote.nodeId)
+    if (before !== undefined && before.selector === vote.selector) return {...before, confirmed: true}
+    return {
+      figma: {fileKey, nodeId: vote.nodeId},
+      selector: vote.selector,
+      source: 'voted',
+      confidence: vote.confidence,
+      ...(vote.margin === undefined ? {} : {margin: vote.margin}),
+      round,
+    }
+  })
   return {
-    mapping: [
-      ...stored,
-      ...voted.map((vote): Mapping[number] => ({
-        figma: {fileKey, nodeId: vote.nodeId},
-        selector: vote.selector,
-        source: 'voted',
-        confidence: vote.confidence,
-        ...(vote.margin === undefined ? {} : {margin: vote.margin}),
-        round,
-      })),
-    ],
+    mapping: [...stored, ...written],
     matches,
     dupes,
     candidates,
     notRendered: left.filter((node) => !voted.some((vote) => vote.nodeId === node)),
+    provisional: written.filter((entry) => !trusted(entry)).length,
   }
+}
+
+function trusted(entry: Mapping[number]): boolean {
+  return entry.confirmed === true || entry.confidence >= designConfig.tolerances.figmaPair.trustedConfidence
 }
 
 type Mapped = {
@@ -77,6 +89,7 @@ type Mapped = {
   dupes: string[]
   candidates: Coverage['candidates']
   notRendered: string[]
+  provisional: number
 }
 
 type Tree = {

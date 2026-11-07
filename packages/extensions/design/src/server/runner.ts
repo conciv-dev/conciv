@@ -28,7 +28,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
-    const {mapping, matches, dupes, candidates, notRendered} = await mappingOf({
+    const {mapping, matches, dupes, candidates, notRendered, provisional} = await mappingOf({
       record,
       design,
       measured,
@@ -39,7 +39,13 @@ export function createRunner(runtime: DesignRuntime): Runner {
     })
     const renderers = renderersOf({live: measured.live, mapping, matches})
     const gate = gateOf({root: design.root, renderers})
-    const coverage = {...gate.coverage, dupes, candidates, notRendered: [...gate.coverage.notRendered, ...notRendered]}
+    const coverage = {
+      ...gate.coverage,
+      dupes,
+      candidates,
+      provisional,
+      notRendered: [...gate.coverage.notRendered, ...notRendered],
+    }
     if (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2)
       return {unsettled: true, rendered: gate.coverage.rendered}
     await store.writeMapping({id: record.id, mapping})

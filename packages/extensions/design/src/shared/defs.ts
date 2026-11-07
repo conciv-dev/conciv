@@ -223,6 +223,7 @@ export const MappingSchema = z.array(
     confidence: z.number().describe('the winning score of the vote'),
     margin: z.number().optional().describe('the winning score minus the runner-up score'),
     round: z.number().describe('the round that wrote the entry'),
+    confirmed: z.boolean().optional().describe('a vote below the trusted line that won two rounds in a row'),
   }),
 )
 
@@ -268,6 +269,7 @@ const CoverageSchema = z.object({
   missing: z.array(z.string()).describe('nodes no element renders'),
   notRendered: z.array(z.string()).describe('stored nodes whose element is not on the page'),
   dupes: z.array(z.string()).describe('nodes whose stored selector matches more than one element'),
+  provisional: z.number().default(0).describe('mapped nodes whose vote is below the trusted line, voted again'),
   candidates: z
     .array(z.object({node: z.string(), candidates: z.array(z.object({selector: z.string(), score: z.number()}))}))
     .default([])
@@ -363,11 +365,7 @@ const MeasureResultSchema = z.object({
   overflowX: z.boolean().default(false).describe('the measured page scrolls sideways'),
   queries: z.array(z.number()).default([]).describe('the widths the media and container queries of the page name'),
   sheets: z.string().default('').describe('sha256 of the page stylesheets'),
-  framework: z
-    .enum(['react', 'solid'])
-    .nullable()
-    .default(null)
-    .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
+  framework: z.enum(['react', 'solid']).nullable().default(null).describe('react with a fiber, solid with vite ids'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
   matches: z.array(z.object({selector: z.string(), paths: z.array(z.string())})).default([]),

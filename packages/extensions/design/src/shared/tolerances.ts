@@ -93,6 +93,7 @@ export const designConfig = Object.assign(
         parentBonus: 0.15,
         parentPenalty: 0.1,
         threshold: 0.3,
+        trustedConfidence: 0.5,
         candidatesKept: 3,
       },
     },
