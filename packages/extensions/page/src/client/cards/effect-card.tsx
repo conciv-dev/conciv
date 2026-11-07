@@ -70,7 +70,9 @@ function EffectCard(props: ToolCardProps): JSX.Element {
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
+          <Match when={errorMessage()}>
+            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+          </Match>
           <Match when={rows()}>
             {(list) => (
               <Show when={list().length > 0} fallback={<p class={QUIET_TEXT_CLASS}>the page registered no effects</p>}>

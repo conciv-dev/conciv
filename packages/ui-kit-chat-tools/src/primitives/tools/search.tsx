@@ -30,6 +30,7 @@ export function useSearch(): SearchContextValue {
 }
 
 function searchMetaLabel(result: ToolResultPart | undefined, status: ToolStatus, count: number): string | undefined {
+  if (result?.outcome !== undefined) return result.outcome
   if (status === 'error') return 'failed'
   if (!result) return undefined
   return `${count} ${count === 1 ? 'match' : 'matches'}`

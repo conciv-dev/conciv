@@ -17,7 +17,7 @@ import {
 const ErrorPayloadSchema = z.object({message: z.string()}).loose()
 
 function readError(part: ToolCardProps['part'], result: ToolCardProps['result']): string | null {
-  if (toolStatus(part, result) !== 'error') return null
+  if (result?.state !== 'error') return null
   if (result?.error && result.error.length > 0) return result.error
   const shaped = ErrorPayloadSchema.safeParse(parseResultPayload(result))
   if (shaped.success && shaped.data.message.length > 0) return shaped.data.message
@@ -117,7 +117,7 @@ export function InspectionCard(
       durationMs={card.durationMs}
       status={status()}
     >
-      <Show when={error()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
       <Show when={!error() && !running()}>{local.children}</Show>
     </CardShell>
   )
@@ -138,7 +138,7 @@ export function ActionCard(props: ToolCardProps & {summary: string}): JSX.Elemen
       result={card.result}
       durationMs={card.durationMs}
     >
-      <Show when={error()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={error()}>{(message) => <ErrorBlock message={message()} outcome={card.result?.outcome} />}</Show>
     </CardShell>
   )
 }

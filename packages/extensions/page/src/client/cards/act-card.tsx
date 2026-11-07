@@ -31,7 +31,9 @@ export function ActCard(props: ToolCardProps): JSX.Element {
         <Show when={meta()?.mirrors === true}>
           <MirrorRow />
         </Show>
-        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
+        <Show when={errorMessage()}>
+          {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+        </Show>
       </div>
     </CardShell>
   )

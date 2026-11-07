@@ -467,6 +467,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
+      retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
       reasoning: plan.reasoning,
       abortController: controller,
