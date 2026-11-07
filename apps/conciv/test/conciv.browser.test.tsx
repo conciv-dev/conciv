@@ -1174,6 +1174,24 @@ describe('chat history paging', () => {
     expect(await hydrates()).toBe(opened + 1)
   })
 
+  test('an older page that fails waits for Retry instead of asking again, and Retry loads it', async () => {
+    const opened = await openChat(long.sessionId)
+    await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+
+    await scrollToTop()
+
+    const failed = page.getByRole('alert').filter({hasText: 'Couldn’t load earlier messages.'})
+    await expect.element(failed).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await faults.releaseAll()
+
+    await userEvent.click(failed.getByRole('button', {name: 'Retry'}))
+
+    await expect.element(exchange(75)).toBeInTheDocument()
+    await expect.element(failed).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
   test('scrolling up page after page reaches the first message, then stops asking, and every marker stays on its message', async () => {
     const opened = await openChat(long.sessionId)
     for (const boundary of [74, 49, 24, 0]) {

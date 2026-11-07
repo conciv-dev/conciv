@@ -13,10 +13,11 @@ export function OlderMessages(props: {sessionId: string; chat: ChatSession}): JS
   const viewport = useThreadViewport()
   const pagesKey = () => ['older-messages', props.sessionId]
   const loading = useIsFetching(() => ({queryKey: pagesKey()}))
+  const wanted = () => viewport.isNearTop() && props.chat.hasOlderMessages() && loading() === 0
   const older = useQuery(() => ({
     queryKey: [...pagesKey(), props.chat.messages()[0]?.id ?? null],
     queryFn: () => props.chat.loadOlderMessages().then(() => true),
-    enabled: viewport.isNearTop() && props.chat.hasOlderMessages() && loading() === 0,
+    enabled: wanted() ? (query) => query.state.status !== 'error' : false,
     staleTime: Infinity,
     gcTime: 0,
     retry: false,

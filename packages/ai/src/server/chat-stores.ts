@@ -1,4 +1,4 @@
-import {and, asc, count, desc, eq, gte, isNotNull, lt, lte, sql} from 'drizzle-orm'
+import {and, asc, desc, eq, gte, isNotNull, lt, lte, max, sql} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import type {MessagePage} from '@tanstack/ai-persistence'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
@@ -68,8 +68,11 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (thr
   }
   async function windowEnd(threadId: string, before: string | undefined): Promise<number | null> {
     if (before === undefined) {
-      const counted = await db.select({count: count()}).from(chatMessages).where(eq(chatMessages.threadId, threadId))
-      return counted[0]?.count ?? 0
+      const newest = await db
+        .select({position: max(chatMessages.position)})
+        .from(chatMessages)
+        .where(eq(chatMessages.threadId, threadId))
+      return (newest[0]?.position ?? -1) + 1
     }
     const rows = await db
       .select({position: chatMessages.position})

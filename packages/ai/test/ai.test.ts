@@ -144,6 +144,19 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       await expect(stores.messages.loadThread('paged')).rejects.toThrow()
     })
 
+    it('the newest page ends on the last stored message even when a position in between is missing', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 2})).toEqual({
+        messages: THREAD.slice(6),
+        truncated: true,
+        cursor: 'u2',
+      })
+    })
+
     it('saving a shorter thread drops the messages past its end', async () => {
       const stores = await savedThread()
       await stores.messages.saveThread('paged', THREAD.slice(0, 2))
