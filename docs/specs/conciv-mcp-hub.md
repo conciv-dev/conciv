@@ -1,7 +1,8 @@
 # conciv MCP hub: any agent session finds and drives any open conciv tab
 
-Status: spec for implementation, revision 3 (2026-11-07). Base: `main` once PR #739 (`/api/mcp` on
-`createMCPServer` from `@tanstack/ai-mcp`) has merged; branch `feat/mcp-hub` is rebased onto it then. File
+Status: spec for implementation, revision 4 (2026-11-07). Base: PR #739's branch `feat/ai-mcp-server` (already
+contains `main` with the `@tanstack/ai` 1.2.0 family from #736, and `@tanstack/ai-mcp` 1.1.0); `feat/mcp-hub` is
+rebased onto `main` once #739 merges. File
 references are to #739's code. Revision 1 (2026-11-03) targeted the closed Devframe stack (#691-#709); the
 Devframe exit decision (branch `docs/devframe-migration`, `docs/designs/devframe-exit.md`) rules out any Devframe
 dependency on `main`. Revision 3 folds in two independent reviews (code accuracy; design and security) and
@@ -38,7 +39,10 @@ Omri, 2026-11-07:
 - The home folder follows the platform-folder pattern via `env-paths` (approved as a direct dependency).
 - Harnesses: Claude Code, Codex, opencode, Gemini CLI. pi has no MCP support and is out of v1.
 - Consent: an outside session must be allowed before it can drive a tab. The policy is configurable (`hubAccess`:
-  `'open' | 'session' | 'project'`), default `'session'` (one-time allow per conciv session).
+  `'open' | 'session' | 'project'`), default `'session'` (one-time allow per conciv session). Deny sticks: a denied
+  session (or project, under `'project'`) refuses outside calls without asking until the user allows it again.
+- An outside agent gets the same conciv instructions the in-page agent gets (the engine's system prompt text),
+  returned by `tab_tools`.
 - The composer launch menu AND the terminal panel's "Open externally" button are deleted, with every procedure,
   connect plan, type, doc and skill text that only they use. A "Connect agents" menu replaces the composer menu.
 - Installing is done by the engine on click: picking "Connect <harness>" makes the engine run that harness's
@@ -171,7 +175,8 @@ Response zod schema in `@conciv/protocol`:
   (`packages/core/src/api/rpc/sessions.ts`). That reads native transcript lists; acceptable because the hub calls
   the full listing only from `list_tabs`.
 - `?session=<id>` (zod: `SessionId.optional().catch(undefined)`) is the cheap form the hub uses before each call:
-  it answers `{open: boolean}` from `openSessions()` membership only, with no page query and no session listing.
+  it answers `{open: boolean, instructions: string | null}` from `openSessions()` membership and the engine's
+  system prompt text, with no page query and no session listing.
 
 ### `route` page tool
 
@@ -197,13 +202,20 @@ the agent to warn the user when it is above 1.
     (`plane.admitCall`, `packages/chat/src/index.ts`) with a fixed approval target `outside-session` and input
     `{client}`. The call is refused with the gate's message until the user allows; the allow is recorded for that
     session only.
+  - Deny sticks. Today a Deny outside a running turn records nothing (`approvals.decide` in
+    `packages/chat/src/approvals.ts` only stores `denied` when `runId !== null`), so every retry would prompt again.
+    For the `outside-session` target a Deny is stored for the session (for the engine under `'project'`), and later
+    hub calls are refused with "the user denied outside agents for this session" without a new prompt. The
+    session's existing actions menu gets "Allow outside agents", shown only while that deny stands, which clears
+    it. If the session has no actions menu that can take the item, stop and ask Omri.
   - `'project'`: same prompt, but the allow is recorded once for the engine's project and covers every session.
   - Every hub-origin request in `/api/mcp` passes this check before any tool runs, including `tools/list` served
     through `tab_tools`.
-- Known conflict to resolve first: today approving an ask posts a user message ("Approved: <title>") that starts a
-  retry run of the tab's own agent (`docs/superpowers/specs/2026-10-29-approvals-deny-and-retry.md`). Allowing an
-  outside session must not start a run in the tab. Read the approve path; if it cannot record the allow without
-  posting a message using an existing option, stop and ask Omri before adding anything.
+- Known conflict to resolve first: the widget posts "Approved: <title>" after a decision
+  (`decisionText` in `packages/ai/src/session/session.ts`), which starts a run of the tab's own agent; the server's
+  `decide` only records it and returns `startsTurn: false` for asks with no run. Deciding an ask that came from an
+  outside call (the `outside-session` target, and any approval tool called through the hub) must not post that
+  message. If the session code cannot skip it based on the pending approval's own data, stop and ask Omri.
 - Marker: hub-origin `TOOL_CALL_START` / `TOOL_CALL_END` / `TOOL_CALL_RESULT` chunks carry
   `metadata.conciv = {origin: 'hub', client}` (built in `packages/core/src/api/mcp.ts` `callStartChunks`,
   `executeResultChunk`; `TOOL_CALL_RESULT` already sets `metadata.tanstack`). The widget tool row shows
@@ -212,9 +224,9 @@ the agent to warn the user when it is above 1.
 ### Hub: `conciv mcp` (`@conciv/cli`)
 
 - A citty subcommand `mcp` in `packages/cli/src/main.ts`. Server built with `createMCPServer` and served with
-  `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio`; engine calls use `createMCPClient({type: 'http', url,
-  headers})` from `@tanstack/ai-mcp`. Both through `@conciv/ai/server` as #739 does; no `@modelcontextprotocol/sdk`
-  dependency. One client per `apiBase`, cached for the hub's life and dropped on a connection error. `@conciv/cli`
+  `serveMCPStdio(server)` from `@tanstack/ai-mcp/server/stdio` (`@tanstack/ai-mcp` 1.1.0); engine calls use
+  `createMCPClient({type: 'http', url, headers})` and its `tools()` / `callTool(name, args)`. Imported through
+  `@conciv/ai/server` as #739 does (add re-exports there if missing); no `@modelcontextprotocol/sdk` dependency. One client per `apiBase`, cached for the hub's life and dropped on a connection error. `@conciv/cli`
   gains `@conciv/db` and `@conciv/ai`.
 - Discovery: `checkEngines(home, {timeoutMs: 2000})`, then for each live row `GET <apiBase>/api/tabs` (2s
   timeout, parallel). A 404 reports "engine too old for the hub; upgrade its @conciv packages"; a 401 or timeout
@@ -223,9 +235,12 @@ the agent to warn the user when it is above 1.
   - `list_tabs()`: `{tabs: [{tab, project, branch, root, href, pageTitle, sessionTitle, lastActive, running,
     state, harness, browserTabs}], unreachable: [{root, error}], home}`. Flat rows, ISO `lastActive`, nulls
     omitted. `home` is the folder read, so a hub started without the user's env is diagnosable when nothing shows.
-  - `tab_tools({tab})`: resolve the tab, then that engine's `tools/list` for the session (names, descriptions,
-    input schemas), returned unchanged. This carries the per-session `execute_typescript` capability list, the
-    stale-engine warning and every approval tool.
+  - `tab_tools({tab})`: resolve the tab, then return `{instructions, tools}`: `instructions` is the engine's conciv
+    system prompt text (the same text the in-page agent gets, `systemPromptText` / `cfg.systemPrompt` in
+    `makeApp`), and `tools` is that engine's `tools/list` for the session (names, descriptions, input schemas),
+    unchanged. This carries the per-session `execute_typescript` capability list, the stale-engine warning and
+    every approval tool. `createMCPServer` 1.1.0 has no server `instructions` option, so the text comes from
+    `GET /api/tabs?session=<id>`, which answers `{open, instructions}`.
   - `call_tool({tab, name, arguments})`: resolve the tab, then `tools/call` on the engine with that name and
     arguments; result content returned unchanged.
   - Resolving a tab: ask each engine `GET /api/tabs?session=<tab>` in parallel. Not open anywhere: error "tab <id>
@@ -239,9 +254,11 @@ the agent to warn the user when it is above 1.
 > If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If more than one
 > matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose state is visible
 > only when the user says "this one" or "the one I have open". If none match, say so and list what is open. Then
-> call tab_tools once for that tab and use call_tool with the tool names it returns. If browserTabs is above 1,
+> call tab_tools once for that tab, follow the instructions it returns for working in that page, and use call_tool
+> with the tool names it returns. If browserTabs is above 1,
 > tell the user page actions run in every browser tab of that session. If a call says the user must allow this
-> session, tell the user to click Allow in the conciv tab, then retry. Keep using the chosen tab id; if a call says
+> session, tell the user to click Allow in the conciv tab, then retry; if it says the user denied outside agents,
+> stop and tell the user, do not retry. Keep using the chosen tab id; if a call says
 > the tab is not open, call list_tabs again.
 
 ### Install: "Connect agents" menu
@@ -329,7 +346,8 @@ Run `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion.
   - `/api/tabs` returns project name and branch and a joined page with href, title, state and `browserTabs`;
     `?session=` answers open / not open;
   - under `hubAccess: 'session'` a hub-origin call is refused, an allow lets the retry through, a second session is
-    refused again; under `'project'` the second session passes; under `'open'` nothing is refused;
+    refused again; after a Deny, retries are refused without a new pending approval until "Allow outside agents"
+    clears it; under `'project'` the second session passes; under `'open'` nothing is refused;
   - an allowed hub-origin `execute_typescript` publishes chunks carrying `metadata.conciv.origin === 'hub'`.
 - `packages/cli/test/cli.test.ts` (over 1000; pay for additions), `describe('conciv mcp hub')`, using `startEngine`
   and `answerNextQuery` (a fake page subscriber, not a browser): spawn the hub over stdio with a temp
@@ -357,8 +375,10 @@ One patch changeset naming `@conciv/cli` (the fixed group bumps every `@conciv/*
 1. Click "Connect" for each of Claude, Codex, opencode and Gemini CLI (install Gemini CLI at the CI-pinned version
    first). Start the tanstack-start example and `apps/conciv`, one tab each. In a session of each harness in `~`:
    "find the conciv session in my tanstack project" picks the tanstack tab and says so.
-2. The first call shows Allow / Deny in that tab; Deny keeps it refused; Allow lets the retry run and does not start
-   a run of the tab's own agent.
+2. The first call shows Allow / Deny in that tab. Deny: the agent stops, retries show no new prompt; "Allow outside
+   agents" in the session menu lifts it. Allow: the retry runs and no run of the tab's own agent starts. Calling an
+   approval tool from outside and approving it also starts no run in the tab.
+9. `tab_tools` returns the same instructions text the in-page agent gets.
 3. Two tabs of one project on different pages: the same request makes the agent ask which, naming the URLs.
 4. Restart that dev server, and separately edit its `vite.config` (Vite restart): the next call on the chosen tab
    still works.

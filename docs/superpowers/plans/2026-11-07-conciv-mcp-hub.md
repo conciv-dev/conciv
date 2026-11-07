@@ -6,13 +6,13 @@
 
 **Architecture:** Each engine registers itself in a per-user SQLite home db. A stdio MCP server (`conciv mcp`, served as `conciv-hub`) reads that table, lists tabs through a new gated `GET /api/tabs`, and forwards `tools/list` / `tools/call` to the engine's existing `/api/mcp` with origin headers. The engine gates hub-origin calls through the existing deny-and-retry approvals, and marks their transcript chunks. The widget's launch menus are deleted and replaced by a "Connect agents" menu that runs each harness's `mcp add` on the engine.
 
-**Tech Stack:** TypeScript (strict, NodeNext), `node:sqlite` + drizzle (`@conciv/db`), `env-paths`, Hono, oRPC, `@tanstack/ai-mcp` (`createMCPServer`, `serveMCPStdio`, `createMCPClient`) through `@conciv/ai/server`, citty, Solid + Ark (`@conciv/ui-kit-system`), vitest (node + Playwright browser).
+**Tech Stack:** TypeScript (strict, NodeNext), `node:sqlite` + drizzle (`@conciv/db`), `env-paths`, Hono, oRPC, `@tanstack/ai` 1.2.0 family, `@tanstack/ai-mcp` 1.1.0 (`createMCPServer`, `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio`, `createMCPClient({type: 'http', url, headers})` with `tools()` / `callTool`) through `@conciv/ai/server`, citty, Solid + Ark (`@conciv/ui-kit-system`), vitest (node + Playwright browser).
 
 **Spec:** `docs/specs/conciv-mcp-hub.md` (revision 3). Read it before any task; this plan argues from it.
 
 ## Global Constraints
 
-- Base: `main` after PR #739 merged. Commit locally only: do NOT push, do NOT open a PR.
+- Base: `feat/mcp-hub`, built on PR #739's branch (contains `main` with the ai 1.2.0 family). Commit locally only: do NOT push, do NOT open a PR. Before reading any `@tanstack/ai*` API, read its installed source in `node_modules` (catalog versions in `pnpm-workspace.yaml`); never rely on memory of older versions.
 - Repo rules (`AGENTS.md`): functions not classes; no IIFEs; zero code comments; no `any` / `as` / `@ts-ignore` / non-null `!`; no `else` chains where an early return works; no em dashes in code; oxfmt style (no semicolons, single quotes, printWidth 120).
 - Solid: no raw `createSignal` / `createEffect`; use `createMemo`, solid-query, or `@solid-primitives/*`.
 - zod validates every untrusted input where it enters (query params, headers, RPC inputs, env, files read).
@@ -25,7 +25,7 @@
 - `hubAccess`: `'open' | 'session' | 'project'`, default `'session'`.
 - Timeouts: page route probe 1500 ms; hub `/api/tabs` probe 2000 ms; install spawn 30000 ms; home db busy timeout 5000 ms.
 - Modes: home folder `0700`, `home.db` `0600`.
-- Stop and ask Omri (report back, do not improvise) when: allowing an outside session cannot avoid posting a chat message; the tool-call row has no existing slot for "from <client>"; `opencode mcp add` has no non-interactive local form; a cold `npx` start exceeds a harness's MCP startup timeout.
+- Stop and ask Omri (report back, do not improvise) when: deciding an outside-origin approval cannot skip the "Approved: ..." chat message; the session has no actions menu for "Allow outside agents"; the tool-call row has no existing slot for "from <client>"; `opencode mcp add` has no non-interactive local form; a cold `npx` start exceeds a harness's MCP startup timeout.
 - Before each commit: `pnpm exec fallow audit --changed-since main --format json` shows nothing INTRODUCED.
 
 ## Review Focus
@@ -119,7 +119,7 @@
 - Consumes: Task 3 `page_route` output.
 - Produces:
   - `PageBus.openSessions(): Array<{sessionId: SessionId; subscribers: number}>`
-  - `TabsSchema` / `type Tabs` = spec's `/api/tabs` shape; `TabOpenSchema = z.object({open: z.boolean()})` in `@conciv/protocol/chat-types`
+  - `TabsSchema` / `type Tabs` = spec's `/api/tabs` shape; `TabOpenSchema = z.object({open: z.boolean(), instructions: z.string().nullable()})` in `@conciv/protocol/chat-types`
   - `GET /api/tabs` → `Tabs`; `GET /api/tabs?session=<id>` → `{open}` (zod `SessionId.optional().catch(undefined)`)
 
 - [ ] **Step 1: Failing tests** in `describe('outside sessions')`:
@@ -127,7 +127,7 @@
   - `/api/tabs lists a joined page`: engine rooted at a temp git repo whose `package.json` name is `tabs-fixture` and HEAD is `ref: refs/heads/feature-x`; a joined page subscriber answers `page_route` with `{href: 'http://localhost:5173/settings', title: 'Settings', state: 'visible', pathname: '/settings', search: ''}`. Expect `project: {name: 'tabs-fixture', branch: 'feature-x'}`, one tab with that `sessionId`, `browserTabs: 1`, `page.href` as given, `harness` = the session's `harnessKind`.
   - `a page that never answers is listed with page null` (subscriber that does not reply; response within 2.5 s).
   - `branch is re-read per request` (rewrite HEAD between two calls).
-  - `?session= answers open and not open`.
+  - `?session= answers open and not open, with the engine's system prompt text as instructions` (engine started with `systemPromptText: 'be careful in this page'`).
 - [ ] **Step 2: Run, expect FAIL** (404): `pnpm --filter @conciv/core exec vitest run test/core-api.it.test.ts -t 'outside sessions'`
 - [ ] **Step 3: Implement** `openSessions` (sessions whose page has `subscribers.size > 0`); `tabs.ts` handler: `Promise.all` over open sessions of `Promise.race([bus.ask(id, {name: 'page_route', input: {}}), abort after 1500 ms])`, `no-widget` and timeout → `page: null`; session fields from `rpcSessionList(chatDeps, false)`; project name from root `package.json` (zod-parsed, missing → null); branch from `.git/HEAD` (or the `gitdir:` file of a worktree), each request.
 - [ ] **Step 4: Run, expect PASS.**
@@ -136,7 +136,7 @@
 ### Task 5: Hub-origin calls: consent and transcript marker (engine side)
 
 **Files:**
-- Modify: `packages/protocol/src/chat-types.ts` (`CONCIV_ORIGIN_HEADER = 'conciv-origin'`, `CONCIV_CLIENT_HEADER = 'conciv-client'`), `packages/protocol/src/config-types.ts` (`hubAccess?: 'open' | 'session' | 'project'`), `packages/core/src/api/mcp.ts`, `packages/core/src/app.ts` (pass `hubAccess` and the gate into `McpDeps`), `packages/ai/src/session/session.ts` (decision without a chat message for the `outside-session` target)
+- Modify: `packages/protocol/src/chat-types.ts` (`CONCIV_ORIGIN_HEADER = 'conciv-origin'`, `CONCIV_CLIENT_HEADER = 'conciv-client'`), `packages/protocol/src/config-types.ts` (`hubAccess?: 'open' | 'session' | 'project'`), `packages/chat/src/approvals.ts` (sticky deny for `outside-session`), `packages/core/src/api/mcp.ts`, `packages/core/src/app.ts` (pass `hubAccess` and the gate into `McpDeps`), `packages/ai/src/session/session.ts` (no chat message when deciding an outside-origin approval), the session actions menu in `apps/conciv` ("Allow outside agents")
 - Test: `packages/core/test/core-api.it.test.ts`; `packages/ai/test/ai.test.ts` for the session decision path
 
 **Interfaces:**
@@ -146,14 +146,16 @@
   - Every hub-origin `/api/mcp` request (including `tools/list`) passes `admitCall(scope.id, 'outside-session', {client}, publish)` first under `'session'`; under `'project'` a granted decision is stored once for the engine and checked before `admitCall`; under `'open'` no check.
   - Hub-origin TOOL_CALL chunks carry `metadata.conciv = {origin: 'hub', client}`.
 
-- [ ] **Step 1: Read the decision path** in `packages/ai/src/session/session.ts` (`decisionText`, line ~74) and the widget approval strip. Confirm a decision for target `outside-session` can be recorded through `decide` without sending the "Approved: ..." message. If it cannot without a new slot or API, STOP and report to Omri.
+- [ ] **Step 1: Read the decision path** in `packages/ai/src/session/session.ts` (`decisionText`, line ~74), `packages/chat/src/approvals.ts` (`decide`, `admit`) and the widget approval strip. Confirm a decision for an outside-origin ask (the `outside-session` target, and an approval tool called through the hub, both with `runId: null`) can be recorded without sending the "Approved: ..." message, from the pending approval's own data. Find the session actions menu for "Allow outside agents". If either needs a new slot or API, STOP and report to Omri.
 - [ ] **Step 2: Failing tests** in `describe('outside sessions')`, all through `connectMcpClient(url, {[CONCIV_SESSION_HEADER]: id, 'conciv-origin': 'hub', 'conciv-client': 'codex'})`:
   - `session policy refuses a hub call until the user allows`: `tools/call execute_typescript` returns the gate's refusal text and a pending approval with target `outside-session` exists; after `decide(..., true, 'session')` the retry runs; a second session is refused again.
-  - `a denied outside session stays refused` (Review Focus 4): `decide(..., false, ...)`, retry returns refusal text unchanged.
+  - `a denied outside session stays refused without asking again` (Review Focus 4): `decide(..., false, ...)`; two retries return "the user denied outside agents for this session" and no new pending approval appears; clearing the deny (the procedure behind "Allow outside agents") makes the next call ask again.
+  - `approving an approval tool called from outside starts no run in the tab`.
   - `project policy allows every session after one allow`.
   - `open policy never asks`.
   - `allowed hub calls are marked in the transcript`: subscribe to the session stream; the TOOL_CALL_START chunk has `metadata.conciv` `{origin: 'hub', client: 'codex'}`.
-  - In `packages/ai/test/ai.test.ts`: `deciding an outside-session approval sends no chat message`.
+  - In `packages/ai/test/ai.test.ts`: `deciding an outside-origin approval sends no chat message`.
+  - In `apps/conciv/test/conciv.browser.test.tsx` (pay for the lines): `allow outside agents lifts a deny` (real pointer click on the menu item; the item disappears).
 - [ ] **Step 3: Run, expect FAIL.**
 - [ ] **Step 4: Implement** per Interfaces. Headers zod-parsed (`z.enum(['hub']).optional().catch(undefined)`, `z.string().max(64).optional().catch(undefined)`).
 - [ ] **Step 5: Run, expect PASS** (both files).
@@ -170,14 +172,14 @@
 - Consumes: Task 1 `concivHome`, `checkEngines`; Task 4 `TabsSchema`, `TabOpenSchema`; Task 5 header names; `createMCPServer`, `serveMCPStdio`, `createMCPClient` via `@conciv/ai/server`.
 - Produces:
   - `runHub(opts: {env: NodeJS.ProcessEnv; stdin: Readable; stdout: Writable}): Promise<void>`
-  - Tools `list_tabs()`, `tab_tools({tab})`, `call_tool({tab, name, arguments})` with the spec's output shape and server instructions text (copy verbatim from the spec).
+  - Tools `list_tabs()`, `tab_tools({tab})` → `{instructions: string | null, tools}`, `call_tool({tab, name, arguments})` with the spec's output shape and server instructions text (copy verbatim from the spec).
   - Hub client name passed as `conciv-client`: the MCP `clientInfo.name` from `initialize`.
 
 - [ ] **Step 1: Failing tests** in `describe('conciv mcp hub')` using `startEngine` and `answerNextQuery` (keep answering), hub spawned over stdio with `CONCIV_HOME` = temp and an MCP client on its stdio:
   - `list_tabs returns the open tab and no token` (serialized result contains no engine token).
   - `list_tabs with no engines returns an empty list and the home folder`.
   - `list_tabs reports a corrupt home db` (Review Focus 2): garbage `home.db`; result has an error naming `home`.
-  - `tab_tools returns the engine's own tools` (includes `execute_typescript` and one approval tool from the fixture extensions).
+  - `tab_tools returns the engine's own tools and instructions` (includes `execute_typescript`, one approval tool from the fixture extensions, and the engine's `systemPromptText`).
   - `call_tool runs execute_typescript after allow` (engine `hubAccess: 'open'` for this case).
   - `a restarted engine on another port still resolves the tab`.
   - `an unknown tab says to call list_tabs`.
