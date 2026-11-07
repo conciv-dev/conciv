@@ -3252,6 +3252,40 @@ describe('run errors', () => {
     await expect.element(page.getByRole('alert').getByText('upstream is overloaded')).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
   })
+
+  describe('in a live pane', () => {
+    const core = bootedCore('run-errors-live')
+    const keep = keptPane()
+
+    const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const runError = (text: string) =>
+      page.getByRole('alert').filter({hasText: text, has: page.getByRole('button', {name: 'Retry'})})
+
+    async function typeTurn(text: string): Promise<void> {
+      await userEvent.click(input())
+      await userEvent.keyboard(`${text}{Enter}`)
+    }
+
+    it('a finished compaction clears the run error it resolved, and a later failure still shows', async () => {
+      const sessionId = await createSession(coreRpc(core()))
+      keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+      await expect.element(input()).toBeVisible()
+
+      await coreControl.scriptError('upstream is overloaded')
+      await typeTurn('first turn')
+      await expect.element(runError('upstream is overloaded')).toBeVisible()
+
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+      await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
+      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
+
+      await coreControl.scriptError('the model went away')
+      await typeTurn('second turn')
+      await expect.element(runError('the model went away')).toBeVisible()
+    })
+  })
 })
 
 describe('tool outcomes', () => {
