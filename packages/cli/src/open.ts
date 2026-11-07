@@ -1,10 +1,21 @@
-import {EditorOpenInputSchema} from '@conciv/contract'
-import {BUILTIN_OPEN_TOOL} from '@conciv/tools/builtins'
+import {z} from 'zod'
+import {EditorOpenInputSchema, type ToolCommandSignature} from '@conciv/contract'
+import {userFailure} from './failure.js'
 import {runRpc} from './request.js'
-import {toolCommand} from './tool-command.js'
+import {wireToolCommand} from './tool-command.js'
 
-export const openCommand = toolCommand(BUILTIN_OPEN_TOOL, {
-  name: 'open',
-  positional: 'file',
-  run: (input) => runRpc((rpc) => rpc.editor.open(EditorOpenInputSchema.parse(input))),
-})
+const OPEN_POSITIONAL = 'file'
+
+export function openCommand(signature: ToolCommandSignature) {
+  return wireToolCommand(
+    {...signature, positional: OPEN_POSITIONAL},
+    {
+      name: 'open',
+      run: (input) => {
+        const parsed = EditorOpenInputSchema.safeParse(input)
+        if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
+        return runRpc((rpc) => rpc.editor.open(parsed.data))
+      },
+    },
+  )
+}
