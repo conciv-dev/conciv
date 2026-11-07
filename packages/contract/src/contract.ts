@@ -171,6 +171,7 @@ export const contract = {
       .errors(queryFailed)
       .input(
         z.object({
+          extension: z.string().min(1).optional(),
           from: z.string().min(1),
           where: z.string().min(1).optional(),
           select: z.array(z.string().min(1)).optional(),
@@ -181,7 +182,13 @@ export const contract = {
       .output(z.array(z.record(z.string(), z.unknown()))),
     write: oc
       .errors(queryFailed)
-      .input(z.object({into: z.string().min(1), values: z.record(z.string(), z.unknown())}))
+      .input(
+        z.object({
+          extension: z.string().min(1).optional(),
+          into: z.string().min(1),
+          values: z.record(z.string(), z.unknown()),
+        }),
+      )
       .output(z.array(z.record(z.string(), z.unknown()))),
   },
   extensions: {

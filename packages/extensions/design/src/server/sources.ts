@@ -1,7 +1,7 @@
-import type {ExtensionSource} from '@conciv/extension'
+import type {Source} from '@conciv/extension'
 import type {designTables} from './tables.js'
 
-export function designSources(tables: ReturnType<typeof designTables>): Record<string, ExtensionSource> {
+export function designSources(tables: ReturnType<typeof designTables>): Record<string, Source> {
   const {targets, rounds, rows, fom, votes, tool_calls: toolCalls, runs, labels, notes} = tables
   return {
     targets: {

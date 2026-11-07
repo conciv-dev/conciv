@@ -11,7 +11,7 @@ export async function extensionCommands(): Promise<SubCommandsDef> {
   if (!listed.isSuccess) return {}
   const owners = sources.isSuccess ? new Set(sources.data.map((source) => source.extension)) : new Set<string>()
   const scoped = [...owners].flatMap((owner) =>
-    Object.entries(sourceCommands({prefix: `${owner}_`, label: `the ${owner}`})).map(
+    Object.entries(sourceCommands({extension: owner, label: `the ${owner}`})).map(
       ([verb, command]) => [`${owner}:${verb}`, command] as const,
     ),
   )

@@ -6,7 +6,7 @@ import {sourceCommands} from './db.js'
 
 const dbCommand = defineCommand({
   meta: {name: 'db', description: 'read and write the conciv database through the sources extensions declare'},
-  subCommands: sourceCommands({prefix: '', label: 'every extension'}),
+  subCommands: sourceCommands({label: 'every extension'}),
 })
 
 export const main = defineCommand({

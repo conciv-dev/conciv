@@ -56,6 +56,8 @@ import {
   sessions,
   writeToolCapture,
   type ConcivDb,
+  type SourceRead,
+  type SourceWrite,
 } from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
@@ -358,10 +360,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         fields: Object.keys(entry.fields),
         writable: entry.writable === true,
       })),
-    read: everySource.read,
-    write: everySource.write,
+    read: ({extension, ...query}: SourceRead & {extension?: string}) => scopeOf(extension).read(query),
+    write: ({extension, ...query}: SourceWrite & {extension?: string}) => scopeOf(extension).write(query),
   }
   const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
+  function scopeOf(extension: string | undefined): Pick<ReturnType<typeof createSources>, 'read' | 'write'> {
+    if (extension === undefined) return everySource
+    const scoped = extensionDbs.get(extension)
+    if (scoped !== undefined) return scoped
+    throw new Error(`no extension ${extension}; the extensions are ${[...extensionDbs.keys()].join(', ')}`)
+  }
   const extensionCommands = declared.flatMap(({extension, scoped}) =>
     Object.entries(extension.commands ?? {}).map(([name, command]) => ({
       name: `${extension.name}:${name}`,

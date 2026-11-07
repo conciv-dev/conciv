@@ -62,6 +62,7 @@
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
+    "@conciv/db": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",

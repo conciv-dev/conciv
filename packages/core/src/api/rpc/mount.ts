@@ -6,7 +6,7 @@ import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
-import type {ConcivDb} from '@conciv/db'
+import type {ConcivDb, SourceRead, SourceWrite} from '@conciv/db'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
@@ -31,14 +31,8 @@ export type RpcDeps = {
   staleness: () => EngineStaleness
   sources: {
     list: () => {name: string; extension: string; source: string; fields: string[]; writable: boolean}[]
-    read: (query: {
-      from: string
-      where?: string
-      select?: string[]
-      order?: {field: string; dir: 'asc' | 'desc'}[]
-      limit?: number
-    }) => Promise<Record<string, unknown>[]>
-    write: (query: {into: string; values: Record<string, unknown>}) => Promise<Record<string, unknown>[]>
+    read: (query: SourceRead & {extension?: string}) => Promise<Record<string, unknown>[]>
+    write: (query: SourceWrite & {extension?: string}) => Promise<Record<string, unknown>[]>
   }
   commands: {name: string; description: string; positionals: readonly string[]; run: (args: string[]) => unknown}[]
 }

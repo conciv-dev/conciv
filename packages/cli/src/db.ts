@@ -3,8 +3,9 @@ import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {runRpc} from './request.js'
 
-export function sourceCommands(scope: {prefix: string; label: string}) {
-  const {prefix, label} = scope
+export function sourceCommands(scope: {extension?: string; label: string}) {
+  const {extension, label} = scope
+  const scoped = extension === undefined ? {} : {extension}
   return {
     query: defineCommand({
       meta: {name: 'query', description: `read ${label} sources; with no --from, list every source and its fields`},
@@ -19,13 +20,15 @@ export function sourceCommands(scope: {prefix: string; label: string}) {
         limit: {type: 'string', description: 'the most rows to return'},
       },
       run: ({args}) => {
-        if (args.from === undefined) return listed(prefix)
+        const from = args.from
+        if (from === undefined) return listed(extension)
         const limit = args.limit === undefined ? undefined : Number(args.limit)
         if (limit !== undefined && !Number.isInteger(limit))
           throw userFailure(`--limit takes a whole number, not ${args.limit}`)
         return runRpc((rpc) =>
           rpc.db.read({
-            from: `${prefix}${args.from}`,
+            ...scoped,
+            from,
             ...(args.where === undefined ? {} : {where: args.where}),
             ...(args.select === undefined ? {} : {select: args.select.split(',').map((field) => field.trim())}),
             ...(args.order === undefined ? {} : {order: orderOf(args.order)}),
@@ -40,17 +43,19 @@ export function sourceCommands(scope: {prefix: string; label: string}) {
         into: {type: 'string', required: true, description: 'the writable source'},
         values: {type: 'string', required: true, description: 'the row as a JSON object of field to value'},
       },
-      run: ({args}) => runRpc((rpc) => rpc.db.write({into: `${prefix}${args.into}`, values: valuesOf(args.values)})),
+      run: ({args}) => runRpc((rpc) => rpc.db.write({...scoped, into: args.into, values: valuesOf(args.values)})),
     }),
   }
 }
 
-function listed(prefix: string): Promise<CliOutcome> {
-  return runRpc(async (rpc) =>
-    (await rpc.db.sources())
-      .filter((source) => source.name.startsWith(prefix))
-      .map((source) => ({...source, name: source.name.slice(prefix.length)})),
-  )
+function listed(extension: string | undefined): Promise<CliOutcome> {
+  return runRpc(async (rpc) => {
+    const sources = await rpc.db.sources()
+    if (extension === undefined) return sources
+    return sources
+      .filter((source) => source.extension === extension)
+      .map((source) => ({...source, name: source.source}))
+  })
 }
 
 function orderOf(raw: string): {field: string; dir: 'asc' | 'desc'}[] {

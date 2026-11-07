@@ -17,8 +17,9 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
-import type {AnySQLiteColumn, AnySQLiteTable} from 'drizzle-orm/sqlite-core'
+import type {AnySQLiteColumn} from 'drizzle-orm/sqlite-core'
 import {parse, type ASTNode} from '@marcbachmann/cel-js'
+import type {Source, SourceField, SourceListing, SourceRead, SourceWrite} from './source-types.js'
 
 export function createSources(input: {orm: NodeSQLiteDatabase; sources: Record<string, Source>}) {
   const {orm, sources} = input
@@ -30,19 +31,13 @@ export function createSources(input: {orm: NodeSQLiteDatabase; sources: Record<s
   }
 
   return {
-    list: () =>
+    list: (): SourceListing[] =>
       Object.entries(sources).map(([name, source]) => ({
         name,
         fields: Object.keys(source.fields),
         writable: source.writable === true,
       })),
-    read: async (query: {
-      from: string
-      where?: string
-      select?: readonly string[]
-      order?: readonly {field: string; dir: 'asc' | 'desc'}[]
-      limit?: number
-    }) => {
+    read: async (query: SourceRead) => {
       const source = sourceOf(query.from)
       const names = query.select ?? Object.keys(source.fields)
       const fields = Object.fromEntries(names.map((name) => [name, expressionOf({source, name})]))
@@ -58,7 +53,7 @@ export function createSources(input: {orm: NodeSQLiteDatabase; sources: Record<s
       const rows = query.limit === undefined ? await selected : await selected.limit(query.limit)
       return rows.map((row): Record<string, unknown> => ({...row}))
     },
-    write: async (query: {into: string; values: Record<string, unknown>}) => {
+    write: async (query: SourceWrite) => {
       const source = sourceOf(query.into)
       if (source.writable !== true) {
         const writable = Object.entries(sources).flatMap(([name, entry]) => (entry.writable === true ? [name] : []))
@@ -76,10 +71,6 @@ export function createSources(input: {orm: NodeSQLiteDatabase; sources: Record<s
     },
   }
 }
-
-type Field = AnySQLiteColumn | {column: AnySQLiteColumn; path: string}
-
-type Source = {table: AnySQLiteTable; fields: Record<string, Field>; writable?: true}
 
 type Literal = string | number | boolean | null
 
@@ -103,7 +94,7 @@ function parsed(where: string): ASTNode {
   }
 }
 
-function fieldOf(input: {source: Source; name: string}): Field {
+function fieldOf(input: {source: Source; name: string}): SourceField {
   const field = input.source.fields[input.name]
   if (field !== undefined) return field
   throw new Error(`no field ${input.name}; the fields are ${Object.keys(input.source.fields).join(', ')}`)
