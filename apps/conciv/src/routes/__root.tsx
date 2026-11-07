@@ -7,7 +7,7 @@ import {
   useRouter,
   useSearch,
 } from '@tanstack/solid-router'
-import {QueryClientProvider, skipToken, useQuery} from '@tanstack/solid-query'
+import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
@@ -430,12 +430,14 @@ function RootChrome(props: {
 function createStoredRunning(activeSession: () => string | null, connected: () => boolean): () => boolean {
   const appData = useAppData()
   const queryClient = useAppQueryClient()
-  const sessionInput = () => {
-    const sessionId = activeSession()
-    return sessionId === null ? skipToken : {sessionId}
-  }
   const activeRow = useQuery(
-    () => ({...appData.utils.sessions.get.queryOptions({input: sessionInput()}), enabled: connected()}),
+    () => {
+      const sessionId = activeSession()
+      return {
+        ...appData.utils.sessions.get.queryOptions({input: {sessionId: sessionId ?? ''}}),
+        enabled: sessionId !== null && connected(),
+      }
+    },
     () => queryClient,
   )
   return () => (activeRow.isSuccess ? activeRow.data.running : false)

@@ -9,7 +9,7 @@ import {
   VirtualList,
 } from '@conciv/ui-kit-system'
 import {createDebouncedValue} from '@tanstack/solid-pacer'
-import {keepPreviousData, skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
+import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
 import {groupBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
@@ -111,7 +111,10 @@ export function SessionSelector(props: {
   })
   const active = useQuery(() => {
     const sessionId = props.activeId()
-    return appData.utils.sessions.get.queryOptions({input: sessionId === null ? skipToken : {sessionId}})
+    return {
+      ...appData.utils.sessions.get.queryOptions({input: {sessionId: sessionId ?? ''}}),
+      enabled: sessionId !== null,
+    }
   })
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
