@@ -6,7 +6,8 @@ Chat state and pure derivations: the `ChatProvider` context with view state, tur
 
 ## Interface
 
-- `chat-context.tsx:ChatProvider`, `useChatContext`, `useChatContextOptional`, `useThread`, `useComposer`; types `Chat`, `ChatContextValue`, `ViewState`.
+- `chat-context.tsx:ChatProvider`, `useChatContext`, `useChatContextOptional`, `useThread`, `useComposer`; types `Chat`, `ChatContextValue`, `ViewState`, `TurnItem`.
+- `turn-parts.ts:createTurnParts` - one turn's parts keyed by tool-call id, tool-result call id or position, with per-call `resultFor` and `hidesResult` lookups that wake only the row whose result arrives.
 - `grouping.ts:coalesceTurns`, `buildGroupTree`, `groupParts`, `groupPartByType`, `defaultGrouper`, `stickyGrouper`, `pairResults`, `childCallsFor`, `parentToolCallIdOf`, `standaloneToolNames`, `isReplyText`, `CHAIN_GROUP_KEY` (`group-chain`), `PAGE_SESSION_GROUP_KEY` (`group-page-session`); types `Turn`, `Grouper`, `Grouping`, `GroupNode`, `GroupEntry`.
 - `page-session.ts:createPageSessionGrouper`, `createGrouping`, `pageSessionCallParts`, `pageSessionThinkingParts`.
 - `turn-rollup.ts:turnRollup`, `createTurnRollup`, `summaryLine`, `sessionTotals`; `session-status.ts:deriveSessionStatus`, `createSessionStatus`; `run-clock.ts:runClock`, `createRunClock`, `formatElapsed`; `active-call.ts:activeToolCall`, `activeCallInParts`.
@@ -15,7 +16,7 @@ Chat state and pure derivations: the `ChatProvider` context with view state, tur
 ## Invariants
 
 - `chat-context.tsx:useChatContext` throws `useChatContext must be used within a <ChatProvider>`; `ChatProvider` re-mounts its scope when the `chat` object changes (`Show keyed`).
-- `chat-context.tsx:ChatScope` prunes `view.collapsed` to live tool-call ids and `view.pinned` to live message ids on every messages change.
+- `chat-context.tsx:ChatScope` groups messages into turns once and keys them by turn key: `useThread().turns` is a list of `TurnItem`s whose array and items keep their identity while a chunk only changes a part, so only the `turn` accessor of the changed turn wakes.
 - `chat-context.tsx:useComposer().send` trims the draft, clears it, then calls `sendMessage`; it does nothing when the trimmed draft is empty.
 - `grouping.ts:coalesceTurns` merges consecutive assistant messages into one `Turn`.
 - `grouping.ts:diffTurns` reuses a previous turn only when its messages keep the same ids, roles and parts at the same positions, so a prepended page never inherits a newer turn's key.

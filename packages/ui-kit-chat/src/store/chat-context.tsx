@@ -1,26 +1,16 @@
-import {
-  createContext,
-  createEffect,
-  createMemo,
-  Show,
-  untrack,
-  useContext,
-  type Accessor,
-  type JSX,
-  type ParentProps,
-} from 'solid-js'
+import {createContext, createMemo, Show, untrack, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 import {createStore, type SetStoreFunction} from 'solid-js/store'
+import {keyArray} from '@solid-primitives/keyed'
 import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {chatBusy, type ChatBusySource} from '@conciv/protocol/chat-busy'
-import {isEqual} from 'es-toolkit'
 import {diffTurns, type Turn} from './grouping.js'
 
 export type ViewState = {
   draft: string
-  collapsed: Record<string, boolean>
-  pinned: Record<string, boolean>
   hovering: string | null
 }
+
+export type TurnItem = {key: string; role: Turn['role']; turn: Accessor<Turn>; index: Accessor<number>}
 
 export type Chat = ChatBusySource & {
   messages: Accessor<readonly ChatMessage[]>
@@ -38,26 +28,11 @@ export type ChatContextValue = Chat & {
   view: ViewState
   setView: SetStoreFunction<ViewState>
   stopping: Accessor<boolean>
-  turns: Accessor<Turn[]>
+  turns: Accessor<readonly TurnItem[]>
   busy: Accessor<boolean>
 }
 
 const ChatContext = createContext<ChatContextValue>()
-
-function liveIdsOf(messages: readonly ChatMessage[]): {calls: Set<string>; messages: Set<string>} {
-  return {
-    calls: new Set(
-      messages.flatMap((message) =>
-        message.parts.flatMap((part) => (part.type === 'tool-call' && part.id ? [part.id] : [])),
-      ),
-    ),
-    messages: new Set(messages.map((message) => message.id)),
-  }
-}
-
-function pickKeys(record: Record<string, boolean>, live: Set<string>): Record<string, boolean> {
-  return Object.fromEntries(Object.entries(record).filter(([key]) => live.has(key)))
-}
 
 export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
   return (
@@ -68,20 +43,7 @@ export function ChatProvider(props: ParentProps<{chat: StoppableChat}>): JSX.Ele
 }
 
 function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
-  const [view, setView] = createStore<ViewState>({
-    draft: '',
-    collapsed: {},
-    pinned: {},
-    hovering: null,
-  })
-
-  const liveIds = createMemo(() => liveIdsOf(props.chat.messages()), undefined, {equals: isEqual})
-  createEffect(() => {
-    const {calls, messages} = liveIds()
-    setView('collapsed', (prev) => pickKeys(prev, calls))
-    setView('pinned', (prev) => pickKeys(prev, messages))
-  })
-
+  const [view, setView] = createStore<ViewState>({draft: '', hovering: null})
   const grouped = createMemo<{messages: ReadonlyArray<ChatMessage>; turns: Turn[]}>(
     (prev) => {
       const messages = props.chat.messages()
@@ -89,7 +51,15 @@ function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
     },
     {messages: [], turns: []},
   )
-  const turns = () => grouped().turns
+  const turns = createMemo<readonly TurnItem[]>(
+    keyArray(
+      () => grouped().turns,
+      (turn) => turn.key,
+      (turn, index): TurnItem => untrack(() => ({key: turn().key, role: turn().role, turn, index})),
+    ),
+    [],
+    {equals: sameTurnItems},
+  )
   const busy = createMemo(() => chatBusy(props.chat))
   const value: ChatContextValue = untrack(() =>
     Object.assign({}, props.chat, {
@@ -101,6 +71,10 @@ function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
     }),
   )
   return <ChatContext.Provider value={value}>{props.children}</ChatContext.Provider>
+}
+
+function sameTurnItems(previous: readonly TurnItem[], next: readonly TurnItem[]): boolean {
+  return previous.length === next.length && next.every((item, index) => item === previous[index])
 }
 
 export function useChatContext(): ChatContextValue {
@@ -117,7 +91,7 @@ export function useThread(): {
   readonly isEmpty: boolean
   readonly isRunning: boolean
   readonly isDisabled: boolean
-  readonly turns: Turn[]
+  readonly turns: readonly TurnItem[]
 } {
   const chat = useChatContext()
   const turns = chat.turns

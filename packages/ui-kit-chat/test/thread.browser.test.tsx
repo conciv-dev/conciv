@@ -41,6 +41,7 @@ import {pageSessionCallParts, type PageSessionConfig, pageSessionThinkingParts} 
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {Message} from '../src/primitives/message/message.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
+import {createTurnParts} from '../src/store/turn-parts.js'
 import {NowLine} from '../src/styled/now-line.js'
 import {StatusVisual} from '../src/tools/primitives/status-visual.js'
 import {ErrorBlock} from '../src/tools/styled/error-block.js'
@@ -202,7 +203,7 @@ describe('message if has text', () => {
   }
 
   function turnOf(parts: ChatPart[]): Turn {
-    return {key: 'turn-1', role: 'user', parts, start: 0, end: 0}
+    return {key: 'turn-1', role: 'user', parts, messages: [], before: undefined, start: 0, end: 0}
   }
 
   function Host(props: ParentProps<{parts: ChatPart[]}>): JSX.Element {
@@ -212,9 +213,11 @@ describe('message if has text', () => {
       <ChatProvider chat={chat}>
         <MessageProvider
           value={{
+            key: turn.key,
+            role: turn.role,
             message: () => turn,
             index: () => 0,
-            pairing: () => ({byCallId: new Map(), hiddenResultIds: new Set<string>()}),
+            parts: createTurnParts(() => turn),
             isLast: () => true,
           }}
         >

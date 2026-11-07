@@ -28,6 +28,8 @@ export type ToolCatalogView = {
 
 export const INERT_TOOL_CATALOG: ToolCatalogView = {loaded: () => true, meta: () => undefined}
 
+export type ToolDuration = {startedAt?: number; ms?: number}
+
 export type ToolViewCtx = {
   apiBase: string
   harnessId: string
@@ -36,7 +38,7 @@ export type ToolViewCtx = {
   addResult: (toolCallId: string, value: UiAnswerValue) => void
 
   respondApproval?: (approvalId: string, approved: boolean, scope: PermissionScope) => void
-  durationFor?: (toolCallId: string) => number | undefined
+  durationFor?: (part: ToolCallPart, previous: ToolDuration) => ToolDuration
   captureFor?: (toolCallId: string) => ToolCaptureView | undefined
 }
 

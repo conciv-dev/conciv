@@ -4,6 +4,7 @@ export {
   useThread,
   useComposer,
   type ViewState,
+  type TurnItem,
   type Chat,
   type ChatContextValue,
 } from './store/chat-context.js'
@@ -33,7 +34,6 @@ export {
   type GroupRenderProps,
   type GroupEntry,
   type PartTypePaths,
-  type ResultPairing,
 } from './store/grouping.js'
 export {
   createGrouping,
@@ -177,7 +177,13 @@ export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from
 export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
-export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
+export {
+  Thread,
+  type ThreadComponents,
+  type ThreadMessagesProps,
+  type ThreadRootProps,
+  type TurnPrefixSource,
+} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'

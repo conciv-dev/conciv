@@ -20,7 +20,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `QueueStrip` (`queue-strip.tsx`), `PendingApprovals` (`pending-approvals.tsx`), `ContextTracker`, `ContextSummary` (`context-tracker.tsx`), `StatusBar` (`status-bar.tsx`)
 - `Divider`, `CompactSpinner`, `ConversationSkeleton({label?})`, `ThinkingBubble` (`indicators.tsx`)
 - `OlderMessages({sessionId, chat})` (`older-messages.tsx`): rendered inside the thread viewport; a solid-query query keyed on the session and the oldest shown message id runs `chat.loadOlderMessages()` (each oldest id loads once; the next key waits until no older-page load is in flight, via `useIsFetching`) while the viewport reports `isNearTop()` (within one viewport height of the top, which includes a newest page too short to scroll); shows a `Loading earlier messages` status row at the top while it loads, and an alert with Retry when it fails
-- `makeToolViewCtx` (`tool-view-ctx.ts`), `toolFallbackCard` (`tool-fallback-card.tsx`), `foldToolDurations` (`tool-durations.ts`)
+- `makeToolViewCtx` (`tool-view-ctx.ts`), `toolFallbackCard` (`tool-fallback-card.tsx`), `foldToolDuration` (`tool-durations.ts`, folds one tool call's start time and duration inside its own row)
 - `CHAT_VIEW_ID`, `viewTabId`, `viewTabPanelId`, `viewTabPanelAttributes` (`view-tab-ids.ts`)
 
 ## Invariants

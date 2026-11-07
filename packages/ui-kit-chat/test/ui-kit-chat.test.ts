@@ -10,15 +10,7 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
-import {
-  coalesceTurns,
-  defaultGrouper,
-  diffTurns,
-  groupParts,
-  pairResults,
-  samePairing,
-  shareGroupNodes,
-} from '../src/store/grouping.js'
+import {coalesceTurns, defaultGrouper, diffTurns, groupParts, shareGroupNodes} from '../src/store/grouping.js'
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
@@ -262,10 +254,6 @@ describe('grouping diff', () => {
       return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state}
     }
 
-    function result(id: string): ChatPart {
-      return {type: 'tool-result', toolCallId: id, content: 'ok', state: 'complete'}
-    }
-
     const grouped = (parts: ChatPart[]) => groupParts(parts, defaultGrouper, {})
 
     it('hands back the same group tree when a chunk only updates a part in place', () => {
@@ -282,15 +270,6 @@ describe('grouping diff', () => {
       )
       expect(after[0]).toBe(before[0])
       expect(after[1]).not.toBe(before[1])
-    })
-
-    it('treats a pairing as unchanged until a result arrives', () => {
-      const settled = result('a')
-      const before = pairResults([call('a', 'input-complete'), settled, call('b', 'input-streaming')])
-      const sameResults = pairResults([call('a', 'input-complete'), settled, call('b', 'input-complete')])
-      const newResult = pairResults([call('a', 'input-complete'), settled, call('b', 'input-complete'), result('b')])
-      expect(samePairing(before, sameResults)).toBe(true)
-      expect(samePairing(before, newResult)).toBe(false)
     })
   })
 })

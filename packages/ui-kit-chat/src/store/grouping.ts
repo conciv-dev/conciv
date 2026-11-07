@@ -1,4 +1,4 @@
-import {isEqual, keyBy} from 'es-toolkit'
+import {isEqual, keyBy, range} from 'es-toolkit'
 import type {JSX} from 'solid-js'
 import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -19,16 +19,18 @@ export function childCallsFor(parts: ReadonlyArray<ChatPart>, parentId: string):
   )
 }
 
-export type Turn = {key: string; role: ChatMessage['role']; parts: ChatPart[]; start: number; end: number}
+export type Turn = {
+  key: string
+  role: ChatMessage['role']
+  parts: ChatPart[]
+  messages: readonly ChatMessage[]
+  before: ChatMessage | undefined
+  start: number
+  end: number
+}
 
 export function coalesceTurns(messages: ReadonlyArray<ChatMessage>): Turn[] {
-  return messages.reduce<Turn[]>((turns, message, index) => {
-    const last = turns.at(-1)
-    if (message.role === 'assistant' && last?.role === 'assistant') {
-      return [...turns.slice(0, -1), {...last, parts: [...last.parts, ...message.parts], end: index}]
-    }
-    return [...turns, {key: message.id, role: message.role, parts: [...message.parts], start: index, end: index}]
-  }, [])
+  return diffTurns([], [], messages)
 }
 
 type TurnBounds = {first: ChatMessage; start: number; end: number}
@@ -46,10 +48,14 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   return bounds
 }
 
-function sameMessage(previous: ChatMessage | undefined, message: ChatMessage): boolean {
+function sameMessage(previous: ChatMessage | undefined, message: ChatMessage | undefined): boolean {
   if (previous === message) return true
-  if (!previous || previous.id !== message.id || previous.role !== message.role) return false
-  return isEqual(previous.parts, message.parts)
+  if (!previous || !message || previous.id !== message.id || previous.role !== message.role) return false
+  return (
+    isEqual(previous.parts, message.parts) &&
+    isEqual(previous.metadata, message.metadata) &&
+    isEqual(previous.createdAt, message.createdAt)
+  )
 }
 
 function sourceUnchanged(
@@ -57,16 +63,19 @@ function sourceUnchanged(
   prevMessages: ReadonlyArray<ChatMessage>,
   messages: ReadonlyArray<ChatMessage>,
 ): boolean {
-  return messages
-    .slice(bound.start, bound.end + 1)
-    .every((message, offset) => sameMessage(prevMessages[bound.start + offset], message))
+  return range(Math.max(bound.start - 1, 0), bound.end + 1).every((index) =>
+    sameMessage(prevMessages[index], messages[index]),
+  )
 }
 
 function buildTurn(messages: ReadonlyArray<ChatMessage>, bound: TurnBounds): Turn {
+  const source = messages.slice(bound.start, bound.end + 1)
   return {
     key: bound.first.id,
     role: bound.first.role,
-    parts: messages.slice(bound.start, bound.end + 1).flatMap((message) => message.parts),
+    parts: source.flatMap((message) => message.parts),
+    messages: source,
+    before: messages[bound.start - 1],
     start: bound.start,
     end: bound.end,
   }
@@ -339,7 +348,7 @@ export function isReplyText(part: ChatPart): boolean {
   return part.type === 'text' && part.content.trim().length > 0
 }
 
-export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
+type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
 
 export function pairResults(parts: ReadonlyArray<ChatPart>): ResultPairing {
   const callIds = new Set(parts.flatMap((part) => (part.type === 'tool-call' && part.id.length > 0 ? [part.id] : [])))
@@ -349,12 +358,4 @@ export function pairResults(parts: ReadonlyArray<ChatPart>): ResultPairing {
   const byCallId = new Map(results.map((part) => [part.toolCallId, part]))
   const hiddenResultIds = new Set(results.map((part) => part.toolCallId).filter((id) => callIds.has(id)))
   return {byCallId, hiddenResultIds}
-}
-
-export function samePairing(previous: ResultPairing, next: ResultPairing): boolean {
-  return (
-    previous.byCallId.size === next.byCallId.size &&
-    [...next.byCallId].every(([callId, result]) => previous.byCallId.get(callId) === result) &&
-    isEqual(previous.hiddenResultIds, next.hiddenResultIds)
-  )
 }

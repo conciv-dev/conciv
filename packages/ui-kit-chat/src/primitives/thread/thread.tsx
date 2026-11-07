@@ -3,6 +3,7 @@ import {
   createSignal,
   For,
   Index,
+  untrack,
   onCleanup,
   onMount,
   Show,
@@ -17,8 +18,9 @@ import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
-import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
-import {pairResults, samePairing, type Turn} from '../../store/grouping.js'
+import {useChatContext, useComposer, useThread, type TurnItem} from '../../store/chat-context.js'
+import type {Turn} from '../../store/grouping.js'
+import {createTurnParts} from '../../store/turn-parts.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {
@@ -106,49 +108,39 @@ function componentForRole(role: Turn['role'], components: MessagesComponents): C
 }
 
 type TurnSlotProps = {
-  turn: Accessor<Turn | undefined>
-  index: Accessor<number>
+  item: TurnItem
   total: Accessor<number>
   messages: MessagesProps
 }
 
 function TurnSlot(props: TurnSlotProps): JSX.Element {
+  const item = untrack(() => props.item)
+  const parts = createTurnParts(item.turn)
+  const isLast = createMemo(() => item.index() === props.total() - 1)
+  const component = () =>
+    'components' in props.messages && props.messages.components
+      ? componentForRole(item.role, props.messages.components)
+      : undefined
   return (
-    <Show when={props.turn()}>
-      {(turn) => {
-        const pairing = createMemo(() => pairResults(turn().parts), undefined, {equals: samePairing})
-        const isLast = createMemo(() => props.index() === props.total() - 1)
-        const components = 'components' in props.messages ? props.messages.components : undefined
-        const component = () => (components ? componentForRole(turn().role, components) : undefined)
-        return (
-          <MessageProvider value={{message: turn, index: props.index, pairing, isLast}}>
-            <Show
-              when={component()}
-              fallback={
-                'children' in props.messages && props.messages.children
-                  ? props.messages.children(() => toMessage(turn()))
-                  : null
-              }
-            >
-              {(resolved) => <Dynamic component={resolved()} />}
-            </Show>
-          </MessageProvider>
-        )
-      }}
-    </Show>
+    <MessageProvider value={{key: item.key, role: item.role, message: item.turn, index: item.index, parts, isLast}}>
+      <Show
+        when={component()}
+        fallback={
+          'children' in props.messages && props.messages.children
+            ? props.messages.children(() => toMessage(item.turn()))
+            : null
+        }
+      >
+        {(resolved) => <Dynamic component={resolved()} />}
+      </Show>
+    </MessageProvider>
   )
 }
 
 function PlainMessages(props: {messages: MessagesProps}): JSX.Element {
   const thread = useThread()
-  const turns = () => thread.turns
-  return (
-    <Index each={turns()}>
-      {(turn, index) => (
-        <TurnSlot turn={turn} index={() => index} total={() => turns().length} messages={props.messages} />
-      )}
-    </Index>
-  )
+  const total = () => thread.turns.length
+  return <For each={thread.turns}>{(item) => <TurnSlot item={item} total={total} messages={props.messages} />}</For>
 }
 
 function VirtualMessages(props: {
@@ -157,17 +149,24 @@ function VirtualMessages(props: {
   viewport: ViewportContextValue
 }): JSX.Element {
   const thread = useThread()
-  const turns = () => thread.turns
-  const layoutTurns = createMemo(() => turns(), [], {equals: sameSettledTurns})
-  const turnCount = () => layoutTurns().length
+  const items = () => thread.turns
+  const turnCount = createMemo(
+    () => {
+      const list = items()
+      for (const item of list.slice(0, -1)) item.turn()
+      return list.length
+    },
+    0,
+    {equals: false},
+  )
   const estimator = useTurnEstimator()
   const [spacer, setSpacer] = createSignal<HTMLDivElement>()
   const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
   const settledEstimate = (index: number): TurnEstimate | undefined => {
-    if (index === turns().length - 1) return undefined
-    const turn = turns()[index]
-    if (!turn) return undefined
-    return estimator?.estimateTurn(turn)
+    if (index === items().length - 1) return undefined
+    const item = items()[index]
+    if (!item) return undefined
+    return estimator?.estimateTurn(item.turn())
   }
   const measureViewportMetrics = (): void => {
     const viewport = props.internal.element()
@@ -181,7 +180,7 @@ function VirtualMessages(props: {
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
     count: turnCount,
-    keyAt: (index) => turns()[index]?.key,
+    keyAt: (index) => items()[index]?.key,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
     gap: () => metrics.gap,
@@ -262,24 +261,13 @@ function VirtualMessages(props: {
             class={ROW}
             style={{transform: `translateY(${item.start - metrics.scrollMargin}px)`}}
           >
-            <TurnSlot
-              turn={() => turns()[item.index]}
-              index={() => item.index}
-              total={turnCount}
-              messages={props.messages}
-            />
+            <Show when={items()[item.index]} keyed>
+              {(turnItem) => <TurnSlot item={turnItem} total={turnCount} messages={props.messages} />}
+            </Show>
           </div>
         )}
       </For>
     </div>
-  )
-}
-
-function sameSettledTurns(previous: readonly Turn[], next: readonly Turn[]): boolean {
-  const lastIndex = next.length - 1
-  return (
-    previous.length === next.length &&
-    next.every((turn, index) => (index === lastIndex ? turn.key === previous[index]?.key : turn === previous[index]))
   )
 }
 
@@ -302,19 +290,10 @@ type MessageByIndexProps = {index: number; components: MessagesComponents}
 
 function MessageByIndex(props: MessageByIndexProps): JSX.Element {
   const thread = useThread()
-  const turn = () => thread.turns[props.index]
+  const total = () => thread.turns.length
   return (
-    <Show when={turn()} keyed>
-      {(value) => {
-        const pairing = createMemo(() => pairResults(value.parts), undefined, {equals: samePairing})
-        const isLast = createMemo(() => props.index === thread.turns.length - 1)
-        const component = componentForRole(value.role, props.components)
-        return (
-          <MessageProvider value={{message: () => value, index: () => props.index, pairing, isLast}}>
-            <Show when={component}>{(resolved) => <Dynamic component={resolved()} />}</Show>
-          </MessageProvider>
-        )
-      }}
+    <Show when={thread.turns[props.index]} keyed>
+      {(item) => <TurnSlot item={item} total={total} messages={{components: props.components}} />}
     </Show>
   )
 }
@@ -323,23 +302,10 @@ type MessageByIdProps = {messageId: string; components: MessagesComponents}
 
 function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
   const thread = useThread()
-  const located = () => {
-    const index = thread.turns.findIndex((turn) => turn.key === props.messageId)
-    const turn = thread.turns[index]
-    return turn ? {turn, index} : undefined
-  }
+  const total = () => thread.turns.length
   return (
-    <Show when={located()} keyed>
-      {(value) => {
-        const pairing = createMemo(() => pairResults(value.turn.parts), undefined, {equals: samePairing})
-        const isLast = createMemo(() => value.index === thread.turns.length - 1)
-        const component = componentForRole(value.turn.role, props.components)
-        return (
-          <MessageProvider value={{message: () => value.turn, index: () => value.index, pairing, isLast}}>
-            <Show when={component}>{(resolved) => <Dynamic component={resolved()} />}</Show>
-          </MessageProvider>
-        )
-      }}
+    <Show when={thread.turns.find((item) => item.key === props.messageId)} keyed>
+      {(item) => <TurnSlot item={item} total={total} messages={{components: props.components}} />}
     </Show>
   )
 }
