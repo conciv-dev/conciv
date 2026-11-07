@@ -11,13 +11,13 @@ const FRAME_TONE: Record<TraceOutputTone, string> = {
   error: '[border:1px_solid_var(--chat-frame-line-error)] text-chat-frame-text-error',
 }
 const CONTENT =
-  'min-w-0 overflow-x-auto whitespace-pre-wrap text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] [font-family:var(--chat-mono)]'
+  'min-w-0 overflow-x-auto whitespace-pre-wrap text-chat-xs leading-[var(--chat-trace-gutter)] [font-family:var(--chat-mono)]'
 const CHROME_ROW = 'flex gap-0.5 items-center justify-end min-w-0'
 const ACTION_BUTTON = 'size-6 shrink-0'
 
 const TONE_NAME: Record<TraceOutputTone, string> = {normal: 'Output', error: 'Error output'}
 
-const BODY_CONTENT = 'min-w-0 flex flex-col gap-1.5 text-[length:var(--chat-text-sm)]'
+const BODY_CONTENT = 'min-w-0 flex flex-col gap-1.5 text-chat-sm'
 
 const BARE_FRAME = 'relative min-w-0'
 

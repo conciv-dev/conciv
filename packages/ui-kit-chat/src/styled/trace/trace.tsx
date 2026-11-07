@@ -10,12 +10,12 @@ export type TraceBranch = {readonly ring: boolean}
 export type TraceItem = {key: string; live?: boolean; render: (branch: TraceBranch) => JSX.Element}
 
 const HEADER_ITEM = 'min-w-0 w-full pb-px'
-const HEADER_ROW = `group w-full ${TRACE_LINE} ${TRACE_HOVER_INDENT} text-start cursor-pointer select-none [background:transparent] rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
+const HEADER_ROW = `group w-full ${TRACE_LINE} ${TRACE_HOVER_INDENT} text-start cursor-pointer select-none [background:transparent] rounded-[var(--chat-radius-sm)] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] ${FOCUS_INSET}`
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-microlabel`
-const SUMMARY = 'flex-1 min-w-0 truncate text-[12.5px] leading-none [font-family:var(--chat-font)] text-chat-summary'
-const COMPACT_LINE = 'flex-1 min-w-0 truncate text-[11px] leading-none [font-family:var(--chat-mono)] text-chat-text-3'
+const SUMMARY = 'flex-1 min-w-0 truncate text-chat-md leading-none [font-family:var(--chat-font)] text-chat-summary'
+const COMPACT_LINE = 'flex-1 min-w-0 truncate text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-text-3'
 const TOGGLE =
-  'flex-none text-[11.5px] leading-none [font-family:var(--chat-font)] text-chat-dim group-hover:text-chat-affordance [transition:color_120ms_var(--chat-ease)] motion-reduce:[transition:none]'
+  'flex-none text-chat-xs leading-none [font-family:var(--chat-font)] text-chat-dim group-hover:text-chat-affordance trans-color-bg motion-reduce:[transition:none]'
 const ROWS = 'relative flex flex-col gap-px min-w-0 p-0 m-0 list-none'
 
 export function Trace(props: {

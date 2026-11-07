@@ -294,9 +294,11 @@ function AssistantTurn(props: {
     <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
-      <div class={ANSWER_ACTION_ROW_CLASS}>
-        <AssistantActionBar />
-      </div>
+      <Show when={!runActive()}>
+        <div class={ANSWER_ACTION_ROW_CLASS}>
+          <AssistantActionBar />
+        </div>
+      </Show>
     </Message.Root>
   )
 }
@@ -409,9 +411,9 @@ function ThreadRoot(props: ThreadRootProps): JSX.Element {
 }
 
 const LATEST_STRIP =
-  'absolute inset-inline-0 bottom-1.5 flex justify-center pointer-events-none opacity-0 translate-y-1 [transition:opacity_160ms_var(--chat-ease),transform_160ms_var(--chat-ease)] motion-reduce:[transition:none] data-[shown]:opacity-100 data-[shown]:translate-y-0'
+  'absolute inset-inline-0 bottom-1.5 flex justify-center pointer-events-none opacity-0 translate-y-1 trans-tf-op motion-reduce:[transition:none] data-[shown]:opacity-100 data-[shown]:translate-y-0'
 
-const LATEST_CHIP = `pointer-events-auto [font-family:var(--chat-mono)] text-[10.5px] uppercase tracking-[0.08em] px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
+const LATEST_CHIP = `pointer-events-auto [font-family:var(--chat-mono)] text-chat-xs leading-none uppercase tracking-widest px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] trans-cbb motion-reduce:[transition:none] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
 
 function LatestStrip(): JSX.Element {
   const viewport = useThreadViewport()
@@ -422,7 +424,7 @@ function LatestStrip(): JSX.Element {
       inert={viewport.isAtBottom() ? true : undefined}
     >
       <ThreadPrimitive.ScrollToBottom class={LATEST_CHIP}>
-        <ArrowDown size={11} aria-hidden="true" />
+        <ArrowDown class="size-3" aria-hidden="true" />
         Latest
       </ThreadPrimitive.ScrollToBottom>
     </div>

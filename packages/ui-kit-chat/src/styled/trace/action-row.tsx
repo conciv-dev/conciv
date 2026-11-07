@@ -4,9 +4,9 @@ import {FOCUS} from '../classes.js'
 import {TRACE_INDENT} from './trace-row.js'
 
 const ROW = `flex items-center gap-2 min-w-0 ${TRACE_INDENT}`
-const BUTTON = `inline-flex flex-none items-center justify-center min-h-7 px-2.5 rounded-[var(--chat-radius-sm)] text-[12px] font-medium leading-none cursor-pointer [font-family:var(--chat-font)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] text-chat-text hover:[background:var(--chat-fill-strong)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS}`
-const HINT = 'flex-none text-[9px] leading-none [font-family:var(--chat-mono)] text-chat-hint'
-const EXPLAINER = 'flex-1 min-w-0 truncate text-[12px] leading-[1.45] [font-family:var(--chat-font)] text-chat-text-2'
+const BUTTON = `inline-flex flex-none items-center justify-center min-h-7 px-2.5 rounded-[var(--chat-radius-sm)] text-chat-sm font-medium leading-none cursor-pointer [font-family:var(--chat-font)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] text-chat-text hover:[background:var(--chat-fill-strong)] trans-chip motion-reduce:[transition:none] disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS}`
+const HINT = 'flex-none text-chat-micro leading-none [font-family:var(--chat-mono)] text-chat-hint'
+const EXPLAINER = 'flex-1 min-w-0 truncate text-chat-sm leading-normal [font-family:var(--chat-font)] text-chat-text-2'
 
 export function TraceActionRow(props: {
   label: string
