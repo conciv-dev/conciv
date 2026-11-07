@@ -258,12 +258,17 @@ the agent to warn the user when it is above 1.
 
 ### CLI: `conciv tools` finds engines and tabs anywhere
 
-- Engine discovery (`packages/cli/src/engine-origin.ts`): `CONCIV_PORT`, else `.conciv/server.json` in the current
-  folder (today's default, unchanged), else the engine that owns `--tab` / `CONCIV_SESSION_ID` from the home db, else
-  the most recently registered live engine in the home db. The token comes from that engine's `apiBase`.
+- Engine discovery (`packages/cli/src/engine-origin.ts`, now async): with `--tab`, the engine that owns that tab
+  from the home db (wherever the CLI runs); else `CONCIV_PORT`, else `.conciv/server.json` in the current folder
+  (today's default, unchanged), else the most recently registered live engine in the home db. The token comes from that engine's `apiBase`.
 - Tab choice (`packages/cli/src/request.ts`): a global `--tab <id>` flag, zod-parsed as `SessionId`, wins over
   `CONCIV_SESSION_ID`; with neither, today's `sessions.resolve` default. A `--tab` call sends `conciv-origin: hub` and
-  `conciv-client: cli`, so the owner's Allow card and marker apply exactly as for MCP.
+  `conciv-client: cli`, so the owner's Allow card and marker apply exactly as for MCP. The engine enforces this on
+  its RPC path too (decided 2026-11-07): the RPC mount (`packages/core/src/api/rpc/mount.ts`) reads the hub headers
+  and runs the same `admitOutside` check before any tool call from a hub-origin request, and its tool chunks carry the
+  same `metadata.conciv` marker. Consent lives in the engine, never in a client.
+- `--tab` is declared on every route and command the way `envelopeFlag` is (router options belong to the segment
+  that declares them).
 - Built on citty now; moved to `@bomb.sh/router` when PR #749 merges (small follow-up on this branch).
 - `@conciv/cli` gains `@conciv/db` (light since the chat tables moved into it) and no `@conciv/ai`; the `prod
   closure` test stays unchanged and passes.
