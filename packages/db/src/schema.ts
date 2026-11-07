@@ -68,7 +68,7 @@ export const cssBundles = sqliteTable('css_bundles', {
 export const markers = sqliteTable('markers', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull(),
-  afterTurn: integer('after_turn').notNull(),
+  afterMessageId: text('after_message_id'),
   kind: text('kind', {enum: ['new', 'compact']}).notNull(),
 })
 

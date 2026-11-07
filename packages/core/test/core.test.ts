@@ -23,7 +23,7 @@ import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {eq} from 'drizzle-orm'
@@ -145,6 +145,41 @@ describe('chat plane', () => {
       )
       expect(texts).toEqual(['finished turn', 'partial reply', 'interrupted turn', 'partial reply'])
       cli.release()
+    })
+  })
+
+  describe('native transcript history', () => {
+    const said = (id: string, role: 'user' | 'assistant', content: string): ChatMessage => ({
+      id,
+      role,
+      parts: [{type: 'text', content}],
+    })
+
+    it('an older page is read from the stored thread without reading the native transcript again', async () => {
+      const native: NativeTranscript = {
+        reads: 0,
+        messages: [0, 1, 2].flatMap((turn) => [
+          said(`native-u${turn}`, 'user', `question ${turn}`),
+          said(`native-a${turn}`, 'assistant', `answer ${turn}`),
+        ]),
+      }
+      const chat = await plane({
+        root: stateRoot(),
+        harness: nativeHarness(native),
+        sessions: sessionPort(HarnessSessionId.parse('native-session'), 'native'),
+      })
+      const id = SessionId.parse(sessionId('native-paged'))
+      const newest = await chat.hydrate(id, {limit: 2})
+      const readsForNewest = native.reads
+      const older = await chat.hydrate(id, {
+        limit: 2,
+        before: newest.page?.truncated === true ? newest.page.cursor : '',
+      })
+
+      expect(textsOf(newest.messages)).toEqual(['question 2', 'answer 2'])
+      expect(textsOf(older.messages)).toEqual(['question 1', 'answer 1'])
+      expect(readsForNewest).toBe(1)
+      expect(native.reads).toBe(readsForNewest)
     })
   })
 
@@ -320,9 +355,44 @@ describe('chat plane', () => {
     return defineHarness({...shared, capabilities: {...base, transcriptHistory: false}})
   }
 
-  function sessionPort(): SessionPort {
+  type NativeTranscript = {reads: number; messages: ChatMessage[]}
+
+  function nativeHarness(native: NativeTranscript): HarnessAdapter {
+    return defineHarness({
+      id: 'native',
+      binName: 'true',
+      models: undefined,
+      tty: undefined,
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => {
+          native.reads += 1
+          return native.messages
+        },
+        observe: () => ({
+          revision: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
+          read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
+          close: () => undefined,
+        }),
+        list: async () => [],
+      },
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        compaction: false,
+        systemPrompt: 'file',
+        mcp: 'none',
+        imageInput: false,
+        init: 'none',
+        slashCommands: 'none',
+        transcriptHistory: true,
+      },
+    })
+  }
+
+  function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake-cli'}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -340,6 +410,7 @@ describe('chat plane', () => {
     capabilities?: CodeCapability[]
     systemPrompt?: {systemPromptFile?: string; systemPromptText?: string}
     log?: string[]
+    sessions?: SessionPort
   }
 
   async function plane(options: PlaneOptions): Promise<ChatPlane> {
@@ -351,7 +422,7 @@ describe('chat plane', () => {
       cwd: options.root,
       harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},
-      sessions: sessionPort(),
+      sessions: options.sessions ?? sessionPort(),
       toolNames: new Set(),
       capabilities: () => options.capabilities ?? [],
       attachmentExpanders: {},
@@ -425,6 +496,12 @@ describe('chat plane', () => {
 
   function partTypes(messages: ChatMessage[]): string[][] {
     return messages.map((message) => message.parts.map((part) => part.type))
+  }
+
+  function textsOf(messages: ChatMessage[]): string[] {
+    return messages.map((message) =>
+      message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+    )
   }
 
   function sessionId(name: string): string {

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {asc, eq} from 'drizzle-orm'
+import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
@@ -84,7 +84,11 @@ export function makeRpcRouter(deps: RpcDeps) {
     },
     markers: {
       list: os.markers.list.handler(({input}) =>
-        db.select().from(markers).where(eq(markers.sessionId, input.sessionId)).orderBy(asc(markers.afterTurn)),
+        db
+          .select()
+          .from(markers)
+          .where(eq(markers.sessionId, input.sessionId))
+          .orderBy(asc(sql`rowid`)),
       ),
     },
     navigation: {
