@@ -6,9 +6,10 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 
 ## Interface
 
-- `main` (`main.ts`): root route 'conciv' with `version(package.json version)` and children {tools, init, auth}
+- `main` (`main.ts`): root route 'conciv' with `version(package.json version)` and children {tools, init, auth, mcp}
 - `conciv init` (`init.ts`): `initCommand` with toggles --yes, --dry-run, --force, --json (all default false)
 - `runInitCommand(options, overrides)` (`init.ts`): runs `runInit`; with --json it uses `silentOutput()` and returns {steps,next} or {dryRun:true,plan}; without --json exits 1 on refused or cancelled
+- `conciv mcp` (`hub.ts`): `mcpCommand`, an MCP server on stdio for outside agents with exactly two tools, `execute_typescript` and `discover_tools`, each call forwarded unchanged to the `/api/mcp` of the most recently registered live engine in the conciv home db (`checkEngines`) with `conciv-origin: hub` and `conciv-client: <MCP client name>`; tool descriptions come from that engine's `tools/list` at startup, else fixed text naming `external_tabs({})` and `external_use_tab({id})`
 - `conciv auth revoke [ID] [--all]` (`auth.ts`): `runRevoke` lists, revokes one or revokes every trusted browser
 - `conciv tools` (`tools.ts`): `toolsRoute` with children {server, page, react, design, open}
 - `conciv tools server <op>` (`server.ts`): one command per BUILTIN_SERVER_TOOLS entry (config, urls, resolve, graph, transform, reload, restart), each calling `rpc.server[op]`
@@ -44,6 +45,8 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `callOperation` (`server.ts`): throws when rpc.server[op] is not a function
 
 ## Side Effects
+
+- `hub.ts`: reads the conciv home db and probes each engine's `/health` per call; keeps one MCP client per runner `apiBase`, dropped on a transport error or when the runner changes; with no live engine a call answers an MCP error naming the home folder; serves until stdin ends
 
 - `bin.ts`: sets NO_COLOR=1 when stdout is not a TTY and FORCE_COLOR is unset; runs only when invoked directly; sets process.exitCode
 - `writeOutcome` / `writeFailure` (`envelope.ts`): write JSON to stdout

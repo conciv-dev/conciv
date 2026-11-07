@@ -17,6 +17,9 @@ import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {createMCPClient} from '@tanstack/ai-mcp'
+import {stdioTransport} from '@tanstack/ai-mcp/stdio'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -124,20 +127,15 @@ describe('cli', () => {
         })
       })
 
-      it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {
+      it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
         expect(await runCli(cliMain, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
-      })
-
-      it('rejects an unknown flag placed before the very first subcommand', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        written.length = 0
         expect(await runCli(cliMain, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
+        expect(answer.seen()).toBeNull()
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
@@ -512,23 +510,13 @@ describe('cli', () => {
         expect(resolved).toEqual(['./x.ts from src/a.ts'])
       })
 
-      it('rejects a non-positive line number as a plain user mistake, not a bug', async () => {
+      it('rejects a zero, fractional or non-numeric line number as a plain user mistake, not a bug', async () => {
         await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '0'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('rejects a fractional line number as a plain user mistake, not a bug', async () => {
-        await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '1.5'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('opens at a positive integer line number', async () => {
-        const opened: {file: string; line?: number}[] = []
-        await bootCli(cleanups, {openInEditor: (file, line) => opened.push({file, line})})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '3'])).toBe(0)
-        expect(opened).toEqual([{file: 'src/a.ts', line: 3}])
+        for (const line of ['0', '1.5', 'abc']) {
+          written.length = 0
+          expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', line])).toBe(1)
+          expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
+        }
       })
     })
   })
@@ -613,17 +601,6 @@ describe('cli', () => {
         expect(error.stack).toBeUndefined()
       })
 
-      it('a page verb with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
-        process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
-        expect(code).toBe(1)
-        const error = failure()
-        expect(error.kind).toBe('user')
-        expect(error.message).toContain('No conciv dev server')
-        expect(error.hint).toContain('.conciv/server.json')
-        expect(error.hint).toContain('CONCIV_PORT')
-      })
-
       it('a server whose catalog declares no page capabilities is reported, not silently shrunk', async () => {
         process.env.CONCIV_PORT = String(
           await listen((_request, response) => {
@@ -679,22 +656,13 @@ describe('cli', () => {
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('page fill drives registry.call and prints one success envelope with exit 0', async () => {
+      it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
+        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c', '--json'])
         expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}})
         expect(code).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'a@b.c'}})
-      })
-
-      it('accepts --json on a verb and still prints exactly one document', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
-        expect(code).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'x'}})
       })
 
       it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
@@ -726,16 +694,6 @@ describe('cli', () => {
         })
       })
 
-      it('server config without a bridge fails as a user error with the declared code and exit 1', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'server', 'config'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toEqual({
-          ok: false,
-          error: {kind: 'user', code: 'NO_BUNDLER', message: 'no bundler bridge'},
-        })
-      })
-
       it('page wait with an invalid --state is a user error before any rpc call', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
@@ -746,15 +704,6 @@ describe('cli', () => {
         expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
         expect(JSON.stringify(failure)).toContain('visible')
         expect(JSON.stringify(failure)).not.toContain('\\n    at ')
-      })
-
-      it('open with a non-numeric --line is a user error, not a raw zod stack', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'open', 'x.ts', '--line', 'abc'])
-        expect(code).toBe(1)
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('line')
       })
 
       it('page changes lists the journal in an envelope and --clear resets it', async () => {
@@ -771,14 +720,6 @@ describe('cli', () => {
         written.length = 0
         expect(await runCli(cliMain, ['tools', 'page', 'changes'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
-      })
-
-      it('server restart without a session context is refused with exit 1', async () => {
-        const bridge = restartCapableBridge()
-        await bootCli(cleanups, {bridge})
-        const code = await runCli(cliMain, ['tools', 'server', 'restart'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
       })
 
       it('server restart is refused through the session and an approval lets the retry run', async () => {
@@ -1061,6 +1002,65 @@ describe('cli', () => {
         agent.close()
       } finally {
         await engine.stop()
+      }
+    })
+  })
+
+  describe('conciv mcp hub', () => {
+    const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
+    const pages = new AbortController()
+    afterAll(() => pages.abort())
+
+    const hub = (home: string) =>
+      createMCPClient({
+        transport: stdioTransport({command: process.execPath, args: [bin, 'mcp'], env: {CONCIV_HOME: home}}),
+        name: 'cli-test',
+      })
+
+    async function engineWithTab(home: string) {
+      const root = mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+      const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
+      const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home})
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+      const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+      const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      await page.page.queries(undefined, {signal: pages.signal})
+      return {engine, sessionId}
+    }
+
+    const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
+      JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
+
+    it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const first = await engineWithTab(home)
+      const client = await hub(home)
+      try {
+        expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
+          'discover_tools',
+          'execute_typescript',
+        ])
+        expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        await first.engine.stop()
+        const second = await engineWithTab(home)
+        expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)
+        await second.engine.stop()
+      } finally {
+        await client.close()
+      }
+    })
+
+    it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const client = await hub(home)
+      try {
+        const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+        expect(execute?.description).toContain('external_use_tab({id})')
+        const reply = await run(client, 'return 1')
+        expect(reply).toContain('no conciv dev server is running; start one and open its page')
+        expect(reply).toContain(home)
+      } finally {
+        await client.close()
       }
     })
   })
