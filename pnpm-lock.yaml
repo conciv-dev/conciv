@@ -12,6 +12,9 @@ catalogs:
     '@blazediff/core':
       specifier: ^1.10.0
       version: 1.10.0
+    '@bomb.sh/router':
+      specifier: ^0.8.0
+      version: 0.8.0
     '@bramus/specificity':
       specifier: ^2.4.3
       version: 2.4.3
@@ -186,6 +189,9 @@ catalogs:
     '@types/react-dom':
       specifier: ^19.3.0
       version: 19.3.0
+    '@types/semver':
+      specifier: ^7.7.1
+      version: 7.8.0
     '@types/ws':
       specifier: ^8.18.2
       version: 8.18.2
@@ -342,6 +348,9 @@ catalogs:
     rrweb-snapshot:
       specifier: 2.2.0
       version: 2.2.0
+    semver:
+      specifier: ^7.8.5
+      version: 7.8.5
     shiki:
       specifier: ^4.5.0
       version: 4.5.0
@@ -560,6 +569,9 @@ importers:
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -603,6 +615,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@unocss/postcss':
         specifier: 'catalog:'
         version: 66.12.0(postcss@8.5.32)
@@ -1969,6 +1984,9 @@ importers:
       '@ast-grep/napi':
         specifier: ^0.51.0
         version: 0.51.0
+      '@bomb.sh/router':
+        specifier: 'catalog:'
+        version: 0.8.0
       '@clack/prompts':
         specifier: 'catalog:'
         version: 1.8.1
@@ -1993,12 +2011,12 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
-      citty:
-        specifier: 'catalog:'
-        version: 0.2.2
       diff:
         specifier: ^9.0.0
         version: 9.0.0
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       nypm:
         specifier: ^0.6.12
         version: 0.6.12
@@ -2452,6 +2470,9 @@ importers:
       hono:
         specifier: 'catalog:'
         version: 4.13.14
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2462,6 +2483,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5)
@@ -5398,6 +5422,10 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@bomb.sh/router@0.8.0':
+    resolution: {integrity: sha512-9Y0fA76+dlFL8aRf8PVfgXrI0qHr4GQrLLv09E75tGRqCtCI5+E/ZzLnyTGJMo/j4CzYt44c4jdXDLv+m9/g9g==}
+    engines: {node: '>= 20'}
 
   '@braidai/lang@1.1.2':
     resolution: {integrity: sha512-qBcknbBufNHlui137Hft8xauQMTZDKdophmLFv05r2eNmdIv/MlPuP4TdUknHG68UdWLgVZwgxVe735HzJNIwA==}
@@ -11232,6 +11260,9 @@ packages:
 
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -18820,6 +18851,10 @@ snapshots:
 
   '@blazediff/core@1.10.0': {}
 
+  '@bomb.sh/router@0.8.0':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+
   '@braidai/lang@1.1.2': {}
 
   '@braintree/sanitize-url@6.0.2': {}
@@ -24198,6 +24233,8 @@ snapshots:
       csstype: 3.2.3
 
   '@types/resolve@1.20.2': {}
+
+  '@types/semver@7.8.0': {}
 
   '@types/trusted-types@2.0.7':
     optional: true

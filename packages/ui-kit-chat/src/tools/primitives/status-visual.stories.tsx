@@ -8,12 +8,14 @@ const meta: Meta = {title: 'ui-kit-chat/primitives/StatusVisual'}
 export default meta
 type Story = StoryObj
 
-const STATUSES: Array<ToolStatus> = ['running', 'complete', 'error', 'approval']
+const STATUSES: Array<ToolStatus> = ['running', 'complete', 'error', 'approval', 'denied', 'cancelled']
 const LABELS: Record<ToolStatus, string> = {
   running: 'running',
   complete: 'complete',
   error: 'error',
   approval: 'needs approval',
+  denied: 'denied',
+  cancelled: 'cancelled',
 }
 
 function frame(child: JSX.Element): JSX.Element {

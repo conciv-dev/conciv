@@ -6,7 +6,7 @@ import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
-import type {ChatHydration} from '@conciv/contract'
+import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -57,7 +57,7 @@ export type CodeRunner = {
 
 export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
-  hydrate: (sessionId: SessionId) => Promise<ChatHydration>
+  hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
   history: (sessionId: SessionId) => Promise<ChatMessage[]>
   stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true}>
   compact: (sessionId: SessionId) => Promise<void>
@@ -128,12 +128,12 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     return approvalNeeded(toolName).message
   }
 
-  const hydrate = async (sessionId: SessionId): Promise<ChatHydration> => {
+  const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      await transcripts.sync(sessionId)
+      if (window?.before === undefined) await transcripts.sync(sessionId)
     }
-    const thread = await server.hydrate(sessionId)
+    const thread = await server.hydrate(sessionId, window)
     const messages = normalizedMessages(thread.messages, normalize)
     const runs = await deps.db
       .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
@@ -146,6 +146,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       lastRun: thread.lastRun,
       pendingApprovals: await approvals.pending(sessionId),
       interrupts: null,
+      page: thread.page,
     }
   }
 
@@ -176,7 +177,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     compact: async (sessionId) => {
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
-      await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterTurn: messages.length, kind: 'compact'})
+      const afterMessageId = messages.at(-1)?.id ?? null
+      await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },
     clear: async (sessionId) => {

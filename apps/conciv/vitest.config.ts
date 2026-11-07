@@ -7,7 +7,13 @@ import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser}
 const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
 const PERF_MODE = 'perf'
 const MASCOT_DEPS = ['@conciv/mascot > gsap', '@conciv/mascot > gsap/MotionPathPlugin']
-const SHELL_DEPS = ['@tanstack/hotkeys', '@tanstack/solid-hotkeys', '@solid-primitives/mutation-observer']
+const SHELL_DEPS = [
+  '@tanstack/hotkeys',
+  '@tanstack/solid-hotkeys',
+  '@solid-primitives/mutation-observer',
+  'semver/functions/lt',
+  'semver/functions/valid',
+]
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 export default defineConfig(({mode}) => ({

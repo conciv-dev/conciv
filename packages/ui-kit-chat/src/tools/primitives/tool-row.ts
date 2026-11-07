@@ -3,7 +3,7 @@ import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-t
 import type {JSX} from 'solid-js'
 import {toolStatus, type ToolStatus} from './tool-status.js'
 
-export type ToolRowMark = 'pass' | 'warn' | 'fail' | 'run'
+export type ToolRowMark = 'pass' | 'warn' | 'fail' | 'run' | NonNullable<ToolResultPart['outcome']>
 
 export type ToolRowProps = {
   part: ToolCallPart
@@ -24,6 +24,8 @@ const MARK_OF_STATUS: Record<ToolStatus, ToolRowMark> = {
   approval: 'run',
   error: 'fail',
   complete: 'pass',
+  denied: 'denied',
+  cancelled: 'cancelled',
 }
 
 export function rowMarkOf(part: ToolCallPart, result: Parameters<typeof toolStatus>[1]): ToolRowMark {
@@ -172,6 +174,7 @@ export function genericRowProjection(source: ToolRowProps): ToolRowProjection {
     mark: rowMarkOf(source.part, source.result),
     label: shortToolLabel(source.part.name),
     target: primaryArgument(source.part) || source.part.name,
+    meta: source.result?.outcome,
   }
 }
 
@@ -190,9 +193,11 @@ export function headerRowProjection(header: EmbeddedCardHeader, source: ToolRowP
   const title = filled(header.title)
   if (title === undefined) return genericRowProjection(source)
   return {
-    mark: header.status === undefined ? rowMarkOf(source.part, source.result) : MARK_OF_STATUS[header.status],
+    mark:
+      source.result?.outcome ??
+      (header.status === undefined ? rowMarkOf(source.part, source.result) : MARK_OF_STATUS[header.status]),
     label: shortToolLabel(source.part.name),
     target: namedArgument(source.part) ?? clipTarget(title),
-    meta: filled(header.meta),
+    meta: source.result?.outcome ?? filled(header.meta),
   }
 }

@@ -80,7 +80,19 @@ export type ChatServerConfig = {
   log: (message: string) => void
 }
 
-export type ChatThread = {messages: ChatMessage[]; activeRun: {runId: string} | null; lastRun: RunLifecycle | null}
+const ThreadPageSchema = z.discriminatedUnion('truncated', [
+  z.object({truncated: z.literal(false)}),
+  z.object({truncated: z.literal(true), cursor: z.string()}),
+])
+
+type ChatThreadWindow = {limit?: number; before?: string}
+
+export type ChatThread = {
+  messages: ChatMessage[]
+  activeRun: {runId: string} | null
+  lastRun: RunLifecycle | null
+  page?: z.infer<typeof ThreadPageSchema>
+}
 
 export type CodeDiscovery = {description: string; run: (toolNames: string[]) => Promise<unknown>}
 
@@ -97,7 +109,7 @@ export type ChatServer = ChatDelivery & {
   endAllRuns: () => Promise<void>
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
-  hydrate: (threadId: string) => Promise<ChatThread>
+  hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
 
@@ -192,7 +204,16 @@ function discoveryOf(tool: ChatTool | null): CodeDiscovery | null {
 const ReconstructedSchema = z.object({
   messages: z.array(z.custom<ChatMessage>((value) => typeof value === 'object' && value !== null)),
   activeRun: z.object({runId: z.string()}).nullable(),
+  page: ThreadPageSchema.optional(),
 })
+
+function threadUrl(threadId: string, window: ChatThreadWindow): URL {
+  const url = new URL('http://conciv.local/chat')
+  url.searchParams.set('threadId', threadId)
+  if (window.limit !== undefined) url.searchParams.set('limit', String(window.limit))
+  if (window.before !== undefined) url.searchParams.set('before', window.before)
+  return url
+}
 
 async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): Promise<void> {
   const now = Date.now()
@@ -467,6 +488,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
+      retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
       reasoning: plan.reasoning,
       abortController: controller,
@@ -529,13 +551,10 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     settled: async (threadId) => {
       await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
     },
-    hydrate: async (threadId) => {
+    hydrate: async (threadId, window = {}) => {
       const stopping = liveRunsOf(threadId).filter(([, entry]) => entry.controller.signal.aborted)
       await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
-      const response = await reconstructChat(
-        persistence,
-        new Request(`http://conciv.local/chat?threadId=${encodeURIComponent(threadId)}`),
-      )
+      const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
       const thread = ReconstructedSchema.parse(await response.json())
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
       return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}

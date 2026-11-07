@@ -8,6 +8,7 @@ import {appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync,
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {CLAUDE_CONNECT_PLUGIN_VERSION} from '@conciv/harness-init/claude/files'
 import type {LedgerEntry, StepNote} from '../src/init/ledger.js'
 import type {InitContext, InitResult, InitRuntime, RunSettings} from '../src/init/pipeline.js'
 import type {InitOutput, PlanPrompts} from '../src/init/wizard.js'
@@ -180,7 +181,7 @@ function claudePluginsDir(home: string): string {
 }
 
 function claudeCacheDir(home: string): string {
-  return join(claudePluginsDir(home), 'cache', 'conciv', 'conciv-connect', '0.0.0')
+  return join(claudePluginsDir(home), 'cache', 'conciv', 'conciv-connect', CLAUDE_CONNECT_PLUGIN_VERSION)
 }
 
 function copyPluginIntoCache(home: string, marketplaceRoot: string): void {
@@ -209,7 +210,12 @@ function recordClaudePluginState(opts: {home: string; cwd: string; args: string[
       version: 2,
       plugins: {
         'conciv-connect@conciv': [
-          {scope: 'local', version: '0.0.0', installPath: claudeCacheDir(opts.home), projectPath: opts.cwd},
+          {
+            scope: 'local',
+            version: CLAUDE_CONNECT_PLUGIN_VERSION,
+            installPath: claudeCacheDir(opts.home),
+            projectPath: opts.cwd,
+          },
         ],
       },
     }),

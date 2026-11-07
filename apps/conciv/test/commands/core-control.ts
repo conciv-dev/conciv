@@ -7,6 +7,7 @@ import {
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -45,6 +46,7 @@ export type FaultSpec =
   | {kind: 'offline'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
+  | {kind: 'pre-version-engine'}
 
 type Fault = {
   pending: () => number
@@ -232,6 +234,10 @@ const releaseResults: BrowserCommand<[PacedRelease?]> = (ctx, paced): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
+  kitOf(ctx).harness.script.scriptError(message)
+}
+
 const clearScript: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.clearScript()
 }
@@ -276,6 +282,22 @@ async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> 
     },
     dispose: () => ctx.page.unroute(matcher),
   }
+}
+
+async function preVersionEngine(ctx: BrowserCommandContext): Promise<Injector> {
+  const origin = kitOf(ctx).origin
+  const matcher = (url: URL): boolean => url.origin === origin
+  const handler = async (route: Route): Promise<void> => {
+    if ((await route.request().headerValue(CONCIV_VERSION_HEADER)) !== null) return route.abort('failed')
+    if (new URL(route.request().url()).pathname.endsWith(CHAT_SSE_PATH)) return route.continue()
+    const response = await route.fetch()
+    const headers = Object.fromEntries(
+      Object.entries(response.headers()).filter(([name]) => name !== CONCIV_VERSION_HEADER),
+    )
+    return route.fulfill({response, headers})
+  }
+  await ctx.page.route(matcher, handler)
+  return {repair: () => {}, dispose: () => ctx.page.unroute(matcher, handler)}
 }
 
 async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector> {
@@ -356,6 +378,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
+  if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
   if (spec.kind === 'chat-refused') {
     return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
   }
@@ -453,6 +476,7 @@ export const coreCommands = {
   releaseResults,
   releaseTurn,
   scriptTurn,
+  scriptError,
   clearScript,
   scriptCustomEvent,
   setTerminalLaunch,

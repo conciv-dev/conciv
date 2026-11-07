@@ -1,8 +1,9 @@
 import '../src/styles.css'
-import {expect, test, vi, it, afterEach, describe} from 'vitest'
+import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
@@ -55,7 +56,7 @@ import {
 } from '@conciv/extension'
 import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
 import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {INERT_TOOL_CTX, ToolCallCard} from '@conciv/ui-kit-chat/tools'
+import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
@@ -63,10 +64,11 @@ import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
+import {RunErrorRow} from '../src/pane/run-error-row.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
-import {EngineStaleNotice} from '../src/shell/engine-notice.js'
+import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notice.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
@@ -83,7 +85,7 @@ import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import type {RunClockSource} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, type RunClockSource} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -1142,6 +1144,23 @@ describe('engine staleness', () => {
   })
 })
 
+describe('engine version', () => {
+  const core = bootedCore('engine-version')
+  const keep = keptPane()
+
+  test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
+    await coreControl.installFault({kind: 'pre-version-engine'})
+    const sessionId = await createSession(makeBrowserRpcClient(core()).rpc)
+    keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
+
+    await expect
+      .element(page.getByRole('alert'))
+      .toHaveTextContent(
+        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
+      )
+  })
+})
+
 describe('grab staging', () => {
   const core = bootedCore('grab-staging')
   const keep = keptPane()
@@ -1170,6 +1189,256 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
   })
+})
+
+describe('chat history paging', () => {
+  const HYDRATE_PATH = ['chat', 'hydrate']
+  const SEEDED_EXCHANGES = 100
+  const core = bootedCore('history-paging', {
+    displayName: 'Alpha',
+    alternates: [{id: 'beta', displayName: 'Beta', text: 'Hello from beta'}],
+  })
+  const keep = keptPane()
+  const faults = trackedFaults()
+  const long: {sessionId: string} = {sessionId: ''}
+
+  afterEach(() => coreControl.releaseTurn())
+
+  const exchange = (index: number) => page.getByText(`seeded exchange ${index}`, {exact: true})
+  const thread = () => page.getByRole('log').filter({hasText: 'seeded exchange'})
+  const loadingOlder = () => page.getByRole('status', {name: 'Loading earlier messages'})
+  const newSessionLine = () => page.getByRole('separator', {name: 'New session'})
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const hydrates = (): Promise<number> => coreControl.rpcCallCount(HYDRATE_PATH)
+  const between = (from: string, marker: string, to: string): RegExp =>
+    new RegExp(`${from}(?:(?!seeded exchange).)*${marker}(?:(?!seeded exchange).)*${to}`)
+  const scrollToTop = () => userEvent.wheel(thread(), {delta: {y: -1_000_000}})
+  const scrollToEnd = () => userEvent.wheel(thread(), {delta: {y: 1_000_000}})
+
+  async function stoppedExchange(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
+    await coreControl.holdTurn()
+    const turn = await sendTurn(core(), sessionId, text)
+    await turn.awaitReply()
+    const active = (await rpc.chat.hydrate({sessionId})).activeRun
+    await rpc.chat.stop({sessionId, runIds: active === null ? [] : [active.runId]})
+    await turn.awaitTurnEnd()
+    await coreControl.releaseTurn()
+  }
+
+  async function seedLongChat(): Promise<string> {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (let index = 0; index < SEEDED_EXCHANGES; index += 1) {
+      if (index === 97) await rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+      if (index === 95) await stoppedExchange(rpc, sessionId, `seeded exchange ${index}`)
+      if (index !== 95) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+      if (index === 93) await rpc.sessions.compact({sessionId})
+    }
+    return sessionId
+  }
+
+  beforeAll(async () => {
+    long.sessionId = await seedLongChat()
+  }, 120_000)
+
+  function mountPagedChat(sessionId: string): void {
+    keep(
+      mountPane({base: core(), sessionId, width: 460}, () => (
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
+          <ChatPane sessionId={sessionId} />
+        </div>
+      )),
+    )
+  }
+
+  async function openChat(sessionId: string): Promise<number> {
+    mountPagedChat(sessionId)
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
+    return await hydrates()
+  }
+
+  const threadShowing = (from: string, marker: string, to: string) =>
+    thread().filter({hasText: between(from, marker, to)})
+
+  async function expectMarkersInPlace(): Promise<void> {
+    await expect.element(threadShowing('seeded exchange 93', 'Context compacted', 'seeded exchange 94')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 95', 'Stopped', 'seeded exchange 96')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 96', 'Alpha', 'Hello from conciv')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 98', 'Beta', 'Hello from beta')).toBeVisible()
+  }
+
+  test('opening a long chat loads only the newest page, and the page before it lands without moving the message in view', async () => {
+    const opened = await openChat(long.sessionId)
+    await expectMarkersInPlace()
+    await expect.element(newSessionLine()).not.toBeInTheDocument()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await scrollToTop()
+
+    await expect.element(loadingOlder()).toBeVisible()
+    await expect.element(exchange(76)).toBeInViewport()
+    await expect.element(exchange(74)).not.toBeInTheDocument()
+    await faults.releaseAll()
+
+    await expect.element(exchange(75)).toBeInTheDocument()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expect.element(exchange(76)).toBeInViewport()
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
+  test('an older page that fails waits for Retry instead of asking again, and Retry loads it', async () => {
+    const opened = await openChat(long.sessionId)
+    await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+
+    await scrollToTop()
+
+    const failed = page.getByRole('alert').filter({hasText: 'Couldn’t load earlier messages.'})
+    await expect.element(failed).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await faults.releaseAll()
+
+    await userEvent.click(failed.getByRole('button', {name: 'Retry'}))
+
+    await expect.element(exchange(75)).toBeInTheDocument()
+    await expect.element(failed).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
+  test('scrolling up page after page reaches the first message, then stops asking, and every marker stays on its message', async () => {
+    const opened = await openChat(long.sessionId)
+    for (const boundary of [74, 49, 24, 0]) {
+      await scrollToTop()
+      await expect.element(exchange(boundary)).toBeInTheDocument()
+    }
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened + 4)
+
+    await scrollToEnd()
+
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
+    await expectMarkersInPlace()
+  })
+
+  test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {
+    const sessionId = await seedExchanges()
+    await openChat(sessionId)
+    await scrollToTop()
+    await expect.element(exchange(74)).toBeInTheDocument()
+
+    const elsewhere = await sendTurn(core(), sessionId, 'run from elsewhere')
+    await elsewhere.awaitTurnEnd()
+
+    await scrollToEnd()
+    await expect.element(page.getByText('run from elsewhere', {exact: true})).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(50)).toBeInViewport()
+  })
+
+  test('sending in a paged chat works and the server keeps the whole history', async () => {
+    const sessionId = await seedExchanges()
+    await openChat(sessionId)
+
+    await userEvent.click(input())
+    await userEvent.keyboard('sent from a paged chat{Enter}')
+
+    await expect.element(page.getByText('sent from a paged chat', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    const stored = (await coreRpc(core()).chat.hydrate({sessionId})).messages
+    expect(stored).toHaveLength(SEEDED_EXCHANGES * 2 + 2)
+    expect(JSON.stringify(stored[0])).toContain('seeded exchange 0')
+  })
+
+  test('a short chat loads whole, starts with its New session line and never asks for more', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (const index of [0, 1]) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    mountPagedChat(sessionId)
+    await expect.element(exchange(1)).toBeVisible()
+    const opened = await hydrates()
+
+    await scrollToTop()
+
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(exchange(0)).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened)
+  })
+
+  test('a long chat whose newest page fits the viewport loads older pages without any scroll', async () => {
+    keep(
+      mountPane({base: core(), sessionId: long.sessionId, width: 460}, () => (
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '9000px'}}>
+          <ChatPane sessionId={long.sessionId} />
+        </div>
+      )),
+    )
+
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInTheDocument()
+    await expect.element(exchange(74)).toBeInTheDocument()
+  })
+
+  test('a reply sent in the pane and then compacted keeps the compact line under it without reopening', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    mountPagedChat(sessionId)
+
+    await userEvent.click(input())
+    await userEvent.keyboard('compact after this reply{Enter}')
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    const compactedUnderReply = page
+      .getByRole('log')
+      .filter({hasText: /compact after this reply.*Hello from conciv.*Context compacted/})
+    await expect.element(compactedUnderReply).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(page.getByRole('status', {name: 'Compacting context…'})).not.toBeInTheDocument()
+    await expect.element(compactedUnderReply).toBeVisible()
+  })
+
+  test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
+    const sessionId = await seedExchanges(30)
+    mountPagedChat(sessionId)
+    await expect.element(exchange(29)).toBeVisible()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    for (let index = 30; index < 56; index += 1) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    await faults.releaseAll()
+
+    await expect.element(exchange(55)).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(5)).toBeInTheDocument()
+    await scrollToTop()
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(exchange(0)).toBeVisible()
+  }, 120_000)
+
+  test('an empty pane that a refresh fills with more than one page can still scroll back to the first message', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    mountPagedChat(sessionId)
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    for (let index = 0; index < 30; index += 1) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    await faults.releaseAll()
+
+    await expect.element(exchange(29)).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(0)).toBeInTheDocument()
+    await expect.element(newSessionLine()).toBeVisible()
+  }, 120_000)
+
+  async function seedExchanges(count = SEEDED_EXCHANGES): Promise<string> {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (let index = 0; index < count; index += 1) {
+      await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    }
+    return sessionId
+  }
 })
 
 describe('harness switching', () => {
@@ -3295,4 +3564,168 @@ describe('wire name coverage', () => {
       .filter((name) => !reachable.has(name) && !HARNESS_NATIVE_CARD_NAMES.includes(name))
     expect(dead).toEqual([])
   })
+})
+
+describe('run errors', () => {
+  const OVERFLOW_TEXT = 'prompt is too long: 250000 tokens > 200000 maximum'
+
+  function FailedRun(props: {failure: ChatEvent; compacted: () => void; compacting?: boolean}): JSX.Element {
+    const chat = createChat({
+      threadId: 'run-errors',
+      connection: {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {type: ChatEventType.RUN_STARTED, threadId: 'run-errors', runId: runContext?.runId ?? 'failed-run'}
+          yield props.failure
+        },
+      },
+    })
+    onMount(() => void chat.sendMessage('go'))
+    return (
+      <Show when={chat.error()}>
+        {(error) => (
+          <RunErrorRow
+            error={error()}
+            compacting={props.compacting ?? false}
+            onRetry={() => void chat.reload()}
+            onCompact={props.compacted}
+          />
+        )}
+      </Show>
+    )
+  }
+
+  it('a context overflow says the conversation is too long and offers to compact it', async () => {
+    const compacted = {count: 0}
+    render(() => (
+      <FailedRun
+        failure={{type: ChatEventType.RUN_ERROR, message: OVERFLOW_TEXT, code: 'context_overflow'}}
+        compacted={() => void (compacted.count += 1)}
+      />
+    ))
+
+    const alert = page.getByRole('alert')
+    await expect.element(alert.getByText(/This conversation is too long for the model\./)).toBeVisible()
+    await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
+    expect(compacted.count).toBe(1)
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
+  })
+
+  it('the Compact action is disabled while a compaction is already running', async () => {
+    render(() => (
+      <FailedRun
+        failure={{type: ChatEventType.RUN_ERROR, message: OVERFLOW_TEXT, code: 'context_overflow'}}
+        compacted={() => {}}
+        compacting
+      />
+    ))
+
+    const compact = page.getByRole('button', {name: 'Compact conversation'})
+    await expect.element(compact).toBeVisible()
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
+    await expect.element(compact).toBeDisabled()
+  })
+
+  it('any other provider error keeps its own text and a retry', async () => {
+    render(() => (
+      <FailedRun failure={{type: ChatEventType.RUN_ERROR, message: 'upstream is overloaded'}} compacted={() => {}} />
+    ))
+
+    await expect.element(page.getByRole('alert').getByText('upstream is overloaded')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
+  })
+
+  describe('in a live pane', () => {
+    const core = bootedCore('run-errors-live')
+    const keep = keptPane()
+
+    const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const runError = (text: string) =>
+      page.getByRole('alert').filter({hasText: text, has: page.getByRole('button', {name: 'Retry'})})
+
+    async function typeTurn(text: string): Promise<void> {
+      await userEvent.click(input())
+      await userEvent.keyboard(`${text}{Enter}`)
+    }
+
+    it('a finished compaction clears the run error it resolved, and a later failure still shows', async () => {
+      const sessionId = await createSession(coreRpc(core()))
+      keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+      await expect.element(input()).toBeVisible()
+
+      await coreControl.scriptError('upstream is overloaded')
+      await typeTurn('first turn')
+      await expect.element(runError('upstream is overloaded')).toBeVisible()
+
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+      await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
+      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
+
+      await coreControl.scriptError('the model went away')
+      await typeTurn('second turn')
+      await expect.element(runError('the model went away')).toBeVisible()
+    })
+  })
+})
+
+describe('tool outcomes', () => {
+  const STOPPED_REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
+
+  function stoppedTool(
+    outcome: 'denied' | 'cancelled',
+    name = 'Bash',
+    input: Record<string, unknown> = {command: 'rm -rf build'},
+  ): JSX.Element {
+    const part: ToolCallPart = {
+      type: 'tool-call',
+      id: 'stopped-1',
+      name,
+      arguments: JSON.stringify(input),
+      input,
+      state: 'input-complete',
+    }
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 'stopped-1',
+      content: JSON.stringify({error: STOPPED_REASON[outcome]}),
+      state: 'error',
+      outcome,
+      error: STOPPED_REASON[outcome],
+    }
+    return <ToolTraceRow part={part} result={result} ctx={INERT_TOOL_CTX} tools={() => builtinToolCards} />
+  }
+
+  it('a denied tool reads as denied, not as a failure', async () => {
+    render(() => stoppedTool('denied'))
+
+    await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
+  })
+
+  it('a cancelled tool reads as cancelled, not as a failure', async () => {
+    render(() => stoppedTool('cancelled'))
+
+    await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
+  })
+
+  for (const [outcome, name] of [
+    ['denied', 'Grep'],
+    ['cancelled', 'Glob'],
+  ] as const) {
+    it(`a ${outcome} ${name} search names the outcome on the row, never failed`, async () => {
+      render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
+
+      await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
+      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
+      await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
+      await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
+      await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
+      await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
+    })
+  }
 })

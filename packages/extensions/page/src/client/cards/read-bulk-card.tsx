@@ -69,7 +69,9 @@ export function ReadBulkCard(props: ToolCardProps): JSX.Element {
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
+          <Match when={errorMessage()}>
+            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+          </Match>
           <Match when={markup() !== undefined}>
             <Show when={markup()} fallback={<p class={QUIET_TEXT_CLASS}>the element has no markup</p>}>
               {(value) => <PageHtmlBlock markup={value()} />}
