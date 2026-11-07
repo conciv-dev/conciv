@@ -3216,7 +3216,7 @@ describe('session selector', () => {
     }
   }
 
-  test('a user opens, searches, pages, picks by keyboard and by pointer, and the list follows the index', async () => {
+  test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
     await mountSelector()
     const trigger = page.getByRole('button', {name: 'Session: the active session'})
     const search = page.getByRole('combobox', {name: /search sessions/i})

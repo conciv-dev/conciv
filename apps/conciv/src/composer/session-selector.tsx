@@ -95,7 +95,6 @@ export function SessionSelector(props: {
       input,
       initialPageParam: null,
       getNextPageParam: (page: SessionPage) => page.next,
-      queryKey: [...appData.utils.sessions.list.infiniteKey({input, initialPageParam: null}), indexVersion()],
     })
   }
   const searchOptions = (term: string) => {
