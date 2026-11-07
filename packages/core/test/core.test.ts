@@ -382,6 +382,7 @@ describe('chat plane', () => {
           close: () => undefined,
         }),
         list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
       },
       capabilities: {
         resume: false,
