@@ -66,7 +66,7 @@ import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
-import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
+import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
@@ -593,6 +593,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  const admitOutside = async (scope: SessionScope, client: string | null) =>
+    opts.cfg.hubAccess === 'open'
+      ? null
+      : plane.admitCall(scope.id, OUTSIDE_SESSION_TARGET, {client}, scope.stream.publish, outsideTitle(client))
+
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
@@ -600,6 +605,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
+    admitOutside,
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -632,10 +638,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
             ],
           }),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
-        admitOutside: async (scope, client) =>
-          opts.cfg.hubAccess === 'open'
-            ? null
-            : plane.admitCall(scope.id, OUTSIDE_SESSION_TARGET, {client}, scope.stream.publish, outsideTitle(client)),
+        admitOutside,
         staleness,
       },
       tabs: {

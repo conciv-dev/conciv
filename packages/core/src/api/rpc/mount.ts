@@ -33,6 +33,7 @@ export type RpcDeps = {
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
   auth: AuthRouter
+  admitOutside: (scope: SessionScope, client: string | null) => Promise<string | null>
 }
 
 export const os = implement(contract).$context<RpcContext>()

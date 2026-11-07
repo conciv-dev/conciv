@@ -18,6 +18,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `sessionIdFromHeaders` / `nativeIdFromHeaders` / `McpVars` (`mcp.ts`)
 - `createOutsideTabs(home?)` (`outside-tabs.ts`, home defaults to `concivHome`): `list()` gives `TabsListingSchema` rows for every live engine in the home db with each failing engine under `unreachable`; `find(tab)` names the one engine holding that tab open with its instructions and tools
 - `outsideRunCapabilities({tabs, client, capabilities})` (`outside-run.ts`): the capability set of an outside run (a hub-origin request without a session header): `use_tab` picks a tab for the rest of the execute block and returns its instructions plus a one-line summary per tool, every other non-ask capability except `tabs` forwards to the owning engine's `/api/mcp` with the hub-origin headers
+- `callTrace(header)` (`call-trace.ts`): reads `conciv-origin` / `conciv-client` into `hub` (null unless the origin is `hub`) and builds the tool call chunks, which carry `metadata.conciv = {origin: 'hub', client}` on a hub-origin request; shared by `/api/mcp` and the oRPC router
 - `PushDeps`, `PageQuery` (`push.ts`)
 - `ExecuteInputSchema`, `ExecuteResultSchema`, `ExecuteErrorSchema` (`execute-schemas.ts`)
 - Subdirectories:

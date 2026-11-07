@@ -2,14 +2,12 @@ import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {generateMessageId, isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {
   CONCIV_CLAUDE_SESSION_HEADER,
-  CONCIV_CLIENT_HEADER,
-  CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
   isHarnessSessionId,
   isSessionId,
@@ -31,6 +29,7 @@ import {
 } from '@conciv/chat'
 import {createMCPServer, imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
+import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -45,28 +44,6 @@ export function nativeIdFromHeaders(headers: Headers): HarnessSessionId | null {
   if (!raw) return null
   if (!isHarnessSessionId(raw)) throw new HTTPException(400, {message: 'invalid harness session id'})
   return raw
-}
-
-const HubOriginSchema = z.object({
-  origin: z.enum(['hub']).optional().catch(undefined),
-  client: z.string().max(64).optional().catch(undefined),
-})
-
-type HubOrigin = {client: string | null}
-
-function hubOriginFromHeaders(headers: Headers): HubOrigin | null {
-  const parsed = HubOriginSchema.parse({
-    origin: headers.get(CONCIV_ORIGIN_HEADER) ?? undefined,
-    client: headers.get(CONCIV_CLIENT_HEADER) ?? undefined,
-  })
-  if (parsed.origin === undefined) return null
-  return {client: parsed.client ?? null}
-}
-
-type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
-
-function callMarker(origin: HubOrigin | null): CallMarker {
-  return origin === null ? null : {conciv: {origin: 'hub', client: origin.client}}
 }
 
 type TextContent = {type: 'text'; text: string}
@@ -236,33 +213,21 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
 
 type PublishChunks = (chunks: ChatEvent[]) => void
 
-type CallPublisher = {publish: PublishChunks; marker: CallMarker}
+type CallTrace = ReturnType<typeof callTrace>
 
-function callStartChunks(callId: string, toolName: string, input: unknown, marker: CallMarker): ChatEvent[] {
-  const metadata = marker === null ? {} : {metadata: marker}
-  return [
-    {type: ChatEventType.TOOL_CALL_START, toolCallId: callId, toolCallName: toolName, ...metadata},
-    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
-    {type: ChatEventType.TOOL_CALL_END, toolCallId: callId, ...metadata},
-  ]
+type CallPublisher = {publish: PublishChunks; trace: CallTrace}
+
+function replyText(reply: ExecuteReply): string {
+  return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
-function executeResultChunk(executionId: string, reply: ExecuteReply, marker: CallMarker): ChatEvent {
-  const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
-  const failed = reply.isError === true ? {tanstack: {state: 'output-error'}} : null
-  const metadata = marker === null && failed === null ? {} : {metadata: {...marker, ...failed}}
-  return {
-    type: ChatEventType.TOOL_CALL_RESULT,
-    messageId: generateMessageId(),
-    toolCallId: executionId,
-    content: text || JSON.stringify({result: 'non-text content'}),
-    ...metadata,
-  }
+function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): void {
+  calls.publish([calls.trace.result(callId, replyText(reply), reply.isError === true)])
 }
 
 async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
   const executionId = randomUUID()
-  calls.publish(callStartChunks(executionId, EXECUTE_TOOL_NAME, {typescriptCode}, calls.marker))
+  calls.publish(calls.trace.start(executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, executionId)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
@@ -271,13 +236,13 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
   const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
-  calls.publish([executeResultChunk(executionId, reply, calls.marker)])
+  publishResult(calls, executionId, reply)
   return reply
 }
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
   const callId = randomUUID()
-  calls.publish(callStartChunks(callId, tool.name, input, calls.marker))
+  calls.publish(calls.trace.start(callId, tool.name, input))
   const reply: ExecuteReply = await tool.run(input, callId).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
@@ -285,7 +250,7 @@ async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): 
       isError: true,
     }),
   )
-  calls.publish([executeResultChunk(callId, reply, calls.marker)])
+  publishResult(calls, callId, reply)
   return reply
 }
 
@@ -310,10 +275,10 @@ function gated<Args>(refusal: string | null, run: (args: Args) => Promise<Execut
   return async (): Promise<ExecuteReply> => ({content: [{type: 'text', text: refusal}], isError: true})
 }
 
-type McpCaller = {origin: HubOrigin | null; outside: boolean}
+type McpCaller = {trace: CallTrace; outside: boolean}
 
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
-  const origin = caller.origin
+  const origin = caller.trace.hub
   const refusal = origin === null || caller.outside ? null : await deps.admitOutside(scope, origin.client)
   const runner = await deps.codeRunner(
     scope.id,
@@ -325,7 +290,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   }
   const calls: CallPublisher = {
     publish: (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk)),
-    marker: callMarker(origin),
+    trace: caller.trace,
   }
   const discover = runner.discover
   const discoverTools =
@@ -364,9 +329,9 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
   const header = sessionIdFromHeaders(c.req.raw.headers)
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
-  const origin = hubOriginFromHeaders(c.req.raw.headers)
+  const trace = callTrace((name) => c.req.raw.headers.get(name))
   const scope = await c.var.mcp.resolveSession(header, nativeId)
-  const caller = {origin, outside: origin !== null && header === null && nativeId === null}
+  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null}
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,

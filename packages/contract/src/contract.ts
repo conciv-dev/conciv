@@ -225,20 +225,22 @@ export const contract = {
       .output(Ok),
   },
   server: {
-    config: oc.errors(noBundler).output(BundlerConfigSchema),
+    config: oc.errors({...noBundler, ...approvalDenied}).output(BundlerConfigSchema),
     resolve: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({spec: z.string(), importer: z.string().optional()}))
       .output(z.object({id: z.string().nullable()})),
     graph: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
       .output(z.array(ModuleNodeSchema)),
     transform: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({url: z.string()}))
       .output(z.object({code: z.string().nullable()})),
-    urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
+    urls: oc
+      .errors({...noBundler, ...approvalDenied})
+      .output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
     reload: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
@@ -249,7 +251,7 @@ export const contract = {
       .output(Ok),
   },
   editor: {
-    open: oc.input(EditorOpenInputSchema).output(Ok),
+    open: oc.errors(approvalDenied).input(EditorOpenInputSchema).output(Ok),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {

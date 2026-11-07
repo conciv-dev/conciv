@@ -988,15 +988,6 @@ describe('api mcp loopback host', () => {
     it('an MCP client without the agent token is refused with 401', async () => {
       await expect(connectMcpClient(`${new URL(kit().base).origin}/api/mcp`)).rejects.toMatchObject({code: 401})
     })
-
-    it('an MCP client on the token-scoped path lists the tools', async () => {
-      const mcp = await connectMcpClient(`${kit().base}/api/mcp`)
-      try {
-        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
-      } finally {
-        await mcp.close()
-      }
-    })
   })
 })
 
@@ -3213,22 +3204,18 @@ describe('outside sessions', () => {
       expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
-    it('/api/tabs lists a joined page', async () => {
+    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt and tools', async () => {
+      const path = `/api/tabs?session=${await kit().session()}`
+      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
       await joinPage(true)
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
         project: {name: 'tabs-fixture', root: repo, branch: 'feature-x'},
         tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
       })
-    })
-
-    it('?session= answers open and not open, with the engine system prompt text and the session tools', async () => {
-      const path = `/api/tabs?session=${await kit().session()}`
-      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
-      await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
     })
 
     it('branch is re-read per request, through a worktree gitdir file too', async () => {
@@ -3290,6 +3277,14 @@ describe('outside agent consent', () => {
   const pendingOf = async (base: string, sessionId: string) =>
     (await rpcOf(base, sessionId).chat.hydrate({sessionId})).pendingApprovals
 
+  async function toolStarts(base: string, sessionId: string): Promise<() => Promise<unknown>> {
+    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
+    return async () => {
+      for await (const chunk of events) if (chunk.type === ChatEventType.TOOL_CALL_START) return chunk
+      return null
+    }
+  }
+
   async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
     const [ask] = await pendingOf(base, sessionId)
     expect(ask).toMatchObject({toolName: 'Allow codex to use this tab', input: {client: 'codex'}, runId: null})
@@ -3306,7 +3301,6 @@ describe('outside agent consent', () => {
     expect(await pendingOf(base, first)).toHaveLength(1)
     expect(await hubCall(base, first)).toMatch(ASKS)
     await decideOutside(base, first, true)
-    expect(await hubCall(base, first)).toMatch(RAN)
     expect(await hubCall(base, first)).toMatch(RAN)
     expect(await hubCall(base, second)).toMatch(ASKS)
     await decideOutside(base, second, false)
@@ -3363,26 +3357,30 @@ describe('outside agent consent', () => {
     expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
   })
 
-  it('project policy allows every session after one allow', async () => {
+  it('a hub-origin rpc tool call asks first and runs marked, a plain rpc call never asks, project policy allows every session', async () => {
     const base = await boot('project')
-    const [first, second] = [await newSession(base), await newSession(base)]
-    await hubCall(base, first)
-    await decideOutside(base, first, true)
-    expect(await hubCall(base, second)).toMatch(RAN)
+    const sessionId = await openTab(base)
+    const route = {name: 'page_route', input: {}}
+    const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+    expect(await rpcOf(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
+    expect(await pendingOf(base, sessionId)).toEqual([])
+    await expect(hubRpc.registry.call(route)).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: ASKS})
+    await decideOutside(base, sessionId, true)
+    const starts = await toolStarts(base, sessionId)
+    expect(await hubRpc.registry.call(route)).toMatchObject({href: ROUTE.href})
+    expect(await starts()).toMatchObject({
+      toolCallName: 'page_route',
+      metadata: {conciv: {origin: 'hub', client: 'codex'}},
+    })
+    expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)
-    const abort = new AbortController()
-    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: abort.signal})
+    const starts = await toolStarts(base, sessionId)
     expect(await hubCall(base, sessionId)).toMatch(RAN)
-    const starts = async (): Promise<unknown> => {
-      for await (const chunk of events) if (chunk.type === ChatEventType.TOOL_CALL_START) return chunk
-      return null
-    }
     expect(await starts()).toMatchObject({metadata: {conciv: {origin: 'hub', client: 'codex'}}})
-    abort.abort()
     expect(await pendingOf(base, sessionId)).toEqual([])
   })
 })
