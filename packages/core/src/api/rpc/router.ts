@@ -64,7 +64,7 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   if (!asks) return
   const scope = call.context.session
   const refusal = await deps.chat.plane.admitCall(scope.id, name, input, scope.stream.publish)
-  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
+  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
 
 async function hubGated<Result>(

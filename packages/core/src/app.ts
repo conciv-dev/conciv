@@ -62,6 +62,7 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import tabsApp, {type TabsVars} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
+import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
@@ -593,10 +594,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
-  const admitOutside = async (scope: SessionScope, client: string | null) =>
-    opts.cfg.hubAccess === 'open'
-      ? null
-      : plane.admitCall(scope.id, OUTSIDE_SESSION_TARGET, {client}, scope.stream.publish, outsideTitle(client))
+  const admitOutside = async (scope: SessionScope, client: string | null): Promise<string | null> => {
+    if (opts.cfg.hubAccess === 'open') return null
+    const refusal = await plane.admitCall(
+      scope.id,
+      OUTSIDE_SESSION_TARGET,
+      {client},
+      scope.stream.publish,
+      outsideTitle(client),
+    )
+    if (refusal === null) return null
+    return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)
+  }
 
   const rpc = makeRpcRouter({
     chat: chatDeps,

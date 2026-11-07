@@ -19,7 +19,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Invariants
 
-- `index.ts:admitCall` - refuses a call with `session "<id>" does not exist` when `deps.sessions.row` is null.
+- `index.ts:admitCall` - returns null when the call may run, else `{reason, message}`: `missing` (`session "<id>" does not exist`, when `deps.sessions.row` is null), `denied`, or `asked` (the ask was just published).
 - `index.ts:FIRST_OUTPUT_TIMEOUT_MS` - a turn with no first output for 30000 ms (or `firstOutputTimeoutMs`) is treated as silent by the chat server.
 - `approvals.ts:createApprovalStore.asked` - a pending approval with the same `approvalId` is not added twice.
 - `approvals.ts:createApprovalStore.forRun` - `once` and `denied` grants are cleared when a run reads them; `session` grants persist for the thread.

@@ -85,7 +85,7 @@ export type ChatPlane = {
     input: unknown,
     publish: (chunk: ChatEvent) => void,
     title?: string,
-  ) => Promise<string | null>
+  ) => Promise<{reason: 'asked' | 'denied' | 'missing'; message: string} | null>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
 }
@@ -118,14 +118,16 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const normalize = toolNameNormalizer(deps.toolNames)
 
   const admitCall: ChatPlane['admitCall'] = async (sessionId, toolName, input, publish, title = toolName) => {
-    if (deps.sessions.row(sessionId) === null) return `session "${sessionId}" does not exist`
+    if (deps.sessions.row(sessionId) === null) {
+      return {reason: 'missing', message: `session "${sessionId}" does not exist`}
+    }
     const approvalId = toolApprovalId(toolName)
     const admission = await approvals.admit(sessionId, approvalId)
     if (admission === 'allowed') return null
-    if (admission === 'denied') return OUTSIDE_DENIED
+    if (admission === 'denied') return {reason: 'denied', message: OUTSIDE_DENIED}
     await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title, input, runId: null})
     publish({...approvalRequestedEvent.create({approvalId, title, input}), timestamp: Date.now()})
-    return approvalNeeded(toolName).message
+    return {reason: 'asked', message: approvalNeeded(toolName).message}
   }
 
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
@@ -221,7 +223,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             inputSchema: capability.inputSchema,
             run: async (input, parentToolCallId) => {
               const refusal = await admitCall(sessionId, tool.name, input, publish)
-              if (refusal !== null) throw new Error(refusal)
+              if (refusal !== null) throw new Error(refusal.message)
               return execute(input, {emitCustomEvent: emitter(parentToolCallId)})
             },
           },

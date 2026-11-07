@@ -1011,7 +1011,10 @@ describe('cli', () => {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const viaTab = ['tools', 'tabs', '--tab', sessionId]
-        const refused = {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringContaining('approval')}}
+        const refused = {
+          ok: false,
+          error: {code: 'APPROVAL_DENIED', message: expect.stringContaining('cli is waiting for the user to allow it')},
+        }
         expect(await conciv(elsewhere, home, viaTab)).toMatchObject(refused)
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})

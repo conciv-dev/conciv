@@ -3232,9 +3232,9 @@ describe('outside sessions', () => {
 
 describe('outside agent consent', () => {
   const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
-  const ASKS = /needs the user's approval/
+  const ASKS = /codex is waiting for the user to allow it in the conciv tab.*; retry after they click Approve\./
   const RAN = /"result":1/
-  const DENIED = 'the user denied outside agents for this session'
+  const DENIED = 'The user denied codex access to the conciv tab'
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
   const engines: Engine[] = []
   const pages = new AbortController()
@@ -3364,7 +3364,10 @@ describe('outside agent consent', () => {
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     expect(await rpcOf(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
     expect(await pendingOf(base, sessionId)).toEqual([])
-    await expect(hubRpc.registry.call(route)).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: ASKS})
+    await expect(hubRpc.registry.call(route)).rejects.toMatchObject({
+      code: 'APPROVAL_DENIED',
+      message: 'codex is waiting for the user to allow it in the conciv tab "A"; retry after they click Approve.',
+    })
     await decideOutside(base, sessionId, true)
     const starts = await toolStarts(base, sessionId)
     expect(await hubRpc.registry.call(route)).toMatchObject({href: ROUTE.href})
