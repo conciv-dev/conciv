@@ -13,6 +13,8 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - WS `GET /push-ws?sessionId=` (`push.ts`, `pushRoutes`; path `PUSH_WS_PATH`): frames on channels `ready`, `page` and `chat`; the client sends `PageServingFrameSchema` frames (`{channel: 'page-serving', serving}`) to start or stop page queries on that socket
 - HTTP `GET /` and `GET /:file` (`native-page.ts`, `makeNativePageApp`): host HTML and `conciv-widget-native.global.js` (or its .map)
 - `NATIVE_PAGE_PATH` = '/native' (`native-page.ts`)
+- HTTP `GET /` (`tabs.ts`, default export `app`, mounted at `/api/tabs`): `TabsSchema` from `@conciv/protocol/chat-types`, the sessions with a page-bus subscriber plus the project name, root and git branch; with `?session=<id>` it answers `TabOpenSchema` (`{open, instructions}`) instead, with no page probe and no session listing
+- `TabsVars` (`tabs.ts`)
 - `sessionIdFromHeaders` / `nativeIdFromHeaders` / `McpVars` (`mcp.ts`)
 - `PushDeps`, `PageQuery` (`push.ts`)
 - `ExecuteInputSchema`, `ExecuteResultSchema`, `ExecuteErrorSchema` (`execute-schemas.ts`)
@@ -26,6 +28,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `sessionTools` (`mcp.ts`): lists no tools when `codeRunner` returns null
 - `runExecute` (`mcp.ts`): output failing `ExecuteResultSchema` becomes 'the sandbox returned an unreadable result'; error codes are decoded only when listed in `runner.declaredCodes`
 - `cappedParts` / `cappedText` (`mcp.ts`): text over `RESULT_CAP_CHARS` becomes a truncation envelope
+- `GET /api/tabs` (`tabs.ts`): each open session's `page_route` probe is raced against 1500 ms; a timeout or any page error gives `page: null` and the session stays listed; `package.json` and `.git/HEAD` (or a worktree's `gitdir:` file) are re-read on every request, anything unreadable gives null; an invalid `session` query is ignored
 - `pushRoutes` (`push.ts`): closes with 1008 when `sessionId` fails `SessionId.safeParse`
 - `pushRoutes` (`push.ts`): a socket subscribes to its session's page queries only after a `page-serving` frame with `serving: true`, and sends `ready` at that point; `serving: false` unsubscribes it; chat events stream from open regardless
 - `makeNativePageApp` (`native-page.ts`): only the two `NativeFileSchema` filenames are served; anything else is 404

@@ -87,6 +87,7 @@ export type BootOverrides = {
   bridge?: BundlerBridge
   firstChunkTimeoutMs?: number
   harnesses?: HarnessAdapter[]
+  systemPromptText?: string
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -119,6 +120,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     harnesses: overrides.harnesses,
+    systemPromptText: overrides.systemPromptText,
   })
 }
 

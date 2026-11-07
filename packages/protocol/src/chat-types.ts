@@ -215,4 +215,21 @@ export const ChatLaunchSchema = z.object({
 })
 export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
 
+export const TabsSchema = z.object({
+  project: z.object({name: z.string().nullable(), root: z.string(), branch: z.string().nullable()}),
+  tabs: z.array(
+    z.object({
+      sessionId: SessionId,
+      harness: z.string(),
+      browserTabs: z.number(),
+      session: z.object({title: z.string(), updatedAt: z.number(), running: z.boolean()}),
+      page: z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable(),
+    }),
+  ),
+})
+export type Tabs = z.infer<typeof TabsSchema>
+
+export const TabOpenSchema = z.object({open: z.boolean(), instructions: z.string().nullable()})
+export type TabOpen = z.infer<typeof TabOpenSchema>
+
 export type RequestMeta = Record<string, unknown>

@@ -9,14 +9,14 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
-- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
+- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`)
+- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); `PageBus.openSessions()` lists `{sessionId, subscribers}` for every session with at least one subscriber
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
-  - api: [./api/README.md](./api/README.md) - MCP, push and native-page routes
+  - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths

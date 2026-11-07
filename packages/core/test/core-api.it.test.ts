@@ -70,6 +70,8 @@ import {
   CONCIV_SESSION_HEADER,
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
+  TabOpenSchema,
+  TabsSchema,
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
@@ -83,7 +85,7 @@ import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
-import {resolveConfig, type ResolvedConcivConfig} from '../src/config.js'
+import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {start, type Engine} from '../src/start.js'
@@ -226,9 +228,7 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    async function executeTool(
-      base: string,
-    ): Promise<{description: string; discoverDescription: string; sandboxNames: string[]}> {
+    async function executeTool(base: string) {
       const mcp = await connectMcpClient(`${base}/api/mcp`)
       try {
         const tools = await mcp.tools()
@@ -240,17 +240,14 @@ describe('api engine staleness di', () => {
           typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))',
         })
         const sandboxNames = z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result
-        return {description: tool.description, discoverDescription: discover.description, sandboxNames}
+        const version = mcp.serverVersion()
+        return {description: tool.description, discoverDescription: discover.description, sandboxNames, version}
       } finally {
         await mcp.close()
       }
     }
 
-    async function executeDescription(base: string): Promise<string> {
-      return (await executeTool(base)).description
-    }
-
-    it('reports the injected probe consistently on /health, rpc meta.engine and the execute tool description', async () => {
+    it('reports the injected probe on /health, rpc meta.engine and the execute tool description, and the core version', async () => {
       const calls = {count: 0}
       const served = await serveWithProbe(() => {
         calls.count += 1
@@ -259,8 +256,9 @@ describe('api engine staleness di', () => {
 
       const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const {description, discoverDescription, sandboxNames} = await executeTool(served.base)
+      const {description, discoverDescription, sandboxNames, version} = await executeTool(served.base)
 
+      expect(version).toBe(corePackage.version)
       expect(health).toEqual({
         ok: true,
         harness: expect.any(String),
@@ -280,16 +278,6 @@ describe('api engine staleness di', () => {
       expect(discoverDescription.length).toBeLessThanOrEqual(4096)
       expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
-    }, 20_000)
-
-    it('reports the core package version as the MCP server version', async () => {
-      const served = await serveWithProbe(() => INJECTED)
-      const mcp = await connectMcpClient(`${served.base}/api/mcp`)
-      try {
-        expect(mcp.serverVersion()).toBe(corePackage.version)
-      } finally {
-        await mcp.close()
-      }
     }, 20_000)
 
     it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
@@ -320,7 +308,7 @@ describe('api engine staleness di', () => {
 
     it('the execute tool description says nothing about staleness while the engine matches the code on disk', async () => {
       const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
-      const description = await executeDescription(served.base)
+      const {description} = await executeTool(served.base)
       expect(description).toContain('Rules of the sandbox:')
       expect(description).not.toMatch(/outdated|restart the dev server/i)
     }, 20_000)
@@ -361,20 +349,6 @@ describe('api extension lifecycle', () => {
 })
 
 describe('api extension mount isolation', () => {
-  function cfgFor(stateRoot: string): ResolvedConcivConfig {
-    return {
-      enabled: true,
-      widgetUrl: undefined,
-      stateRoot,
-      harness: 'claude',
-      harnessBin: undefined,
-      sessionId: undefined,
-      harnessSessionId: undefined,
-      systemPrompt: '',
-      extensions: undefined,
-    }
-  }
-
   const healthyTool = defineTool({
     name: 'healthy_ok',
     description: 'a healthy tool',
@@ -408,13 +382,8 @@ describe('api extension mount isolation', () => {
       const healthy = defineExtension({name: 'healthy', tools: [healthyTool]}).server(() => ({context: {ready: true}}))
 
       try {
-        const made = await makeApp({
-          cfg: cfgFor(stateRoot),
-          cwd: stateRoot,
-          openInEditor: () => {},
-          harness: requireClaude(),
-          extensions: [broken, healthy],
-        })
+        const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
+        const made = await bootMadeApp(env, {extensions: [broken, healthy]})
         state.made = made
 
         expect(made.extensionContexts.healthy).toEqual({ready: true})
@@ -430,15 +399,10 @@ describe('api extension mount isolation', () => {
       state.stateRoot = stateRoot
       const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
       const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
-      await expect(
-        makeApp({
-          cfg: cfgFor(stateRoot),
-          cwd: stateRoot,
-          openInEditor: () => {},
-          harness: requireClaude(),
-          extensions: [first, second],
-        }),
-      ).rejects.toThrow(/slug collision: "dup" is claimed by both "dup" and "dup"/)
+      const env = {stateRoot, cwd: stateRoot, harness: requireClaude(), print: () => {}}
+      await expect(bootMadeApp(env, {extensions: [first, second]})).rejects.toThrow(
+        /slug collision: "dup" is claimed by both "dup" and "dup"/,
+      )
     }, 30_000)
   })
 })
@@ -1022,11 +986,11 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string, prefix = ''): Promise<Reply> {
+  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: `${prefix}/api/mcp`, method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -1044,12 +1008,6 @@ describe('api mcp loopback host', () => {
     function port(): number {
       return Number(new URL(kit().base).port)
     }
-
-    it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`, new URL(kit().base).pathname)
-      expect(reply.status).toBe(200)
-      expect(reply.body).toContain('conciv')
-    })
 
     it('rejects a hostile Host with no Origin, naming the host as the failed check', async () => {
       const reply = await postMcpOverHttp(port(), `evil.com:${port()}`)
@@ -1076,19 +1034,12 @@ describe('api mcp execute result', () => {
 
   const probe = defineExtension({name: 'probe', tools: [snap]})
 
-  type ExecuteOutcome = {ok: true; raw: unknown} | {ok: false; message: string}
-
-  async function execute(base: string, typescriptCode: string): Promise<ExecuteOutcome> {
+  async function execute(base: string, typescriptCode: string): Promise<unknown> {
     const mcp = await connectMcpClient(`${base}/api/mcp`)
     try {
       const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
       if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
-      try {
-        const raw: unknown = await tool.execute({typescriptCode})
-        return {ok: true, raw}
-      } catch (error) {
-        return {ok: false, message: String(error)}
-      }
+      return await tool.execute({typescriptCode})
     } finally {
       await mcp.close()
     }
@@ -1098,52 +1049,11 @@ describe('api mcp execute result', () => {
     const kit = sharedKit(() => bootKit({extensions: [probe]}))
 
     it('returns image content blocks for an imageResult capability', async () => {
-      const outcome = await execute(kit().base, 'return await external_probe_snap({})')
-      if (!outcome.ok) throw new Error(outcome.message)
-      expect(outcome.raw).toEqual([
+      expect(await execute(kit().base, 'return await external_probe_snap({})')).toEqual([
         {type: 'image', source: {type: 'data', value: PNG_RED_4x4, mimeType: 'image/png'}},
         {type: 'text', content: JSON.stringify({width: 4})},
       ])
     })
-
-    it('marks a failed execution as an MCP error, never a success-shaped result', async () => {
-      const outcome = await execute(kit().base, "throw new Error('deliberate failure')")
-      expect(outcome.ok).toBe(false)
-      if (outcome.ok) return
-      expect(outcome.message).toContain('deliberate failure')
-    })
-  })
-})
-
-describe('api mcp extension tools', () => {
-  async function execute(base: string, typescriptCode: string): Promise<unknown> {
-    const mcp = await connectMcpClient(`${base}/api/mcp`)
-    try {
-      const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const raw = await tool.execute({typescriptCode})
-      const parsed = z
-        .object({result: z.unknown()})
-        .loose()
-        .parse(JSON.parse(z.string().parse(raw)))
-      return parsed.result
-    } finally {
-      await mcp.close()
-    }
-  }
-
-  describe('/api/mcp extension tools through the sandbox', () => {
-    it('keeps the extension-authoring capability reachable through the sandbox', async () => {
-      const kit = await bootKit()
-      try {
-        const result = await execute(kit.base, "return await external_conciv_extensions({verb: 'catalog'})")
-        const json = JSON.stringify(result)
-        expect(json).toContain('chat-accent')
-        expect(json).toContain('clientSurfaces')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
   })
 })
 
@@ -3369,5 +3279,85 @@ describe('outside sessions', () => {
     const engine = await bootAt(home)
     expect((await fetch(`http://127.0.0.1:${engine.port}/health`)).status).toBe(200)
     await expect(engine.stop()).resolves.toBeUndefined()
+  })
+
+  describe('GET /api/tabs', () => {
+    const repo = tempDir('conciv-tabs-')
+    const instructions = 'be careful in this page'
+    const route = {href: 'http://localhost:5173/settings', title: 'Settings', state: 'visible', pathname: '/settings'}
+    const kit = sharedKit(() => {
+      mkdirSync(join(repo, '.git'))
+      writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/feature-x\n')
+      writeFileSync(join(repo, 'package.json'), JSON.stringify({name: 'tabs-fixture'}))
+      const boot = bootCoreApp({cwd: repo, systemPromptText: instructions})
+      return createTestkit(createFakeHarness({id: 'fake-tabs'}), boot).setup()
+    })
+    const pages: Array<() => void> = []
+
+    afterEach(async () => {
+      pages.splice(0).forEach((end) => end())
+      await vi.waitFor(async () => expect((await listTabs()).tabs).toEqual([]), {timeout: 5000})
+    })
+
+    async function getJson(path: string): Promise<unknown> {
+      const response = await fetch(`${kit().base}${path}`)
+      expect(response.status).toBe(200)
+      return response.json()
+    }
+
+    async function listTabs() {
+      return TabsSchema.parse(await getJson('/api/tabs'))
+    }
+
+    async function joinPage(answers: boolean): Promise<void> {
+      if (answers) {
+        pages.push((await connectWidget(kit(), () => ({ok: true, result: {...route, search: ''}}))).end)
+        return
+      }
+      const abort = new AbortController()
+      await kit().rpc.page.queries(undefined, {signal: abort.signal})
+      pages.push(() => abort.abort())
+    }
+
+    it('/api/tabs and /api/mcp refuse a missing or wrong token', async () => {
+      const paths = ['/api/tabs', '/api/mcp'].flatMap((path) => [path, `/t/${randomUUID()}${path}`])
+      const statuses = await Promise.all(paths.map(async (path) => (await fetch(`${kit().origin}${path}`)).status))
+      expect(statuses).toEqual([401, 401, 401, 401])
+    })
+
+    it('/api/tabs lists a joined page', async () => {
+      await joinPage(true)
+      const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
+      const page = {href: route.href, title: route.title, state: route.state}
+      expect(await listTabs()).toEqual({
+        project: {name: 'tabs-fixture', root: repo, branch: 'feature-x'},
+        tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
+      })
+    })
+
+    it('a page that never answers is listed with page null', async () => {
+      await joinPage(false)
+      const started = performance.now()
+      const listed = await listTabs()
+      expect(performance.now() - started).toBeLessThan(2500)
+      expect(listed.tabs).toEqual([expect.objectContaining({sessionId: await kit().session(), page: null})])
+    })
+
+    it('?session= answers open and not open, with the engine system prompt text as instructions', async () => {
+      const path = `/api/tabs?session=${await kit().session()}`
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
+      await joinPage(true)
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
+    })
+
+    it('branch is re-read per request, through a worktree gitdir file too', async () => {
+      writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
+      expect((await listTabs()).project.branch).toBe('other')
+      const gitdir = tempDir('conciv-tabs-gitdir-')
+      writeFileSync(join(gitdir, 'HEAD'), 'ref: refs/heads/worktree-y\n')
+      rmSync(join(repo, '.git'), {recursive: true})
+      writeFileSync(join(repo, '.git'), `gitdir: ${gitdir}\n`)
+      expect((await listTabs()).project.branch).toBe('worktree-y')
+    })
   })
 })

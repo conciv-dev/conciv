@@ -53,6 +53,7 @@ import type {ChatContext} from './api/rpc/mount.js'
 import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
+import tabsApp, {type TabsVars} from './api/tabs.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
@@ -60,6 +61,7 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
+import {rpcSessionList} from './api/rpc/sessions.js'
 import {
   makeCompositeRpcRouter,
   RPC_PREFIX,
@@ -293,7 +295,7 @@ const HealthSchema = z.object({
   id: z.string(),
 })
 
-export type CoreVars = CorsVars & {harnessId: string} & McpVars
+export type CoreVars = CorsVars & {harnessId: string} & McpVars & TabsVars
 
 function composeRoutes(
   vars: CoreVars,
@@ -317,6 +319,7 @@ function composeRoutes(
       c.set('cors', vars.cors)
       c.set('harnessId', vars.harnessId)
       c.set('mcp', vars.mcp)
+      c.set('tabs', vars.tabs)
       await next()
     })
     .use(corsMiddleware())
@@ -332,6 +335,7 @@ function composeRoutes(
     .route('/', pushRoutes(deps.push, deps.upgrade))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
+    .route('/api/tabs', tabsApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -398,6 +402,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
+  const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const primitives = makeSessionPrimitives({
     db,
@@ -520,7 +525,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claudeHome: opts.claudeHome,
     systemPrompt: {
       systemPromptFile: opts.systemPromptFile,
-      systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+      systemPromptText,
     },
     db,
     sessions: sessionPort(db, rows, {
@@ -595,6 +600,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         staleness,
+      },
+      tabs: {
+        bus: primitives.page.bus,
+        sessions: () => rpcSessionList(chatDeps, false),
+        root: opts.cwd,
+        instructions: systemPromptText,
       },
     },
     compositeRpc,
