@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises'
-import {join, resolve} from 'node:path'
+import {dirname, join, resolve} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {Hono} from 'hono'
 import {z} from 'zod'
@@ -99,10 +99,11 @@ async function projectName(root: string): Promise<string | null> {
   }
 }
 
-async function gitBranch(root: string): Promise<string | null> {
-  const head = (await readText(join(root, '.git', 'HEAD'))) ?? (await worktreeHead(root))
-  const branch = BranchSchema.safeParse(head)
-  return branch.success ? branch.data : null
+async function gitBranch(directory: string): Promise<string | null> {
+  const head = (await readText(join(directory, '.git', 'HEAD'))) ?? (await worktreeHead(directory))
+  if (head !== null) return BranchSchema.safeParse(head).data ?? null
+  const parent = dirname(directory)
+  return parent === directory ? null : gitBranch(parent)
 }
 
 async function worktreeHead(root: string): Promise<string | null> {

@@ -3160,13 +3160,15 @@ describe('outside sessions', () => {
 
   describe('GET /api/tabs', () => {
     const repo = tempDir('conciv-tabs-')
+    const app = join(repo, 'apps', 'web')
     const instructions = 'be careful in this page'
     const route = {href: 'http://localhost:5173/settings', title: 'Settings', state: 'visible', pathname: '/settings'}
     const kit = sharedKit(() => {
       mkdirSync(join(repo, '.git'))
+      mkdirSync(app, {recursive: true})
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/feature-x\n')
-      writeFileSync(join(repo, 'package.json'), JSON.stringify({name: 'tabs-fixture'}))
-      const boot = bootCoreApp({cwd: repo, systemPromptText: instructions})
+      writeFileSync(join(app, 'package.json'), JSON.stringify({name: 'tabs-fixture'}))
+      const boot = bootCoreApp({cwd: app, systemPromptText: instructions})
       return createTestkit(createFakeHarness({id: 'fake-tabs'}), boot).setup()
     })
     const pages: Array<() => void> = []
@@ -3213,12 +3215,12 @@ describe('outside sessions', () => {
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
-        project: {name: 'tabs-fixture', root: repo, branch: 'feature-x'},
+        project: {name: 'tabs-fixture', root: app, branch: 'feature-x'},
         tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
       })
     })
 
-    it('branch is re-read per request, through a worktree gitdir file too', async () => {
+    it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
       expect((await listTabs()).project.branch).toBe('other')
       const gitdir = tempDir('conciv-tabs-gitdir-')
