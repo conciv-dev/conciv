@@ -78,6 +78,7 @@ import {
   createChat,
   createChatSession,
   type ChatSession,
+  type ChatSessionCallbacks,
   type ChatSessionConnection,
   type ChatSessionHydration,
 } from '@conciv/ai/client'
@@ -85,7 +86,7 @@ import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import {ChatEventType, type ChatEvent, type RunClockSource} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -2935,6 +2936,48 @@ describe('queue strip', () => {
         }),
     }
   }
+
+  describe('a run announced after it already ended', () => {
+    const ended = (runId: string, phase: RunLifecycle['phase']): RunLifecycle => ({
+      runId,
+      phase,
+      startedAt: 1,
+      finishedAt: 2,
+      serverNow: 2,
+      error: null,
+    })
+
+    it('is not joined when this session saw it end, and still joined when the run is another client', async () => {
+      const announcements: ChatSessionCallbacks[] = []
+      const connection: ChatSessionConnection = {
+        subscribe: async function* (signal) {
+          await abortOf(signal)
+          yield* []
+        },
+        send: async (_messages, _data, signal) => abortOf(signal),
+        refresh: () => Promise.resolve({...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}),
+        close: () => undefined,
+      }
+      createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'late-announcement',
+          connect: (callbacks) => {
+            announcements.push(callbacks)
+            return connection
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const callbacks = announcements[0]
+      callbacks?.onLifecycle(ended('stopped-here', 'aborted'))
+      expect({
+        stoppedHere: await callbacks?.joinsRun('stopped-here'),
+        otherClient: await callbacks?.joinsRun('other-client-run'),
+      }).toEqual({stoppedHere: false, otherClient: true})
+    })
+  })
 
   const draftOutput = () => page.getByRole('status', {name: 'Draft'})
 

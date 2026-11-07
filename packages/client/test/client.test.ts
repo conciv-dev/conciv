@@ -114,6 +114,38 @@ describe('chat client', () => {
         client.dispose()
       }
     }, 60_000)
+
+    it('a client that rejoined a run settles generating when the run is stopped elsewhere', async () => {
+      const clientKit = await bootClientKit()
+      kit = clientKit
+      const sessionId = await clientKit.session()
+      clientKit.gate.hold()
+      const elsewhere = await clientKit.turn('stopped elsewhere', {session: sessionId, runId: 'chat-client-stop'})
+      await elsewhere.waitForRunStart()
+
+      const generating = Promise.withResolvers<void>()
+      const settled = Promise.withResolvers<'settled'>()
+      const {client} = observeClient(clientKit.base, sessionId, (update) => {
+        if (update.kind !== 'generating') return
+        if (update.generating) generating.resolve()
+        if (!update.generating) settled.resolve('settled')
+      })
+      client.subscribe()
+      client.attach()
+      try {
+        await generating.promise
+        await clientKit.rpc.chat.stop({sessionId, runIds: ['chat-client-stop']})
+        const outcome = await Promise.race([
+          settled.promise,
+          new Promise<string>((resolve) => setTimeout(resolve, 5_000, 'still generating after the stop')),
+        ])
+        expect(outcome).toBe('settled')
+      } finally {
+        clientKit.gate.release()
+        client.unsubscribe()
+        client.dispose()
+      }
+    }, 60_000)
   })
 })
 
