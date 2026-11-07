@@ -72,12 +72,13 @@ const router = {
       z.object({listing: ListingSchema, text: z.string().nullable(), readAt: z.number(), readUpdatedAt: z.number()}),
     )
     .handler(async ({input}) => {
-      const body = input.text ?? (currentOf(input.listing.id) ?? NOTHING_READ).body
+      const current = currentOf(input.listing.id) ?? {...input.listing, ...NOTHING_READ}
       await upsert(
         index,
         IndexedSchema.parse({
           ...input.listing,
-          body,
+          title: current.title,
+          body: input.text ?? current.body,
           read: input.text !== null,
           readAt: input.readAt,
           readUpdatedAt: input.readUpdatedAt,
