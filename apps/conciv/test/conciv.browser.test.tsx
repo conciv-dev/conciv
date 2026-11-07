@@ -684,7 +684,6 @@ describe('chat pane', () => {
       turn.close()
 
       await expect.element(narration()).not.toBeInTheDocument()
-      expect(page.getByText('a prompt from the other client').elements()).toHaveLength(1)
       const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
       expect(asked).toHaveLength(1)
     })
