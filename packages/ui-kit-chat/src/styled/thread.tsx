@@ -7,6 +7,7 @@ import {
   Show,
   Switch,
   useContext,
+  type Accessor,
   type Component,
   type JSX,
   type ParentProps,
@@ -78,7 +79,7 @@ export type ThreadRootProps = ParentProps<{class?: string}>
 export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
-  turnPrefix?: (turn: Turn) => JSX.Element
+  turnPrefix?: (turn: Accessor<Turn>) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
   grouping?: Grouping
@@ -342,7 +343,7 @@ type ThreadConfig = {
   entries: () => ToolCardEntry[]
   fallback: () => ToolCardView
   assistant: () => Component | undefined
-  turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
+  turnPrefix: () => ((turn: Accessor<Turn>) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -363,7 +364,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
 function TurnPrefix(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
-  return <Show when={config.turnPrefix()}>{(prefix) => prefix()(message.message())}</Show>
+  return <Show when={config.turnPrefix()}>{(prefix) => prefix()(message.message)}</Show>
 }
 
 function AssistantMessageView(): JSX.Element {

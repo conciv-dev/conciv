@@ -58,12 +58,12 @@ export function CompactSpinner(): JSX.Element {
 
 const SKELETON_BUBBLE = 'rounded-chat-surface-md bg-chat-fill-strong anim-switching h-9'
 
-export function ConversationSkeleton(): JSX.Element {
+export function ConversationSkeleton(props: {label?: string}): JSX.Element {
   return (
     <div
       class="flex flex-col gap-2.5 anim-msg animate-delay-[200ms] animate-fill-mode-backwards"
       role="status"
-      aria-label="Loading conversation"
+      aria-label={props.label ?? 'Loading conversation'}
     >
       <div class={`${SKELETON_BUBBLE} w-3/5 self-start`} />
       <div class={`${SKELETON_BUBBLE} w-2/5 self-end`} />

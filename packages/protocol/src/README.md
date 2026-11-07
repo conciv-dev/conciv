@@ -6,7 +6,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 
 ## Interface
 
-- Paths and headers (`chat-types.ts`): CHAT_WS_PATH '/chat-ws', CHAT_SSE_PATH '/chat-sse', CONCIV_SESSION_HEADER 'conciv-session-id', CONCIV_CLAUDE_SESSION_HEADER, CHAT_DELIVERY_HEADERS, MAX_ATTACHMENT_RAW_BYTES
+- Paths and headers (`chat-types.ts`): CHAT_WS_PATH '/chat-ws', CHAT_SSE_PATH '/chat-sse', CHAT_HISTORY_PAGE_SIZE 50, CONCIV_SESSION_HEADER 'conciv-session-id', CONCIV_CLAUDE_SESSION_HEADER, CHAT_DELIVERY_HEADERS, MAX_ATTACHMENT_RAW_BYTES
 - Chat schemas (`chat-types.ts`): ChatContentPartSchema, SessionId, HarnessSessionId, SessionRecordSchema (with a nullable `effort`), ReasoningEffortSchema (`low` `medium` `high` `xhigh` `max`), HarnessModelSchema (optional `efforts`), PermissionDecisionSchema, NavigationStateSchema, ChatModelsSchema, HarnessMetaSchema, HarnessMenuEntrySchema (a harness with its `models`, `defaultModel` and `modelsFailed`), ChatHarnessesSchema, ChatCommandsSchema, ChatToolsSchema, ChatSessionsSchema, RenameSessionSchema and more, with `isSessionId` / `isHarnessSessionId`
 - Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run'; `approvalAskOf`, `isRunPhaseTerminal`
 - Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `toChatMessages`
@@ -19,7 +19,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - `EditorOpenSchema` (`editor-types.ts`); usage helpers (`usage-types.ts`)
 - Bundler (`bundler-types.ts`): BundlerBridge, `defineBundlerBridge`; framework (`framework-types.ts`): FrameworkAdapter surfaces, `defineFrameworkAdapter`
 - Harness contracts (`harness-types.ts`): HarnessCapabilities, HarnessConnect, HarnessInit, TranscriptHandle, TRANSCRIPT_FAILURES
-- RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, RpcContext, `rpcHeader`
+- RPC (`rpc-types.ts`): WS_MAX_PAYLOAD_BYTES (16 MiB), WS_RPC_PAYLOAD_BUDGET_BYTES, `CONCIV_VERSION_HEADER` (`'x-conciv-version'`), RpcContext (with optional `clientVersion`), `rpcHeader`
 - Event bus (`event-bus.ts`): `createEventBus`, `createEventBusClient`, DISPATCH_EVENT, CONNECT_EVENT, GLOBAL_EVENT, PANEL_PLUGIN_ID
 - Sanitizer (`element-capture-sanitize.ts`): `neutralizeSubtree`, `isDangerousTag`, `isDroppableAttribute`, `decodeEntities`
 - Config (`config-types.ts`): ConcivConfig, ConcivSettingsInit, ExtensionRegistry, `defineConfig`

@@ -86,11 +86,12 @@ npx @conciv/cli@latest init
 
 Pick claude at the prompt. init writes `.conciv/claude-connect`, including the `conciv` skill, and installs the
 plugin for you.
-Run the two commands yourself only if init reports the step as manual:
+Run these commands yourself only if init reports the step as manual:
 
 ```bash
 claude plugin marketplace add .conciv/claude-connect
 claude plugin install conciv-connect@conciv --scope local
+claude plugin update conciv-connect@conciv --scope local
 ```
 
 init writes no `.mcp.json` under the plugin. The conciv dev server writes that manifest when it

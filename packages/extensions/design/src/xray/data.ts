@@ -1,6 +1,5 @@
-import {makeRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {aboveTolerance, componentAboveTolerance} from '../shared/above.js'
 import {SOURCE_ATTR} from '../shared/source-attr.js'
 import type {ComponentReport, DeltaKindName, DiffReport} from '../shared/defs.js'
@@ -156,8 +155,8 @@ export async function loadXray(input: {id: string}): Promise<XrayData> {
 
 async function sessionClient(session: string | undefined) {
   const apiBase = engineApiBase()
-  const sessionId = session ?? (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
-  return makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+  const sessionId = session ?? (await makeBrowserRpcClient(apiBase).rpc.sessions.resolve({})).sessionId
+  return makeBrowserRpcClient(apiBase, {session: () => sessionId}).rpc
 }
 
 export async function runDiff(input: {target: TargetRecord; session: string | undefined}): Promise<void> {

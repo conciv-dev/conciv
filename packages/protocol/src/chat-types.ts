@@ -8,6 +8,8 @@ export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 export const CHAT_WS_PATH = '/chat-ws'
 export const CHAT_SSE_PATH = '/chat-sse'
 
+export const CHAT_HISTORY_PAGE_SIZE = 50
+
 export const CHAT_DELIVERY_HEADERS = ['x-run-id', 'last-event-id'] as const
 
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'

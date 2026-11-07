@@ -8,7 +8,12 @@ import {usePanelChrome} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {hostPageHasFocus} from '../lib/host-focus.js'
 import {NoticeContextProvider, NoticeSurface} from '../shell/notice-context.js'
-import {EngineLockedNotice, EngineStaleNotice, EngineUnreachableNotice} from '../shell/engine-notice.js'
+import {
+  EngineLockedNotice,
+  EngineOutdatedNotice,
+  EngineStaleNotice,
+  EngineUnreachableNotice,
+} from '../shell/engine-notice.js'
 import {defaultPanelHeight, panelHeightCap} from './panel-height.js'
 
 const PANEL_BASE =
@@ -106,6 +111,7 @@ function PanelLayout(): JSX.Element {
               id="conciv-chat-panel"
             >
               <EngineLockedNotice />
+              <EngineOutdatedNotice />
               <NoticeSurface />
               <EngineStaleNotice />
               <EngineUnreachableNotice />

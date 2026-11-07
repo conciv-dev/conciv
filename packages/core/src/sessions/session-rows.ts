@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, inArray, isNull, sql} from 'drizzle-orm'
+import {and, count, desc, eq, inArray, isNull} from 'drizzle-orm'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {
@@ -16,7 +16,7 @@ import {
   SessionRecordSchema,
 } from '@conciv/protocol/chat-types'
 import type {HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, chatThreads, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {anchorKey, chatMessages, chatMetadata, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {logError} from '../lib/debug.js'
 
@@ -375,8 +375,9 @@ export async function listSessionMetas(input: SessionListInput): Promise<Session
   const natives = input.nativeLists.flatMap(({harnessKind, list}) => list.map((meta) => ({harnessKind, meta})))
   const nativeByKey = new Map(natives.map((native) => [nativeKey(native.harnessKind, native.meta.id), native.meta]))
   const stored = await input.db
-    .select({threadId: chatThreads.threadId, count: sql<number>`json_array_length(${chatThreads.messagesJson})`})
-    .from(chatThreads)
+    .select({threadId: chatMessages.threadId, count: count()})
+    .from(chatMessages)
+    .groupBy(chatMessages.threadId)
   const counted = {...input, storedCounts: new Map(stored.map((thread) => [thread.threadId, thread.count]))}
   const earlierOwners = (await earlierNatives(input.db)).flatMap(({sessionId, key}): [string, SessionRecord][] => {
     const owner = rowsById.get(sessionId)

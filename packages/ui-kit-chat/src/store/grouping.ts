@@ -48,7 +48,7 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
 
 function sameMessage(previous: ChatMessage | undefined, message: ChatMessage): boolean {
   if (previous === message) return true
-  if (!previous || previous.role !== message.role) return false
+  if (!previous || previous.id !== message.id || previous.role !== message.role) return false
   return isEqual(previous.parts, message.parts)
 }
 

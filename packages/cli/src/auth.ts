@@ -1,8 +1,10 @@
-import {defineCommand} from 'citty'
+import {z} from 'zod'
+import {argument, command, description, name, route, schema, toggle} from '@bomb.sh/router'
 import {readTrustedBrowsers, revokeBrowsers} from '@conciv/protocol/engine-trust'
-import type {CliOutcome} from './envelope.js'
+import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {discoveredEngine} from './engine-origin.js'
 import {userFailure} from './failure.js'
+import {handler} from './router/handler.js'
 
 export type RevokeOptions = {id?: string; all: boolean; cwd: string}
 
@@ -25,16 +27,20 @@ export function runRevoke(options: RevokeOptions): CliOutcome {
   return {report: 'json', data: {revoked, trusted: readTrustedBrowsers(engine.stateDir)}}
 }
 
-const revokeCommand = defineCommand({
-  meta: {name: 'revoke', description: 'Stop trusting a browser that logged in to the conciv engine.'},
-  args: {
-    id: {type: 'positional', required: false, description: 'the browser id to revoke; omit it to list them'},
-    all: {type: 'boolean', default: false, description: 'revoke every trusted browser'},
-  },
-  run: ({args}) => runRevoke({id: args.id, all: args.all, cwd: process.cwd()}),
-})
+const RevokeModelSchema = z.object({id: z.string().optional(), all: z.boolean()})
 
-export const authCommand = defineCommand({
-  meta: {name: 'auth', description: 'Manage the browsers trusted by the conciv engine.'},
-  subCommands: {revoke: revokeCommand},
-})
+const revokeCommand = command(
+  name('revoke'),
+  description('Stop trusting a browser that logged in to the conciv engine.'),
+  argument(name('id'), description('the browser id to revoke; omit it to list them'), schema(z.string().optional())),
+  toggle(name('all'), description('revoke every trusted browser')),
+  envelopeFlag,
+  handler((model) => runRevoke({...RevokeModelSchema.parse(model), cwd: process.cwd()})),
+)
+
+export const authRoute = route(
+  name('auth'),
+  description('Manage the browsers trusted by the conciv engine.'),
+  envelopeFlag,
+  revokeCommand,
+)
