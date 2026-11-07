@@ -606,6 +606,7 @@ describe('the agent acts on the page like a person', () => {
   function AgentPage() {
     const [name, setName] = createSignal('')
     const [count, setCount] = createSignal(0)
+    const [far, setFar] = createSignal(false)
     return (
       <div>
         <Menu.Root>
@@ -631,6 +632,11 @@ describe('the agent acts on the page like a person', () => {
         <button id="disabled" disabled>
           Disabled
         </button>
+        <div style={{height: '300vh'}} />
+        <button id="far" onClick={() => setFar(true)}>
+          Far below
+        </button>
+        <p>{far() ? 'far clicked' : 'far waiting'}</p>
       </div>
     )
   }
@@ -662,6 +668,9 @@ describe('the agent acts on the page like a person', () => {
 
     expect(await act('click', {selector: '#actions'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('menuitem', {name: 'Archive'})).toBeVisible()
+
+    expect(await act('click', {selector: '#far'})).toMatchObject({ok: true})
+    await expect.element(page.getByText('far clicked')).toBeVisible()
 
     expect(await act('fill', {selector: '#name', value: 'Ada'})).toMatchObject({ok: true})
     await expect.element(page.getByRole('textbox', {name: 'Name'})).toHaveFocus()

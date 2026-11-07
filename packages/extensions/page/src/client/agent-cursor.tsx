@@ -62,7 +62,7 @@ const watchedDocuments = new WeakSet<Document>()
 
 const [aimedStore, setAimed] = createStore<Record<string, CursorLook | undefined>>({})
 
-function reducedMotion(): boolean {
+export function reducedMotion(): boolean {
   return matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 

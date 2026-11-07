@@ -19,6 +19,7 @@ import {
   dropCursor,
   pageAt,
   pressCursor,
+  reducedMotion,
   windowAt,
   type Point,
 } from './agent-cursor.js'
@@ -30,6 +31,7 @@ const MOVE_MS = 300
 const AFTER_RIPPLE_MS = 100
 const AFTER_CLICK_MS = 200
 const AFTER_INPUT_MS = 100
+const SCROLL_SETTLE_MS = 1500
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
 const XHTML = 'http://www.w3.org/1999/xhtml'
 const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
@@ -251,17 +253,38 @@ function ripple(agent: string): void {
   pressCursor({id: agent})
 }
 
-function scrollIntoViewIfNeeded(element: Element): void {
-  const native: unknown = Reflect.get(element, 'scrollIntoViewIfNeeded')
-  if (typeof native === 'function') return void Reflect.apply(native, element, [])
-  element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
+function isInView(element: Element): boolean {
+  const view = element.ownerDocument.defaultView
+  if (!view) return true
+  const rect = element.getBoundingClientRect()
+  return rect.top >= 0 && rect.left >= 0 && rect.bottom <= view.innerHeight && rect.right <= view.innerWidth
+}
+
+function scrollEnded(doc: Document): Promise<void> {
+  return new Promise((resolve) => {
+    const done = (): void => {
+      clearTimeout(timer)
+      doc.removeEventListener('scrollend', done, true)
+      resolve()
+    }
+    const timer = setTimeout(done, SCROLL_SETTLE_MS)
+    doc.addEventListener('scrollend', done, true)
+  })
+}
+
+async function scrollIntoViewIfNeeded(element: Element): Promise<void> {
+  if (isInView(element)) return
+  if (reducedMotion()) return element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
+  const ended = scrollEnded(element.ownerDocument)
+  element.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'})
+  await ended
 }
 
 async function moveTo(options: {element: Element; agent: string}): Promise<Point> {
   const {element, agent} = options
-  scrollIntoViewIfNeeded(element)
+  await scrollIntoViewIfNeeded(element)
   const frame = element.ownerDocument.defaultView?.frameElement
-  if (frame) scrollIntoViewIfNeeded(frame)
+  if (frame) await scrollIntoViewIfNeeded(frame)
   const rect = element.getBoundingClientRect()
   const point = {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
   void aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})
