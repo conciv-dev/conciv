@@ -48,7 +48,13 @@ export type ExtensionSourcesFactory<Tables extends ExtensionTables> = (
   tables: Tables,
 ) => Record<string, ExtensionSource>
 
-export type SourceRead = {from: string; where?: string; select?: readonly string[]; limit?: number}
+export type SourceRead = {
+  from: string
+  where?: string
+  select?: readonly string[]
+  order?: readonly {field: string; dir: 'asc' | 'desc'}[]
+  limit?: number
+}
 
 export type SourceWrite = {into: string; values: Record<string, unknown>}
 

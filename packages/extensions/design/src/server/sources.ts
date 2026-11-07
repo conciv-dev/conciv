@@ -22,6 +22,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     rounds: {
       table: rounds,
       fields: {
+        seq: rounds.seq,
         target: rounds.target_id,
         run: rounds.run_id,
         round: rounds.round,
@@ -38,6 +39,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     rows: {
       table: rows,
       fields: {
+        seq: rows.seq,
         target: rows.target_id,
         run: rows.run_id,
         round: rows.round,
@@ -58,6 +60,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     fom: {
       table: fom,
       fields: {
+        seq: fom.seq,
         target: fom.target_id,
         run: fom.run_id,
         id: fom.id,
@@ -74,6 +77,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     votes: {
       table: votes,
       fields: {
+        seq: votes.seq,
         target: votes.target_id,
         run: votes.run_id,
         round: votes.round,
@@ -91,6 +95,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     tool_calls: {
       table: toolCalls,
       fields: {
+        seq: toolCalls.seq,
         target: toolCalls.target_id,
         run: toolCalls.run_id,
         tool: toolCalls.tool,
@@ -104,6 +109,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     runs: {
       table: runs,
       fields: {
+        seq: runs.run_id,
         run: runs.run_id,
         target: runs.target_id,
         model: runs.model,
@@ -118,6 +124,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
       table: labels,
       writable: true,
       fields: {
+        seq: labels.seq,
         target: labels.target_id,
         round: labels.round,
         node: labels.node,
@@ -131,7 +138,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     notes: {
       table: notes,
       writable: true,
-      fields: {target: notes.target_id, round: notes.round, text: notes.text, at: notes.at},
+      fields: {seq: notes.seq, target: notes.target_id, round: notes.round, text: notes.text, at: notes.at},
     },
   }
 }

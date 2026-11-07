@@ -35,6 +35,7 @@ export type RpcDeps = {
       from: string
       where?: string
       select?: string[]
+      order?: {field: string; dir: 'asc' | 'desc'}[]
       limit?: number
     }) => Promise<Record<string, unknown>[]>
     write: (query: {into: string; values: Record<string, unknown>}) => Promise<Record<string, unknown>[]>

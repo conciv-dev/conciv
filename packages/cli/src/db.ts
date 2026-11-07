@@ -15,6 +15,7 @@ export function sourceCommands(scope: {prefix: string; label: string}) {
           description: 'a CEL predicate over the source fields, e.g. round == 3 && kind in ["text"]',
         },
         select: {type: 'string', description: 'comma-separated field names'},
+        order: {type: 'string', description: 'comma-separated fields to sort by, -field for descending'},
         limit: {type: 'string', description: 'the most rows to return'},
       },
       run: ({args}) => {
@@ -27,6 +28,7 @@ export function sourceCommands(scope: {prefix: string; label: string}) {
             from: `${prefix}${args.from}`,
             ...(args.where === undefined ? {} : {where: args.where}),
             ...(args.select === undefined ? {} : {select: args.select.split(',').map((field) => field.trim())}),
+            ...(args.order === undefined ? {} : {order: orderOf(args.order)}),
             ...(limit === undefined ? {} : {limit}),
           }),
         )
@@ -49,6 +51,15 @@ function listed(prefix: string): Promise<CliOutcome> {
       .filter((source) => source.name.startsWith(prefix))
       .map((source) => ({...source, name: source.name.slice(prefix.length)})),
   )
+}
+
+function orderOf(raw: string): {field: string; dir: 'asc' | 'desc'}[] {
+  return raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .map((entry): {field: string; dir: 'asc' | 'desc'} =>
+      entry.startsWith('-') ? {field: entry.slice(1), dir: 'desc'} : {field: entry, dir: 'asc'},
+    )
 }
 
 function valuesOf(raw: string): Record<string, unknown> {

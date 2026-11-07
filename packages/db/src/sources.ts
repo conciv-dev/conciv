@@ -1,5 +1,7 @@
 import {
   and,
+  asc,
+  desc,
   eq,
   getTableColumns,
   gt,
@@ -37,12 +39,25 @@ export function createSources(input: {
         fields: Object.keys(source.fields),
         writable: source.writable === true,
       })),
-    read: async (query: {from: string; where?: string; select?: readonly string[]; limit?: number}) => {
+    read: async (query: {
+      from: string
+      where?: string
+      select?: readonly string[]
+      order?: readonly {field: string; dir: 'asc' | 'desc'}[]
+      limit?: number
+    }) => {
       const source = sourceOf(query.from)
       const names = query.select ?? Object.keys(source.fields)
       const fields = Object.fromEntries(names.map((name) => [name, columnOf({source, name})]))
       const where = query.where === undefined ? undefined : predicate({node: parsed(query.where), source})
-      const selected = orm.select(fields).from(source.table).where(where)
+      const order = (query.order ?? []).map(({field, dir}) =>
+        dir === 'desc' ? desc(columnOf({source, name: field})) : asc(columnOf({source, name: field})),
+      )
+      const selected = orm
+        .select(fields)
+        .from(source.table)
+        .where(where)
+        .orderBy(...order)
       const rows = query.limit === undefined ? await selected : await selected.limit(query.limit)
       return rows.map((row): Record<string, unknown> => ({...row}))
     },

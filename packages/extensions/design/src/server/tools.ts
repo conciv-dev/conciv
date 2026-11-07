@@ -8,7 +8,7 @@ const [getDef, watchDef, validateDef] = DESIGN_TOOLS
 const SOURCES =
   'Sources, each row with target and at: targets (the registered design: link, width, height, image), rounds (one per design_watch: counts, coverage, reflow, pixel_share, tree), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, confidence, margin), fom (the stored mapping per id and Figma node: confidence, margin, round, revoted_round, reason), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: round, node, id, verdict, by, note) and notes (round, text).'
 
-const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select the fields to return, limit the most rows; ask only for what you need. ${SOURCES}`
+const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select the fields to return, order the fields to sort by (seq is the order rows were written), limit the most rows; ask only for what you need. ${SOURCES}`
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
@@ -23,6 +23,10 @@ const queryDef = designDataTool({
     from: z.string().min(1).describe('the source to read'),
     where: z.string().min(1).optional().describe('a CEL predicate over the source fields'),
     select: z.array(z.string().min(1)).optional().describe('the fields to return, all when absent'),
+    order: z
+      .array(z.object({field: z.string().min(1), dir: z.enum(['asc', 'desc'])}))
+      .optional()
+      .describe('the fields to sort by, in turn'),
     limit: z.number().int().positive().optional().describe('the most rows to return'),
   }),
 })
