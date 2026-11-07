@@ -1,4 +1,5 @@
-import {createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
+import {createEventSignal} from '@solid-primitives/event-listener'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
@@ -48,12 +49,9 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
     onCopied: () => local.onCopied?.(),
     onFailed: () => local.onFailed?.(),
   })
-  const [engaged, setEngaged] = createSignal(false)
-  const engage = () => setEngaged(true)
-  const copy = () => {
-    engage()
-    clipboard.copy()
-  }
+  let button: HTMLButtonElement | undefined
+  const engagedBy = createEventSignal(() => button ?? [], ['pointerenter', 'focus', 'pointerdown'])
+  const engaged = () => engagedBy() !== undefined
   const tooltip = () => {
     const tooltips = {...DEFAULT_TOOLTIPS, ...local.tooltips}
     if (clipboard.copied()) return tooltips.copied
@@ -69,9 +67,8 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
         disabled={local.disabled}
         data-copied={clipboard.copied() ? '' : undefined}
         data-copy-failed={clipboard.failed() ? '' : undefined}
-        onPointerEnter={engage}
-        onFocus={engage}
-        onClick={copy}
+        ref={(element) => (button = element)}
+        onClick={clipboard.copy}
       >
         <Show
           when={engaged()}
