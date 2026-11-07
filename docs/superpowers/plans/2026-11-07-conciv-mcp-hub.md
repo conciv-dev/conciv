@@ -31,8 +31,8 @@
 ## Review Focus
 
 1. **Unwritable or odd home folder** (read-only home in a container, `CONCIV_HOME` pointing at a file, folder owned by another user): the engine still starts and serves; registration logs once. Test in Task 2.
-2. **Corrupt `home.db`**: `openHomeDb` throws; the engine still starts; `external_list_tabs()` reports the error with the home folder, no crash. Tests in Tasks 2 and 6a.
-3. **Engine dies during a hub call** (connection drops mid forwarded call): a clear error, and the next `external_list_tabs()` no longer lists it. Test in Task 6a.
+2. **Corrupt `home.db`**: `openHomeDb` throws; the engine still starts; `external_tabs()` reports the error with the home folder, no crash. Tests in Tasks 2 and 6a.
+3. **Engine dies during a hub call** (connection drops mid forwarded call): a clear error, and the next `external_tabs()` no longer lists it. Test in Task 6a.
 4. **User clicks Deny**: the refusal text reaches the outside agent unchanged and the call stays refused on retry until allowed. Test in Task 5.
 5. **Install clicked when the harness already has `conciv-hub`** (or clicked twice): treated as connected, no error notice. Test in Task 7.
 
@@ -171,9 +171,9 @@
 - [ ] **Step 5: Run, expect PASS** (both files).
 - [ ] **Step 6: Commit** `feat(core): outside agents need the user's allow; their calls are marked`.
 
-### Task 6a: Outside runs in the engine: `external_list_tabs`, `external_use_tab`, forwarding
+### Task 6a: Engine: the `tabs` registry tool, outside runs (`external_use_tab`), forwarding
 
-Spec section: "Engine: outside runs". Done before 6b.
+Spec sections: "Tool: `tabs`" and "Engine: outside runs" (revision 6). Includes widening `ChatPlane.codeRunner` with optional `capabilities` and adding `tools` to the `/api/tabs?session=` answer (both approved by Omri 2026-11-07). Done before 6b and 6c.
 
 **Files:**
 
@@ -183,19 +183,19 @@ Spec section: "Engine: outside runs". Done before 6b.
 **Interfaces:**
 
 - Consumes: Task 1 `concivHome`, `checkEngines`; Task 4 `/api/tabs` + `?session=`; Task 5 header names and consent; `createMCPClient` from `@conciv/ai/server` (core already uses it).
-- Produces: in an outside run only, `external_list_tabs()` and `external_use_tab(id)` with the spec's shapes and error codes `NO_TAB`, `TAB_NOT_OPEN`; every other capability forwarded as `execute_typescript` `return await external_<name>(<json>)` to the owner with `conciv-session-id`, `conciv-origin: hub`, `conciv-client` passed on.
+- Produces: in an outside run only, `external_tabs()` and `external_use_tab(id)` with the spec's shapes and error codes `NO_TAB`, `TAB_NOT_OPEN`; every other capability forwarded as `execute_typescript` `return await external_<name>(<json>)` to the owner with `conciv-session-id`, `conciv-origin: hub`, `conciv-client` passed on.
 
 - [ ] **Step 1: Failing tests** (two engines in one process, fake page subscriber, `CONCIV_HOME` temp):
   - `an in-page call does not see the outside capabilities`.
-  - `external_list_tabs lists both engines' tabs and no token`.
+  - `external_tabs lists both engines' tabs and no token`.
   - `a capability before external_use_tab throws NO_TAB`.
   - `external_use_tab on the other engine returns its instructions and tools`.
   - `a forwarded call is refused until allow, then runs on the owner with the marker` (Review Focus 4 path).
   - `the next block starts with no tab`.
   - `an unknown tab throws TAB_NOT_OPEN`.
-  - `an owner that stops mid call returns an error and the next external_list_tabs no longer lists it` (Review Focus 3).
+  - `an owner that stops mid call returns an error and the next external_tabs no longer lists it` (Review Focus 3).
 - [ ] **Step 2: Run, expect FAIL**: `pnpm --filter @conciv/core exec vitest run --project node test/core-api.it.test.ts -t 'outside sessions'` (after `pnpm turbo run build --filter=@conciv/core^...`).
-- [ ] **Step 3: Implement** per the spec; descriptions carry the spec's agent guidance verbatim; corrupt `home.db` makes `external_list_tabs` throw a clear error naming the home folder (Review Focus 2).
+- [ ] **Step 3: Implement** per the spec; descriptions carry the spec's agent guidance verbatim; corrupt `home.db` makes `external_tabs` throw a clear error naming the home folder (Review Focus 2).
 - [ ] **Step 4: Run, expect PASS.** Pay for added lines by deleting duplicate tests in the same file.
 - [ ] **Step 5: Commit** `feat(core): outside agents find and pick a conciv tab inside execute_typescript`.
 
@@ -216,7 +216,7 @@ Spec section: "Hub: `conciv mcp`".
 
 - [ ] **Step 1: Failing tests** in `describe('conciv mcp hub')` using `startEngine`, hub spawned over stdio with temp `CONCIV_HOME`:
   - `tools/list is exactly execute_typescript and discover_tools`.
-  - `execute_typescript of external_list_tabs returns the engine's tab`.
+  - `execute_typescript of external_tabs returns the engine's tab`.
   - `a restarted engine on another port still answers`.
   - `with no engine running the call names the home folder`.
 - [ ] **Step 2: Run, expect FAIL.**
@@ -224,6 +224,18 @@ Spec section: "Hub: `conciv mcp`".
 - [ ] **Step 4: Run, expect PASS.** Pay for added lines in `cli.test.ts`.
 - [ ] **Step 5: Measure** a cold `npx -y @conciv/cli@<local pack> mcp` start (packed tarball, fresh npm cache). Record seconds in the commit body; over 10 s → STOP and report.
 - [ ] **Step 6: Commit** `feat(cli): conciv mcp passes outside agents through to a running conciv engine`.
+
+### Task 6c: `conciv tools` finds engines and tabs anywhere
+
+Spec section: "CLI: `conciv tools` finds engines and tabs anywhere". After 6a. On citty now; PR #749 moves the CLI to `@bomb.sh/router` later (separate small follow-up).
+
+**Files:** Modify `packages/cli/src/engine-origin.ts`, `packages/cli/src/request.ts`, `packages/cli/src/main.ts` (global `--tab`), `packages/cli/package.json` (`@conciv/db`), `packages/cli/src/README.md`. Test: `packages/cli/test/cli.test.ts` `describe('conciv tools on any tab')`.
+
+- [ ] **Step 1: Failing tests** as listed in the spec's Tests section.
+- [ ] **Step 2: Run, expect FAIL.**
+- [ ] **Step 3: Implement** per the spec. `prod closure` test unchanged and passing.
+- [ ] **Step 4: Run, expect PASS.** Pay for added lines in `cli.test.ts`.
+- [ ] **Step 5: Commit** `feat(cli): conciv tools lists every open tab and acts on one with --tab`.
 
 ### Task 7: Install on click (engine side)
 
