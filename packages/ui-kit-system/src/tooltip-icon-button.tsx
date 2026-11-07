@@ -1,5 +1,8 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createUniqueId, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {useTooltipContext} from '@ark-ui/solid/tooltip'
 import {Tooltip} from './tooltip.js'
+import {useTooltipGroup} from './tooltip-group.js'
+import {useSharedTooltip, type SharedTooltip} from './truncated-text.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
 export type TooltipIconButtonSide = 'top' | 'bottom' | 'left' | 'right'
@@ -35,7 +38,58 @@ export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
   variant?: TooltipIconButtonVariant
 }
 
+function sharedTooltipFor(side: TooltipIconButtonSide | undefined): SharedTooltip | undefined {
+  const shared = useSharedTooltip()
+  if (shared === undefined || useTooltipGroup() !== undefined) return undefined
+  if ((side ?? 'top') !== shared.side() || !shared.owns(useTooltipContext())) return undefined
+  return shared
+}
+
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
+  return (
+    <Show when={sharedTooltipFor(props.side)} fallback={<OwnTooltipIconButton {...props} />}>
+      {(shared) => <SharedTooltipIconButton {...props} shared={shared()} />}
+    </Show>
+  )
+}
+
+function SharedTooltipIconButton(props: TooltipIconButtonProps & {shared: SharedTooltip}): JSX.Element {
+  const [local, rest] = splitProps(props, [
+    'tooltip',
+    'shortcut',
+    'side',
+    'variant',
+    'class',
+    'shared',
+    'children',
+    'ref',
+  ])
+  const value = createUniqueId()
+  onMount(() => {
+    const shared = local.shared
+    shared.register(value, {
+      kind: 'label',
+      render: () => <TooltipLabel tooltip={local.tooltip} shortcut={local.shortcut} />,
+    })
+    onCleanup(() => shared.release(value))
+  })
+  return (
+    <Tooltip.Trigger
+      value={value}
+      type="button"
+      class={iconButtonClass(local.variant, local.class)}
+      {...rest}
+      aria-label={local.tooltip}
+      asChild={(triggerProps) => (
+        <button {...local.shared.describe(value, triggerProps())} ref={local.ref}>
+          {local.children}
+        </button>
+      )}
+    />
+  )
+}
+
+function OwnTooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
   const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class'])
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
