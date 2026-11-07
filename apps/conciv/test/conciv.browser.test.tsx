@@ -2938,27 +2938,33 @@ describe('queue strip', () => {
   }
 
   describe('a run announced after it already ended', () => {
-    const ended = (runId: string, phase: RunLifecycle['phase']): RunLifecycle => ({
+    const ended = (runId: string, phase: RunLifecycle['phase'], startedAt = 1): RunLifecycle => ({
       runId,
       phase,
-      startedAt: 1,
-      finishedAt: 2,
-      serverNow: 2,
+      startedAt,
+      finishedAt: startedAt + 1,
+      serverNow: startedAt + 1,
       error: null,
     })
 
-    it('is not joined when this session saw it end, and still joined when the run is another client', async () => {
+    it('is not joined when this session saw it end, even mid-fetch, and still joined when the run is another client; a turn this session sent ends once another client stops it', async () => {
       const announcements: ChatSessionCallbacks[] = []
+      const fetches: PromiseWithResolvers<void>[] = []
+      const hydration: ChatSessionHydration = {...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}
       const connection: ChatSessionConnection = {
         subscribe: async function* (signal) {
           await abortOf(signal)
           yield* []
         },
         send: async (_messages, _data, signal) => abortOf(signal),
-        refresh: () => Promise.resolve({...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}),
+        refresh: async () => {
+          await fetches.shift()?.promise
+          announcements[0]?.onHydrated(hydration)
+          return hydration
+        },
         close: () => undefined,
       }
-      createRoot((dispose) => {
+      const session = createRoot((dispose) => {
         disposers.push(dispose)
         return createChatSession({
           sessionId: 'late-announcement',
@@ -2972,10 +2978,33 @@ describe('queue strip', () => {
       })
       const callbacks = announcements[0]
       callbacks?.onLifecycle(ended('stopped-here', 'aborted'))
-      expect({
-        stoppedHere: await callbacks?.joinsRun('stopped-here'),
-        otherClient: await callbacks?.joinsRun('other-client-run'),
-      }).toEqual({stoppedHere: false, otherClient: true})
+      const stoppedHere = await callbacks?.joinsRun('stopped-here')
+      const otherClient = await callbacks?.joinsRun('other-client-run')
+      const fetching = Promise.withResolvers<void>()
+      fetches.push(fetching)
+      callbacks?.onLifecycle({...ended('stopped-mid-fetch', 'running', 5), finishedAt: null})
+      const midFetch = callbacks?.joinsRun('stopped-mid-fetch')
+      callbacks?.onLifecycle(ended('stopped-mid-fetch', 'aborted', 5))
+      fetching.resolve()
+      const stoppedMidFetch = await midFetch
+      void session.sendMessage('mine')
+      const sent = await vi.waitUntil(() => session.runId())
+      callbacks?.onLifecycle(ended('an-older-run', 'aborted', 7))
+      const afterAnOlderRunStopped = session.isLoading()
+      callbacks?.onLifecycle(ended(sent, 'aborted', 9))
+      const settled = await vi
+        .waitUntil(() => !session.isLoading())
+        .then(
+          () => 'settled',
+          () => 'still loading',
+        )
+      expect({stoppedHere, otherClient, stoppedMidFetch, afterAnOlderRunStopped, settled}).toEqual({
+        stoppedHere: false,
+        otherClient: true,
+        stoppedMidFetch: false,
+        afterAnOlderRunStopped: true,
+        settled: 'settled',
+      })
     })
   })
 
