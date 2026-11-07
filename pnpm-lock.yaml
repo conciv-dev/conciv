@@ -1727,6 +1727,9 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ~1.8.0
         version: 1.8.0(zod@4.6.7)
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2255,9 +2258,6 @@ importers:
 
   packages/db:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

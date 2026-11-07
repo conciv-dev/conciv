@@ -2,7 +2,7 @@ export {approvalNeeded, createChatServer, toolApprovalId} from './server/chat-se
 export {childCardChunks} from './server/child-cards.js'
 export {imageBlocks, imageToolProvisioner, imagesIn, withoutImages} from './server/image-tool-results.js'
 export {drizzleChatStores} from './server/chat-stores.js'
-export {chatMetadata, chatRuns, chatThreads} from './server/chat-tables.js'
+export {chatMetadata, chatRuns, chatThreads} from '@conciv/db'
 export type {Approvals, ChatStores, TurnHooks} from './server/chat-server.js'
 export {acp, claudeCode, codex, codexModels, makeTextAdapter, opencode} from './adapters/adapters.js'
 export type {TextAdapter} from './adapters/adapters.js'

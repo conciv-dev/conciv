@@ -1,7 +1,7 @@
 import {and, asc, desc, eq, isNotNull, lte} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import type {ChatStores} from './chat-server.js'
-import {chatMetadata, chatRuns, chatThreads} from './chat-tables.js'
+import {chatMetadata, chatRuns, chatThreads} from '@conciv/db'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 
