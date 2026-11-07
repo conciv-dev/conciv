@@ -28,7 +28,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
-import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
+import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
@@ -3034,7 +3034,9 @@ describe('session selector', () => {
     await sendTurn(core(), externalId, 'keep this session busy')
     keep(
       mountPane({base: core(), sessionId: activeId}, () => (
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <Suspense>
+          <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        </Suspense>
       )),
     )
   }
@@ -3116,7 +3118,11 @@ describe('session selector', () => {
   test('a pointer click puts focus in the search and every typed key stays there', async () => {
     await mountSelector()
     const search = await openSearch()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(search).not.toHaveFocus()
 
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
     await typeKeyByKey(search, 'puffin', '')
 
     await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
