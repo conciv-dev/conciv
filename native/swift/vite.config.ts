@@ -3,6 +3,7 @@ import {defineConfig} from 'vite'
 import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
+  server: {watch: {ignored: ['**/ConcivDemo/**', '**/ConcivWidget/**']}},
   plugins: [
     conciv({
       port: 4599,

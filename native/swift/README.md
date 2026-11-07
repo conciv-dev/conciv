@@ -45,6 +45,8 @@ edit both the demo app and the SDK sources.
   `../ConcivWidget/Sources/ConcivWidget` (relative to `projectRoot`); moving either breaks the iOS extension
 - The engine's cwd is this folder and the agent's harness may only write inside it, so every Swift file the
   agent edits must live under `native/swift`
+- `vite.config.ts`: the Vite watcher ignores `ConcivDemo/**` and `ConcivWidget/**`, so Swift build trees never
+  flood it; nothing in the host imports those folders
 - This is the only example that installs the `ios` extension, so web sessions on other examples never
   get the iOS overlay system prompt
 - `pnpm-workspace.yaml` lists `native/swift` by exact path, so the Swift package folders below it never
