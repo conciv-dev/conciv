@@ -25,6 +25,7 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
+import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
@@ -245,5 +246,8 @@ export const contract = {
     commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
+    connectHub: oc
+      .input(z.object({harness: z.enum(INIT_HARNESS_IDS)}))
+      .output(z.object({ok: z.literal(true)}).or(z.object({ok: z.literal(false), message: z.string()}))),
   },
 }

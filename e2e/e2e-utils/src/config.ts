@@ -1,4 +1,3 @@
-import {mkdirSync, mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
@@ -61,11 +60,13 @@ function selectedHarnesses(): [HarnessApp, number][] {
   return entries.filter(([harness]) => harness === filter)
 }
 
+export function harnessHome(harness: HarnessApp): string {
+  return join(tmpdir(), `conciv-e2e-${harness}-home`)
+}
+
 function isolatedHome(harness: HarnessApp): Record<string, string> {
-  const home = mkdtempSync(join(tmpdir(), `conciv-e2e-${harness}-home-`))
-  const codexHome = join(home, '.codex')
-  mkdirSync(codexHome)
-  return {HOME: home, CODEX_HOME: codexHome}
+  const home = harnessHome(harness)
+  return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
 export function harnessMatrixConfig(opts: {
@@ -78,7 +79,11 @@ export function harnessMatrixConfig(opts: {
     timeout: 150_000,
     reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
-      serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port, isolatedHome(harness)),
+      serverEntry(
+        `rm -rf .conciv-${harness} '${harnessHome(harness)}' && mkdir -p '${join(harnessHome(harness), '.codex')}' && ${opts.command(harness, port)}`,
+        port,
+        isolatedHome(harness),
+      ),
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,

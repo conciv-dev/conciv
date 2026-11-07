@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {type ChatMessage} from './chat-message-types.js'
 import {UsageSnapshotSchema} from './usage-types.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from './rpc-types.js'
+import {INIT_HARNESS_IDS} from './harness-types.js'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
@@ -152,6 +153,7 @@ export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
+  hubInstalls: z.array(z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})),
 })
 export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
   models: z.array(HarnessModelSchema),

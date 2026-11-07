@@ -31,6 +31,7 @@ function installCard(root: string): HarnessInitCard {
 export const claudeInit: HarnessInit<'claude'> = {
   harnessId: 'claude',
   detection: {bin: 'claude', configDir: ['.claude']},
+  hub: {add: (command) => ['claude', 'mcp', 'add', '-s', 'user', 'conciv-hub', '--', ...command]},
   init: 'files',
   title: 'Install the conciv claude plugin',
   running: 'Installing the conciv claude plugin…',
