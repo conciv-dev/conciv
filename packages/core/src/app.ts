@@ -89,6 +89,7 @@ export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
   agentToken?: string
+  engineId?: string
   print?: (text: string) => void
   onTrusted?: () => void
   bridge?: BundlerBridge
@@ -289,6 +290,7 @@ const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
   engine: EngineStalenessSchema.pick({stale: true}),
+  id: z.string(),
 })
 
 export type CoreVars = CorsVars & {harnessId: string} & McpVars
@@ -297,6 +299,7 @@ function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
   deps: {
+    engineId: string
     staleness: () => EngineStaleness
     onShutdown?: () => void
     push: PushDeps
@@ -317,7 +320,9 @@ function composeRoutes(
       await next()
     })
     .use(corsMiddleware())
-    .get('/health', (c) => c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness()})))
+    .get('/health', (c) =>
+      c.json(HealthSchema.parse({ok: true, harness: vars.harnessId, engine: deps.staleness(), id: deps.engineId})),
+    )
     .post('/api/shutdown', (c) => {
       if (!deps.onShutdown) return c.json({message: 'shutdown not supported'}, 404)
       setTimeout(deps.onShutdown, 50)
@@ -594,6 +599,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     compositeRpc,
     {
+      engineId: opts.engineId ?? randomUUID(),
       staleness,
       onShutdown: opts.onShutdown,
       plane,

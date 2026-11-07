@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {inspect} from 'node:util'
 import {serveHono, type ServeFetch} from '@conciv/serve'
+import {checkEngines, concivHome, registerEngine, retireEngine, withHomeDb, type EngineRow} from '@conciv/db'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -40,6 +41,7 @@ export type StartOpts = {
   harness?: HarnessAdapter
   nativePageDir?: string
   devEndpointDir?: string
+  homeDir?: string
 }
 
 export type Engine = {
@@ -132,6 +134,25 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
+function registerForOutsideAgents(home: string, row: EngineRow): () => void {
+  try {
+    withHomeDb(home, (db) => registerEngine(db, row))
+  } catch (error) {
+    console.error('conciv: engine not registered for outside agents', error)
+    return () => {}
+  }
+  checkEngines(home, {timeoutMs: 2000}).catch((error: unknown) =>
+    console.error('conciv: checking registered engines failed', error),
+  )
+  return () => {
+    try {
+      withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
+    } catch (error) {
+      console.error('conciv: engine row not retired', error)
+    }
+  }
+}
+
 export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
 
 export function composeSystemPrompt(
@@ -161,6 +182,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   )
 
   const agentToken = opts.accessToken ?? randomUUID()
+  const engineId = randomUUID()
   const portRef = {port: 0}
   const harnessEnv = (sessionId?: SessionId): NodeJS.ProcessEnv => {
     const baseEnv = {...(opts.childEnv ? opts.childEnv(portRef.port) : process.env), CONCIV_TOKEN: agentToken}
@@ -179,6 +201,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     cfg,
     cwd: opts.root,
     agentToken,
+    engineId,
     print: opts.print,
     onTrusted: onceNotifier(opts.onClientRequest),
     bridge: opts.bridge,
@@ -220,6 +243,14 @@ export async function start(opts: StartOpts): Promise<Engine> {
     await cleanupAfterFailedStart([close, dispose])
     throw error
   }
+  const retire = base
+    ? registerForOutsideAgents(concivHome({homeDir: opts.homeDir, env: process.env}), {
+        id: engineId,
+        pid: process.pid,
+        root: opts.root,
+        apiBase: base,
+      })
+    : () => {}
   const clearEndpoint = (): void => {
     if (!opts.nativePageDir) return
     try {
@@ -236,6 +267,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     trustBrowser,
     stop: async () => {
       clearEndpoint()
+      retire()
       await runInOrder([close, dispose], 'conciv: stopping the engine failed')
     },
   }

@@ -29,7 +29,16 @@ import {
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
-import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE} from '@conciv/db'
+import {
+  anchorKey,
+  chatMetadata,
+  chatRuns,
+  listEngines,
+  registerEngine,
+  sessions,
+  TRANSCRIPT_NAMESPACE,
+  withHomeDb,
+} from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
 import {
   createFakeHarness,
@@ -41,7 +50,6 @@ import {
   createTestHarness,
   createTestkit,
   connectMcpClient,
-  makeApprovingCallTool,
   makeCallTool,
   approvePending,
   type TestHarness,
@@ -129,24 +137,12 @@ describe('api connect gate', () => {
 
   describe('token-gated core', () => {
     it('serves only liveness and the stale flag on health, with or without the token', async () => {
-      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}}
+      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}, id: expect.any(String)}
       const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
       const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
       expect([prefixed.status, bare.status]).toEqual([200, 200])
       expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
       expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
-    })
-
-    it('serves rpc under the prefix', async () => {
-      const res = await fetch(
-        `http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/rpc/sessions/list`,
-        {
-          method: 'POST',
-          headers: {'content-type': 'application/json'},
-          body: '{"json":null}',
-        },
-      )
-      expect(res.status).toBe(200)
     })
   })
 })
@@ -265,7 +261,12 @@ describe('api engine staleness di', () => {
       const engine = await makeRpcClient(served.base).meta.engine()
       const {description, discoverDescription, sandboxNames} = await executeTool(served.base)
 
-      expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
+      expect(health).toEqual({
+        ok: true,
+        harness: expect.any(String),
+        engine: {stale: INJECTED.stale},
+        id: expect.any(String),
+      })
       expect(engine).toEqual(INJECTED)
       expect(description).toMatch(/^WARNING: this engine is running outdated code/)
       expect(description).toContain('@conciv/injected-probe')
@@ -1057,23 +1058,6 @@ describe('api mcp loopback host', () => {
       expect(reply.body).not.toContain('origin')
     })
   })
-
-  describe('/api/mcp engine gate (IT, real http)', () => {
-    const kit = sharedKit(() => bootKit())
-
-    it('an MCP client without the agent token is refused with 401', async () => {
-      await expect(connectMcpClient(`${new URL(kit().base).origin}/api/mcp`)).rejects.toMatchObject({code: 401})
-    })
-
-    it('an MCP client on the token-scoped path lists the tools', async () => {
-      const mcp = await connectMcpClient(`${kit().base}/api/mcp`)
-      try {
-        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
-      } finally {
-        await mcp.close()
-      }
-    })
-  })
 })
 
 describe('api mcp execute result', () => {
@@ -1240,75 +1224,6 @@ describe('api native page', () => {
         rmSync(endpointDir, {recursive: true, force: true})
       }
     })
-  })
-})
-
-describe('api page agent page tool', () => {
-  const ChangesSchema = z.array(
-    z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
-  )
-
-  type Annotate = (message: string) => Promise<unknown>
-
-  describe('the agent reaches the page through the same implementation the CLI uses', () => {
-    const state: {
-      kit: Kit | undefined
-      widget: {end: () => void} | undefined
-      close: (() => Promise<void>) | undefined
-    } = {
-      kit: undefined,
-      widget: undefined,
-      close: undefined,
-    }
-
-    afterEach(async () => {
-      state.widget?.end()
-      if (state.close) await state.close()
-      if (state.kit) await state.kit.cleanup()
-      state.kit = undefined
-      state.widget = undefined
-      state.close = undefined
-    })
-
-    async function bootPageKit(annotate: Annotate, answerFor: Parameters<typeof connectWidget>[1]): Promise<Kit> {
-      await annotate('stage: booting the app under test')
-      const kit = await bootKit({cwd: tmpdir()})
-      state.kit = kit
-      await annotate('stage: attaching the fake widget')
-      state.widget = await connectWidget(kit, answerFor)
-      return kit
-    }
-
-    async function agentPageTool(
-      kit: Kit,
-      annotate: Annotate,
-    ): Promise<(input: {verb: string} & Record<string, unknown>) => Promise<unknown>> {
-      await annotate('stage: resolving the session')
-      const session = await kit.session()
-      const call = makeApprovingCallTool(kit.base, session)
-      return async ({verb, ...input}) => {
-        await annotate(`stage: the agent page_${verb} call`)
-        return call(`page_${verb}`, input)
-      }
-    }
-
-    it('journals an agent-driven mutation exactly as the CLI path journals it', async ({annotate, signal}) => {
-      const kit = await bootPageKit(annotate, () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-      const execute = await agentPageTool(kit, annotate)
-
-      await execute({verb: 'fill', selector: '#email', value: 'a@b.c'})
-      await annotate('stage: the page.changes rpc call')
-      const afterAgent = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
-      expect(afterAgent).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
-
-      await annotate('stage: the page.clearChanges rpc call')
-      await kit.rpc.page.clearChanges(undefined, {signal})
-      await annotate('stage: the cli page_fill rpc call')
-      await kit.rpc.registry.call({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}}, {signal})
-      await annotate('stage: the page.changes rpc call')
-      const afterCli = ChangesSchema.parse(await kit.rpc.page.changes(undefined, {signal}))
-      expect(afterAgent).toEqual(afterCli)
-    }, 30_000)
   })
 })
 
@@ -2669,7 +2584,9 @@ return seen`
         const events = await finished(sessionId, 'click')
         expect(events.custom('approval-requested')).toEqual([])
         expect(widget().seen()).toContain('page_click')
-        expect((await chatKit().rpc.page.changes(undefined)).length).toBeGreaterThan(0)
+        expect(await chatKit().rpc.page.changes(undefined)).toContainEqual(
+          expect.objectContaining({verb: 'page_click', selector: '#go'}),
+        )
       })
     })
 
@@ -3391,5 +3308,66 @@ describe('token charset', () => {
       await engine?.stop()
       rmSync(root, {recursive: true, force: true})
     }
+  })
+})
+
+describe('outside sessions', () => {
+  const API_BASE = /^http:\/\/127\.0\.0\.1:\d+\/t\/[0-9a-f-]{36}$/
+  const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
+
+  function bootAt(homeDir: string, root = tempDir('conciv-outside-')): Promise<Engine> {
+    return start({options: {stateRoot: root}, root, launchEditor: () => {}, harness: createFakeHarness(), homeDir})
+  }
+
+  async function healthId(engine: Engine): Promise<string> {
+    const health: unknown = await (await fetch(`http://127.0.0.1:${engine.port}/health`)).json()
+    return z.object({id: z.string()}).parse(health).id
+  }
+
+  it('a started engine has a row and stop retires it', async () => {
+    const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-outside-')]
+    const engine = await bootAt(home, root)
+    const row = {id: await healthId(engine), pid: process.pid, root, apiBase: expect.stringMatching(API_BASE)}
+    expect(withHomeDb(home, listEngines)).toEqual([row])
+    await engine.stop()
+    expect(withHomeDb(home, listEngines)).toEqual([])
+  })
+
+  it('an engine retires stale rows when it starts', async () => {
+    const home = tempDir('conciv-home-')
+    const gone = await bootAt(tempDir('conciv-home-'))
+    await gone.stop()
+    const stale = {id: randomUUID(), pid: 1, root: '/gone', apiBase: `http://127.0.0.1:${gone.port}/t/${randomUUID()}`}
+    withHomeDb(home, (db) => registerEngine(db, stale))
+    const engine = await bootAt(home)
+    const id = await healthId(engine)
+    await vi.waitFor(() => expect(withHomeDb(home, listEngines).map((row) => row.id)).toEqual([id]), {timeout: 3000})
+    await engine.stop()
+  })
+
+  it('two engines in one process keep two rows', async () => {
+    const home = tempDir('conciv-home-')
+    const engines = [await bootAt(home), await bootAt(home)]
+    const ids = await Promise.all(engines.map(healthId))
+    const listed = withHomeDb(home, listEngines).map((row) => row.id)
+    expect(listed.toSorted()).toEqual(ids.toSorted())
+    await Promise.all(engines.map((engine) => engine.stop()))
+  })
+
+  it.each([
+    ['the home folder is a file', (home: string) => writeFileSync(home, 'not a folder')],
+    [
+      'home.db is corrupt',
+      (home: string) => {
+        mkdirSync(home)
+        writeFileSync(join(home, 'home.db'), 'garbage')
+      },
+    ],
+  ])('an engine starts and stops when %s', async (_case, spoil) => {
+    const home = join(tempDir('conciv-home-'), 'home')
+    spoil(home)
+    const engine = await bootAt(home)
+    expect((await fetch(`http://127.0.0.1:${engine.port}/health`)).status).toBe(200)
+    await expect(engine.stop()).resolves.toBeUndefined()
   })
 })

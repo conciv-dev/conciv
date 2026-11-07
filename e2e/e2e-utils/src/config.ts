@@ -20,8 +20,14 @@ function serverEntry(command: string, port: number, env: Record<string, string> 
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
     timeout: 180_000,
-    env,
+    env: {...isolatedConcivHome(), ...env},
   }
+}
+
+function isolatedConcivHome(): {CONCIV_HOME: string} {
+  const home = mkdtempSync(join(tmpdir(), 'conciv-e2e-home-'))
+  process.env.CONCIV_HOME = home
+  return {CONCIV_HOME: home}
 }
 
 export function e2eConfig(
