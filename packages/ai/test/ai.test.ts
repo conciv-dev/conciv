@@ -1,5 +1,6 @@
 import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
 import {
@@ -56,11 +57,15 @@ CREATE TABLE \`chat_metadata\` (
 	\`value_json\` text NOT NULL,
 	CONSTRAINT \`chat_metadata_pk\` PRIMARY KEY(\`namespace\`, \`key\`)
 );
-CREATE TABLE \`chat_threads\` (
-	\`thread_id\` text PRIMARY KEY,
-	\`messages_json\` text NOT NULL,
-	\`updated_at\` integer NOT NULL
-);`
+CREATE TABLE \`chat_messages\` (
+	\`thread_id\` text NOT NULL,
+	\`position\` integer NOT NULL,
+	\`message_id\` text,
+	\`role\` text NOT NULL,
+	\`message_json\` text NOT NULL,
+	CONSTRAINT \`chat_messages_pk\` PRIMARY KEY(\`thread_id\`, \`position\`)
+);
+CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\`,\`message_id\`);`
 
   function chatDb() {
     const client = new DatabaseSync(':memory:')
@@ -121,6 +126,30 @@ CREATE TABLE \`chat_threads\` (
       const stores = await savedThread()
       expect(await stores.messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({
         messages: [],
+        truncated: false,
+      })
+    })
+
+    it('a page read leaves the messages outside its window unread', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+      await expect(stores.messages.loadThread('paged')).rejects.toThrow()
+    })
+
+    it('saving a shorter thread drops the messages past its end', async () => {
+      const stores = await savedThread()
+      await stores.messages.saveThread('paged', THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(0, 2),
         truncated: false,
       })
     })

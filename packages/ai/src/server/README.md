@@ -13,9 +13,9 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
 - `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`.
-- `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.loadThread` with a `limit` reads one window out of the stored JSON with `json_each` (ids and roles of the thread, then only the window's messages) and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
+- `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.saveThread` upserts one `chat_messages` row per message (rewriting only rows whose JSON changed) and deletes rows past the new end. `messages.loadThread` with a `limit` reads one page: the end position (the row count, or the `before` message's row through the `thread_id, message_id` index), the nearest user row at or before `end - limit`, then only the rows in that range, and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
 - `chat-tables.ts:chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
-- `chat-tables.ts:chatThreads` / `chatMetadata` - tables `chat_threads` (PK `thread_id`) and `chat_metadata` (composite PK namespace + key).
+- `chat-tables.ts:chatMessages` / `chatMetadata` - tables `chat_messages` (one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`) and `chat_metadata` (composite PK namespace + key).
 - `image-tool-results.ts:imageToolProvisioner` - a `ToolBridgeProvisioner` that serves an MCP JSON-RPC bridge at `/mcp`.
 - `image-tool-results.ts:imagesIn` / `withoutImages` / `imageBlocks` - find image parts, replace them with a stub, or convert them to MCP image blocks.
 - `child-cards.ts:childCardChunks` / `childCards` - turn `code_mode:external_call/result/error` custom events into TOOL_CALL_* chunks linked to the parent `execute_typescript` call.
@@ -44,7 +44,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 ## Side Effects
 
 - `image-tool-results.ts:imageToolProvisioner.provision` - starts a `node:http` server on `127.0.0.1` on a random port with a random 24-byte token.
-- `chat-stores.ts:drizzleChatStores` - SQLite reads and writes on `chat_runs`, `chat_threads` and `chat_metadata`.
+- `chat-stores.ts:drizzleChatStores` - SQLite reads and writes on `chat_runs`, `chat_messages` and `chat_metadata`.
 - `chat-server.ts:createChatServer` - on startup marks every `running` run as `aborted` (`sweepAbandonedRuns`) and calls `hooks.end`.
 - `chat-server.ts:createChatServer` - creates a `localProcessSandbox` at `config.sandbox.dir` and writes the durability journal to `config.sandbox.journalDir`.
 - `chat-server.ts:saveStoppedTurn` - on abort saves the partial assistant messages and marks the run `failed` if an error was seen.

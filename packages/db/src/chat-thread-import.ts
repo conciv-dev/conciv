@@ -2,7 +2,7 @@ import {and, eq} from 'drizzle-orm'
 import {toModelMessages, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
-import {chatMetadata, chatThreads, runMessages, sessionHistory} from './run-schema.js'
+import {chatMessages, chatMetadata, runMessages, sessionHistory} from './run-schema.js'
 
 export const TRANSCRIPT_NAMESPACE = 'conciv.transcript'
 const CHAT_MIGRATION_NAMESPACE = 'conciv.migration'
@@ -44,12 +44,17 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
     }
   })
 
-  const threads = imported.flatMap((thread) => {
-    const messagesJson = [...thread.settled, ...thread.live]
-    if (messagesJson.length === 0) return []
-    const updatedAt = Math.max(thread.history?.updatedAt ?? 0, thread.pending?.updatedAt ?? 0)
-    return [{threadId: thread.threadId, messagesJson, updatedAt}]
-  })
+  const threads = imported
+    .map((thread) =>
+      [...thread.settled, ...thread.live].map((message, position) => ({
+        threadId: thread.threadId,
+        position,
+        messageId: message.id ?? null,
+        role: message.role,
+        messageJson: message,
+      })),
+    )
+    .filter((rows) => rows.length > 0)
 
   const metadata = imported.flatMap((thread): MetadataRow[] => [
     ...(thread.history
@@ -73,7 +78,7 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
   ])
 
   db.transaction((tx) => {
-    if (threads.length > 0) tx.insert(chatThreads).values(threads).onConflictDoNothing().run()
+    threads.forEach((rows) => tx.insert(chatMessages).values(rows).onConflictDoNothing().run())
     if (metadata.length > 0) tx.insert(chatMetadata).values(metadata).onConflictDoNothing().run()
     tx.insert(chatMetadata)
       .values({namespace: CHAT_MIGRATION_NAMESPACE, key: CHAT_IMPORT_KEY, valueJson: now})

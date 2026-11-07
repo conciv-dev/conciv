@@ -6,6 +6,8 @@ import {mkdtempSync, readdirSync, readFileSync} from 'node:fs'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
 import {eq} from 'drizzle-orm'
+import {drizzle} from 'drizzle-orm/node-sqlite'
+import {drizzleChatStores} from '@conciv/ai/server'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
@@ -259,26 +261,66 @@ describe('db', () => {
     })
   })
 
+  const drizzleDir = fileURLToPath(new URL('../drizzle/', import.meta.url))
+
+  function applyMigration(client: DatabaseSync, name: string): void {
+    const sql = readFileSync(join(drizzleDir, name, 'migration.sql'), 'utf8')
+    for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
+  }
+
+  function migrationsFrom(first: string): string[] {
+    return readdirSync(drizzleDir)
+      .filter((name) => name >= first)
+      .toSorted()
+  }
+
+  function beforeMigration(migration: string): DatabaseSync {
+    const client = new DatabaseSync(':memory:')
+    readdirSync(drizzleDir)
+      .filter((name) => name < migration)
+      .toSorted()
+      .forEach((name) => applyMigration(client, name))
+    return client
+  }
+
+  describe('chat messages migration', () => {
+    const MESSAGES_MIGRATION = readdirSync(drizzleDir).find((name) => name.endsWith('_chat_messages')) ?? 'missing'
+    const STORED = [
+      {id: 'u0', role: 'user', content: 'first question'},
+      {
+        id: 'a0',
+        role: 'assistant',
+        content: null,
+        toolCalls: [{id: 'call-1', type: 'function', function: {name: 'look', arguments: '{}'}}],
+      },
+      {role: 'tool', toolCallId: 'call-1', content: 'looked'},
+      {id: 'a0b', role: 'assistant', content: 'done'},
+    ]
+
+    it('moves every stored transcript into one row per message, readable whole and by page', async () => {
+      const client = beforeMigration(MESSAGES_MIGRATION)
+      client
+        .prepare('INSERT INTO chat_threads (thread_id, messages_json, updated_at) VALUES (?, ?, ?)')
+        .run('conciv_old', JSON.stringify(STORED), 1)
+
+      migrationsFrom(MESSAGES_MIGRATION).forEach((name) => applyMigration(client, name))
+
+      const stores = drizzleChatStores(drizzle({client}), {harnessOf: () => 'claude'})
+      expect(await stores.messages.loadThread('conciv_old')).toEqual(STORED)
+      expect(await stores.messages.loadThread('conciv_old', {limit: 1})).toEqual({
+        messages: STORED,
+        truncated: false,
+      })
+      expect(client.prepare("SELECT name FROM sqlite_master WHERE name = 'chat_threads'").all()).toEqual([])
+      client.close()
+    })
+  })
+
   describe('chat run harness migration', () => {
     const HARNESS_MIGRATION = '20261105092249_chat_run_harness'
-    const drizzleDir = fileURLToPath(new URL('../drizzle/', import.meta.url))
-
-    function applyMigration(client: DatabaseSync, name: string): void {
-      const sql = readFileSync(join(drizzleDir, name, 'migration.sql'), 'utf8')
-      for (const statement of sql.split('--> statement-breakpoint')) client.exec(statement)
-    }
-
-    function beforeHarnessMigration(): DatabaseSync {
-      const client = new DatabaseSync(':memory:')
-      readdirSync(drizzleDir)
-        .filter((name) => name < HARNESS_MIGRATION)
-        .toSorted()
-        .forEach((name) => applyMigration(client, name))
-      return client
-    }
 
     it('tags every existing run with the harness of its session, and an orphan run with claude', () => {
-      const client = beforeHarnessMigration()
+      const client = beforeMigration(HARNESS_MIGRATION)
       client
         .prepare(
           'INSERT INTO sessions (id, harness_kind, origin, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',

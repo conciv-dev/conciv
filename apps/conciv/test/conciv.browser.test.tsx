@@ -1256,14 +1256,17 @@ describe('chat history paging', () => {
     await userEvent.keyboard('compact after this reply{Enter}')
     await expect.element(page.getByText('Hello from conciv')).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
     await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
     await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
 
-    await expect
-      .element(
-        page.getByRole('log').filter({hasText: /compact after this reply.*Context compacted.*Hello from conciv/}),
-      )
-      .toBeVisible()
+    const compactedUnderReply = page
+      .getByRole('log')
+      .filter({hasText: /compact after this reply.*Hello from conciv.*Context compacted/})
+    await expect.element(compactedUnderReply).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(page.getByRole('status', {name: 'Compacting context…'})).not.toBeInTheDocument()
+    await expect.element(compactedUnderReply).toBeVisible()
   })
 
   test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
