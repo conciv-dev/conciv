@@ -16,16 +16,19 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `CONCIV_PLUGIN_DIR` (`plugin-dir.ts`): first `plugins/claude` dir containing `.claude-plugin/plugin.json`, up to 6 levels above the module, or null.
 - `claudeSdkCommands(ctx)`, test hook `__commandsCacheSet(cwd, commands)` (`sdk.ts`).
 - `claudeTtyCommand(ctx)` (`tty.ts`): `{bin: 'claude', args, env TERM/COLORTERM, unsetEnvPrefixes}`.
-- `encodeProjectDir`, `transcriptRoot`, `transcriptPath`, `parseHistory`, `parseSessionMeta`, `nameFromTranscript`, `contextTokensFromTranscript`, `listSessions`, `sessionSummary`, `sessionMeta`, `withinProject`, `claudeHistory` (`history.ts`).
+- `transcriptRoot` (under `projects/`, the cwd resolved through symlinks like Claude and the Agent SDK do), `transcriptPath`, `parseHistory`, `parseSessionMeta`, `nameFromTranscript`, `contextTokensFromTranscript`, `listSessions`, `sessionSummary`, `sessionMeta`, `withinProject`, `claudeHistory` (`history.ts`).
 
 ## Invariants
 
 - `claudeExecutable` throws when a `--plugin-dir` or `--settings` path contains whitespace, because `@tanstack/ai-claude-code` splits the executable string on spaces (`spaceFreePath`, `chat.ts`).
 - Chat always passes `--strict-mcp-config` and disallows `AskUserQuestion` (`claudeExecutable`, `claudeChatConfig`).
 - Connect uses strict `claudeMcpArgs` only when `ctx.owned`, else `claudeMcpArgsPermissive`; `--resume` when `ctx.resume`, else `--session-id` (`claudeConnectArgs`).
+- The Claude config dir is `CLAUDE_CONFIG_DIR`, else `~/.claude` (`claudeConfigDir` from `@conciv/harness-init/claude/state`), the same rule the Agent SDK follows; no Claude history call takes a home.
+- `listSessions` and `sessionMeta` go through the Agent SDK (`listSessions({dir: cwd, includeWorktrees: false})` then `pageAfter`, and `getSessionInfo`): the title is the SDK `summary`, `updatedAt` its `lastModified`, `sizeBytes` its `fileSize`. Sessions the SDK hides (no summary in the head or tail it reads, superseded by a `continued-in` record, non-UUID ids) are not listed and their `meta` is null.
+- `transcriptMessages` streams the transcript through `foldJsonlFile` with the same line fold as `observeTranscript`.
 - `sessionSummary`, `transcriptMessages` and `observeTranscript` refuse session ids whose path escapes `transcriptRoot` (`withinProject` via `containedPath`).
 - History skips sidechain records (`isSidechain`), machinery records in user turns (`isFromMachinery`), `INTERNAL_MARKERS`, `SYNTHETIC_MARKERS` and `MACHINERY_XML_BLOCK`; assistant records sharing `message.id` are merged and tool results attach to the last assistant message (`foldAssistantTurn`, `foldUserTurn`).
-- `MAX_TITLE` 80, `MAX_PREVIEW` 200, `MAX_SESSIONS` 50 (`history.ts`).
+- `MAX_TITLE` 80, `MAX_PREVIEW` 200 (`history.ts`).
 - Slash commands are probed once per cwd and cached (`commandsByCwd`, `sdk.ts`).
 
 ## Side Effects
@@ -35,7 +38,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - Sets adapter env `MCP_TOOL_TIMEOUT=150000` and `ENABLE_TOOL_SEARCH=false`, merged with `deps.env` (`claudeChatConfig`).
 - `existsSync` probe at module load (`CONCIV_PLUGIN_DIR`).
 - Starts an Agent SDK `query` with `permissionMode: 'acceptEdits'` to read `supportedCommands`, then interrupts it (`probeCommands`, `sdk.ts`).
-- Reads `~/.claude/projects/<encoded cwd>/*.jsonl` (`listSessions`, `sessionSummary`, `transcriptMessages`).
+- Reads `<Claude config dir>/projects/<encoded cwd>/*.jsonl` (`sessionSummary`, `transcriptMessages`, `observeTranscript`) and, through the Agent SDK, the same directory's heads and tails (`listSessions`, `sessionMeta`).
 - The TTY command unsets env vars with prefixes `CLAUDECODE`, `CLAUDE_CODE_`, `CLAUDE_EFFORT`, `AI_AGENT` (`NESTED_SESSION_MARKERS`, `tty.ts`).
 
 ## Verification

@@ -7,6 +7,7 @@ import {
   ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
+  HarnessListCursorSchema,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
@@ -31,6 +32,17 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: SessionId})
+const SessionListInput = z.object({
+  includeHidden: z.boolean().optional(),
+  cursor: HarnessListCursorSchema.nullish(),
+  limit: z.number().int().min(1).max(100).default(30),
+})
+const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
+const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
+
+const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
+
+export type SessionsChange = z.infer<typeof SessionsChangeSchema>
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -149,7 +161,12 @@ export const contract = {
     requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
   },
   sessions: {
-    list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
+    list: oc
+      .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
+      .output(SessionPageSchema),
+    search: oc.input(SessionSearchInput).output(SessionPageSchema),
+    changes: oc.output(eventIterator(SessionsChangeSchema)),
+    get: oc.errors(notFound).input(SessionIdInput).output(SessionMetaSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),

@@ -24,6 +24,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {withSavedModels} from './lib/saved-models.js'
+import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import {
@@ -71,7 +72,7 @@ import type {CoreRuntime, ScopedToolCall, SessionScope} from './runtime/scope-ty
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {rpcSessionList} from './api/rpc/sessions.js'
+import {rpcSessionMeta} from './api/rpc/sessions.js'
 import {
   makeCompositeRpcRouter,
   RPC_PREFIX,
@@ -114,8 +115,6 @@ export type MakeAppOpts = {
 
   extensionConfig?: Record<string, unknown>
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
-
-  claudeHome?: string
 
   allowedOrigins?: string[]
 
@@ -366,18 +365,18 @@ export type MadeApp = {
   runtime: CoreRuntime
 }
 
-function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: string): ServerHarness {
+function makeServerHarness(harness: HarnessAdapter, cwd: string): ServerHarness {
   const history = harness.history
   const transcriptExists = (token: HarnessSessionId): boolean => {
     if (history === undefined) return false
-    const path = transcriptPathWithin(history, cwd, token, claudeHome)
+    const path = transcriptPathWithin(history, cwd, token)
     return path !== null && existsSync(path)
   }
   return {
     id: harness.id,
     ttyCommand: harness.tty?.command,
     transcriptExists: history?.transcriptPath ? transcriptExists : undefined,
-    transcriptMessages: history ? (token) => history.messages(cwd, token, claudeHome) : undefined,
+    transcriptMessages: history ? (token) => history.messages(cwd, token) : undefined,
   }
 }
 
@@ -452,8 +451,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const serverHarness = (sessionId: SessionId): ServerHarness =>
-    makeServerHarness(harnessFor(sessionId), opts.cwd, opts.claudeHome)
+  const serverHarness = (sessionId: SessionId): ServerHarness => makeServerHarness(harnessFor(sessionId), opts.cwd)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -545,7 +543,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     hubAccess: opts.cfg.hubAccess,
     harnessFor,
     harnessEnv: opts.harnessEnv,
-    claudeHome: opts.claudeHome,
     systemPrompt: {
       systemPromptFile: opts.systemPromptFile,
       systemPromptText,
@@ -572,7 +569,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     harnessFor,
     cwd: opts.cwd,
     basePath,
-    claudeHome: opts.claudeHome,
     db,
     plane,
   }
@@ -606,8 +602,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)
   }
 
+  const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
   const rpc = makeRpcRouter({
     chat: chatDeps,
+    search,
     tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
@@ -650,7 +648,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       },
       tabs: {
         bus: primitives.page.bus,
-        sessions: () => rpcSessionList(chatDeps, false),
+        session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
         root: opts.cwd,
         instructions: systemPromptText,
         tools: (sessionId) => discoveredTools(plane, sessionId),
@@ -678,7 +676,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = (): Promise<void> =>
     runInOrder(
-      [() => plane.endAllRuns(), ...disposers, () => browsers.close(), () => db.$client.close()],
+      [() => plane.endAllRuns(), ...disposers, search.dispose, () => browsers.close(), () => db.$client.close()],
       'conciv: disposing the engine failed',
     )
 

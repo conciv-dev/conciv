@@ -4,9 +4,9 @@ import {ChatClient} from '@conciv/ai/testkit'
 import {makeRpcClient, type RpcClient, type SessionMeta} from '@conciv/contract'
 import {chatConnection, type ChatConnection, type ChatTransport} from '../src/chat-connection.js'
 import {bootClientKit, type ClientKit} from './helpers.js'
-import {createServer, type Server} from 'node:http'
+import {createServer, type IncomingMessage, type Server} from 'node:http'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {type ChatEvent, ChatEventType, runLifecycleEvent, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {acquirePushChannel, livePushChannelCount, type PageQueryFrame} from '../src/push-channel.js'
 import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeQueryUtils} from '../src/query-utils.js'
@@ -110,6 +110,38 @@ describe('chat client', () => {
         clientKit.gate.release()
         await settled.promise
       } finally {
+        client.unsubscribe()
+        client.dispose()
+      }
+    }, 60_000)
+
+    it('a client that rejoined a run settles generating when the run is stopped elsewhere', async () => {
+      const clientKit = await bootClientKit()
+      kit = clientKit
+      const sessionId = await clientKit.session()
+      clientKit.gate.hold()
+      const elsewhere = await clientKit.turn('stopped elsewhere', {session: sessionId, runId: 'chat-client-stop'})
+      await elsewhere.waitForRunStart()
+
+      const generating = Promise.withResolvers<void>()
+      const settled = Promise.withResolvers<'settled'>()
+      const {client} = observeClient(clientKit.base, sessionId, (update) => {
+        if (update.kind !== 'generating') return
+        if (update.generating) generating.resolve()
+        if (!update.generating) settled.resolve('settled')
+      })
+      client.subscribe()
+      client.attach()
+      try {
+        await generating.promise
+        await clientKit.rpc.chat.stop({sessionId, runIds: ['chat-client-stop']})
+        const outcome = await Promise.race([
+          settled.promise,
+          new Promise<string>((resolve) => setTimeout(resolve, 5_000, 'still generating after the stop')),
+        ])
+        expect(outcome).toBe('settled')
+      } finally {
+        clientKit.gate.release()
         client.unsubscribe()
         client.dispose()
       }
@@ -244,6 +276,63 @@ describe('chat connection', () => {
       }
     }, 10_000)
 
+    it('a joined run ends on its own terminal chunk, and a run stopped with only its lifecycle is closed', async () => {
+      const threadId = 'conciv_joined'
+      const ended = (runId: string, phase: RunLifecycle['phase'], error: string | null = null) =>
+        runLifecycleEvent.create({runId, phase, startedAt: 1, finishedAt: 2, serverNow: 2, error})
+      const replays: Record<string, object[]> = {
+        completes: [
+          ended('completes', 'completed'),
+          {type: ChatEventType.RUN_FINISHED, threadId, runId: 'completes', finishReason: 'length'},
+        ],
+        fails: [
+          ended('fails', 'failed', 'provider down'),
+          {type: ChatEventType.RUN_ERROR, threadId, runId: 'fails', message: 'provider down'},
+        ],
+        stopped: [ended('stopped', 'aborted')],
+        'stopped-after-a-tool-step': [
+          {type: ChatEventType.RUN_FINISHED, threadId, runId: 'stopped-after-a-tool-step', finishReason: 'tool_calls'},
+          ended('stopped-after-a-tool-step', 'aborted'),
+        ],
+      }
+      const server = await eventsServer((request, url) => {
+        const runId = url.searchParams.get('runId') ?? ''
+        const frames = replays[runId]
+        if (request.method !== 'GET' || frames === undefined) return null
+        return {frames: [{type: ChatEventType.RUN_STARTED, threadId, runId}, ...frames], ending: 'ended'}
+      })
+      const runErrors: string[] = []
+      const connection = chatConnection(makeRpcClient(server.base), server.base, threadId, {
+        transport: 'fetch',
+        onRunError: () => runErrors.push('run error'),
+      })
+      const lastOf = async (runId: string) => {
+        const seen: ChatEvent[] = []
+        for await (const chunk of connection.joinRun(runId)) seen.push(chunk)
+        const last = seen.at(-1)
+        if (last?.type === ChatEventType.RUN_FINISHED) return {finished: last.finishReason}
+        if (last?.type === ChatEventType.RUN_ERROR) return {error: last.message}
+        return {last: last?.type}
+      }
+      try {
+        expect({
+          completes: await lastOf('completes'),
+          fails: await lastOf('fails'),
+          stopped: await lastOf('stopped'),
+          stoppedAfterAToolStep: await lastOf('stopped-after-a-tool-step'),
+          runErrors,
+        }).toEqual({
+          completes: {finished: 'length'},
+          fails: {error: 'provider down'},
+          stopped: {finished: 'stop'},
+          stoppedAfterAToolStep: {finished: 'stop'},
+          runErrors: ['run error'],
+        })
+      } finally {
+        await server.close()
+      }
+    }, 10_000)
+
     it('aborting a live subscription ends it cleanly, with no error', async () => {
       const {sessionId, connection} = await opened()
       const watcher = watch(connection)
@@ -272,20 +361,32 @@ describe('chat connection', () => {
     }, 30_000)
   })
 
-  async function breakingEventsServer(): Promise<{base: string; close: () => Promise<void>}> {
+  type Served = {frames: object[]; ending: 'broken' | 'ended'}
+
+  function breakingEventsServer(): Promise<{base: string; close: () => Promise<void>}> {
     const run = {threadId: 'conciv_breaking', runId: 'breaking-run'}
     const frames = [
       {type: ChatEventType.RUN_STARTED, ...run},
       {type: ChatEventType.TEXT_MESSAGE_START, messageId: 'broken-reply', role: 'assistant'},
       {type: ChatEventType.TEXT_MESSAGE_CONTENT, messageId: 'broken-reply', delta: 'half a rep'},
     ]
+    return eventsServer((request) => (request.method === 'POST' ? {frames, ending: 'broken'} : null))
+  }
+
+  async function eventsServer(
+    served: (request: IncomingMessage, url: URL) => Served | null,
+  ): Promise<{base: string; close: () => Promise<void>}> {
     const server: Server = createServer((request, response) => {
-      if (request.method !== 'POST' || !request.url?.endsWith(CHAT_SSE_PATH)) {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+      const reply = url.pathname === CHAT_SSE_PATH ? served(request, url) : null
+      if (reply === null) {
         response.writeHead(404).end()
         return
       }
       response.writeHead(200, {'content-type': 'text/event-stream'})
-      response.write(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join(''), () => response.destroy())
+      const body = reply.frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('')
+      if (reply.ending === 'broken') response.write(body, () => response.destroy())
+      else response.end(body)
     })
     await new Promise<void>((listening) => server.listen(0, '127.0.0.1', listening))
     const address = server.address()
@@ -621,7 +722,7 @@ describe('query utils', () => {
   describe('makeQueryUtils', () => {
     it('queryOptions fetch through the real wire', async () => {
       const {sessionId, utils, queryClient} = await bootQueryFixture()
-      const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
+      const {sessions} = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
       expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
       const models = await queryClient.fetchQuery(utils.meta.models.queryOptions({input: {sessionId}}))
       expect(models.harness.id).toBe('fake-client')
@@ -638,7 +739,7 @@ describe('query utils', () => {
       const {sessionId, rpc, utils, queryClient} = await bootQueryFixture()
       await rpc.sessions.rename({sessionId, title: 'refetch-renamed'})
       await queryClient.invalidateQueries()
-      const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
+      const {sessions} = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
       expect(sessions.map((meta: SessionMeta) => meta.title)).toContain('refetch-renamed')
     })
   })

@@ -11,7 +11,7 @@ const PAGE_PROBE_MS = 1500
 
 type TabsDeps = {
   bus: PageBus
-  sessions: () => Promise<SessionMeta[]>
+  session: (sessionId: SessionId) => Promise<SessionMeta | null>
   root: string
   instructions: string
   tools: (sessionId: SessionId) => Promise<TabOpen['tools']>
@@ -55,14 +55,14 @@ const app = new Hono<{Variables: TabsVars}>().get('/', async (c) => {
 async function listTabs(deps: TabsDeps): Promise<Tabs> {
   const open = deps.bus.openSessions()
   const [metas, pages, name, branch] = await Promise.all([
-    deps.sessions(),
+    Promise.all(open.map((entry) => deps.session(entry.sessionId))),
     Promise.all(open.map((entry) => probePage(deps.bus, entry.sessionId))),
     projectName(deps.root),
     gitBranch(deps.root),
   ])
   const tabs = open.flatMap((entry, index) => {
-    const meta = metas.find((candidate) => candidate.id === entry.sessionId)
-    if (meta === undefined) return []
+    const meta = metas[index]
+    if (meta === undefined || meta === null || meta.hidden) return []
     return [
       {
         sessionId: entry.sessionId,

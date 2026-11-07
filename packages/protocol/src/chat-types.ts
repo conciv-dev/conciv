@@ -83,6 +83,8 @@ export const HarnessSessionId = z
   .brand<'HarnessSessionId'>()
 export type HarnessSessionId = z.infer<typeof HarnessSessionId>
 
+export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: z.union([HarnessSessionId, SessionId])})
+
 export function isHarnessSessionId(id: unknown): id is HarnessSessionId {
   return HarnessSessionId.safeParse(id).success
 }

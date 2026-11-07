@@ -381,7 +381,8 @@ describe('chat plane', () => {
           read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
           close: () => undefined,
         }),
-        list: async () => [],
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
       },
       capabilities: {
         resume: false,

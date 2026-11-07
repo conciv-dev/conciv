@@ -13,7 +13,7 @@ import {
   type TurnHooks,
 } from '../src/server.js'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
@@ -357,6 +357,85 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
     await driven
   })
+
+  it('a stopped run is never announced once stopped and its replay ends aborted', {timeout: 15_000}, async () => {
+    const db = chatDb()
+    const announced: string[] = []
+    const launched: string[] = []
+    const inSetup = Promise.withResolvers<void>()
+    const setupHeld = Promise.withResolvers<void>()
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('abortable', async function* (options) {
+          launched.push(turn.runId)
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          yield* createTextChunks('partial')
+          await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => {
+          if (turn.runId === 'in-setup') {
+            inSetup.resolve()
+            await setupHeld.promise
+          }
+          return new Map()
+        },
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: (turn) => announced.push(turn.runId),
+      end: async () => undefined,
+    }
+    const server = await chatServer(hooks, () => undefined, db)
+    const inSetupRun = server.drive({threadId: 'thread', runId: 'in-setup', kind: 'chat'}, [
+      {role: 'user', content: 'a'},
+    ])
+    await inSetup.promise
+    await server.stop('thread', ['in-setup'])
+    setupHeld.resolve()
+    await inSetupRun
+    const streaming = server.drive({threadId: 'thread', runId: 'streaming', kind: 'chat'}, [
+      {role: 'user', content: 'b'},
+    ])
+    await vi.waitUntil(() => launched.includes('streaming'))
+    await server.stop('thread', ['streaming'])
+    await streaming
+    expect({
+      announced,
+      launched,
+      runs: db.$client.prepare('SELECT run_id, status FROM chat_runs ORDER BY started_at').all(),
+      replayEnds: [await replayEnd(server, 'in-setup'), await replayEnd(server, 'streaming')],
+    }).toEqual({
+      announced: ['streaming'],
+      launched: ['streaming'],
+      runs: [
+        {run_id: 'in-setup', status: 'aborted'},
+        {run_id: 'streaming', status: 'aborted'},
+      ],
+      replayEnds: ['aborted', 'aborted'],
+    })
+  })
+
+  const ReplayedChunkSchema = z.looseObject({
+    type: z.string(),
+    name: z.string().optional(),
+    value: z.looseObject({phase: z.string().optional()}).optional(),
+  })
+
+  async function replayEnd(server: Awaited<ReturnType<typeof chatServer>>, runId: string) {
+    const replay = server.resume(new Request(`http://conciv.local/chat?runId=${runId}&offset=-1`))
+    const chunks = ((await replay?.text()) ?? '')
+      .split('\n')
+      .flatMap((line) => (line.startsWith('data: ') ? [ReplayedChunkSchema.parse(JSON.parse(line.slice(6)))] : []))
+    const phases = chunks.flatMap((chunk) =>
+      chunk.name === runLifecycleEvent.name && chunk.value?.phase !== undefined ? [chunk.value.phase] : [],
+    )
+    return phases.at(-1)
+  }
 
   it('a provider wait before any output is retried and the run completes', {timeout: 15_000}, async () => {
     const seen = {calls: 0}
