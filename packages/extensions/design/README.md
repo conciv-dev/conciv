@@ -59,14 +59,11 @@ src/
 - `design_get({figma})`, or `{figma, document, image}` with the pasted REST nodes document and the PNG, or `{image}`
   for a PNG design. The first call registers the design as the session's target (id from the file key, node id and
   document version); a later call with the same link, or with no link, returns the stored design. It returns
-  `{target, root, count, viewport, rules, nodes}` as an outline: the root and its top two levels, each with `id, type,
-  name, within, depth, box, layout, reflow` and `descendants`, the count of nodes it holds. With `node` it returns that
-  node's subtree in full plus `path`, its ancestors by id and name; no call returns the whole design. Subtree `nodes`
-  walk the tree in order, each with `id, type, name, within, depth, box` (exact, frame-relative) and the Figma
-  fields it has (`fills, strokes, radius, text, font, layout, sizing, layoutAlign, constraints, clips, image, crop,
-  absolute`), `implied: true` on a group the layout implies, `reflow: {kind: stack | wrap | scroll, minChildWidth}`
-  and `key` once the mapping holds the node. `count` leaves implied nodes out. `rules` are the sentences the page
-  must follow.
+  `{target, root, count, viewport, rules, nodes}`. `nodes` walk the tree in order, each with `id, type, name, within,
+  depth, box` (exact, frame-relative) and the Figma fields it has (`fills, strokes, radius, text, font, layout,
+  sizing, layoutAlign, constraints, clips, image, crop, absolute`), `implied: true` on a group the layout implies,
+  `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
+  implied nodes out. `rules` are the sentences the page must follow.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
@@ -115,9 +112,8 @@ Each delta names the source that measured it, and each report lists the sources 
 Run from `packages/it` with `pnpm trial --route '/?variant=<name>' --width <px> (--figma <link> [--image <png>
 --document <json>] | --image <png>) [--agent] [--blind] [--state <dir>]`. The trial registers the design through
 `design_get` and prints `target <id> <w>x<h> nodes <count> tab <width>`, then reads commands from its arguments or
-stdin: `get [file] [node]` (with a node id, that node's subtree), `check [file]`, `status [file]` (each prints the
-tool's JSON, or writes it to the file), `screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the
-fixture's design images.
+stdin: `get [file]`, `check [file]`, `status [file]` (each prints the tool's JSON, or writes it to the file),
+`screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the fixture's design images.
 
 ## OCR engine
 

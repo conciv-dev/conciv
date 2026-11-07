@@ -50,12 +50,9 @@ type GetInput = z.input<typeof getDef.inputSchema>
 type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
 
 const COMMANDS: Record<string, Command> = {
-  get: ({trial, args: [file, node]}) =>
-    called({trial, name: getDef.name, schema: getDef.outputSchema, file, input: node === undefined ? {} : {node}}),
-  check: ({trial, args: [file]}) =>
-    called({trial, name: checkDef.name, schema: checkDef.outputSchema, file, input: {}}),
-  status: ({trial, args: [file]}) =>
-    called({trial, name: statusDef.name, schema: statusDef.outputSchema, file, input: {}}),
+  get: ({trial, args: [file]}) => called({trial, name: getDef.name, schema: getDef.outputSchema, file}),
+  check: ({trial, args: [file]}) => called({trial, name: checkDef.name, schema: checkDef.outputSchema, file}),
+  status: ({trial, args: [file]}) => called({trial, name: statusDef.name, schema: statusDef.outputSchema, file}),
   run: async ({trial, args}) => print(JSON.stringify(await trial.rpc.extensions.run({name: RUNS_COMMAND, args}))),
   screenshot: async ({trial, args: [file = 'trial.png']}) => {
     await trial.page.screenshot({path: resolve(file), fullPage: true})
@@ -244,11 +241,10 @@ async function called<Schema extends z.ZodType>(input: {
   name: string
   schema: Schema | undefined
   file: string | undefined
-  input: {node?: string}
 }): Promise<void> {
   const output = outputOf({
     schema: input.schema,
-    raw: await input.trial.rpc.registry.call({name: input.name, input: input.input}),
+    raw: await input.trial.rpc.registry.call({name: input.name, input: {}}),
   })
   const text = JSON.stringify(output)
   if (input.file === undefined) return print(text)
