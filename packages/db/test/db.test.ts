@@ -11,6 +11,7 @@ import {drizzleChatStores} from '@conciv/ai/server'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
+import {importLegacyThreads} from '../src/chat-thread-import.js'
 import {chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
 import {modelOf, runMessagesFor} from '../src/run-queries.js'
@@ -312,6 +313,28 @@ describe('db', () => {
         truncated: false,
       })
       expect(client.prepare("SELECT name FROM sqlite_master WHERE name = 'chat_threads'").all()).toEqual([])
+      client.close()
+    })
+  })
+
+  describe('legacy thread import', () => {
+    it('imports a legacy thread longer than the sqlite variable limit allows in one insert', async () => {
+      const client = beforeMigration('99999999999999_after_every_migration')
+      const pending = Array.from({length: 7000}, (_, index) => ({
+        id: `m${index}`,
+        role: 'user',
+        parts: [{type: 'text', content: `message ${index}`}],
+      }))
+      client
+        .prepare('INSERT INTO run_messages (session_id, messages, updated_at) VALUES (?, ?, ?)')
+        .run('conciv_long', JSON.stringify(pending), 1)
+      const db = drizzle({client})
+
+      importLegacyThreads(db, 1)
+
+      const stored = await drizzleChatStores(db, {harnessOf: () => 'claude'}).messages.loadThread('conciv_long')
+      expect(stored).toHaveLength(7000)
+      expect(stored.at(-1)).toMatchObject({id: 'm6999', role: 'user', content: 'message 6999'})
       client.close()
     })
   })

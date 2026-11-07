@@ -1,4 +1,4 @@
-import {and, eq} from 'drizzle-orm'
+import {and, eq, sql} from 'drizzle-orm'
 import {toModelMessages, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import {ChatHistorySchema} from '@conciv/protocol/chat-types'
 import type {ConcivDb} from './db.js'
@@ -45,16 +45,8 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
   })
 
   const threads = imported
-    .map((thread) =>
-      [...thread.settled, ...thread.live].map((message, position) => ({
-        threadId: thread.threadId,
-        position,
-        messageId: message.id ?? null,
-        role: message.role,
-        messageJson: message,
-      })),
-    )
-    .filter((rows) => rows.length > 0)
+    .map((thread) => ({threadId: thread.threadId, messages: [...thread.settled, ...thread.live]}))
+    .filter((thread) => thread.messages.length > 0)
 
   const metadata = imported.flatMap((thread): MetadataRow[] => [
     ...(thread.history
@@ -78,7 +70,11 @@ export function importLegacyThreads(db: ConcivDb, now: number): void {
   ])
 
   db.transaction((tx) => {
-    threads.forEach((rows) => tx.insert(chatMessages).values(rows).onConflictDoNothing().run())
+    threads.forEach((thread) =>
+      tx.run(
+        sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${thread.threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(thread.messages)}) WHERE true ON CONFLICT DO NOTHING`,
+      ),
+    )
     if (metadata.length > 0) tx.insert(chatMetadata).values(metadata).onConflictDoNothing().run()
     tx.insert(chatMetadata)
       .values({namespace: CHAT_MIGRATION_NAMESPACE, key: CHAT_IMPORT_KEY, valueJson: now})
