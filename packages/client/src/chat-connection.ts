@@ -44,7 +44,7 @@ export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
   hydrate: (threadId: string, window?: ChatHistoryWindow) => Promise<ChatHydration>
   transport: () => ChatTransport | null
-  refresh: () => Promise<ChatHydration>
+  refresh: (before?: string) => Promise<ChatHydration>
   close: () => void
 }
 
@@ -267,7 +267,11 @@ export function chatConnection(
     joinRun: (runId, abortSignal) => noticing(joining(selected, runId, abortSignal), options),
     hydrate,
     transport: () => chosen.transport,
-    refresh: () => hydrate(sessionId, {limit: CHAT_HISTORY_PAGE_SIZE}),
+    refresh: (before) =>
+      hydrate(
+        sessionId,
+        before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
+      ),
     close: () => {
       for (const socket of live) socket.close()
       live.clear()

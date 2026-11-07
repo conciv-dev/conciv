@@ -8,6 +8,7 @@ import {
   Show,
   Suspense,
   untrack,
+  type Accessor,
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
@@ -61,7 +62,7 @@ import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
-import {createOlderMessages} from './older-messages.js'
+import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
@@ -332,17 +333,16 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const composerPlaceholder = () => (hasHistory() ? 'Add an instruction…' : 'Ask a question…')
 
   const dividers = threadDividers(chat, () => markers.data ?? [])
-  const olderMessages = createOlderMessages(chat)
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
   const lastTurnStopped = () => !narrating() && (chat.stopped() || isStoppedTurn(chat.messages().at(-1)))
   const turnHarnessName = turnHarnessNames(chat, () => harness()?.id)
-  const renderTurnPrefix = (turn: Turn): JSX.Element => (
+  const renderTurnPrefix = (turn: Accessor<Turn>): JSX.Element => (
     <>
-      <Show when={dividers.stoppedBefore(turn)}>
+      <Show when={dividers.stoppedBefore(turn())}>
         <Divider kind="stopped" />
       </Show>
-      <For each={dividers.before(turn)}>{renderDivider}</For>
-      <Show when={turnHarnessName(turn)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
+      <For each={dividers.before(turn())}>{renderDivider}</For>
+      <Show when={turnHarnessName(turn())}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
     </>
   )
 
@@ -373,10 +373,10 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                 class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
                 <Thread>
-                  <Thread.Viewport ref={olderMessages.watch}>
+                  <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={hydrated()} fallback={<ConversationSkeleton />}>
-                        <olderMessages.Status />
+                        <OlderMessages chat={chat} />
                         <Thread.Welcome>
                           <EmptyStateSlot
                             onStarter={(starter) => void chat.sendMessage(starter)}

@@ -24,10 +24,11 @@ export type ChatSessionHydration = {
   messageHarness: Record<string, string>
   lastRun: RunLifecycle | null
   pendingApprovals: readonly ApprovalAsk[]
+  page?: {truncated: false} | {truncated: true; cursor: string}
 }
 
 export type ChatSessionConnection = SubscribeConnectionAdapter & {
-  refresh: () => Promise<ChatSessionHydration>
+  refresh: (before?: string) => Promise<ChatSessionHydration>
   close: () => void
 }
 
@@ -100,30 +101,14 @@ function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   }
 }
 
-function withRenderedIds(rendered: readonly ChatMessage[], stored: readonly ChatMessage[]): ChatMessage[] {
-  return stored.map((message, index) => {
-    const shown = rendered[index]
-    return shown?.role === message.role ? {...message, id: shown.id} : message
-  })
+function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage[]): ChatMessage[] {
+  const cut = rendered.findIndex((message) => message.id === window[0]?.id)
+  return cut === -1 ? [...window] : [...rendered.slice(0, cut), ...window]
 }
 
-function olderPagesEnd(rendered: readonly ChatMessage[], page: readonly ChatMessage[]): number {
-  const pageStart = page[0]
-  if (pageStart === undefined) return 0
-  return Math.max(
-    rendered.findIndex((message) => message.id === pageStart.id),
-    0,
-  )
-}
-
-function renamedHarnesses(hydration: ChatSessionHydration, shown: readonly ChatMessage[]): Record<string, string> {
-  return Object.fromEntries(
-    hydration.messages.flatMap((message, index): [string, string][] => {
-      const harnessId = hydration.messageHarness[message.id]
-      const shownId = shown[index]?.id
-      return harnessId === undefined || shownId === undefined ? [] : [[shownId, harnessId]]
-    }),
-  )
+function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydration): boolean {
+  const start = hydration.messages[0]
+  return start === undefined || rendered.length === 0 || rendered.some((message) => message.id === start.id)
 }
 
 function asError(value: unknown): Error {
@@ -172,22 +157,24 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         return false
       }),
   })
-  const showHydration = (hydration: ChatSessionHydration): void => {
-    const rendered = chat.messages()
-    const older = rendered.slice(0, olderPagesEnd(rendered, hydration.messages))
-    const shown = withRenderedIds(rendered.slice(older.length), hydration.messages)
-    setServed('harnesses', renamedHarnesses(hydration, shown))
-    chat.setMessages([...older, ...shown])
+  const reaching = async (hydration: ChatSessionHydration): Promise<ChatMessage[]> => {
+    if (overlaps(chat.messages(), hydration) || hydration.page?.truncated !== true) return hydration.messages
+    const older = await connection.refresh(hydration.page.cursor)
+    return [...(await reaching(older)), ...hydration.messages]
+  }
+  const latestWindow = async (): Promise<ChatMessage[]> => reaching(await connection.refresh())
+  const showWindow = (window: readonly ChatMessage[]): void => {
+    chat.setMessages(stitched(chat.messages(), window))
   }
   const refresh = async (): Promise<void> => {
-    showHydration(await connection.refresh())
+    showWindow(await latestWindow())
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
   const joinedRun = async (runId: string): Promise<boolean> => {
     if (ownsRun(runId)) return false
-    const hydration = await connection.refresh()
+    const window = await latestWindow()
     if (ownsRun(runId)) return false
-    showHydration(hydration)
+    showWindow(window)
     return true
   }
   const chat = useChat({

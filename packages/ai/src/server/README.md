@@ -13,7 +13,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
 - `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`.
-- `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`.
+- `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.loadThread` with a `limit` reads one window out of the stored JSON with `json_each` (ids and roles of the thread, then only the window's messages) and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
 - `chat-tables.ts:chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
 - `chat-tables.ts:chatThreads` / `chatMetadata` - tables `chat_threads` (PK `thread_id`) and `chat_metadata` (composite PK namespace + key).
 - `image-tool-results.ts:imageToolProvisioner` - a `ToolBridgeProvisioner` that serves an MCP JSON-RPC bridge at `/mcp`.

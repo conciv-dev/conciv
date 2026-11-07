@@ -1,5 +1,8 @@
-import {and, asc, desc, eq, isNotNull, lte} from 'drizzle-orm'
+import {and, asc, desc, eq, isNotNull, lte, sql} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
+import type {MessagePage} from '@tanstack/ai-persistence'
+import {z} from 'zod'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatStores} from './chat-server.js'
 import {chatMetadata, chatRuns, chatThreads} from './chat-tables.js'
 
@@ -45,6 +48,27 @@ function durableColumns(patch: RunPatch): RunColumns {
   }
 }
 
+type ThreadWindow = {limit?: number; before?: string}
+
+type OutlineRow = {id: string | null; role: string}
+
+type WindowRange = {start: number; end: number; cursor: string | null}
+
+const StoredMessageSchema = z.custom<ModelMessage>((value) => typeof value === 'object' && value !== null)
+
+function windowRange(outline: readonly OutlineRow[], window: ThreadWindow): WindowRange | null {
+  const end = window.before === undefined ? outline.length : outline.findIndex((row) => row.id === window.before)
+  if (end === -1) return null
+  const start = turnStart(outline, Math.max(end - (window.limit ?? end), 0))
+  const cursor = start === 0 ? null : (outline[start]?.id ?? null)
+  return {start, end, cursor}
+}
+
+function turnStart(outline: readonly OutlineRow[], from: number): number {
+  const userAt = outline.findLastIndex((row, index) => index <= from && row.role === 'user' && row.id !== null)
+  return Math.max(userAt, 0)
+}
+
 const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
@@ -54,16 +78,34 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (thr
     const row = rows[0]
     return row === undefined ? null : mapRun(row)
   }
+  async function wholeThread(threadId: string): Promise<ModelMessage[]> {
+    const rows = await db
+      .select({messagesJson: chatThreads.messagesJson})
+      .from(chatThreads)
+      .where(eq(chatThreads.threadId, threadId))
+      .limit(1)
+    return rows[0]?.messagesJson ?? []
+  }
+  async function threadWindow(threadId: string, window: ThreadWindow): Promise<MessagePage> {
+    const outline = db.all<OutlineRow>(
+      sql`SELECT json_extract(value, '$.id') AS id, json_extract(value, '$.role') AS role FROM ${chatThreads}, json_each(${chatThreads.messagesJson}) WHERE ${chatThreads.threadId} = ${threadId} ORDER BY CAST(key AS INTEGER)`,
+    )
+    const range = windowRange(outline, window)
+    if (range === null) return {messages: [], truncated: false}
+    const rows = db.all<{value: string}>(
+      sql`SELECT value FROM ${chatThreads}, json_each(${chatThreads.messagesJson}) WHERE ${chatThreads.threadId} = ${threadId} AND CAST(key AS INTEGER) >= ${range.start} AND CAST(key AS INTEGER) < ${range.end} ORDER BY CAST(key AS INTEGER)`,
+    )
+    const messages = rows.map((row) => StoredMessageSchema.parse(JSON.parse(row.value)))
+    return range.cursor === null ? {messages, truncated: false} : {messages, truncated: true, cursor: range.cursor}
+  }
+  function loadThread(threadId: string): Promise<ModelMessage[]>
+  function loadThread(threadId: string, window: ThreadWindow): Promise<ModelMessage[] | MessagePage>
+  function loadThread(threadId: string, window?: ThreadWindow): Promise<ModelMessage[] | MessagePage> {
+    return window?.limit === undefined ? wholeThread(threadId) : threadWindow(threadId, window)
+  }
   return {
     messages: {
-      loadThread: async (threadId: string) => {
-        const rows = await db
-          .select({messagesJson: chatThreads.messagesJson})
-          .from(chatThreads)
-          .where(eq(chatThreads.threadId, threadId))
-          .limit(1)
-        return rows[0]?.messagesJson ?? []
-      },
+      loadThread,
       saveThread: async (threadId, messages) => {
         const updatedAt = Date.now()
         await db

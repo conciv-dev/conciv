@@ -1235,10 +1235,58 @@ describe('chat history paging', () => {
     expect(await hydrates()).toBe(opened)
   })
 
-  async function seedExchanges(): Promise<string> {
+  test('a long chat whose newest page fits the viewport loads older pages without any scroll', async () => {
+    keep(
+      mountPane({base: core(), sessionId: long.sessionId, width: 460}, () => (
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '9000px'}}>
+          <ChatPane sessionId={long.sessionId} />
+        </div>
+      )),
+    )
+
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInTheDocument()
+    await expect.element(exchange(74)).toBeInTheDocument()
+  })
+
+  test('a reply sent in the pane and then compacted keeps the compact line under it without reopening', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    mountPagedChat(sessionId)
+
+    await userEvent.click(input())
+    await userEvent.keyboard('compact after this reply{Enter}')
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    await expect
+      .element(
+        page.getByRole('log').filter({hasText: /compact after this reply.*Context compacted.*Hello from conciv/}),
+      )
+      .toBeVisible()
+  })
+
+  test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
+    const sessionId = await seedExchanges(30)
+    mountPagedChat(sessionId)
+    await expect.element(exchange(29)).toBeVisible()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    for (let index = 30; index < 56; index += 1) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    await faults.releaseAll()
+
+    await expect.element(exchange(55)).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(5)).toBeInTheDocument()
+    await scrollToTop()
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(exchange(0)).toBeVisible()
+  }, 120_000)
+
+  async function seedExchanges(count = SEEDED_EXCHANGES): Promise<string> {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
-    for (let index = 0; index < SEEDED_EXCHANGES; index += 1) {
+    for (let index = 0; index < count; index += 1) {
       await runTurn(core(), sessionId, `seeded exchange ${index}`)
     }
     return sessionId

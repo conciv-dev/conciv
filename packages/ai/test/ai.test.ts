@@ -77,6 +77,60 @@ CREATE TABLE \`chat_threads\` (
     ])
   })
 
+  describe('a paged thread read', () => {
+    const THREAD = [
+      {id: 'u0', role: 'user' as const, content: 'first question'},
+      {id: 'a0', role: 'assistant' as const, content: 'first answer'},
+      {id: 'u1', role: 'user' as const, content: 'run a tool'},
+      {
+        id: 'a1',
+        role: 'assistant' as const,
+        content: null,
+        toolCalls: [{id: 'call-1', type: 'function' as const, function: {name: 'look', arguments: '{}'}}],
+      },
+      {role: 'tool' as const, toolCallId: 'call-1', content: 'looked'},
+      {id: 'a1b', role: 'assistant' as const, content: 'tool done'},
+      {id: 'u2', role: 'user' as const, content: 'last question'},
+      {id: 'a2', role: 'assistant' as const, content: 'last answer'},
+    ]
+
+    async function savedThread() {
+      const stores = drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      return stores
+    }
+
+    it('returns the newest window as a page that starts on a user message, so no turn is split', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+    })
+
+    it('walks to the window before a cursor and marks the first window complete', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'u1'})).toEqual({
+        messages: THREAD.slice(0, 2),
+        truncated: false,
+      })
+    })
+
+    it('a cursor the thread does not hold yields an empty, complete page', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({
+        messages: [],
+        truncated: false,
+      })
+    })
+
+    it('a read without a window still returns the whole transcript', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD)
+    })
+  })
+
   it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {
     const logged: string[] = []
     const started = Promise.withResolvers<void>()
