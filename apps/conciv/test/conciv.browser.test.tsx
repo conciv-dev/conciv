@@ -290,17 +290,7 @@ describe('chat pane', () => {
     sessionId: string,
     options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
   ): PaneMount {
-    const mount = mountPane({base: core(), sessionId, ...options}, (pane) => {
-      const queue = createMemo(() => pane.chat().queue())
-      return (
-        <>
-          <ChatProvider chat={pane.chat()}>
-            <QueueStrip queue={queue()} />
-          </ChatProvider>
-          <ChatPane sessionId={sessionId} />
-        </>
-      )
-    })
+    const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount
     return mount
   }

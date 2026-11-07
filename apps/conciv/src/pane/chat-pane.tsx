@@ -67,6 +67,7 @@ import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
+import {QueueStrip} from './queue-strip.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -451,6 +452,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
                     </div>
+                    <QueueStrip queue={chat.queue()} />
                     <Suspense>
                       <PaneComposer
                         draftStorage={draftStorage.storage}
