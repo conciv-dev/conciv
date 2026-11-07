@@ -1264,7 +1264,7 @@ describe('codex history', () => {
   })
 
   describe('codex refuses a persisted rollout path that leaves the codex home', () => {
-    it('ignores a threads row pointing outside .codex and falls back to the contained scan', async () => {
+    it('ignores a threads row pointing outside .codex in reads, meta and list, and falls back to the contained scan', async () => {
       const planted = HarnessSessionId.parse('019fb340-0000-7000-8000-0000000000e5')
       const outside = join(await realpath(await mkdtemp(join(tmpdir(), 'codex-escape-'))), 'planted.jsonl')
       await writeFile(outside, rollout(ROLLOUT_LINES), 'utf8')
@@ -1272,6 +1272,8 @@ describe('codex history', () => {
 
       expect(rolloutPath(planted)).toBeNull()
       expect(await history().messages(PROJECT, planted)).toEqual([])
+      expect(await history().meta(PROJECT, planted)).toBeNull()
+      expect((await history().list(PROJECT, FIRST_PAGE)).sessions.map((session) => session.id)).not.toContain(planted)
     })
   })
 

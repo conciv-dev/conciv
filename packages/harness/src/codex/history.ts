@@ -364,7 +364,9 @@ async function listSessions(cwd: string, page: HarnessListPage): Promise<Harness
 }
 
 async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta | null> {
-  const info = await stat(row.rollout_path).catch(whenMissing(null))
+  const path = containedPath(codexHome(), row.rollout_path)
+  if (path === null) return null
+  const info = await stat(path).catch(whenMissing(null))
   if (info === null) return null
   return {
     id: row.id,

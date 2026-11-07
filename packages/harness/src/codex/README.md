@@ -19,7 +19,7 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 - `codexDefaultModel` reads top-level `model = "..."` only before the first `[table]` header of `config.toml`; fallbacks are the first cached model, then `adapterCodexModels[0]`.
 - `rolloutPath` prefers the thread row's `rollout_path`, else scans for `-<id>.jsonl`; both must be inside `$CODEX_HOME` (`containedPath`).
 - History, `withinProject` and `observe` require the rollout's `session_meta.cwd` to match (`sameCwd`); `verifyHead` returns `'corrupt'` without session_meta and `'missing'` for another cwd.
-- `listSessions` selects `threads` where `cwd = realpathOrSelf(cwd)` and `archived = 0` one page at a time, newest first by `(updatedAt, id)` after the page cursor, `limit + 1` rows to know whether a next page exists (`pageAfter`); a thread whose rollout file is gone is left out, and `meta` answers `null` for it; titles capped at 80, previews at 200.
+- `listSessions` selects `threads` where `cwd = realpathOrSelf(cwd)` and `archived = 0` one page at a time, newest first by `(updatedAt, id)` after the page cursor, `limit + 1` rows to know whether a next page exists (`pageAfter`); a thread whose rollout file is gone, or whose recorded rollout path resolves outside the codex home (`containedPath`, the same check `messages` and `observe` apply), is left out, and `meta` answers `null` for it, so a page can come back short while `next` is set; titles capped at 80, previews at 200.
 - Tool outputs attach to the last message holding the matching `call_id`, else to the assistant message; namespaced tool names become `namespace__name` (`history.ts`).
 
 ## Side Effects
