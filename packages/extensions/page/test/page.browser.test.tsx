@@ -550,10 +550,15 @@ describe('page tools', () => {
   })
 
   describe('screenshot', () => {
-    const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+    const CapturedShape = z.object({
+      image: z.string().min(1),
+      width: z.number(),
+      height: z.number(),
+      warnings: z.array(z.string()).optional(),
+    })
 
-    const screenshotOf = async () => {
-      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    const screenshotOf = async (input: {exclude?: string[]} = {}) => {
+      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
     }
@@ -607,6 +612,15 @@ describe('page tools', () => {
         widget: false,
         effects: false,
         toast: false,
+      })
+    }, 10_000)
+
+    it('leaves out host-page elements the caller names and warns about a selector it cannot read', async () => {
+      coverViewport('data-host-devtools')
+      const shot = await screenshotOf({exclude: ['[data-host-devtools]', '[[not a selector']})
+      expect({excluded: !isRed(centrePixel(await decoded(shot.image))), warnings: shot.warnings}).toEqual({
+        excluded: true,
+        warnings: ['ignored invalid selector: [[not a selector'],
       })
     }, 10_000)
 

@@ -2,12 +2,12 @@
 
 ## Overview
 
-bodies.ts pairs each shared def with a DOM or React-bridge implementation running in the page, attaches a card renderer, and exports the ordered list `PAGE_CLIENT_TOOLS`. screenshot.ts captures the viewport with snapdom, leaves out the conciv widget, and returns base64 webp. hmr.ts listens to Vite hot events so `page_hmr` can wait for an update to apply. page-result-views.tsx, page-format.ts and body-margins.ts provide display and capture helpers. The per-tool render cards live in cards/.
+bodies.ts pairs each shared def with a DOM or React-bridge implementation running in the page, attaches a card renderer, and exports the ordered list `PAGE_CLIENT_TOOLS`. screenshot.ts captures the viewport with snapdom, leaves out all conciv UI plus any host-page selectors the caller passes in `exclude` (a selector the page cannot read is skipped and named in `warnings`), and returns base64 webp. hmr.ts listens to Vite hot events so `page_hmr` can wait for an update to apply. page-result-views.tsx, page-format.ts and body-margins.ts provide display and capture helpers. The per-tool render cards live in cards/.
 
 ## Interface
 
 - `PAGE_CLIENT_TOOLS` (`bodies.ts`): readonly `AnyToolBuilder[]` with client bodies for page_route, dom, query, console, text, value, attr, exists, snapshot, screenshot, hmr, locate, tree, inspect, override, find, track, effect, wait, reload, click, fill, select, check, uncheck, press, hover, scroll, submit, setattr, removeattr, addclass, removeclass, setstyle, settext, sethtml, remove, insert, css and eval
-- `screenshot()` (`screenshot.ts`): returns `PageScreenshot` `{image (base64 webp), width, height}`
+- `screenshot(input)` (`screenshot.ts`): returns `PageScreenshot` `{image (base64 webp), width, height, warnings?}`
 - `watchHotUpdates(hot)` (`hmr.ts`): returns `(timeoutMs) => Promise<HotUpdateWait>`; `HotSurface` type
 - `capturePlugins` (`body-margins.ts`): the `SnapdomPlugin` list every capture passes: `keep-body-margins` and `keep-one-line-text` (a box snapdom pinned to one line passes `text-wrap-mode: nowrap` down to its descendants, which snapdom's tag reset would otherwise set back to `wrap`)
 - `formatHtml(src)` (`page-format.ts`): pretty-prints HTML with js-beautify (indent 2, no wrap)
