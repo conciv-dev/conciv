@@ -14,6 +14,7 @@ import {createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
+import {extensionTable, openDb} from '@conciv/db'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
@@ -34,6 +35,8 @@ import {
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
+import {designTables} from '../../extensions/design/src/server/tables.js'
+import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -385,7 +388,12 @@ describe('paddle disposal', () => {
 
 describe('store', () => {
   it('puts a design, keeps its mapping and rounds, and clears them', async () => {
-    const store = createStore({state: createStorage({driver: memoryDriver()})})
+    const orm = openDb({
+      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-design-store-')),
+      extensions: [{name: 'design', migrations}],
+    })
+    const db = {orm, tables: designTables(extensionTable('design'))}
+    const store = createStore({db, state: createStorage({driver: memoryDriver()}), run: async () => null})
     const design: Design = {
       id: 'store-1',
       source: {kind: 'figma', ref: 'key/1:2'},
@@ -398,7 +406,7 @@ describe('store', () => {
     expect((await store.design('store-1')).root.id).toBe('1:2')
     expect(await store.mapping('store-1')).toEqual({})
     const mapping = {abc: {nodes: [{nodeId: '1:2', instance: null, confidence: 1, margin: 1, round: 1}]}}
-    await store.writeMapping({id: 'store-1', mapping})
+    await store.writeMapping({id: 'store-1', mapping, round: 1, revoted: {}})
     expect(await store.mapping('store-1')).toEqual(mapping)
     const round: Round = {
       round: 1,

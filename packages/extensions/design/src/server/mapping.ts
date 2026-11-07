@@ -1,4 +1,15 @@
-import type {Coverage, Design, IdNode, LiveComponent, Mapping, Match, Measured, Pairer, Raster} from '../shared/defs.js'
+import type {
+  Ballot,
+  Coverage,
+  Design,
+  IdNode,
+  LiveComponent,
+  Mapping,
+  Match,
+  Measured,
+  Pairer,
+  Raster,
+} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import {readIds} from '../shared/id-tree.js'
@@ -62,11 +73,17 @@ export async function mappingOf(input: {
     ...Object.entries(stored).flatMap(([id, {nodes}]) => (present.has(id) ? [] : nodes.map((entry) => entry.nodeId))),
   ]
   const dupes = held.filter(({dom}) => dom.length > 1)
-  const revoted = new Set([
-    ...Object.keys(stored).filter((id) => built.changed.has(id) && (stored[id]?.nodes.length ?? 0) > 0),
-    ...pins.flatMap((pin) => (keptNodes.has(pin.node) ? [] : (heldOf.get(pin.node)?.site ?? []))),
-    ...dupes.map(({site}) => site),
-  ])
+  const revoted = new Map(
+    [
+      ...dupes.map(({site}) => [site, REASONS.dupe] as const),
+      ...pins.flatMap((pin) =>
+        keptNodes.has(pin.node) ? [] : [[heldOf.get(pin.node)?.site ?? '', REASONS.rival] as const],
+      ),
+      ...Object.keys(stored)
+        .filter((id) => built.changed.has(id) && (stored[id]?.nodes.length ?? 0) > 0)
+        .map((id) => [id, REASONS.evidence] as const),
+    ].filter(([id]) => id !== ''),
+  )
   const root = attached({node: built.root, mapping})
   const reads = readIds({root, live: measured.live})
   const elements = new Map([...walk(measured.live)].map(({node}) => [node.path, node]))
@@ -76,7 +93,9 @@ export async function mappingOf(input: {
     dupes: dupes.map(({entry}) => entry.nodeId),
     candidates: candidatesOf({match: paired.root, mapped: mappedNow, elements, selector: reads.selector}),
     notRendered: lost.filter((node) => !mappedNow.has(node)),
-    revoted: [...revoted],
+    revoted: [...revoted.keys()],
+    reasons: Object.fromEntries(revoted),
+    votes: paired.votes,
     gone: Object.keys(stored).filter((id) => !present.has(id)),
   }
 }
@@ -88,7 +107,15 @@ type Mapped = {
   candidates: Coverage['candidates']
   notRendered: string[]
   revoted: string[]
+  reasons: Record<string, string>
+  votes: Ballot[]
   gone: string[]
+}
+
+const REASONS = {
+  dupe: 'its id and list key match more than one element',
+  rival: 'its element moved under a new parent or a rival outscored it by more than its margin',
+  evidence: 'the evidence under its id changed: box, element or classes',
 }
 
 function attached(input: {node: IdNode; mapping: Mapping}): IdNode {

@@ -16,6 +16,9 @@ import {createRunner} from './server/runner.js'
 import {createDiffer} from './server/differ.js'
 import {createXrayRoutes} from './server/xray-routes.js'
 import {SERVER_STEPS} from './server/tools.js'
+import {designTables} from './server/tables.js'
+import {migrations} from './server/migrations.gen.js'
+import {createRuns} from './server/runs.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -27,8 +30,10 @@ const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
   tools: SERVER_STEPS,
+  tables: designTables,
+  migrations,
 }).server((server) => {
-  const {config} = server
+  const {config, db} = server
   const state = createStorage({driver: fsDriver({base: join(server.stateDir, 'design')})})
   const project = createStorage({driver: fsDriver({base: server.cwd, readOnly: true})})
   const files = createStorage({driver: fsDriver({base: FILES_ROOT, readOnly: true})})
@@ -38,7 +43,7 @@ const design = defineExtension({
     state,
     project,
     files,
-    store: createStore({state}),
+    store: createStore({db, state, run: createRuns(db).current}),
     adapters: [createImageAdapter({config}), createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, config})],
     measurer,
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),

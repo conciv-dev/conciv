@@ -55,7 +55,8 @@
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "dev:xray": "vite --config vite.xray.config.ts"
+    "dev:xray": "vite --config vite.xray.config.ts",
+    "gen-migrations": "node scripts/gen-migrations.ts"
   },
   "dependencies": {
     "@blazediff/core": "catalog:",
@@ -71,6 +72,7 @@
     "@tanstack/solid-router": "catalog:",
     "@zumer/snapdom": "catalog:",
     "culori": "catalog:",
+    "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
@@ -89,6 +91,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/db": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
@@ -97,6 +100,7 @@
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
     "@unocss/reset": "catalog:",
+    "drizzle-kit": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",

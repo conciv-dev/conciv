@@ -1,6 +1,6 @@
 import {formatHex, parse} from 'culori'
 import {z} from 'zod'
-import type {Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
+import type {Ballot, Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
 
@@ -9,6 +9,7 @@ export function createFigmaNodePairer(): Pairer {
 }
 
 type Element = {
+  id: string
   path: string
   box: Box
   text: string
@@ -25,7 +26,7 @@ type Node = {node: DesignNode; parent: DesignNode | null; depth: number; box: Bo
 
 type Pick = {path: string; score: number; margin: number; candidates: {path: string; score: number}[]}
 
-type Scored = {path: string; score: number}
+type Scored = {path: string; score: number; layers: {dom: number; src: number; cssom: number}}
 
 type Vote = {
   elements: Element[]
@@ -94,6 +95,7 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     taken: new Set(input.pins.map((pin) => pin.path)),
   }
   const ties = new Map<string, Pick['candidates']>()
+  const votes: Ballot[] = []
   order.forEach((entry) => {
     const pin = pinned.get(entry.node.id)
     if (pin !== undefined && holds({vote, entry, pin})) return
@@ -106,14 +108,32 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       const chosen = {...pick, path: paintedTwin({pick, scored, byPath, node: entry.node})}
       pairs.set(entry.node.id, chosen)
       taken.add(chosen.path)
+      votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
     }
+    votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: null}))
     if (pick !== null && pick.score >= PAIR.threshold) ties.set(entry.node.id, pick.candidates)
     if (entry.parent === null || parentPath === null || !sameBox({a: entry.box, b: boxOf(entry.parent)})) return
     const parentPick = pairs.get(entry.parent.id)
     if (parentPick !== undefined) pairs.set(entry.node.id, {...parentPick, candidates: []})
   })
-  return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false}
+  return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
+}
+
+function ballotsOf(input: {
+  node: string
+  scored: Scored[]
+  byPath: Map<string, Element>
+  won: string | null
+}): Ballot[] {
+  return input.scored.map((entry) => ({
+    node: input.node,
+    candidate: input.byPath.get(entry.path)?.id ?? '',
+    path: entry.path,
+    ...entry.layers,
+    total: entry.score,
+    won: entry.path === input.won,
+  }))
 }
 
 function holds(input: {vote: Vote; entry: Node; pin: Parameters<Pairer>[0]['pins'][number]}): boolean {
@@ -150,6 +170,7 @@ function elementsOf(root: IdNode): Element[] {
     if (SKIPPED_TAGS.has(tag) || chain.some((path) => tags.get(path) === SVG)) return []
     return [
       {
+        id: site.id,
         path: dom.path,
         box: dom.box,
         text: dom.text,
@@ -213,7 +234,8 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const parent = anchor === null ? 0 : PAIR.parentBonus
   const dom = PAIR.overlapWeight * geo + textual + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
-  return [{path: element.path, score: dom + src + layoutOf({node, element})}]
+  const cssom = layoutOf({node, element})
+  return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
 }
 
 function kindOf(input: {node: DesignNode; element: Element}): number {

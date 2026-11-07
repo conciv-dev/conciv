@@ -506,6 +506,9 @@ export type Counts = z.output<typeof CountsSchema>
 export type Verdict = z.output<typeof VerdictSchema>
 export type Got = z.output<typeof GetResultSchema>
 export type Watched = z.output<typeof WatchResultSchema>
+export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
+type Layer = 'dom' | 'src' | 'cssom' | 'total'
+type ToolCall = {tool: string; input: unknown; replyBytes: number | null; durationMs: number; error: string | null}
 export type Raster = {
   width: number
   height: number
@@ -541,7 +544,9 @@ export type Store = {
   design(id: string): Promise<Design>
   image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
   mapping(id: string): Promise<Mapping>
-  writeMapping(input: {id: string; mapping: Mapping}): Promise<void>
+  writeMapping(input: {id: string; mapping: Mapping; round: number; revoted: Record<string, string>}): Promise<void>
+  writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
+  writeToolCall(input: ToolCall & {session: string}): Promise<void>
   ids(id: string): Promise<IdTree | null>
   writeIds(input: {id: string; ids: IdTree}): Promise<void>
   writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
@@ -570,7 +575,7 @@ export type Pairer = (input: {
   ids: IdNode
   pins: {node: string; path: string; margin: number}[]
   budget: number
-}) => Promise<{root: Match; partial: boolean}>
+}) => Promise<{root: Match; partial: boolean; votes: Ballot[]}>
 
 export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<Watched>
 

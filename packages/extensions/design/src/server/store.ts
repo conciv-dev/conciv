@@ -1,106 +1,257 @@
-import {toolError} from '@conciv/extension'
+import {and, asc, desc, eq} from 'drizzle-orm'
 import type {Storage} from 'unstorage'
-import type {z} from 'zod'
-import {DesignSchema, IdTreeSchema, MappingSchema, RoundSchema, TargetRecordSchema, type Store} from '../shared/defs.js'
+import {toolError, type ExtensionDb} from '@conciv/extension'
+import {RoundSchema, type GateRow, type Round, type Store, type TargetRecord} from '../shared/defs.js'
+import type {designTables} from './tables.js'
 
-export function createStore(input: {state: Storage}): Store {
-  const {state} = input
-  const queue: {tail: Promise<unknown>} = {tail: Promise.resolve()}
+export function createStore(input: {db: DesignDb; state: Storage; run: () => Promise<number | null>}): Store {
+  const {state, run} = input
+  const {orm, tables} = input.db
+  const {targets, rounds, rows, fom, votes, tool_calls: toolCalls} = tables
 
-  function serial<T>(work: () => Promise<T>): Promise<T> {
-    const next = queue.tail.then(work)
-    queue.tail = next.catch(() => undefined)
-    return next
+  async function target(id: string): Promise<TargetRow | undefined> {
+    const [found] = await orm.select().from(targets).where(eq(targets.target_id, id))
+    return found
   }
 
-  async function list(): Promise<z.output<typeof TargetRecordSchema>[]> {
-    const keys = (await state.getKeys()).filter((key) => key.split(':').length === 2 && key.endsWith(`:${RECORD}`))
-    const records = await Promise.all(keys.map((key) => readItem({state, key, schema: TargetRecordSchema})))
-    return records.filter((entry) => entry !== null).toSorted((a, b) => a.createdAt - b.createdAt)
+  async function list(): Promise<TargetRecord[]> {
+    return (await orm.select().from(targets).orderBy(asc(targets.at))).map(recordOf)
   }
 
-  async function roundNumbers(id: string): Promise<number[]> {
-    return (await state.getKeys(`${id}:${ROUNDS}`))
-      .map((key) => Number(key.split(':').at(-1)))
-      .filter((round) => Number.isInteger(round))
-      .toSorted((a, b) => a - b)
+  async function roundsOf(where: {id: string; round?: number}): Promise<Round[]> {
+    const own = eq(rounds.target_id, where.id)
+    const heads = await orm
+      .select()
+      .from(rounds)
+      .where(where.round === undefined ? own : and(own, eq(rounds.round, where.round)))
+      .orderBy(asc(rounds.seq))
+    const listed = await orm.select().from(rows).where(eq(rows.target_id, where.id)).orderBy(asc(rows.seq))
+    const byRound = Map.groupBy(listed, (row) => row.round)
+    return heads.map((head) =>
+      RoundSchema.parse({
+        round: head.round,
+        rows: (byRound.get(head.round) ?? []).map(gateRowOf),
+        reflow: head.reflow,
+        coverage: head.coverage,
+        counts: head.counts,
+        pixels: head.pixel_share === null ? null : {share: head.pixel_share},
+        at: head.at,
+        tree: head.tree,
+      }),
+    )
   }
 
   return {
-    put: ({design, image, session, route}) =>
-      serial(async () => {
-        await state.setItemRaw(`${design.id}:${IMAGE}`, image)
-        await state.setItem(`${design.id}:${DESIGN}`, design)
-        const record = {
-          id: design.id,
-          session,
-          ref: design.source.ref,
-          ...(route === undefined ? {} : {route}),
-          width: design.viewport.width,
-          height: design.viewport.height,
-          scale: design.scale,
-          createdAt: Date.now(),
-        }
-        await state.setItem(`${design.id}:${RECORD}`, record)
-        return record
-      }),
+    put: async ({design, image, session, route}) => {
+      const path = `${design.id}/${TARGET_IMAGE}`
+      await state.setItemRaw(path, image)
+      const row = {
+        target_id: design.id,
+        run_id: await run(),
+        session,
+        link: design.source.ref,
+        route: route ?? null,
+        width: design.viewport.width,
+        height: design.viewport.height,
+        scale: design.scale,
+        design,
+        ids: null,
+        image: path,
+        at: Date.now(),
+      }
+      await orm.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row})
+      return recordOf(row)
+    },
     design: async (id) => {
-      const design = await readItem({state, key: `${id}:${DESIGN}`, schema: DesignSchema})
-      if (design !== null) return design
+      const found = await target(id)
+      if (found !== undefined) return found.design
       throw toolError('no-target', {message: `the stored design ${id} is unreadable; call design_get again`})
     },
-    image: ({id, round, kind}) =>
-      readRaw({state, key: round === undefined ? `${id}:${IMAGE}` : `${id}:${kind ?? 'live'}:${round}.png`}),
-    mapping: async (id) => (await readItem({state, key: `${id}:${MAPPING}`, schema: MappingSchema})) ?? {},
-    writeMapping: ({id, mapping}) => serial(() => state.setItem(`${id}:${MAPPING}`, mapping)),
-    ids: (id) => readItem({state, key: `${id}:${IDS}`, schema: IdTreeSchema}),
-    writeIds: ({id, ids}) => serial(() => state.setItem(`${id}:${IDS}`, ids)),
-    writeRound: ({id, round, live, diff}) =>
-      serial(async () => {
-        if (live.length > 0) await state.setItemRaw(`${id}:live:${round.round}.png`, live)
-        if (diff.length > 0) await state.setItemRaw(`${id}:diff:${round.round}.png`, diff)
-        const written = RoundSchema.parse(round)
-        await state.setItem(`${id}:${ROUNDS}:${round.round}`, written)
-        return written
-      }),
-    round: ({id, round}) => readItem({state, key: `${id}:${ROUNDS}:${round}`, schema: RoundSchema}),
-    rounds: async (id) => {
-      const read = await Promise.all(
-        (await roundNumbers(id)).map((round) =>
-          readItem({state, key: `${id}:${ROUNDS}:${round}`, schema: RoundSchema}),
-        ),
-      )
-      return read.filter((round) => round !== null)
+    image: async ({id, round, kind}) => {
+      if (round === undefined) return readRaw({state, key: (await target(id))?.image ?? null})
+      const [head] = await roundsHead({id, round})
+      return readRaw({state, key: (kind === 'diff' ? head?.diff : head?.live) ?? null})
     },
-    clear: (id) =>
-      serial(async () => {
-        const keys = await state.getKeys(id)
-        await Promise.all(keys.map((key) => state.removeItem(key)))
-      }),
+    mapping: async (id) => {
+      const held = await orm.select().from(fom).where(eq(fom.target_id, id)).orderBy(asc(fom.seq))
+      return Object.fromEntries(
+        Object.entries(Object.groupBy(held, (row) => row.id)).map(([key, grouped]) => [
+          key,
+          {
+            nodes: (grouped ?? []).map((row) => ({
+              nodeId: row.node,
+              instance: row.instance,
+              confidence: row.confidence,
+              margin: row.margin,
+              round: row.round,
+            })),
+          },
+        ]),
+      )
+    },
+    writeMapping: async ({id, mapping, round, revoted}) => {
+      const runId = await run()
+      const at = Date.now()
+      orm.transaction((tx) => {
+        const before = tx.select().from(fom).where(eq(fom.target_id, id)).all()
+        const carried = new Map(before.map((row) => [`${row.id}/${row.node}`, row]))
+        tx.delete(fom).where(eq(fom.target_id, id)).run()
+        for (const [key, {nodes}] of Object.entries(mapping)) {
+          for (const entry of nodes) {
+            const reason = revoted[key]
+            const previous = carried.get(`${key}/${entry.nodeId}`)
+            tx.insert(fom)
+              .values({
+                target_id: id,
+                run_id: runId,
+                id: key,
+                node: entry.nodeId,
+                instance: entry.instance,
+                confidence: entry.confidence,
+                margin: entry.margin,
+                round: entry.round,
+                revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
+                reason: reason ?? previous?.reason ?? null,
+                at,
+              })
+              .run()
+          }
+        }
+      })
+    },
+    writeVotes: async ({id, round, votes: cast}) => {
+      const runId = await run()
+      const at = Date.now()
+      orm.transaction((tx) => {
+        for (const ballot of cast)
+          tx.insert(votes)
+            .values({...ballot, target_id: id, run_id: runId, round, at})
+            .run()
+      })
+    },
+    writeToolCall: async ({session, tool, input: given, replyBytes, durationMs, error}) => {
+      const [own] = await orm
+        .select({id: targets.target_id})
+        .from(targets)
+        .where(eq(targets.session, session))
+        .orderBy(desc(targets.at))
+        .limit(1)
+      await orm.insert(toolCalls).values({
+        target_id: own?.id ?? null,
+        run_id: await run(),
+        tool,
+        input: given,
+        reply_bytes: replyBytes,
+        duration_ms: durationMs,
+        error,
+        at: Date.now(),
+      })
+    },
+    ids: async (id) => (await target(id))?.ids ?? null,
+    writeIds: async ({id, ids}) => {
+      await orm.update(targets).set({ids}).where(eq(targets.target_id, id))
+    },
+    writeRound: async ({id, round, live, diff}) => {
+      const written = RoundSchema.parse(round)
+      const livePath = live.length > 0 ? `${id}/live/${round.round}.png` : null
+      const diffPath = diff.length > 0 ? `${id}/diff/${round.round}.png` : null
+      if (livePath !== null) await state.setItemRaw(livePath, live)
+      if (diffPath !== null) await state.setItemRaw(diffPath, diff)
+      const runId = await run()
+      orm.transaction((tx) => {
+        const own = {target_id: id, run_id: runId, round: written.round, at: written.at}
+        tx.insert(rounds)
+          .values({
+            ...own,
+            counts: written.counts,
+            coverage: written.coverage,
+            reflow: written.reflow,
+            pixel_share: written.pixels?.share ?? null,
+            tree: written.tree,
+            live: livePath,
+            diff: diffPath,
+          })
+          .run()
+        for (const row of written.rows)
+          tx.insert(rows)
+            .values({...own, ...rowOf(row)})
+            .run()
+      })
+      return written
+    },
+    round: async ({id, round}) => (await roundsOf({id, round})).at(-1) ?? null,
+    rounds: (id) => roundsOf({id}),
+    clear: async (id) => {
+      orm.transaction((tx) => {
+        tx.delete(targets).where(eq(targets.target_id, id)).run()
+        tx.delete(rounds).where(eq(rounds.target_id, id)).run()
+        tx.delete(rows).where(eq(rows.target_id, id)).run()
+        tx.delete(fom).where(eq(fom.target_id, id)).run()
+        tx.delete(votes).where(eq(votes.target_id, id)).run()
+      })
+      await Promise.all((await state.getKeys(id)).map((key) => state.removeItem(key)))
+    },
     current: async (session) => {
       const records = await list()
-      const own = records.filter((entry) => entry.session === session).at(-1)
-      if (own !== undefined) return own
-      return records.at(-1) ?? null
+      return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
     },
     list,
   }
+
+  function roundsHead(where: {id: string; round: number}) {
+    return orm
+      .select()
+      .from(rounds)
+      .where(and(eq(rounds.target_id, where.id), eq(rounds.round, where.round)))
+      .orderBy(desc(rounds.seq))
+      .limit(1)
+  }
 }
 
-const RECORD = 'record'
-const DESIGN = 'design'
-const IMAGE = 'target.png'
-const MAPPING = 'mapping'
-const IDS = 'ids'
-const ROUNDS = 'rounds'
+type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
 
-async function readItem<T>(input: {state: Storage; key: string; schema: z.ZodType<T>}): Promise<T | null> {
-  const value: unknown = await input.state.getItem(input.key).catch(() => null)
-  const parsed = input.schema.safeParse(value)
-  return parsed.success ? parsed.data : null
+type TargetRow = DesignDb['tables']['targets']['$inferSelect']
+
+type RowRow = DesignDb['tables']['rows']['$inferSelect']
+
+const TARGET_IMAGE = 'target.png'
+
+function recordOf(row: TargetRow): TargetRecord {
+  return {
+    id: row.target_id,
+    session: row.session,
+    ref: row.link,
+    ...(row.route === null ? {} : {route: row.route}),
+    width: row.width,
+    height: row.height,
+    scale: row.scale,
+    createdAt: row.at,
+  }
 }
 
-async function readRaw(input: {state: Storage; key: string}): Promise<Uint8Array | null> {
+function rowOf(row: GateRow): Omit<RowRow, 'seq' | 'target_id' | 'run_id' | 'round' | 'at'> {
+  return {
+    id: row.id,
+    node: row.node,
+    source: row.source,
+    selector: row.selector,
+    kind: row.kind,
+    name: row.name,
+    magnitude: row.magnitude,
+    width: row.width ?? null,
+    text: row.text,
+    confidence: row.confidence,
+    margin: row.margin,
+  }
+}
+
+function gateRowOf(row: RowRow): Record<string, unknown> {
+  const {seq: _seq, target_id: _target, run_id: _run, round: _round, at: _at, width, ...rest} = row
+  return width === null ? rest : {...rest, width}
+}
+
+async function readRaw(input: {state: Storage; key: string | null}): Promise<Uint8Array | null> {
+  if (input.key === null) return null
   const value: unknown = await input.state.getItemRaw(input.key).catch(() => null)
   return value instanceof Uint8Array ? value : null
 }

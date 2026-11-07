@@ -104,7 +104,7 @@ function pairDesign(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     pool: candidates,
     pairing,
   })
-  return {root: match, partial}
+  return {root: match, partial, votes: []}
 }
 
 function pairNode(input: {

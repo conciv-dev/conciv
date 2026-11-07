@@ -40,7 +40,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
     }
     if (coverage.rendered === 0 || (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2))
       return {unsettled: true, rendered: gate.coverage.rendered}
-    await store.writeMapping({id: record.id, mapping})
+    await store.writeMapping({id: record.id, mapping, round, revoted: mapped.reasons})
+    await store.writeVotes({id: record.id, round, votes: mapped.votes})
     await store.writeIds({id: record.id, ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}})
     const widths = widthsOf({design, styles: measured.queries})
     const results = []
