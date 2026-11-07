@@ -40,6 +40,9 @@
     "@ast-grep/napi": "^0.51.0",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
+    "@conciv/db": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-design": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/harness-init": "workspace:^",
@@ -54,7 +57,6 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

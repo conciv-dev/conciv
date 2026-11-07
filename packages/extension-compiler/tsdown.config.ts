@@ -9,6 +9,7 @@ export default defineConfig({
     'src/split-extension.ts',
     'src/dedupe-extensions.ts',
     'src/extension-guard.ts',
+    'src/builtin-server-extensions.ts',
   ],
   format: 'esm',
   fixedExtension: false,

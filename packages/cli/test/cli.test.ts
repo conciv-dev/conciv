@@ -1044,7 +1044,7 @@ describe('init', () => {
 
       it('registers under the root command', async () => {
         const {main} = await import('../src/main.js')
-        const subCommands = await Promise.resolve(main.subCommands)
+        const subCommands = typeof main.subCommands === 'function' ? await main.subCommands() : main.subCommands
         expect(Object.keys(subCommands ?? {})).toContain('init')
       })
     })
