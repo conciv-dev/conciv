@@ -29,6 +29,16 @@ export type RpcDeps = {
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
+  sources: {
+    list: () => {name: string; extension: string; source: string; fields: string[]; writable: boolean}[]
+    read: (query: {
+      from: string
+      where?: string
+      select?: string[]
+      limit?: number
+    }) => Promise<Record<string, unknown>[]>
+    write: (query: {into: string; values: Record<string, unknown>}) => Promise<Record<string, unknown>[]>
+  }
   commands: {name: string; description: string; positionals: readonly string[]; run: (args: string[]) => unknown}[]
 }
 

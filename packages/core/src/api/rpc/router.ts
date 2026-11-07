@@ -64,6 +64,14 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
 }
 
+async function refused<Rows>(run: () => Promise<Rows>, failed: (options: {message: string}) => Error): Promise<Rows> {
+  try {
+    return await run()
+  } catch (error) {
+    throw failed({message: error instanceof Error ? error.message : String(error)})
+  }
+}
+
 export function makeRpcRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
@@ -106,6 +114,11 @@ export function makeRpcRouter(deps: RpcDeps) {
     },
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
+    },
+    db: {
+      sources: os.db.sources.handler(() => deps.sources.list()),
+      read: os.db.read.handler(({input, errors}) => refused(() => deps.sources.read(input), errors.QUERY_FAILED)),
+      write: os.db.write.handler(({input, errors}) => refused(() => deps.sources.write(input), errors.QUERY_FAILED)),
     },
     extensions: {
       commands: os.extensions.commands.handler(() =>

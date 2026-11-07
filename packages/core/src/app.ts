@@ -342,6 +342,25 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const own = createSources({orm: db, sources})
     return {extension, sources, scoped: {orm: db, tables, sources: own.list, read: own.read, write: own.write}}
   })
+  const prefixed = declared.flatMap(({extension, sources}) =>
+    Object.entries(sources).map(([source, entry]) => ({name: `${extension.name}_${source}`, extension, source, entry})),
+  )
+  const everySource = createSources({
+    orm: db,
+    sources: Object.fromEntries(prefixed.map(({name, entry}) => [name, entry])),
+  })
+  const sourcesApi = {
+    list: () =>
+      prefixed.map(({name, extension, source, entry}) => ({
+        name,
+        extension: extension.name,
+        source,
+        fields: Object.keys(entry.fields),
+        writable: entry.writable === true,
+      })),
+    read: everySource.read,
+    write: everySource.write,
+  }
   const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
   const extensionCommands = declared.flatMap(({extension, scoped}) =>
     Object.entries(extension.commands ?? {}).map(([name, command]) => ({
@@ -541,6 +560,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
     commands: extensionCommands,
+    sources: sourcesApi,
   })
 
   const compositeRpc = makeCompositeRpcRouter(

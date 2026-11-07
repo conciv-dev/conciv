@@ -54,6 +54,7 @@ const Ok = z.object({ok: z.literal(true)})
 const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean()})
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
+const queryFailed = {QUERY_FAILED: {message: 'the query was refused'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
 const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
@@ -153,6 +154,34 @@ export const contract = {
   },
   captures: {
     list: oc.input(SessionIdInput).output(SessionCapturesSchema),
+  },
+  db: {
+    sources: oc.output(
+      z.array(
+        z.object({
+          name: z.string(),
+          extension: z.string(),
+          source: z.string(),
+          fields: z.array(z.string()),
+          writable: z.boolean(),
+        }),
+      ),
+    ),
+    read: oc
+      .errors(queryFailed)
+      .input(
+        z.object({
+          from: z.string().min(1),
+          where: z.string().min(1).optional(),
+          select: z.array(z.string().min(1)).optional(),
+          limit: z.number().int().positive().optional(),
+        }),
+      )
+      .output(z.array(z.record(z.string(), z.unknown()))),
+    write: oc
+      .errors(queryFailed)
+      .input(z.object({into: z.string().min(1), values: z.record(z.string(), z.unknown())}))
+      .output(z.array(z.record(z.string(), z.unknown()))),
   },
   extensions: {
     commands: oc.output(
