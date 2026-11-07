@@ -1,37 +1,44 @@
-import {readdirSync, readFileSync, type Dirent} from 'node:fs'
-import {readFile} from 'node:fs/promises'
-import {homedir} from 'node:os'
+import {existsSync, readdirSync, readFileSync, type Dirent} from 'node:fs'
+import {stat} from 'node:fs/promises'
 import {join} from 'node:path'
-import {DatabaseSync} from 'node:sqlite'
+import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import type {HarnessHistory, HarnessSessionMeta, TranscriptHandle} from '@conciv/protocol/harness-types'
+import type {
+  HarnessHistory,
+  HarnessListPage,
+  HarnessSessionMeta,
+  HarnessSessionPage,
+  TranscriptHandle,
+} from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {containedPath} from '../_shared/contained-path.js'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
+import {pageAfter} from '../_shared/page.js'
+import {whenMissing} from '../_shared/when-missing.js'
+import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
+import {codexHome} from './models.js'
 
-const MAX_SESSIONS = 50
 const MAX_TITLE = 80
 const MAX_PREVIEW = 200
 
-export function stateDbPath(home: string = homedir()): string {
-  return join(home, '.codex', 'state_5.sqlite')
+export function stateDbPath(): string {
+  return join(codexHome(), 'state_5.sqlite')
 }
 
-export function sessionsRoot(home: string = homedir()): string {
-  return join(home, '.codex', 'sessions')
+export function sessionsRoot(): string {
+  return join(codexHome(), 'sessions')
 }
 
-function queryRows(dbPath: string, sql: string, params: string[]): unknown[] {
-  let db: DatabaseSync | null = null
+function queryRows(dbPath: string, sql: string, params: SQLInputValue[]): unknown[] {
+  if (!existsSync(dbPath)) return []
+  const db = new DatabaseSync(dbPath, {readOnly: true})
   try {
-    db = new DatabaseSync(dbPath, {readOnly: true})
     return db.prepare(sql).all(...params)
-  } catch {
-    return []
   } finally {
-    db?.close()
+    db.close()
   }
 }
 
@@ -56,10 +63,14 @@ type ThreadRow = z.infer<typeof ThreadRowSchema>
 const THREAD_COLUMNS =
   'id, rollout_path, title, first_user_message, preview, model, tokens_used, created_at, updated_at, created_at_ms, updated_at_ms'
 
-const LIST_THREADS = `select ${THREAD_COLUMNS} from threads where cwd = ? and archived = 0 order by coalesce(updated_at_ms, updated_at * 1000) desc limit ${MAX_SESSIONS}`
-const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1`
+const UPDATED_MS =
+  'cast(round(case when updated_at_ms > 0 then updated_at_ms else coalesce(updated_at, 0) * 1000 end) as integer)'
 
-function threadRows(dbPath: string, sql: string, params: string[]): ThreadRow[] {
+const LIST_THREADS = `select ${THREAD_COLUMNS} from threads where cwd = ? and archived = 0 and (? is null or (${UPDATED_MS}, id) < (?, ?)) order by ${UPDATED_MS} desc, id desc limit ?`
+const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1`
+const PROJECT_THREAD = `select ${THREAD_COLUMNS} from threads where id = ? and cwd = ? limit 1`
+
+function threadRows(dbPath: string, sql: string, params: SQLInputValue[]): ThreadRow[] {
   return queryRows(dbPath, sql, params).flatMap((row) => {
     const parsed = ThreadRowSchema.safeParse(row)
     return parsed.success ? [parsed.data] : []
@@ -126,20 +137,19 @@ const TokenCountPayloadSchema = z
 
 export function rolloutCwd(raw: string): string | null {
   for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed) continue
-    let envelope: unknown
-    try {
-      envelope = JSON.parse(trimmed)
-    } catch {
-      continue
-    }
-    const parsed = EnvelopeSchema.safeParse(envelope)
-    if (!parsed.success || parsed.data.type !== 'session_meta') continue
-    const meta = SessionMetaPayloadSchema.safeParse(parsed.data.payload)
-    return meta.success ? (meta.data.cwd ?? null) : null
+    const found = sessionMetaCwd(line)
+    if (found !== undefined) return found
   }
   return null
+}
+
+function sessionMetaCwd(line: string): string | null | undefined {
+  const trimmed = line.trim()
+  if (!trimmed) return undefined
+  const parsed = EnvelopeSchema.safeParse(parseJsonOrNull(trimmed))
+  if (!parsed.success || parsed.data.type !== 'session_meta') return undefined
+  const meta = SessionMetaPayloadSchema.safeParse(parsed.data.payload)
+  return meta.success ? (meta.data.cwd ?? null) : null
 }
 
 function outputText(raw: unknown): string {
@@ -263,10 +273,6 @@ function spineMessages(spine: CodexSpine): ChatMessage[] {
   return spine.messages.map((message) => ({...message, parts: [...message.parts]}))
 }
 
-function parseHistory(raw: string, sessionId: string): ChatMessage[] {
-  return raw.split('\n').reduce(foldLine, emptySpine(sessionId)).messages
-}
-
 function contextTokensFromTranscript(raw: string): number | undefined {
   let total: number | undefined
   for (const line of raw.split('\n')) {
@@ -278,37 +284,37 @@ function contextTokensFromTranscript(raw: string): number | undefined {
   return total
 }
 
-function rolloutEntries(home: string): Dirent[] {
+function rolloutEntries(): Dirent[] {
   try {
-    return readdirSync(sessionsRoot(home), {withFileTypes: true, recursive: true})
-  } catch {
-    return []
+    return readdirSync(sessionsRoot(), {withFileTypes: true, recursive: true})
+  } catch (error) {
+    return whenMissing([])(error)
   }
 }
 
-function scanForRollout(sessionId: string, home: string): string | null {
+function scanForRollout(sessionId: string): string | null {
   const suffix = `-${sessionId}.jsonl`
-  const hit = rolloutEntries(home).find((entry) => entry.isFile() && entry.name.endsWith(suffix))
-  return hit ? containedPath(join(home, '.codex'), join(hit.parentPath, hit.name)) : null
+  const hit = rolloutEntries().find((entry) => entry.isFile() && entry.name.endsWith(suffix))
+  return hit ? containedPath(codexHome(), join(hit.parentPath, hit.name)) : null
 }
 
-export function rolloutPath(sessionId: string, home: string = homedir()): string | null {
-  const row = threadRows(stateDbPath(home), THREAD_BY_ID, [sessionId]).at(0)
-  const persisted = row ? containedPath(join(home, '.codex'), row.rollout_path) : null
+export function rolloutPath(sessionId: string): string | null {
+  const row = threadRows(stateDbPath(), THREAD_BY_ID, [sessionId]).at(0)
+  const persisted = row ? containedPath(codexHome(), row.rollout_path) : null
   if (persisted) return persisted
-  return scanForRollout(sessionId, home)
+  return scanForRollout(sessionId)
 }
 
 function readRollout(path: string): string {
   try {
     return readFileSync(path, 'utf8')
-  } catch {
-    return ''
+  } catch (error) {
+    return whenMissing('')(error)
   }
 }
 
-function projectRollout(cwd: string, sessionId: string, home: string): {path: string; raw: string} | null {
-  const path = rolloutPath(sessionId, home)
+function projectRollout(cwd: string, sessionId: string): {path: string; raw: string} | null {
+  const path = rolloutPath(sessionId)
   if (!path) return null
   const raw = readRollout(path)
   if (!raw) return null
@@ -316,39 +322,64 @@ function projectRollout(cwd: string, sessionId: string, home: string): {path: st
   return found !== null && sameCwd(found, cwd) ? {path, raw} : null
 }
 
-function rolloutWithinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
-  return projectRollout(cwd, sessionId, home) !== null
+function rolloutWithinProject(cwd: string, sessionId: string): boolean {
+  return projectRollout(cwd, sessionId) !== null
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<ChatMessage[]> {
-  const rollout = projectRollout(cwd, sessionId, home)
-  return rollout ? parseHistory(rollout.raw, sessionId) : []
+type RolloutFold = {spine: CodexSpine; cwd: string | null | undefined}
+
+function foldRolloutLine(state: RolloutFold, line: string): RolloutFold {
+  if (state.cwd === undefined) state.cwd = sessionMetaCwd(line)
+  state.spine = foldLine(state.spine, line)
+  return state
 }
 
-async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  const rows = threadRows(stateDbPath(home), LIST_THREADS, [realpathOrSelf(cwd)])
-  return Promise.all(
-    rows.map(async (row) => {
-      const raw = await readFile(row.rollout_path, 'utf8').catch(() => '')
-      return {
-        id: row.id,
-        derivedTitle: firstText(row),
-        updatedAt: millis(row.updated_at_ms, row.updated_at),
-        messageCount: parseHistory(raw, row.id).length,
-        model: row.model ?? null,
-        totalTokens: row.tokens_used ?? 0,
-        lastMessage: condense(row.preview, MAX_PREVIEW) || null,
-        createdAt: millis(row.created_at_ms, row.created_at),
-      }
-    }),
-  )
+async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+  const path = rolloutPath(sessionId)
+  if (!path) return []
+  const empty: RolloutFold = {spine: emptySpine(sessionId), cwd: undefined}
+  const folded = await foldJsonlFile(path, empty, foldRolloutLine).catch(whenMissing(null))
+  if (folded === null || typeof folded.cwd !== 'string' || !sameCwd(folded.cwd, cwd)) return []
+  return folded.spine.messages
 }
 
-function observeTranscript(cwd: string, sessionId: string, home: string = homedir()): TranscriptHandle {
+async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+  const after = page.after
+  const rows = threadRows(stateDbPath(), LIST_THREADS, [
+    realpathOrSelf(cwd),
+    after?.updatedAt ?? null,
+    after?.updatedAt ?? null,
+    after?.id ?? null,
+    page.limit + 1,
+  ])
+  const paged = pageAfter(rows, page, (row) => ({updatedAt: millis(row.updated_at_ms, row.updated_at), id: row.id}))
+  return {sessions: await Promise.all(paged.items.map(threadMeta)), next: paged.next}
+}
+
+async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta> {
+  const info = await stat(row.rollout_path).catch(whenMissing(null))
+  return {
+    id: row.id,
+    derivedTitle: firstText(row),
+    updatedAt: millis(row.updated_at_ms, row.updated_at),
+    sizeBytes: info?.size,
+    model: row.model ?? null,
+    totalTokens: row.tokens_used ?? 0,
+    lastMessage: condense(row.preview, MAX_PREVIEW) || null,
+    createdAt: millis(row.created_at_ms, row.created_at),
+  }
+}
+
+async function storedMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
+  const row = threadRows(stateDbPath(), PROJECT_THREAD, [sessionId, realpathOrSelf(cwd)]).at(0)
+  return row ? threadMeta(row) : null
+}
+
+function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<CodexSpine>({
     parser: {empty: () => emptySpine(sessionId), foldLine, messages: spineMessages},
     resolvePath: async () => {
-      const path = rolloutPath(sessionId, home)
+      const path = rolloutPath(sessionId)
       return path ?? transcriptFailure('missing', `no codex rollout recorded for ${sessionId}`)
     },
     verifyHead: (head) => {
@@ -366,4 +397,5 @@ export const codexHistory: HarnessHistory = {
   withinProject: rolloutWithinProject,
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
+  meta: storedMeta,
 }

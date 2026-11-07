@@ -1345,7 +1345,7 @@ test.describe('recording attachment', () => {
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
-      const sessions = await kit.rpc.sessions.list()
+      const {sessions} = await kit.rpc.sessions.list()
       const chatSession = sessions[0]?.id
       if (!chatSession) throw new Error('widget session not found')
       const persisted = {messages: ''}

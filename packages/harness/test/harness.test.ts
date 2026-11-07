@@ -1,7 +1,9 @@
-import {describe, expect, it, beforeAll, afterEach, test} from 'vitest'
+import {describe, expect, it, beforeAll, afterAll, afterEach, test} from 'vitest'
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
+  HarnessListPage,
+  HarnessSessionPage,
   TranscriptHandle,
   TranscriptChunk,
   TranscriptFailure,
@@ -35,7 +37,7 @@ import {
   writeSync,
 } from 'node:fs'
 import {tmpdir, homedir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
 import {CLAUDE_ASK_RULES} from '../src/claude/ask-rules.js'
@@ -46,18 +48,17 @@ import {
   parseSessionMeta,
   claudeHistory,
   contextTokensFromTranscript,
-  encodeProjectDir,
-  listSessions,
   withinProject,
   parseHistory as claudeParse,
   transcriptPath,
+  transcriptRoot,
 } from '../src/claude/history.js'
 import {claudeMcpArgs, mcpServerConfig} from '../src/claude/args.js'
 import {claudeSdkCommands, __commandsCacheSet} from '../src/claude/sdk.js'
 import {claudeTtyCommand} from '../src/claude/tty.js'
 import {codex} from '../src/codex/index.js'
 import {codexDefaultModel, codexHome, codexModels} from '../src/codex/models.js'
-import {mkdtemp, mkdir, realpath, symlink, writeFile} from 'node:fs/promises'
+import {mkdtemp, mkdir, open, realpath, symlink, writeFile} from 'node:fs/promises'
 import {DatabaseSync} from 'node:sqlite'
 import {rolloutPath, codexHistory, sessionsRoot, stateDbPath} from '../src/codex/history.js'
 import {codexModels as CODEX_MODELS, makeTextAdapter} from '@conciv/ai/server'
@@ -71,6 +72,32 @@ import {storagePath, opencodeHistory} from '../src/opencode/history.js'
 import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
+import {execFileSync} from 'node:child_process'
+
+const FIRST_PAGE: HarnessListPage = {after: null, limit: 30}
+
+const PAGED_IDS = {newest: 'newest', tieHigh: 'tie-b', tieLow: 'tie-a', oldest: 'oldest'}
+
+function blockingTranscript(path: string, mtimeSec: number): void {
+  mkdirSync(join(path, '..'), {recursive: true})
+  execFileSync('mkfifo', [path])
+  utimesSync(path, mtimeSec, mtimeSec)
+}
+
+async function expectPagingContract(
+  list: (page: HarnessListPage) => Promise<HarnessSessionPage>,
+  ids: typeof PAGED_IDS,
+  tieAt: number,
+  unblockOldest: () => Promise<void>,
+): Promise<void> {
+  const first = await list({after: null, limit: 2})
+  expect(first.sessions.map((session) => session.id)).toEqual([ids.newest, ids.tieHigh])
+  expect(first.next).toEqual({updatedAt: tieAt, id: ids.tieHigh})
+  await unblockOldest()
+  const second = await list({after: first.next, limit: 2})
+  expect(second.sessions.map((session) => session.id)).toEqual([ids.tieLow, ids.oldest])
+  expect(second.next).toBeNull()
+}
 
 describe('acp harnesses', () => {
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
@@ -431,12 +458,23 @@ describe('claude connect plan', () => {
 })
 
 describe('claude history', () => {
-  function seed(home: string, cwd: string, id: string, body: string, mtimeSec: number) {
-    const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
-    mkdirSync(dir, {recursive: true})
-    const p = join(dir, `${id}.jsonl`)
-    writeFileSync(p, body)
-    utimesSync(p, mtimeSec, mtimeSec)
+  const CLAUDE_IDS = {
+    older: '00000000-0000-4000-8000-00000000000a',
+    newer: '00000000-0000-4000-8000-00000000000b',
+    hidden: '00000000-0000-4000-8000-00000000000c',
+  }
+  const CLAUDE_PAGED_IDS = {
+    newest: '00000000-0000-4000-8000-000000000001',
+    tieHigh: '00000000-0000-4000-8000-000000000003',
+    tieLow: '00000000-0000-4000-8000-000000000002',
+    oldest: '00000000-0000-4000-8000-000000000000',
+  }
+
+  function seed(cwd: string, id: string, body: string, mtimeSec: number) {
+    const path = transcriptPath(cwd, id)
+    mkdirSync(join(path, '..'), {recursive: true})
+    writeFileSync(path, body)
+    utimesSync(path, mtimeSec, mtimeSec)
   }
 
   describe('parseHistory', () => {
@@ -663,7 +701,6 @@ describe('claude history', () => {
         ...machineryLines,
       ].join('\n')
       const meta = parseSessionMeta('s', jsonl, 1)
-      expect(meta.messageCount).toBe(2)
       expect(meta.lastMessage).toBe('done')
     })
   })
@@ -720,54 +757,55 @@ describe('claude history', () => {
   })
 
   describe('listSessions', () => {
-    it('lists newest-first with title + count', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+    it('lists newest first under the Claude config dir, titled and sized the way Claude shows them', async () => {
       const cwd = '/proj/x'
-      seed(home, cwd, 'old', JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
-      seed(
-        home,
-        cwd,
-        'new',
-        [
-          JSON.stringify({type: 'user', message: {content: 'newer task'}}),
-          JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}}),
-        ].join('\n') + '\n',
-        2000,
-      )
-      const out = await listSessions(cwd, home)
-      expect(out.map((s) => s.id)).toEqual(['new', 'old'])
-      expect(out[0]).toMatchObject({derivedTitle: 'newer task', messageCount: 2})
-      rmSync(home, {recursive: true, force: true})
+      const newer = [
+        JSON.stringify({type: 'user', message: {content: 'newer task'}}),
+        JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}}),
+      ].join('\n')
+      seed(cwd, CLAUDE_IDS.older, JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
+      seed(cwd, CLAUDE_IDS.newer, newer + '\n', 2000)
+      seed(cwd, CLAUDE_IDS.hidden, JSON.stringify({type: 'assistant', message: {content: []}}) + '\n', 3000)
+      const out = (await claudeHistory.list(cwd, FIRST_PAGE)).sessions
+      expect(out).toEqual([
+        expect.objectContaining({
+          id: CLAUDE_IDS.newer,
+          derivedTitle: 'newer task',
+          updatedAt: 2_000_000,
+          sizeBytes: Buffer.byteLength(newer + '\n'),
+        }),
+        expect.objectContaining({id: CLAUDE_IDS.older, derivedTitle: 'first task', updatedAt: 1_000_000}),
+      ])
+      expect(await claudeHistory.meta(cwd, HarnessSessionId.parse(CLAUDE_IDS.newer))).toEqual(out[0])
+      expect(await claudeHistory.meta(cwd, HarnessSessionId.parse(CLAUDE_IDS.hidden))).toBeNull()
+      rmSync(transcriptRoot(cwd), {recursive: true, force: true})
     })
 
-    it('caps at 50 and does not read the 51st', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      const cwd = '/proj/y'
-      for (let i = 0; i < 51; i++)
-        seed(
-          home,
-          cwd,
-          `s${String(i).padStart(2, '0')}`,
-          JSON.stringify({type: 'user', message: {content: `t${i}`}}) + '\n',
-          1000 + i,
-        )
-      const out = await listSessions(cwd, home)
-      expect(out.length).toBe(50)
-      expect(out.some((s) => s.id === 's00')).toBe(false)
-      rmSync(home, {recursive: true, force: true})
+    it('pages newest first and breaks updatedAt ties by id', async () => {
+      const cwd = '/proj/paged'
+      const body = JSON.stringify({type: 'user', message: {content: 'paged task'}}) + '\n'
+      seed(cwd, CLAUDE_PAGED_IDS.newest, body, 3000)
+      seed(cwd, CLAUDE_PAGED_IDS.tieHigh, body, 2000)
+      seed(cwd, CLAUDE_PAGED_IDS.tieLow, body, 2000)
+      seed(cwd, CLAUDE_PAGED_IDS.oldest, body, 1000)
+      await expectPagingContract(
+        (page) => claudeHistory.list(cwd, page),
+        CLAUDE_PAGED_IDS,
+        2_000_000,
+        async () => {},
+      )
+      rmSync(transcriptRoot(cwd), {recursive: true, force: true})
     })
 
     it('returns [] for a missing dir', async () => {
-      expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'conciv-home-')))).toEqual([])
+      expect(await claudeHistory.list('/no/such', FIRST_PAGE)).toEqual({sessions: [], next: null})
     })
   })
 
   describe('withinProject', () => {
     it('rejects traversal and accepts a normal id', () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
-      expect(withinProject('/proj', '../../etc/passwd', home)).toBe(false)
-      expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222', home)).toBe(true)
-      rmSync(home, {recursive: true, force: true})
+      expect(withinProject('/proj', '../../etc/passwd')).toBe(false)
+      expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222')).toBe(true)
     })
   })
 
@@ -910,7 +948,7 @@ describe('codex chat config', () => {
     })
 
     it('defaults to the model codex itself would choose when none is requested', () => {
-      expect(codex.chatConfig(deps()).adapter.model).toBe(codexDefaultModel())
+      expect(codex.chatConfig(deps()).adapter.model).toBe(codexDefaultModel(codexHome(deps().env)))
     })
 
     it('defaults to the model named in the CODEX_HOME the session env points at', () => {
@@ -1037,10 +1075,8 @@ describe('codex history', () => {
 
   const rollout = (lines: unknown[]): string => `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
 
-  const state = {home: ''}
-
   async function seedRollout(name: string, lines: unknown[]): Promise<string> {
-    const dir = join(state.home, '.codex', 'sessions', '2026', '07', '30')
+    const dir = join(sessionsRoot(), '2026', '07', '30')
     await mkdir(dir, {recursive: true})
     const path = join(dir, name)
     await writeFile(path, rollout(lines), 'utf8')
@@ -1048,12 +1084,12 @@ describe('codex history', () => {
   }
 
   function seedThreads(rows: {id: string; path: string; cwd: string; archived?: number; updated: number}[]): void {
-    const db = new DatabaseSync(join(state.home, '.codex', 'state_5.sqlite'))
+    const db = new DatabaseSync(stateDbPath())
     db.exec(
-      `create table threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
+      `create table if not exists threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
     )
     const insert = db.prepare(
-      'insert into threads (id, rollout_path, cwd, title, first_user_message, preview, model, tokens_used, archived, created_at, updated_at, created_at_ms, updated_at_ms) values (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      'insert or replace into threads (id, rollout_path, cwd, title, first_user_message, preview, model, tokens_used, archived, created_at, updated_at, created_at_ms, updated_at_ms) values (?,?,?,?,?,?,?,?,?,?,?,?,?)',
     )
     for (const row of rows) {
       insert.run(
@@ -1076,8 +1112,7 @@ describe('codex history', () => {
   }
 
   beforeAll(async () => {
-    state.home = await mkdtemp(join(tmpdir(), 'codex-history-'))
-    await mkdir(join(state.home, '.codex'), {recursive: true})
+    await mkdir(sessionsRoot(), {recursive: true})
     const main = await seedRollout(`rollout-2026-07-30T16-23-00-${SESSION}.jsonl`, ROLLOUT_LINES)
     const stray = await seedRollout(
       `rollout-2026-07-30T16-12-56-${STRAY}.jsonl`,
@@ -1099,7 +1134,7 @@ describe('codex history', () => {
 
   describe('codex rollout parsing', () => {
     it('builds a user/assistant spine with tool calls and their outputs', async () => {
-      expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
+      expect(await history().messages(PROJECT, SESSION)).toEqual([
         {id: `${SESSION}:h1`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
         {
           id: `${SESSION}:h2`,
@@ -1135,11 +1170,22 @@ describe('codex history', () => {
           line.type === 'session_meta' ? {...line, payload: {...line.payload, session_id: second, id: second}} : line,
         ),
       )
-      const first = await history().messages(PROJECT, SESSION, state.home)
-      const next = await history().messages(PROJECT, second, state.home)
+      const first = await history().messages(PROJECT, SESSION)
+      const next = await history().messages(PROJECT, second)
       expect(next.map((message) => message.role)).toEqual(['user', 'assistant'])
       const firstIds = new Set(first.map((message) => message.id))
       expect(next.filter((message) => firstIds.has(message.id))).toEqual([])
+    })
+
+    it('reads a rollout while the event loop keeps running', async () => {
+      const order: string[] = []
+      setImmediate(() => order.push('timer'))
+
+      await history()
+        .messages(PROJECT, SESSION)
+        .then(() => order.push('read'))
+
+      expect(order).toEqual(['timer', 'read'])
     })
 
     it('reads the context tokens from the last token_count event', () => {
@@ -1149,12 +1195,12 @@ describe('codex history', () => {
 
   describe('codex history sidecar', () => {
     it('lists only the sessions recorded for this cwd', async () => {
-      const sessions = await history().list(PROJECT, state.home)
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'List the files',
         lastMessage: 'Two files.',
-        messageCount: 2,
+        sizeBytes: expect.any(Number),
         model: 'gpt-5.5',
         totalTokens: 32017,
         updatedAt: 1785417797467,
@@ -1162,21 +1208,49 @@ describe('codex history', () => {
       })
     })
 
+    it('reads one session meta for this cwd and none for another', async () => {
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      expect(await history().meta(PROJECT, SESSION)).toEqual(sessions[0])
+      expect(await history().meta(PROJECT, STRAY)).toBeNull()
+    })
+
+    it('pages newest first, breaks updatedAt ties by id, and reads only the rollouts on the page', async () => {
+      const paged = '/workspace/codex.paged'
+      const rolloutOf = (id: string) => seedRollout(`rollout-2026-07-30T16-23-00-${id}.jsonl`, ROLLOUT_LINES)
+      const oldest = join(sessionsRoot(), '2026', '07', '30', 'rollout-oldest.jsonl')
+      blockingTranscript(oldest, 1)
+      seedThreads([
+        {id: PAGED_IDS.newest, path: await rolloutOf(PAGED_IDS.newest), cwd: paged, updated: 3_000_000},
+        {id: PAGED_IDS.tieHigh, path: await rolloutOf(PAGED_IDS.tieHigh), cwd: paged, updated: 2_000_000},
+        {id: PAGED_IDS.tieLow, path: await rolloutOf(PAGED_IDS.tieLow), cwd: paged, updated: 2_000_000},
+        {id: PAGED_IDS.oldest, path: oldest, cwd: paged, updated: 1_000_000},
+      ])
+      await expectPagingContract(
+        (page) => history().list(paged, page),
+        PAGED_IDS,
+        2_000_000,
+        async () => {
+          rmSync(oldest)
+          await writeFile(oldest, rollout(ROLLOUT_LINES), 'utf8')
+        },
+      )
+    })
+
     it('parses the rollout of a session that belongs to the cwd', async () => {
-      const messages = await history().messages(PROJECT, SESSION, state.home)
+      const messages = await history().messages(PROJECT, SESSION)
       expect(messages.map((message) => message.role)).toEqual(['user', 'assistant'])
     })
 
     it('returns nothing when the session was recorded in another cwd', async () => {
-      expect(await history().messages(PROJECT, STRAY, state.home)).toEqual([])
-      const handle = history().observe(PROJECT, STRAY, state.home)
+      expect(await history().messages(PROJECT, STRAY)).toEqual([])
+      const handle = history().observe(PROJECT, STRAY)
       const read = await handle.read()
       expect(read.ok).toBe(false)
       handle.close()
     })
 
     it('revises the resolved rollout file without reading it', async () => {
-      const handle = history().observe(PROJECT, SESSION, state.home)
+      const handle = history().observe(PROJECT, SESSION)
       const revision = await handle.revision()
       expect('ok' in revision).toBe(false)
       if ('ok' in revision) throw new Error(revision.detail)
@@ -1188,52 +1262,34 @@ describe('codex history', () => {
 
   describe('codex refuses a persisted rollout path that leaves the codex home', () => {
     it('ignores a threads row pointing outside .codex and falls back to the contained scan', async () => {
-      const root = await realpath(await mkdtemp(join(tmpdir(), 'codex-escape-')))
-      const home = join(root, 'home')
-      await mkdir(join(home, '.codex'), {recursive: true})
-      const outside = join(root, 'planted.jsonl')
+      const planted = HarnessSessionId.parse('019fb340-0000-7000-8000-0000000000e5')
+      const outside = join(await realpath(await mkdtemp(join(tmpdir(), 'codex-escape-'))), 'planted.jsonl')
       await writeFile(outside, rollout(ROLLOUT_LINES), 'utf8')
-      const db = new DatabaseSync(join(home, '.codex', 'state_5.sqlite'))
-      db.exec(
-        `create table threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
-      )
-      db.prepare('insert into threads (id, rollout_path, cwd, created_at, updated_at) values (?,?,?,?,?)').run(
-        SESSION,
-        outside,
-        PROJECT,
-        1,
-        2,
-      )
-      db.close()
+      seedThreads([{id: planted, path: outside, cwd: PROJECT, updated: 2}])
 
-      expect(rolloutPath(SESSION, home)).toBeNull()
-      expect(await history().messages(PROJECT, SESSION, home)).toEqual([])
+      expect(rolloutPath(planted)).toBeNull()
+      expect(await history().messages(PROJECT, planted)).toEqual([])
     })
   })
 
   describe('codex history follows a symlinked project root', () => {
     it('reads a rollout recorded under the real path when asked through the link', async () => {
       const root = await realpath(await mkdtemp(join(tmpdir(), 'codex-symlink-')))
-      const home = join(root, 'home')
       const real = join(root, 'project')
       const link = join(root, 'project-link')
-      await mkdir(join(home, '.codex'), {recursive: true})
+      const linked = HarnessSessionId.parse('019fb340-0000-7000-8000-00000000011c')
       await mkdir(real, {recursive: true})
       await symlink(real, link)
-      const dir = join(home, '.codex', 'sessions', '2026', '07', '30')
-      await mkdir(dir, {recursive: true})
-      const path = join(dir, `rollout-2026-07-30T16-23-00-${SESSION}.jsonl`)
-      await writeFile(
-        path,
-        rollout(
-          ROLLOUT_LINES.map((line) =>
-            line.type === 'session_meta' ? {...line, payload: {...line.payload, cwd: real}} : line,
-          ),
+      await seedRollout(
+        `rollout-2026-07-30T16-23-00-${linked}.jsonl`,
+        ROLLOUT_LINES.map((line) =>
+          line.type === 'session_meta'
+            ? {...line, payload: {...line.payload, session_id: linked, id: linked, cwd: real}}
+            : line,
         ),
-        'utf8',
       )
-      expect(await history().messages(link, SESSION, home)).toHaveLength(2)
-      const handle = history().observe(link, SESSION, home)
+      expect(await history().messages(link, linked)).toHaveLength(2)
+      const handle = history().observe(link, linked)
       const chunk = await handle.read()
       handle.close()
       expect('ok' in chunk && chunk.ok).toBe(true)
@@ -1339,11 +1395,11 @@ describe('contained path', () => {
     for (const dir of scratch.splice(0)) rmSync(dir, {recursive: true, force: true})
   })
 
-  function claudeHome(cwd: string): string {
-    const home = mkdtempSync(join(tmpdir(), 'conciv-contain-home-'))
-    scratch.push(home)
-    mkdirSync(join(home, '.claude', 'projects', encodeProjectDir(cwd)), {recursive: true})
-    return home
+  function claudeProject(cwd: string): string {
+    const root = transcriptRoot(cwd)
+    scratch.push(root)
+    mkdirSync(root, {recursive: true})
+    return root
   }
 
   describe('containedPath refuses anything that lands outside the root', () => {
@@ -1376,37 +1432,37 @@ describe('contained path', () => {
     it('yields a path for an ordinary token', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
-      const home = claudeHome(cwd)
+      const root = claudeProject(cwd)
       const token = HarnessSessionId.parse('018f3a2b-4c5d-6e7f')
-      writeFileSync(join(home, '.claude', 'projects', encodeProjectDir(cwd), `${token}.jsonl`), '')
-      expect(transcriptPathWithin(claudeHistory, cwd, token, home)).not.toBeNull()
+      writeFileSync(join(root, `${token}.jsonl`), '')
+      expect(transcriptPathWithin(claudeHistory, cwd, token)).not.toBeNull()
     })
 
     it('refuses a token whose transcript is a symlink out of the project directory', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       const outside = mkdtempSync(join(tmpdir(), 'conciv-outside-'))
       scratch.push(cwd, outside)
-      const home = claudeHome(cwd)
+      const root = claudeProject(cwd)
       const secret = join(outside, 'secret.jsonl')
       writeFileSync(secret, 'TOP SECRET')
       const token = HarnessSessionId.parse('018f3a2b-dead-beef')
-      symlinkSync(secret, join(home, '.claude', 'projects', encodeProjectDir(cwd), `${token}.jsonl`))
-      expect(transcriptPathWithin(claudeHistory, cwd, token, home)).toBeNull()
+      symlinkSync(secret, join(root, `${token}.jsonl`))
+      expect(transcriptPathWithin(claudeHistory, cwd, token)).toBeNull()
     })
 
     it('refuses a traversing token even when the brand parse is bypassed', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
-      const home = claudeHome(cwd)
+      claudeProject(cwd)
       const traversal = UncheckedHarnessSessionId.parse('../../secret')
-      expect(transcriptPathWithin(claudeHistory, cwd, traversal, home)).toBeNull()
+      expect(transcriptPathWithin(claudeHistory, cwd, traversal)).toBeNull()
     })
 
     it('yields nothing for a history that declares no transcript path', () => {
       const cwd = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       scratch.push(cwd)
       const pathless = {...claudeHistory, transcriptPath: undefined, transcriptRoot: undefined}
-      expect(transcriptPathWithin(pathless, cwd, HarnessSessionId.parse('tok'), claudeHome(cwd))).toBeNull()
+      expect(transcriptPathWithin(pathless, cwd, HarnessSessionId.parse('tok'))).toBeNull()
     })
   })
 })
@@ -1768,24 +1824,22 @@ describe('opencode history', () => {
     {id: 'prt_8', message: 'msg_2', data: {type: 'text', text: 'One match.'}},
   ]
 
-  const state = {home: ''}
-
-  function seed(home: string = state.home, directory: string = PROJECT): void {
-    const db = new DatabaseSync(storagePath(home))
+  function seed(sessionId: HarnessSessionId, directory: string, rowSuffix: string): void {
+    const db = new DatabaseSync(storagePath())
     db.exec(
-      `create table session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
+      `create table if not exists session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
     )
     db.exec(
-      `create table message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+      `create table if not exists message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
     )
     db.exec(
-      `create table part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+      `create table if not exists part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
     )
     const session = db.prepare(
       'insert into session (id, directory, title, time_created, time_updated, time_archived, model, tokens_input, tokens_output) values (?,?,?,?,?,?,?,?,?)',
     )
     session.run(
-      SESSION,
+      sessionId,
       directory,
       'Count the files',
       1785273548261,
@@ -1795,19 +1849,31 @@ describe('opencode history', () => {
       300,
       120,
     )
-    session.run(STRAY, OTHER, 'Somewhere else', 1785273433416, 1785273519484, null, 'openai/gpt-5.6-sol', 10, 5)
 
     const message = db.prepare(
       'insert into message (id, session_id, time_created, time_updated, data) values (?,?,?,?,?)',
     )
     MESSAGES.forEach((row, index) => {
-      message.run(row.id, SESSION, 1785273548288 + index, 1785273548288 + index, JSON.stringify(row.data))
+      message.run(
+        `${row.id}${rowSuffix}`,
+        sessionId,
+        1785273548288 + index,
+        1785273548288 + index,
+        JSON.stringify(row.data),
+      )
     })
     const part = db.prepare(
       'insert into part (id, message_id, session_id, time_created, time_updated, data) values (?,?,?,?,?,?)',
     )
     PARTS.forEach((row, index) => {
-      part.run(row.id, row.message, SESSION, 1785273548300 + index, 1785273548300 + index, JSON.stringify(row.data))
+      part.run(
+        `${row.id}${rowSuffix}`,
+        `${row.message}${rowSuffix}`,
+        sessionId,
+        1785273548300 + index,
+        1785273548300 + index,
+        JSON.stringify(row.data),
+      )
     })
     db.close()
   }
@@ -1819,18 +1885,17 @@ describe('opencode history', () => {
   }
 
   beforeAll(async () => {
-    state.home = await mkdtemp(join(tmpdir(), 'opencode-history-'))
-    await mkdir(join(state.home, '.local', 'share', 'opencode'), {recursive: true})
-    seed()
+    await mkdir(dirname(storagePath()), {recursive: true})
+    seed(SESSION, PROJECT, '')
+    seed(STRAY, OTHER, '_stray')
   })
 
   describe('opencode history sidecar', () => {
     it('lists only the sessions opened in this directory', async () => {
-      const sessions = await history().list(PROJECT, state.home)
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'Count the files',
-        messageCount: 2,
         model: 'openai/gpt-5.6-sol',
         totalTokens: 420,
         updatedAt: 1785305469728,
@@ -1839,7 +1904,7 @@ describe('opencode history', () => {
     })
 
     it('rebuilds the conversation from the message and part rows', async () => {
-      expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
+      expect(await history().messages(PROJECT, SESSION)).toEqual([
         {id: 'msg_1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
         {
           id: 'msg_2',
@@ -1870,14 +1935,14 @@ describe('opencode history', () => {
     })
 
     it('refuses a session that belongs to another directory', async () => {
-      expect(await history().messages(PROJECT, STRAY, state.home)).toEqual([])
-      const handle = history().observe(PROJECT, STRAY, state.home)
+      expect(await history().messages(PROJECT, STRAY)).toEqual([])
+      const handle = history().observe(PROJECT, STRAY)
       expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
       handle.close()
     })
 
     it('reports the newest message write and the part count for change detection', async () => {
-      const handle = history().observe(PROJECT, SESSION, state.home)
+      const handle = history().observe(PROJECT, SESSION)
       expect(await handle.revision()).toEqual({
         rev: `${LATEST_MESSAGE_MS}:${PARTS.length}`,
         changedAt: LATEST_MESSAGE_MS,
@@ -1885,25 +1950,64 @@ describe('opencode history', () => {
       handle.close()
     })
 
+    it('reads one session meta for this directory and none for another', async () => {
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      expect(await history().meta(PROJECT, SESSION)).toEqual(sessions[0])
+      expect(await history().meta(PROJECT, STRAY)).toBeNull()
+    })
+
+    it('pages newest first, breaks updatedAt ties by id, and counts messages of the page', async () => {
+      const paged = '/workspace/opencode.paged'
+      const db = new DatabaseSync(storagePath())
+      const session = db.prepare(
+        'insert into session (id, directory, title, time_created, time_updated) values (?,?,?,?,?)',
+      )
+      session.run(PAGED_IDS.newest, paged, 'newest', 1, 3_000_000)
+      session.run(PAGED_IDS.tieHigh, paged, 'tie high', 1, 2_000_000)
+      session.run(PAGED_IDS.tieLow, paged, 'tie low', 1, 2_000_000)
+      session.run(PAGED_IDS.oldest, paged, 'oldest', 1, 1_000_000)
+      const message = db.prepare(
+        'insert into message (id, session_id, time_created, time_updated, data) values (?,?,?,?,?)',
+      )
+      message.run('msg_low_1', PAGED_IDS.tieLow, 1, 1, '{}')
+      message.run('msg_low_2', PAGED_IDS.tieLow, 2, 2, '{}')
+      db.close()
+      await expectPagingContract(
+        (page) => history().list(paged, page),
+        PAGED_IDS,
+        2_000_000,
+        async () => {},
+      )
+      const lastPage = await history().list(paged, {
+        after: {updatedAt: 2_000_000, id: HarnessSessionId.parse(PAGED_IDS.tieHigh)},
+        limit: 1,
+      })
+      expect(lastPage.sessions).toMatchObject([{id: PAGED_IDS.tieLow}])
+    })
+
     it('returns nothing when there is no opencode database', async () => {
-      expect(await history().list(PROJECT, join(state.home, 'missing'))).toEqual([])
-      expect(await history().messages(PROJECT, SESSION, join(state.home, 'missing'))).toEqual([])
+      renameSync(storagePath(), `${storagePath()}.kept`)
+      try {
+        expect(await history().list(PROJECT, FIRST_PAGE)).toEqual({sessions: [], next: null})
+        expect(await history().messages(PROJECT, SESSION)).toEqual([])
+      } finally {
+        renameSync(`${storagePath()}.kept`, storagePath())
+      }
     })
   })
 
   describe('opencode history follows a symlinked project root', () => {
     it('reads a session recorded under the real path when asked through the link', async () => {
       const root = await realpath(await mkdtemp(join(tmpdir(), 'opencode-symlink-')))
-      const home = join(root, 'home')
       const real = join(root, 'project')
       const link = join(root, 'project-link')
-      await mkdir(join(home, '.local', 'share', 'opencode'), {recursive: true})
+      const linked = HarnessSessionId.parse('ses_linked')
       await mkdir(real, {recursive: true})
       await symlink(real, link)
-      seed(home, real)
-      expect((await history().list(link, home)).map((session) => session.id)).toEqual([SESSION])
-      expect(await history().messages(link, SESSION, home)).toHaveLength(2)
-      const handle = history().observe(link, SESSION, home)
+      seed(linked, real, '_linked')
+      expect((await history().list(link, FIRST_PAGE)).sessions.map((session) => session.id)).toEqual([linked])
+      expect(await history().messages(link, linked)).toHaveLength(2)
+      const handle = history().observe(link, linked)
       const chunk = await handle.read()
       handle.close()
       expect('ok' in chunk && chunk.ok).toBe(true)
@@ -1982,8 +2086,6 @@ describe('pi history', () => {
 
   const jsonl = (lines: unknown[]): string => `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
 
-  const state = {home: ''}
-
   const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
     cwd: PROJECT,
     stateDir: '/tmp/.conciv/pi',
@@ -2004,8 +2106,7 @@ describe('pi history', () => {
   }
 
   beforeAll(async () => {
-    state.home = await mkdtemp(join(tmpdir(), 'pi-history-'))
-    const dir = sessionsDir(PROJECT, state.home)
+    const dir = sessionsDir(PROJECT)
     await mkdir(dir, {recursive: true})
     await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
     await writeFile(join(dir, `${CONCIV_NAMED}.jsonl`), jsonl(LINES), 'utf8')
@@ -2019,7 +2120,7 @@ describe('pi history', () => {
 
   describe('pi transcript parsing', () => {
     it('walks the newest leaf back to the root and drops the abandoned branch', async () => {
-      expect(await history().messages(PROJECT, SESSION, state.home)).toEqual([
+      expect(await history().messages(PROJECT, SESSION)).toEqual([
         {id: '357f05eb', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
         {
           id: '493b7644',
@@ -2043,32 +2144,89 @@ describe('pi history', () => {
 
   describe('pi history sidecar', () => {
     it('identifies both pi-named and conciv-named transcripts by their file name', async () => {
-      const sessions = await history().list(PROJECT, state.home)
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
       expect(sessions.map((session) => session.id).toSorted()).toEqual([CONCIV_NAMED, SESSION].toSorted())
-      const messages = await history().messages(PROJECT, CONCIV_NAMED, state.home)
+      const messages = await history().messages(PROJECT, CONCIV_NAMED)
       expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant'])
     })
 
     it('lists the sessions stored under the cwd directory', async () => {
-      const sessions = await history().list(PROJECT, state.home)
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
       const found = sessions.find((session) => session.id === SESSION)
-      expect(found).toMatchObject({
+      expect(found).toEqual({
         id: SESSION,
         derivedTitle: 'count the files',
-        lastMessage: 'One file.',
-        messageCount: 3,
-        model: 'claude-opus-4-6',
+        updatedAt: expect.any(Number),
+        sizeBytes: Buffer.byteLength(jsonl(LINES)),
         createdAt: Date.parse('2026-07-30T09:45:14.653Z'),
       })
     })
 
-    it('finds the transcript by its session id suffix', async () => {
-      expect(history().transcriptPath?.(PROJECT, SESSION, state.home)).toBe(
-        join(sessionsDir(PROJECT, state.home), FILE),
+    it('reads a session meta from the head up to the first prompt, never the transcript after it', async () => {
+      const project = '/workspace/pi-head.demo'
+      const dir = sessionsDir(project)
+      await mkdir(dir, {recursive: true})
+      const live = HarnessSessionId.parse('live-head')
+      const path = join(dir, `2026-07-30T09-45-14-653Z_${live}.jsonl`)
+      execFileSync('mkfifo', [path])
+      const writer = open(path, 'w')
+      const meta = history().meta(project, live)
+      const handle = await writer
+      try {
+        await handle.write(`${jsonl(LINES.slice(0, 3))}{"type":"message","id":"still-writ`)
+        expect(await meta).toMatchObject({id: live, derivedTitle: 'count the files', sizeBytes: 0})
+      } finally {
+        await handle.close()
+      }
+    })
+
+    it('titles a session by the last name its transcript records', async () => {
+      const project = '/workspace/pi-named.demo'
+      const dir = sessionsDir(project)
+      await mkdir(dir, {recursive: true})
+      const named = [...LINES, {type: 'session_info', id: 'n1', parentId: 'kept1', name: 'the renamed count'}]
+      await writeFile(join(dir, FILE), jsonl(named), 'utf8')
+      expect(await history().meta(project, SESSION)).toMatchObject({
+        derivedTitle: 'the renamed count',
+        sizeBytes: Buffer.byteLength(jsonl(named)),
+      })
+    })
+
+    it('reads one session meta by id and none for an unknown one', async () => {
+      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      expect(await history().meta(PROJECT, SESSION)).toEqual(sessions.find((session) => session.id === SESSION))
+      expect(await history().meta(PROJECT, HarnessSessionId.parse('missing'))).toBeNull()
+    })
+
+    it('pages newest first, breaks updatedAt ties by id, and reads only the transcripts on the page', async () => {
+      const project = '/workspace/pi-paged.demo'
+      const dir = sessionsDir(project)
+      await mkdir(dir, {recursive: true})
+      const fileOf = (id: string) => join(dir, `2026-07-30T09-45-14-653Z_${id}.jsonl`)
+      const write = (id: string, mtimeSec: number) => {
+        writeFileSync(fileOf(id), jsonl(LINES))
+        utimesSync(fileOf(id), mtimeSec, mtimeSec)
+      }
+      write(PAGED_IDS.newest, 3000)
+      write(PAGED_IDS.tieHigh, 2000)
+      write(PAGED_IDS.tieLow, 2000)
+      blockingTranscript(fileOf(PAGED_IDS.oldest), 1000)
+      await expectPagingContract(
+        (page) => history().list(project, page),
+        PAGED_IDS,
+        2_000_000,
+        async () => {
+          rmSync(fileOf(PAGED_IDS.oldest))
+          write(PAGED_IDS.oldest, 1000)
+        },
       )
-      const messages = await history().messages(PROJECT, SESSION, state.home)
+    })
+
+    it('finds the transcript by its session id suffix', async () => {
+      expect(history().transcriptPath?.(PROJECT, SESSION)).toBe(join(sessionsDir(PROJECT), FILE))
+      const messages = await history().messages(PROJECT, SESSION)
       expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant'])
-      const handle = history().observe(PROJECT, SESSION, state.home)
+      const handle = history().observe(PROJECT, SESSION)
       const revision = await handle.revision()
       if ('ok' in revision) throw new Error(revision.detail)
       expect(revision.changedAt).toBeGreaterThan(0)
@@ -2077,8 +2235,8 @@ describe('pi history', () => {
 
     it('reports nothing for an unknown session', async () => {
       const MISSING = HarnessSessionId.parse('missing')
-      expect(await history().messages(PROJECT, MISSING, state.home)).toEqual([])
-      const handle = history().observe(PROJECT, MISSING, state.home)
+      expect(await history().messages(PROJECT, MISSING)).toEqual([])
+      const handle = history().observe(PROJECT, MISSING)
       expect(await handle.revision()).toMatchObject({ok: false, reason: 'missing'})
       handle.close()
     })
@@ -2086,26 +2244,26 @@ describe('pi history', () => {
 
   describe('pi transcript discovery survives a hostile sessions directory', () => {
     it('lists the well-formed transcripts of a directory that also holds an unparseable file name', async () => {
-      const home = await mkdtemp(join(tmpdir(), 'pi-hostile-'))
-      const dir = sessionsDir(PROJECT, home)
+      const project = '/workspace/pi-hostile.demo'
+      const dir = sessionsDir(project)
       await mkdir(dir, {recursive: true})
       await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
       await writeFile(join(dir, 'notes about the run.jsonl'), jsonl(LINES), 'utf8')
-      expect((await history().list(PROJECT, home)).map((entry) => entry.id)).toEqual([SESSION])
+      expect((await history().list(project, FIRST_PAGE)).sessions.map((entry) => entry.id)).toEqual([SESSION])
     })
 
     it('refuses to observe a transcript whose name links out of the session directory', async () => {
-      const home = await mkdtemp(join(tmpdir(), 'pi-symlink-'))
-      const dir = sessionsDir(PROJECT, home)
+      const project = '/workspace/pi-symlink.demo'
+      const dir = sessionsDir(project)
       await mkdir(dir, {recursive: true})
-      const outside = join(home, 'outside.jsonl')
+      const outside = join(await mkdtemp(join(tmpdir(), 'pi-outside-')), 'outside.jsonl')
       await writeFile(outside, jsonl(LINES), 'utf8')
       const escapee = HarnessSessionId.parse('escapee')
       await symlink(outside, join(dir, `2026-01-01T00-00-00-000Z_${escapee}.jsonl`))
-      const handle = history().observe(PROJECT, escapee, home)
+      const handle = history().observe(project, escapee)
       expect(await handle.revision()).toMatchObject({ok: false})
       handle.close()
-      expect(await history().messages(PROJECT, escapee, home)).toEqual([])
+      expect(await history().messages(project, escapee)).toEqual([])
     })
   })
 
@@ -2115,7 +2273,7 @@ describe('pi history', () => {
         argv: [
           'pi',
           '--session',
-          join(sessionsDir(PROJECT, homedir()), 'conciv-sess-1.jsonl'),
+          join(sessionsDir(PROJECT), 'conciv-sess-1.jsonl'),
           '--model',
           'anthropic/claude-opus-4-6',
         ],
@@ -2240,7 +2398,8 @@ describe('registry', () => {
         history: {
           messages: () => Promise.resolve([]),
           observe: () => handle,
-          list: () => Promise.resolve([]),
+          list: () => Promise.resolve({sessions: [], next: null}),
+          meta: () => Promise.resolve(null),
         },
       })
       expect(typeof adapter.history?.messages).toBe('function')
@@ -2318,21 +2477,21 @@ describe('transcript handles', () => {
   const CLAUDE_CWD = '/workspace/claude.demo'
 
   describe('claude transcript handle', () => {
-    const state = {home: ''}
-
     beforeAll(async () => {
-      state.home = await mkdtemp(join(tmpdir(), 'claude-handle-'))
-      await mkdir(join(state.home, '.claude', 'projects', encodeProjectDir(CLAUDE_CWD)), {recursive: true})
+      await mkdir(transcriptRoot(CLAUDE_CWD), {recursive: true})
+    })
+
+    afterAll(() => {
+      rmSync(transcriptRoot(CLAUDE_CWD), {recursive: true, force: true})
     })
 
     const seed = (id: string, body: string): string => {
-      const path = transcriptPath(CLAUDE_CWD, id, state.home)
+      const path = transcriptPath(CLAUDE_CWD, id)
       writeFileSync(path, body)
       return path
     }
 
-    const observe = (id: string): TranscriptHandle =>
-      claudeHistory.observe(CLAUDE_CWD, HarnessSessionId.parse(id), state.home)
+    const observe = (id: string): TranscriptHandle => claudeHistory.observe(CLAUDE_CWD, HarnessSessionId.parse(id))
 
     it('reads only the bytes appended since the previous read', async () => {
       const first = userLine('aaa')
@@ -2403,7 +2562,7 @@ describe('transcript handles', () => {
     })
 
     it('reports an unreadable transcript as a typed failure', async () => {
-      mkdirSync(transcriptPath(CLAUDE_CWD, 'directory', state.home), {recursive: true})
+      mkdirSync(transcriptPath(CLAUDE_CWD, 'directory'), {recursive: true})
       const handle = observe('directory')
       expect(failure(await handle.read()).reason).toBe('unreadable')
       handle.close()
@@ -2448,7 +2607,6 @@ describe('transcript handles', () => {
         {id: 'h1', role: 'user', parts: [{type: 'text', content: 'main prompt'}]},
         {id: 'h2', role: 'assistant', parts: [{type: 'text', content: 'main answer'}]},
       ])
-      expect(parseSessionMeta('side', jsonl, 5).messageCount).toBe(2)
     })
 
     it('folds line by line to exactly what the whole-file parser produces', async () => {
@@ -2468,17 +2626,17 @@ describe('transcript handles', () => {
     it('summarises a transcript with one read: meta plus a message tail', async () => {
       const raw = fixture('claude-transcript.jsonl')
       seed('summary', raw)
-      const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'), state.home)
+      const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'))
       if (!summary) throw new Error('expected a summary')
       const expected = golden('claude-golden.json')
       expect(summary.meta).toMatchObject({
         id: 'summary',
         derivedTitle: 'rename the settings panel',
-        messageCount: claudeParse(raw).length,
+        sizeBytes: Buffer.byteLength(raw),
         model: 'claude-opus-4-8',
       })
       expect(summary.tail).toEqual(expected.messages.slice(-12))
-      expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'), state.home)).toBeNull()
+      expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'))).toBeNull()
     })
   })
 
@@ -2486,10 +2644,10 @@ describe('transcript handles', () => {
   const CODEX_SESSION = 'fixture'
 
   describe('codex transcript handle', () => {
-    const state = {home: '', rollouts: ''}
+    const state = {rollouts: ''}
 
     const seedThread = (id: string, path: string): void => {
-      const db = new DatabaseSync(stateDbPath(state.home))
+      const db = new DatabaseSync(stateDbPath())
       db.exec(
         `create table if not exists threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
       )
@@ -2500,14 +2658,11 @@ describe('transcript handles', () => {
     }
 
     beforeAll(async () => {
-      state.home = await mkdtemp(join(tmpdir(), 'codex-handle-'))
-      await mkdir(join(state.home, '.codex'), {recursive: true})
-      state.rollouts = join(sessionsRoot(state.home), '2026', '07', '30')
+      state.rollouts = join(sessionsRoot(), '2026', '07', '30')
       await mkdir(state.rollouts, {recursive: true})
     })
 
-    const observe = (id: string): TranscriptHandle =>
-      codexHistory.observe(CODEX_CWD, HarnessSessionId.parse(id), state.home)
+    const observe = (id: string): TranscriptHandle => codexHistory.observe(CODEX_CWD, HarnessSessionId.parse(id))
 
     it('folds line by line to exactly what the whole-file parser produces', async () => {
       const expected = golden('codex-golden.json')
@@ -2515,9 +2670,7 @@ describe('transcript handles', () => {
       const whole = join(state.rollouts, 'whole-file.jsonl')
       writeFileSync(whole, raw)
       seedThread(CODEX_SESSION, whole)
-      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse(CODEX_SESSION), state.home)).toEqual(
-        expected.messages,
-      )
+      expect(await codexHistory.messages(CODEX_CWD, HarnessSessionId.parse(CODEX_SESSION))).toEqual(expected.messages)
 
       const path = join(state.rollouts, 'equivalence.jsonl')
       writeFileSync(path, '')
@@ -2534,7 +2687,7 @@ describe('transcript handles', () => {
       const handle = observe(CODEX_SESSION)
       expect(revision(await handle.revision()).changedAt).toBeGreaterThan(0)
 
-      rmSync(stateDbPath(state.home))
+      seedThread(CODEX_SESSION, join(state.rollouts, 'moved-away.jsonl'))
       expect(revision(await handle.revision()).changedAt).toBeGreaterThan(0)
       expect(chunk(await handle.read()).messages).toEqual(golden('codex-golden.json').messages)
       handle.close()
@@ -2575,23 +2728,18 @@ describe('transcript handles', () => {
   const PI_CWD = '/workspace/pi.handle'
 
   describe('pi transcript handle', () => {
-    const state = {home: ''}
-
     beforeAll(async () => {
-      state.home = await mkdtemp(join(tmpdir(), 'pi-handle-'))
-      await mkdir(sessionsDir(PI_CWD, state.home), {recursive: true})
+      await mkdir(sessionsDir(PI_CWD), {recursive: true})
     })
 
-    const pathFor = (name: string): string => join(sessionsDir(PI_CWD, state.home), name)
-    const observe = (id: string): TranscriptHandle => piHistory.observe(PI_CWD, HarnessSessionId.parse(id), state.home)
+    const pathFor = (name: string): string => join(sessionsDir(PI_CWD), name)
+    const observe = (id: string): TranscriptHandle => piHistory.observe(PI_CWD, HarnessSessionId.parse(id))
 
     it('folds line by line to exactly what the whole-file parser produces', async () => {
       const expected = golden('pi-golden.json')
       const raw = fixture('pi-session.jsonl')
       writeFileSync(pathFor('2026-07-30T08-00-00-000Z_whole-file.jsonl'), raw)
-      expect(await piHistory.messages(PI_CWD, HarnessSessionId.parse('whole-file'), state.home)).toEqual(
-        expected.messages,
-      )
+      expect(await piHistory.messages(PI_CWD, HarnessSessionId.parse('whole-file'))).toEqual(expected.messages)
 
       const path = pathFor('2026-07-30T09-45-14-653Z_equivalence.jsonl')
       writeFileSync(path, '')
@@ -2621,25 +2769,22 @@ describe('transcript handles', () => {
     })
   })
 
-  const OPENCODE_CWD = '/workspace/demo'
+  const OPENCODE_CWD = '/workspace/opencode.handle'
   const OPENCODE_SESSION = 'ses_handle'
   const OPENCODE_STRAY = 'ses_stray'
 
   describe('opencode transcript handle', () => {
-    const state = {home: ''}
-
     beforeAll(async () => {
-      state.home = await mkdtemp(join(tmpdir(), 'opencode-handle-'))
-      await mkdir(join(state.home, '.local', 'share', 'opencode'), {recursive: true})
-      const db = new DatabaseSync(storagePath(state.home))
+      await mkdir(dirname(storagePath()), {recursive: true})
+      const db = new DatabaseSync(storagePath())
       db.exec(
-        `create table session (id text primary key, directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
+        `create table if not exists session (id text primary key, directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
       )
       db.exec(
-        `create table message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+        `create table if not exists message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
       )
       db.exec(
-        `create table part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+        `create table if not exists part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
       )
       const session = db.prepare(
         'insert into session (id, directory, title, time_created, time_updated, time_archived) values (?,?,?,?,?,?)',
@@ -2647,7 +2792,7 @@ describe('transcript handles', () => {
       session.run(OPENCODE_SESSION, OPENCODE_CWD, 'Count the files', 1, 1785305469728, null)
       session.run(OPENCODE_STRAY, '/workspace/other', 'Elsewhere', 1, 2, null)
       db.prepare('insert into message (id, session_id, time_created, time_updated, data) values (?,?,?,?,?)').run(
-        'msg_1',
+        'msg_handle_1',
         OPENCODE_SESSION,
         1,
         1785305469728,
@@ -2655,19 +2800,27 @@ describe('transcript handles', () => {
       )
       db.prepare(
         'insert into part (id, message_id, session_id, time_created, time_updated, data) values (?,?,?,?,?,?)',
-      ).run('prt_1', 'msg_1', OPENCODE_SESSION, 1, 1, JSON.stringify({type: 'text', text: 'count the files'}))
+      ).run(
+        'prt_handle_1',
+        'msg_handle_1',
+        OPENCODE_SESSION,
+        1,
+        1,
+        JSON.stringify({type: 'text', text: 'count the files'}),
+      )
       db.close()
     })
 
-    const observe = (id: string, home = state.home): TranscriptHandle =>
-      opencodeHistory.observe(OPENCODE_CWD, HarnessSessionId.parse(id), home)
+    const observe = (id: string): TranscriptHandle => opencodeHistory.observe(OPENCODE_CWD, HarnessSessionId.parse(id))
 
     it('reports the newest write and the part count as its revision', async () => {
       const handle = observe(OPENCODE_SESSION)
       expect(revision(await handle.revision())).toEqual({rev: '1785305469728:1', changedAt: 1785305469728})
       const read = chunk(await handle.read())
       expect(read.replaced).toBe(true)
-      expect(read.messages).toEqual([{id: 'msg_1', role: 'user', parts: [{type: 'text', content: 'count the files'}]}])
+      expect(read.messages).toEqual([
+        {id: 'msg_handle_1', role: 'user', parts: [{type: 'text', content: 'count the files'}]},
+      ])
       handle.close()
     })
 
@@ -2678,23 +2831,28 @@ describe('transcript handles', () => {
     })
 
     it('reports a missing database as a typed failure', async () => {
-      const handle = observe(OPENCODE_SESSION, join(state.home, 'nowhere'))
-      expect(failure(await handle.revision()).reason).toBe('missing')
-      handle.close()
+      renameSync(storagePath(), `${storagePath()}.kept`)
+      try {
+        const handle = observe(OPENCODE_SESSION)
+        expect(failure(await handle.revision()).reason).toBe('missing')
+        handle.close()
+      } finally {
+        renameSync(`${storagePath()}.kept`, storagePath())
+      }
     })
 
     it('keeps one database connection open across polls', async () => {
-      const copy = await mkdtemp(join(tmpdir(), 'opencode-reuse-'))
-      mkdirSync(join(copy, '.local', 'share', 'opencode'), {recursive: true})
-      writeFileSync(storagePath(copy), readFileSync(storagePath(state.home)))
-      const handle = observe(OPENCODE_SESSION, copy)
+      const handle = observe(OPENCODE_SESSION)
       expect(revision(await handle.revision()).changedAt).toBe(1785305469728)
 
-      rmSync(storagePath(copy))
-      expect(revision(await handle.revision()).changedAt).toBe(1785305469728)
-      expect(chunk(await handle.read()).messages).toHaveLength(1)
-      handle.close()
-      rmSync(copy, {recursive: true, force: true})
+      renameSync(storagePath(), `${storagePath()}.kept`)
+      try {
+        expect(revision(await handle.revision()).changedAt).toBe(1785305469728)
+        expect(chunk(await handle.read()).messages).toHaveLength(1)
+        handle.close()
+      } finally {
+        renameSync(`${storagePath()}.kept`, storagePath())
+      }
     })
 
     it('closes the database connection it holds', async () => {

@@ -1,4 +1,4 @@
-import {readdir, stat, readFile} from 'node:fs/promises'
+import {stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -6,25 +6,37 @@ import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
+  HarnessListPage,
   HarnessSessionMeta,
+  HarnessSessionPage,
   HarnessSessionSummary,
   TranscriptHandle,
 } from '@conciv/protocol/harness-types'
+import {getSessionInfo, listSessions as listSdkSessions, type SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
+import {claudeConfigDir} from '@conciv/harness-init/claude/state'
 import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {containedPath} from '../_shared/contained-path.js'
+import {realpathOrSelf} from '../_shared/cwd.js'
+import {pageAfter} from '../_shared/page.js'
+import {whenMissing} from '../_shared/when-missing.js'
+import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
-export function encodeProjectDir(cwd: string): string {
+function encodeProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
-export function transcriptRoot(cwd: string, home: string = homedir()): string {
-  return join(home, '.claude', 'projects', encodeProjectDir(cwd))
+export function transcriptRoot(cwd: string): string {
+  return join(
+    claudeConfigDir({home: homedir(), override: process.env.CLAUDE_CONFIG_DIR}),
+    'projects',
+    encodeProjectDir(realpathOrSelf(cwd)),
+  )
 }
 
-export function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
-  return join(transcriptRoot(cwd, home), `${sessionId}.jsonl`)
+export function transcriptPath(cwd: string, sessionId: string): string {
+  return join(transcriptRoot(cwd), `${sessionId}.jsonl`)
 }
 
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
@@ -356,12 +368,12 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
-function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSessionMeta {
+function metaFromFold(id: string, state: ClaudeFold, mtime: number, jsonl: string): HarnessSessionMeta {
   return {
     id: HarnessSessionId.parse(id),
     derivedTitle: state.title ?? '',
     updatedAt: Math.round(mtime),
-    messageCount: state.messages.length,
+    sizeBytes: Buffer.byteLength(jsonl),
     model: state.model,
     totalTokens: state.totalTokens,
     lastMessage: state.lastText,
@@ -370,79 +382,68 @@ function metaFromFold(id: string, state: ClaudeFold, mtime: number): HarnessSess
 }
 
 export function parseSessionMeta(id: string, jsonl: string, mtime: number): HarnessSessionMeta {
-  return metaFromFold(id, foldTranscript(jsonl), mtime)
+  return metaFromFold(id, foldTranscript(jsonl), mtime, jsonl)
 }
 
-const MAX_SESSIONS = 50
 const SUMMARY_TAIL = 12
 
-export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
-  let names: string[]
-  try {
-    names = (await readdir(dir)).filter((n) => n.endsWith('.jsonl'))
-  } catch {
-    return []
-  }
-  const stamped = (
-    await Promise.all(
-      names.map(async (name) => {
-        try {
-          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
-        } catch {
-          return null
-        }
-      }),
-    )
-  ).filter((entry): entry is {name: string; mtime: number} => entry !== null)
-  const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
-  return Promise.all(
-    top.map(async (f) => {
-      const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
-      return parseSessionMeta(f.name.replace(/\.jsonl$/, ''), raw, f.mtime)
-    }),
-  )
+async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+  const listed = await listSdkSessions({dir: cwd, includeWorktrees: false})
+  const paged = pageAfter(listed.flatMap(metaOfInfo), page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
+  return {sessions: paged.items, next: paged.next}
 }
 
-export async function sessionSummary(
-  cwd: string,
-  sessionId: string,
-  home?: string,
-): Promise<HarnessSessionSummary | null> {
-  if (!withinProject(cwd, sessionId, home)) return null
-  const path = transcriptPath(cwd, sessionId, home)
-  const info = await stat(path).catch(() => null)
+function metaOfInfo(info: SDKSessionInfo): HarnessSessionMeta[] {
+  const id = HarnessSessionId.safeParse(info.sessionId)
+  if (!id.success) return []
+  return [
+    {
+      id: id.data,
+      derivedTitle: condense(info.summary, MAX_TITLE),
+      updatedAt: info.lastModified,
+      sizeBytes: info.fileSize,
+      createdAt: info.createdAt,
+    },
+  ]
+}
+
+export async function sessionSummary(cwd: string, sessionId: string): Promise<HarnessSessionSummary | null> {
+  if (!withinProject(cwd, sessionId)) return null
+  const path = transcriptPath(cwd, sessionId)
+  const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
-  const raw = await readFile(path, 'utf8').catch(() => '')
+  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   if (!raw) return null
   const state = foldTranscript(raw)
-  return {meta: metaFromFold(sessionId, state, info.mtimeMs), tail: state.messages.slice(-SUMMARY_TAIL)}
+  return {meta: metaFromFold(sessionId, state, info.mtimeMs, raw), tail: state.messages.slice(-SUMMARY_TAIL)}
 }
 
-export async function sessionMeta(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null> {
-  return (await sessionSummary(cwd, sessionId, home))?.meta ?? null
+export async function sessionMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
+  if (!withinProject(cwd, sessionId)) return null
+  const info = await getSessionInfo(sessionId, {dir: cwd})
+  return info === undefined ? null : (metaOfInfo(info).at(0) ?? null)
 }
 
-function observeTranscript(cwd: string, sessionId: string, home?: string): TranscriptHandle {
+function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   return makeJsonlHandle<ClaudeFold>({
     parser: {empty: emptyFold, foldLine, messages: foldMessages},
     resolvePath: async () => {
-      if (!withinProject(cwd, sessionId, home)) {
+      if (!withinProject(cwd, sessionId)) {
         return transcriptFailure('missing', `${sessionId} is not a transcript of ${cwd}`)
       }
-      return transcriptPath(cwd, sessionId, home)
+      return transcriptPath(cwd, sessionId)
     },
   })
 }
 
-export function withinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
-  return containedPath(transcriptRoot(cwd, home), transcriptPath(cwd, sessionId, home)) !== null
+export function withinProject(cwd: string, sessionId: string): boolean {
+  return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId)) !== null
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home?: string): Promise<ChatMessage[]> {
-  if (!withinProject(cwd, sessionId, home)) return []
-  const raw = await readFile(transcriptPath(cwd, sessionId, home), 'utf8').catch(() => '')
-  return raw ? parseHistory(raw) : []
+async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+  if (!withinProject(cwd, sessionId)) return []
+  const folded = await foldJsonlFile(transcriptPath(cwd, sessionId), emptyFold(), foldLine).catch(whenMissing(null))
+  return folded === null ? [] : folded.messages
 }
 
 export const claudeHistory: HarnessHistory = {

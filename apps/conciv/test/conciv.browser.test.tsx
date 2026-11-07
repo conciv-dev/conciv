@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import {expect, test, vi, it, afterEach, describe} from 'vitest'
-import {page, userEvent, page as browserPage} from 'vitest/browser'
+import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
@@ -28,7 +28,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
-import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
+import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
@@ -2038,7 +2038,7 @@ describe('panel refresh', () => {
     await coreControl.awaitFaultPending(gate, 1)
 
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByRole('banner').getByText('New session', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('banner').getByText('seed the transcript', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
   })
 
@@ -2573,7 +2573,8 @@ describe('quick add pane', () => {
   const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
-  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> => (await rpc.sessions.list()).map((row) => row.id)
+  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
+    (await rpc.sessions.list({limit: 100})).sessions.map((row) => row.id)
 
   const idsAddedBy = (before: string[], after: string[]): string[] => after.filter((id) => !before.includes(id))
 
@@ -2956,10 +2957,51 @@ describe('route boundary', () => {
 
 describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
+  const OLDER_SESSIONS = 40
+  const DAY_MS = 86_400_000
+  const OLDEST_ID = HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`)
+
+  const localMidnight = new Date().setHours(0, 0, 0, 0)
+  const MINUTE_MS = 60_000
 
   const core = bootedCore('session-selector', {
     resume: true,
-    history: [{id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), messageCount: 3}],
+    holdTranscripts: true,
+    history: [
+      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
+      {
+        id: HarnessSessionId.parse('after-midnight'),
+        derivedTitle: 'a minute after midnight',
+        updatedAt: localMidnight + MINUTE_MS,
+      },
+      {
+        id: HarnessSessionId.parse('before-midnight'),
+        derivedTitle: 'a minute before midnight',
+        updatedAt: localMidnight - MINUTE_MS,
+      },
+      ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
+        id: HarnessSessionId.parse(`older-${index}`),
+        derivedTitle: `older session ${index}`,
+        updatedAt: Date.now() - (index + 1) * DAY_MS,
+        sizeBytes: 1536,
+      })),
+      {
+        id: HarnessSessionId.parse('kiwi-orchard'),
+        derivedTitle: 'the kiwi orchard plan',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('puffin-notes'),
+        derivedTitle: 'the puffin notes',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('seabird-survey'),
+        derivedTitle: 'a seabird survey',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
+        text: 'a puffin colony nests on the cliff',
+      },
+    ],
   })
   const keep = keptPane()
 
@@ -2967,24 +3009,34 @@ describe('session selector', () => {
     await coreControl.releaseTurn()
   })
 
-  async function adoptExternalSession(rpc: RpcClient): Promise<string> {
-    const listed = await rpc.sessions.list()
-    const external = listed.find((meta) => meta.native?.nativeId === EXTERNAL_ID)
-    if (!external?.native) throw new Error('the harness history fixture never reached the session list')
-    const {sessionId} = await rpc.sessions.open(external.native)
+  async function adoptNativeSession(rpc: RpcClient, nativeId: string): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const native = sessions.find((meta) => meta.native?.nativeId === nativeId)?.native
+    if (!native) throw new Error('the harness history fixture never reached the session list')
+    const {sessionId} = await rpc.sessions.open(native)
+    return sessionId
+  }
+
+  async function activeSessionId(rpc: RpcClient): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const existing = sessions.find((meta) => meta.title === 'the active session')
+    if (existing) return existing.id
+    const {sessionId} = await rpc.sessions.create()
+    await rpc.sessions.rename({sessionId, title: 'the active session'})
     return sessionId
   }
 
   async function mountSelector(): Promise<void> {
     const rpc = coreRpc(core())
-    const activeId = (await rpc.sessions.create()).sessionId
-    await rpc.sessions.rename({sessionId: activeId, title: 'the active session'})
-    const externalId = await adoptExternalSession(rpc)
+    const activeId = await activeSessionId(rpc)
+    const externalId = await adoptNativeSession(rpc, EXTERNAL_ID)
     await coreControl.holdTurn()
     await sendTurn(core(), externalId, 'keep this session busy')
     keep(
       mountPane({base: core(), sessionId: activeId}, () => (
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <Suspense>
+          <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        </Suspense>
       )),
     )
   }
@@ -2998,13 +3050,226 @@ describe('session selector', () => {
     await expect.element(page.getByRole('option', {name: /^the active session(?!.*running)/})).toBeVisible()
   })
 
-  test('the selector keeps freshness, message count and origin in the row description', async () => {
+  test('scrolling the virtual list to its loading row loads the next page of sessions', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
+
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
+    await expect.element(page.getByRole('option', {name: /^older session 28,/})).toBeInTheDocument()
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
+
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
+    await expect.element(page.getByText('Loading more…')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+  })
+
+  test('arrow keys move the highlight to a row outside the virtual window and scroll it into view', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+
+    await userEvent.keyboard('{ArrowUp}')
+
+    await expect
+      .element(page.getByRole('combobox', {name: /search sessions/i}))
+      .toHaveAttribute('aria-activedescendant')
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+  })
+
+  test('typing a search asks the server and finds a session past the first loaded page', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^the kiwi orchard plan,/}).elements()).toHaveLength(0)
+
+    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'kiwi')
+
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+
+    await userEvent.clear(page.getByPlaceholder('Search sessions…'))
+
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
+  })
+
+  async function openSearch(): Promise<Locator> {
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    const search = page.getByRole('combobox', {name: /search sessions/i})
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    return search
+  }
+
+  async function typeKeyByKey(search: Locator, keys: string, typedBefore: string): Promise<void> {
+    for (const [index, key] of [...keys].entries()) {
+      await userEvent.keyboard(key)
+      await expect.element(search).toHaveFocus()
+      await expect.element(search).toHaveValue(`${typedBefore}${keys.slice(0, index + 1)}`)
+    }
+  }
+
+  test('a pointer click puts focus in the search and every typed key stays there', async () => {
+    await mountSelector()
+    const search = await openSearch()
+    await userEvent.keyboard('{Tab}')
+    await expect.element(search).not.toHaveFocus()
+
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    await typeKeyByKey(search, 'puffin', '')
+
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+    await expect.element(search).toHaveFocus()
+  })
+
+  test('typing keeps focus and every key while search results land between keys', async () => {
+    await mountSelector()
+    const search = await openSearch()
+
+    await typeKeyByKey(search, 'p', '')
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+    await expect.element(search).toHaveFocus()
+
+    await typeKeyByKey(search, 'u', 'p')
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+    await expect.element(search).toHaveFocus()
+
+    await typeKeyByKey(search, 'ffin', 'pu')
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+    await expect.element(search).toHaveFocus()
+    await expect.element(search).toHaveValue('puffin')
+  })
+
+  test('clearing the search key by key brings back the plain list with focus kept', async () => {
+    await mountSelector()
+    const search = await openSearch()
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}')
+
+    await expect.element(search).toHaveFocus()
+    await expect.element(search).toHaveValue('')
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
+  })
+
+  test('arrow down and Enter pick a search result and focus returns to the trigger', async () => {
+    await mountSelector()
+    const search = await openSearch()
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
+
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(search).toHaveAttribute('aria-activedescendant')
+    await userEvent.keyboard('{Enter}')
+
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the kiwi orchard plan')
+    await expect.element(page.getByRole('button', {name: 'Session: the active session'})).toHaveFocus()
+  })
+
+  test('Escape closes the picker and focus returns to the trigger', async () => {
+    await mountSelector()
+    await openSearch()
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Session: the active session'})).toHaveFocus()
+  })
+
+  test('a pointer click on a search result switches to that session', async () => {
+    await mountSelector()
+    const search = await openSearch()
+    await typeKeyByKey(search, 'puffin', '')
+
+    await userEvent.click(page.getByRole('option', {name: /^the puffin notes,/}))
+
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the puffin notes')
+  })
+
+  test('typing after scrolling to the second page keeps focus and every key', async () => {
+    await mountSelector()
+    const search = await openSearch()
+
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
+    await expect.element(page.getByRole('option', {name: /^older session 28,/})).toBeInTheDocument()
+    await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
+    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
+
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    await typeKeyByKey(search, 'kiwi', '')
+
+    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
+  })
+
+  test('the Today and Yesterday groups split at local midnight', async () => {
+    await mountSelector()
+
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(page.getByRole('option', {name: /^a minute after midnight,/})).toBeVisible()
+
+    await expect
+      .element(page.getByRole('listbox'))
+      .toMatchTextContent(
+        /Today(?:(?!Yesterday).)*a minute after midnight(?:(?!Earlier).)*Yesterday(?:(?!Earlier).)*a minute before midnight/,
+      )
+  })
+
+  test('a search typed before indexing finishes shows title matches first, then text matches once it lands', async () => {
+    await mountSelector()
+
+    await page.getByRole('button', {name: 'Session: the active session'}).click()
+    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'puffin')
+
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+    expect(page.getByRole('option', {name: /^a seabird survey,/}).elements()).toHaveLength(0)
+
+    await coreControl.releaseTranscripts()
+
+    await expect.element(page.getByRole('option', {name: /^a seabird survey,/})).toBeVisible()
+    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
+  })
+
+  test('a session past the first page shows its own title on the trigger', async () => {
+    const sessionId = await adoptNativeSession(coreRpc(core()), OLDEST_ID)
+    keep(
+      mountPane({base: core(), sessionId}, () => (
+        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+      )),
+    )
+
+    await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
+  })
+
+  test('the selector keeps freshness, transcript size and origin in the row description', async () => {
     await mountSelector()
 
     await page.getByRole('button', {name: 'Session: the active session'}).click()
 
     await expect
-      .element(page.getByRole('option', {name: /a session mid-run.*\d+ messages.*started externally/}))
+      .element(
+        page.getByRole('option', {name: /^a session mid-run, Edited [^·]+ · 2\.4\sMB · started externally, running$/}),
+      )
+      .toBeVisible()
+    await expect
+      .element(
+        page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/, selected: true}),
+      )
       .toBeVisible()
   })
 })

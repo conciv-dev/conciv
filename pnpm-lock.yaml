@@ -138,6 +138,9 @@ catalogs:
     '@tanstack/router-plugin':
       specifier: 1.168.48
       version: 1.168.48
+    '@tanstack/solid-pacer':
+      specifier: 0.24.0
+      version: 0.24.0
     '@tanstack/solid-query':
       specifier: ^5.105.0
       version: 5.105.0
@@ -524,6 +527,9 @@ importers:
       '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../../packages/ui-kit-tap
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -542,6 +548,9 @@ importers:
       '@tanstack/solid-hotkeys':
         specifier: ^0.17.0
         version: 0.17.0(solid-js@1.9.17)
+      '@tanstack/solid-pacer':
+        specifier: 'catalog:'
+        version: 0.24.0(solid-js@1.9.17)
       '@tanstack/solid-query':
         specifier: 'catalog:'
         version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
@@ -2164,12 +2173,24 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.32.2(@cfworker/json-schema@4.1.1)(zod@4.6.7)
+      '@orama/orama':
+        specifier: 3.1.18
+        version: 3.1.18
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      '@tanstack/pacer':
+        specifier: 'catalog:'
+        version: 0.23.1
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -2195,9 +2216,6 @@ importers:
       '@jridgewell/gen-mapping':
         specifier: ^0.3.13
         version: 0.3.13
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -3604,6 +3622,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      es-toolkit:
+        specifier: 'catalog:'
+        version: 1.53.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14
@@ -4234,7 +4255,7 @@ importers:
         specifier: 1.6.2
         version: 1.6.2(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/solid-pacer':
-        specifier: 0.24.0
+        specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
     devDependencies:
       '@conciv/vitest-config':
@@ -7415,6 +7436,10 @@ packages:
   '@opentelemetry/semantic-conventions@1.43.0':
     resolution: {integrity: sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg==}
     engines: {node: '>=14'}
+
+  '@orama/orama@3.1.18':
+    resolution: {integrity: sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA==}
+    engines: {node: '>= 20.0.0'}
 
   '@orpc/client@1.16.1':
     resolution: {integrity: sha512-y2aEfZqD6QKAmTObFbzG0yCiMC1iP3PmCy8t+8y/u3P9iaIcB8Ur09OZdVSg+sbTWiqXfbm5smCukDaN/nmwBw==}
@@ -20615,6 +20640,8 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.43.0':
     optional: true
+
+  '@orama/orama@3.1.18': {}
 
   '@orpc/client@1.16.1(@opentelemetry/api@1.9.1)':
     dependencies:

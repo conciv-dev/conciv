@@ -8,24 +8,23 @@ clearest full example — it parses a JSONL rollout file into `UIMessage[]`, dri
 
 ```ts
 export type HarnessHistory = {
-  messages(cwd: string, sessionId: string, home?: string): Promise<UIMessage[]>
-  observe(cwd: string, sessionId: string, home?: string): TranscriptHandle
-  transcriptPath?(cwd: string, sessionId: string, home?: string): string
-  withinProject?(cwd: string, sessionId: string, home?: string): boolean
+  messages(cwd: string, sessionId: string): Promise<UIMessage[]>
+  observe(cwd: string, sessionId: string): TranscriptHandle
+  transcriptPath?(cwd: string, sessionId: string): string
+  withinProject?(cwd: string, sessionId: string): boolean
   nameFromTranscript?(raw: string): string | null
   contextTokens?(raw: string): number | undefined
-  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
-  meta?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: string, home?: string): Promise<HarnessSessionSummary | null>
+  list(cwd: string): Promise<HarnessSessionMeta[]>
+  meta?(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null>
+  summary?(cwd: string, sessionId: string): Promise<HarnessSessionSummary | null>
 }
 ```
 
-`home` defaults to `homedir()` in every implementation — it's only overridden in tests, so accept it
-as an optional parameter with that default rather than requiring callers to pass it
-(`packages/harness/src/codex/history.ts:16`, `packages/harness/src/codex/history.ts:20`,
-`packages/harness/src/codex/history.ts:293`, `packages/harness/src/codex/history.ts:316`,
-`packages/harness/src/codex/history.ts:320`, `packages/harness/src/codex/history.ts:325`,
-`packages/harness/src/codex/history.ts:344`).
+No method takes a home directory. Each implementation resolves its CLI's data directory from that
+CLI's own environment variable, falling back to `homedir()` the way the CLI itself does (Codex:
+`CODEX_HOME` through `codexHome()` in `packages/harness/src/codex/models.ts`; Claude:
+`CLAUDE_CONFIG_DIR`; Pi: `PI_CODING_AGENT_DIR`; OpenCode: `XDG_DATA_HOME`). Tests isolate a harness
+by setting that variable for the test process.
 
 ## `messages()`: parse the whole transcript once
 
@@ -46,7 +45,7 @@ to whichever earlier message owns the matching `tool-call` id (`attachOutput`,
 `packages/harness/src/codex/history.ts:224-228`, matched via `hasCall`,
 `packages/harness/src/codex/history.ts:152-154`). `messages()` itself
 (`transcriptMessages`, `packages/harness/src/codex/history.ts:320-323`) is just: resolve the file for
-this `(cwd, sessionId, home)`, read it, `raw.split('\n').reduce(foldLine, emptySpine()).messages`.
+this `(cwd, sessionId)`, read it, `raw.split('\n').reduce(foldLine, emptySpine()).messages`.
 
 ## `observe()`: live-tail with `makeJsonlHandle`
 
@@ -106,10 +105,11 @@ for I/O errors, `'corrupt'` when the file exists but its content fails a structu
 ## `list()`: enumerate past sessions
 
 `listSessions` (`packages/harness/src/codex/history.ts:325-342`) queries a SQLite `threads` table
-scoped by `cwd`, then re-reads each row's own rollout file to compute a fresh `messageCount` via the
-same `parseHistory`. If your CLI has no session-index database, an alternative is scanning its
+scoped by `cwd`, then `stat`s each row's rollout file for its `sizeBytes`; it never parses a
+transcript to build a meta. If your CLI has no session-index database, an alternative is scanning its
 transcript directory (`packages/harness/src/codex/history.ts:279-297`,
 `rolloutEntries`/`scanForRollout` — used as the `list()`-independent fallback path when a specific
-session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt,
-messageCount}` (`packages/protocol/src/harness-types.ts:142-151`); the rest (`model`, `totalTokens`,
-`lastMessage`, `createdAt`) are best-effort.
+session isn't in the db). Every `HarnessSessionMeta` needs at least `{id, derivedTitle, updatedAt}`
+(`packages/protocol/src/harness-types.ts`); `sizeBytes` (the transcript file's size, shown in the session
+picker) and the rest (`model`, `totalTokens`, `lastMessage`, `createdAt`) are best-effort. Build a meta from
+cheap reads only (a `stat`, the head up to the first prompt), never a whole-transcript parse.

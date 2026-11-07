@@ -36,7 +36,9 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 
 - `drafts.set` (`router.ts`): upserts into the `drafts` table
 - `sessions.*` (`sessions.ts`): writes `sessions` and `markers`; `delete` tombstones the row and deletes drafts, plane state, captures and page changes
-- `sessions.list` (`sessions.ts`): reads the transcript history of every available harness with `transcriptHistory`; a harness whose listing throws is logged and contributes nothing
+- `sessions.list` (`sessions.ts`): reads the transcript history of every available harness with `transcriptHistory`; a harness whose listing throws is logged and contributes nothing. It never reads the search index; once the first list has answered it calls `search.listed()`, which starts the background index build.
+- `sessions.search` (`sessions.ts`): `{term, includeHidden?, cursor?, limit}`, the same pipeline and output as `sessions.list`; native sessions come from the in-memory Orama index (`sessions/session-search.ts`) and conciv-only rows match on `title LIKE`; the search answers from the index at once and queues one background refresh
+- `sessions.changes` (`sessions.ts`): streams the search index's `indexed` events (`search.changes(signal)`); the search itself comes in through `RpcDeps.search`, created and disposed by `makeApp`
 - `server.reload` / `server.restart` / `editor.open` (`router.ts`): reload or restart the dev server, or open an editor
 
 ## Verification

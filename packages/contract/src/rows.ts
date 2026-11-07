@@ -9,7 +9,7 @@ export const SessionMetaSchema = z.object({
   id: SessionId,
   title: z.string(),
   updatedAt: z.number(),
-  messageCount: z.number(),
+  sizeBytes: z.number().optional(),
   running: z.boolean(),
   origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
