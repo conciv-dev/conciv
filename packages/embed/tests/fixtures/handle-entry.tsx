@@ -25,9 +25,7 @@ function ApiBaseProbe(): JSX.Element {
   )
 }
 
-const apiBaseProbe = defineExtension({hosts: ['web', 'ios'], name: API_BASE_PROBE_NAME, Surface: ApiBaseProbe}).client(
-  () => ({value: {}}),
-)
+const apiBaseProbe = defineExtension({name: API_BASE_PROBE_NAME, Surface: ApiBaseProbe}).client(() => ({value: {}}))
 
 export function makeHandle(apiBase: string): ConcivHandle {
   return createConciv({extensions: [terminal, apiBaseProbe], apiBase})
@@ -47,7 +45,6 @@ function ConnectPane(): JSX.Element {
 }
 
 const connectGateProbe = defineExtension({
-  hosts: ['web', 'ios'],
   name: CONNECT_GATE_PROBE_NAME,
   connectGate: {preflight: async () => null},
   Component: () => (

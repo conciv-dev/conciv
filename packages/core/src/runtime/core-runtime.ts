@@ -72,7 +72,7 @@ function makeEngineScope(deps: CoreRuntimeDeps): EngineScope {
 function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {page, registry, stream} = deps.primitives
   const model = deps.model(id)
-  const view = registry.servedBy(() => page.bus.host(id))
+  const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
     toolCallId === undefined ? {sessionId: id, agentId, model} : {sessionId: id, agentId, model, toolCallId}
@@ -80,13 +80,13 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     id,
     model,
     tools: {
-      call: (name, input, options) => view.call(name, input, {request: requestFor(options?.toolCallId)}),
-      has: view.has,
+      call: (name, input, options) => registry.call(name, input, {request: requestFor(options?.toolCallId)}),
+      has: (name) => registry.has(name),
       catalog: view.catalog,
     },
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
-      queries: (host, signal) => pageQueryStream(page.bus, id, host, signal),
+      queries: (signal) => pageQueryStream(page.bus, id, signal),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),

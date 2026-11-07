@@ -81,7 +81,7 @@ const bump = defineTool({
   inputSchema,
 }).server((input, ctx: Ctx) => ({value: ctx.counter.next()}))
 
-export default defineExtension({name: 'counter', hosts: ['web', 'ios'], tools: [bump]}).server(() => {
+export default defineExtension({name: 'counter', tools: [bump]}).server(() => {
   let value = 0
   return {context: {counter: {next: () => ++value}}}
 })
@@ -108,7 +108,7 @@ namespace (`/api/ext/<name>`).
 ```tsx
 import {Hono} from 'hono'
 
-export default defineExtension({name: 'metrics', hosts: ['web', 'ios'], configSchema, tools: [...]}).server((server) => {
+export default defineExtension({name: 'metrics', configSchema, tools: [...]}).server((server) => {
   const app = new Hono().get('/stream', (c) => openStream(c))
   const poller = startPolling(server.config.interval)
   return {context: {poller}, app, dispose: () => poller.stop()}

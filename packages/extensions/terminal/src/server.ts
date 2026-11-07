@@ -250,7 +250,7 @@ function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
 export type TerminalAppType = ReturnType<typeof ttyApp>
 
 export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = {}) {
-  return defineExtension({hosts: ['web', 'ios'], name: TERMINAL_NAME}).server((server) => {
+  return defineExtension({name: TERMINAL_NAME}).server((server) => {
     const tty = createTtySessions()
     const runtime: TerminalRuntime = {server, tty, ...(opts.openTerminal ? {openTerminal: opts.openTerminal} : {})}
     return {

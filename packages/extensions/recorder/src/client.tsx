@@ -18,7 +18,6 @@ function Surface(): JSX.Element {
 recordingAttachment.card(RecordingCard)
 
 export const recorder = defineExtension({
-  hosts: ['web'],
   name: RECORDER_NAME,
   configSchema: recorderConfig,
   tools: [startToolClient, stopToolClient, pullToolClient],

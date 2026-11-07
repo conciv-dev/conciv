@@ -2,7 +2,6 @@ import {z} from 'zod'
 import type {PageErrorCode} from '@conciv/protocol/page-types'
 import {TOOL_ICON_KEYS, type ToolIconKey, type ToolLabel} from '@conciv/protocol/tool-icon-types'
 import type {ExtensionRegistry} from '@conciv/protocol/config-types'
-import {WidgetHostSchema, type WidgetHost} from '@conciv/protocol/push-types'
 import {
   createRouterClient,
   os,
@@ -29,12 +28,7 @@ import type {CtxOf, ServerToolRegistryAccess, ServerToolPageAccess, ToolRequest,
 
 export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
-export type RegistryToolMeta = ToolMeta & {
-  name: string
-  binding: ToolBinding
-  hosts: readonly WidgetHost[]
-  approval?: 'ask'
-}
+export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
 
 export type RegistryCallContext = {request: ToolRequest}
 
@@ -148,18 +142,9 @@ export type ToolSignature = ToolCatalogEntry & {
   errors: ToolSignatureError[]
 }
 
-type RegistrationBase = {owner: string; hosts: readonly WidgetHost[]}
-
 export type ToolRegistration<Ctx> = unknown extends Ctx
-  ? [registration: RegistrationBase & {context?: Ctx}]
-  : [registration: RegistrationBase & {context: Ctx}]
-
-export type SessionToolView = {
-  has: (name: string) => boolean
-  call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
-  catalog: ToolCatalog
-  sandboxTools: () => SandboxTool[]
-}
+  ? [registration: {owner: string; context?: Ctx}]
+  : [registration: {owner: string; context: Ctx}]
 
 export type SandboxTool = ToolSignature & {
   schema: z.ZodObject<z.ZodRawShape>
@@ -177,7 +162,7 @@ export type ToolRegistry = {
   call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
   catalog: ToolCatalog
   sandboxTools: () => SandboxTool[]
-  servedBy: (host: () => WidgetHost | null) => SessionToolView
+  whenPageConnected: (connected: () => boolean) => {catalog: ToolCatalog; sandboxTools: () => SandboxTool[]}
 }
 
 export function createToolRegistry(
@@ -188,48 +173,31 @@ export function createToolRegistry(
   const pageCaller = options.pageCaller
   const anyPageConnected = options.isAnyPageConnected ?? (() => pageCaller !== undefined)
   const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
-  const engineView = viewOver(router, walked, anyPageConnected)
+  const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
+  const call: ToolRegistry['call'] = (name, input, callCtx) =>
+    has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
+  const viewFor = (connected: () => boolean) => ({
+    catalog: {
+      list: () => catalogEntries(walked(), connected()),
+      get: (name: string) => toolSignature(walked(), name, connected()),
+    },
+    sandboxTools: () => sandboxToolList(router, walked(), connected()),
+  })
   const self: RegistrySelf = {
-    call: engineView.call,
-    mutatingOf: (name) => (engineView.has(name) ? toolSignature(walked(), name, false).mutating : false),
+    call,
+    mutatingOf: (name) => (has(name) ? toolSignature(walked(), name, false).mutating : false),
   }
+  const engineView = viewFor(anyPageConnected)
   return {
     router,
-    register: (tool: AnyToolBuilder, registration: RegistrationBase & {context?: unknown}) =>
+    register: (tool: AnyToolBuilder, registration: {owner: string; context?: unknown}) =>
       registerTool(router, tool, pageCaller, self, registration, owners),
-    has: engineView.has,
-    call: engineView.call,
+    has,
+    call,
     catalog: engineView.catalog,
     sandboxTools: engineView.sandboxTools,
-    servedBy: (host) =>
-      viewOver(
-        router,
-        () => walked().filter((entry) => servesHost(entry, host())),
-        () => host() !== null,
-      ),
+    whenPageConnected: viewFor,
   }
-}
-
-function viewOver(
-  router: ExtensionToolRouter,
-  entries: () => RegistryWalkEntry[],
-  pageConnected: () => boolean,
-): SessionToolView {
-  const has = (name: string): boolean => entries().some((entry) => entry.path.join('.') === name)
-  return {
-    has,
-    call: (name, input, callCtx) =>
-      has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`)),
-    catalog: {
-      list: () => catalogEntries(entries(), pageConnected()),
-      get: (name: string) => toolSignature(entries(), name, pageConnected()),
-    },
-    sandboxTools: () => sandboxToolList(router, entries(), pageConnected()),
-  }
-}
-
-function servesHost(entry: RegistryWalkEntry, host: WidgetHost | null): boolean {
-  return host === null || readToolMeta(entry).hosts.includes(host)
 }
 
 function namedConsistently(entries: RegistryWalkEntry[]): RegistryWalkEntry[] {
@@ -305,7 +273,7 @@ function registerTool(
   tool: AnyToolBuilder,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: RegistrationBase & {context?: unknown},
+  registration: {owner: string; context?: unknown},
   owners: Map<string, string>,
 ): void {
   assertToolName(tool.name)
@@ -318,7 +286,7 @@ function registerTool(
   if (holder !== undefined) {
     throw new Error(`tool "${tool.name}" is declared by both ${holder} and ${registration.owner}`)
   }
-  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration))
+  insertProcedure(router, tool.name.split('.'), compileTool(tool, pageCaller, self, registration.context))
   owners.set(tool.name, registration.owner)
 }
 
@@ -355,7 +323,7 @@ function ensureBranch(node: Record<string, AnyRouter>, segment: string): Record<
 
 const registryBase = os
   .$context<RegistryCallContext>()
-  .$meta<RegistryToolMeta>({name: '', binding: 'server', hosts: [], summary: ''})
+  .$meta<RegistryToolMeta>({name: '', binding: 'server', summary: ''})
 
 type ToolErrorConstructors = ORPCErrorConstructorMap<ToolErrors>
 
@@ -363,14 +331,12 @@ function compileTool(
   tool: RegistryTool,
   pageCaller: RegistryPageCaller | undefined,
   self: RegistrySelf,
-  registration: RegistrationBase & {context?: unknown},
+  context: unknown,
 ): AnyRouter {
-  const context = registration.context
   const meta: RegistryToolMeta = {
     ...tool.meta,
     name: tool.name,
     binding: tool.binding,
-    hosts: registration.hosts,
     ...(tool.approval === undefined ? {} : {approval: tool.approval}),
   }
   const declaredErrors: ToolErrors =
@@ -486,7 +452,6 @@ function pageFailure(
 const RegistryToolMetaSchema = z.object({
   name: z.string().min(1),
   binding: z.enum(['server', 'client']),
-  hosts: z.array(WidgetHostSchema),
   summary: z.string().min(1),
   approval: z.literal('ask').optional(),
   category: z.string().optional(),

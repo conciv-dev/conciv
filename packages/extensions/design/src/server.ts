@@ -50,7 +50,6 @@ function sourceChanges(bundler: BundlerBridge | undefined): {
 }
 
 export const design = defineExtension({
-  hosts: ['web'],
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
   tools: SERVER_STEPS,

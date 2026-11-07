@@ -17,7 +17,7 @@ describe('connect pane lna', () => {
 
   test('a denied local-network-access permission replaces the waiting copy, and granting it restores the wait', async () => {
     const api = await getExtensionTestApi({
-      server: defineExtension({hosts: ['web', 'ios'], name: 'try-it-connect-fixture'}),
+      server: defineExtension({name: 'try-it-connect-fixture'}),
       host: fixtureHost(hostDist),
     })
     try {

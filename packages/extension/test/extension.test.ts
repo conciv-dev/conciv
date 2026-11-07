@@ -136,17 +136,15 @@ describe('collect attachment cards', () => {
       const duplicate = defineAttachment({mime: 'application/x-test'})
       duplicate.card(CardB)
       const cards = collectAttachmentCards([
-        defineExtension({hosts: ['web', 'ios'], name: 'a', attachments: [first]}),
-        defineExtension({hosts: ['web', 'ios'], name: 'b', attachments: [duplicate]}),
+        defineExtension({name: 'a', attachments: [first]}),
+        defineExtension({name: 'b', attachments: [duplicate]}),
       ])
       expect(cards).toEqual([{mime: 'application/x-test', render: CardA}])
     })
 
     it('ignores attachments with no card', () => {
       const bare = defineAttachment({mime: 'application/x-noop'})
-      expect(
-        collectAttachmentCards([defineExtension({hosts: ['web', 'ios'], name: 'c', attachments: [bare]})]),
-      ).toEqual([])
+      expect(collectAttachmentCards([defineExtension({name: 'c', attachments: [bare]})])).toEqual([])
     })
   })
 })
@@ -163,7 +161,7 @@ describe('collect client', () => {
 
   describe('collectToolRenderers', () => {
     it('returns a render entry per tool that has a .render() card', () => {
-      const entries = collectToolRenderers([defineExtension({hosts: ['web', 'ios'], name: 'canvas', tools: [draw]})])
+      const entries = collectToolRenderers([defineExtension({name: 'canvas', tools: [draw]})])
       expect(entries).toHaveLength(1)
       expect(entries[0]?.names).toEqual(['draw'])
       expect(entries[0]?.render).toBe(Card)
@@ -171,12 +169,12 @@ describe('collect client', () => {
 
     it('skips tools without a render half', () => {
       const bare = defineTool({name: 'bare', description: 'd', inputSchema: z.object({})})
-      expect(collectToolRenderers([defineExtension({hosts: ['web', 'ios'], name: 'x', tools: [bare]})])).toHaveLength(0)
+      expect(collectToolRenderers([defineExtension({name: 'x', tools: [bare]})])).toHaveLength(0)
     })
 
     it('dedups by name across extensions, first wins', () => {
-      const a = defineExtension({hosts: ['web', 'ios'], name: 'a', tools: [draw]})
-      const b = defineExtension({hosts: ['web', 'ios'], name: 'b', tools: [draw]})
+      const a = defineExtension({name: 'a', tools: [draw]})
+      const b = defineExtension({name: 'b', tools: [draw]})
       expect(collectToolRenderers([a, b])).toHaveLength(1)
     })
   })
@@ -227,18 +225,14 @@ describe('define attachment', () => {
 
 describe('define extension', () => {
   test('parseConfig applies defaults; absent schema yields {}', () => {
-    const withSchema = defineExtension({
-      hosts: ['web', 'ios'],
-      name: 'x',
-      configSchema: z.object({runner: z.string().default('vitest')}),
-    })
+    const withSchema = defineExtension({name: 'x', configSchema: z.object({runner: z.string().default('vitest')})})
     expect(withSchema.parseConfig({})).toEqual({runner: 'vitest'})
-    expect(defineExtension({hosts: ['web', 'ios'], name: 'y'}).parseConfig(undefined)).toEqual({})
+    expect(defineExtension({name: 'y'}).parseConfig(undefined)).toEqual({})
   })
 
   test('carries connectGate through defineExtension', () => {
     const gate = {preflight: async () => null}
-    const ext = defineExtension({hosts: ['web', 'ios'], name: 'gate-test', connectGate: gate})
+    const ext = defineExtension({name: 'gate-test', connectGate: gate})
     expect(ext.connectGate).toBe(gate)
   })
 
@@ -248,7 +242,7 @@ describe('define extension', () => {
       description: 'd',
       inputSchema: z.object({n: z.number()}),
     }).server((input, ctx: {factor: number}) => input.n * ctx.factor)
-    const ext = defineExtension({hosts: ['web', 'ios'], name: 'm', tools: [tool]}).server(() => {
+    const ext = defineExtension({name: 'm', tools: [tool]}).server(() => {
       const app = new Hono().get('/ping', (c) => c.json({ok: true}))
       return {context: {factor: 10}, app, dispose: () => {}}
     })
@@ -552,7 +546,7 @@ describe('tool registry', () => {
       inputSchema: z.object({}),
       outputSchema: z.object({}),
     }).server(() => ({}))
-    expect(() => registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(/summary/)
+    expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/summary/)
   })
 
   test('registering a tool without an output schema fails', () => {
@@ -563,7 +557,7 @@ describe('tool registry', () => {
       inputSchema: z.object({}),
       meta: {summary: 'a tool with no output schema'},
     }).server(() => ({}))
-    expect(() => registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(/outputSchema/)
+    expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/outputSchema/)
   })
 
   test('registering an unbound tool fails', () => {
@@ -575,17 +569,13 @@ describe('tool registry', () => {
       outputSchema: z.object({}),
       meta: {summary: 'a tool nobody bound'},
     })
-    expect(() => registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
-      /server\(\)|client\(\)/,
-    )
+    expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/server\(\)|client\(\)/)
   })
 
   test('registering the same tool name twice fails loudly', () => {
     const registry = createToolRegistry()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
-    expect(() => registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
-      /declared by both/,
-    )
+    registry.register(statusTool(), {owner: 'a test registrant'})
+    expect(() => registry.register(statusTool(), {owner: 'a test registrant'})).toThrow(/declared by both/)
   })
 
   test('one tool name carries one tool: a client-bound and a server-bound declaration of it collide under one owner', () => {
@@ -599,12 +589,12 @@ describe('tool registry', () => {
     }
     registry.register(
       defineTool(shared).server(() => ({ok: true})),
-      {hosts: ['web', 'ios'], owner: 'extension "tanstack"'},
+      {owner: 'extension "tanstack"'},
     )
 
-    expect(() =>
-      registry.register(defineTool(shared).client(), {hosts: ['web', 'ios'], owner: 'extension "tanstack"'}),
-    ).toThrow(/tool "tanstack_router_state" is declared by both extension "tanstack" and extension "tanstack"/)
+    expect(() => registry.register(defineTool(shared).client(), {owner: 'extension "tanstack"'})).toThrow(
+      /tool "tanstack_router_state" is declared by both extension "tanstack" and extension "tanstack"/,
+    )
   })
 
   test('a tool may not claim a transport error code as its own', () => {
@@ -617,7 +607,7 @@ describe('tool registry', () => {
       errors: {PAGE_TIMEOUT: {message: 'mine now'}},
       meta: {summary: 'a tool claiming a transport code'},
     }).server(() => ({}))
-    expect(() => registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(/transport/)
+    expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/transport/)
   })
 
   test('a declared server tool error arrives defined and narrowable with its code and data', async () => {
@@ -632,7 +622,7 @@ describe('tool registry', () => {
     }).server((input) => {
       throw toolError('ELEMENT_NOT_FOUND', {data: {target: input.target}})
     })
-    registry.register(locate, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(locate, {owner: 'a test registrant'})
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'page_locate'), {target: '#missing'})
     expect(isDefinedError(failure)).toBe(true)
@@ -653,7 +643,7 @@ describe('tool registry', () => {
     }).server(() => {
       throw new Error('boom')
     })
-    registry.register(explode, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(explode, {owner: 'a test registrant'})
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'server_explode'), {})
     expect(failure).toBeInstanceOf(Error)
@@ -663,7 +653,7 @@ describe('tool registry', () => {
   test('a tool registered after the client was created is callable', async () => {
     const registry = createToolRegistry()
     const client = testClient(registry)
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     await expect(clientTool(client, 'server_status')({})).resolves.toEqual({ok: true})
   })
 
@@ -671,9 +661,9 @@ describe('tool registry', () => {
     const registry = createToolRegistry()
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     expect(registry.catalog.list()).toEqual([
       {
         name: 'page_fill',
@@ -704,7 +694,7 @@ describe('tool registry', () => {
     const connected = createToolRegistry({pageCaller: async () => ({filled: true})})
     connected.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     expect(connected.catalog.list().map((entry) => entry.reachable)).toEqual([true])
   })
@@ -713,7 +703,7 @@ describe('tool registry', () => {
     const registry = createToolRegistry()
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     const signature = registry.catalog.get('page_fill')
     expect(signature.name).toBe('page_fill')
@@ -747,7 +737,7 @@ describe('tool registry', () => {
     const registry = createToolRegistry()
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'page_fill'), {target: '#name'})
@@ -772,7 +762,7 @@ describe('tool registry', () => {
       })
       registry.register(
         fillTool().client(() => ({filled: true})),
-        {hosts: ['web', 'ios'], owner: 'a test registrant'},
+        {owner: 'a test registrant'},
       )
       const client = testClient(registry)
       const failure = await callCaught(clientTool(client, 'page_fill'), {target: '#name'})
@@ -790,7 +780,7 @@ describe('tool registry', () => {
     })
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'page_fill'), {target: '#name'})
@@ -808,7 +798,7 @@ describe('tool registry', () => {
     })
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     const client = testClient(registry)
     await expect(clientTool(client, 'page_fill')({target: '#name'})).resolves.toEqual({filled: true})
@@ -829,12 +819,9 @@ describe('tool registry', () => {
     const registry = createToolRegistry()
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
-    registry.register(bareServerTool('page', 'read the whole page'), {
-      hosts: ['web', 'ios'],
-      owner: 'a test registrant',
-    })
+    registry.register(bareServerTool('page', 'read the whole page'), {owner: 'a test registrant'})
     const client = testClient(registry)
     expect(typeof clientTool(client, 'page_fill')).toBe('function')
     expect(typeof clientTool(client, 'page')).toBe('function')
@@ -852,7 +839,7 @@ describe('tool registry', () => {
     }).server(() => {
       throw toolError('ELEMENT_NOT_FOUND')
     })
-    registry.register(locate, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(locate, {owner: 'a test registrant'})
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'page_locate'), {target: '#missing'})
     expect(isDefinedError(failure)).toBe(false)
@@ -870,7 +857,7 @@ describe('tool registry', () => {
       outputSchema: z.object({value: z.number()}),
       meta: {summary: 'turn a numeric string into a number'},
     }).server((input) => ({value: input.n}))
-    registry.register(parse, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(parse, {owner: 'a test registrant'})
     const client = testClient(registry)
     await expect(clientTool(client, 'math_parse')({n: '42'})).resolves.toEqual({value: 42})
   })
@@ -888,7 +875,7 @@ describe('tool registry', () => {
       seen.push(ctx, request)
       return {ok: true}
     })
-    registry.register(probe, {hosts: ['web', 'ios'], owner: 'a test registrant', context: {db: 'handle'}})
+    registry.register(probe, {owner: 'a test registrant', context: {db: 'handle'}})
     const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), agentId: 'conciv_s1', model: null}
     const client = testClient(registry, request)
     await clientTool(client, 'server_probe')({})
@@ -907,7 +894,7 @@ describe('tool registry', () => {
     }).server(() => {
       throw toolError('KNOWN_TYPO', {message: 'original failure text'})
     })
-    registry.register(typo, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(typo, {owner: 'a test registrant'})
     const client = testClient(registry)
     const failure = await callCaught(clientTool(client, 'server_typo'), {})
     expect(isDefinedError(failure)).toBe(false)
@@ -923,7 +910,7 @@ describe('tool registry', () => {
     })
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
     expect(registry.catalog.list().map((entry) => entry.reachable)).toEqual([false])
     liveness.connected = true
@@ -940,7 +927,7 @@ describe('tool registry', () => {
       outputSchema: z.object({message: z.string()}),
       meta: {summary: 'greet someone by name'},
     }).server((input) => ({message: `${input.greeting} ${input.name}`}))
-    registry.register(greet, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(greet, {owner: 'a test registrant'})
     expect(registry.catalog.get('server_greet').inputSchema).toMatchObject({required: ['name']})
   })
 
@@ -953,9 +940,7 @@ describe('tool registry', () => {
       outputSchema: z.date(),
       meta: {summary: 'report the current time'},
     }).server(() => new Date())
-    expect(() => registry.register(dated, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
-      /server_now.+output/,
-    )
+    expect(() => registry.register(dated, {owner: 'a test registrant'})).toThrow(/server_now.+output/)
     expect(() => registry.catalog.get('server_now')).toThrow(/unknown tool/)
   })
 
@@ -973,22 +958,13 @@ describe('tool registry', () => {
   test('prototype-chain names are rejected at registration and leave Object.prototype untouched', () => {
     const registry = createToolRegistry()
     expect(() =>
-      registry.register(bareServerTool('__proto__', 'a tool with a hostile name'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('__proto__', 'a tool with a hostile name'), {owner: 'a test registrant'}),
     ).toThrow(/tool "__proto__"/)
     expect(() =>
-      registry.register(bareServerTool('constructor', 'a tool with a hostile name'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('constructor', 'a tool with a hostile name'), {owner: 'a test registrant'}),
     ).toThrow(/forbidden/)
     expect(() =>
-      registry.register(bareServerTool('prototype', 'a tool with a hostile name'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('prototype', 'a tool with a hostile name'), {owner: 'a test registrant'}),
     ).toThrow(/forbidden/)
     expect(Object.hasOwn(Object.prototype, 'x')).toBe(false)
     expect(registry.catalog.list()).toEqual([])
@@ -997,13 +973,13 @@ describe('tool registry', () => {
   test('the router type is fully populated while the runtime node starts empty and fills on register', () => {
     const registry = createToolRegistry()
     expect(Reflect.get(registry.router, 'server_status')).toBeUndefined()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     expect(Reflect.get(registry.router, 'server_status')).toBeDefined()
   })
 
   test('the registry answers has() only for the tools it registered, never for inherited members', () => {
     const registry = createToolRegistry()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     expect(registry.has('server_status')).toBe(true)
     expect(registry.has('server.missing')).toBe(false)
     expect(registry.has('constructor')).toBe(false)
@@ -1012,7 +988,7 @@ describe('tool registry', () => {
 
   test('calling an inherited member of the router client is refused instead of echoing the input back', async () => {
     const registry = createToolRegistry()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     await expect(registry.call('server_status', {}, {request: TEST_REQUEST})).resolves.toEqual({ok: true})
     await expect(registry.call('constructor', {smuggled: true}, {request: TEST_REQUEST})).rejects.toThrow(
       /unknown tool "constructor"/,
@@ -1031,7 +1007,7 @@ describe('tool registry', () => {
         return {filled: true}
       },
     })
-    registry.register(fillTool().client(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(fillTool().client(), {owner: 'a test registrant'})
     const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), agentId: 'conciv_s1', model: 'sonnet'}
     await registry.call('page_fill', {target: '#name'}, {request})
     expect(seen).toEqual([request])
@@ -1046,7 +1022,7 @@ describe('tool registry', () => {
       meta: {summary: 'declared against a newer icon vocabulary', category: 'act'},
     }).client(() => ({ok: true}))
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    registry.register(skewed, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(skewed, {owner: 'a test registrant'})
     for (const entry of walkRegistryProcedures(registry.router)) Object.assign(entry.meta, {icon: 'sparkle'})
 
     const listed = registry.catalog.list()
@@ -1067,12 +1043,8 @@ describe('tool registry', () => {
     Object.assign(broken.meta ?? {}, {icon: 'sparkle', label: {running: '', done: ''}})
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
 
-    expect(() => registry.register(broken, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
-      /tool "page_broken"/,
-    )
-    expect(() => registry.register(broken, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
-      /meta\.icon must be one of/,
-    )
+    expect(() => registry.register(broken, {owner: 'a test registrant'})).toThrow(/tool "page_broken"/)
+    expect(() => registry.register(broken, {owner: 'a test registrant'})).toThrow(/meta\.icon must be one of/)
     expect(registry.has('page_broken')).toBe(false)
   })
 
@@ -1085,7 +1057,7 @@ describe('tool registry', () => {
       meta: {summary: 'read the visible text of an element', category: 'read', positional: 'selector'},
     }).client(() => ({text: ''}))
     const registry = createToolRegistry({pageCaller: async () => ({text: ''})})
-    registry.register(positional, {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(positional, {owner: 'a test registrant'})
 
     expect(registry.catalog.get('page_text').positional).toBe('selector')
   })
@@ -1094,9 +1066,9 @@ describe('tool registry', () => {
     const registry = createToolRegistry({pageCaller: async () => ({filled: true})})
     registry.register(
       fillTool().client(() => ({filled: true})),
-      {hosts: ['web', 'ios'], owner: 'a test registrant'},
+      {owner: 'a test registrant'},
     )
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     const tools = registry.sandboxTools()
     expect(tools.map((tool) => tool.name)).toEqual(['page_fill', 'server_status'])
     expect(tools.map((tool) => tool.mutating)).toEqual([true, false])
@@ -1111,30 +1083,25 @@ describe('tool registry', () => {
   test('sandboxTools sees a tool registered after the registry was handed out', () => {
     const registry = createToolRegistry()
     expect(registry.sandboxTools()).toEqual([])
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'a test registrant'})
+    registry.register(statusTool(), {owner: 'a test registrant'})
     expect(registry.sandboxTools().map((tool) => tool.name)).toEqual(['server_status'])
   })
 
   test('two registrants claiming one tool name fail at load with a message naming both', () => {
     const registry = createToolRegistry()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'extension "alpha"'})
-    expect(() => registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'extension "beta"'})).toThrow(
+    registry.register(statusTool(), {owner: 'extension "alpha"'})
+    expect(() => registry.register(statusTool(), {owner: 'extension "beta"'})).toThrow(
       'tool "server_status" is declared by both extension "alpha" and extension "beta"',
     )
   })
 
   test('a walked procedure whose declared name mismatches its router path is rejected, not listed uncallable', () => {
     const registry = createToolRegistry()
-    registry.register(statusTool(), {hosts: ['web', 'ios'], owner: 'core'})
+    registry.register(statusTool(), {owner: 'core'})
     const rogue = os
       .$context<{request?: unknown}>()
-      .$meta<RegistryToolMeta>({name: '', binding: 'server', hosts: [], summary: ''})
-      .meta({
-        name: 'other_name',
-        binding: 'server',
-        hosts: ['web', 'ios'],
-        summary: 'a procedure filed under the wrong path',
-      })
+      .$meta<RegistryToolMeta>({name: '', binding: 'server', summary: ''})
+      .meta({name: 'other_name', binding: 'server', summary: 'a procedure filed under the wrong path'})
       .input(z.object({}))
       .output(z.object({}))
       .handler(() => ({}))
@@ -1152,7 +1119,7 @@ describe('tool registry', () => {
       outputSchema: z.object({doubled: z.number()}),
       meta: {summary: 'double the given number'},
     }).server((input) => ({doubled: input.n * 2}))
-    registry.register(double, {hosts: ['web', 'ios'], owner: 'core'})
+    registry.register(double, {owner: 'core'})
     await expect(registry.call('math_double', {n: 'zero'}, {request: TEST_REQUEST})).rejects.toThrow(/input/i)
   })
 
@@ -1165,7 +1132,7 @@ describe('tool registry', () => {
       outputSchema: z.object({ok: z.literal(true)}),
       meta: {summary: 'declare a drifted positional', positional: 'selectr'},
     }).client()
-    expect(() => registry.register(drifted, {hosts: ['web', 'ios'], owner: 'a test registrant'})).toThrow(
+    expect(() => registry.register(drifted, {owner: 'a test registrant'})).toThrow(
       /meta\.positional names "selectr" but the input schema declares no such field/,
     )
   })
@@ -1174,7 +1141,6 @@ describe('tool registry', () => {
     const registry = createToolRegistry()
     const dotted = () =>
       registry.register(bareServerTool('canvas.svg', 'draw an svg on the canvas'), {
-        hosts: ['web', 'ios'],
         owner: 'a test registrant',
       })
     expect(dotted).toThrow(/tool "canvas\.svg"/)
@@ -1185,16 +1151,10 @@ describe('tool registry', () => {
   test('an uppercase or camelCase tool name is rejected at registration', () => {
     const registry = createToolRegistry()
     expect(() =>
-      registry.register(bareServerTool('pinSetState', 'set the state of a pin'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('pinSetState', 'set the state of a pin'), {owner: 'a test registrant'}),
     ).toThrow(/tool "pinSetState"/)
     expect(() =>
-      registry.register(bareServerTool('Page_Fill', 'type into a field'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('Page_Fill', 'type into a field'), {owner: 'a test registrant'}),
     ).toThrow(/tool "Page_Fill"/)
     expect(registry.catalog.list()).toEqual([])
   })
@@ -1202,29 +1162,20 @@ describe('tool registry', () => {
   test('a tool name that does not start with a lowercase letter is rejected at registration', () => {
     const registry = createToolRegistry()
     expect(() =>
-      registry.register(bareServerTool('3d_render', 'render in three dimensions'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('3d_render', 'render in three dimensions'), {owner: 'a test registrant'}),
     ).toThrow(/tool "3d_render"/)
     expect(() =>
-      registry.register(bareServerTool('_hidden', 'hide from the catalog'), {
-        hosts: ['web', 'ios'],
-        owner: 'a test registrant',
-      }),
+      registry.register(bareServerTool('_hidden', 'hide from the catalog'), {owner: 'a test registrant'}),
     ).toThrow(/tool "_hidden"/)
-    expect(() =>
-      registry.register(bareServerTool('', 'a nameless tool'), {hosts: ['web', 'ios'], owner: 'a test registrant'}),
-    ).toThrow(/tool ""/)
+    expect(() => registry.register(bareServerTool('', 'a nameless tool'), {owner: 'a test registrant'})).toThrow(
+      /tool ""/,
+    )
     expect(registry.catalog.list()).toEqual([])
   })
 
   test('a snake_case tool name registers and is callable by that exact name', async () => {
     const registry = createToolRegistry()
-    registry.register(bareServerTool('canvas_svg', 'draw an svg on the canvas'), {
-      hosts: ['web', 'ios'],
-      owner: 'a test registrant',
-    })
+    registry.register(bareServerTool('canvas_svg', 'draw an svg on the canvas'), {owner: 'a test registrant'})
     expect(registry.catalog.list().map((entry) => entry.name)).toEqual(['canvas_svg'])
     await expect(registry.call('canvas_svg', {}, {request: TEST_REQUEST})).resolves.toEqual({})
   })

@@ -49,7 +49,6 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import {createSystemPrompt} from './system-prompt.js'
 import type {ChatContext} from './api/rpc/mount.js'
 import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -94,6 +93,10 @@ export type MakeAppOpts = {
   onTrusted?: () => void
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
+  systemPromptFile?: string
+
+  systemPromptText?: string
+
   extensions?: AnyExtension[]
 
   extensionConfig?: Record<string, unknown>
@@ -206,21 +209,12 @@ function declaredToolErrors(tool: AnyToolBuilder): {code: string; message: strin
   return Object.entries(tool.errors ?? {}).map(([code, spec]) => ({code, message: spec.message}))
 }
 
-type RegistryToolSource = {
-  extensionName: string
-  hosts: AnyExtension['hosts']
-  registryTools: readonly AnyToolBuilder[]
-  context: unknown
-}
+type RegistryToolSource = {extensionName: string; registryTools: readonly AnyToolBuilder[]; context: unknown}
 
 function registerExtensionTools(registry: ToolRegistry, sources: RegistryToolSource[]): void {
   for (const source of sources) {
     for (const tool of source.registryTools) {
-      registry.register(tool, {
-        owner: `extension "${source.extensionName}"`,
-        hosts: source.hosts,
-        context: source.context,
-      })
+      registry.register(tool, {owner: `extension "${source.extensionName}"`, context: source.context})
     }
   }
 }
@@ -377,7 +371,7 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
-function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
+export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
   return [pageServerExtension, ...(extensions ?? [])]
 }
 
@@ -435,7 +429,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     const registryTools = extension.tools ?? []
     return {
       extensionName: extension.name,
-      hosts: extension.hosts,
       app: narrowExtensionApp(extension.name, result?.app),
       router: result?.router,
       registryTools,
@@ -504,16 +497,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const codeModeCapabilities = (sessionId: SessionId): CodeCapability[] => [
     ...registryCapabilities(
-      registry.servedBy(() => primitives.page.bus.host(sessionId)).sandboxTools(),
+      registry.whenPageConnected(() => primitives.page.bus.connected(sessionId)).sandboxTools(),
       scopedToolCall,
     ),
     ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
   ]
-
-  const systemPrompt = createSystemPrompt(opts.cfg.systemPrompt, extensions, {
-    cwd: opts.cwd,
-    extensions: opts.extensionConfig,
-  })
 
   const toolList: ChatTool[] = mounted.flatMap((entry) =>
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
@@ -525,7 +513,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     harnessFor,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
-    systemPrompt: (sessionId) => systemPrompt(primitives.page.bus.host(sessionId)),
+    systemPrompt: {
+      systemPromptFile: opts.systemPromptFile,
+      systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+    },
     db,
     sessions: sessionPort(db, rows, {
       onRunStart: async (sessionId) => {
@@ -608,7 +599,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       plane,
       upgrade: socketUpgrade,
       push: {
-        queries: (sessionId, host, signal) => runtime.forSession(sessionId).page.queries(host, signal),
+        queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
       },
     },

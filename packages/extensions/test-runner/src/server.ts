@@ -64,7 +64,6 @@ export function makeTestRunnerRouter(manager: TestRunnerManager) {
 export type TestRunnerRouter = ReturnType<typeof makeTestRunnerRouter>
 
 export default defineExtension({
-  hosts: ['web', 'ios'],
   name: TEST_RUNNER_NAME,
   configSchema: testRunnerConfig,
   tools: [testTool],

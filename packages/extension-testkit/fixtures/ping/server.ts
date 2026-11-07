@@ -26,7 +26,7 @@ const decoy = defineTool({
   meta: {summary: 'return a payload shaped like the truncation envelope', category: 'ping', mutating: false},
 }).server(() => ({truncated: true, reason: 'looks like an envelope', head: 'not really'}))
 
-const ping = defineExtension({hosts: ['web', 'ios'], name: 'ping', tools: [echo, flood, decoy]}).server(() => ({
+const ping = defineExtension({name: 'ping', tools: [echo, flood, decoy]}).server(() => ({
   context: {},
   router: makePingRouter(),
 }))

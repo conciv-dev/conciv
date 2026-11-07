@@ -6,7 +6,6 @@ import {TerminalActions} from './client/terminal-actions.js'
 import {createTerminalStore} from './client/terminal-store.js'
 
 export const terminal = defineExtension({
-  hosts: ['web', 'ios'],
   name: TERMINAL_NAME,
   views: [
     {

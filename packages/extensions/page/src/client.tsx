@@ -9,7 +9,6 @@ import {grabAttachment} from './shared/grab-attachment.js'
 grabAttachment.card(GrabCard)
 
 export const page = defineExtension({
-  hosts: ['web'],
   name: PAGE_EXTENSION_NAME,
   tools: PAGE_CLIENT_TOOLS,
   attachments: [grabAttachment],

@@ -42,7 +42,6 @@ function Surface(): JSX.Element {
 }
 
 const whiteboard = defineExtension({
-  hosts: ['web', 'ios'],
   name: WHITEBOARD_NAME,
   tools: whiteboardToolClients,
   systemPrompt: WHITEBOARD_PROMPT,

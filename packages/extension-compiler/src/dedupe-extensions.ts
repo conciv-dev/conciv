@@ -64,7 +64,7 @@ function loadFailuresExtension(failures: readonly ExtensionLoadFailure[]): AnyEx
     onMount(() => toast(message, 'error'))
     return null
   }
-  return defineExtension({hosts: ['web', 'ios'], name: LOAD_FAILURES_EXTENSION, Surface: LoadFailureToast})
+  return defineExtension({name: LOAD_FAILURES_EXTENSION, Surface: LoadFailureToast})
 }
 
 function moduleDefault(mod: unknown): unknown {

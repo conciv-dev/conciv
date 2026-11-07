@@ -22,11 +22,7 @@ export const PushFrameSchema = z.discriminatedUnion('channel', [
   ChatEventFrameSchema,
 ])
 
-export const WidgetHostSchema = z.enum(['web', 'ios'])
-
-export const PageServingFrameSchema = z.object({channel: z.literal('page-serving'), host: WidgetHostSchema.nullable()})
-
-export type WidgetHost = z.infer<typeof WidgetHostSchema>
+export const PageServingFrameSchema = z.object({channel: z.literal('page-serving'), serving: z.boolean()})
 
 export type ReadyFrame = z.infer<typeof ReadyFrameSchema>
 export type PageQueryFrame = z.infer<typeof PageQueryFrameSchema>

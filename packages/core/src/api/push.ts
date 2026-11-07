@@ -1,13 +1,7 @@
 import {Hono} from 'hono'
 import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {
-  PageServingFrameSchema,
-  PUSH_SESSION_PARAM,
-  PUSH_WS_PATH,
-  type PushFrame,
-  type WidgetHost,
-} from '@conciv/protocol/push-types'
+import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame} from '@conciv/protocol/push-types'
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
@@ -15,7 +9,7 @@ import {logError} from '../lib/debug.js'
 export type PageQuery = {requestId: string; query: unknown}
 
 export type PushDeps = {
-  queries: (sessionId: SessionId, host: WidgetHost, signal: AbortSignal) => AsyncIterable<PageQuery>
+  queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
@@ -46,20 +40,17 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
     upgrade((c) => {
       const requested = SessionId.safeParse(new URL(c.req.raw.url).searchParams.get(PUSH_SESSION_PARAM))
       const abort = new AbortController()
-      const held: {sink: WSContext | null; page: {host: WidgetHost; stop: AbortController} | null} = {
-        sink: null,
-        page: null,
-      }
+      const held: {sink: WSContext | null; page: AbortController | null} = {sink: null, page: null}
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
-      const servePage = (sessionId: SessionId, host: WidgetHost | null): void => {
-        if (host === (held.page?.host ?? null)) return
-        held.page?.stop.abort()
+      const servePage = (sessionId: SessionId, serving: boolean): void => {
+        if (serving === (held.page !== null)) return
+        held.page?.abort()
         held.page = null
-        if (host === null) return
-        const stop = new AbortController()
-        held.page = {host, stop}
+        if (!serving) return
+        const page = new AbortController()
+        held.page = page
         pump(
-          deps.queries(sessionId, host, AbortSignal.any([abort.signal, stop.signal])),
+          deps.queries(sessionId, AbortSignal.any([abort.signal, page.signal])),
           ({requestId, query}) => send({channel: 'page', requestId, query}),
           'page query',
         )
@@ -78,7 +69,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           held.sink = ws
           const frame = PageServingFrameSchema.safeParse(parsedJson(event.data))
           if (!requested.success || !frame.success) return
-          servePage(requested.data, frame.data.host)
+          servePage(requested.data, frame.data.serving)
         },
         onClose: () => abort.abort(),
         onError: () => abort.abort(),

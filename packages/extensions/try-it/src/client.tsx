@@ -15,7 +15,6 @@ function ConnectSlot(props: {token: string}): JSX.Element {
 
 export function tryIt(config: {token: string}) {
   return defineExtension({
-    hosts: ['web', 'ios'],
     name: TRY_IT_NAME,
     connectGate: {preflight: () => preflight(config.token, 2500, connectPorts())},
     Component: () => (

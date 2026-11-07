@@ -107,7 +107,6 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
 export type RecorderRouter = ReturnType<typeof makeRecorderRouter>
 
 export default defineExtension({
-  hosts: ['web'],
   name: RECORDER_NAME,
   configSchema: recorderConfig,
   tools: [startTool, stopTool, pullTool],

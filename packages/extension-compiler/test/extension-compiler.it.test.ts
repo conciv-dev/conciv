@@ -145,7 +145,7 @@ import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 const tool = defineTool({name: 'iso_tool', description: 'd', inputSchema: z.object({})})
   .server(() => readFileSync('/etc/secret-token', 'utf8'))
-const iso = defineExtension({hosts: ['web', 'ios'], name: 'iso', Component: Surface, tools: [tool]})
+const iso = defineExtension({name: 'iso', Component: Surface, tools: [tool]})
   .server(() => ({systemPrompt: readFileSync('/etc/secret-token', 'utf8')}))
 export default iso
 function Surface() {
@@ -173,7 +173,7 @@ function Surface() {
 })
 
 describe('extensions', () => {
-  const fixture = defineExtension({hosts: ['web', 'ios'], name: 'fixture-ext'})
+  const fixture = defineExtension({name: 'fixture-ext'})
 
   describe('generic extension wiring', () => {
     it('returns the injected built-in server extensions when a project has no user extensions', async () => {
@@ -420,7 +420,7 @@ const ping = defineTool({
   inputSchema: z.object({message: z.string()}),
 }).server((input) => ({echo: input.message}))
 
-const extension = defineExtension({hosts: ['web', 'ios'], name: 'client-heavy', Component, tools: [ping]})
+const extension = defineExtension({name: 'client-heavy', Component, tools: [ping]})
 
 export default extension
 
@@ -438,7 +438,7 @@ function Component() {
   })
 
   test('built-in wins over a folder file of the same name', async () => {
-    const builtin = defineExtension({hosts: ['web', 'ios'], name: 'terminal'})
+    const builtin = defineExtension({name: 'terminal'})
     const root = fixture({'terminal.tsx': `${EXT}({name:'terminal'})`, 'a.tsx': `${EXT}({name:'a'})`})
     const out = await loadServerExtensions(root, [builtin])
     expect(out.filter((e) => e.name === 'terminal').length).toBe(1)
@@ -446,7 +446,7 @@ function Component() {
   })
 
   test('the same-name winner is the built-in regardless of folder enumeration order', async () => {
-    const builtin = defineExtension({hosts: ['web', 'ios'], name: 'z'})
+    const builtin = defineExtension({name: 'z'})
     const root = fixture({'z.tsx': `${EXT}({name:'z'})`, 'a.tsx': `${EXT}({name:'a'})`})
     const out = await loadServerExtensions(root, [builtin])
     expect(out[0]).toBe(builtin)
@@ -496,13 +496,13 @@ const deck = {card: () => 'DECK_CARD'}
 
 export const values = [view.render(), printer.client(), socket.server(), deck.card()]
 
-export default defineExtension({hosts: ['web', 'ios'], name: 'plain'})
+export default defineExtension({name: 'plain'})
   .client(() => ({selection: 'CLIENT_BODY'}))
   .server(() => ({systemPrompt: 'SERVER_BODY'}))`
 
   const EXTENSION_GLOBALS = `import {defineExtension} from '@conciv/extension'
 
-export default defineExtension({hosts: ['web', 'ios'], name: 'globals'})
+export default defineExtension({name: 'globals'})
   .client(() => ({selection: document.title + navigator.userAgent}))
   .server(() => ({systemPrompt: 'SERVER_BODY'}))`
 
@@ -633,14 +633,14 @@ const draw = defineTool({name: 'draw'})
   .server((input) => readFileSync(String(input)))
   .render(Card)
 
-export default defineExtension({hosts: ['web', 'ios'], name: 'canvas', tools: [draw]})
+export default defineExtension({name: 'canvas', tools: [draw]})
   .client(() => ({selection: CLIENT_BODY}))
   .server(() => ({systemPrompt: SERVER_BODY}))`
 
   const SURFACE_SOURCE = `import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
-const extension = defineExtension({hosts: ['web', 'ios'], 
+const extension = defineExtension({
   name: 'surface',
   Component,
   Surface,
@@ -664,7 +664,7 @@ function Panel() {
   const METHOD_SURFACE_SOURCE = `import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
-const extension = defineExtension({hosts: ['web', 'ios'], 
+const extension = defineExtension({
   name: 'method-surface',
   Component() {
     return <ComposerActions.Action priority={10} />
@@ -679,7 +679,7 @@ export default extension`
   const ASSIGN_SOURCE = `import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
-const deploy = defineExtension({hosts: ['web', 'ios'], name: 'deploy'})
+const deploy = defineExtension({name: 'deploy'})
 
 function DeployButton() {
   return <ComposerActions.Action priority={10} />

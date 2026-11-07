@@ -7,7 +7,6 @@ import {CLIENT_TOOLS} from './tool/client.js'
 answerCaptureRequests()
 
 export const design = defineExtension({
-  hosts: ['web'],
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
   tools: CLIENT_TOOLS,

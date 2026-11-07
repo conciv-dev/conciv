@@ -15,7 +15,6 @@ const multiply = defineTool({
 export const sampleConfig = z.object({factor: z.number().default(3)})
 
 export const sampleServerExtension = defineExtension({
-  hosts: ['web', 'ios'],
   name: 'sample',
   configSchema: sampleConfig,
   tools: [multiply],

@@ -69,7 +69,7 @@ const deployRun = defineTool({
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <div data-conciv-deploy-card>Deploying… ({props.part.name})</div>)
 
-const deploy = defineExtension({name: DEPLOY_NAME, hosts: ['web', 'ios'], Component: DeploySurface, tools: [deployRun]})
+const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy
 
 function DeploySurface() {
@@ -116,7 +116,6 @@ into `packages/ui-kit-system/docs/extension-tokens.md`.
 ```ts
 defineExtension({
   name, // required, unique — this is the registered id, not the filename
-  hosts, // required, non-empty: the widget hosts this extension serves, 'web' and/or 'ios'; a session served by another host never sees its tools or systemPrompt
   configSchema, // optional zod schema; plugin options land here, parsed before .server() sees them
   tools, // AnyToolBuilder[] — see below
   attachments, // AnyAttachmentBuilder[] — see below
@@ -136,7 +135,6 @@ optional, chain only what you need:
 ```tsx title="packages/extensions/whiteboard/src/client.tsx:43-84 (trimmed)"
 const whiteboard = defineExtension({
   name: WHITEBOARD_NAME,
-  hosts: ['web', 'ios'],
   tools: whiteboardToolClients,
   systemPrompt: WHITEBOARD_PROMPT,
   Component,
@@ -258,7 +256,6 @@ tool `.server` handlers get typed context.
 ```tsx title="packages/extensions/terminal/src/client.tsx:8-19"
 export const terminal = defineExtension({
   name: TERMINAL_NAME,
-  hosts: ['web', 'ios'],
   views: [
     {id: 'terminal', label: 'Terminal', icon: SquareTerminal, Component: TerminalPanelView, actions: TerminalActions},
   ],

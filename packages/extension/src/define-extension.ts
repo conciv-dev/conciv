@@ -1,6 +1,5 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
-import type {WidgetHost} from '@conciv/protocol/push-types'
 import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
@@ -26,8 +25,6 @@ export type AnyToolBuilder = ToolBuilder<
   unknown
 >
 
-type ExtensionHosts = readonly [WidgetHost, ...WidgetHost[]]
-
 export type ExtensionMeta<
   Name extends string,
   Schema extends z.ZodType,
@@ -35,7 +32,6 @@ export type ExtensionMeta<
   Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
 > = {
   name: Name
-  hosts: ExtensionHosts
   configSchema?: Schema
   tools?: Tools
   attachments?: Attachments
@@ -55,7 +51,6 @@ export type ExtensionBuilder<
   ClientValue extends object = Record<never, never>,
 > = {
   name: Name
-  hosts: ExtensionHosts
   configSchema?: Schema
   Component?: Component
   Surface?: Component
@@ -149,7 +144,6 @@ export function defineExtension<
   }
   const builder = {
     name: meta.name,
-    hosts: meta.hosts,
     configSchema: meta.configSchema,
     Component: meta.Component,
     Surface: meta.Surface,

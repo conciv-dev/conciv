@@ -12,7 +12,6 @@ import {anchorTools} from './tool/anchor/server.js'
 import {elementTools} from './tool/element/server.js'
 
 export default defineExtension({
-  hosts: ['web', 'ios'],
   name: WHITEBOARD_NAME,
   tools: [...canvasTools, ...commentTools, ...anchorTools, ...elementTools],
   systemPrompt: WHITEBOARD_PROMPT,

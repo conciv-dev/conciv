@@ -12,9 +12,10 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
 - `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
+- `writeText` (`fs.ts`): mkdir -p then write
 - `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
 - `withSavedModels(adapter, stateDir)` (`saved-models.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background; with nothing saved it waits for the live list
-- `statePaths` / `StatePaths` (`state-paths.ts`): {dir, server: server.json} under `concivStateDir(stateRoot)`
+- `statePaths` / `StatePaths` (`state-paths.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
 
 ## Invariants
 
@@ -32,7 +33,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `logError` (`debug.ts`): writes to process.stderr
 - `writeDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): write or delete files under ~/.conciv by default
 - `engine-stamp.ts`: on load resolves modules with `import.meta.resolve` and hashes them; each `engineStaleness` call re-reads them
-- `writePersistedPort` (`server-port.ts`): write files
+- `writeText` (`fs.ts`), `writePersistedPort` (`server-port.ts`): write files
 
 ## Verification
 

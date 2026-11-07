@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import {isPageFailure} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import {WidgetHostSchema} from '@conciv/protocol/push-types'
 import {pageVerbError, toolError, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
@@ -21,17 +20,9 @@ export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
     isAnyPageConnected: () => deps.page.bus.anySubscriber(),
   })
   for (const tool of BUILTIN_SERVER_TOOLS) {
-    registry.register(tool, {
-      owner: 'a built-in server tool',
-      hosts: WidgetHostSchema.options,
-      context: {bundler: deps.bundler},
-    })
+    registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
   }
-  registry.register(BUILTIN_OPEN_TOOL, {
-    owner: 'a built-in editor tool',
-    hosts: WidgetHostSchema.options,
-    context: {openInEditor: deps.openInEditor},
-  })
+  registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: deps.openInEditor}})
   return registry
 }
 

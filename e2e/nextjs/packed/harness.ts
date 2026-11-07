@@ -151,7 +151,7 @@ export function secondExtensionSource(): string {
     `  return slot === 'composer' ? '${SECOND_SENTINEL}' : null`,
     `}`,
     ``,
-    `export default defineExtension({hosts: ['web', 'ios'], name: NAME, Component}).client(() => ({value: {}}))`,
+    `export default defineExtension({name: NAME, Component}).client(() => ({value: {}}))`,
     ``,
   ].join('\n')
 }

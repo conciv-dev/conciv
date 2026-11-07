@@ -18,7 +18,6 @@ function Component(): JSX.Element {
 }
 
 export const tanstack = defineExtension({
-  hosts: ['web'],
   name: TANSTACK_NAME,
   Component,
   tools: [...tanstackClientTools],

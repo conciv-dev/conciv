@@ -199,7 +199,7 @@ describe('attachment widget', () => {
     })
     const calm = defineAttachment({mime: 'application/x-fixture'})
     calm.card(() => <span>calm player</span>)
-    const extension = defineExtension({hosts: ['web', 'ios'], name: 'crash-attachment', attachments: [crashing, calm]})
+    const extension = defineExtension({name: 'crash-attachment', attachments: [crashing, calm]})
     return {
       ...paneAttachments([extension], false),
       crashingFile: new File(['{}'], 'crashing.bin', {type: 'application/x-crashing'}),
@@ -2344,7 +2344,6 @@ function ConnectProbe(): JSX.Element {
 }
 
 const connectProbe = defineExtension({
-  hosts: ['web', 'ios'],
   name: CONNECT_PROBE_NAME,
   Component: () => (
     <Show when={getExtensionApi(CONNECT_PROBE_NAME).useSlot() === 'connect'}>
@@ -2502,7 +2501,6 @@ describe('panel view tabs', () => {
   }
 
   const notesExtension = defineExtension({
-    hosts: ['web', 'ios'],
     name: 'panel-view-survival',
     views: [{id: 'notes', label: 'Notes', Component: NotesView}],
   })
@@ -2759,7 +2757,6 @@ describe('panel view tabs', () => {
     }
 
     const crashingTab = defineExtension({
-      hosts: ['web', 'ios'],
       name: 'crash-tab',
       views: [{id: 'crashing', label: 'Crashing', Component: CrashingTab}],
     })
@@ -3167,7 +3164,6 @@ describe('reachability flows', () => {
 const SURFACE_PROBE_NAME = 'surface-probe'
 
 const surfaceProbe = defineExtension({
-  hosts: ['web', 'ios'],
   name: SURFACE_PROBE_NAME,
   Surface: () => <p>surface probe on {getExtensionApi(SURFACE_PROBE_NAME).useApiBase()()}</p>,
 }).client(() => ({value: {}}))
@@ -3590,20 +3586,11 @@ describe('tool card dispatch', () => {
 describe('wire name coverage', () => {
   function realRegistry(): ReturnType<typeof createToolRegistry> {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS)
-      registry.register(tool.client(), {hosts: ['web', 'ios'], owner: 'a built-in page tool'})
+    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
     for (const tool of BUILTIN_SERVER_TOOLS) {
-      registry.register(tool, {
-        hosts: ['web', 'ios'],
-        owner: 'a built-in server tool',
-        context: {bundler: () => undefined},
-      })
+      registry.register(tool, {owner: 'a built-in server tool', context: {bundler: () => undefined}})
     }
-    registry.register(BUILTIN_OPEN_TOOL, {
-      hosts: ['web', 'ios'],
-      owner: 'a built-in editor tool',
-      context: {openInEditor: () => {}},
-    })
+    registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: () => {}}})
     return registry
   }
 

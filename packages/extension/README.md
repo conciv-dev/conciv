@@ -11,7 +11,6 @@ import {defineExtension} from '@conciv/extension'
 
 export default defineExtension({
   name: 'my-extension',
-  hosts: ['web', 'ios'],
   // tools, slots, context…
 })
 ```
@@ -50,15 +49,13 @@ export const routerStateDef = defineTool({
 import {defineExtension} from '@conciv/extension'
 import {routerStateDef} from './shared/defs.js'
 
-export default defineExtension({name: 'demo', hosts: ['web', 'ios'], tools: [routerStateDef.client()]}).server(
-  (server) => {
-    async function currentPath() {
-      const state = await server.tools.call('demo.routerState', {})
-      return state
-    }
-    return {context: {currentPath}}
-  },
-)
+export default defineExtension({name: 'demo', tools: [routerStateDef.client()]}).server((server) => {
+  async function currentPath() {
+    const state = await server.tools.call('demo.routerState', {})
+    return state
+  }
+  return {context: {currentPath}}
+})
 ```
 
 ```ts
@@ -68,15 +65,13 @@ import {routerStateDef} from './shared/defs.js'
 
 export default defineExtension({
   name: 'demo',
-  hosts: ['web', 'ios'],
   tools: [routerStateDef.client(() => ({path: location.pathname}))],
 }).client(() => ({value: {}}))
 ```
 
 Bodies are `(input, ctx)`: the input arrives schema-validated, and the dispatcher builds `ctx` per
-call — `ctx.document`, a lazy `ctx.target(locator)` that resolves a `{ref, selector, name}` locator
-a non-throwing
-`ctx.resolve(locator)`, `ctx.addRef`/`ctx.resetRefs` for snapshot refs, `ctx.consoleEntries()`, and
+call — `ctx.document`, a lazy `ctx.target(locator)` that resolves a `{ref, selector, name}` locator, a
+non-throwing `ctx.resolve(locator)`, `ctx.addRef`/`ctx.resetRefs` for snapshot refs, `ctx.consoleEntries()`, and
 `ctx.agentId`, the agent the page call acts for. A selector, ref or name never resolves to the widget's own elements.
 Return a plain JSON-serializable record; declare `meta.mutating: true` and the call is journaled and
 prompts for user approval on every surface.

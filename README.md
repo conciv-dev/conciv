@@ -121,7 +121,7 @@ const deployRun = defineTool({
   .server(({env}) => ({url: `https://${env}.example.com`}))
   .render((props) => <DeployCard {...props} />)
 
-export default defineExtension({name: 'deploy', hosts: ['web', 'ios'], tools: [deployRun]})
+export default defineExtension({name: 'deploy', tools: [deployRun]})
 ```
 
 Extensions are plain Solid JSX (compiled as a Solid zone even inside a React host app) and ship

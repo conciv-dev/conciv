@@ -937,7 +937,7 @@ describe('rpc clients abort a stream after the request behind it was collected',
 
   async function expectAbortAfterCollection(client: RpcClient): Promise<void> {
     const abort = new AbortController()
-    const stream = await client.page.queries({host: 'web'}, {signal: abort.signal})
+    const stream = await client.page.queries(undefined, {signal: abort.signal})
     await stream.next()
     setFlagsFromString('--expose-gc')
     const collect: unknown = runInNewContext('gc')

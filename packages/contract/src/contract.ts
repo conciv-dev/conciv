@@ -25,7 +25,6 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
-import {WidgetHostSchema} from '@conciv/protocol/push-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
@@ -215,9 +214,7 @@ export const contract = {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),
     clearChanges: oc.output(Ok),
-    queries: oc
-      .input(z.object({host: WidgetHostSchema}))
-      .output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
+    queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)

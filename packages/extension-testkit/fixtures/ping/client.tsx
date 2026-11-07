@@ -57,6 +57,6 @@ function Component(): JSX.Element {
   )
 }
 
-const ping = defineExtension({hosts: ['web', 'ios'], name: PING_NAME, Component})
+const ping = defineExtension({name: PING_NAME, Component})
 
 export default ping

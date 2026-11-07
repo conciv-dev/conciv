@@ -18,9 +18,8 @@ describe('builtins', () => {
   function registryWith(bundler: BundlerBridge | undefined, opened: string[] = []) {
     const registry = createToolRegistry()
     for (const tool of BUILTIN_SERVER_TOOLS)
-      registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant', context: {bundler: () => bundler}})
+      registry.register(tool, {owner: 'a test registrant', context: {bundler: () => bundler}})
     registry.register(BUILTIN_OPEN_TOOL, {
-      hosts: ['web', 'ios'],
       owner: 'a test registrant',
       context: {openInEditor: (file: string) => opened.push(file)},
     })
@@ -89,11 +88,7 @@ describe('builtins', () => {
         },
       })
       for (const tool of BUILTIN_SERVER_TOOLS)
-        registry.register(tool, {
-          hosts: ['web', 'ios'],
-          owner: 'a test registrant',
-          context: {bundler: () => fakeBundler()},
-        })
+        registry.register(tool, {owner: 'a test registrant', context: {bundler: () => fakeBundler()}})
       await expect(registry.call('server_reload', {file: 'src/a.ts'}, {request: testRequest})).resolves.toEqual({
         ok: true,
         applied: true,
