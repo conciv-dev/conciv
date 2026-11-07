@@ -183,3 +183,9 @@ diffs-container {
     opacity: 1;
   }
 }
+
+@property --chat-thread-total-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
