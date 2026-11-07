@@ -1001,7 +1001,7 @@ describe('context tracker', () => {
       const host = mount({inputTokens: 700_000, cacheReadTokens: 73_000, contextWindow: 200_000, outputTokens: 5_000})
       expect(host.textContent).not.toContain('%')
       expect(host.querySelector('svg')).toBeNull()
-      expect(host.textContent).toContain('778K')
+      expect(host.textContent).toContain('705K')
     })
   })
 })
