@@ -92,7 +92,7 @@ export const designConfig = Object.assign(
         imageBonus: 0.1,
         parentBonus: 0.15,
         elementKindWeight: 0.1,
-        nameWeight: 0.2,
+        nameWeight: 0.1,
         layoutRoleWeight: 0.1,
         threshold: 0.3,
         candidatesKept: 3,

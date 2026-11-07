@@ -297,6 +297,29 @@ Queryable by the model, as swamp's data catalog is: a fourth design tool, `desig
 design tables and returns rows as JSON, offered to every agent, the page builder included; it asks only what it needs,
 so nothing bloats its context. `conciv design:query` is the same for a person.
 
+### Assets come from Figma through the tool; the agent draws nothing (2026-11-07, same day)
+
+Side by side on 2026-11-07 (viewer, seven live pages): the tool-built pages match the design's layout line for line
+and look unfinished, because the rules make every image node an empty div and the agent never sees the design image;
+the plain-Claude pages drift in spacing and look finished, because they drew icons, avatars, charts and checkmarks
+from the image. The layout win is real; the look is lost by our own rules. The fix is assets, not drawing.
+
+- `design_get` exports every vector and image node of the frame through the Figma REST images endpoint (svg for
+  vectors and icons, png at the design's scale for raster fills and avatars) into the project under a folder the
+  config names, one file per node, named by node id and name. A node that is an instance of the same component as
+  another shares the file.
+- The tagged tree names the file per node (`asset: "<path>"`). The rules change: an image node is an `img` (or an
+  inline svg for vectors that need to take the text color) with that file, sized by its box; the agent never draws
+  an svg, a data url or a css shape, as before. The placeholder rule goes.
+- Export happens once per registered design and is stored with the target; a second `design_get` returns the same
+  paths. A failed export for a node leaves the node without `asset`; the rule for it is the empty div, as today, and
+  coverage reports the count.
+- Paint rows: a fill or border the gate measures but hides below `much` and `noticeably` on a node with no children
+  (pills, dividers, badges) is a row at `noticeably`, so the Monthly pill and the card dividers are told.
+- Proof: the same three runs on both designs; then a blind screenshot comparison, design against tool page against
+  plain-Claude page, scored by a person or a separate model that never saw the rows. The watch is not the judge of
+  the look.
+
 ### Queries are typed, never SQL (2026-11-07, same day)
 
 The first database lane shipped `conciv db query "<sql>"` and `design_query {sql}` with a read-only sandbox built
