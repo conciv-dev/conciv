@@ -18,7 +18,7 @@ import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
-import {pairResults, type Turn} from '../../store/grouping.js'
+import {pairResults, samePairing, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {
@@ -116,7 +116,7 @@ function TurnSlot(props: TurnSlotProps): JSX.Element {
   return (
     <Show when={props.turn()}>
       {(turn) => {
-        const pairing = createMemo(() => pairResults(turn().parts))
+        const pairing = createMemo(() => pairResults(turn().parts), undefined, {equals: samePairing})
         const isLast = createMemo(() => props.index() === props.total() - 1)
         const components = 'components' in props.messages ? props.messages.components : undefined
         const component = () => (components ? componentForRole(turn().role, components) : undefined)
@@ -306,7 +306,7 @@ function MessageByIndex(props: MessageByIndexProps): JSX.Element {
   return (
     <Show when={turn()} keyed>
       {(value) => {
-        const pairing = createMemo(() => pairResults(value.parts))
+        const pairing = createMemo(() => pairResults(value.parts), undefined, {equals: samePairing})
         const isLast = createMemo(() => props.index === thread.turns.length - 1)
         const component = componentForRole(value.role, props.components)
         return (
@@ -331,7 +331,7 @@ function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
   return (
     <Show when={located()} keyed>
       {(value) => {
-        const pairing = createMemo(() => pairResults(value.turn.parts))
+        const pairing = createMemo(() => pairResults(value.turn.parts), undefined, {equals: samePairing})
         const isLast = createMemo(() => value.index === thread.turns.length - 1)
         const component = componentForRole(value.turn.role, props.components)
         return (

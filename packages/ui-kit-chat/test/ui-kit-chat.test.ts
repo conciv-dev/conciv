@@ -10,7 +10,15 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
-import {coalesceTurns, diffTurns} from '../src/store/grouping.js'
+import {
+  coalesceTurns,
+  defaultGrouper,
+  diffTurns,
+  groupParts,
+  pairResults,
+  samePairing,
+  shareGroupNodes,
+} from '../src/store/grouping.js'
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
@@ -246,6 +254,43 @@ describe('grouping diff', () => {
       const previousTurns = diffTurns([], [], previousMessages)
       const next = [user('u1', 'earlier'), assistant('a1', [text('same reply')]), ...previousMessages]
       expect(diffTurns(previousTurns, previousMessages, next).map((turn) => turn.key)).toEqual(['u1', 'a1', 'u3', 'a3'])
+    })
+  })
+
+  describe('a streamed chunk keeps what it did not change', () => {
+    function call(id: string, state: 'input-streaming' | 'input-complete'): ChatPart {
+      return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state}
+    }
+
+    function result(id: string): ChatPart {
+      return {type: 'tool-result', toolCallId: id, content: 'ok', state: 'complete'}
+    }
+
+    const grouped = (parts: ChatPart[]) => groupParts(parts, defaultGrouper, {})
+
+    it('hands back the same group tree when a chunk only updates a part in place', () => {
+      const before = grouped([call('a', 'input-complete'), call('b', 'input-streaming')])
+      const after = shareGroupNodes(before, grouped([call('a', 'input-complete'), call('b', 'input-complete')]))
+      expect(after).toBe(before)
+    })
+
+    it('replaces only the group a new part joins', () => {
+      const before = grouped([text('intro'), call('a', 'input-complete')])
+      const after = shareGroupNodes(
+        before,
+        grouped([text('intro'), call('a', 'input-complete'), call('b', 'input-streaming')]),
+      )
+      expect(after[0]).toBe(before[0])
+      expect(after[1]).not.toBe(before[1])
+    })
+
+    it('treats a pairing as unchanged until a result arrives', () => {
+      const settled = result('a')
+      const before = pairResults([call('a', 'input-complete'), settled, call('b', 'input-streaming')])
+      const sameResults = pairResults([call('a', 'input-complete'), settled, call('b', 'input-complete')])
+      const newResult = pairResults([call('a', 'input-complete'), settled, call('b', 'input-complete'), result('b')])
+      expect(samePairing(before, sameResults)).toBe(true)
+      expect(samePairing(before, newResult)).toBe(false)
     })
   })
 })

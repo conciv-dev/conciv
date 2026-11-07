@@ -1,4 +1,4 @@
-import {isEqual} from 'es-toolkit'
+import {isEqual, keyBy} from 'es-toolkit'
 import type {JSX} from 'solid-js'
 import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -302,6 +302,25 @@ export function stickyGrouper(grouper: Grouper): Grouper {
   }
 }
 
+export function shareGroupNodes(previous: readonly GroupNode[], next: readonly GroupNode[]): readonly GroupNode[] {
+  const byIdentity = keyBy(previous, groupNodeIdentity)
+  const shared = next.map((node) => sharedNode(byIdentity[groupNodeIdentity(node)], node))
+  return shared.length === previous.length && shared.every((node, index) => node === previous[index])
+    ? previous
+    : shared
+}
+
+function sharedNode(previous: GroupNode | undefined, next: GroupNode): GroupNode {
+  if (previous === undefined || previous.idKey !== next.idKey) return next
+  if (previous.type === 'group' && next.type === 'group') return sharedGroup(previous, next)
+  return isEqual(previous, next) ? previous : next
+}
+
+function sharedGroup(previous: GroupNodeGroup, next: GroupNodeGroup): GroupNodeGroup {
+  const children = shareGroupNodes(previous.children, next.children)
+  return children === previous.children && isEqual(previous.indices, next.indices) ? previous : {...next, children}
+}
+
 export function groupNodeIdentity(node: GroupNode): string {
   return `${node.type}:${node.nodeKey}`
 }
@@ -330,4 +349,12 @@ export function pairResults(parts: ReadonlyArray<ChatPart>): ResultPairing {
   const byCallId = new Map(results.map((part) => [part.toolCallId, part]))
   const hiddenResultIds = new Set(results.map((part) => part.toolCallId).filter((id) => callIds.has(id)))
   return {byCallId, hiddenResultIds}
+}
+
+export function samePairing(previous: ResultPairing, next: ResultPairing): boolean {
+  return (
+    previous.byCallId.size === next.byCallId.size &&
+    [...next.byCallId].every(([callId, result]) => previous.byCallId.get(callId) === result) &&
+    isEqual(previous.hiddenResultIds, next.hiddenResultIds)
+  )
 }
