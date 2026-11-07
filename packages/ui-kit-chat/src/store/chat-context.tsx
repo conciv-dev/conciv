@@ -12,6 +12,7 @@ import {
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {ChatMessage, QueuedMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {chatBusy, type ChatBusySource} from '@conciv/protocol/chat-busy'
+import {isEqual} from 'es-toolkit'
 import {diffTurns, type Turn} from './grouping.js'
 
 export type ViewState = {
@@ -43,6 +44,17 @@ export type ChatContextValue = Chat & {
 
 const ChatContext = createContext<ChatContextValue>()
 
+function liveIdsOf(messages: readonly ChatMessage[]): {calls: Set<string>; messages: Set<string>} {
+  return {
+    calls: new Set(
+      messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'tool-call' && part.id ? [part.id] : [])),
+      ),
+    ),
+    messages: new Set(messages.map((message) => message.id)),
+  }
+}
+
 function pickKeys(record: Record<string, boolean>, live: Set<string>): Record<string, boolean> {
   return Object.fromEntries(Object.entries(record).filter(([key]) => live.has(key)))
 }
@@ -63,15 +75,11 @@ function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
     hovering: null,
   })
 
+  const liveIds = createMemo(() => liveIdsOf(props.chat.messages()), undefined, {equals: isEqual})
   createEffect(() => {
-    const liveCalls = new Set<string>()
-    const liveMessages = new Set<string>()
-    for (const message of props.chat.messages()) {
-      liveMessages.add(message.id)
-      for (const part of message.parts) if (part.type === 'tool-call' && part.id) liveCalls.add(part.id)
-    }
-    setView('collapsed', (prev) => pickKeys(prev, liveCalls))
-    setView('pinned', (prev) => pickKeys(prev, liveMessages))
+    const {calls, messages} = liveIds()
+    setView('collapsed', (prev) => pickKeys(prev, calls))
+    setView('pinned', (prev) => pickKeys(prev, messages))
   })
 
   const grouped = createMemo<{messages: ReadonlyArray<ChatMessage>; turns: Turn[]}>(
