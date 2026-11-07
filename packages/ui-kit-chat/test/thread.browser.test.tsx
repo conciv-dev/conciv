@@ -1581,13 +1581,21 @@ describe('same-count turn replacement', () => {
     return chat
   }
 
-  it('repacks the rows when every turn is replaced by new turns of the same count', async () => {
+  async function replaceAndExpectPacked(idPrefix: string): Promise<void> {
     const chat = mountReplaceable()
     await expect.element(page.getByText('closing question')).toBeInViewport()
     await expect.element(page.getByText(`stale answer ${exchangeCount - 1}`, {exact: false})).toBeInViewport()
-    chat.setMessages(exchanges('fresh', 'fresh-', 'in brief.'))
+    chat.setMessages(exchanges('fresh', idPrefix, 'in brief.'))
     await expect.element(page.getByText(`fresh answer ${exchangeCount - 1}`, {exact: false})).toBeInTheDocument()
     await expect.element(page.getByText('closing question')).toBeInViewport()
     await expect.element(page.getByText(`fresh question ${exchangeCount - 2}`)).toBeInViewport()
+  }
+
+  it('repacks the rows when every turn is replaced by new turns of the same count', async () => {
+    await replaceAndExpectPacked('fresh-')
+  })
+
+  it('repacks the rows when the same turns come back with shorter content', async () => {
+    await replaceAndExpectPacked('')
   })
 })
