@@ -2932,6 +2932,54 @@ describe('engine login', () => {
   }, 30_000)
 })
 
+describe('session picker after login', () => {
+  const DAY_MS = 86_400_000
+  const core = bootedCore('picker-after-login', {
+    resume: true,
+    holdTranscripts: true,
+    history: [
+      {id: HarnessSessionId.parse('gannet-notes'), derivedTitle: 'the gannet notes', updatedAt: Date.now() - DAY_MS},
+      {
+        id: HarnessSessionId.parse('cliff-survey'),
+        derivedTitle: 'a cliff survey',
+        updatedAt: Date.now() - 2 * DAY_MS,
+        text: 'a gannet colony nests on the stack',
+      },
+    ],
+  })
+  const harness = createShellHarness(core)
+  const origin = (): string => new URL(core()).origin
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(`conciv:engine-token:${origin()}`)
+  })
+
+  test('a widget mounted while the engine refused it shows text matches indexed after the login, without reopening', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    const locked = page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
+    await expect.element(locked).toBeVisible()
+    await userEvent.click(locked)
+    await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.printedCode())
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Session options'}))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+    const search = page.getByRole('combobox', {name: /search sessions/i})
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    for (const key of 'gannet') await userEvent.keyboard(key)
+    await expect.element(search).toHaveValue('gannet')
+    await expect.element(page.getByRole('option', {name: /^a cliff survey,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the gannet notes,/})).toBeVisible()
+
+    await coreControl.releaseTranscripts()
+
+    await expect.element(page.getByRole('option', {name: /^a cliff survey,/})).toBeVisible()
+    await expect.element(search).toHaveFocus()
+  }, 30_000)
+})
+
 describe('route boundary', () => {
   const core = bootedCore('route-boundary')
   const harness = createShellHarness(core)

@@ -2557,6 +2557,25 @@ describe('rpc wire', () => {
           await foundOnceIndexed('dunlin', [claudeId('claude-early')])
         })
 
+        it('a watcher that subscribes after a pass gets the current index version at once, and a later pass a higher one', async () => {
+          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
+          await foundOnceIndexed('dunlin', [claudeId('claude-early')])
+          const late = await searchKit().rpc.sessions.changes()
+          try {
+            const current = await late.next()
+            const currentVersion = z.object({version: z.number()}).parse(current.value).version
+            expect(currentVersion).toBeGreaterThan(0)
+
+            writeClaudeTurn(claudeId('claude-kestrel'), 'a kestrel note', 'the kestrel hovered')
+            expect(await listedNativeIds()).toContain(claudeId('claude-kestrel'))
+            await found('kestrel')
+            const next = await late.next()
+            expect(z.object({version: z.number()}).parse(next.value).version).toBeGreaterThan(currentVersion)
+          } finally {
+            await late.return?.()
+          }
+        }, 10_000)
+
         it('answers a search during the build at once with title matches, and text matches follow the indexed event', async () => {
           const puffin = HarnessSessionId.parse('pi-puffin')
           const path = requireTranscriptPath(piHarness)(searched.cwd, puffin)
