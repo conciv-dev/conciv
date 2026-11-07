@@ -7,7 +7,6 @@ import {
   claudeCode,
   createChatServer,
   drizzleChatStores,
-  makeTextAdapter,
   toolApprovalId,
   type TurnHooks,
 } from '../src/server.js'
@@ -25,7 +24,8 @@ import {
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
-import {createTextChunks, createToolCallChunks, storyConnection} from '../src/testkit.js'
+import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
+import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
@@ -80,11 +80,7 @@ CREATE TABLE \`chat_threads\` (
   it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {
     const logged: string[] = []
     const started = Promise.withResolvers<void>()
-    const stalled = makeTextAdapter('stalled', async function* () {
-      yield {type: ChatEventType.RUN_STARTED, runId: 'run', threadId: 'thread', timestamp: Date.now()}
-      started.resolve()
-      await new Promise(() => undefined)
-    })
+    const stalled = stalledModel(() => started.resolve())
     const hooks: TurnHooks = {
       plan: () => ({
         adapter: stalled,
@@ -117,11 +113,9 @@ CREATE TABLE \`chat_threads\` (
     const secondLaunched = Promise.withResolvers<void>()
     const hooks: TurnHooks = {
       plan: (turn) => ({
-        adapter: makeTextAdapter('recorded', async function* () {
+        adapter: stalledModel(() => {
           launched.push(turn.runId)
-          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: 'thread', timestamp: Date.now()}
           secondLaunched.resolve()
-          await new Promise(() => undefined)
         }),
         systemPrompts: [],
         codeMode: [],
@@ -164,11 +158,7 @@ CREATE TABLE \`chat_threads\` (
       const started = new Map(['one', 'two'].map((threadId) => [threadId, Promise.withResolvers<void>()]))
       const hooks: TurnHooks = {
         plan: (turn) => ({
-          adapter: makeTextAdapter('stalled', async function* () {
-            yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
-            started.get(turn.threadId)?.resolve()
-            await new Promise(() => undefined)
-          }),
+          adapter: stalledModel(() => started.get(turn.threadId)?.resolve()),
           systemPrompts: [],
           codeMode: [],
           asking: [],
@@ -245,18 +235,8 @@ CREATE TABLE \`chat_threads\` (
       return 'stopped'
     })
     const hooks: TurnHooks = {
-      plan: (turn) => ({
-        adapter: makeTextAdapter('calls-tool', async function* () {
-          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
-          yield* createToolCallChunks('blocking', {})
-          yield {
-            type: ChatEventType.RUN_FINISHED,
-            runId: turn.runId,
-            threadId: turn.threadId,
-            finishReason: 'tool_calls',
-            timestamp: Date.now(),
-          }
-        }),
+      plan: () => ({
+        adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
         systemPrompts: [],
         codeMode: [],
         asking: [blocking],
@@ -280,6 +260,21 @@ CREATE TABLE \`chat_threads\` (
     expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
     await driven
   })
+
+  function scriptedModel(responses: FakeResponseStep[]) {
+    const model = fakeText()
+    model.setResponses(responses)
+    return model
+  }
+
+  function stalledModel(called: () => void) {
+    return scriptedModel([
+      () => {
+        called()
+        return new Promise<FakeResponse>(() => undefined)
+      },
+    ])
+  }
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
