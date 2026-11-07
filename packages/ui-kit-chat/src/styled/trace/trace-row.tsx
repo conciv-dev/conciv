@@ -1,4 +1,4 @@
-import {createMemo, Show, splitProps, type JSX} from 'solid-js'
+import {createMemo, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
@@ -58,7 +58,7 @@ function metaTone(mark: ToolRowMark, meta: string): string {
 }
 
 export function TraceMark(props: {mark: ToolRowMark}): JSX.Element {
-  const face = createMemo(() => markFace(props.mark))
+  const face = () => markFace(props.mark)
   return (
     <span role="img" aria-label={face().label} class={`${MARK}  ${face().tone}`}>
       {face().glyph}
@@ -90,18 +90,15 @@ export function TraceFoldableRow(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['line', 'ring', 'body', 'foldable'])
   const foldable = () => local.foldable ?? local.body !== undefined
+  const body = createMemo(() => local.body)
   return (
     <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
       <Collapsible.Root defaultOpen disabled={!foldable()} class="min-w-0 w-full">
         <Collapsible.Trigger disabled={!foldable()} class={`${ROW}  ${FOLD_ROW}`}>
           {local.line()}
-          <Show when={foldable()} fallback={<span aria-hidden="true" class={FOLD_SLOT} />}>
-            <FoldIndicator />
-          </Show>
+          {foldable() ? <FoldIndicator /> : <span aria-hidden="true" class={FOLD_SLOT} />}
         </Collapsible.Trigger>
-        <Collapsible.Content>
-          <Show when={local.body}>{(body) => <div class={BLOCK}>{body()()}</div>}</Show>
-        </Collapsible.Content>
+        <Collapsible.Content>{body() ? <div class={BLOCK}>{body()?.()}</div> : undefined}</Collapsible.Content>
       </Collapsible.Root>
     </li>
   )
@@ -119,19 +116,16 @@ export function TraceRunRow(props: {
   const [local] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body', 'foldable'])
   const line = (): JSX.Element => (
     <>
-      <Show
-        when={local.live ?? true}
-        fallback={
-          <span class={NOTE_GLYPH} aria-hidden="true">
-            ·
-          </span>
-        }
-      >
+      {(local.live ?? true) ? (
         <TraceRing />
-      </Show>
+      ) : (
+        <span class={NOTE_GLYPH} aria-hidden="true">
+          ·
+        </span>
+      )}
       <span class={RUN_LABEL}>{local.label}</span>
       <TruncatedText class={RUN_TEXT} text={local.text} />
-      <Show when={local.meta}>{(meta) => <TruncatedText class={`${META} text-chat-dim`} text={meta()} />}</Show>
+      {local.meta ? <TruncatedText class={`${META} text-chat-dim`} text={local.meta ?? ''} /> : undefined}
     </>
   )
   return <TraceFoldableRow line={line} ring={local.ring} body={local.body} foldable={local.foldable} />
@@ -144,18 +138,15 @@ export function TraceToolRow(props: {
   foldable?: boolean
 }): JSX.Element {
   const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable'])
-  const running = createMemo(() => local.projection.mark === 'run' && (local.ring ?? true))
+  const running = () => local.projection.mark === 'run' && (local.ring ?? true)
   const body = () => local.projection.block ?? local.body
-  const labelClass = createMemo(() => (running() ? RUN_LABEL : LABEL))
-  const metaClass = createMemo(() => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`)
+  const metaClass = () => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`
   const line = (): JSX.Element => (
     <>
-      <Show when={running()} fallback={<TraceMark mark={local.projection.mark} />}>
-        <TraceRing />
-      </Show>
-      <span class={labelClass()}>{local.projection.label}</span>
+      {running() ? <TraceRing /> : <TraceMark mark={local.projection.mark} />}
+      <span class={running() ? RUN_LABEL : LABEL}>{local.projection.label}</span>
       <TruncatedText class={TARGET} text={local.projection.target} />
-      <Show when={local.projection.meta}>{(meta) => <TruncatedText class={metaClass()} text={meta()} />}</Show>
+      {local.projection.meta ? <TruncatedText class={metaClass()} text={local.projection.meta ?? ''} /> : undefined}
     </>
   )
   return <TraceFoldableRow line={line} ring={local.ring} body={body()} foldable={local.foldable} />
