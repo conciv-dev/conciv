@@ -8,6 +8,7 @@ import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
+  extensionDb,
   type AnyExtension,
   type AnyToolBuilder,
   type AttachmentDocumentPart,
@@ -47,18 +48,7 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import type {ChatContext} from './api/rpc/mount.js'
-import {
-  createSources,
-  drafts,
-  extensionTable,
-  modelOf,
-  openDb,
-  sessions,
-  writeToolCapture,
-  type ConcivDb,
-  type SourceRead,
-  type SourceWrite,
-} from '@conciv/db'
+import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -338,46 +328,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
-  const declared = extensions.map((extension) => {
-    const tables = extension.tables?.(extensionTable(extension.name)) ?? {}
-    const sources = extension.sources?.(tables) ?? {}
-    const own = createSources({orm: db, sources})
-    return {extension, sources, scoped: {orm: db, tables, sources: own.list, read: own.read, write: own.write}}
-  })
-  const prefixed = declared.flatMap(({extension, sources}) =>
-    Object.entries(sources).map(([source, entry]) => ({name: `${extension.name}_${source}`, extension, source, entry})),
-  )
-  const everySource = createSources({
-    orm: db,
-    sources: Object.fromEntries(prefixed.map(({name, entry}) => [name, entry])),
-  })
-  const sourcesApi = {
-    list: () =>
-      prefixed.map(({name, extension, source, entry}) => ({
-        name,
-        extension: extension.name,
-        source,
-        fields: Object.keys(entry.fields),
-        writable: entry.writable === true,
-      })),
-    read: ({extension, ...query}: SourceRead & {extension?: string}) => scopeOf(extension).read(query),
-    write: ({extension, ...query}: SourceWrite & {extension?: string}) => scopeOf(extension).write(query),
-  }
-  const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
-  function scopeOf(extension: string | undefined): Pick<ReturnType<typeof createSources>, 'read' | 'write'> {
-    if (extension === undefined) return everySource
-    const scoped = extensionDbs.get(extension)
-    if (scoped !== undefined) return scoped
-    throw new Error(`no extension ${extension}; the extensions are ${[...extensionDbs.keys()].join(', ')}`)
-  }
-  const extensionCommands = declared.flatMap(({extension, scoped}) =>
-    Object.entries(extension.commands ?? {}).map(([name, command]) => ({
-      name: `${extension.name}:${name}`,
-      description: command.description,
-      positionals: command.positionals,
-      run: (args: string[]) => command.run({args, db: scoped}),
-    })),
-  )
+  const {scoped: extensionDbs, sources: sourcesApi, commands: extensionCommands} = extensionDb({orm: db, extensions})
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []

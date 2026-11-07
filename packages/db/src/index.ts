@@ -1,6 +1,7 @@
 export * from './capture-queries.js'
 export * from './chat-thread-import.js'
 export * from './db.js'
+export * from './migrated-db.js'
 export * from './extension-table.js'
 export * from './page-change-queries.js'
 export * from './run-queries.js'
