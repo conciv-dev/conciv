@@ -1,4 +1,5 @@
-import {createSignal, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {batch, createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {Button} from '@conciv/ui-kit-system'
 import {FOCUS} from '../classes.js'
@@ -22,8 +23,9 @@ const REVEAL = `inline-flex items-center min-h-5 cursor-pointer text-[10.5px] le
 
 const FALLBACK_LINE_HEIGHT = 18
 
-function lineHeightOf(element: Element | undefined): number {
-  if (!element) return FALLBACK_LINE_HEIGHT
+type ClampMeasure = {viewportHeight: number; contentHeight: number; lineHeight: number}
+
+function lineHeightOf(element: Element): number {
   const parsed = Number.parseFloat(getComputedStyle(element).lineHeight)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_LINE_HEIGHT
 }
@@ -36,41 +38,26 @@ export function TraceClamp(props: {
   overflowLabel?: (hiddenLines: number) => string
 }): JSX.Element {
   const [local] = splitProps(props, ['children', 'lines', 'live', 'size', 'overflowLabel'])
-  const [viewport, setViewport] = createSignal<HTMLDivElement>()
-  const [content, setContent] = createSignal<HTMLDivElement>()
   const [expanded, setExpanded] = createSignal(false)
-  const [measuredPixels, setMeasuredPixels] = createSignal(0)
-  const size = (): TraceClampSize => local.size ?? 'default'
-  const measure = () => {
-    const viewportElement = viewport()
-    const contentElement = content()
-    if (!viewportElement || !contentElement) return
-    setMeasuredPixels(contentElement.scrollHeight - viewportElement.clientHeight)
-  }
-  let measureFrame: number | undefined
-  const scheduleMeasure = () => {
-    if (measureFrame !== undefined) return
-    measureFrame = requestAnimationFrame(() => {
-      measureFrame = undefined
-      measure()
-    })
-  }
-  onCleanup(() => {
-    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame)
+  const [measured, setMeasured] = createStore<ClampMeasure>({
+    viewportHeight: 0,
+    contentHeight: 0,
+    lineHeight: FALLBACK_LINE_HEIGHT,
   })
-  // oxlint-disable-next-line solid/reactivity
-  const {observe} = makeResizeObserver(scheduleMeasure)
-  const mountViewport = (element: HTMLDivElement) => {
-    setViewport(element)
-    observe(element)
-    onMount(measure)
+  const size = (): TraceClampSize => local.size ?? 'default'
+  const elements: {viewport?: HTMLDivElement} = {}
+  const applyEntry = (entry: ResizeObserverEntry): void => {
+    if (entry.target !== elements.viewport) return setMeasured('contentHeight', entry.contentRect.height)
+    setMeasured({viewportHeight: entry.contentRect.height, lineHeight: lineHeightOf(entry.target)})
   }
-  const mountContent = (element: HTMLDivElement) => {
-    setContent(element)
+  const {observe} = makeResizeObserver((entries) => batch(() => entries.forEach(applyEntry)))
+  const mountViewport = (element: HTMLDivElement) => {
+    elements.viewport = element
     observe(element)
   }
   const declaredHiddenLines = () => Math.max(0, (local.lines ?? 0) - CLAMP_LINES[size()])
-  const measuredHiddenLines = () => Math.round(measuredPixels() / lineHeightOf(viewport()))
+  const measuredHiddenLines = () =>
+    Math.round(Math.max(0, measured.contentHeight - measured.viewportHeight) / measured.lineHeight)
   const hiddenLines = () => Math.max(declaredHiddenLines(), measuredHiddenLines())
   const overflowing = () => !expanded() && hiddenLines() > 0
   const label = () => local.overflowLabel?.(hiddenLines()) ?? `… ${hiddenLines()} more lines`
@@ -79,7 +66,7 @@ export function TraceClamp(props: {
   return (
     <div class="min-w-0">
       <div ref={mountViewport} class={viewportClass()}>
-        <div ref={mountContent} class="min-w-0">
+        <div ref={observe} class="min-w-0">
           {local.children}
         </div>
         <Show when={overflowing()}>
