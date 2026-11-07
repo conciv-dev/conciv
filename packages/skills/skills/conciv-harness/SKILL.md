@@ -304,7 +304,7 @@ for streaming updates into an open chat pane, and enumerate past sessions for a 
 (`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
-`packages/harness/src/_shared/contained-path.ts:30-40`, reached for resume liveness by
+`packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
 `resumableToken` in `packages/chat/src/turn.ts:72-80`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See
