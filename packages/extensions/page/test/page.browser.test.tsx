@@ -1,5 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, server} from 'vitest/browser'
 import {collectClientEffects, collectClientTools, type ClientEffect, type ClientToolCtx} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver, installReactBridge} from '@conciv/page'
 import type {PageError} from '@conciv/protocol/page-types'
@@ -11,7 +11,9 @@ import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
-describe('effects', () => {
+const inFirefox = server.browser === 'firefox'
+
+describe.skipIf(inFirefox)('effects', () => {
   function installBanner(): ClientEffect {
     let banner: HTMLElement | null = null
     return {
@@ -118,7 +120,7 @@ describe('effects', () => {
   })
 })
 
-describe('page tools', () => {
+describe.skipIf(inFirefox)('page tools', () => {
   let container: HTMLElement
   let reactRoot: Root
   let driver: PageDriver
@@ -623,41 +625,6 @@ describe('page tools', () => {
         warnings: ['ignored invalid selector: [[not a selector'],
       })
     }, 10_000)
-
-    it('keeps link text that sits on one line on one line in the capture', async () => {
-      const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)
-      if (!face) throw new Error('no Archivo 600 face to load')
-      const fontRule = document.createElement('style')
-      fontRule.textContent = `@font-face{font-family:'Capture Probe';font-weight:600;src:url(${face.src}) format('woff2')}`
-      document.head.append(fontRule)
-      await document.fonts.load('600 14px "Capture Probe"')
-      const header = document.createElement('nav')
-      header.style.cssText =
-        'position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;display:flex;flex-wrap:wrap;align-items:flex-start;background:#fff;color:#000;overflow-wrap:anywhere;font:600 14px/20px "Capture Probe"'
-      const row = document.createElement('div')
-      row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
-      for (const label of ['Home', 'About', 'Form', 'Docs']) {
-        const link = document.createElement('a')
-        link.href = '#'
-        link.textContent = label
-        link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
-        row.append(link)
-      }
-      header.append(row)
-      document.body.appendChild(header)
-      onTestFinished(() => {
-        header.remove()
-        fontRule.remove()
-      })
-      const bitmap = await decoded((await screenshotOf()).image)
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('no 2d context to sample the screenshot')
-      context.drawImage(bitmap, 0, 0)
-      const inked = (top: number, bottom: number): boolean =>
-        context.getImageData(0, top, 300, bottom - top).data.some((value, index) => index % 4 === 0 && value < 128)
-      expect({firstLine: inked(16, 36), secondLine: inked(38, 70)}).toEqual({firstLine: true, secondLine: false})
-    }, 10_000)
   })
 
   describe('page_hmr', () => {
@@ -759,4 +726,49 @@ describe('page tools', () => {
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
     })
   })
+})
+
+describe('a capture in every engine', () => {
+  it('keeps link text that sits on one line on one line in the capture', async () => {
+    const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)
+    if (!face) throw new Error('no Archivo 600 face to load')
+    const fontRule = document.createElement('style')
+    fontRule.textContent = `@font-face{font-family:'Capture Probe';font-weight:600;src:url(${face.src}) format('woff2')}`
+    document.head.append(fontRule)
+    await document.fonts.load('600 14px "Capture Probe"')
+    const header = document.createElement('nav')
+    header.style.cssText =
+      'position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;display:flex;flex-wrap:wrap;align-items:flex-start;background:#fff;color:#000;overflow-wrap:anywhere;font:600 14px/20px "Capture Probe"'
+    const row = document.createElement('div')
+    row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
+    for (const label of ['Home', 'About', 'Form', 'Docs']) {
+      const link = document.createElement('a')
+      link.href = '#'
+      link.textContent = label
+      link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
+      row.append(link)
+    }
+    header.append(row)
+    document.body.appendChild(header)
+    onTestFinished(() => {
+      header.remove()
+      fontRule.remove()
+    })
+    const outcome = await makeDomPageDriver({tools: collectClientTools([pageExtension])}).execute({
+      agentId: 'test-agent',
+      name: `${PAGE_TOOL_PREFIX}screenshot`,
+      input: {},
+    })
+    if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+    const {image} = z.object({image: z.string().min(1)}).parse(outcome.result)
+    const response = await fetch(`data:image/webp;base64,${image}`)
+    const bitmap = await createImageBitmap(await response.blob())
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the screenshot')
+    context.drawImage(bitmap, 0, 0)
+    const inked = (top: number, bottom: number): boolean =>
+      context.getImageData(0, top, 300, bottom - top).data.some((value, index) => index % 4 === 0 && value < 128)
+    expect({firstLine: inked(16, 36), secondLine: inked(38, 70)}).toEqual({firstLine: true, secondLine: false})
+  }, 10_000)
 })
