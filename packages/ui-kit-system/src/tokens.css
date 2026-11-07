@@ -49,6 +49,7 @@
   --chat-panel-sunk: var(--chat-panel);
   --chat-agent: light-dark(color-mix(in oklch, oklch(0.79 0.13 188), var(--chat-text-hi) 45%), oklch(0.79 0.13 188));
   --chat-danger-line: color-mix(in oklch, var(--chat-danger) 42%, transparent);
+  --chat-duration-fast: calc(var(--chat-duration-normal) * 0.6);
   --chat-shadow: var(--chat-shadow-sm);
   --chat-shadow-hover: var(--chat-shadow-lg);
 }

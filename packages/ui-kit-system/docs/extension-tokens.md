@@ -79,6 +79,7 @@ These resolve under every skin. Colour tokens follow the active colour scheme on
 | `--chat-panel-sunk` | deepest field bg |
 | `--chat-agent` | fixed agent hue (teal), darkened toward the ink anchor on light |
 | `--chat-danger-line` | error border |
+| `--chat-duration-fast` | quick feedback duration for hover and press, three fifths of the normal duration |
 | `--chat-shadow` | elevation |
 | `--chat-shadow-hover` | elevation hover |
 

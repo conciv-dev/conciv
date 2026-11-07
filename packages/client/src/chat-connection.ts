@@ -12,7 +12,6 @@ import {
   sessionRunEvent,
   type RunLifecycle,
   approvalAskOf,
-  isRunPhaseTerminal,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
@@ -190,12 +189,10 @@ async function* finishedOnItsLifecycle(
   threadId: string,
   runId: string,
 ): AsyncGenerator<ChatEvent> {
-  const seen = {finished: false}
   for await (const chunk of joined) {
-    seen.finished ||= chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR
     yield chunk
     const lifecycle = runLifecycleEvent.parse(chunk)
-    if (seen.finished || lifecycle?.runId !== runId || !isRunPhaseTerminal(lifecycle.phase)) continue
+    if (lifecycle?.runId !== runId || lifecycle.phase !== 'aborted') continue
     yield {type: ChatEventType.RUN_FINISHED, threadId, runId, finishReason: 'stop', timestamp: Date.now()}
     return
   }

@@ -6,7 +6,7 @@ export const motion = {
     'animate-chat-dot animate-duration-[1.2s] animate-delay-[0.15s] animate-iteration-count-infinite motion-reduce:animate-none',
   'anim-dot3':
     'animate-chat-dot animate-duration-[1.2s] animate-delay-[0.3s] animate-iteration-count-infinite motion-reduce:animate-none',
-  'anim-msg': 'animate-chat-fade-in-up animate-duration-[160ms] animate-ease-chat motion-reduce:animate-none',
+  'anim-msg': 'animate-chat-fade-in-up animate-duration-chat-normal animate-ease-chat motion-reduce:animate-none',
   'anim-msg-lg': 'animate-chat-fade-in-up animate-duration-[180ms] animate-ease-chat motion-reduce:animate-none',
   'anim-rise':
     'animate-chat-fade-in-up animate-duration-[320ms] animate-ease-chat-expo animate-fill-mode-backwards motion-reduce:animate-none',
@@ -44,23 +44,28 @@ export const motion = {
   'anim-think-shimmer':
     'animate-chat-think-shimmer animate-duration-[1.6s] animate-ease-linear animate-iteration-count-infinite motion-reduce:animate-none',
 
-  'trans-bg': '[transition:background-color_120ms_var(--chat-ease)]',
+  'trans-bg': '[transition:background-color_var(--chat-duration-fast)_var(--chat-ease)]',
   'trans-bg-tf': '[transition:background-color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)]',
   'trans-border': '[transition:border-color_120ms_var(--chat-ease)]',
-  'trans-chip': '[transition:border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]',
+  'trans-chip':
+    '[transition:border-color_var(--chat-duration-fast)_var(--chat-ease),background-color_var(--chat-duration-fast)_var(--chat-ease)]',
   'trans-composer': '[transition:border-color_120ms_var(--chat-ease),box-shadow_120ms_var(--chat-ease)]',
   'trans-input':
     '[transition:border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)]',
-  'trans-color-bg': '[transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]',
+  'trans-color-bg':
+    '[transition:color_var(--chat-duration-fast)_var(--chat-ease),background-color_var(--chat-duration-fast)_var(--chat-ease)]',
   'trans-cbb':
-    '[transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]',
+    '[transition:color_var(--chat-duration-fast)_var(--chat-ease),border-color_var(--chat-duration-fast)_var(--chat-ease),background-color_var(--chat-duration-fast)_var(--chat-ease)]',
   'trans-send': '[transition:transform_100ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]',
   'trans-btn':
     '[transition:transform_100ms_var(--chat-ease),background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)]',
   'trans-lift': '[transition:transform_140ms_var(--chat-ease),box-shadow_140ms_var(--chat-ease)]',
   'trans-tf150': '[transition:transform_150ms_var(--chat-ease)]',
   'trans-tf160': '[transition:transform_160ms_var(--chat-ease)]',
-  'trans-tf-op': '[transition:transform_160ms_var(--chat-ease),opacity_120ms_var(--chat-ease)]',
+  'trans-tf-op':
+    '[transition:transform_var(--chat-duration-normal)_var(--chat-ease),opacity_var(--chat-duration-fast)_var(--chat-ease)]',
+  'trans-op-rotate':
+    '[transition:opacity_var(--chat-duration-fast)_var(--chat-ease),rotate_var(--chat-duration-fast)_var(--chat-ease)]',
   'trans-pop-in': '[transition:opacity_200ms_var(--chat-ease),transform_240ms_var(--chat-ease-expo),visibility_0s]',
   'trans-pop-out':
     '[transition:opacity_200ms_var(--chat-ease),transform_240ms_var(--chat-ease-expo),visibility_0s_linear_240ms]',

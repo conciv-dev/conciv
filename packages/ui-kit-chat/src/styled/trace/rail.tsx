@@ -6,7 +6,7 @@ const CORNER_RADIUS = 3
 const SVG_CLASS =
   'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
 const PATH_CLASS = '[stroke:var(--chat-glyph)] stroke-1 fill-none'
-const RUN_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_var(--rail-top,0px),100%_var(--rail-top,0px),100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,320ms)_var(--chat-ease),opacity_260ms_var(--chat-ease)] motion-reduce:[transition:none]`
+const RUN_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_var(--rail-top,0px),100%_var(--rail-top,0px),100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,var(--chat-duration-slow))_var(--chat-ease),opacity_var(--chat-duration-slow)_var(--chat-ease)] motion-reduce:[transition:none]`
 const RUN_PATH_CLASS = '[stroke:var(--chat-accent)] stroke-1 fill-none'
 
 function spineX(gutter: number): number {
