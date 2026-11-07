@@ -910,6 +910,64 @@ describe.each([
     mode: 'shared group tooltip',
     Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
   },
+])('copy button with $mode', ({Wrap}) => {
+  const accept = (): Promise<void> => Promise.resolve()
+
+  function mount(): void {
+    const {unmount} = render(() => (
+      <Wrap>
+        <div class="p-10 flex gap-2">
+          <ClipboardCopyButton text="first" writeText={accept} />
+          <ClipboardCopyButton text="second" writeText={accept} tooltips={{idle: 'Copy second'}} />
+        </div>
+      </Wrap>
+    ))
+    onTestFinished(unmount)
+  }
+
+  const first = () => page.getByRole('button', {name: 'Copy', exact: true})
+
+  it('names the hovered button by the tooltip it shows', async () => {
+    mount()
+    const second = page.getByRole('button', {name: 'Copy second'})
+    await userEvent.hover(first())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+
+    await userEvent.hover(second)
+
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy second')
+    await expect.element(second).toHaveAccessibleDescription('Copy second')
+    await expect.element(first()).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('swaps to Copied on a press and takes the tooltip away', async () => {
+    mount()
+    await userEvent.hover(first())
+    await expect.element(page.getByRole('tooltip')).toBeVisible()
+
+    await first().click()
+
+    await expect.element(page.getByRole('button', {name: 'Copied'})).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('opens the tooltip for a keyboard user behind a visible focus ring', async () => {
+    mount()
+
+    await userEvent.tab()
+
+    await expect.element(first()).toHaveFocus()
+    expect(first().element().matches(':focus-visible')).toBe(true)
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+  })
+})
+
+describe.each([
+  {mode: 'own tooltip', Wrap: (props: {children: JSX.Element}) => <>{props.children}</>},
+  {
+    mode: 'shared group tooltip',
+    Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
+  },
 ])('truncated text with $mode', ({Wrap}) => {
   const LONG = 'I accept the terms and conditions. Required. Validation runs on submit and again on blur.'
   const SHORT = 'Submit'

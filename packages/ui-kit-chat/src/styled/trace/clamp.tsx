@@ -1,4 +1,4 @@
-import {batch, createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {batch, createSignal, splitProps, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {makeResizeObserver} from '@solid-primitives/resize-observer'
 import {Button} from '@conciv/ui-kit-system'
@@ -69,11 +69,9 @@ export function TraceClamp(props: {
         <div ref={observe} class="min-w-0">
           {local.children}
         </div>
-        <Show when={overflowing()}>
-          <span aria-hidden="true" class={local.live === true ? FADE_TOP : FADE_BOTTOM} />
-        </Show>
+        {overflowing() ? <span aria-hidden="true" class={local.live === true ? FADE_TOP : FADE_BOTTOM} /> : undefined}
       </div>
-      <Show when={overflowing() || expanded()}>
+      {overflowing() || expanded() ? (
         <div class={FOOTER}>
           <Button
             variant="plain"
@@ -85,7 +83,7 @@ export function TraceClamp(props: {
             {expanded() ? 'show less' : label()}
           </Button>
         </div>
-      </Show>
+      ) : undefined}
     </div>
   )
 }

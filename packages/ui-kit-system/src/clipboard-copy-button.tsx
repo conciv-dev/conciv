@@ -1,4 +1,4 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createSignal, Show, splitProps, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
@@ -48,6 +48,12 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
     onCopied: () => local.onCopied?.(),
     onFailed: () => local.onFailed?.(),
   })
+  const [engaged, setEngaged] = createSignal(false)
+  const engage = () => setEngaged(true)
+  const copy = () => {
+    engage()
+    clipboard.copy()
+  }
   const tooltip = () => {
     const tooltips = {...DEFAULT_TOOLTIPS, ...local.tooltips}
     if (clipboard.copied()) return tooltips.copied
@@ -63,18 +69,32 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
         disabled={local.disabled}
         data-copied={clipboard.copied() ? '' : undefined}
         data-copy-failed={clipboard.failed() ? '' : undefined}
-        onClick={clipboard.copy}
+        onPointerEnter={engage}
+        onFocus={engage}
+        onClick={copy}
       >
-        <Swap.Root swap={clipboard.status() !== 'idle'}>
-          <Swap.Indicator type="on">
-            <Show when={clipboard.failed()} fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}>
-              <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
-            </Show>
-          </Swap.Indicator>
-          <Swap.Indicator type="off">
-            <Copy class={ICON} aria-hidden="true" />
-          </Swap.Indicator>
-        </Swap.Root>
+        <Show
+          when={engaged()}
+          fallback={
+            <Swap.Resting>
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Resting>
+          }
+        >
+          <Swap.Root swap={clipboard.status() !== 'idle'}>
+            <Swap.Indicator type="on">
+              <Show
+                when={clipboard.failed()}
+                fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}
+              >
+                <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
+              </Show>
+            </Swap.Indicator>
+            <Swap.Indicator type="off">
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Indicator>
+          </Swap.Root>
+        </Show>
       </TooltipIconButton>
       <span role="status" aria-live="polite" class="sr-only">
         {clipboard.announcement()}
