@@ -138,6 +138,9 @@ catalogs:
     '@tanstack/router-plugin':
       specifier: 1.168.48
       version: 1.168.48
+    '@tanstack/solid-pacer':
+      specifier: 0.24.0
+      version: 0.24.0
     '@tanstack/solid-query':
       specifier: ^5.105.0
       version: 5.105.0
@@ -546,7 +549,7 @@ importers:
         specifier: ^0.17.0
         version: 0.17.0(solid-js@1.9.17)
       '@tanstack/solid-pacer':
-        specifier: 0.24.0
+        specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
       '@tanstack/solid-query':
         specifier: 'catalog:'
@@ -4252,7 +4255,7 @@ importers:
         specifier: 1.6.2
         version: 1.6.2(@shikijs/themes@4.5.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@tanstack/solid-pacer':
-        specifier: 0.24.0
+        specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
     devDependencies:
       '@conciv/vitest-config':
