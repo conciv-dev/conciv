@@ -84,8 +84,8 @@ That last case is how a stale file from a crashed core recovers. It is the recov
 path, not the primary one: a core on any port is found through the file.
 
 The SDK reads the fixed path `SIMULATOR_HOST_HOME/.conciv/dev-endpoint.json`. A host
-that runs its dev server under a test environment (`VITEST`) writes to
-a temporary directory instead, so the app never sees that core's file: it drops to the
+whose plugin config sets `devEndpointDir` writes the file to that folder instead, so
+the app never sees that core's file: it drops to the
 port probe, and it pairs with a different dev core if that one left a healthy file at
 the global path. Set `CONCIV_URL` to pin the core explicitly.
 
@@ -114,7 +114,7 @@ shipped source).
 
 1. `pnpm turbo run build --filter=@conciv/embed` (fresh bundle).
 2. Start the dev core on the pinned port for a native project, or `pnpm --filter ios-example dev`
-   for the in-repo ConcivDemo app (`apps/examples/ios`, port 4599, `swiftc` mode).
+   for the in-repo ConcivDemo app (`native/swift`, port 4599, `swiftc` mode).
 3. From the agent panel, run `ios_build` then `ios_run`; confirm no bash approval
    prompts, the app boots in the sim, and the transparent overlay plus FAB appear over
    the native screen.

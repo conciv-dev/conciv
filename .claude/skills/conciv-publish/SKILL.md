@@ -78,7 +78,7 @@ Prerequisite: the demo has no core of its own. `native/swift/ConcivDemo/run.sh` 
 pnpm --filter ios-example dev
 ```
 
-That example (`apps/examples/ios`) is a bare Vite host whose `vite.config.ts` pins the core to port 4599 and configures the `ios` extension against `native/swift/ConcivDemo`, so from the agent panel `ios.build` and `ios.run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that dev core is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios.build` / `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
+That example (`native/swift`, package `ios-example`) is a bare Vite host whose `vite.config.ts` pins the core to port 4599 and configures the `ios` extension against `native/swift/ConcivDemo`, so from the agent panel `ios.build` and `ios.run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that dev core is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios.build` / `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
 
 Then the interaction problem: `simctl` can launch, screenshot (`io <udid> screenshot`), and stream logs (`spawn <udid> log stream`), but it CANNOT tap, type, or scroll. All four checks are interactive, so the listed commands alone cannot drive them. Two honest options, in order:
 

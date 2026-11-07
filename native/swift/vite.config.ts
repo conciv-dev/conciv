@@ -8,7 +8,7 @@ export default defineConfig({
       port: 4599,
       extensions: {
         ios: {
-          projectRoot: fileURLToPath(new URL('../../../native/swift/ConcivDemo', import.meta.url)),
+          projectRoot: fileURLToPath(new URL('./ConcivDemo', import.meta.url)),
           bundleId: 'dev.conciv.ConcivDemo',
           simulator: 'iPhone 17 Pro',
           buildMode: 'swiftc',

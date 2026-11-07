@@ -15,6 +15,7 @@
     "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
     "apps/examples/**",
+    "native/swift/**",
     "docs/assets/page-session-card-spike/**",
     "e2e/astro/**",
     "e2e/nextjs/**",

@@ -2,7 +2,7 @@
 
 ## Overview
 
-iOS simulator demo app built with plain `swiftc` (no Xcode project), compiled together with the real ConcivWidget sources. The iOS example's (`apps/examples/ios`) iOS extension points at this folder.
+iOS simulator demo app built with plain `swiftc` (no Xcode project), compiled together with the real ConcivWidget sources. The iOS example host in the parent folder (`native/swift`, package `ios-example`) points its iOS extension at this folder.
 
 ## Interface
 
