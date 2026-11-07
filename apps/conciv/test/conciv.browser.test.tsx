@@ -54,7 +54,7 @@ import {
   getExtensionApi,
   type RegisterExtension,
 } from '@conciv/extension'
-import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -303,14 +303,15 @@ describe('chat pane', () => {
   const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
   const narration = () => page.getByText('Responding…', {exact: true})
 
-  async function startStreamingRun(): Promise<void> {
-    const {sessionId} = await newSession()
+  async function startStreamingRun(): Promise<{rpc: RpcClient; sessionId: string}> {
+    const session = await newSession()
     await coreControl.holdTurn()
-    mountChatPane(sessionId)
+    mountChatPane(session.sessionId)
     await input().fill('first turn')
     await userEvent.keyboard('{Enter}')
     await expect.element(stopButton()).toBeVisible()
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    return session
   }
 
   test('restores the server-side draft text and staged grabs when the pane mounts', async () => {
@@ -476,22 +477,23 @@ describe('chat pane', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
   })
 
-  test('clicking stop with a queue interrupts the run and flushes every queued message, in order, as one turn', async () => {
-    await startStreamingRun()
+  test('clicking stop with a queue stops the run and puts the queued messages, in order, back in the composer unsent', async () => {
+    const {rpc, sessionId} = await startStreamingRun()
 
     await input().fill('alpha step')
     await userEvent.keyboard('{Enter}')
     await input().fill('bravo step')
     await userEvent.keyboard('{Enter}')
-
-    await expect.element(page.getByText('alpha step')).toBeVisible()
-    await expect.element(page.getByText('bravo step')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Remove from queue'}).first()).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Remove from queue'}).nth(1)).toBeVisible()
 
     await stopButton().click()
 
-    await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
-    await expect.element(page.getByText(/alpha step[\s\S]*bravo step/)).toBeVisible()
+    await expect.element(stoppedLine()).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(page.getByText('Queue', {exact: true})).not.toBeInTheDocument()
+    await expect.element(input().filter({hasText: /alpha step\s*bravo step/})).toBeVisible()
+    const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+    expect(asked).toHaveLength(1)
   })
 
   test('a stopped turn ends with a Stopped line that a reload still shows', async () => {
@@ -512,7 +514,7 @@ describe('chat pane', () => {
     await expect.element(stoppedLine()).toBeVisible()
   })
 
-  test('Escape in the focused composer does what the stop button does and leaves the draft untouched', async () => {
+  test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
     await startStreamingRun()
 
     await input().fill('queued while running')
@@ -522,11 +524,9 @@ describe('chat pane', () => {
     await input().fill('draft kept in place')
     await userEvent.keyboard('{Escape}')
 
+    await expect.element(stoppedLine()).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
-    await expect.element(page.getByText('queued while running')).toBeVisible()
-    await expect.element(input()).toHaveTextContent('draft kept in place')
-    await expect.element(page.getByText(UNSCRIPTED_REPLY).nth(1)).toBeVisible()
-    await coreControl.releaseTurn()
+    await expect.element(input().filter({hasText: /draft kept in place\s*queued while running/})).toBeVisible()
     await expect.element(stopButton()).not.toBeInTheDocument()
   })
 
@@ -2832,58 +2832,32 @@ describe('queue strip', () => {
     })
   })
 
-  describe('a later Stop returns a superseded queued flush to the draft', () => {
+  describe('Stop returns the queue to the draft', () => {
     afterEach(() => {
       for (const dispose of disposers.splice(0)) dispose()
     })
 
-    it('appends the follow-up under typed text after a newer turn was started and stopped during the wait', async () => {
-      const heldRefresh = Promise.withResolvers<ChatSessionHydration>()
-      const refreshStarted = Promise.withResolvers<void>()
-      const held = () => {
-        refreshStarted.resolve()
-        return heldRefresh.promise
-      }
-      const {sent, session: create} = sessionOverHeldRuns([held])
-      const {session, cancel} = mountDraftPane(create)
-      void session.sendMessage('first turn')
-      await vi.waitFor(() => expect(sent).toEqual(['first turn']))
-      await session.sendMessage('queued follow-up')
-      const earlierCancel = cancel()
-      await refreshStarted.promise
-      void session.sendMessage('second turn')
-      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'second turn']))
-      await cancel()
-      await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
-      await userEvent.keyboard('still typing')
-      await expect.element(draftOutput()).toHaveTextContent('"still typing"')
-      heldRefresh.resolve(EMPTY_HYDRATION)
-      await Promise.race([earlierCancel, vi.waitUntil(() => sent.length > 2)])
-      expect(sent).toEqual(['first turn', 'second turn'])
-      await expect.element(draftOutput()).toHaveTextContent('"still typing\\nqueued follow-up"')
-    })
-
-    it('returns only the unsent items, text in order and images as attachments, once a Stop lands mid-flush', async () => {
-      const {sent, session: create} = sessionOverHeldRuns([])
-      const {session, cancel, attached} = mountDraftPane(create)
+    it('puts every queued text, in order, in the draft and images back as attachments, and sends none of them', async () => {
+      const {sent, session: create} = sessionOverHeldRuns()
+      const {session, stop, attached} = mountDraftPane(create)
       const multipart = (text: string): ContentPart[] => [{type: 'text', content: text}]
       void session.sendMessage('first turn')
       await vi.waitFor(() => expect(sent).toEqual(['first turn']))
       await session.sendMessage({content: multipart('queued one')})
-      await session.sendMessage({content: multipart('queued two')})
+      await session.sendMessage('queued two')
       await session.sendMessage({
         content: [
           ...multipart('queued three'),
           {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_PIXEL}},
         ],
       })
-      const flush = cancel()
-      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'queued one']))
-      await session.stop()
-      await Promise.race([flush, vi.waitUntil(() => sent.length > 2)])
-      expect(sent).toEqual(['first turn', 'queued one'])
-      await expect.element(draftOutput()).toHaveTextContent('"queued two\\nqueued three"')
+
+      await stop()
+
+      await expect.element(draftOutput()).toHaveTextContent('"queued one\\nqueued two\\nqueued three"')
       expect(attached.map((file) => file.type)).toEqual(['image/png'])
+      expect(session.queue()).toEqual([])
+      expect(sent).toEqual(['first turn'])
     })
   })
 
@@ -2900,7 +2874,7 @@ describe('queue strip', () => {
   const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
     new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
 
-  function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
+  function sessionOverHeldRuns() {
     const sent: string[] = []
     const connection: ChatSessionConnection = {
       subscribe: async function* (signal) {
@@ -2911,7 +2885,7 @@ describe('queue strip', () => {
         sent.push(lastUserText(messages))
         await abortOf(signal)
       },
-      refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
+      refresh: () => Promise.resolve(EMPTY_HYDRATION),
       close: () => undefined,
     }
     return {
@@ -2963,8 +2937,11 @@ describe('queue strip', () => {
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
     }
-    const cancel = () => session.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, sink))
-    return {session, cancel, attached}
+    const stop = () => {
+      returnQueueToDraft(session, sink)
+      return session.stop()
+    }
+    return {session, stop, attached}
   }
 })
 

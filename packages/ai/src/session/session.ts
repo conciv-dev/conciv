@@ -8,7 +8,6 @@ import {
   type RunClockSource,
   type RunLifecycle,
 } from '@conciv/protocol/chat-event-types'
-import type {QueuedMessage} from '@tanstack/ai-client'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
 import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
@@ -51,7 +50,6 @@ export type CreateChatSessionOptions = {
 export type ChatSession = Omit<Chat, 'stop'> & {
   stop: () => Promise<void>
   refresh: () => Promise<void>
-  interruptAndFlush: () => Promise<readonly QueuedMessage[]>
   stopping: Accessor<boolean>
   stopped: Accessor<boolean>
   runSource: Accessor<RunClockSource | null>
@@ -113,15 +111,6 @@ function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydrat
 
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value))
-}
-
-function isTextContent(content: QueuedMessage['content']): content is string {
-  return typeof content === 'string'
-}
-
-function joinedQueueText(queued: readonly QueuedMessage[]): string | null {
-  if (!queued.every((item) => isTextContent(item.content))) return null
-  return queued.map((item) => item.content).join('\n')
 }
 
 export function createChat(options: CreateChatOptions): Chat {
@@ -213,12 +202,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     setRunSource(stoppedRun)
     await refresh()
   }
-  let latestStop: Promise<void> | null = null
-  const stop = (): Promise<void> => {
-    const stopRequest = stopRun().catch((error: unknown) => options.onError?.(asError(error)))
-    latestStop = stopRequest
-    return stopRequest
-  }
+  const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
     const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope)
@@ -226,34 +210,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     if (!decision.startsTurn || ask === undefined) return
     await chat.sendMessage(decisionText(ask.toolName, approved, scope))
   }
-  const sendQueuedSequentially = async (
-    queued: readonly QueuedMessage[],
-    stopRequest: Promise<void>,
-  ): Promise<readonly QueuedMessage[]> => {
-    for (const [index, item] of queued.entries()) {
-      if (latestStop !== stopRequest) return queued.slice(index)
-      await chat.sendMessage(item.content)
-    }
-    return []
-  }
-  const interruptAndFlush = async (): Promise<readonly QueuedMessage[]> => {
-    const queued = chat.queue()
-    const stopRequest = stop()
-    await stopRequest
-    if (queued.length === 0 || latestStop !== stopRequest) return queued
-    const joined = joinedQueueText(queued)
-    const flushed =
-      joined === null ? sendQueuedSequentially(queued, stopRequest) : chat.sendMessage(joined).then(() => [])
-    return flushed.catch((error: unknown) => {
-      options.onError?.(asError(error))
-      return []
-    })
-  }
   return {
     ...chat,
     stop,
     refresh,
-    interruptAndFlush,
     stopping,
     stopped,
     runSource,
