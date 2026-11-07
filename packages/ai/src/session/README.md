@@ -7,7 +7,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 ## Interface
 
 - `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `hydrated`, `pendingApprovals`, and `harnessOf(messageId)`.
+- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `harnessOf(messageId)`.
 - `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, approved, scope)`, optional `onError`.
 - `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh(before?)` (the newest page, or the page before a cursor) and `close()`.
 - `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
@@ -17,6 +17,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 
 - `session.ts:newerRun` - hydration does not overwrite a run that started later, or the same run when it is already terminal.
 - `session.ts:harnessOf` - the harness that produced a message, by message id, merged from every hydration's `messageHarness`; `undefined` for a message no hydration named.
+- `session.ts:loadFailed` - the history load failed when the chat holds no messages but an error; the loading state itself is `useChat`'s `isHydrating`, which goes false on success or failure.
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
 - `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`).
 - `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.

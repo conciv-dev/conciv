@@ -27,7 +27,8 @@ The chat pane for one session: transcript, composer with attachments and element
 
 - `send-checks.ts:checkSend`: refuses empty content and sends while busy; more than `MAX_CONTENT_PARTS` (16) parts, a JSON payload over `WS_RPC_PAYLOAD_BUDGET_BYTES`, or an unreachable engine are refused with a warning and the message stays in the composer
 - `use-pane-messaging.ts:usePaneMessaging`: a failed `checkSend` verdict throws `sendRejection(verdict)` before any rpc call
-- `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored
+- `refresh-coordinator.ts:makeRefreshCoordinator`: a refresh while one is running is ignored; a refresh on a chat whose history load failed reopens it (`liveSessions.reopen`) instead of re-fetching into the failed chat
+- `chat-pane.tsx:ChatPane`: keyed on the session's chat instance, so a reopened chat remounts the pane; a failed history load shows `Couldn’t load this conversation` with Retry, which calls `liveSessions.reopen(sessionId)`; while the reopened chat loads the alert stays up as a disabled `Retrying…`
 - `older-messages.tsx:OlderMessages`: one older page loads at a time; nothing loads once `chat.hasOlderMessages()` is false or after a failure until Retry
 - `chat-pane.tsx:threadDividers`: dividers before the first loaded message (the `New session` line) show only once no older page is left
 - `chat-pane.tsx:renderTurnPrefix`: an assistant turn carries its harness name only once the session's replies (hydrated `harnessOf(messageId)`, else the current harness) span more than one harness

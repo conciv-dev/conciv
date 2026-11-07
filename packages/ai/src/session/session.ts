@@ -58,7 +58,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   runInProgress: Accessor<boolean>
-  hydrated: Accessor<boolean>
+  loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   harnessOf: (messageId: string) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
@@ -130,7 +130,6 @@ export function createChat(options: CreateChatOptions): Chat {
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
-  const [hydrated, setHydrated] = createSignal(false)
   const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
     pending: [],
     harnesses: {},
@@ -141,7 +140,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
       setRunSource((current) => newerRun(current, hydration))
       setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
       setServed('harnesses', hydration.messageHarness)
-      setHydrated(true)
     },
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
@@ -198,6 +196,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
+  const loadFailed = createMemo(() => chat.messages().length === 0 && chat.error() !== undefined)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -261,7 +260,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runError,
     sessionRunning,
     runInProgress,
-    hydrated,
+    loadFailed,
     pendingApprovals: () => served.pending,
     harnessOf: (messageId) => served.harnesses[messageId],
     decide,
