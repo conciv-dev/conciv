@@ -22,6 +22,10 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
     get count() {
       return props.more ? props.rows.length + 1 : props.rows.length
     },
+    get getItemKey() {
+      const rows = props.rows
+      return (index: number) => (rows[index] === undefined ? 'more' : index)
+    },
     getScrollElement: () => scroller ?? null,
     estimateSize: (index) => {
       const row = props.rows[index]
