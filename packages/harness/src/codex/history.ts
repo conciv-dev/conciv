@@ -298,11 +298,17 @@ function scanForRollout(sessionId: string): string | null {
   return hit ? containedPath(codexHome(), join(hit.parentPath, hit.name)) : null
 }
 
+function persistedRollout(sessionId: string): string | null {
+  try {
+    const row = threadRows(stateDbPath(), THREAD_BY_ID, [sessionId]).at(0)
+    return row ? containedPath(codexHome(), row.rollout_path) : null
+  } catch {
+    return null
+  }
+}
+
 export function rolloutPath(sessionId: string): string | null {
-  const row = threadRows(stateDbPath(), THREAD_BY_ID, [sessionId]).at(0)
-  const persisted = row ? containedPath(codexHome(), row.rollout_path) : null
-  if (persisted) return persisted
-  return scanForRollout(sessionId)
+  return persistedRollout(sessionId) ?? scanForRollout(sessionId)
 }
 
 function readRollout(path: string): string {
