@@ -9,7 +9,7 @@ import {FOCUS} from '../classes.js'
 import {TRACE_INDENT, TRACE_MICROLABEL} from './trace-row.js'
 
 const FRAME =
-  'flex flex-col gap-1.75 flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-2.75 py-2.25 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
+  'flex flex-col gap-2 flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-3 py-2 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
 const HEADER = 'flex items-center gap-1.5 min-w-0'
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-perm-label`
 const WARN_GLYPH = 'select-none flex-none text-chat-xs leading-none text-chat-perm-label'

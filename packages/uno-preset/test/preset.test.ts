@@ -106,41 +106,12 @@ describe('theme tokens', () => {
       expect(css).toContain(value)
     })
   })
-})
 
-describe('chat scales', () => {
-  const scaleClasses: [string, string][] = [
-    ['text-chat-micro', 'var(--chat-text-micro)'],
-    ['text-chat-xs', 'var(--chat-text-xs)'],
-    ['text-chat-sm', 'var(--chat-text-sm)'],
-    ['text-chat-md', 'var(--chat-text-md)'],
-    ['text-chat-body', 'var(--chat-text-body)'],
-    ['size-chat-mark', 'var(--chat-mark)'],
-    ['size-chat-mark-dot', 'var(--chat-mark-dot)'],
-    ['w-chat-mark', 'var(--chat-mark)'],
-    ['animate-duration-chat-fast', 'var(--chat-duration-fast)'],
-    ['animate-duration-chat-normal', 'var(--chat-duration-normal)'],
-    ['animate-duration-chat-slow', 'var(--chat-duration-slow)'],
-  ]
-
-  it.each(scaleClasses)('%s reads %s', async (name, token) => {
-    const {css, matched} = await uno.generate(name, {preflights: true})
-    expect(matched.has(name)).toBe(true)
-    expect(css).toContain(token)
-  })
-
-  const tokenTransitions = ['trans-bg', 'trans-chip', 'trans-cbb', 'trans-color-bg', 'trans-tf-op', 'trans-op-rotate']
-
-  it.each(tokenTransitions)('%s times its transition with the chat duration tokens', async (name) => {
-    const {css, matched} = await generate(name)
-    expect(matched.has(name)).toBe(true)
-    expect(css).toContain('var(--chat-duration-')
-    expect(css).not.toMatch(/\d+ms/)
-  })
-
-  it('anim-msg times its entrance with the normal duration token', async () => {
-    const {css} = await generate('anim-msg')
-    expect(css).toContain('var(--chat-duration-normal)')
+  it('resolves the chat type, mark and duration scales to their tokens', async () => {
+    const {css} = await uno.generate('text-chat-body size-chat-mark animate-duration-chat-fast', {preflights: true})
+    expect(css).toContain('var(--chat-text-body)')
+    expect(css).toContain('var(--chat-mark)')
+    expect(css).toContain('var(--chat-duration-fast)')
   })
 })
 

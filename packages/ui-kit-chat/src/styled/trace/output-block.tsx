@@ -5,7 +5,7 @@ import {TraceClamp, type TraceClampSize} from './clamp.js'
 
 export type TraceOutputTone = 'normal' | 'error'
 
-const FRAME = 'relative min-w-0 rounded-[var(--chat-radius-sm)] px-2.5 py-1.75 [background:var(--chat-frame-bg)]'
+const FRAME = 'relative min-w-0 rounded-[var(--chat-radius-sm)] px-2.5 py-2 [background:var(--chat-frame-bg)]'
 const FRAME_TONE: Record<TraceOutputTone, string> = {
   normal: '[border:1px_solid_var(--chat-frame-line)] text-chat-frame-text',
   error: '[border:1px_solid_var(--chat-frame-line-error)] text-chat-frame-text-error',
