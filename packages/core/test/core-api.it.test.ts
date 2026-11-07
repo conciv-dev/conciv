@@ -1859,18 +1859,25 @@ describe('rpc wire', () => {
         expect(nonCustomTypes(replay)).toEqual(nonCustomTypes(sent))
       })
 
-      it('the session stream shows agent tool calls as nested cards but never a turn start or end', async () => {
+      it('the session stream shows agent tool calls as nested cards, never the turn itself, a call after it in its own run', async () => {
         const sessionStream = await chatKit().events(app.mcpSession)
         const seen = collect(sessionStream)
         await finished(app.mcpSession, 'quiet session stream')
         await executeResult('return await external_fixture_echo({text: "streamed"})')
-        await sessionStream.waitFor((chunk) => isResultFor(chunk, 'streamed'), GUARD)
+        await sessionStream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED, GUARD)
         const cards = toolCallParts(foldChatEvents(seen))
         const execute = cards.findLast((part) => part.name === 'execute_typescript')
         expect(cardMetadata(cards.findLast((part) => part.name === 'fixture_echo'))).toMatchObject({
           parentToolCallId: execute?.id,
         })
-        expect(seen.filter(isTurnBoundary)).toEqual([])
+        expect(
+          seen
+            .filter(isTurnBoundary)
+            .map((chunk) => [chunk.type, 'runId' in chunk && String(chunk.runId).startsWith('mirror-')]),
+        ).toEqual([
+          [ChatEventType.RUN_STARTED, true],
+          [ChatEventType.RUN_FINISHED, true],
+        ])
       })
 
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
