@@ -1313,16 +1313,35 @@ describe('engine version', () => {
 
   test('the rpc mount keeps a valid client version from the http and websocket links and drops a malformed one', async () => {
     const served = await serveRpcRouter({router: versionRouter})
-    const socket = new WebSocket(served.wsUrl)
+    const sockets: WebSocket[] = []
     try {
       const overHttp = (version: string) =>
         versionCall(new FetchRpcLink({url: served.rpcUrl, headers: {[CONCIV_VERSION_HEADER]: version}}))
-      const overSocket = (version: string) =>
-        versionCall(new WebsocketRpcLink({websocket: socket, headers: {[CONCIV_VERSION_HEADER]: version}}))
-      expect(await Promise.all([overHttp('1.2.3'), overSocket('4.5.6-beta.1')])).toEqual(['1.2.3', '4.5.6-beta.1'])
-      expect(await Promise.all([overHttp('not a version'), overSocket('')])).toEqual([null, null])
+      const overSocket = (version: string) => {
+        const websocket = new WebSocket(served.wsUrl)
+        sockets.push(websocket)
+        return versionCall(new WebsocketRpcLink({websocket, headers: {[CONCIV_VERSION_HEADER]: version}}))
+      }
+      expect(
+        await Promise.all([
+          overHttp('1.2.3'),
+          overSocket('4.5.6-beta.1'),
+          overHttp('1.2.3+build.7'),
+          overSocket('1.2.3+build.7'),
+        ]),
+      ).toEqual(['1.2.3', '4.5.6-beta.1', '1.2.3+build.7', '1.2.3+build.7'])
+      expect(
+        await Promise.all([
+          overHttp('not a version'),
+          overSocket(''),
+          overHttp('01.2.3'),
+          overSocket('01.2.3'),
+          overHttp('1.2.3-beta..1'),
+          overSocket('1.2.3-beta..1'),
+        ]),
+      ).toEqual([null, null, null, null, null, null])
     } finally {
-      socket.close()
+      for (const websocket of sockets) websocket.close()
       await served.close()
     }
   })

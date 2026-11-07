@@ -68,11 +68,13 @@
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "hono": "catalog:",
+    "semver": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",

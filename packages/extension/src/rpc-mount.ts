@@ -4,6 +4,7 @@ import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/se
 import type {Context, MiddlewareHandler} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
+import {valid} from 'semver'
 import {z} from 'zod'
 import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders} from '@conciv/protocol/rpc-types'
 
@@ -15,7 +16,7 @@ export const RPC_WS_PATH = '/rpc-ws'
 const ClientVersionSchema = z
   .string()
   .max(64)
-  .regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
+  .refine((value) => valid(value) === value.split('+')[0])
   .optional()
   .catch(undefined)
 
