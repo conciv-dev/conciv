@@ -37,7 +37,7 @@ export async function argsOf(command: CommandDef): Promise<ArgsDef> {
   return value
 }
 
-export async function metaOf(command: CommandDef): Promise<CommandMeta> {
+async function metaOf(command: CommandDef): Promise<CommandMeta> {
   const value = command.meta
   if (value === undefined) return {}
   if (typeof value === 'function') return value()

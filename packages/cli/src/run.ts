@@ -1,18 +1,13 @@
 import {runCommand, showUsage, type CommandDef} from 'citty'
-import {argsOf, argumentProblem, commandProblem, metaOf, resolveLeaf} from './arguments.js'
+import {argsOf, argumentProblem, commandProblem, resolveLeaf} from './arguments.js'
 import {failureOf} from './failure.js'
 import {outcomeOf, writeFailure, writeOutcome, type CliOutcome} from './envelope.js'
 import {pageHelpNote} from './page.js'
 
 const HELP_FLAGS = new Set(['--help', '-h'])
-const VERSION_FLAGS = new Set(['--version', '-v'])
 
 export async function runCli(root: CommandDef, rawArgs: string[]): Promise<number> {
   try {
-    if (rawArgs.length === 1 && VERSION_FLAGS.has(rawArgs[0] ?? '')) {
-      console.log((await metaOf(root)).version ?? '')
-      return 0
-    }
     const resolved = await resolveLeaf(root, rawArgs)
     if (rawArgs.some((token) => HELP_FLAGS.has(token))) {
       await showUsage(resolved.command, resolved.parent)

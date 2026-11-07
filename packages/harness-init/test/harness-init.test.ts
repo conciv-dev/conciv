@@ -593,6 +593,13 @@ describe('plugin files', () => {
       expect(claudePluginCacheDir('/claude').endsWith(harnessInitManifest.version)).toBe(true)
     })
 
+    it('keeps the plugin state and the endpoint it reads in the project state dir, which no release version names', () => {
+      expect([claudeConnectDir('/first/.conciv'), claudeConnectEndpointPath('/first/.conciv')]).toEqual([
+        join('/first/.conciv', 'claude-connect'),
+        join('/first/.conciv', 'mcp-endpoint.json'),
+      ])
+    })
+
     it('points the mcp manifest at the bridge without naming any dev server', () => {
       const manifest = JSON.parse(contentsAt('/first/.conciv', join('conciv-connect', '.mcp.json')))
 
