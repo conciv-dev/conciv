@@ -4,6 +4,7 @@ import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
 import {OUTCOME_TONE} from '../../tools/primitives/tool-presentation.js'
+import {Chip} from '../../tools/styled/chip.js'
 
 export const TRACE_MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
@@ -142,8 +143,9 @@ export function TraceToolRow(props: {
   ring?: boolean
   body?: () => JSX.Element
   foldable?: boolean
+  tag?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable'])
+  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable', 'tag'])
   const running = createMemo(() => local.projection.mark === 'run' && (local.ring ?? true))
   const body = () => local.projection.block ?? local.body
   const labelClass = createMemo(() => (running() ? RUN_LABEL : LABEL))
@@ -155,6 +157,7 @@ export function TraceToolRow(props: {
       </Show>
       <span class={labelClass()}>{local.projection.label}</span>
       <TruncatedText class={TARGET} text={local.projection.target} />
+      <Show when={local.tag}>{(tag) => <Chip kind="pill" maxWidth="compact" value={tag()} />}</Show>
       <Show when={local.projection.meta}>{(meta) => <TruncatedText class={metaClass()} text={meta()} />}</Show>
     </>
   )

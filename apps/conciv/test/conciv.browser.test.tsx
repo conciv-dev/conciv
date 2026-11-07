@@ -2438,6 +2438,10 @@ describe('session options outside agents', () => {
   afterEach(harness.dispose)
   const strip = () => page.getByRole('group', {name: 'Permission request'})
   const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
+  const approve = () =>
+    strip()
+      .getByRole('button', {name: /Approve/})
+      .click()
 
   test('allow outside agents lifts a deny and leaves the menu', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
@@ -2453,16 +2457,19 @@ describe('session options outside agents', () => {
     await expect.element(strip(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 
-  test('an allowed outside call shows in the chat and the pane settles instead of staying busy', async () => {
+  test('an allowed outside call shows tagged with its agent and the pane settles, an in-page call has no tag', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await coreControl.hubExecute(sessionId, 'return 1')
-    await strip()
-      .getByRole('button', {name: /Approve/})
-      .click()
+    await approve()
     await expect.element(strip()).not.toBeInTheDocument()
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
-    await expect.element(page.getByText('return 40 + 2'), {timeout: 8000}).toBeVisible()
+    expect(await coreControl.hubExecute(sessionId, 'return 7 * 6', 'in-page')).toContain('42')
+    const outsideRow = page.getByRole('button', {name: /exec return 40 \+ 2/})
+    const inPageRow = page.getByRole('button', {name: /exec return 7 \* 6/})
+    await expect.element(outsideRow, {timeout: 8000}).toMatchTextContent(/from codex/)
+    await expect.element(inPageRow).toBeVisible()
+    await expect.element(inPageRow).not.toMatchTextContent(/from/)
     await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
     await expect.element(page.getByText('Responding…')).not.toBeInTheDocument()
   }, 30_000)
@@ -2471,9 +2478,7 @@ describe('session options outside agents', () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await coreControl.hubExecute(sessionId, 'return 1')
-    await strip()
-      .getByRole('button', {name: /Approve/})
-      .click()
+    await approve()
     const forwarded = 'return await external_page_route({})'
     expect(await coreControl.hubExecute(sessionId, forwarded, 'hub-forward')).toContain('page_route')
     await expect.element(page.getByRole('button', {name: /^failed route/}), {timeout: 8000}).toBeVisible()
