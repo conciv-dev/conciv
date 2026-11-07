@@ -1,7 +1,9 @@
 import {and, asc, desc, eq} from 'drizzle-orm'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
-import {RoundSchema, type GateRow, type Round, type Store, type TargetRecord} from '../shared/defs.js'
+import {RoundSchema, type GateRow, type Mapping, type Round, type Store, type TargetRecord} from '../shared/defs.js'
+import {walk} from '../shared/tree.js'
+import {attached} from './attached.js'
 import type {designTables} from './tables.js'
 
 export function createStore(input: {db: DesignDb; state: Storage; run: () => Promise<number | null>}): Store {
@@ -41,6 +43,24 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     )
   }
 
+  async function mappingOf(id: string): Promise<Mapping> {
+    const held = await orm.select().from(fom).where(eq(fom.target_id, id)).orderBy(asc(fom.seq))
+    return Object.fromEntries(
+      Object.entries(Object.groupBy(held, (row) => row.id)).map(([key, grouped]) => [
+        key,
+        {
+          nodes: (grouped ?? []).map((row) => ({
+            nodeId: row.node,
+            instance: row.instance,
+            confidence: row.confidence,
+            margin: row.margin,
+            round: row.round,
+          })),
+        },
+      ]),
+    )
+  }
+
   return {
     put: async ({design, image, session, route}) => {
       const path = `${design.id}/${TARGET_IMAGE}`
@@ -72,53 +92,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       const [head] = await roundsHead({id, round})
       return readRaw({state, key: (kind === 'diff' ? head?.diff : head?.live) ?? null})
     },
-    mapping: async (id) => {
-      const held = await orm.select().from(fom).where(eq(fom.target_id, id)).orderBy(asc(fom.seq))
-      return Object.fromEntries(
-        Object.entries(Object.groupBy(held, (row) => row.id)).map(([key, grouped]) => [
-          key,
-          {
-            nodes: (grouped ?? []).map((row) => ({
-              nodeId: row.node,
-              instance: row.instance,
-              confidence: row.confidence,
-              margin: row.margin,
-              round: row.round,
-            })),
-          },
-        ]),
-      )
-    },
-    writeMapping: async ({id, mapping, round, revoted}) => {
-      const runId = await run()
-      const at = Date.now()
-      orm.transaction((tx) => {
-        const before = tx.select().from(fom).where(eq(fom.target_id, id)).all()
-        const carried = new Map(before.map((row) => [`${row.id}/${row.node}`, row]))
-        tx.delete(fom).where(eq(fom.target_id, id)).run()
-        for (const [key, {nodes}] of Object.entries(mapping)) {
-          for (const entry of nodes) {
-            const reason = revoted[key]
-            const previous = carried.get(`${key}/${entry.nodeId}`)
-            tx.insert(fom)
-              .values({
-                target_id: id,
-                run_id: runId,
-                id: key,
-                node: entry.nodeId,
-                instance: entry.instance,
-                confidence: entry.confidence,
-                margin: entry.margin,
-                round: entry.round,
-                revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
-                reason: reason ?? previous?.reason ?? null,
-                at,
-              })
-              .run()
-          }
-        }
-      })
-    },
+    mapping: mappingOf,
     writeVotes: async ({id, round, votes: cast}) => {
       const runId = await run()
       const at = Date.now()
@@ -147,9 +121,46 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         at: Date.now(),
       })
     },
-    ids: async (id) => (await target(id))?.ids ?? null,
-    writeIds: async ({id, ids}) => {
-      await orm.update(targets).set({ids}).where(eq(targets.target_id, id))
+    ids: async (id) => {
+      const tree = (await target(id))?.ids ?? null
+      if (tree === null) return null
+      return {...tree, root: attached({node: tree.root, mapping: await mappingOf(id)})}
+    },
+    writeIds: async ({id, ids, round, revoted}) => {
+      const runId = await run()
+      const at = Date.now()
+      orm.transaction((tx) => {
+        const before = tx.select().from(fom).where(eq(fom.target_id, id)).all()
+        const carried = new Map(before.map((row) => [`${row.id}/${row.node}`, row]))
+        tx.update(targets)
+          .set({ids: {...ids, root: attached({node: ids.root, mapping: {}})}})
+          .where(eq(targets.target_id, id))
+          .run()
+        tx.delete(fom).where(eq(fom.target_id, id)).run()
+        for (const {node: site} of walk(ids.root)) {
+          for (const entry of site.fom) {
+            const reason = revoted[site.id]
+            const previous = carried.get(`${site.id}/${entry.nodeId}`)
+            const {at: loc} = site.src
+            tx.insert(fom)
+              .values({
+                target_id: id,
+                run_id: runId,
+                id: site.id,
+                node: entry.nodeId,
+                instance: entry.instance,
+                source: loc === null ? null : `${loc.file}:${loc.line}:${loc.column}`,
+                confidence: entry.confidence,
+                margin: entry.margin,
+                round: entry.round,
+                revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
+                reason: reason ?? previous?.reason ?? null,
+                at,
+              })
+              .run()
+          }
+        }
+      })
     },
     writeRound: async ({id, round, live, diff}) => {
       const written = RoundSchema.parse(round)

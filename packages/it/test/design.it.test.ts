@@ -412,7 +412,15 @@ describe('store', () => {
     expect((await store.design('store-1')).root.id).toBe('1:2')
     expect(await store.mapping('store-1')).toEqual({})
     const mapping = {abc: {nodes: [{nodeId: '1:2', instance: null, confidence: 1, margin: 1, round: 1}]}}
-    await store.writeMapping({id: 'store-1', mapping, round: 1, revoted: {}})
+    const site = {
+      id: 'abc',
+      dom: [],
+      cssom: [],
+      src: {at: null, element: 'div', classes: [], parent: null},
+      children: [],
+    }
+    const ids = {root: {...site, fom: mapping.abc.nodes}, revoted: [], gone: []}
+    await store.writeIds({id: 'store-1', ids, round: 1, revoted: {}})
     expect(await store.mapping('store-1')).toEqual(mapping)
     const round: Round = {
       round: 1,

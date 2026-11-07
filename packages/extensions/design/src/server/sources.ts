@@ -74,6 +74,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         id: fom.id,
         node: fom.node,
         instance: fom.instance,
+        source: fom.source,
         confidence: fom.confidence,
         margin: fom.margin,
         round: fom.round,

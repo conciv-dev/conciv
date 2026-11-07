@@ -546,11 +546,10 @@ export type Store = {
   design(id: string): Promise<Design>
   image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
   mapping(id: string): Promise<Mapping>
-  writeMapping(input: {id: string; mapping: Mapping; round: number; revoted: Record<string, string>}): Promise<void>
   writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
   writeToolCall(input: ToolCall & {session: string}): Promise<void>
   ids(id: string): Promise<IdTree | null>
-  writeIds(input: {id: string; ids: IdTree}): Promise<void>
+  writeIds(input: {id: string; ids: IdTree; round: number; revoted: Record<string, string>}): Promise<void>
   writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
   round(input: {id: string; round: number}): Promise<Round | null>
   rounds(id: string): Promise<Round[]>

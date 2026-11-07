@@ -13,6 +13,7 @@ import type {
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import {readIds} from '../shared/id-tree.js'
+import {attached} from './attached.js'
 
 export async function mappingOf(input: {
   design: Design
@@ -116,15 +117,6 @@ const REASONS = {
   dupe: 'its id and list key match more than one element',
   rival: 'its element moved under a new parent or a rival outscored it by more than its margin',
   evidence: 'the evidence under its id changed: box, element or classes',
-}
-
-function attached(input: {node: IdNode; mapping: Mapping}): IdNode {
-  const {node, mapping} = input
-  return {
-    ...node,
-    fom: mapping[node.id]?.nodes ?? [],
-    children: node.children.map((child) => attached({node: child, mapping})),
-  }
 }
 
 function candidatesOf(input: {

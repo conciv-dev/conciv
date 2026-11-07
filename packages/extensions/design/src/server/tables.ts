@@ -57,6 +57,7 @@ export function designTables(table: SQLiteTableFn) {
       id: text().notNull(),
       node: text().notNull(),
       instance: text(),
+      source: text(),
       confidence: real().notNull(),
       margin: real().notNull(),
       round: integer().notNull(),
