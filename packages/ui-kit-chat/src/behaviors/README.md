@@ -6,7 +6,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 
 ## Interface
 
-- `create-thread-virtualizer.ts:createThreadVirtualizer` - returns `ThreadVirtualizer` (`items`, `totalSize`, `measured`, `atEnd`, `landOnEnd`, `measureRow`, `remeasure`); `SCROLL_END_THRESHOLD_PX` (1); type `ThreadVirtualizerConfig`.
+- `create-thread-virtualizer.ts:createThreadVirtualizer` - returns `ThreadVirtualizer` (`items`, `totalSize`, `measured`, `atEnd`, `nearStart` (scrolled within one viewport height of the top), `landOnEnd`, `measureRow`, `remeasure`); `SCROLL_END_THRESHOLD_PX` (1); type `ThreadVirtualizerConfig`.
 - `composer-draft-storage.ts:readComposerDraft`, `composer-draft-storage.ts:writeComposerDraft`, type `PersistedComposerDraft`.
 - `use-composer-draft.ts:useComposerDraftPersistence`, type `ComposerDraftPersistenceOptions`.
 - `use-scroll-lock.ts:useScrollLock`; `use-size-handle.ts:useSizeHandle`.
@@ -21,7 +21,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 ## Side Effects
 
 - `use-composer-draft.ts` writes to the provided `WebStorage` and flushes on `window` `pagehide`.
-- `create-thread-virtualizer.ts` adds passive `scroll`, `pointerdown`, `wheel`, `touchmove`, `keydown` listeners on the scroll element and `pointerup`/`pointercancel` on its document, a resize observer, and a `MutationObserver` on the element ancestry.
+- `create-thread-virtualizer.ts` adds passive `scroll`, `pointerdown`, `wheel`, `touchmove`, `keydown` listeners on the scroll element and `pointerup`/`pointercancel` on its document, a resize observer that only re-reads the at-end and near-start edges (row rendering follows the virtualizer's own frame-deferred rect observer, so a resize callback never mounts or unmounts rows), and a `MutationObserver` on the element ancestry.
 - `use-scroll-lock.ts:useScrollLock` sets `scrollbarWidth: none` and padding on the nearest scrollable ancestor for `animationDuration` ms, then restores them.
 - `use-size-handle.ts:useSizeHandle` observes the element with a `ResizeObserver`.
 

@@ -18,6 +18,7 @@ import {type HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {claudeConnectServesProject, claudePluginCacheDir} from '../src/claude/install-state.js'
 import {CLAUDE_CONNECT_INSTALL_TARGET, claudeConnectDir, claudeConnectPluginFiles} from '../src/claude/plugin-files.js'
 import {inside} from '../src/paths.js'
+import harnessInitManifest from '../package.json' with {type: 'json'}
 
 describe('bridge', () => {
   const CLAUDE_SESSION = 'sess-1'
@@ -583,6 +584,20 @@ describe('plugin files', () => {
   describe('claude connect plugin files', () => {
     it('generates the same bytes for every project so one shared plugin cache serves them all', () => {
       expect(treeOf('/first/.conciv')).toEqual(treeOf('/second/.conciv'))
+    })
+
+    it('stamps the plugin and its cache directory with the harness-init release version', () => {
+      const plugin = JSON.parse(contentsAt('/first/.conciv', join('conciv-connect', '.claude-plugin', 'plugin.json')))
+
+      expect(plugin.version).toBe(harnessInitManifest.version)
+      expect(claudePluginCacheDir('/claude').endsWith(harnessInitManifest.version)).toBe(true)
+    })
+
+    it('keeps the plugin state and the endpoint it reads in the project state dir, which no release version names', () => {
+      expect([claudeConnectDir('/first/.conciv'), claudeConnectEndpointPath('/first/.conciv')]).toEqual([
+        join('/first/.conciv', 'claude-connect'),
+        join('/first/.conciv', 'mcp-endpoint.json'),
+      ])
     })
 
     it('points the mcp manifest at the bridge without naming any dev server', () => {

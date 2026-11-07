@@ -49,6 +49,7 @@
     "@tanstack/solid-router": "catalog:",
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
+    "semver": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
@@ -65,6 +66,7 @@
     "@tanstack/router-cli": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "@unocss/postcss": "catalog:",
     "@unocss/reset": "catalog:",
     "@vitest/browser-playwright": "catalog:",

@@ -3,10 +3,11 @@ import type {HarnessConnectFile} from '@conciv/protocol/harness-types'
 import {CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '../agent-guide.js'
 import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from './bridge.js'
 import {CLAUDE_CONNECT_MARKETPLACE, CLAUDE_CONNECT_MCP_SERVER, CLAUDE_CONNECT_PLUGIN} from './names.js'
+import harnessInitManifest from '../../package.json' with {type: 'json'}
 
 export const CLAUDE_CONNECT_ROOT = 'claude-connect'
 
-export const CLAUDE_CONNECT_PLUGIN_VERSION = '0.0.0'
+export const CLAUDE_CONNECT_PLUGIN_VERSION = harnessInitManifest.version
 
 export const CLAUDE_CONNECT_INSTALL_TARGET = `${CLAUDE_CONNECT_PLUGIN}@${CLAUDE_CONNECT_MARKETPLACE}`
 
