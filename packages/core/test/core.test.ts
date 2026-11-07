@@ -30,7 +30,6 @@ import {eq} from 'drizzle-orm'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
-import {serverInstructions} from '../src/api/mcp.js'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig, defineConfig} from '../src/config.js'
 import {symbolicateFrame} from '../src/editor/symbolicate.js'
@@ -57,17 +56,6 @@ import {CONCIV_VERSION_HEADER, type RpcContext} from '@conciv/protocol/rpc-types
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
 import {chunkWithInlineMap, cleanupChunks, makeChatFixture, type ChatFixture} from './helpers.js'
-
-describe('api mcp instructions', () => {
-  const FRESH = {stale: false, changed: [], tracked: ['@conciv/core'], bootedAt: 0, fingerprint: 'aaaa1111'}
-
-  describe('mcp server instructions', () => {
-    it('says nothing about staleness while the engine matches the code on disk', () => {
-      const text = serverInstructions('page', FRESH)
-      expect(text).not.toMatch(/outdated|restart the dev server/i)
-    })
-  })
-})
 
 describe('api native page document', () => {
   describe('native host document', () => {

@@ -371,6 +371,34 @@ describe('meta tool card error', () => {
     await expect.element(page.getByText('shipped-42', {exact: true})).toBeVisible()
     expect(document.body.textContent).not.toContain('"shipped-42"')
   })
+
+  for (const [outcome, label] of [
+    ['denied', 'Denied'],
+    ['cancelled', 'Cancelled'],
+  ] as const) {
+    it(`a catalog-backed tool that was ${outcome} reads as ${outcome} in its trace row body, not as an error`, async () => {
+      mountView(() => (
+        <ToolTraceRow
+          part={cardPart('page_fill', {selector: '#email', value: 'ada@example.com'})}
+          result={{
+            type: 'tool-result',
+            toolCallId: 'e1',
+            content: '',
+            state: 'error',
+            outcome,
+            error: `The tool call was ${outcome}.`,
+          }}
+          ctx={ctxWith(catalogOf({page_fill: fillMeta}))}
+          tools={() => []}
+        />
+      ))
+
+      await expect.element(page.getByText(`The tool call was ${outcome}.`)).toBeVisible()
+      await page.screenshot({path: `__screenshots__/tool-outcomes/catalog-${outcome}.png`})
+      await expect.element(page.getByText(label, {exact: true})).toBeVisible()
+      await expect.element(page.getByText('Error', {exact: true})).not.toBeInTheDocument()
+    })
+  }
 })
 
 describe('meta tool card object result', () => {
@@ -927,6 +955,45 @@ describe('trace row card header', () => {
     await expect.element(page.getByText('Read the query cache')).toBeVisible()
     await expect.element(page.getByText('2 queries')).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).toBeVisible()
+  })
+
+  function searchCard(props: ToolCardProps): JSX.Element {
+    return (
+      <CardShell
+        meta={undefined}
+        title="Searched TODO"
+        metaBadge="failed"
+        status="error"
+        part={props.part}
+        result={props.result}
+      >
+        <p>{props.result?.error}</p>
+      </CardShell>
+    )
+  }
+
+  const searchTool: ToolCardEntry = {names: ['Grep'], render: searchCard, hasEmbeddedBody: () => true}
+
+  it('a denied result names the outcome on the row instead of the card header failed badge', async () => {
+    mountView(() => (
+      <ToolTraceRow
+        part={call('Grep', {pattern: 'TODO'})}
+        result={{
+          type: 'tool-result',
+          toolCallId: 'c1',
+          content: '',
+          state: 'error',
+          outcome: 'denied',
+          error: 'The tool call was denied.',
+        }}
+        ctx={ctx}
+        tools={() => [searchTool]}
+      />
+    ))
+
+    await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
+    await expect.element(page.getByText('denied', {exact: true})).toBeVisible()
+    await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
   })
 
   function subtitleCard(props: ToolCardProps): JSX.Element {

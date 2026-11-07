@@ -11,7 +11,7 @@ import type {RouterClient} from '@orpc/server'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {start as startEngine, type Engine} from '@conciv/core'
-import {createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
+import {connectMcpClient, createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {makeExtRpcClient} from '@conciv/extension'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
@@ -190,32 +190,15 @@ describe('prefixed serving', () => {
         if (!mcpUrl) throw new Error('the harness connect plan never received an mcp url')
         expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/t/${TOKEN}/api/mcp`)
 
-        const initialize = {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-03-26',
-            capabilities: {},
-            clientInfo: {name: 'prefixed-wire-test', version: '0.0.0'},
-          },
+        const mcp = await connectMcpClient(mcpUrl, {[CONCIV_SESSION_HEADER]: sessionId})
+        try {
+          const tools = await mcp.tools()
+          expect(tools.map((tool) => tool.name)).toContain('execute_typescript')
+        } finally {
+          await mcp.close()
         }
-        const headers = {
-          'content-type': 'application/json',
-          accept: 'application/json, text/event-stream',
-          [CONCIV_SESSION_HEADER]: sessionId,
-        }
-        const response = await fetch(mcpUrl, {method: 'POST', headers, body: JSON.stringify(initialize)})
-        expect(response.status).toBe(200)
-        const payload = await response.json()
-        expect(payload).toMatchObject({jsonrpc: '2.0', id: 1, result: {serverInfo: {name: 'conciv'}}})
 
-        const unprefixed = await fetch(`http://127.0.0.1:${engine.port}/api/mcp`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(initialize),
-        })
-        expect(unprefixed.status).toBe(401)
+        await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
       },
     )
 

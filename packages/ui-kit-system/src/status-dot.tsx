@@ -1,6 +1,6 @@
 import {splitProps, type JSX} from 'solid-js'
 
-export type StatusDotTone = 'idle' | 'working' | 'accent' | 'success' | 'warn' | 'danger'
+export type StatusDotTone = 'idle' | 'working' | 'accent' | 'success' | 'warn' | 'danger' | 'dim'
 
 const BASE = 'size-1.75 rounded-chat-pill shrink-0 inline-block'
 
@@ -11,6 +11,7 @@ const TONE: Record<StatusDotTone, string> = {
   success: 'bg-chat-success',
   warn: 'bg-chat-warn',
   danger: 'bg-chat-danger',
+  dim: 'bg-chat-dim',
 }
 
 export function StatusDot(props: {tone: StatusDotTone; pulse?: boolean}): JSX.Element {

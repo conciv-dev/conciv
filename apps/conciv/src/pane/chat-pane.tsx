@@ -62,6 +62,7 @@ import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
+import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
 const PAGE_SESSION: PageSessionConfig = {
@@ -404,7 +405,19 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                           </div>
                         </Show>
                         <Show when={messaging.visibleError()}>
-                          {(error) => <ChatErrorAlert chat={chat} error={error()} sessionId={sessionId} />}
+                          {(error) => (
+                            <Show
+                              when={!chat.loadFailed()}
+                              fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
+                            >
+                              <RunErrorRow
+                                error={error()}
+                                compacting={compacting()}
+                                onRetry={() => void chat.reload()}
+                                onCompact={() => messaging.compact.mutate()}
+                              />
+                            </Show>
+                          )}
                         </Show>
                       </Show>
                     </Suspense>
@@ -461,14 +474,6 @@ function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX
   return (
     <Show when={props.reopened} fallback={<ConversationSkeleton />}>
       <LoadFailedAlert busy sessionId={props.sessionId} />
-    </Show>
-  )
-}
-
-function ChatErrorAlert(props: {chat: ChatSession; error: Error; sessionId: string}): JSX.Element {
-  return (
-    <Show when={!props.chat.loadFailed()} fallback={<LoadFailedAlert busy={false} sessionId={props.sessionId} />}>
-      <PaneAlert message={props.error.message} busy={false} onRetry={() => void props.chat.reload()} />
     </Show>
   )
 }

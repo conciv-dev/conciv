@@ -36,6 +36,7 @@ catalog:
   '@tanstack/ai-codex': 1.0.1
   '@tanstack/ai-opencode': 1.0.1
   '@tanstack/ai-acp': 1.0.1
+  '@tanstack/ai-mcp': 1.1.0
 
   '@ark-ui/solid': '^5.39.3'
   '@blazediff/core': ^1.10.0

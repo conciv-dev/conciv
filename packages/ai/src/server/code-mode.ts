@@ -112,6 +112,9 @@ function refusingSecrets(tool: CodeModeTool, secrets: ReadonlyMap<string, string
   }
 }
 
+const DISCOVER_DESCRIPTION =
+  'Return the full TypeScript signature, description and declared errors of named sandbox capabilities. Pass toolNames: the external_* capability names listed for execute_typescript (the external_ prefix is optional). Call this as its own tool call before writing execute_typescript code that uses those capabilities; it is not available inside the sandbox.'
+
 export function codeModeTools(
   driver: IsolateDriver,
   tools: readonly ChatTool[],
@@ -130,7 +133,8 @@ export function codeModeTools(
     lazyToolsConfig: {includeDescription: 'first-sentence'},
   })
   const execute = withResult(codeMode.tool, shapeResult)
-  const discover = codeMode.discoveryTool
+  const discover =
+    codeMode.discoveryTool === null ? null : {...codeMode.discoveryTool, description: DISCOVER_DESCRIPTION}
   return {
     tools: discover === null ? [execute] : [execute, discover],
     systemPrompt: codeMode.systemPrompt,
