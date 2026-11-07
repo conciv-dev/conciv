@@ -37,6 +37,8 @@ export type ChatContextValue = Chat & {
   view: ViewState
   setView: SetStoreFunction<ViewState>
   stopping: Accessor<boolean>
+  turns: Accessor<Turn[]>
+  busy: Accessor<boolean>
 }
 
 const ChatContext = createContext<ChatContextValue>()
@@ -72,8 +74,23 @@ function ChatScope(props: ParentProps<{chat: StoppableChat}>): JSX.Element {
     setView('pinned', (prev) => pickKeys(prev, liveMessages))
   })
 
+  const grouped = createMemo<{messages: ReadonlyArray<ChatMessage>; turns: Turn[]}>(
+    (prev) => {
+      const messages = props.chat.messages()
+      return {messages, turns: diffTurns(prev.turns, prev.messages, messages)}
+    },
+    {messages: [], turns: []},
+  )
+  const turns = () => grouped().turns
+  const busy = createMemo(() => chatBusy(props.chat))
   const value: ChatContextValue = untrack(() =>
-    Object.assign({}, props.chat, {view, setView, stopping: props.chat.stopping ?? ((): boolean => false)}),
+    Object.assign({}, props.chat, {
+      view,
+      setView,
+      stopping: props.chat.stopping ?? ((): boolean => false),
+      turns,
+      busy,
+    }),
   )
   return <ChatContext.Provider value={value}>{props.children}</ChatContext.Provider>
 }
@@ -95,15 +112,8 @@ export function useThread(): {
   readonly turns: Turn[]
 } {
   const chat = useChatContext()
-  const grouped = createMemo<{messages: ReadonlyArray<ChatMessage>; turns: Turn[]}>(
-    (prev) => {
-      const messages = chat.messages()
-      return {messages, turns: diffTurns(prev.turns, prev.messages, messages)}
-    },
-    {messages: [], turns: []},
-  )
-  const turns = () => grouped().turns
-  const isRunning = createMemo(() => chatBusy(chat))
+  const turns = chat.turns
+  const isRunning = chat.busy
   return {
     get isEmpty() {
       return turns().length === 0
@@ -131,7 +141,7 @@ export function useComposer(): {
   cancel: () => void
 } {
   const chat = useChatContext()
-  const isRunning = createMemo(() => chatBusy(chat))
+  const isRunning = chat.busy
   const text = () => chat.view.draft
   const isEmpty = () => chat.view.draft.trim().length === 0
   const canSend = () => !isEmpty()
