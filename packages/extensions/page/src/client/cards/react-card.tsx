@@ -98,7 +98,9 @@ export function ReactCard(props: ToolCardProps): JSX.Element {
           </p>
         </Show>
         <Switch>
-          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
+          <Match when={errorMessage()}>
+            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+          </Match>
           <Match when={track()}>
             {(report) => (
               <>

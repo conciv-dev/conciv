@@ -472,6 +472,22 @@ describe('session', () => {
   })
 })
 
+describe('setup failure', () => {
+  test('stops the engine it booted when the host fails to start', async () => {
+    const seen: {apiBase?: string} = {}
+    await expect(
+      getExtensionTestApi({
+        server: ping,
+        host: async (engine) => {
+          seen.apiBase = engine.apiBase
+          throw new Error('host refused')
+        },
+      }),
+    ).rejects.toThrow('host refused')
+    await expect(fetch(`${seen.apiBase}/`)).rejects.toThrow()
+  })
+})
+
 describe('settle teardown', () => {
   test('all steps succeeding resolves without throwing', async () => {
     const completed: string[] = []

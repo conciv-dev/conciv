@@ -45,7 +45,7 @@ export type CodeTool = {
 }
 
 export type CodeRunner = {
-  systemPrompt: string
+  capabilities: {name: string; description: string}[]
   run: (code: string, parentToolCallId: string) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
   asking: CodeTool[]
@@ -211,7 +211,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         ]
       })
       return {
-        systemPrompt: runner.systemPrompt,
+        capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
         run: (code, parentToolCallId) => runner.run(code, emitter(parentToolCallId)),
         discover: runner.discover,
         asking,

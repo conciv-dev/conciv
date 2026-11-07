@@ -7,6 +7,7 @@ import {
   claudeCode,
   createChatServer,
   drizzleChatStores,
+  makeTextAdapter,
   toolApprovalId,
   type TurnHooks,
 } from '../src/server.js'
@@ -23,7 +24,7 @@ import {
   runLifecycleEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
+import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
@@ -261,6 +262,45 @@ CREATE TABLE \`chat_threads\` (
     await driven
   })
 
+  it('a provider wait before any output is retried and the run completes', {timeout: 15_000}, async () => {
+    const seen = {calls: 0}
+    const ended = Promise.withResolvers<RunLifecycle>()
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('rate-limited-once', async function* () {
+          seen.calls += 1
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          if (seen.calls === 1) {
+            yield {type: ChatEventType.RUN_ERROR, message: 'rate limited', retryAfterMs: 1, timestamp: Date.now()}
+            return
+          }
+          yield* createTextChunks('answered after the wait')
+          yield {
+            type: ChatEventType.RUN_FINISHED,
+            runId: turn.runId,
+            threadId: turn.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => new Map(),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async (_turn, run) => ended.resolve(run),
+    }
+    const server = await chatServer(hooks, () => undefined)
+    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    const run = await ended.promise
+    expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
+  })
+
   function scriptedModel(responses: FakeResponseStep[]) {
     const model = fakeText()
     model.setResponses(responses)
@@ -421,6 +461,12 @@ describe('usage', () => {
     it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
       expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
     })
+
+    it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
+      expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
+        totalCostUsd: 0.25,
+      })
+    })
   })
 })
 
@@ -487,8 +533,9 @@ describe('dist externals', () => {
       const code = chunks.map((chunk) => chunk.code).join('\n')
       expect(code).toContain('toolCallId: callId')
       expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
-      expect(code).toContain('provides: [SandboxCapability],')
-      expect(code).not.toContain('provides: [SandboxCapability, ProjectionCapability]')
+      expect(code).toMatch(
+        /const root = workspace\.root \?\? "\/workspace";\s+const workspaceHash = computeWorkspaceHash\(workspace\)/,
+      )
     })
 
     it('externalizes @tanstack/ai', () => {

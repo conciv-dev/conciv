@@ -67,6 +67,7 @@ declare module 'vitest/internal/browser' {
     releaseTurn: () => Promise<void>
     releaseTranscripts: () => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
+    scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     setTerminalLaunch: (succeeds: boolean) => Promise<void>
@@ -264,6 +265,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     const chat = app.liveSessions.open(() => options.sessionId)
     const coordinator = makeRefreshCoordinator({
       chat,
+      liveSessions: app.liveSessions,
       sessionId: () => options.sessionId,
       appData: data,
       queryClient,

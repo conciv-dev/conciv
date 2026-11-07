@@ -1,5 +1,5 @@
 diff --git a/dist/esm/adapters/text.js b/dist/esm/adapters/text.js
-index e815d6377affbd8c64fde7f9f81ecb4b2ba7d31d..9593bed44794b050a92f23e84b8d16e884865257 100644
+index f840990..84e65a9 100644
 --- a/dist/esm/adapters/text.js
 +++ b/dist/esm/adapters/text.js
 @@ -2,7 +2,7 @@ import { buildPrompt } from "../messages/prompt.js";
@@ -30,7 +30,7 @@ index e815d6377affbd8c64fde7f9f81ecb4b2ba7d31d..9593bed44794b050a92f23e84b8d16e8
  		args: [],
  		env: {}
 diff --git a/dist/esm/model-meta.js b/dist/esm/model-meta.js
-index 9dbdd9bd0dbf1af37c1de87cff013e96b9034e9a..d50b51c7b16544cb26fe0c127975fe9479449d02 100644
+index 9dbdd9b..d50b51c 100644
 --- a/dist/esm/model-meta.js
 +++ b/dist/esm/model-meta.js
 @@ -55,10 +55,11 @@ var CLAUDE_CODE_MODEL_REASONING = {
@@ -50,14 +50,14 @@ index 9dbdd9bd0dbf1af37c1de87cff013e96b9034e9a..d50b51c7b16544cb26fe0c127975fe94
  //# sourceMappingURL=model-meta.js.map
 \ No newline at end of file
 diff --git a/dist/esm/stream/translate.js b/dist/esm/stream/translate.js
-index 21140549d20dfba046925617d35008ee0b1c4abe..e2fa1c08e2038ba1121daf4705b5d3317a8a95df 100644
+index fda8587..35ea1aa 100644
 --- a/dist/esm/stream/translate.js
 +++ b/dist/esm/stream/translate.js
 @@ -31,7 +31,18 @@ function stringifyToolResultContent(content) {
  	if (typeof content === "string") return content;
  	return content.map((block) => typeof block.text === "string" ? block.text : "").join("");
  }
--function buildUsage(usage, totalCostUsd) {
+-function buildUsage(usage, totalCostUsd, modelUsage) {
 +function mainContextWindow(modelUsage, mainModel) {
 +	const main = mainModel === void 0 ? void 0 : modelUsage?.[mainModel];
 +	if (typeof main?.contextWindow === "number" && main.contextWindow > 0) return main.contextWindow;
@@ -73,20 +73,20 @@ index 21140549d20dfba046925617d35008ee0b1c4abe..e2fa1c08e2038ba1121daf4705b5d331
  	if (!usage) return void 0;
  	const cacheWrite = usage.cache_creation_input_tokens ?? 0;
  	const cacheRead = usage.cache_read_input_tokens ?? 0;
-@@ -47,7 +58,11 @@ function buildUsage(usage, totalCostUsd) {
- 		...cacheRead ? { cachedTokens: cacheRead } : {}
+@@ -48,9 +59,11 @@ function buildUsage(usage, totalCostUsd, modelUsage) {
  	};
  	if (Object.keys(promptTokensDetails).length > 0) result.promptTokensDetails = promptTokensDetails;
--	if (totalCostUsd !== void 0) result.providerUsageDetails = { totalCostUsd };
+ 	if (totalCostUsd !== void 0) result.cost = totalCostUsd;
 +	const contextWindow = mainContextWindow(modelUsage, mainModel);
-+	if (totalCostUsd !== void 0 || contextWindow !== void 0) result.providerUsageDetails = {
-+		...totalCostUsd !== void 0 ? { totalCostUsd } : {},
-+		...contextWindow !== void 0 ? { contextWindow } : {}
-+	};
+ 	if (totalCostUsd !== void 0 || modelUsage !== void 0) result.providerUsageDetails = {
+ 		...totalCostUsd !== void 0 && { totalCostUsd },
+-		...modelUsage !== void 0 && { modelUsage }
++		...modelUsage !== void 0 && { modelUsage },
++		...contextWindow !== void 0 && { contextWindow }
+ 	};
  	return result;
  }
- /**
-@@ -69,6 +84,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
+@@ -73,6 +86,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
  	const { model, runId, threadId, genId } = ctx;
  	const now = () => Date.now();
  	let runStarted = false;
@@ -94,16 +94,16 @@ index 21140549d20dfba046925617d35008ee0b1c4abe..e2fa1c08e2038ba1121daf4705b5d331
  	/** Tool calls started but with no result yet. */
  	const unresolvedToolCalls = /* @__PURE__ */ new Set();
  	const syntheticOutputToolIds = /* @__PURE__ */ new Set();
-@@ -311,7 +327,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
+@@ -315,7 +329,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
  		yield* closePartialReasoning();
  		yield* closePartialToolUses();
  		yield* synthesizeUnresolvedResults();
--		const usage = buildUsage(message.usage, message.total_cost_usd);
+-		const usage = buildUsage(message.usage, message.total_cost_usd, message.modelUsage);
 +		const usage = buildUsage(message.usage, message.total_cost_usd, message.modelUsage, sessionModel);
  		if (ctx.expectStructuredOutput === true) {
  			const fromResult = isUsefulStructuredObject(message.structured_output) ? message.structured_output : void 0;
  			const fromTool = isUsefulStructuredObject(capturedStructuredOutput) ? capturedStructuredOutput : void 0;
-@@ -471,6 +487,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
+@@ -476,6 +490,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
  			ctx.onSdkMessage?.(sdkMessage);
  			if (sdkMessage.type === "system" && sdkMessage.subtype === "init") {
  				yield* startRun();

@@ -15,7 +15,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 - `harness-available.ts:harnessAvailable` - true when `command -v <binName>` succeeds.
 - `call-tool.ts:makeCallTool` / `makeRunTypescript` / `makeDiscoverTools` - call tools through `<apiBase>/api/mcp` (`execute_typescript`, `discover_tools`).
 - `call-tool.ts:autoApprove` / `withAutoApproval` / `approvePending` / `makeApprovingCallTool` / `makeApprovingRegistryCall` - approve pending tool calls during a run.
-- `mcp-client.ts:connectMcpClient` - MCP client with `tools()` and `close()`.
+- `mcp-client.ts:connectMcpClient` - MCP client with `tools()`, `serverVersion()` and `close()`.
 - `run-stream.ts:makeRunStream` - `RunStream` with `waitFor`, `waitForToolCall`, `done`; `run-events.ts:makeRunEvents`, `collectToolCalls`, `approvalIds`.
 - `session.ts:makeRpcClient` / `resolveSession` / `makeSessionBoundRpcClient` - oRPC client against `<apiBase>/rpc`.
 - `serve-app.ts:serveApp` - serves a fetch handler with `serveHono` and returns `base`, `wsBase`, `port`, `close`.

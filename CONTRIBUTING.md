@@ -9,13 +9,15 @@ look for issues labeled
 
 ## Setup
 
-You need Node.js >= 22.13 and pnpm. The exact pnpm version is pinned in root `package.json`'s
-`packageManager` field; use [corepack](https://nodejs.org/api/corepack.html) to get that exact
-version instead of whatever you have installed globally:
+You need Node.js >= 26 and pnpm. The exact pnpm version is pinned in root `package.json`'s
+`packageManager` field; use [corepack](https://github.com/nodejs/corepack) to get that exact
+version instead of whatever you have installed globally. Node 26 no longer bundles corepack, so
+install it from npm first:
 
 ```sh
 git clone https://github.com/conciv-dev/conciv.git
 cd conciv
+npm install --global corepack@latest
 corepack enable
 pnpm install
 ```

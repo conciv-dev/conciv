@@ -93,6 +93,7 @@ import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
+import corePackage from '../package.json' with {type: 'json'}
 import {
   bootKit,
   bootMadeApp,
@@ -218,13 +219,6 @@ describe('api engine staleness di', () => {
     fingerprint: 'injected1234',
   }
 
-  const INITIALIZE = JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'staleness-di-test', version: '0'}},
-  })
-
   afterEach(async () => {
     await state.served?.close()
     await state.dispose?.()
@@ -249,7 +243,31 @@ describe('api engine staleness di', () => {
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    it('reports the injected probe consistently on /health, rpc meta.engine and the mcp instructions', async () => {
+    async function executeTool(
+      base: string,
+    ): Promise<{description: string; discoverDescription: string; sandboxNames: string[]}> {
+      const mcp = await connectMcpClient(`${base}/api/mcp`)
+      try {
+        const tools = await mcp.tools()
+        const tool = tools.find((entry) => entry.name === 'execute_typescript')
+        const discover = tools.find((entry) => entry.name === 'discover_tools')
+        if (!discover) throw new Error('discover_tools not on /api/mcp')
+        if (!tool) throw new Error('execute_typescript not on /api/mcp')
+        const listed = await tool.execute({
+          typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))',
+        })
+        const sandboxNames = z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result
+        return {description: tool.description, discoverDescription: discover.description, sandboxNames}
+      } finally {
+        await mcp.close()
+      }
+    }
+
+    async function executeDescription(base: string): Promise<string> {
+      return (await executeTool(base)).description
+    }
+
+    it('reports the injected probe consistently on /health, rpc meta.engine and the execute tool description', async () => {
       const calls = {count: 0}
       const served = await serveWithProbe(() => {
         calls.count += 1
@@ -258,17 +276,65 @@ describe('api engine staleness di', () => {
 
       const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const mcp = await fetch(`${served.base}/api/mcp`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json', accept: 'application/json, text/event-stream'},
-        body: INITIALIZE,
-      })
-      const instructions = await mcp.text()
+      const {description, discoverDescription, sandboxNames} = await executeTool(served.base)
 
       expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
-      expect(instructions).toContain('@conciv/injected-probe')
+      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description).toContain('@conciv/injected-probe')
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toContain('call discover_tools with their names')
+      expect(description).toContain('More capabilities, by name only: ')
+      expect(description).toContain('external_page_insert')
+      expect(sandboxNames.length).toBeGreaterThan(0)
+      expect(sandboxNames.filter((name) => !description.includes(name))).toEqual([])
+      expect(discoverDescription.length).toBeLessThanOrEqual(4096)
+      expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
+    }, 20_000)
+
+    it('reports the core package version as the MCP server version', async () => {
+      const served = await serveWithProbe(() => INJECTED)
+      const mcp = await connectMcpClient(`${served.base}/api/mcp`)
+      try {
+        expect(mcp.serverVersion()).toBe(corePackage.version)
+      } finally {
+        await mcp.close()
+      }
+    }, 20_000)
+
+    it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
+      const changed = Array.from({length: 90}, (_, index) => `@conciv/changed-package-${index}`)
+      const served = await serveWithProbe(() => ({...INJECTED, changed}))
+      const {description, sandboxNames} = await executeTool(served.base)
+      const hidden = sandboxNames.filter((name) => !description.includes(name))
+
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toMatch(/, and \d+ more/)
+      expect(hidden.length).toBeGreaterThan(0)
+      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
+    }, 20_000)
+
+    it('bounds the staleness notice so a huge changed list keeps the description within budget', async () => {
+      const changed = Array.from({length: 2000}, (_, index) => `@conciv/changed-package-${index}`)
+      const served = await serveWithProbe(() => ({...INJECTED, changed}))
+      const {description} = await executeTool(served.base)
+
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description).toContain('@conciv/changed-package-0')
+      expect(description).toMatch(/, and \d+ more\)\. Restart the dev server/)
+      expect(description).toContain('Run TypeScript in a secure sandbox wired to this project.')
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
+    }, 20_000)
+
+    it('the execute tool description says nothing about staleness while the engine matches the code on disk', async () => {
+      const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
+      const description = await executeDescription(served.base)
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description).not.toMatch(/outdated|restart the dev server/i)
     }, 20_000)
   })
 })
@@ -1012,6 +1078,23 @@ describe('api mcp loopback host', () => {
       expect(reply.status).toBe(403)
       expect(reply.body).toBe('forbidden host')
       expect(reply.body).not.toContain('origin')
+    })
+  })
+
+  describe('/api/mcp engine gate (IT, real http)', () => {
+    const kit = sharedKit(() => bootKit())
+
+    it('an MCP client without the agent token is refused with 401', async () => {
+      await expect(connectMcpClient(`${new URL(kit().base).origin}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
+
+    it('an MCP client on the token-scoped path lists the tools', async () => {
+      const mcp = await connectMcpClient(`${kit().base}/api/mcp`)
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
     })
   })
 })
@@ -1920,11 +2003,13 @@ describe('rpc wire', () => {
       it('sessions run independently and each keeps its own usage', async () => {
         const [slow, quick] = [await newSession(), await newSession()]
         cli.usage.push(usage(11), usage(22))
-        script().scriptTurn({toolCalls: [], text: 'slow reply', textPace: {chunk: 1, everyMs: 50}})
+        script().holdResults()
+        script().scriptTurn({toolCalls: [{name: 'slow_tool', input: {}}], text: 'slow reply'})
         const slowTurn = await send(slow, 'slow')
-        await slowTurn.waitForRunStart()
+        await slowTurn.waitForToolCall('slow_tool')
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
+        script().releaseResults()
         await slowTurn.done(GUARD)
         expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
         expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
@@ -2797,7 +2882,7 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).not.toContain('fixture_echo')
+        expect(description).toContain('external_fixture_echo')
       })
 
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
@@ -2849,14 +2934,17 @@ return seen`
         await ended
       })
 
-      it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
+      it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
         expect(found).toContain('Returns JSON matching')
         expect(found).toContain('PROBE_BROKE: the probe broke')
         expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
-        expect(discover.description).toContain('fail with a declared error.')
-        expect(discover.description).not.toContain('PROBE_BROKE')
+        const execute = await mcpTool('execute_typescript')
+        expect(execute.description).toContain('external_fixture_fail')
+        expect(execute.description).not.toContain('PROBE_BROKE')
+        expect(discover.description).toContain('toolNames')
+        expect(discover.description).not.toContain('external_fixture_fail')
       })
 
       it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {

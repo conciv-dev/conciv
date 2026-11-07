@@ -23,19 +23,20 @@ catalog:
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
-  '@tanstack/ai': 1.0.1
-  '@tanstack/ai-client': 1.0.1
+  '@tanstack/ai': 1.2.0
+  '@tanstack/ai-client': 1.1.0
   '@tanstack/ai-persistence': 1.0.1
-  '@tanstack/ai-code-mode': 1.0.1
-  '@tanstack/ai-isolate-node': 1.0.0
-  '@tanstack/ai-isolate-quickjs': 1.0.0
-  '@tanstack/ai-solid': 1.0.0
-  '@tanstack/ai-sandbox': 1.0.0
+  '@tanstack/ai-code-mode': 1.1.0
+  '@tanstack/ai-isolate-node': 1.1.0
+  '@tanstack/ai-isolate-quickjs': 1.1.0
+  '@tanstack/ai-solid': 1.0.1
+  '@tanstack/ai-sandbox': 1.2.0
   '@tanstack/ai-sandbox-local-process': 1.0.0
-  '@tanstack/ai-claude-code': 1.0.0
-  '@tanstack/ai-codex': 1.0.0
-  '@tanstack/ai-opencode': 1.0.0
-  '@tanstack/ai-acp': 1.0.0
+  '@tanstack/ai-claude-code': 1.0.1
+  '@tanstack/ai-codex': 1.0.1
+  '@tanstack/ai-opencode': 1.0.1
+  '@tanstack/ai-acp': 1.0.1
+  '@tanstack/ai-mcp': 1.1.0
 
   '@ark-ui/solid': '^5.39.3'
   '@blazediff/core': ^1.10.0
@@ -101,7 +102,7 @@ catalog:
   gsap: '^3.15.0'
   hono: '^4.13.14'
   lucide-react: '^1.64.0'
-  lucide-solid: '^1.64.0'
+  lucide-solid: '~1.66.0'
   marked: '^18.1.2'
   mermaid: '^12.2.0'
   motion: '^14.7.1'
@@ -223,23 +224,23 @@ minimumReleaseAgeExclude:
   - 'lucide-solid'
   - 'tsdown'
 patchedDependencies:
-  # buildUsage (dist/esm/stream/translate.js:34-52 in 1.0.0, same on upstream main) forwards only
-  # total_cost_usd from the SDK result, dropping modelUsage[model].contextWindow, so the context meter
-  # had to guess the window (200k where Haiku 5.5 reports 1M). The patch adds the session model's
-  # contextWindow (the modelUsage entry for the init message's model; the entry with the most input
-  # tokens when that one is missing) to providerUsageDetails.
+  # buildUsage (dist/esm/stream/translate.js:34-56 in 1.0.1) forwards total_cost_usd and the raw modelUsage
+  # map but never picks the session model's context window, so the context meter had to guess the window
+  # (200k where Haiku 5.5 reports 1M). The patch adds the session model's contextWindow (the modelUsage
+  # entry for the init message's model; the entry with the most input tokens when that one is missing) to
+  # providerUsageDetails.
   # It also fixes effort on Claude 5 models: CLAUDE_CODE_MODEL_REASONING (dist/esm/model-meta.js) lists
   # only 4.x ids, so fable, claude-fable-5, claude-opus-5, claude-sonnet-5 and [1m] ids sent no effort,
   # and the sonnet and haiku aliases (now 5.5, effort low..max) used the old thinking budget. Ids the
   # EFFORT_MODELS regex matches now fall back to the low..max effort levels.
   # Drop it once upstream forwards the context window and lists the 5.x models.
-  '@tanstack/ai-claude-code@1.0.0': patches/@tanstack__ai-claude-code@1.0.0.patch
-  # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.0.1) emits
+  '@tanstack/ai-claude-code@1.0.1': patches/@tanstack__ai-claude-code@1.0.1.patch
+  # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.1.0) emits
   # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
   # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and
   # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
   # tool knows which call it is answering. Drop it once upstream carries a call id there.
-  '@tanstack/ai-code-mode@1.0.1': patches/@tanstack__ai-code-mode@1.0.1.patch
+  '@tanstack/ai-code-mode@1.1.0': patches/@tanstack__ai-code-mode@1.1.0.patch
   # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
   # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks
   # minted handles and destroys one through its own destroy (SIGTERM, then SIGKILL after 5s): the handle
@@ -248,16 +249,16 @@ patchedDependencies:
   # deciding to escalate: a journaled agent outlives a wrapper that SIGTERM killed. Drop it once upstream
   # kills the tree there.
   '@tanstack/ai-sandbox-local-process@1.0.0': patches/@tanstack__ai-sandbox-local-process@1.0.0.patch
-  # withSandbox declares ProjectionCapability in provides unconditionally (src/middleware.ts:502 in 1.0.0)
-  # but only provides it for a definition with a workspace (src/middleware.ts:891-892), so every
-  # workspace-less run fails the engine's provides check; and it builds the projection root through
-  # resolveHarnessCwd (src/middleware.ts:894), a host path where the sandbox expects a virtual one.
+  # withSandbox builds the workspace projection root through resolveHarnessCwd (src/middleware.ts:906 in
+  # 1.2.0), a host path where the sandbox expects a virtual one; the patch keeps the virtual root.
+  # Its durability options (dist/esm/durability.js:133-145 in 1.2.0) forward attachWaitMs only on an attach;
+  # the patch forwards it on every run.
   # Its tool-history recorder (src/tool-history.ts) also drops each call's TOOL_CALL_START metadata and the
   # result's output-error state, so a reload loses code-mode nesting (parentToolCallId) and shows failed
   # calls as successes; the patch keeps both. It also records the assistant message with no id, so
   # conversion mints a fresh one on every read; the patch stores one from generateMessageId. Drop the patch
-  # once upstream fixes all four.
-  '@tanstack/ai-sandbox@1.0.0': patches/@tanstack__ai-sandbox@1.0.0.patch
+  # once upstream fixes all of these.
+  '@tanstack/ai-sandbox@1.2.0': patches/@tanstack__ai-sandbox@1.2.0.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search); drop once a solid-query release includes it
   '@tanstack/solid-query@5.105.0': patches/@tanstack__solid-query@5.105.0.patch

@@ -27,6 +27,7 @@ import {
   useDisconnect,
   useGrabProvider,
   useInstances,
+  useLiveSessions,
   usePaneChat,
   useSettings,
 } from '../app/context.js'
@@ -186,6 +187,7 @@ function PanelSession(): JSX.Element {
 
   const coordinator = makeRefreshCoordinator({
     chat,
+    liveSessions: useLiveSessions(),
     sessionId: () => params().sessionId,
     appData,
     queryClient,
