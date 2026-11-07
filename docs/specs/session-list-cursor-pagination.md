@@ -150,6 +150,7 @@ The picker's list is virtualized with `@tanstack/solid-virtual`, following TanSt
 - Relevance ordering: results stay newest first.
 - Embeddings and semantic search: a follow-up PR (a local model via `@huggingface/transformers` feeding Orama vector fields).
 - Searching sessions from every project, not only the current cwd: a follow-up PR, requested by the maintainer on 2026-11-07. The picker gets an option to widen search to all projects; each harness would need to list transcripts across project directories.
+- A Pi rename buried deep in a transcript (decided 2026-11-07). Pi appends a rename as a `session_info` record, and the list reads only a transcript's head and its last 64 KB. A rename followed by more than 64 KB of conversation is missed, and the list shows the earlier title. Finding it means reading the whole file, which is the cost this PR removed, so the maintainer accepted the limit.
 
 ## Overlap with open PRs
 
