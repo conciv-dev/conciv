@@ -1,7 +1,12 @@
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import type {EngineStaleness} from '@conciv/contract'
+import {
+  CHAT_SSE_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+} from '@conciv/protocol/chat-types'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -189,12 +194,12 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
-const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
-  const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-  return rpc.server.reload({file}).then(
-    () => 'resolved',
-    (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error'),
-  )
+const hubListTools: BrowserCommand<[string]> = async (ctx, sessionId): Promise<void> => {
+  const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+  const {connectMcpClient} = await testkitOf(ctx)
+  const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
+  await client.tools()
+  await client.close()
 }
 
 const setStaleness: BrowserCommand<[EngineStaleness]> = (ctx, value): void => {
@@ -439,7 +444,7 @@ export const coreCommands = {
   printedCode,
   requestCode,
   revokeBrowsers,
-  outsideReload,
+  hubListTools,
   setStaleness,
   holdTurn,
   holdTools,

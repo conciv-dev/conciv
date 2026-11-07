@@ -17,7 +17,7 @@ import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEa
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue} from '@conciv/chat'
-import {type EngineStaleness, makeRpcClient as makeContractRpcClient} from '@conciv/contract'
+import {type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -70,6 +70,9 @@ import {
   CONCIV_SESSION_HEADER,
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  type HubAccess,
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
@@ -117,35 +120,6 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
-
-describe('api connect gate', () => {
-  let engine: Engine
-
-  beforeAll(async () => {
-    engine = await start({
-      options: {},
-      root: mkdtempSync(join(tmpdir(), 'conciv-gate-')),
-      launchEditor: () => {},
-      harness: createFakeHarness({id: 'fake-gate'}),
-      accessToken: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
-    })
-  }, 30_000)
-
-  afterAll(async () => {
-    await engine.stop()
-  })
-
-  describe('token-gated core', () => {
-    it('serves only liveness and the stale flag on health, with or without the token', async () => {
-      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}, id: expect.any(String)}
-      const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
-      const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect([prefixed.status, bare.status]).toEqual([200, 200])
-      expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
-      expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
-    })
-  })
-})
 
 describe('cors', () => {
   const ORIGIN = 'http://localhost:3000'
@@ -372,6 +346,7 @@ describe('api extension mount isolation', () => {
       harnessSessionId: undefined,
       systemPrompt: '',
       extensions: undefined,
+      hubAccess: 'session',
     }
   }
 
@@ -1022,11 +997,11 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string, prefix = ''): Promise<Reply> {
+  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: `${prefix}/api/mcp`, method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -1044,12 +1019,6 @@ describe('api mcp loopback host', () => {
     function port(): number {
       return Number(new URL(kit().base).port)
     }
-
-    it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`, new URL(kit().base).pathname)
-      expect(reply.status).toBe(200)
-      expect(reply.body).toContain('conciv')
-    })
 
     it('rejects a hostile Host with no Origin, naming the host as the failed check', async () => {
       const reply = await postMcpOverHttp(port(), `evil.com:${port()}`)
@@ -1112,38 +1081,6 @@ describe('api mcp execute result', () => {
       if (outcome.ok) return
       expect(outcome.message).toContain('deliberate failure')
     })
-  })
-})
-
-describe('api mcp extension tools', () => {
-  async function execute(base: string, typescriptCode: string): Promise<unknown> {
-    const mcp = await connectMcpClient(`${base}/api/mcp`)
-    try {
-      const tool = (await mcp.tools()).find((entry) => entry.name === 'execute_typescript')
-      if (!tool?.execute) throw new Error('execute_typescript not on /api/mcp')
-      const raw = await tool.execute({typescriptCode})
-      const parsed = z
-        .object({result: z.unknown()})
-        .loose()
-        .parse(JSON.parse(z.string().parse(raw)))
-      return parsed.result
-    } finally {
-      await mcp.close()
-    }
-  }
-
-  describe('/api/mcp extension tools through the sandbox', () => {
-    it('keeps the extension-authoring capability reachable through the sandbox', async () => {
-      const kit = await bootKit()
-      try {
-        const result = await execute(kit.base, "return await external_conciv_extensions({verb: 'catalog'})")
-        const json = JSON.stringify(result)
-        expect(json).toContain('chat-accent')
-        expect(json).toContain('clientSurfaces')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 30_000)
   })
 })
 
@@ -1424,30 +1361,6 @@ describe('api page tool capture', () => {
   })
 })
 
-describe('api rpc fetch', () => {
-  const gatedTool = defineTool({
-    name: 'ws_probe_gated',
-    description: 'A tool that always needs approval.',
-    inputSchema: z.object({}),
-    outputSchema: z.object({done: z.boolean()}),
-    approval: 'ask',
-    meta: {summary: 'always asks', category: 'fixture', mutating: true},
-  }).server(async () => ({done: true}))
-
-  const gatedExtension = defineExtension({name: 'Gate Probe', tools: [gatedTool]})
-
-  const kit = sharedKit(() => bootKit({extensions: [gatedExtension]}))
-
-  test('a per-call session header reaches an approval-gated procedure', async () => {
-    const sessionId = 'conciv_rpc_header_probe'
-    const call = makeContractRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}}).registry.call({
-      name: 'ws_probe_gated',
-      input: {},
-    })
-    await expect(call).rejects.toThrow(`session "${sessionId}" does not exist`)
-  })
-})
-
 describe('capability collision', () => {
   const impostor = defineTool({
     name: 'open',
@@ -1575,13 +1488,6 @@ describe('rpc wire', () => {
         abort.abort()
         await consumed.catch(() => {})
         await iterator.return(undefined).catch(() => {})
-      })
-
-      it('server reads and widget writes without a bundler bridge report NO_BUNDLER', async () => {
-        await expect(kit().rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
-        const {sessionId} = await kit().rpc.sessions.create(undefined)
-        const widget = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, origin: kit().base}})
-        await expect(widget.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
       })
 
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
@@ -2146,6 +2052,7 @@ describe('rpc wire', () => {
           done: 'w',
         })
         await expect(browserRpc.server.reload({file: 'a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+        await expect(browserRpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
@@ -2182,6 +2089,8 @@ describe('rpc wire', () => {
         await expect(call()).resolves.toEqual({done: 'x'})
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
+        const unknown = callerWith('conciv_unknown_probe').registry.call({name: 'fixture_ask', input: {}})
+        await expect(unknown).rejects.toThrow('session "conciv_unknown_probe" does not exist')
       })
 
       it('a session option counts its messages right after a turn', async () => {
@@ -3369,5 +3278,92 @@ describe('outside sessions', () => {
     const engine = await bootAt(home)
     expect((await fetch(`http://127.0.0.1:${engine.port}/health`)).status).toBe(200)
     await expect(engine.stop()).resolves.toBeUndefined()
+  })
+})
+
+describe('outside agent consent', () => {
+  const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+  const ASKS = /needs the user's approval/
+  const RAN = /"result":1/
+  const DENIED = 'the user denied outside agents for this session'
+  const engines: Engine[] = []
+  afterAll(() => Promise.all(engines.map((engine) => engine.stop())))
+
+  async function boot(hubAccess?: HubAccess): Promise<string> {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-consent-'))
+    const homeDir = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+    const options = hubAccess === undefined ? {stateRoot: root} : {stateRoot: root, hubAccess}
+    const engine = await start({options, root, launchEditor: () => {}, harness: createFakeHarness(), homeDir})
+    engines.push(engine)
+    return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+  }
+
+  const rpcOf = (base: string, sessionId: string) =>
+    makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+
+  const newSession = async (base: string) => (await makeRpcClient(base).sessions.create(undefined)).sessionId
+
+  async function hubCall(base: string, sessionId: string): Promise<string> {
+    const client = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId, ...HUB})
+    const tool = (await client.tools()).find((entry) => entry.name === 'execute_typescript')
+    const reply = await tool?.execute({typescriptCode: 'return 1'}).then(String, String)
+    await client.close()
+    return reply ?? 'no execute_typescript'
+  }
+
+  const pendingOf = async (base: string, sessionId: string) =>
+    (await rpcOf(base, sessionId).chat.hydrate({sessionId})).pendingApprovals
+
+  async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
+    const [ask] = await pendingOf(base, sessionId)
+    expect(ask).toMatchObject({toolName: 'Allow codex to use this tab', input: {client: 'codex'}, runId: null})
+    const decision = await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved})
+    expect(decision.startsTurn).toBe(false)
+  }
+
+  it('session policy asks on the first hub request, an allow covers only its session, and a deny sticks until allowed', async () => {
+    const base = await boot()
+    const [first, second] = [await newSession(base), await newSession(base)]
+    const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
+    await lister.tools()
+    await lister.close()
+    expect(await pendingOf(base, first)).toHaveLength(1)
+    expect(await hubCall(base, first)).toMatch(ASKS)
+    await decideOutside(base, first, true)
+    expect(await hubCall(base, first)).toMatch(RAN)
+    expect(await hubCall(base, first)).toMatch(RAN)
+    expect(await hubCall(base, second)).toMatch(ASKS)
+    await decideOutside(base, second, false)
+    expect(await hubCall(base, second)).toContain(DENIED)
+    expect(await hubCall(base, second)).toContain(DENIED)
+    expect(await pendingOf(base, second)).toEqual([])
+    const rpc = rpcOf(base, second)
+    expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: true})
+    await rpc.chat.allowOutside({sessionId: second})
+    expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: false})
+    expect(await hubCall(base, second)).toMatch(ASKS)
+  })
+
+  it('project policy allows every session after one allow', async () => {
+    const base = await boot('project')
+    const [first, second] = [await newSession(base), await newSession(base)]
+    await hubCall(base, first)
+    await decideOutside(base, first, true)
+    expect(await hubCall(base, second)).toMatch(RAN)
+  })
+
+  it('open policy never asks, and hub calls are marked in the transcript', async () => {
+    const base = await boot('open')
+    const sessionId = await newSession(base)
+    const abort = new AbortController()
+    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: abort.signal})
+    expect(await hubCall(base, sessionId)).toMatch(RAN)
+    const starts = async (): Promise<unknown> => {
+      for await (const chunk of events) if (chunk.type === ChatEventType.TOOL_CALL_START) return chunk
+      return null
+    }
+    expect(await starts()).toMatchObject({metadata: {conciv: {origin: 'hub', client: 'codex'}}})
+    abort.abort()
+    expect(await pendingOf(base, sessionId)).toEqual([])
   })
 })

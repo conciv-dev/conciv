@@ -12,6 +12,14 @@ export const CHAT_DELIVERY_HEADERS = ['x-run-id', 'last-event-id'] as const
 
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
 
+export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
+
+export const CONCIV_CLIENT_HEADER = 'conciv-client'
+
+export const OUTSIDE_SESSION_TARGET = 'outside-session'
+
+export type HubAccess = 'open' | 'session' | 'project'
+
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
 
 const MEBIBYTE = 1024 * 1024

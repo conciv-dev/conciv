@@ -26,7 +26,7 @@ import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -515,6 +515,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
+    hubAccess: opts.cfg.hubAccess,
     harnessFor,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
@@ -594,6 +595,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       mcp: {
         codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
+        admitOutside: async (scope, client) =>
+          opts.cfg.hubAccess === 'open'
+            ? null
+            : plane.admitCall(scope.id, OUTSIDE_SESSION_TARGET, {client}, scope.stream.publish, outsideTitle(client)),
         staleness,
       },
     },
@@ -641,4 +646,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     extensionContexts,
     runtime,
   }
+}
+
+function outsideTitle(client: string | null): string {
+  return `Allow ${client ?? 'an outside agent'} to use this tab`
 }

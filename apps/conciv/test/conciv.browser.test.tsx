@@ -1,7 +1,7 @@
 import '../src/styles.css'
 import {expect, test, vi, it, afterEach, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
-import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
@@ -103,10 +103,7 @@ describe('approval replay', () => {
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
-    const sessionId = await createSession(coreRpc(core()))
-    return {rpc: makeRpcClient(core(), {headers: {[CONCIV_SESSION_HEADER]: sessionId}}), sessionId}
-  }
+  const newSession = () => createSession(coreRpc(core()))
 
   async function attachedPane(sessionId: string): Promise<PaneMount> {
     const attached = await coreControl.pushSocketsOpened()
@@ -115,17 +112,8 @@ describe('approval replay', () => {
     return mount
   }
 
-  async function refusedOutsideCall(rpc: RpcClient, sessionId: string, file: string): Promise<string> {
-    expect(await coreControl.outsideReload(sessionId, file)).toBe('APPROVAL_DENIED')
-    const pending = (await rpc.chat.hydrate({sessionId})).pendingApprovals
-    expect(pending.map((approval) => approval.runId)).toEqual([null])
-    const askedId = pending[0]?.approvalId
-    if (askedId === undefined) throw new Error('the refused call left no pending ask')
-    return askedId
-  }
-
   test('an ask from a chat turn sits in the strip, and approving it posts the message that retries', async () => {
-    const {sessionId} = await newSession()
+    const sessionId = await newSession()
     keep(await attachedPane(sessionId))
     await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
     await coreControl.scriptCustomEvent('approval-requested', {
@@ -147,7 +135,7 @@ describe('approval replay', () => {
   }, 120_000)
 
   test('an ask from a chat turn sits in the strip, and denying it posts the message that re-runs the turn refused', async () => {
-    const {sessionId} = await newSession()
+    const sessionId = await newSession()
     keep(await attachedPane(sessionId))
     await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
     await coreControl.scriptCustomEvent('approval-requested', {
@@ -165,20 +153,6 @@ describe('approval replay', () => {
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
     await expect.element(page.getByText('Denied: Bash: git push --force', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
-  }, 120_000)
-
-  test('a pane opened while the ask waits draws the card from hydrate', async () => {
-    const {rpc, sessionId} = await newSession()
-    const first = await attachedPane(sessionId)
-
-    const askedId = await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
-    first.dispose()
-
-    keep(await attachedPane(sessionId))
-    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
-
-    await rpc.chat.permissionDecision({approvalId: askedId, approved: false})
-    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('APPROVAL_DENIED')
   }, 120_000)
 })
 
@@ -2186,6 +2160,28 @@ describe('panel refresh', () => {
     await expect.element(sessionMenu(), {timeout: 8000}).toBeVisible()
     await expect.element(reply()).toBeVisible()
     await expect.element(skeleton()).not.toBeInTheDocument()
+  }, 30_000)
+})
+
+describe('session options outside agents', () => {
+  const coreBase = bootedCore('outside-agents')
+  const harness = createShellHarness(coreBase)
+  afterEach(harness.dispose)
+  const strip = () => page.getByRole('group', {name: 'Permission request'})
+  const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
+
+  test('allow outside agents lifts a deny and leaves the menu', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    await coreControl.hubListTools(sessionId)
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(strip().getByText('Allow codex to use this tab'), {timeout: 8000}).toBeVisible()
+    await page.getByRole('button', {name: 'Deny'}).click()
+    await expect.element(strip()).not.toBeInTheDocument()
+    await page.getByRole('button', {name: 'Session options'}).click()
+    await allowRow().click()
+    await expect.element(allowRow()).not.toBeInTheDocument()
+    await coreControl.hubListTools(sessionId)
+    await expect.element(strip(), {timeout: 8000}).toBeVisible()
   }, 30_000)
 })
 

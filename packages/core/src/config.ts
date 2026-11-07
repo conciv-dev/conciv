@@ -1,6 +1,12 @@
 import {CHAT_SYSTEM_PROMPT} from '@conciv/harness/claude'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {isHarnessSessionId, isSessionId, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {
+  isHarnessSessionId,
+  isSessionId,
+  type HarnessSessionId,
+  type HubAccess,
+  type SessionId,
+} from '@conciv/protocol/chat-types'
 
 export type {ConcivConfig} from '@conciv/protocol/config-types'
 export {defineConfig} from '@conciv/protocol/config-types'
@@ -15,6 +21,7 @@ export interface ResolvedConcivConfig {
   harnessSessionId: HarnessSessionId | undefined
   systemPrompt: string
   extensions: ConcivConfig['extensions']
+  hubAccess: HubAccess
 }
 
 function declaredValue(candidates: (string | undefined)[]): string | undefined {
@@ -60,5 +67,6 @@ export function resolveConfig(options: ConcivConfig, root: string): ResolvedConc
     harnessSessionId: resolveHarnessSessionId([options.claudeSessionId, env.CONCIV_CLAUDE_SESSION_ID]),
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     extensions: options.extensions,
+    hubAccess: options.hubAccess ?? 'session',
   }
 }

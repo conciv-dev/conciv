@@ -12,6 +12,13 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
       if (decision === null) throw errors.UNKNOWN_REQUEST()
       return {ok: true as const, startsTurn: decision.startsTurn}
     }),
+    outsideAccess: os.chat.outsideAccess.handler(async ({input}) => ({
+      denied: await deps.chat.plane.outsideDenied(input.sessionId),
+    })),
+    allowOutside: os.chat.allowOutside.handler(async ({input}) => {
+      await deps.chat.plane.allowOutside(input.sessionId)
+      return {ok: true as const}
+    }),
     uiReply: os.chat.uiReply.handler(({input, errors}) => {
       if (!deps.chat.plane.answerUi(input.sessionId, input.toolCallId, input.value)) {
         throw errors.UNKNOWN_REQUEST()
