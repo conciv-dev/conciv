@@ -2446,6 +2446,7 @@ describe('rpc wire', () => {
         script().holdTools()
         const ended = nextTurnEnd(sessionId)
         const turn = await send(sessionId, 'silence', {runId: 'silent-run'})
+        await turn.waitForRunStart({runId: 'silent-run'})
         const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: SILENCE_MS * 2})
         await ended
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
