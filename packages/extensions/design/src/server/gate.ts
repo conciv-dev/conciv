@@ -15,7 +15,7 @@ export function gateOf(input: {root: DesignNode; renderers: ReturnType<typeof re
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
     return rowsOf({record, element, parent, parentElement}).map((row) =>
-      worded({record, selector: renderers.selector(record.id), row}),
+      worded({record, named: renderers.named(record.id), row}),
     )
   })
   const coverage: Coverage = {
@@ -193,9 +193,13 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
   ]
 }
 
-function worded(input: {record: Record; selector: string | null; row: Row}): GateRow {
-  const {record, selector, row} = input
-  const base = {node: record.id, selector, kind: record.kind, name: record.name}
+function worded(input: {
+  record: Record
+  named: Pick<GateRow, 'selector' | 'source' | 'confidence' | 'margin'>
+  row: Row
+}): GateRow {
+  const {record, named, row} = input
+  const base = {node: record.id, ...named, kind: record.kind, name: record.name}
   if (row.paint === true) return {...base, text: row.head, magnitude: 'much'}
   if (row.measured === undefined)
     return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}

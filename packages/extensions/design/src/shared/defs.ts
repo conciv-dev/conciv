@@ -231,6 +231,9 @@ const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other'
 const GateRowSchema = z.object({
   node: z.string(),
   selector: z.string().nullable().describe('the stored selector of the node'),
+  source: z.string().nullable().describe('file:line:column of the element, from data-conciv-source'),
+  confidence: z.number().nullable().describe('the winning score of the vote that mapped the node'),
+  margin: z.number().nullable().describe('the winning score minus the runner-up score'),
   kind: z.string().describe('the kind of the design node'),
   name: z.string(),
   text: z.string(),
