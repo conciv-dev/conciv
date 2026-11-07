@@ -35,7 +35,9 @@ export function reflowAt(input: {
     overflowX,
     overlaps: inside.flatMap(({element}) => overlapsUnder({element, renderers})),
     tags: tags.map((tag) => verdictOf({tag, element: renderers.of(tag.node)[0]})),
-    rows: tagged.flatMap(({tag, node}) => twoWay({tag, node, width, element: renderers.of(node.id)[0]})),
+    rows: tagged.flatMap(({tag, node}) =>
+      twoWay({tag, node, width, element: renderers.of(node.id)[0], selector: renderers.selector(node.id)}),
+    ),
   }
 }
 
@@ -111,8 +113,9 @@ function twoWay(input: {
   node: DesignNode
   width: number
   element: LiveComponent | undefined
+  selector: string | null
 }): GateRow[] {
-  const {tag, node, width, element} = input
+  const {tag, node, width, element, selector} = input
   const {breakpoint} = tag
   if (element === undefined || breakpoint === undefined || tag.kind === 'scroll') return []
   const rs = element.children
@@ -129,7 +132,7 @@ function twoWay(input: {
   const kind = node.gate?.kind ?? node.kind
   const name = node.figma?.name ?? ''
   const head = `${kind} ${name} [${node.id}] at ${width} wide`
-  const row = (text: string): GateRow[] => [{node: node.id, key: element.key, kind, name, text, magnitude: 'much'}]
+  const row = (text: string): GateRow[] => [{node: node.id, selector, kind, name, text, magnitude: 'much'}]
   if (wide >= breakpoint)
     return oneLine
       ? []

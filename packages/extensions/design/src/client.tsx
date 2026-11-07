@@ -183,7 +183,10 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
   const pageError = overlayError()
-  const measured = size.width === innerWidth ? await measureLive(size) : await measureMirror(size)
+  const measured =
+    size.width === innerWidth
+      ? await measureLive({size, selectors: input.selectors ?? []})
+      : await measureMirror({size, selectors: input.selectors ?? []})
   const queried = {...measured, ...(await pageQueries(document))}
   return pageError === null ? queried : {...queried, pageError}
 }
@@ -196,7 +199,8 @@ function overlayError(): string | null {
   return lines.find((line) => line !== '') ?? OVERLAY_FALLBACK
 }
 
-async function measureLive(size: Size): Promise<Measuring> {
+async function measureLive(input: {size: Size; selectors: string[]}): Promise<Measuring> {
+  const {size} = input
   const longestTask = watchLongTasks()
   const components = await collectComponents({root: document, size})
   const masks = canvasBoxes({root: document, size})
@@ -216,6 +220,7 @@ async function measureLive(size: Size): Promise<Measuring> {
     opinion: false,
     overflowX: sidewaysScroll(document),
     framework: pageFramework(),
+    matches: matchesOf({doc: document, selectors: input.selectors}),
     ...(longest === null ? {} : {longestTask: longest}),
   }
 }
@@ -235,7 +240,8 @@ function watchLongTasks(): () => number | null {
   }
 }
 
-async function measureMirror(size: Size): Promise<Measuring> {
+async function measureMirror(input: {size: Size; selectors: string[]}): Promise<Measuring> {
+  const {size} = input
   const doc = mirrorDocument(await mirrorAt(size))
   const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
@@ -253,7 +259,33 @@ async function measureMirror(size: Size): Promise<Measuring> {
     opinion: opinion !== null,
     overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
+    matches: matchesOf({doc, selectors: input.selectors}),
   }
+}
+
+function matchesOf(input: {doc: Document; selectors: string[]}): {selector: string; paths: string[]}[] {
+  return input.selectors.map((selector) => ({
+    selector,
+    paths: [...matching({doc: input.doc, selector})].map((el) => elementPath({doc: input.doc, el})),
+  }))
+}
+
+function matching(input: {doc: Document; selector: string}): Element[] {
+  try {
+    return [...input.doc.querySelectorAll(input.selector)]
+  } catch {
+    return []
+  }
+}
+
+function elementPath(input: {doc: Document; el: Element}): string {
+  const {doc, el} = input
+  if (el === doc.documentElement) return ''
+  const parent = el.parentNode
+  if (parent instanceof ShadowRoot)
+    return `${elementPath({doc, el: parent.host})}/s/${[...parent.children].indexOf(el) + 1}`
+  if (!(parent instanceof Element)) return ''
+  return `${elementPath({doc, el: parent})}/${[...parent.children].indexOf(el) + 1}`
 }
 
 function pageFramework(): Framework | null {
@@ -537,7 +569,6 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
   return {
     source: readSource(el),
     key: el.getAttribute(KEY_ATTR),
-    figma: el.getAttribute(FIGMA_ATTR),
     bounds: pageBounds({rect: el.getBoundingClientRect(), view}),
     scrolls: el.scrollWidth > el.clientWidth + SCROLL_SLACK,
     owner: ownerPath(el),
@@ -1195,5 +1226,4 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
 }
 
 const KEY_ATTR = 'data-conciv-key'
-const FIGMA_ATTR = 'data-figma'
 const SCROLL_SLACK = 2

@@ -206,7 +206,6 @@ function liveBox(input: {path: string; box: Box; key: string; children?: LiveCom
   return {
     source: null,
     key: input.key,
-    figma: null,
     instance: null,
     owner: null,
     tag: 'div',
@@ -388,14 +387,16 @@ describe('store', () => {
     expect([record.id, record.ref, record.width, record.height]).toEqual(['store-1', 'key/1:2', 100, 50])
     expect((await store.design('store-1')).root.id).toBe('1:2')
     expect(await store.mapping('store-1')).toEqual([])
-    const mapping = [{figma: {fileKey: 'key', nodeId: '1:2'}, conciv: 'abc', source: 'declared' as const, round: 1}]
+    const mapping = [
+      {figma: {fileKey: 'key', nodeId: '1:2'}, selector: '[data-conciv-key="abc"]', source: 'voted' as const, round: 1},
+    ]
     await store.writeMapping({id: 'store-1', mapping})
     expect(await store.mapping('store-1')).toEqual(mapping)
     const round: Round = {
       round: 1,
       rows: [],
       reflow: {widths: [], results: []},
-      coverage: {nodes: 1, mapped: 1, rendered: 1, missing: [], unknown: [], dupes: []},
+      coverage: {nodes: 1, mapped: 1, rendered: 1, missing: [], notRendered: [], dupes: []},
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, rows: 0},
       pixels: {share: 0},
       at: 1,
@@ -440,6 +441,7 @@ describe('voter', () => {
       sheets: '',
       framework: 'react',
       masks: [],
+      matches: new Map(),
     }
     const paired = await createVotePairer()({design, measured, target: raster, pins: [], budget: PAIR_BUDGET_MS})
     const voted = [...walk(paired.root)].find(({node}) => node.node.id === 'card')?.node.live?.key
@@ -454,7 +456,7 @@ describe('design_get', () => {
     const root = got.nodes.find((node) => node.id === '1:2')
     expect(root?.reflow).toEqual({kind: 'wrap', minChildWidth: 269})
     expect(got.nodes.filter((node) => node.within === '1:2').map((node) => node.id)).toEqual(['1:10', '1:11', '1:12'])
-    expect(got.rules.some((rule) => rule.includes('data-figma'))).toBe(true)
+    expect(got.rules.some((rule) => rule.includes('data-figma'))).toBe(false)
     expect(got.rules.some((rule) => rule.startsWith('reflow on a node'))).toBe(true)
     const again = await call('design_get', {figma: FIGMA_LINK})
     expect(again.target).toBe(got.target)

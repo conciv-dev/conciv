@@ -1,4 +1,4 @@
-import type {Design, Mapping, Measured, Pairer, Raster, TargetRecord} from '../shared/defs.js'
+import type {Design, LiveComponent, Mapping, Measured, Pairer, Raster, TargetRecord} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 
@@ -10,34 +10,19 @@ export async function mappingOf(input: {
   round: number
   pairer: Pairer
   target: Raster
-}): Promise<Mapping> {
+}): Promise<Mapped> {
   const {record, design, measured, round} = input
   const fileKey = record.ref.split('/')[0] ?? record.ref
-  const entry = (given: {nodeId: string; conciv: string; source: Source}): Mapping[number] => ({
-    figma: {fileKey, nodeId: given.nodeId},
-    conciv: given.conciv,
-    source: given.source,
-    round,
-  })
+  const matched = (selector: string): string[] => measured.matches.get(selector) ?? []
+  const ambiguous = input.stored.filter((item) => matched(item.selector).length > 1)
+  const stored = input.stored.filter((item) => matched(item.selector).length <= 1)
   const nodes = new Set([...walk(design.root)].map(({node}) => node.id))
-  const elements = [...walk(measured.live)].flatMap(({node, depth}) => (depth === 0 ? [] : [node]))
-  const declared = unique(
-    elements.flatMap((element) =>
-      element.figma === null || element.key === null || !nodes.has(element.figma)
-        ? []
-        : [entry({nodeId: element.figma, conciv: element.key, source: 'declared'})],
-    ),
-  )
-  const named = new Set(declared.map((item) => item.figma.nodeId))
-  const kept = [...declared, ...input.stored.filter((item) => !named.has(item.figma.nodeId))]
-  const mapped = new Set(kept.map((item) => item.figma.nodeId))
+  const mapped = new Set(stored.map((item) => item.figma.nodeId))
   const unmapped = [...nodes].filter((node) => !mapped.has(node))
-  if (unmapped.length === 0) return kept
-  const paths = new Map(
-    elements.flatMap((element) => (element.key === null ? [] : [[element.key, element.path] as const])),
-  )
-  const pins = kept.flatMap((item) => {
-    const path = paths.get(item.conciv)
+  const dupes = ambiguous.map((item) => item.figma.nodeId)
+  if (unmapped.length === 0) return {mapping: stored, matches: measured.matches, dupes}
+  const pins = stored.flatMap((item) => {
+    const [path] = matched(item.selector)
     return path === undefined ? [] : [{node: item.figma.nodeId, path}]
   })
   const paired = await input.pairer({
@@ -47,23 +32,72 @@ export async function mappingOf(input: {
     pins,
     budget: designConfig.tolerances.pairBudgetMs,
   })
+  const tree = treeOf(measured.live)
   const open = new Set(unmapped)
-  const voted = [...walk(paired.root)].flatMap(({node}) =>
-    open.has(node.node.id) && node.live !== null && node.live.key !== null
-      ? [entry({nodeId: node.node.id, conciv: node.live.key, source: 'voted'})]
-      : [],
-  )
-  return [...kept, ...voted]
+  const voted = [...walk(paired.root)].flatMap(({node}) => {
+    if (!open.has(node.node.id) || node.live === null) return []
+    const selector = selectorOf({tree, path: node.live.path})
+    return selector === null ? [] : [{nodeId: node.node.id, selector, path: node.live.path}]
+  })
+  const matches = new Map(measured.matches)
+  voted.forEach((vote) => matches.set(vote.selector, matches.get(vote.selector) ?? [vote.path]))
+  return {
+    mapping: [
+      ...stored,
+      ...voted.map((vote): Mapping[number] => ({
+        figma: {fileKey, nodeId: vote.nodeId},
+        selector: vote.selector,
+        source: 'voted',
+        round,
+      })),
+    ],
+    matches,
+    dupes,
+  }
 }
 
-type Source = Mapping[number]['source']
+type Mapped = {mapping: Mapping; matches: Map<string, string[]>; dupes: string[]}
 
-function unique(entries: Mapping): Mapping {
-  const seen = new Set<string>()
-  return entries.filter((item) => {
-    const id = `${item.figma.nodeId} ${item.conciv}`
-    if (seen.has(id)) return false
-    seen.add(id)
-    return true
+type Tree = {
+  parents: Map<string, LiveComponent | null>
+  elements: Map<string, LiveComponent>
+  siblings: Map<string, LiveComponent[]>
+}
+
+function treeOf(live: LiveComponent): Tree {
+  const steps = [...walk(live)].filter(({depth}) => depth > 0)
+  const parents = new Map(steps.map(({node, depth, parent}) => [node.path, depth > 1 ? parent : null]))
+  const elements = new Map(steps.map(({node}) => [node.path, node]))
+  const siblings = new Map<string, LiveComponent[]>()
+  steps.forEach(({node}) => {
+    const under = domParent(node.path)
+    siblings.set(under, [...(siblings.get(under) ?? []), node])
   })
+  return {parents, elements, siblings}
+}
+
+function selectorOf(input: {tree: Tree; path: string}): string | null {
+  const element = input.tree.elements.get(input.path)
+  if (element === undefined || element.key === null) return null
+  const chain = chainOf({tree: input.tree, element})
+  return chain.map((link) => partOf({tree: input.tree, element: link})).join(' ')
+}
+
+function chainOf(input: {tree: Tree; element: LiveComponent}): LiveComponent[] {
+  const parent = input.tree.parents.get(input.element.path) ?? null
+  const above = parent === null ? [] : chainOf({tree: input.tree, element: parent})
+  return input.element.key === null ? above : [...above, input.element]
+}
+
+function partOf(input: {tree: Tree; element: LiveComponent}): string {
+  const {element} = input
+  const attribute = `[data-conciv-key="${element.key ?? ''}"]`
+  const siblings = input.tree.siblings.get(domParent(element.path)) ?? []
+  if (siblings.filter((sibling) => sibling.key === element.key).length < 2) return attribute
+  const ofType = siblings.filter((sibling) => sibling.tag === element.tag && sibling.index <= element.index).length
+  return `${attribute}:nth-of-type(${ofType})`
+}
+
+function domParent(path: string): string {
+  return path.slice(0, path.lastIndexOf('/'))
 }

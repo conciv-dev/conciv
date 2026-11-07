@@ -1,9 +1,7 @@
-import {createHash} from 'node:crypto'
 import {diff} from '@blazediff/core'
 import {clamp, range} from 'es-toolkit'
 import pixelmatch from 'pixelmatch'
 import {PNG} from 'pngjs'
-import {ssim} from 'ssim.js'
 import type {Box, Raster} from '../shared/defs.js'
 import {box as boxes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
@@ -19,8 +17,6 @@ type Rgb = ReturnType<Raster['rgb']>
 
 type Pixels = {width: number; height: number; data: Uint8Array}
 
-type Grid = Parameters<Raster['hashes']>[0]['grid']
-
 const TOLERANCES = designConfig.tolerances
 
 function rasterOf(pixels: Pixels): Raster {
@@ -31,24 +27,15 @@ function rasterOf(pixels: Pixels): Raster {
     crop: (input) => region(input).raster,
     scaled,
     rgb,
-    ink,
     fills,
     median,
     png,
     pixels: () => data,
-    region,
     trim,
     edges: () => edgeMap(pixels),
     blur: (radius) => rasterOf(boxBlur({pixels, radius})),
     compare,
-    paintOver,
     paintDiff,
-    similarity,
-    coverage,
-    radius: (input) => cornerRadius({...input, raster}),
-    hashes,
-    cutout,
-    beside,
   }
   return raster
 
@@ -94,12 +81,6 @@ function rasterOf(pixels: Pixels): Raster {
 
   function rgb(index: number): Rgb {
     return [data[index * 4] ?? 0, data[index * 4 + 1] ?? 0, data[index * 4 + 2] ?? 0]
-  }
-
-  function ink(box: Box): number {
-    const inked = inkCells(box)
-    if (inked === null || inked.size === 0) return 0
-    return inked.cells.length / inked.size
   }
 
   function trim(box: Box): Box {
@@ -155,22 +136,6 @@ function rasterOf(pixels: Pixels): Raster {
     return {mismatch: total === 0 ? 0 : count / total, mask: diffMask({output, width, height})}
   }
 
-  function paintOver(input: {from: Raster; boxes: Box[]}): Raster {
-    const from = pixelsOf(input.from)
-    const out = new Uint8Array(data)
-    const w = Math.min(width, from.width)
-    const h = Math.min(height, from.height)
-    input.boxes.forEach((box) => {
-      const x0 = Math.max(0, Math.floor(box.x))
-      const x1 = Math.min(w, Math.ceil(box.x + box.w))
-      if (x1 <= x0) return
-      range(Math.max(0, Math.floor(box.y)), Math.min(h, Math.ceil(box.y + box.h))).forEach((y) => {
-        out.set(from.data.subarray((y * from.width + x0) * 4, (y * from.width + x1) * 4), (y * width + x0) * 4)
-      })
-    })
-    return rasterOf({width, height, data: out})
-  }
-
   function paintDiff(input: {mask: Uint8Array; width: number}): Raster {
     const out = new Uint8Array(data)
     input.mask.forEach((value, index) => {
@@ -180,100 +145,6 @@ function rasterOf(pixels: Pixels): Raster {
       out.set(DIFF_RED, (y * width + x) * 4)
     })
     return rasterOf({width, height, data: out})
-  }
-
-  function similarity(input: {
-    target: Raster
-    mask: Uint8Array
-    differing: Uint8Array
-    width: number
-    height: number
-  }): {box: Box; similarity: number}[] {
-    const {mask, differing} = input
-    const side = TOLERANCES.similarityTile
-    if (input.width === 0 || input.height === 0) return []
-    const page = {x: 0, y: 0, w: input.width, h: input.height}
-    const target = input.target.crop({box: page}).pixels()
-    const live = region({box: page}).raster.pixels()
-    const seen = Uint8Array.from(target)
-    differing.forEach((bit, index) => {
-      if (bit === 1) seen.set(live.subarray(index * 4, index * 4 + 4), index * 4)
-    })
-    const size = {width: input.width, height: input.height}
-    const map = ssim(imageData({...size, data: seen}), imageData({...size, data: target}), {
-      ssim: 'bezkrovny',
-      windowSize: side,
-      downsample: false,
-    }).ssim_map
-    return map.data.flatMap((value, index) => {
-      const column = index % map.width
-      const row = (index - column) / map.width
-      const box = {
-        x: column * side,
-        y: row * side,
-        w: Math.min(side, input.width - column * side),
-        h: Math.min(side, input.height - row * side),
-      }
-      return maskShare({mask, width: input.width, height: input.height, box}) < 1 ? [{box, similarity: value}] : []
-    })
-  }
-
-  function coverage(input: {box: Box; background: Rgb; threshold: number}): number {
-    const {box, background, threshold} = input
-    const area = box.w * box.h
-    if (area <= 0) return 0
-    const covered = range(box.y, box.y + box.h).reduce(
-      (total, y) =>
-        total +
-        range(box.x, box.x + box.w).filter((x) => distanceRgb({a: rgb(y * width + x), b: background}) > threshold)
-          .length,
-      0,
-    )
-    return covered / area
-  }
-
-  function hashes(input: {grid: Grid; margin: number}): string[] {
-    const {grid, margin} = input
-    return range(grid.columns * grid.rows).map((index) => {
-      const box = tileBox({grid, index})
-      const x0 = Math.max(0, box.x - margin)
-      const x1 = Math.min(grid.width, box.x + box.w + margin)
-      const hash = createHash('sha1')
-      range(Math.max(0, box.y - margin), Math.min(grid.height, box.y + box.h + margin)).forEach((y) => {
-        hash.update(data.subarray((y * width + x0) * 4, (y * width + x1) * 4))
-      })
-      return hash.digest('base64')
-    })
-  }
-
-  function cutout(box: Box): Raster {
-    const out = new Uint8Array(box.w * box.h * 4)
-    range(box.h).forEach((row) => {
-      const y = box.y + row
-      if (y < 0 || y >= height) return
-      const left = Math.max(0, box.x)
-      const right = Math.min(width, box.x + box.w)
-      if (right <= left) return
-      const start = (y * width + left) * 4
-      out.set(data.subarray(start, start + (right - left) * 4), (row * box.w + left - box.x) * 4)
-    })
-    return rasterOf({width: box.w, height: box.h, data: out})
-  }
-
-  function beside(input: {others: Raster[]; gap: number}): Raster {
-    const all = [raster, ...input.others]
-    const total = all.reduce((sum, entry) => sum + entry.width, 0) + input.gap * Math.max(0, all.length - 1)
-    const tallest = Math.max(0, ...all.map((entry) => entry.height))
-    const out = new Uint8Array(total * tallest * 4)
-    all.reduce((left, entry) => {
-      const source = entry.pixels()
-      range(entry.height).forEach((row) => {
-        const start = row * entry.width * 4
-        out.set(source.subarray(start, start + entry.width * 4), (row * total + left) * 4)
-      })
-      return left + entry.width + input.gap
-    }, 0)
-    return rasterOf({width: total, height: tallest, data: out})
   }
 }
 
@@ -384,116 +255,7 @@ function diffMask(input: {output: Uint8Array; width: number; height: number}): U
   })
 }
 
-function maskShare(input: {mask: Uint8Array; width: number; height: number; box: Box}): number {
-  const {mask, width, height, box} = input
-  const x0 = Math.max(0, Math.floor(box.x))
-  const y0 = Math.max(0, Math.floor(box.y))
-  const x1 = Math.min(width, Math.ceil(box.x + box.w))
-  const y1 = Math.min(height, Math.ceil(box.y + box.h))
-  if (x1 <= x0 || y1 <= y0) return 0
-  const count = range(y0, y1).reduce(
-    (total, y) => total + mask.subarray(y * width + x0, y * width + x1).filter((value) => value === 1).length,
-    0,
-  )
-  return count / ((x1 - x0) * (y1 - y0))
-}
-
-function imageData(pixels: Pixels): {data: Uint8ClampedArray; width: number; height: number} {
-  return {
-    data: new Uint8ClampedArray(pixels.data.buffer, pixels.data.byteOffset, pixels.data.length),
-    width: pixels.width,
-    height: pixels.height,
-  }
-}
-
-function cornerRadius(input: {raster: Raster; box: Box; inside: Rgb; outside: Rgb}): number {
-  const {raster, box, inside, outside} = input
-  const limit = Math.floor(Math.min(box.w, box.h) / 2)
-  const right = box.x + box.w - 1
-  const bottom = box.y + box.h - 1
-  const corners = [
-    {corner: {x: box.x, y: box.y}, step: {x: 1, y: 1}},
-    {corner: {x: right, y: box.y}, step: {x: -1, y: 1}},
-    {corner: {x: box.x, y: bottom}, step: {x: 1, y: -1}},
-    {corner: {x: right, y: bottom}, step: {x: -1, y: -1}},
-  ]
-  const depths = corners
-    .map(({corner, step}) => cornerDepth({raster, box, corner, step, inside, outside, limit}))
-    .toSorted((a, b) => a - b)
-  const middle = ((depths[1] ?? 0) + (depths[2] ?? 0)) / 2
-  return Math.round(middle / DIAGONAL_SHARE)
-}
-
-function cornerDepth(input: {
-  raster: Raster
-  box: Box
-  corner: {x: number; y: number}
-  step: {x: number; y: number}
-  inside: Rgb
-  outside: Rgb
-  limit: number
-}): number {
-  const {raster, box, corner, step, inside, outside, limit} = input
-  return range(limit).reduce(
-    (state, i) => {
-      if (state.stopped) return state
-      const x = corner.x + step.x * i
-      const y = corner.y + step.y * i
-      const span = distanceRgb({a: fillAt({raster, box, x, y, inside}), b: outside})
-      if (span === 0) return {...state, stopped: true}
-      const covered = Math.min(1, distanceRgb({a: raster.rgb(y * raster.width + x), b: outside}) / span)
-      return {depth: state.depth + 1 - covered, stopped: covered >= 1}
-    },
-    {depth: 0, stopped: false},
-  ).depth
-}
-
-function fillAt(input: {raster: Raster; box: Box; x: number; y: number; inside: Rgb}): Rgb {
-  const {raster, box, x, y, inside} = input
-  const inset = TOLERANCES.interiorInset
-  if (box.w <= inset * 2 || box.h <= inset * 2) return inside
-  const at = {
-    x: clamp(x, box.x + inset, box.x + box.w - inset - 1),
-    y: clamp(y, box.y + inset, box.y + box.h - inset - 1),
-  }
-  const column = lineMedian({
-    raster,
-    indices: range(box.y + inset, box.y + box.h - inset).map((row) => row * raster.width + at.x),
-  })
-  const row = lineMedian({
-    raster,
-    indices: range(box.x + inset, box.x + box.w - inset).map((across) => at.y * raster.width + across),
-  })
-  const channel = (c: 0 | 1 | 2): number => Math.min(255, Math.max(0, column[c] + row[c] - inside[c]))
-  return [channel(0), channel(1), channel(2)]
-}
-
-function lineMedian(input: {raster: Raster; indices: number[]}): Rgb {
-  const {raster, indices} = input
-  const data = raster.pixels()
-  const channel = (c: number): number => {
-    const sorted = indices.map((index) => data[index * 4 + c] ?? 0).toSorted((a, b) => a - b)
-    return sorted[Math.floor(sorted.length / 2)] ?? 0
-  }
-  return [channel(0), channel(1), channel(2)]
-}
-
-function tileBox(input: {grid: Grid; index: number}): Box {
-  const {grid, index} = input
-  const column = index % grid.columns
-  const row = (index - column) / grid.columns
-  const x = column * grid.side
-  const y = row * grid.side
-  return {x, y, w: Math.min(grid.side, grid.width - x), h: Math.min(grid.side, grid.height - y)}
-}
-
-function distanceRgb(input: {a: Rgb; b: Rgb}): number {
-  const {a, b} = input
-  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
-}
-
 const EDGE_THRESHOLD = 48
 const MINIMUM_TRIM_SIDE = 2
-const DIAGONAL_SHARE = 1 - Math.SQRT1_2
 const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
 const DIFF_RED = [255, 0, 0, 255]

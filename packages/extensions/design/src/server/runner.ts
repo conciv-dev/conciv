@@ -19,7 +19,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
       store.image({id: record.id}),
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
-    const measured = await measurer.measure({page, width: record.width, height: record.height})
+    const selectors = stored.map((entry) => entry.selector)
+    const measured = await measurer.measure({page, width: record.width, height: record.height, selectors})
     if (measured.pageError !== undefined) return {unsettled: true, rendered: 0, error: measured.pageError}
     const previous = rounds.at(-1)
     const tree = treeOf(measured)
@@ -27,17 +28,34 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
-    const mapping = await mappingOf({record, design, measured, stored, round, pairer: runtime.pairer, target})
-    const renderers = renderersOf({live: measured.live, mapping})
-    const gate = gateOf({root: design.root, renderers, live: measured.live})
-    if (previous !== undefined && gate.coverage.rendered < previous.coverage.rendered / 2)
+    const {mapping, matches, dupes} = await mappingOf({
+      record,
+      design,
+      measured,
+      stored,
+      round,
+      pairer: runtime.pairer,
+      target,
+    })
+    const renderers = renderersOf({live: measured.live, mapping, matches})
+    const gate = gateOf({root: design.root, renderers})
+    const coverage = {...gate.coverage, dupes}
+    if (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2)
       return {unsettled: true, rendered: gate.coverage.rendered}
     await store.writeMapping({id: record.id, mapping})
     const widths = widthsOf({design, styles: measured.queries})
     const results = []
     for (const {width} of widths) {
-      const narrow = width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT})
-      const at = renderersOf({live: narrow.live, mapping})
+      const narrow =
+        width === measured.width
+          ? {...measured, matches}
+          : await measurer.measure({
+              page,
+              width,
+              height: REFLOW_HEIGHT,
+              selectors: mapping.map((entry) => entry.selector),
+            })
+      const at = renderersOf({live: narrow.live, mapping, matches: narrow.matches})
       results.push(reflowAt({root: design.root, renderers: at, live: narrow.live, width, overflowX: narrow.overflowX}))
     }
     const reflow = {widths, results}
@@ -46,14 +64,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
       round,
       rows: gate.rows,
       reflow,
-      coverage: gate.coverage,
+      coverage,
       counts: gate.counts,
       pixels: {share: pixels.share},
       at: Date.now(),
       tree,
     }
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
-    return {round, rows: gate.rows, reflow, coverage: gate.coverage, counts: gate.counts}
+    return {round, rows: gate.rows, reflow, coverage, counts: gate.counts}
   }
 }
 
@@ -61,7 +79,7 @@ const REFLOW_HEIGHT = 900
 
 function treeOf(measured: Measured): string {
   const elements = [...walk(measured.live)].flatMap(({node, depth}) =>
-    depth === 0 ? [] : [[node.key, node.figma, Object.values(node.bounds).map(Math.round), node.styles]],
+    depth === 0 ? [] : [[node.key, Object.values(node.bounds).map(Math.round), node.styles]],
   )
   return createHash('sha256')
     .update(JSON.stringify({sheets: measured.sheets, elements}))

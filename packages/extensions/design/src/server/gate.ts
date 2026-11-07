@@ -4,11 +4,7 @@ import type {Box, Counts, Coverage, DesignNode, GateRow, LiveComponent} from '..
 import {walk} from '../shared/tree.js'
 import type {renderersOf} from './renderers.js'
 
-export function gateOf(input: {
-  root: DesignNode
-  renderers: ReturnType<typeof renderersOf>
-  live: LiveComponent
-}): Gate {
+export function gateOf(input: {root: DesignNode; renderers: ReturnType<typeof renderersOf>}): Gate {
   const {renderers} = input
   const records = recordsOf(input.root)
   const byId = new Map(records.map((record) => [record.id, record]))
@@ -18,17 +14,18 @@ export function gateOf(input: {
     if (element === undefined) return []
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
-    return rowsOf({record, element, parent, parentElement}).map((row) => worded({record, element, row}))
+    return rowsOf({record, element, parent, parentElement}).map((row) =>
+      worded({record, selector: renderers.selector(record.id), row}),
+    )
   })
-  const known = new Set([...walk(input.root)].map(({node}) => node.id))
   const coverage: Coverage = {
     nodes: records.length,
     mapped: records.filter((record) => renderers.mapped(record.id)).length,
     rendered: records.filter((record) => first(record.id) !== undefined).length,
     missing: records.filter((record) => first(record.id) === undefined).map((record) => record.id),
-    unknown: [...walk(input.live)].flatMap(({node}) =>
-      node.figma === null || known.has(node.figma) ? [] : [node.figma],
-    ),
+    notRendered: records
+      .filter((record) => renderers.mapped(record.id) && first(record.id) === undefined)
+      .map((record) => record.id),
     dupes: records.filter((record) => renderers.of(record.id).length > 1).map((record) => record.id),
   }
   return {rows: rows.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(rows)}
@@ -195,9 +192,9 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
   ]
 }
 
-function worded(input: {record: Record; element: LiveComponent; row: Row}): GateRow {
-  const {record, element, row} = input
-  const base = {node: record.id, key: element.key, kind: record.kind, name: record.name}
+function worded(input: {record: Record; selector: string | null; row: Row}): GateRow {
+  const {record, selector, row} = input
+  const base = {node: record.id, selector, kind: record.kind, name: record.name}
   if (row.paint === true) return {...base, text: row.head, magnitude: 'much'}
   if (row.measured === undefined)
     return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}

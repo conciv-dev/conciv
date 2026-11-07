@@ -84,7 +84,6 @@ const OpinionSchema = z.object({box: BoxSchema, confidence: z.number()})
 const LiveComponentFieldsSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable().describe('the data-conciv-key the compiler wrote, null without one'),
-  figma: z.string().nullable().default(null).describe('the data-figma attribute: the design node the element declares'),
   instance: z.string().nullable().default(null).describe('the call-site and React keys of the fiber chain'),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
@@ -227,8 +226,8 @@ export const TargetRecordSchema = z.object({
 export const MappingSchema = z.array(
   z.object({
     figma: z.object({fileKey: z.string(), nodeId: z.string()}),
-    conciv: z.string().describe('the data-conciv-key of the element that renders the node'),
-    source: z.enum(['declared', 'voted']),
+    selector: z.string().describe('the conciv keys from the outermost keyed ancestor down to the element'),
+    source: z.enum(['voted']),
     round: z.number().describe('the round that wrote the entry'),
   }),
 )
@@ -237,7 +236,7 @@ const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other'
 
 const GateRowSchema = z.object({
   node: z.string(),
-  key: z.string().nullable().describe('the conciv key of the element the row measured'),
+  selector: z.string().nullable().describe('the stored selector of the node'),
   kind: z.string().describe('the kind of the design node'),
   name: z.string(),
   text: z.string(),
@@ -270,8 +269,8 @@ const CoverageSchema = z.object({
   mapped: z.number().describe('of them, nodes the mapping holds'),
   rendered: z.number().describe('of them, nodes an element renders now'),
   missing: z.array(z.string()).describe('nodes no element renders'),
-  unknown: z.array(z.string()).describe('data-figma values that name no design node'),
-  dupes: z.array(z.string()).describe('nodes rendered by more than one element'),
+  notRendered: z.array(z.string()).describe('stored nodes whose element is not on the page'),
+  dupes: z.array(z.string()).describe('nodes whose stored selector matches more than one element'),
 })
 
 const Count = z.number()
@@ -301,7 +300,7 @@ const TaggedNodeSchema = z
     box: BoxSchema,
     implied: z.boolean().optional(),
     reflow: ReflowTagSchema.optional(),
-    key: z.string().optional(),
+    selector: z.string().optional(),
   })
   .loose()
 
@@ -370,6 +369,7 @@ const MeasureResultSchema = z.object({
     .describe('react when a measured element carries a fiber, solid when the page has vite dev ids and none does'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
+  matches: z.array(z.object({selector: z.string(), paths: z.array(z.string())})).default([]),
 })
 
 const Width = z.number().int().positive()
@@ -378,6 +378,7 @@ const MeasureInputSchema = z.object({
   width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
   height: Width.optional().describe('the height to capture'),
   timeout: z.number().int().positive().optional(),
+  selectors: z.array(z.string()).optional().describe('stored selectors to resolve with querySelectorAll'),
 })
 
 const DESIGN_ERRORS = {
@@ -480,7 +481,6 @@ const measureDef = designTool({
 export const DESIGN_TOOLS = [getDef, watchDef, validateDef, measureDef] as const
 
 type Rgb = [number, number, number]
-type Grid = {side: number; columns: number; rows: number; width: number; height: number}
 type MeasureSource = z.output<typeof MeasureSourceSchema>
 type CapturePath = z.output<typeof CapturePathSchema>
 type GetInput = z.output<typeof GetInputSchema>
@@ -506,30 +506,15 @@ export type Raster = {
   crop(input: {box: Box; margin?: number}): Raster
   scaled(scale: number): Raster
   rgb(index: number): Rgb
-  ink(box: Box): number
   fills(input: {box: Box; glyphs: Box[]; color: string}): string[]
   median(exclude: Box[]): Rgb
   png(): Uint8Array
   pixels(): Uint8Array
-  region(input: {box: Box; margin?: number}): {raster: Raster; box: Box}
   trim(box: Box): Box
   edges(): Uint8Array
   blur(radius: number): Raster
   compare(input: {other: Raster; comparator: string}): {mismatch: number; mask: Uint8Array}
-  paintOver(input: {from: Raster; boxes: Box[]}): Raster
   paintDiff(input: {mask: Uint8Array; width: number}): Raster
-  similarity(input: {
-    target: Raster
-    mask: Uint8Array
-    differing: Uint8Array
-    width: number
-    height: number
-  }): {box: Box; similarity: number}[]
-  coverage(input: {box: Box; background: Rgb; threshold: number}): number
-  radius(input: {box: Box; inside: Rgb; outside: Rgb}): number
-  hashes(input: {grid: Grid; margin: number}): string[]
-  cutout(box: Box): Raster
-  beside(input: {others: Raster[]; gap: number}): Raster
 }
 
 export type TargetAdapter = {
@@ -561,7 +546,7 @@ export type Store = {
 
 export type Measurer = {
   probe(page: ServerToolPageAccess): Promise<{route: string; framework: 'react' | 'solid'}>
-  measure(input: {page: ServerToolPageAccess; width?: number; height?: number; timeout?: number}): Promise<Measured>
+  measure(input: {page: ServerToolPageAccess} & z.output<typeof MeasureInputSchema>): Promise<Measured>
   dispose(): void
 }
 
@@ -579,6 +564,7 @@ export type Measured = {
   pageError?: string
   framework: 'react' | 'solid'
   masks: Box[]
+  matches: Map<string, string[]>
 }
 
 export type Pairer = (input: {
