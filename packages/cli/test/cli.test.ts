@@ -454,7 +454,9 @@ describe('cli', () => {
         await bootCli(cleanups)
         const help = await helpText(['tools', 'page', '--help'])
         expect(help).toMatch(/^\s+hmr\s/m)
-        expect(help).toContain('after editing a file, wait for the hot update to land before reading the page')
+        expect(help.replaceAll(/\s+/g, ' ')).toContain(
+          'after editing a file, wait for the hot update to land before reading the page',
+        )
       })
 
       it('offers the react verbs under react and leaves the page-only ones out', async () => {
