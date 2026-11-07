@@ -35,7 +35,7 @@ If your build also runs the `@conciv/it` plugin, set its `widget: false` option 
 
 - [src/README.md](./src/README.md): `ConcivWidget`, `ConcivWidgetProps` and re-exported `@conciv/embed` types.
 - `test/fixtures/host/`: Preact host page used by the integration test.
-- `exports["."]` -> `./dist/index.js` + `./dist/index.d.ts`; `files: ["dist"]`; dependency `@conciv/embed`; peer `preact` >=10; `sideEffects: false`; engines node >=22.13 (`package.json`).
+- `exports["."]` -> `./dist/index.js` + `./dist/index.d.ts`; `files: ["dist"]`; dependency `@conciv/embed`; peer `preact` >=10; `sideEffects: false`; engines node >=26.0.0 (`package.json`).
 - `tsdown.config.ts`: entry `src/index.ts`, ESM + dts, externals `/^@conciv\//`, `preact`, `preact/hooks`.
 - Scripts: `build` (`tsdown`), `typecheck`, `lint` (`oxlint`), `test` (`vite build --config vite.fixture.config.ts && vitest run`), `publint`, `attw` (`--profile esm-only`).
 
