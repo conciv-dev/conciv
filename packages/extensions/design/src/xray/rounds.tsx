@@ -97,9 +97,8 @@ function RoundView(props: {round: Round; id: string; image: (path: string) => st
       <For each={props.round.reflow.results}>
         {(reflow) => (
           <p class="text-xs m-0">
-            {reflow.width}: {reflow.sticksOut.length} stick out ·{' '}
-            {reflow.overflowX ? 'scrolls sideways' : 'no sideways scroll'} · {reflow.overlaps.length} overlaps ·{' '}
-            {reflow.tags.filter((tag) => tag.ok === false).length} of {reflow.tags.length} tags fail
+            {reflow.width}: {reflow.rows.length} reflow rows ·{' '}
+            {reflow.overflowX ? 'scrolls sideways' : 'no sideways scroll'} · root {reflow.rootHeight}px tall
           </p>
         )}
       </For>

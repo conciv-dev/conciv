@@ -1,6 +1,6 @@
 import {sql} from 'drizzle-orm'
 import {check, integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
-import {DESIGN_VERDICTS, type Counts, type Coverage, type Design, type IdTree, type Round} from '../shared/defs.js'
+import {DESIGN_VERDICTS, type Design, type IdTree} from '../shared/defs.js'
 
 export function designTables(table: SQLiteTableFn) {
   return {
@@ -23,14 +23,74 @@ export function designTables(table: SQLiteTableFn) {
       target_id: text().notNull(),
       run_id: integer(),
       round: integer().notNull(),
-      counts: text({mode: 'json'}).$type<Counts>().notNull(),
-      coverage: text({mode: 'json'}).$type<Coverage>().notNull(),
-      reflow: text({mode: 'json'}).$type<Round['reflow']>().notNull(),
+      much: integer().notNull().default(0),
+      noticeably: integer().notNull().default(0),
+      slightly: integer().notNull().default(0),
+      pins: integer().notNull().default(0),
+      other: integer().notNull().default(0),
+      reflow: integer().notNull().default(0),
+      rows_count: integer().notNull().default(0),
+      nodes: integer().notNull().default(0),
+      mapped: integer().notNull().default(0),
+      rendered: integer().notNull().default(0),
+      revoted: integer().notNull().default(0),
       pixel_share: real(),
+      pixel_before: real(),
+      closed: integer(),
+      opened: integer(),
+      kept: integer(),
+      gained: integer(),
+      lost: integer(),
+      changed_ratio: real(),
+      changed_regions: integer(),
+      note: text(),
       tree: text().notNull(),
       live: text(),
       diff: text(),
       at: integer().notNull(),
+    }),
+    missing: table('missing', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      run_id: integer(),
+      round: integer().notNull(),
+      node: text().notNull(),
+      kind: text({enum: COVERAGE_LISTS}).notNull(),
+    }),
+    candidates: table('candidates', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      run_id: integer(),
+      round: integer().notNull(),
+      node: text().notNull(),
+      selector: text().notNull(),
+      score: real().notNull(),
+    }),
+    widths: table('widths', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      run_id: integer(),
+      round: integer().notNull(),
+      width: real().notNull(),
+      from: text().notNull(),
+      root_height: real().notNull(),
+      overflow_x: integer({mode: 'boolean'}).notNull(),
+    }),
+    regions: table('regions', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      run_id: integer(),
+      round: integer().notNull(),
+      x: real().notNull(),
+      y: real().notNull(),
+      width: real().notNull(),
+      height: real().notNull(),
+      id: text(),
+      node: text(),
+      name: text(),
+      source: text(),
+      overlap: real(),
+      truncated: integer({mode: 'boolean'}).notNull(),
     }),
     rows: table('rows', {
       seq: integer().primaryKey({autoIncrement: true}),
@@ -132,5 +192,7 @@ export function designTables(table: SQLiteTableFn) {
     }),
   }
 }
+
+const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 
 const NOW_MS = sql`(cast(unixepoch('subsec') * 1000 as integer))`

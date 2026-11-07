@@ -7,6 +7,7 @@ import {mappingOf} from './mapping.js'
 import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
+import {progressOf} from './progress.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
@@ -67,6 +68,16 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const rows = [...gate.rows, ...failures]
     const counts = {...gate.counts, reflow: failures.length, rows: gate.counts.rows + failures.length}
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
+    const earlier =
+      previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
+    const progress = progressOf({
+      rounds,
+      now: {rows, coverage, pixels: {share: pixels.share}},
+      live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
+      root: mapped.root,
+      design,
+      comparator: runtime.comparator,
+    })
     const written: Round = {
       round,
       rows,
@@ -74,18 +85,20 @@ export function createRunner(runtime: DesignRuntime): Runner {
       coverage,
       counts,
       pixels: {share: pixels.share},
+      progress,
       at: Date.now(),
       tree: built.hash,
     }
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
-    return {round, rows, reflow, coverage, counts}
+    return {round, rows, reflow, coverage, counts, progress}
   }
 }
 
 const REFLOW_HEIGHT = 900
 
 function shown(last: Round): RoundReply {
-  return {round: last.round, rows: last.rows, reflow: last.reflow, coverage: last.coverage, counts: last.counts}
+  const {round, rows, reflow, coverage, counts, progress} = last
+  return {round, rows, reflow, coverage, counts, progress}
 }
 
 function compared(input: {live: Raster; target: Raster; comparator: string}): {share: number; diff: Uint8Array} {

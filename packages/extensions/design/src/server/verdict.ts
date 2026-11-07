@@ -12,10 +12,17 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
       rows: [],
       counts: null,
       coverage: null,
+      progress: null,
     }
   }
   const reasons = reasonsOf({round: last, required: requiredOf(input.design.root)})
-  const shown = {round: last.round, rows: last.rows, counts: last.counts, coverage: last.coverage}
+  const shown = {
+    round: last.round,
+    rows: last.rows,
+    counts: last.counts,
+    coverage: last.coverage,
+    progress: last.progress,
+  }
   if (reasons.length === 0) return {verdict: 'done', reasons, ...shown}
   return {verdict: stalled(rounds) ? 'stalled' : 'not yet', reasons, ...shown}
 }
