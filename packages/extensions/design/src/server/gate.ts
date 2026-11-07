@@ -10,12 +10,18 @@ export function gateOf(input: {root: DesignNode; reads: ReturnType<typeof readId
   const records = recordsOf(input.root)
   const byId = new Map(records.map((record) => [record.id, record]))
   const first = (id: string): LiveComponent | undefined => reads.of(id)[0]
+  const grouped = Map.groupBy(records, (record) => record.parent ?? '')
+  const kidsOf = (id: string): Placed[] =>
+    (grouped.get(id) ?? []).map((record) => {
+      const element = first(record.id)
+      return {record, box: element === undefined ? null : rounded(element.bounds)}
+    })
   const rows = records.flatMap((record) => {
     const element = first(record.id)
     if (element === undefined) return []
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
-    return rowsOf({record, element, parent, parentElement}).map((row) =>
+    return rowsOf({record, element, parent, parentElement, kidsOf}).map((row) =>
       worded({record, named: reads.named(record.id), row}),
     )
   })
@@ -35,6 +41,8 @@ export function gateOf(input: {root: DesignNode; reads: ReturnType<typeof readId
 }
 
 type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
+
+type Placed = {record: Record; box: Box | null}
 
 type Row = {head: string; measured?: {a: number; b: number; position: boolean}; paint?: boolean}
 
@@ -60,6 +68,12 @@ const SLIGHT_PX = 8
 const SLIGHT_SHARE = 0.15
 const NOTICE_SHARE = 0.4
 const NOTICE_PX = 96
+const SAME_PX = designConfig.tolerances.geometryPx
+const NAMED = designConfig.tolerances.figmaPair.candidatesKept
+const AXES = {
+  w: {property: 'width', less: 'narrower', more: 'wider', edge: 'x'},
+  h: {property: 'height', less: 'shorter', more: 'taller', edge: 'y'},
+} as const
 const FLAT_KINDS = new Set(['text', 'line'])
 const SOLID = 'solid'
 const CLEAR = 'transparent'
@@ -148,8 +162,9 @@ function rowsOf(input: {
   element: LiveComponent
   parent: Record | undefined
   parentElement: LiveComponent | undefined
+  kidsOf: (id: string) => Placed[]
 }): Row[] {
-  const {record: r, element: d, parent, parentElement: pd} = input
+  const {record: r, element: d, parent, parentElement: pd, kidsOf} = input
   const label = `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
   const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
   const pinsWidth = d.styles.sizing.width === 'fixed'
@@ -171,11 +186,18 @@ function rowsOf(input: {
     ...(r.kind === 'text' && (pinsWidth || pinsHeight)
       ? [{head: `${label}: text has a pixel size; it should fit its text`}]
       : []),
-    ...(ww !== null && !flat ? [{head: `${label}: ${ww}`, measured: {a: box.w, b: r.box.w, position: false}}] : []),
+    ...(ww !== null && !flat
+      ? [
+          {
+            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'w'}) ?? ww}`,
+            measured: {a: box.w, b: r.box.w, position: false},
+          },
+        ]
+      : []),
     ...(!flat && r.box.h > FLAT_PX && (hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || farH)
       ? [
           {
-            head: `${label}: box ${hh < 1 ? 'shorter' : 'taller'} than the design`,
+            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${hh < 1 ? 'shorter' : 'taller'} than the design`}`,
             measured: {a: box.h, b: r.box.h, position: false},
           },
         ]
@@ -183,7 +205,9 @@ function rowsOf(input: {
     ...(r.direction !== undefined && d.styles.display.includes('flex') && !dir.startsWith(want)
       ? [{head: `${label}: flex-direction ${dir}; the design is a ${want}`}]
       : []),
-    ...(parent === undefined || pd === undefined ? [] : positionRows({label, r, box, parent, pd})),
+    ...(parent === undefined || pd === undefined
+      ? []
+      : positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)})),
     ...paintRows({label, r, d}),
   ]
 }
@@ -196,8 +220,59 @@ function widthWord(input: {rendered: number; design: number; tol: number; far: b
   return null
 }
 
-function positionRows(input: {label: string; r: Record; box: Box; parent: Record; pd: LiveComponent}): Row[] {
-  const {label, r, box, parent, pd} = input
+function contentWord(input: {r: Record; d: LiveComponent; kids: Placed[]; axis: 'w' | 'h'}): string | null {
+  const {r, d, axis} = input
+  const words = AXES[axis]
+  if (r.leaf || d.styles.sizing[words.property] !== 'auto') return null
+  const less = rounded(d.bounds)[axis] < r.box[axis]
+  const named = input.kids
+    .flatMap((kid) => (kid.box === null ? [] : [{kid, by: kid.box[axis] - kid.record.box[axis]}]))
+    .filter(({by}) => (less ? by < -SAME_PX : by > SAME_PX))
+    .toSorted((a, b) => Math.abs(b.by) - Math.abs(a.by))
+    .slice(0, NAMED)
+  if (named.length === 0) return null
+  const list = named.map(({kid}) => `${kid.record.name} [${kid.record.id}]`).join(', ')
+  return `its content is ${less ? words.less : words.more} than the design: ${list}`
+}
+
+function placedBy(input: {
+  r: Record
+  d: LiveComponent
+  pd: LiveComponent
+  siblings: Placed[]
+  axis: 'w' | 'h'
+  off: number
+}): string {
+  const {r, pd, axis, off} = input
+  const words = AXES[axis]
+  const flow = pd.styles.flexDirection.startsWith('column') ? 'h' : 'w'
+  if (!pd.styles.display.includes('flex') || flow !== axis) return ''
+  const at = pd.children.findIndex((child) => child.path === input.d.path)
+  const shown = at < 0 ? [] : pd.children.slice(0, at).toReversed()
+  const found = input.siblings
+    .filter((kid) => kid.record.box[words.edge] < r.box[words.edge])
+    .toSorted((a, b) => b.record.box[words.edge] - a.record.box[words.edge])
+    .flatMap((kid, index) => {
+      const fallback = shown[index]
+      const box = kid.box ?? (fallback === undefined ? null : rounded(fallback.bounds))
+      return box === null ? [] : [{kid, by: box[axis] - kid.record.box[axis]}]
+    })
+    .find(({by}) => Math.abs(by - off) <= SAME_PX)
+  if (found === undefined) return ''
+  const {record} = found.kid
+  return `, placed by ${record.name} [${record.id}] which is ${found.by > 0 ? words.more : words.less} than the design`
+}
+
+function positionRows(input: {
+  label: string
+  r: Record
+  box: Box
+  parent: Record
+  d: LiveComponent
+  pd: LiveComponent
+  siblings: Placed[]
+}): Row[] {
+  const {label, r, d, box, parent, pd, siblings} = input
   const parentBox = rounded(pd.bounds)
   const dl = box.x - parentBox.x
   const rl = r.box.x - parent.box.x
@@ -207,7 +282,7 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
     ...(Math.abs(dl - rl) > SHIFT_PX
       ? [
           {
-            head: `${label}: sits ${dl - rl > 0 ? 'further right' : 'further left'} inside its parent than the design`,
+            head: `${label}: sits ${dl - rl > 0 ? 'further right' : 'further left'} inside its parent than the design${placedBy({r, d, pd, siblings, axis: 'w', off: dl - rl})}`,
             measured: {a: dl, b: rl, position: true},
           },
         ]
@@ -215,7 +290,7 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
     ...(Math.abs(dt - rt) > SHIFT_PX
       ? [
           {
-            head: `${label}: sits ${dt - rt > 0 ? 'lower' : 'higher'} inside its parent than the design`,
+            head: `${label}: sits ${dt - rt > 0 ? 'lower' : 'higher'} inside its parent than the design${placedBy({r, d, pd, siblings, axis: 'h', off: dt - rt})}`,
             measured: {a: dt, b: rt, position: true},
           },
         ]

@@ -44,6 +44,8 @@ const PAIR = designConfig.tolerances.figmaPair
 
 const SAME_BOX_PX = designConfig.tolerances.geometryPx
 
+const TWIN_MARGIN = designConfig.tolerances.pairMargin
+
 const SKIPPED_TAGS = new Set([
   'script',
   'style',
@@ -122,8 +124,10 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     const voted = picked(scored)
     const pick = voted !== null && sharesParent({vote, entry, path: voted.path}) ? null : voted
     if (pick !== null && pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath})) {
+      const ordered = orderedTwin({vote, entry, scored, pick})
       const painted = paintedTwin({pick, scored, byPath, node: entry.node})
-      const chosen = {...pick, path: painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted}
+      const outer = painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted
+      const chosen = {...pick, path: ordered ?? outer}
       paired({vote, node: entry.node.id, pick: chosen})
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
@@ -347,6 +351,30 @@ function layoutOf(input: {node: DesignNode; element: Element}): number {
   }
   if (node.kind !== 'text') return 0
   return laidOut && element.kids > 0 ? -PAIR.layoutRoleWeight : PAIR.layoutRoleWeight
+}
+
+function orderedTwin(input: {vote: Vote; entry: Node; scored: Scored[]; pick: Pick}): string | null {
+  const {vote, entry, pick} = input
+  if (entry.parent === null || pick.margin > TWIN_MARGIN) return null
+  const pair = input.scored
+    .filter((scored) => scored.score >= PAIR.threshold && pick.score - scored.score <= TWIN_MARGIN)
+    .toSorted((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .toSorted((a, b) => a.path.localeCompare(b.path, 'en', {numeric: true}))
+  const twins = entry.parent.children.filter(
+    (sibling) =>
+      sibling === entry.node ||
+      twinned({vote, entry: {...entry, node: sibling, box: boxOf(sibling)}, pair, type: entry.node.figma?.type}),
+  )
+  if (pair.length < 2 || twins.length !== 2) return null
+  return pair[twins.indexOf(entry.node)]?.path ?? null
+}
+
+function twinned(input: {vote: Vote; entry: Node; pair: Scored[]; type: string | undefined}): boolean {
+  const {vote, entry} = input
+  if (entry.node.kind === 'text' || entry.node.figma?.type !== input.type) return false
+  const best = picked(vote.elements.flatMap((element) => scoreOf({vote, entry, element})))
+  return best !== null && best.score >= PAIR.threshold && input.pair.some((candidate) => candidate.path === best.path)
 }
 
 function paintedTwin(input: {

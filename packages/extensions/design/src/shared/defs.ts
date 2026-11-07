@@ -48,7 +48,7 @@ const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
   index: z.number().describe('1-based position among the parent children in reading order'),
 })
 
-const SizingSchema = z.enum(['fixed', 'auto'])
+const SizingSchema = z.enum(['fixed', 'set', 'auto'])
 
 const LiveStylesSchema = z.object({
   background: z.string(),
@@ -63,7 +63,7 @@ const LiveStylesSchema = z.object({
   display: z.string().default(''),
   flexDirection: z.string().default(''),
   overflowX: z.string().default('visible'),
-  sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed when its own rule sets px'),
+  sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed: own px rule, set: any other size'),
   border: z.object({width: z.number(), style: z.string(), color: z.string(), side: z.enum(BORDER_SIDES)}),
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
 })

@@ -886,8 +886,14 @@ function hexEnd(input: {text: string; at: number}): number {
 
 function ownSizing(input: {element: Element; scan: Scan; property: string}): LiveStyles['sizing']['width'] {
   const winner = winningDeclaration({element: input.element, property: input.property, scan: input.scan})
-  if (winner === null || winner.inherited) return 'auto'
-  return pxLength(winner.value) ? 'fixed' : 'auto'
+  if (winner !== null && !winner.inherited && pxLength(winner.value)) return 'fixed'
+  const floor = `min-${input.property}`
+  return [input.property, floor].some((property) => authored({...input, property})) ? 'set' : 'auto'
+}
+
+function authored(input: WinnerQuery): boolean {
+  const best = bestCandidate(input)
+  return best !== null && !UNSET_LENGTHS.has(best.winner.value.trim())
 }
 
 function pxLength(value: string): boolean {
@@ -1220,19 +1226,26 @@ function inherits(input: WinnerQuery): Winner | null {
 
 function winningDeclaration(input: WinnerQuery): Winner | null {
   const {scan} = input
-  const aliases = propertyAliases(input.property)
-  const inline = inlineCandidate({element: input.element, aliases, scan})
-  const candidates = [...ruleCandidates({element: input.element, aliases, scan}), ...(inline === null ? [] : [inline])]
-  const best = candidates.reduce<Candidate | null>((top, next) => {
-    if (top === null || outranks({a: next, b: top})) return next
-    return top
-  }, null)
+  const best = bestCandidate(input)
   if (best === null) return inherits(input)
   if (!confirms({element: input.element, property: input.property, value: best.winner.value, realm: scan.realm})) {
     return null
   }
   return best.winner
 }
+
+function bestCandidate(input: WinnerQuery): Candidate | null {
+  const {scan} = input
+  const aliases = propertyAliases(input.property)
+  const inline = inlineCandidate({element: input.element, aliases, scan})
+  const candidates = [...ruleCandidates({element: input.element, aliases, scan}), ...(inline === null ? [] : [inline])]
+  return candidates.reduce<Candidate | null>((top, next) => {
+    if (top === null || outranks({a: next, b: top})) return next
+    return top
+  }, null)
+}
+
+const UNSET_LENGTHS = new Set(['auto', '0', '0px', 'none', 'initial', 'unset', 'revert'])
 
 const KEY_ATTR = 'data-conciv-key'
 const INSTANCE_ATTR = 'data-conciv-instance'
