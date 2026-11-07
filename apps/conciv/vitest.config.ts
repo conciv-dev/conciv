@@ -42,7 +42,7 @@ export default defineConfig(({mode}) => ({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({}),
+            provider: playwright({contextOptions: {timezoneId: 'Pacific/Kiritimati'}}),
             instances: mode === PERF_MODE ? [{browser: 'chromium'}, {browser: 'firefox'}] : [{browser: 'chromium'}],
             commands: coreCommands,
           },
