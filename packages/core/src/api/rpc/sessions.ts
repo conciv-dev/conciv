@@ -194,7 +194,7 @@ export function sessionsRouter(deps: RpcDeps) {
         cwd: scope.cwd,
         deletedAt: null,
       })
-      await db.insert(markers).values({id: randomUUID(), sessionId, afterTurn: 0, kind: 'new'})
+      await db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId: null, kind: 'new'})
       return {sessionId}
     }),
     resolve: os.sessions.resolve.handler(({input}) => resolveRow(scope, input)),

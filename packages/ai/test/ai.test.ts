@@ -1,5 +1,6 @@
 import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
 import {
@@ -57,11 +58,15 @@ CREATE TABLE \`chat_metadata\` (
 	\`value_json\` text NOT NULL,
 	CONSTRAINT \`chat_metadata_pk\` PRIMARY KEY(\`namespace\`, \`key\`)
 );
-CREATE TABLE \`chat_threads\` (
-	\`thread_id\` text PRIMARY KEY,
-	\`messages_json\` text NOT NULL,
-	\`updated_at\` integer NOT NULL
-);`
+CREATE TABLE \`chat_messages\` (
+	\`thread_id\` text NOT NULL,
+	\`position\` integer NOT NULL,
+	\`message_id\` text,
+	\`role\` text NOT NULL,
+	\`message_json\` text NOT NULL,
+	CONSTRAINT \`chat_messages_pk\` PRIMARY KEY(\`thread_id\`, \`position\`)
+);
+CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\`,\`message_id\`);`
 
   function chatDb() {
     const client = new DatabaseSync(':memory:')
@@ -76,6 +81,97 @@ CREATE TABLE \`chat_threads\` (
     expect(db.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
       {runId: 'r1', harnessId: 'harness-of-t1'},
     ])
+  })
+
+  describe('a paged thread read', () => {
+    const THREAD = [
+      {id: 'u0', role: 'user' as const, content: 'first question'},
+      {id: 'a0', role: 'assistant' as const, content: 'first answer'},
+      {id: 'u1', role: 'user' as const, content: 'run a tool'},
+      {
+        id: 'a1',
+        role: 'assistant' as const,
+        content: null,
+        toolCalls: [{id: 'call-1', type: 'function' as const, function: {name: 'look', arguments: '{}'}}],
+      },
+      {role: 'tool' as const, toolCallId: 'call-1', content: 'looked'},
+      {id: 'a1b', role: 'assistant' as const, content: 'tool done'},
+      {id: 'u2', role: 'user' as const, content: 'last question'},
+      {id: 'a2', role: 'assistant' as const, content: 'last answer'},
+    ]
+
+    async function savedThread() {
+      const stores = drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      return stores
+    }
+
+    it('returns the newest window as a page that starts on a user message, so no turn is split', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+    })
+
+    it('walks to the window before a cursor and marks the first window complete', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'u1'})).toEqual({
+        messages: THREAD.slice(0, 2),
+        truncated: false,
+      })
+    })
+
+    it('a cursor the thread does not hold yields an empty, complete page', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({
+        messages: [],
+        truncated: false,
+      })
+    })
+
+    it('a page read leaves the messages outside its window unread', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+      await expect(stores.messages.loadThread('paged')).rejects.toThrow()
+    })
+
+    it('the newest page ends on the last stored message even when a position in between is missing', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 2})).toEqual({
+        messages: THREAD.slice(6),
+        truncated: true,
+        cursor: 'u2',
+      })
+    })
+
+    it('saving a shorter thread drops the messages past its end', async () => {
+      const stores = await savedThread()
+      await stores.messages.saveThread('paged', THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(0, 2),
+        truncated: false,
+      })
+    })
+
+    it('a read without a window still returns the whole transcript', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD)
+    })
   })
 
   it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {

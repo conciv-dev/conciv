@@ -4,12 +4,21 @@ import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/se
 import type {Context, MiddlewareHandler} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
-import type {RpcContext} from '@conciv/protocol/rpc-types'
+import {valid} from 'semver'
+import {z} from 'zod'
+import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders} from '@conciv/protocol/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
 
 export const RPC_PREFIX = '/rpc'
 export const RPC_WS_PATH = '/rpc-ws'
+
+const ClientVersionSchema = z
+  .string()
+  .max(64)
+  .refine((value) => valid(value) === value.split('+')[0])
+  .optional()
+  .catch(undefined)
 
 export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => MiddlewareHandler
 
@@ -20,9 +29,22 @@ export function rpcConnectionContext(requestUrl: string, callerOrigin: string | 
 export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
   return {
     rootInterceptors: [
-      (options) => options.next({...options, context: {...options.context, headers: options.request.headers}}),
+      (options) =>
+        options.next({
+          ...options,
+          context: {
+            ...options.context,
+            headers: options.request.headers,
+            clientVersion: clientVersionOf(options.request.headers),
+          },
+        }),
     ],
   }
+}
+
+function clientVersionOf(headers: RpcHeaders): string | undefined {
+  const value = headers[CONCIV_VERSION_HEADER]
+  return ClientVersionSchema.parse(Array.isArray(value) ? value[0] : value)
 }
 
 export type MountedExtensionRouter = {slug: string; extensionName: string; router: AnyRouter}

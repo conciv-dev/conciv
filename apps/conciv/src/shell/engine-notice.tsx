@@ -4,6 +4,10 @@ import {useQuery} from '@tanstack/solid-query'
 import {useRouteContext, useRouter, useSearch} from '@tanstack/solid-router'
 import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import lt from 'semver/functions/lt'
+import valid from 'semver/functions/valid'
+import appManifest from '../../package.json' with {type: 'json'}
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {useNotices} from './notice-context.js'
@@ -16,6 +20,8 @@ const ENGINE_STALE_MESSAGE =
 
 const ENGINE_REVOKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
 const ENGINE_LOGGED_OUT_MESSAGE = 'Log in to use conciv on this page.'
+
+const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
 
 const ENGINE_UNREACHABLE_KEY = 'engine-unreachable'
 const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'
@@ -63,6 +69,26 @@ export function EngineStaleNotice(): JSX.Element {
     notices.notify(ENGINE_STALE_MESSAGE, {key: reading.fingerprint, tone: 'danger', persist: true})
   })
   return null
+}
+
+export function EngineOutdatedNotice(): JSX.Element {
+  const apiBase = useApiBase()
+  const engineVersion = useQuery(() => ({
+    queryKey: ['conciv', 'engine-version', apiBase()],
+    queryFn: async () => (await fetch(`${apiBase()}/health`)).headers.get(CONCIV_VERSION_HEADER),
+    staleTime: Number.POSITIVE_INFINITY,
+  }))
+  const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
+  return (
+    <Show when={outdated()}>
+      <StandingNotice message={ENGINE_OUTDATED_MESSAGE} />
+    </Show>
+  )
+}
+
+function engineOlderThanWidget(version: string | null): boolean {
+  const engine = version === null ? null : valid(version)
+  return engine === null || lt(engine, appManifest.version)
 }
 
 export function EngineUnreachableNotice(): JSX.Element {

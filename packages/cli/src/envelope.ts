@@ -1,18 +1,9 @@
-import {z} from 'zod'
+import {description, name, toggle} from '@bomb.sh/router'
 import {failureOf, type EnvelopeError} from './failure.js'
 
 export type CliOutcome = {report: 'json'; data: unknown} | {report: 'none'; code: number}
 
-const OutcomeSchema = z.union([
-  z.object({report: z.literal('json'), data: z.unknown()}),
-  z.object({report: z.literal('none'), code: z.number()}),
-])
-
-export function outcomeOf(result: unknown): CliOutcome {
-  const parsed = OutcomeSchema.safeParse(result)
-  if (parsed.success) return parsed.data
-  throw new Error('the command returned no outcome')
-}
+export const envelopeFlag = toggle(name('json'), description('print one JSON envelope (always on for this command)'))
 
 export function writeFailure(error: EnvelopeError): number {
   process.stdout.write(`${JSON.stringify({ok: false, error})}\n`)

@@ -48,7 +48,7 @@ export const MarkerKindSchema = z.enum(['new', 'compact'])
 export const MarkerRowSchema = z.object({
   id: z.string(),
   sessionId: SessionId,
-  afterTurn: z.number().int().min(0),
+  afterMessageId: z.string().min(1).nullable(),
   kind: MarkerKindSchema,
 })
 export type MarkerRow = z.infer<typeof MarkerRowSchema>

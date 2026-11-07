@@ -85,7 +85,7 @@ export const coreControl = commands
 
 type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 
-type TurnHandle = {awaitTurnEnd: () => Promise<void>; close: () => void}
+type TurnHandle = {awaitTurnEnd: () => Promise<void>; awaitReply: () => Promise<void>; close: () => void}
 
 export function coreRpc(base: string): RpcClient {
   return makeRpcClient(base)
@@ -117,6 +117,11 @@ function isStart(chunk: unknown): boolean {
   return chunk.type === ChatEventType.RUN_STARTED
 }
 
+function isReplyText(chunk: unknown): boolean {
+  if (typeof chunk !== 'object' || chunk === null || !('type' in chunk)) return false
+  return chunk.type === ChatEventType.TEXT_MESSAGE_CONTENT
+}
+
 function turnStream(base: string, sessionId: string, text: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
   return fetchServerSentEvents(`${base}${CHAT_SSE_PATH}`).connect(
     [{id: crypto.randomUUID(), role: 'user', parts: [{type: 'text', content: text}]}],
@@ -143,10 +148,15 @@ export function sendTurn(base: string, sessionId: string, text: string): Promise
   const done = new Promise<void>((resolve) => {
     finished.resolve = resolve
   })
+  const replying = {resolve: (): void => {}}
+  const replied = new Promise<void>((resolve) => {
+    replying.resolve = resolve
+  })
   const started = new Promise<void>((resolve) => {
     const drain = async (): Promise<void> => {
       for await (const chunk of turnStream(base, sessionId, text, abort.signal)) {
         if (isStart(chunk)) resolve()
+        if (isReplyText(chunk)) replying.resolve()
         if (isFinal(chunk)) break
       }
     }
@@ -154,11 +164,13 @@ export function sendTurn(base: string, sessionId: string, text: string): Promise
       .catch(() => {})
       .finally(() => {
         resolve()
+        replying.resolve()
         finished.resolve()
       })
   })
   return started.then(() => ({
     awaitTurnEnd: () => done,
+    awaitReply: () => replied,
     close: () => abort.abort(),
   }))
 }

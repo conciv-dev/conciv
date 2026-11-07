@@ -18,6 +18,7 @@ Chat state and pure derivations: the `ChatProvider` context with view state, tur
 - `chat-context.tsx:ChatScope` prunes `view.collapsed` to live tool-call ids and `view.pinned` to live message ids on every messages change.
 - `chat-context.tsx:useComposer().send` trims the draft, clears it, then calls `sendMessage`; it does nothing when the trimmed draft is empty.
 - `grouping.ts:coalesceTurns` merges consecutive assistant messages into one `Turn`.
+- `grouping.ts:diffTurns` reuses a previous turn only when its messages keep the same ids, roles and parts at the same positions, so a prepended page never inherits a newer turn's key.
 - `grouping.ts:defaultGrouper` places `text`/`image`/standalone tool calls at the root and `thinking`/`tool-call` in the chain group, and drops blank or model-only parts.
 - `session-status.ts:deriveSessionStatus` precedence: stopping, waiting (approval), running, failed, stopped, done.
 - `run-clock.ts:createRunClock` polls every `RUN_CLOCK_POLL_MS` (1000) only while the run phase is not terminal; a finished run reports a frozen elapsed time.

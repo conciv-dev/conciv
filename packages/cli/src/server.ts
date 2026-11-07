@@ -1,6 +1,7 @@
-import {defineCommand, type SubCommandsDef} from 'citty'
+import {description, extend, name, route} from '@bomb.sh/router'
 import type {RpcClient} from '@conciv/contract'
 import {BUILTIN_SERVER_TOOLS, serverOperationOfTool} from '@conciv/tools/builtins'
+import {envelopeFlag} from './envelope.js'
 import {runRpc} from './request.js'
 import {toolCommand} from './tool-command.js'
 
@@ -16,23 +17,20 @@ function callOperation(rpc: RpcClient, operation: string, input: Record<string, 
   return call(input)
 }
 
-function operationCommands(): SubCommandsDef {
-  return Object.fromEntries(
-    BUILTIN_SERVER_TOOLS.map((tool) => {
-      const operation = serverOperationOfTool(tool.name)
-      return [
-        operation,
-        toolCommand(tool, {
-          name: operation,
-          positional: tool.meta?.positional,
-          run: (input) => runRpc((rpc) => callOperation(rpc, operation, input)),
-        }),
-      ]
-    }),
-  )
+function operationCommands() {
+  return BUILTIN_SERVER_TOOLS.map((tool) => {
+    const operation = serverOperationOfTool(tool.name)
+    return toolCommand(tool, {
+      name: operation,
+      positional: tool.meta?.positional,
+      run: (input) => runRpc((rpc) => callOperation(rpc, operation, input)),
+    })
+  })
 }
 
-export const serverCommand = defineCommand({
-  meta: {name: 'server', description: 'inspect & nudge the live dev server'},
-  subCommands: operationCommands(),
-})
+export const serverRoute = route(
+  name('server'),
+  description('inspect & nudge the live dev server'),
+  envelopeFlag,
+  extend(...operationCommands()),
+)

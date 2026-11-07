@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@ast-grep/napi": "^0.51.0",
+    "@bomb.sh/router": "catalog:",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
     "@conciv/extension-design": "workspace:^",
@@ -46,8 +47,8 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@orpc/client": "catalog:",
-    "citty": "catalog:",
     "diff": "^9.0.0",
+    "es-toolkit": "catalog:",
     "nypm": "^0.6.12",
     "picocolors": "^1.1.1",
     "zod": "catalog:"
