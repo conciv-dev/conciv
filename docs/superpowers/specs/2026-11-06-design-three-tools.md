@@ -385,3 +385,16 @@ Omri: `design_get` returns something the agent can select from with `querySelect
   `design_check` reports what was never built.
 - Proof is the same A/B: three sonnet runs on the markup build beside the three full-tree JSON runs of wave 9, on bytes,
   rounds, verdicts, cost and nodes missing at round 1.
+
+### Markup withdrawn; the design stays whole JSON; unsettled is never a trap (2026-11-07, night)
+
+Markup against full-tree JSON, sonnet, same pages: JSON 3 of 3 done at $3.83; markup 0 of 3 at $4.14, stuck rows 264 and
+155 against 38 and 2, no agent used a selector. Bytes fell eight times and the pages got worse, as with the outline. Every
+time `design_get` got smaller the agent built less. Omri: revert.
+
+- `design_get(link)` returns the whole design as JSON, as before wave 9 Part C. The `selector` argument and the markup go.
+  `design_get` is not shrunk again; its cost is accepted.
+- `unsettled` is never a trap. On Pricing the agent restructured the page, under half the nodes rendered, and the check
+  answered `unsettled` eleven times. From the second consecutive `unsettled`, the reply carries the coverage (which nodes
+  are gone, by name and id) and the rows the gate can still compute, and says "the page renders N of M nodes; the rest are
+  listed in coverage.missing".
