@@ -263,6 +263,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
     const chat = app.liveSessions.open(() => options.sessionId)
     const coordinator = makeRefreshCoordinator({
       chat,
+      liveSessions: app.liveSessions,
       sessionId: () => options.sessionId,
       appData: data,
       queryClient,

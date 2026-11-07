@@ -67,6 +67,7 @@ import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
 import {EngineStaleNotice} from '../src/shell/engine-notice.js'
+import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
 import {HostApiProvider} from '@conciv/extension/host'
@@ -535,6 +536,123 @@ describe('chat pane', () => {
     await expect.element(page.getByText(UNSCRIPTED_REPLY).nth(1)).toBeVisible()
     await coreControl.releaseTurn()
     await expect.element(stopButton()).not.toBeInTheDocument()
+  })
+
+  describe('loading the chat history', () => {
+    const HYDRATE_PATH = ['chat', 'hydrate']
+    const loadError = () => page.getByRole('alert')
+    const retry = () => loadError().getByRole('button', {name: /^Retry/})
+
+    afterEach(async () => {
+      await coreControl.releaseTools()
+    })
+
+    async function sessionWithHistory(): Promise<string> {
+      const {sessionId} = await newSession()
+      await runTurn(core(), sessionId, 'a question from before')
+      return sessionId
+    }
+
+    test('shows the loading skeleton first, then the conversation', async () => {
+      const sessionId = await sessionWithHistory()
+      const gate = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+      mountChatPane(sessionId)
+      await coreControl.awaitFaultPending(gate, 1)
+
+      await expect.element(skeleton()).toBeVisible()
+      await expect.element(page.getByText('a question from before')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(gate)
+
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+
+    test('a failed load reads as a failed load with Retry, survives a failed Retry, and Retry brings the conversation back', async () => {
+      const sessionId = await sessionWithHistory()
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      mountChatPane(sessionId)
+
+      await expect.element(retry()).toBeEnabled()
+      await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
+      await expect.element(page.getByText('Internal Server Error')).not.toBeInTheDocument()
+      await expect.element(page.getByText('How can I help you today?')).not.toBeInTheDocument()
+      await expect.element(page.getByRole('separator', {name: 'New session'})).not.toBeInTheDocument()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+      await expect.element(page.getByText('a question from before')).not.toBeInTheDocument()
+
+      await retry().click()
+
+      await expect
+        .element(page.getByRole('log', {name: 'Announcements'}))
+        .toMatchTextContent(/conciv could not load this conversation\. Try again\./)
+      await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
+      await expect.element(retry()).toBeEnabled()
+      await expect.element(page.getByText('How can I help you today?')).not.toBeInTheDocument()
+
+      await coreControl.releaseFault(broken)
+      const held = await faults.install({kind: 'gate', path: HYDRATE_PATH})
+      await retry().click()
+      await coreControl.awaitFaultPending(held, 1)
+
+      await expect.element(retry()).toBeDisabled()
+      await expect.element(retry()).toHaveAccessibleName('Retrying…')
+
+      await coreControl.releaseFault(held)
+
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+
+    test('Refresh on a failed load reopens the conversation, with no error row left and no prompt sent again', async () => {
+      const sessionId = await sessionWithHistory()
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      active.pane = mountPane({base: core(), sessionId}, () => (
+        <>
+          <RefreshButton />
+          <ChatPane sessionId={sessionId} />
+        </>
+      ))
+
+      await expect.element(retry()).toBeEnabled()
+      await coreControl.releaseFault(broken)
+      await page.getByRole('button', {name: 'Refresh the conversation'}).click()
+
+      await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+      await expect.element(page.getByText('a question from before')).toBeVisible()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await expect.element(page.getByRole('button', {name: 'Refresh the conversation'})).toBeEnabled()
+      expect(page.getByText('a question from before').elements()).toHaveLength(1)
+      expect(page.getByText(UNSCRIPTED_REPLY).elements()).toHaveLength(1)
+    })
+
+    test('Retry after a failed load joins the run already in flight, so the rest of the reply arrives and the pane settles', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.scriptTurn({toolCalls: [], text: 'the rest of the reply'})
+      await coreControl.holdTools()
+      const turn = await sendTurn(core(), sessionId, 'a prompt sent before the pane opened')
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      mountChatPane(sessionId)
+
+      await expect.element(retry()).toBeEnabled()
+      await coreControl.releaseFault(broken)
+      await retry().click()
+
+      await expect.element(page.getByText('a prompt sent before the pane opened')).toBeVisible()
+      await expect.element(narration()).toBeVisible()
+      await expect.element(page.getByText('the rest of the reply')).not.toBeInTheDocument()
+
+      await coreControl.releaseTools()
+
+      await expect.element(page.getByText('the rest of the reply')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await turn.awaitTurnEnd()
+      turn.close()
+    })
   })
 })
 
