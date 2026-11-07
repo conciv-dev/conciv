@@ -46,7 +46,6 @@ const textMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Reading text', done: 'Read the text'},
   mutating: false,
-  mirrors: false,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}},

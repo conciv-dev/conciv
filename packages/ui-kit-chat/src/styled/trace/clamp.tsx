@@ -9,8 +9,8 @@ export type TraceClampSize = 'default' | 'tall'
 const CLAMP_LINES: Record<TraceClampSize, number> = {default: 11, tall: 17}
 
 const MAX_HEIGHT: Record<TraceClampSize, string> = {
-  default: '[max-height:var(--chat-trace-clamp,13rem)]',
-  tall: '[max-height:var(--chat-trace-clamp-tall,20rem)]',
+  default: '[max-height:var(--chat-trace-clamp)]',
+  tall: '[max-height:var(--chat-trace-clamp-tall)]',
 }
 
 const VIEWPORT = 'relative min-w-0 overflow-hidden'
@@ -18,8 +18,8 @@ const VIEWPORT_LIVE = 'flex flex-col justify-end'
 const FADE_BASE = 'pointer-events-none absolute inset-inline-0 h-7'
 const FADE_BOTTOM = `${FADE_BASE} bottom-0 [background:linear-gradient(to_top,var(--chat-frame-bg),transparent)]`
 const FADE_TOP = `${FADE_BASE} top-0 [background:linear-gradient(to_bottom,var(--chat-frame-bg),transparent)]`
-const FOOTER = 'flex min-w-0 pt-1'
-const REVEAL = `inline-flex items-center min-h-5 cursor-pointer text-[10.5px] leading-none [font-family:var(--chat-mono)] text-chat-affordance hover:text-chat-text-hi [transition:color_120ms_var(--chat-ease)] motion-reduce:[transition:none] ${FOCUS}`
+const FOOTER = 'flex min-w-0'
+const REVEAL = `inline-flex items-center min-h-5 cursor-pointer text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-affordance hover:text-chat-text-hi trans-color-bg motion-reduce:[transition:none] ${FOCUS}`
 
 const FALLBACK_LINE_HEIGHT = 18
 
@@ -64,7 +64,7 @@ export function TraceClamp(props: {
   const viewportClass = () =>
     expanded() ? VIEWPORT : `${VIEWPORT} ${MAX_HEIGHT[size()]} ${local.live === true ? VIEWPORT_LIVE : ''}`
   return (
-    <div class="min-w-0">
+    <div class="flex flex-col gap-1 min-w-0">
       <div ref={mountViewport} class={viewportClass()}>
         <div ref={observe} class="min-w-0">
           {local.children}

@@ -56,7 +56,6 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
   output: Out
   hint?: string
   mutating?: boolean
-  mirrors?: boolean
   approval?: 'ask'
   capture?: ToolCaptureMode
   keywords?: readonly string[]
@@ -76,7 +75,6 @@ function pageTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       label: spec.label,
       hint: spec.hint,
       mutating: spec.mutating ?? false,
-      mirrors: spec.mirrors ?? false,
       capture: spec.capture ?? CAPTURE_BY_CATEGORY[spec.category],
       keywords: spec.keywords ?? [],
       ...('selector' in spec.input.shape ? {positional: 'selector'} : {}),
@@ -372,7 +370,6 @@ export const effectDef = pageTool({
   label: {running: 'Driving an effect', done: 'Drove an effect'},
   hint: 'action list reports every registered effect and whether it is enabled',
   mutating: true,
-  mirrors: true,
   capture: 'none',
   keywords: ['effects', 'overlay', 'highlight'],
   input: z.object({
@@ -430,7 +427,6 @@ export const clickDef = pageTool({
   icon: 'pointer',
   label: {running: 'Clicking', done: 'Clicked'},
   mutating: true,
-  mirrors: true,
   keywords: ['press', 'tap'],
   input: target,
   output: OkResult,
@@ -443,7 +439,6 @@ export const hoverDef = pageTool({
   icon: 'pointer',
   label: {running: 'Hovering', done: 'Hovered'},
   mutating: true,
-  mirrors: true,
   keywords: ['mouseover'],
   input: target,
   output: OkResult,
@@ -456,7 +451,6 @@ export const scrollDef = pageTool({
   icon: 'pointer',
   label: {running: 'Scrolling', done: 'Scrolled'},
   mutating: true,
-  mirrors: true,
   keywords: ['view'],
   input: target,
   output: OkResult,
@@ -469,7 +463,6 @@ export const submitDef = pageTool({
   icon: 'pointer',
   label: {running: 'Submitting the form', done: 'Submitted the form'},
   mutating: true,
-  mirrors: true,
   keywords: ['form'],
   input: target,
   output: OkResult,
@@ -482,7 +475,6 @@ export const fillDef = pageTool({
   icon: 'keyboard',
   label: {running: 'Typing', done: 'Typed'},
   mutating: true,
-  mirrors: true,
   keywords: ['type', 'input'],
   input: z.object({...ElementTarget, value: z.string().describe('the value to type into the field')}),
   output: z.object({ok: z.literal(true), value: z.string()}),
@@ -495,7 +487,6 @@ export const selectDef = pageTool({
   icon: 'pointer',
   label: {running: 'Selecting an option', done: 'Selected'},
   mutating: true,
-  mirrors: true,
   keywords: ['option', 'dropdown'],
   input: z.object({...ElementTarget, value: z.string().describe('the option value to choose')}),
   output: z.object({ok: z.literal(true), value: z.string()}),
@@ -508,7 +499,6 @@ export const checkDef = pageTool({
   icon: 'pointer',
   label: {running: 'Checking a box', done: 'Checked a box'},
   mutating: true,
-  mirrors: true,
   keywords: ['checkbox'],
   input: target,
   output: z.object({ok: z.literal(true), checked: z.boolean()}),
@@ -521,7 +511,6 @@ export const uncheckDef = pageTool({
   icon: 'pointer',
   label: {running: 'Unchecking a box', done: 'Unchecked a box'},
   mutating: true,
-  mirrors: true,
   keywords: ['checkbox'],
   input: target,
   output: z.object({ok: z.literal(true), checked: z.boolean()}),
@@ -534,7 +523,6 @@ export const pressDef = pageTool({
   icon: 'keyboard',
   label: {running: 'Pressing a key', done: 'Pressed'},
   mutating: true,
-  mirrors: true,
   keywords: ['keyboard', 'key'],
   input: z.object({...ElementTarget, key: z.string().describe('keyboard key, e.g. Enter')}),
   output: OkResult,

@@ -15,7 +15,6 @@ export const TEST_TOOL_META: ToolViewMeta = {
   icon: 'script',
   label: {running: 'Running the tests', done: 'Ran the tests'},
   mutating: false,
-  mirrors: false,
 }
 
 export function storyCtx(): ToolViewCtx {

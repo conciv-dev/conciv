@@ -14,7 +14,6 @@ export type ToolMeta = {
   summary: string
   category?: string
   mutating?: boolean
-  mirrors?: boolean
   capture?: ToolCaptureMode
   keywords?: readonly string[]
   positional?: string
@@ -35,6 +34,7 @@ export type ClientToolLocator = {ref?: string; selector?: string; name?: string}
 export type ClientConsoleEntry = {level: string; ts: number; text: string}
 
 export type ClientToolCtx = {
+  agentId: string
   document: Document
   target: (locator: ClientToolLocator) => Element
   resolve: (locator: ClientToolLocator) => Element | null

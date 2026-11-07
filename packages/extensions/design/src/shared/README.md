@@ -31,7 +31,7 @@
 - `Width` (`defs.ts`): every width/height input must be a positive integer
 - `DiffInputSchema` (`defs.ts`): `depth` is an int from 1 to 6 (default 3), `limit` is an int from 1 to 50 (default 12)
 - `CaptureInputSchema.timeout` (`defs.ts`): positive integer milliseconds
-- `designTool` (`defs.ts`): every tool is named `design_<verb>` with meta `category: 'design'`, `mirrors: false`, `capture: 'none'`
+- `designTool` (`defs.ts`): every tool is named `design_<verb>` with meta `category: 'design'`, `capture: 'none'`
 - `componentAboveTolerance` (`above.ts`): a component is above tolerance if it has any delta or `mismatch >= TOLERANCES.tileGate` (0.005)
 - `config.ts` enums only allow the listed implementations (`blazediff`/`pixelmatch`, `edge-projection`, `ciede2000`, `tab`, `tile`)
 
