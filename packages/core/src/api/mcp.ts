@@ -83,6 +83,9 @@ const NAMES_ONLY_HEADER = '\n\nMore capabilities, by name only: '
 
 const NAME_SEPARATOR = ', '
 
+const LIST_ALL_HINT =
+  ' (list every name from inside execute_typescript: return Object.keys(globalThis).filter((key) => key.startsWith("external_")))'
+
 type RunnerCapability = CodeRunner['capabilities'][number]
 
 function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
@@ -114,9 +117,9 @@ function namesOnly(names: string[], room: number): string {
   const pieces = names.map((name, index) => (index === 0 ? name : `${NAME_SEPARATOR}${name}`))
   const all = `${NAMES_ONLY_HEADER}${pieces.join('')}`
   if (all.length <= room) return all
-  const more = `${NAME_SEPARATOR}and ${names.length} more`
+  const more = `${NAME_SEPARATOR}and ${names.length} more${LIST_ALL_HINT}`
   const listed = fittingCount(pieces, room - NAMES_ONLY_HEADER.length - more.length)
-  return `${NAMES_ONLY_HEADER}${pieces.slice(0, listed).join('')}${NAME_SEPARATOR}and ${names.length - listed} more`
+  return `${NAMES_ONLY_HEADER}${pieces.slice(0, listed).join('')}${NAME_SEPARATOR}and ${names.length - listed} more${LIST_ALL_HINT}`
 }
 
 function fittingCount(pieces: string[], room: number): number {

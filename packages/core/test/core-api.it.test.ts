@@ -280,6 +280,18 @@ describe('api engine staleness di', () => {
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 
+    it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
+      const changed = Array.from({length: 90}, (_, index) => `@conciv/changed-package-${index}`)
+      const served = await serveWithProbe(() => ({...INJECTED, changed}))
+      const {description, sandboxNames} = await executeTool(served.base)
+      const hidden = sandboxNames.filter((name) => !description.includes(name))
+
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toMatch(/, and \d+ more/)
+      expect(hidden.length).toBeGreaterThan(0)
+      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
+    }, 20_000)
+
     it('the execute tool description says nothing about staleness while the engine matches the code on disk', async () => {
       const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
       const description = await executeDescription(served.base)
