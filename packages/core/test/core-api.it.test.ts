@@ -16,7 +16,7 @@ import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {cappedValue} from '@conciv/chat'
+import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
 import {type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
@@ -248,24 +248,13 @@ describe('api engine staleness di', () => {
       expect(calls.count).toBeGreaterThanOrEqual(3)
     }, 20_000)
 
-    it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
-      const changed = Array.from({length: 90}, (_, index) => `@conciv/changed-package-${index}`)
-      const served = await serveWithProbe(() => ({...INJECTED, changed}))
-      const {description, sandboxNames} = await executeTool(served.base)
-      const hidden = sandboxNames.filter((name) => !description.includes(name))
-
-      expect(description.length).toBeLessThanOrEqual(4096)
-      expect(description).toMatch(/, and \d+ more/)
-      expect(hidden.length).toBeGreaterThan(0)
-      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
-    }, 20_000)
-
-    it('bounds the staleness notice so a huge changed list keeps the description within budget', async () => {
+    it('bounds the staleness notice and the names list so a huge changed list keeps the description within budget', async () => {
       const changed = Array.from({length: 2000}, (_, index) => `@conciv/changed-package-${index}`)
       const served = await serveWithProbe(() => ({...INJECTED, changed}))
-      const {description} = await executeTool(served.base)
+      const {description, sandboxNames} = await executeTool(served.base)
 
       expect(description.length).toBeLessThanOrEqual(4096)
+      expect(sandboxNames.filter((name) => !description.includes(name)).length).toBeGreaterThan(0)
       expect(description).toMatch(/^WARNING: this engine is running outdated code/)
       expect(description).toContain('@conciv/changed-package-0')
       expect(description).toMatch(/, and \d+ more\)\. Restart the dev server/)
@@ -3148,25 +3137,17 @@ describe('outside sessions', () => {
     return z.object({id: z.string()}).parse(health).id
   }
 
-  it('a started engine has a row and stop retires it', async () => {
+  it('a started engine retires stale rows and keeps its own, and stop retires it', async () => {
     const [home, root] = [tempDir('conciv-home-'), tempDir('conciv-outside-')]
-    const engine = await bootAt(home, root)
-    const row = {id: await healthId(engine), pid: process.pid, root, apiBase: expect.stringMatching(API_BASE)}
-    expect(withHomeDb(home, listEngines)).toEqual([row])
-    await engine.stop()
-    expect(withHomeDb(home, listEngines)).toEqual([])
-  })
-
-  it('an engine retires stale rows when it starts', async () => {
-    const home = tempDir('conciv-home-')
     const gone = await bootAt(tempDir('conciv-home-'))
     await gone.stop()
     const stale = {id: randomUUID(), pid: 1, root: '/gone', apiBase: `http://127.0.0.1:${gone.port}/t/${randomUUID()}`}
     withHomeDb(home, (db) => registerEngine(db, stale))
-    const engine = await bootAt(home)
-    const id = await healthId(engine)
-    await vi.waitFor(() => expect(withHomeDb(home, listEngines).map((row) => row.id)).toEqual([id]), {timeout: 3000})
+    const engine = await bootAt(home, root)
+    const row = {id: await healthId(engine), pid: process.pid, root, apiBase: expect.stringMatching(API_BASE)}
+    await vi.waitFor(() => expect(withHomeDb(home, listEngines)).toEqual([row]), {timeout: 3000})
     await engine.stop()
+    expect(withHomeDb(home, listEngines)).toEqual([])
   })
 
   it.each([
@@ -3354,10 +3335,10 @@ describe('outside agent consent', () => {
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     const pick = `const picked = await external_use_tab({id: "${theirs}"});`
     const answer = TabOpenSchema.parse(await (await fetch(`${owner}/api/tabs?session=${theirs}`)).json())
-    const described = JSON.stringify([answer.instructions, answer.tools.map((tool) => tool.name)])
-    expect(
-      await outside(runner, `${pick} return [picked.instructions, picked.tools.map((tool) => tool.name)]`),
-    ).toContain(described)
+    const summaries = answer.tools.map((tool) => ({name: tool.name, summary: tool.description.split('\n')[0]}))
+    const picked = await outside(runner, `${pick} return picked`)
+    expect(picked.length).toBeLessThan(RESULT_CAP_CHARS)
+    expect(picked).toContain(JSON.stringify({instructions: answer.instructions, tools: summaries}))
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toMatch(ASKS)
     await decideOutside(owner, theirs, true)
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)

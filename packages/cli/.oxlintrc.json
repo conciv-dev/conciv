@@ -14,7 +14,14 @@
         ],
         "patterns": [
           {
-            "group": ["@tanstack/ai", "@tanstack/ai/**", "@tanstack/ai-[!m]*", "@tanstack/ai-[!m]*/**"],
+            "group": [
+              "@tanstack/ai",
+              "@tanstack/ai/**",
+              "@tanstack/ai-*",
+              "@tanstack/ai-*/**",
+              "!@tanstack/ai-mcp",
+              "!@tanstack/ai-mcp/**"
+            ],
             "message": "Only packages/ai and packages/protocol may import @tanstack/ai*, and the conciv CLI @tanstack/ai-mcp for the hub; use @conciv/protocol and the @conciv/ai entries."
           },
           {

@@ -19,7 +19,7 @@ import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -909,25 +909,16 @@ describe('cli', () => {
       return {root, nested}
     }
 
-    test('finds the engine port in .conciv/server.json walking up from a nested cwd', () => {
+    test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', () => {
       const project = projectWith(JSON.stringify({port: 41234}))
       expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234')
       expect(engineOrigin(project.root, {})).toBe('http://127.0.0.1:41234')
-    })
-
-    test('CONCIV_PORT wins over .conciv/server.json', () => {
-      const project = projectWith(JSON.stringify({port: 41234}))
       expect(engineOrigin(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
     })
 
-    test('falls back to 5173 with no server.json anywhere up the tree', () => {
-      const project = projectWith(null)
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
-    })
-
-    test('a malformed server.json falls through to 5173 instead of throwing', () => {
-      const project = projectWith('{"port": "not a number"')
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
+    test('falls back to 5173 with no server.json anywhere up the tree, or a malformed one', () => {
+      expect(engineOrigin(projectWith(null).nested, {})).toBe('http://127.0.0.1:5173')
+      expect(engineOrigin(projectWith('{"port": "not a number"').nested, {})).toBe('http://127.0.0.1:5173')
     })
 
     test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
@@ -1025,7 +1016,7 @@ describe('cli', () => {
       const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
       const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       await page.page.queries(undefined, {signal: pages.signal})
-      return {engine, sessionId}
+      return {engine, sessionId, base}
     }
 
     const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
@@ -1041,6 +1032,12 @@ describe('cli', () => {
           'execute_typescript',
         ])
         expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
+        const direct = await createMCPClient({transport: {type: 'http', url: `${first.base}/api/mcp`, headers}})
+        const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
+        await direct.close()
+        expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
+        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
         await first.engine.stop()
         const second = await engineWithTab(home)
         expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)

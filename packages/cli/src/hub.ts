@@ -64,7 +64,9 @@ async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
   async function dropRunner(): Promise<void> {
     const runner = held.runner
     held.runner = null
-    await runner?.client.close().catch(() => {})
+    await runner?.client
+      .close()
+      .catch((error: unknown) => logHub(`closing the client of ${runner.apiBase} failed`, error))
   }
 
   async function forward(toolName: ToolName, input: unknown): Promise<unknown> {
@@ -127,15 +129,20 @@ async function startupDescriptions(home: string): Promise<Record<ToolName, strin
         tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
       return {[EXECUTE_TOOL_NAME]: described(EXECUTE_TOOL_NAME), [DISCOVER_TOOL_NAME]: described(DISCOVER_TOOL_NAME)}
     } finally {
-      await client.close().catch(() => {})
+      await client.close().catch((error: unknown) => logHub('closing the startup client failed', error))
     }
-  } catch {
+  } catch (error) {
+    logHub('reading the runner tool descriptions failed; using the built-in text', error)
     return FALLBACK_DESCRIPTIONS
   }
 }
 
 function failed(text: string): Reply {
   return {content: [{type: 'text', text}], isError: true}
+}
+
+function logHub(message: string, error: unknown): void {
+  process.stderr.write(`conciv mcp: ${message}: ${errorText(error)}\n`)
 }
 
 function errorText(error: unknown): string {

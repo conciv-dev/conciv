@@ -3,7 +3,8 @@ import {createMCPClient} from '@conciv/ai/server'
 import type {CodeCapability} from '@conciv/chat'
 import {toolError} from '@conciv/extension'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
-import {TABS_GUIDANCE} from '@conciv/tools/builtins'
+import {BUILTIN_TABS_TOOL, TABS_GUIDANCE} from '@conciv/tools/builtins'
+import {logError} from '../lib/debug.js'
 import type {createOutsideTabs} from './outside-tabs.js'
 import {EXECUTE_TOOL_NAME} from './execute-schemas.js'
 
@@ -12,8 +13,6 @@ type OutsideTabs = ReturnType<typeof createOutsideTabs>
 type PickedTab = Awaited<ReturnType<OutsideTabs['find']>> & {id: SessionId}
 
 const USE_TAB_NAME = 'use_tab'
-
-const LOCAL_NAMES = new Set(['tabs'])
 
 const NO_TAB_MESSAGE = 'call external_use_tab({id}) first; external_tabs({}) lists the open tabs'
 
@@ -36,20 +35,23 @@ export function outsideRunCapabilities(deps: {
   const picked: {tab: PickedTab | null} = {tab: null}
   const useTab: CodeCapability = {
     name: USE_TAB_NAME,
-    description: `Pick the conciv tab that the following calls in this execute_typescript block act on, and return its instructions and tool signatures. The pick lasts for this block only. ${TABS_GUIDANCE}`,
+    description: `Pick the conciv tab that the following calls in this execute_typescript block act on, and return its instructions and a one-line summary of each tool (discover_tools gives the typed signatures). The pick lasts for this block only. ${TABS_GUIDANCE}`,
     errors: [{code: 'TAB_NOT_OPEN', message: 'the tab is not open on any running conciv engine'}],
     inputSchema: UseTabInputSchema,
     execute: async (input) => {
       const {id} = UseTabInputSchema.parse(input)
       const found = await deps.tabs.find(id)
       picked.tab = {...found, id}
-      return {instructions: found.instructions, tools: found.tools}
+      return {
+        instructions: found.instructions,
+        tools: found.tools.map((tool) => ({name: tool.name, summary: tool.description.split('\n')[0] ?? ''})),
+      }
     },
   }
   const forwarded = deps.capabilities
     .filter((capability) => capability.approval !== 'ask')
     .map((capability): CodeCapability => {
-      if (LOCAL_NAMES.has(capability.name)) return capability
+      if (capability.name === BUILTIN_TABS_TOOL.name) return capability
       return {
         ...capability,
         errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
@@ -91,7 +93,9 @@ async function callOwner(tab: PickedTab, headers: Record<string, string>, typesc
     try {
       return ReplySchema.parse(await owner.callTool(EXECUTE_TOOL_NAME, {typescriptCode}))
     } finally {
-      await owner.close().catch(() => {})
+      await owner
+        .close()
+        .catch((error: unknown) => logError(`[mcp] closing the client of ${tab.root} failed: ${String(error)}`))
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
