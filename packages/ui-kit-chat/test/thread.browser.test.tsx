@@ -918,7 +918,7 @@ describe('thread session log', () => {
     await expect.element(triggerLocator, {timeout: 3000}).toBeVisible()
     await expect.element(answerLocator, {timeout: 3000}).toBeVisible()
 
-    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(.absolute)')]
+    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(:has([role="toolbar"]))')]
     const firstTextRow = firstTextLocator.element()
     const triggerRow = triggerLocator.element()
     const answerRow = answerLocator.element()
@@ -1051,6 +1051,7 @@ describe('trace permission block', () => {
     await page.getByRole('button', {name: 'Approve'}).click()
 
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Approved the request')
     await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
     expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
   })
@@ -1062,6 +1063,7 @@ describe('trace permission block', () => {
     await page.getByRole('button', {name: 'Deny'}).click()
 
     await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
     await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
     expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
   })

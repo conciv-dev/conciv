@@ -170,18 +170,32 @@ describe('approval replay', () => {
     await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
   }, 120_000)
 
-  test('a pane opened while the ask waits draws the card from hydrate', async () => {
+  test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
     const {rpc, sessionId} = await newSession()
     const first = await attachedPane(sessionId)
 
-    const askedId = await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
+    await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
     first.dispose()
 
-    keep(await attachedPane(sessionId))
+    const pane = await attachedPane(sessionId)
+    keep(pane)
+    const requests = page.getByRole('list', {name: 'Permission requests'})
+    const cardFits = async () => {
+      await expect.element(permissionRequest()).toBeInViewport({ratio: 1})
+      await expect.element(approveButton()).toBeInViewport({ratio: 1})
+      await expect.element(page.getByRole('button', {name: 'Deny'})).toBeInViewport({ratio: 1})
+    }
     await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await expect.element(requests.getByRole('listitem').nth(1)).not.toBeInTheDocument()
+    await cardFits()
 
-    await rpc.chat.permissionDecision({approvalId: askedId, approved: false})
-    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('APPROVAL_DENIED')
+    await page.viewport(1000, 900)
+    pane.setWidth(960)
+    await cardFits()
+
+    await approveButton().click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('NO_BUNDLER')
   }, 120_000)
 })
 

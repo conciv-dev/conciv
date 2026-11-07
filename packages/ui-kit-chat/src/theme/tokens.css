@@ -18,6 +18,8 @@
   --chat-mono-lift: light-dark(var(--chat-text-3), #9a9391);
 
   --chat-trace-gutter: 18px;
+  --chat-mark: calc(var(--chat-trace-gutter) / 2);
+  --chat-mark-dot: calc(var(--chat-mark) / 3);
   --chat-trace-clamp: 13rem;
   --chat-trace-clamp-tall: 20rem;
 
@@ -62,6 +64,7 @@
   --chat-text-xs: 0.6875rem;
   --chat-text-sm: 0.75rem;
   --chat-text-md: 0.8125rem;
+  --chat-text-body: 0.875rem;
   --chat-text-lg: 1rem;
   --chat-text-micro: 0.59375rem;
   --chat-focus: 0.125rem solid var(--chat-accent);
@@ -179,4 +182,10 @@ diffs-container {
     animation: none;
     opacity: 1;
   }
+}
+
+@property --chat-thread-total-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
 }

@@ -6,6 +6,9 @@ import {shadows} from './shadow.js'
 import {font} from './fonts.js'
 import {ease} from './easing.js'
 import {animation} from './animation.js'
+import {text} from './type-scale.js'
+import {duration} from './duration.js'
+import {spacing} from './spacing.js'
 import {motion} from './motion.js'
 import {effects} from './effects.js'
 import {typography} from './typography.js'
@@ -28,7 +31,7 @@ export function presetConciv(): Preset {
     rules: [jsonTree, ...densityRules, ...loaderRules],
     preflights: [loaderPreflight],
     separators: [':'],
-    theme: {colors, radius, font, ease, animation},
+    theme: {colors, radius, font, ease, animation, text, duration, spacing},
     shortcuts: {...shortcuts, ...motion, ...effects, ...shadows, ...loaderShortcuts},
   }
 }

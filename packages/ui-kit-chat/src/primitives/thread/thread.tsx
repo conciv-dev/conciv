@@ -36,6 +36,8 @@ import {VIRTUALIZE_THRESHOLD} from './virtualize-threshold.js'
 
 const ROW_ESTIMATE_PX = 72
 const EVICTING_OVERSCAN = 8
+const SPACER = 'relative w-full flex-none [row-gap:inherit] h-[var(--chat-thread-total-size)]'
+const ROW = 'absolute top-0 start-0 w-full flex flex-col [row-gap:inherit]'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -247,10 +249,7 @@ function VirtualMessages(props: {
     }
   })
   return (
-    <div
-      ref={setSpacer}
-      style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}
-    >
+    <div ref={setSpacer} class={SPACER} style={{'--chat-thread-total-size': `${virtualizer.totalSize()}px`}}>
       <For each={virtualizer.items}>
         {(item) => (
           <div
@@ -260,15 +259,8 @@ function VirtualMessages(props: {
               })
             }
             data-index={item.index}
-            style={{
-              position: 'absolute',
-              top: '0',
-              left: '0',
-              width: '100%',
-              display: 'flex',
-              'flex-direction': 'column',
-              transform: `translateY(${item.start - metrics.scrollMargin}px)`,
-            }}
+            class={ROW}
+            style={{transform: `translateY(${item.start - metrics.scrollMargin}px)`}}
           >
             <TurnSlot
               turn={() => turns()[item.index]}
