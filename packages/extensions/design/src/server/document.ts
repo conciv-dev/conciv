@@ -16,7 +16,7 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
   )
   const steps = [...walk(design.root)]
   const count = steps.filter(({node}) => node.implied !== true).length
-  const markup = new DOMParser().parseFromString(`<${DOCUMENT_TAG}/>`, 'text/xml')
+  const markup = emptyMarkup()
   const head = markup.documentElement
   attributed({
     element: head,
@@ -39,7 +39,7 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
   }
 }
 
-type Markup = ReturnType<DOMParser['parseFromString']>
+type Markup = ReturnType<typeof emptyMarkup>
 
 type Element = ReturnType<Markup['createElement']>
 
@@ -169,6 +169,10 @@ function pathOf(element: Element): {id: string; name: string}[] {
   const parent = element.parentElement
   if (parent === null || !parent.hasAttribute('id')) return []
   return [...pathOf(parent), {id: parent.getAttribute('id') ?? '', name: parent.getAttribute('name') ?? ''}]
+}
+
+function emptyMarkup() {
+  return new DOMParser().parseFromString(`<${DOCUMENT_TAG}/>`, 'text/xml')
 }
 
 function elementOf(input: {markup: Markup; node: DesignNode; keys: Map<string, string>}): Element {
