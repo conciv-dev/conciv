@@ -26,6 +26,7 @@ export function gateOf(input: {root: DesignNode; renderers: ReturnType<typeof re
     notRendered: records
       .filter((record) => renderers.mapped(record.id) && first(record.id) === undefined)
       .map((record) => record.id),
+    candidates: [],
     dupes: records.filter((record) => renderers.of(record.id).length > 1).map((record) => record.id),
   }
   return {rows: rows.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(rows)}

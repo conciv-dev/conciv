@@ -207,6 +207,7 @@ function liveBox(input: {path: string; box: Box; key: string; children?: LiveCom
     source: null,
     key: input.key,
     instance: null,
+    repeat: null,
     owner: null,
     tag: 'div',
     text: '',
@@ -388,7 +389,13 @@ describe('store', () => {
     expect((await store.design('store-1')).root.id).toBe('1:2')
     expect(await store.mapping('store-1')).toEqual([])
     const mapping = [
-      {figma: {fileKey: 'key', nodeId: '1:2'}, selector: '[data-conciv-key="abc"]', source: 'voted' as const, round: 1},
+      {
+        figma: {fileKey: 'key', nodeId: '1:2'},
+        selector: '[data-conciv-key="abc"]',
+        source: 'voted' as const,
+        confidence: 1,
+        round: 1,
+      },
     ]
     await store.writeMapping({id: 'store-1', mapping})
     expect(await store.mapping('store-1')).toEqual(mapping)
@@ -396,7 +403,7 @@ describe('store', () => {
       round: 1,
       rows: [],
       reflow: {widths: [], results: []},
-      coverage: {nodes: 1, mapped: 1, rendered: 1, missing: [], notRendered: [], dupes: []},
+      coverage: {nodes: 1, mapped: 1, rendered: 1, missing: [], notRendered: [], dupes: [], candidates: []},
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, rows: 0},
       pixels: {share: 0},
       at: 1,

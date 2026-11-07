@@ -128,6 +128,7 @@ function pageRoot(input: {reply: MeasureReply; raster: Raster}): LiveComponent {
     source: null,
     key: null,
     instance: null,
+    repeat: null,
     owner: null,
     tag: 'body',
     text: '',

@@ -524,10 +524,21 @@ async function collectComponents(input: {root: Document; size: Size}): Promise<L
   const view = input.root.defaultView
   if (view === null) return []
   const scan = scanSheets({doc: input.root, view})
-  return collectUnder({el: input.root.documentElement, size: input.size, view, path: '', scan, walked: {count: 0}})
+  const keys = [...input.root.querySelectorAll(`[${KEY_ATTR}]`)].map((el) => el.getAttribute(KEY_ATTR))
+  const repeated = new Set(keys.filter((key, index) => key !== null && keys.indexOf(key) !== index))
+  const el = input.root.documentElement
+  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated})
 }
 
-type Walk = {el: Element; size: Size; view: PageWindow; path: string; scan: Scan; walked: {count: number}}
+type Walk = {
+  el: Element
+  size: Size
+  view: PageWindow
+  path: string
+  scan: Scan
+  walked: {count: number}
+  repeated: Set<string | null>
+}
 
 function collectUnder(input: Walk): Promise<LiveComponent[]> {
   const {el, path} = input
@@ -573,6 +584,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     scrolls: el.scrollWidth > el.clientWidth + SCROLL_SLACK,
     owner: ownerPath(el),
     instance: instancePath(el),
+    repeat: stampRepeat({el, repeated: input.repeated}),
     tag: el.tagName.toLowerCase(),
     text: nodes
       .map((node) => node.textContent ?? '')
@@ -643,6 +655,31 @@ function instancePath(el: Element): string | null {
   const fiber = Object.entries(el).find(([name]) => name.startsWith(FIBER_PREFIX))?.[1]
   if (fiber === undefined) return null
   return instanceChain(fields(fiber)).join('/')
+}
+
+function stampRepeat(input: {el: Element; repeated: Set<string | null>}): string | null {
+  const {el} = input
+  const key = el.getAttribute(KEY_ATTR)
+  const siblings = [...(el.parentElement?.children ?? [])]
+  if (key === null || !input.repeated.has(key)) return null
+  const read = listKey(el)
+  const kept = el.getAttribute(INSTANCE_ATTR)
+  if (read === null && kept !== null) return kept
+  const stamp = `${key}/${read ?? String(siblings.indexOf(el))}`
+  el.setAttribute(INSTANCE_ATTR, stamp)
+  return stamp
+}
+
+function listKey(el: Element): string | null {
+  const fiber = Object.entries(el).find(([name]) => name.startsWith(FIBER_PREFIX))?.[1]
+  return fiber === undefined ? null : fiberListKey(fields(fiber))
+}
+
+function fiberListKey(fiber: Record<string, unknown>): string {
+  if (typeof fiber.key === 'string') return fiber.key
+  const parent = fields(fiber.return)
+  if (Object.keys(parent).length === 0 || typeof parent.type === 'string') return String(fiberIndex(fiber))
+  return fiberListKey(parent)
 }
 
 function instanceChain(fiber: Record<string, unknown>): string[] {
@@ -1226,4 +1263,5 @@ function winningDeclaration(input: WinnerQuery): Winner | null {
 }
 
 const KEY_ATTR = 'data-conciv-key'
+const INSTANCE_ATTR = 'data-conciv-instance'
 const SCROLL_SLACK = 2

@@ -5,12 +5,13 @@ import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {defineExtension} from '@conciv/extension'
 import {designConfig} from './shared/tolerances.js'
-import type {DesignRuntime} from './shared/defs.js'
+import type {Design, DesignRuntime, Pairer} from './shared/defs.js'
 import {createStore} from './server/store.js'
 import {createFigmaAdapter} from './server/sources/figma.js'
 import {createImageAdapter} from './server/sources/image.js'
 import {createMeasurer} from './server/measure.js'
 import {createVotePairer} from './server/pairers/vote.js'
+import {createFigmaNodePairer} from './server/pairers/figma-nodes.js'
 import {createRunner} from './server/runner.js'
 import {createDiffer} from './server/differ.js'
 import {createXrayRoutes} from './server/xray-routes.js'
@@ -40,7 +41,7 @@ const design = defineExtension({
     store: createStore({state}),
     adapters: [createImageAdapter({config}), createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, config})],
     measurer,
-    pairer: createVotePairer(),
+    pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,
   }
   const differ = createDiffer({
@@ -69,3 +70,7 @@ const design = defineExtension({
 export {design, design as default, type XrayRouter}
 
 type XrayRouter = ReturnType<typeof createXrayRoutes>['router']
+
+function pairerBySource(pairers: Record<Design['source']['kind'], Pairer>): Pairer {
+  return (input) => pairers[input.design.source.kind](input)
+}

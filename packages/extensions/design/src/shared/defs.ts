@@ -6,31 +6,20 @@ import {defineTool} from '@conciv/extension/tool'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
-
 const DESIGN_EXTENSION_NAME = 'design'
-
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
-
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
-
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
-
 const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
-
 const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})
-
 const DirectionSchema = z.enum(['row', 'column', 'grid', 'stack'])
-
 const SizeSchema = z.enum(['fill', 'fit', 'fixed'])
-
 const GapSchema = z.object({px: z.number(), uniform: z.boolean()})
-
 const AlignSchema = z.enum(['start', 'center', 'end', 'stretch'])
-
 const PaddingSchema = z.object({top: z.number(), right: z.number(), bottom: z.number(), left: z.number()})
 
 const RowRunSchema = z
@@ -85,6 +74,7 @@ const LiveComponentFieldsSchema = z.object({
   source: SourceLocSchema.nullable(),
   key: z.string().nullable().describe('the data-conciv-key the compiler wrote, null without one'),
   instance: z.string().nullable().default(null).describe('the call-site and React keys of the fiber chain'),
+  repeat: z.string().nullable().default(null).describe('data-conciv-instance where siblings share the key'),
   owner: z.string().nullable().describe('the component owner path from the root, null when the framework is unknown'),
   tag: z.string(),
   text: z.string(),
@@ -207,6 +197,8 @@ const MatchSchema = z.object({
   live: LiveComponentFieldsSchema.nullable().describe('null when the node is unbuilt'),
   hash: z.string().describe('sha256 of the live fingerprint plus the children hashes'),
   confidence: z.number(),
+  margin: z.number().optional().describe('the winning score minus the runner-up score'),
+  candidates: z.array(z.object({path: z.string(), score: z.number()})).optional(),
   get children(): z.ZodArray<typeof MatchSchema> {
     return z.array(MatchSchema)
   },
@@ -228,6 +220,8 @@ export const MappingSchema = z.array(
     figma: z.object({fileKey: z.string(), nodeId: z.string()}),
     selector: z.string().describe('the conciv keys from the outermost keyed ancestor down to the element'),
     source: z.enum(['voted']),
+    confidence: z.number().describe('the winning score of the vote'),
+    margin: z.number().optional().describe('the winning score minus the runner-up score'),
     round: z.number().describe('the round that wrote the entry'),
   }),
 )
@@ -271,6 +265,10 @@ const CoverageSchema = z.object({
   missing: z.array(z.string()).describe('nodes no element renders'),
   notRendered: z.array(z.string()).describe('stored nodes whose element is not on the page'),
   dupes: z.array(z.string()).describe('nodes whose stored selector matches more than one element'),
+  candidates: z
+    .array(z.object({node: z.string(), candidates: z.array(z.object({selector: z.string(), score: z.number()}))}))
+    .default([])
+    .describe('unmapped nodes whose vote tied, with the best candidates to pick from'),
 })
 
 const Count = z.number()
