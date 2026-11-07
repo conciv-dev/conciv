@@ -1,5 +1,6 @@
 import type {FileOptions} from '@conciv/solid-diffs'
 import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {StatusDotTone} from '@conciv/ui-kit-system'
 import {codeTheme} from '../../theme/code-theme.js'
 import type {ToolStatus} from './tool-status.js'
 
@@ -15,10 +16,13 @@ export const OUTCOME_LABEL: Record<NonNullable<ToolResultPart['outcome']> | 'err
   cancelled: 'Cancelled',
 }
 
-export const OUTCOME_TONE: Record<NonNullable<ToolResultPart['outcome']> | 'error', string> = {
-  error: 'text-chat-danger',
-  denied: 'text-chat-warn',
-  cancelled: 'text-chat-dim',
+export const OUTCOME_TONE: Record<
+  NonNullable<ToolResultPart['outcome']> | 'error',
+  {text: string; dot: StatusDotTone}
+> = {
+  error: {text: 'text-chat-danger', dot: 'danger'},
+  denied: {text: 'text-chat-warn', dot: 'warn'},
+  cancelled: {text: 'text-chat-dim', dot: 'dim'},
 }
 
 export const DANGER_TEXT_CLASS =
@@ -56,7 +60,7 @@ export function clip(value: string, max = 64): string {
 }
 
 export function cardPhase(status: ToolStatus): CardPhase {
-  return status === 'complete' || status === 'error' ? 'done' : 'running'
+  return status === 'running' || status === 'approval' ? 'running' : 'done'
 }
 
 export function cardTitle(

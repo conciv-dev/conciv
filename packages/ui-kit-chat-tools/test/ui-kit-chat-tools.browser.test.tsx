@@ -1,4 +1,6 @@
 import 'virtual:uno.css'
+import '@conciv/ui-kit-system/tokens.css'
+import '@conciv/ui-kit-chat/theme/tokens.css'
 import {z} from 'zod'
 import {describe, expect, it} from 'vitest'
 import {page} from 'vitest/browser'
@@ -19,12 +21,52 @@ import {
   toolIconRender,
 } from '@conciv/ui-kit-chat/tools'
 import {SearchCard} from '../src/styled/tools/search-card.js'
+import {BashCard} from '../src/styled/tools/bash-card.js'
 import {ToolLookupCard} from '../src/styled/tools/tool-lookup-card.js'
 import {TodoCard} from '../src/styled/tools/todo-card.js'
 import {FileReadCard} from '../src/styled/tools/file-read-card.js'
 import {hiddenMatchSummary, type SearchFileGroup} from '../src/styled/tools/search-matches.js'
 import {builtinToolCards} from '../src/styled/tools/builtin-tool-cards.js'
 import {builtinPageRegistry, mountView, registryCatalogView} from './helpers.js'
+
+describe('standalone outcome headers', () => {
+  const REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
+
+  function call(name: string, input: Record<string, unknown>): ToolCallPart {
+    return {type: 'tool-call', id: 's1', name, arguments: JSON.stringify(input), input, state: 'complete'}
+  }
+
+  function stopped(outcome: 'denied' | 'cancelled'): ToolResultPart {
+    const error = REASON[outcome]
+    return {type: 'tool-result', toolCallId: 's1', content: JSON.stringify({error}), state: 'error', outcome, error}
+  }
+
+  for (const outcome of ['denied', 'cancelled'] as const) {
+    it(`a standalone ${outcome} Search and Bash card header shows a ${outcome} status, not an error`, async () => {
+      mountView(() => (
+        <div class="p-2 flex flex-col gap-2">
+          <SearchCard
+            part={call('Grep', {pattern: 'TODO'})}
+            result={stopped(outcome)}
+            ctx={INERT_TOOL_CTX}
+            addResult={INERT_ADD_RESULT}
+          />
+          <BashCard
+            part={call('Bash', {command: 'rm -rf build'})}
+            result={stopped(outcome)}
+            ctx={INERT_TOOL_CTX}
+            addResult={INERT_ADD_RESULT}
+          />
+        </div>
+      ))
+
+      await expect.element(page.getByText('rm -rf build')).toBeVisible()
+      await page.screenshot({path: `__screenshots__/standalone-outcomes/${outcome}.png`})
+      await expect.element(page.getByRole('img', {name: outcome}).nth(1)).toBeVisible()
+      await expect.element(page.getByRole('img', {name: 'error'})).not.toBeInTheDocument()
+    })
+  }
+})
 
 describe('card body floor', () => {
   function call(name: string, input: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {

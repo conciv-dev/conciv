@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import Terminal from 'lucide-solid/icons/terminal'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {CodeBlock, ErrorBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
+import {cardPhase, CodeBlock, ErrorBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
 
 const ANSI_INTRODUCER = '['
 
@@ -73,7 +73,7 @@ function Body(): JSX.Element {
 function CardBody(props: ToolCardProps): JSX.Element {
   const bash = useBash()
   const status = () => (bash.isError() ? 'error' : bash.status())
-  const settled = () => bash.status() === 'complete' || bash.status() === 'error'
+  const settled = () => cardPhase(bash.status()) === 'done'
   return (
     <ToolCard
       Icon={Icon}

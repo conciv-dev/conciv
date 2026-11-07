@@ -35,9 +35,9 @@ type MarkFace = {glyph: string; label: string; tone: string}
 const SETTLED_FACES: Record<Exclude<ToolRowMark, 'run'>, MarkFace> = {
   pass: {glyph: '✓', label: 'succeeded', tone: 'text-chat-success'},
   warn: {glyph: '✓', label: 'completed with warnings', tone: 'text-chat-warn'},
-  fail: {glyph: '✕', label: 'failed', tone: OUTCOME_TONE.error},
-  denied: {glyph: '⊘', label: 'denied', tone: OUTCOME_TONE.denied},
-  cancelled: {glyph: '⊘', label: 'cancelled', tone: OUTCOME_TONE.cancelled},
+  fail: {glyph: '✕', label: 'failed', tone: OUTCOME_TONE.error.text},
+  denied: {glyph: '⊘', label: 'denied', tone: OUTCOME_TONE.denied.text},
+  cancelled: {glyph: '⊘', label: 'cancelled', tone: OUTCOME_TONE.cancelled.text},
 }
 
 const PENDING_FACE: MarkFace = {glyph: '·', label: 'pending', tone: 'text-chat-dim'}
@@ -50,8 +50,8 @@ function markFace(mark: ToolRowMark): MarkFace {
 const ADDED_COUNT = /^\+(\d+)/
 
 function metaTone(mark: ToolRowMark, meta: string): string {
-  if (mark === 'fail') return OUTCOME_TONE.error
-  if (mark === 'denied' || mark === 'cancelled') return OUTCOME_TONE[mark]
+  if (mark === 'fail') return OUTCOME_TONE.error.text
+  if (mark === 'denied' || mark === 'cancelled') return OUTCOME_TONE[mark].text
   const added = ADDED_COUNT.exec(meta)
   if (added && Number(added[1]) > 0) return 'text-chat-success'
   return 'text-chat-dim'

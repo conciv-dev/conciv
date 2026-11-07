@@ -16,7 +16,7 @@ export function ErrorBlock(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['message', 'label', 'outcome', 'class'])
   const wrapperClass = (): string => `${WRAPPER_CLASS} ${local.class ?? ''}`
-  const labelClass = (): string => `${LABEL_CLASS} ${OUTCOME_TONE[local.outcome ?? 'error']}`
+  const labelClass = (): string => `${LABEL_CLASS} ${OUTCOME_TONE[local.outcome ?? 'error'].text}`
   return (
     <div class={wrapperClass()}>
       <p class={labelClass()}>{local.label ?? OUTCOME_LABEL[local.outcome ?? 'error']}</p>

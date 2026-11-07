@@ -24,10 +24,12 @@ const MARK_OF_STATUS: Record<ToolStatus, ToolRowMark> = {
   approval: 'run',
   error: 'fail',
   complete: 'pass',
+  denied: 'denied',
+  cancelled: 'cancelled',
 }
 
 export function rowMarkOf(part: ToolCallPart, result: Parameters<typeof toolStatus>[1]): ToolRowMark {
-  return result?.outcome ?? MARK_OF_STATUS[toolStatus(part, result)]
+  return MARK_OF_STATUS[toolStatus(part, result)]
 }
 
 const PLURAL_RULES = new Intl.PluralRules('en')

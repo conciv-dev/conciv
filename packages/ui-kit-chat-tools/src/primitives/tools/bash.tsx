@@ -65,8 +65,7 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
   const summary = () => argString(props.part, 'description') || truncate(command())
   const outcome = () => props.result?.outcome
   const stoppedReason = () => props.result?.error ?? ''
-  const isError = () =>
-    !running() && outcome() === undefined && ((output().exitCode ?? 0) !== 0 || status() === 'error')
+  const isError = () => !running() && ((output().exitCode ?? 0) !== 0 || status() === 'error')
   const hasOutput = () => Boolean(output().stdout || output().stderr)
   return (
     <BashContext.Provider value={{command, summary, output, status, isError, hasOutput, outcome, stoppedReason}}>

@@ -135,7 +135,7 @@ function ToolError(): JSX.Element {
     <Show when={tool.error()}>
       {(message) => (
         <div class={SECTION}>
-          <p class={`${SECTION_LABEL}  ${OUTCOME_TONE[tool.result()?.outcome ?? 'error']}`}>
+          <p class={`${SECTION_LABEL}  ${OUTCOME_TONE[tool.result()?.outcome ?? 'error'].text}`}>
             {OUTCOME_LABEL[tool.result()?.outcome ?? 'error']}
           </p>
           <p class="text-chat-text-2 m-0 [overflow-wrap:anywhere]">{message()}</p>
