@@ -1,4 +1,4 @@
-import {createMemo, createSignal, createUniqueId, Show, onMount, type JSX} from 'solid-js'
+import {createMemo, createSignal, createUniqueId, Show, type JSX} from 'solid-js'
 import {
   Button,
   ByteSize,
@@ -8,9 +8,9 @@ import {
   TruncatedText,
   VirtualList,
 } from '@conciv/ui-kit-system'
-import {createDebouncedValue} from '@tanstack/solid-pacer'
+import {createDebouncedSignal} from '@tanstack/solid-pacer'
 import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
-import {groupBy} from 'es-toolkit'
+import {groupBy, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
@@ -20,8 +20,6 @@ import type {SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
-
-let instanceSeq = 0
 
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
@@ -87,31 +85,35 @@ export function SessionSelector(props: {
   const appData = useAppData()
   const rpc = useRpc()
   const announce = useAnnounce()
-  const idPrefix = `conciv-session-${++instanceSeq}`
-
-  const [query, setQuery] = createSignal('')
-  const [debouncedQuery] = createDebouncedValue(query, {wait: SEARCH_WAIT_MS})
-  const search = () => (query().trim() === '' ? '' : debouncedQuery().trim())
+  const [search, setSearch, searchDebouncer] = createDebouncedSignal('', {wait: SEARCH_WAIT_MS})
+  const typed = (inputValue: string) => {
+    setSearch(inputValue.trim())
+    if (inputValue.trim() === '') searchDebouncer.flush()
+  }
   const indexed = useQuery(() => appData.utils.sessions.changes.experimental_liveOptions())
-  const list = useInfiniteQuery(() => {
-    const term = search()
-    const paging = {
+  const indexVersion = () => ({indexVersion: indexed.data?.version ?? null})
+  const listOptions = () => {
+    const input = (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE})
+    return appData.utils.sessions.list.infiniteOptions({
+      input,
       initialPageParam: null,
       getNextPageParam: (page: SessionPage) => page.next,
-      placeholderData: keepPreviousData,
-    }
-    const options =
-      term === ''
-        ? appData.utils.sessions.list.infiniteOptions({
-            input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
-            ...paging,
-          })
-        : appData.utils.sessions.search.infiniteOptions({
-            input: (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE}),
-            ...paging,
-          })
-    return {...options, queryKey: [...options.queryKey, {indexVersion: indexed.data?.version ?? null}]}
-  })
+      queryKey: [...appData.utils.sessions.list.infiniteKey({input, initialPageParam: null}), indexVersion()],
+    })
+  }
+  const searchOptions = (term: string) => {
+    const input = (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE})
+    return appData.utils.sessions.search.infiniteOptions({
+      input,
+      initialPageParam: null,
+      getNextPageParam: (page: SessionPage) => page.next,
+      queryKey: [...appData.utils.sessions.search.infiniteKey({input, initialPageParam: null}), indexVersion()],
+    })
+  }
+  const list = useInfiniteQuery(() => ({
+    ...(search() === '' ? listOptions() : searchOptions(search())),
+    placeholderData: keepPreviousData,
+  }))
   const active = useQuery(() => {
     const sessionId = props.activeId()
     return {
@@ -122,7 +124,9 @@ export function SessionSelector(props: {
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
     harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
-  const sessionsLoaded = createMemo((): SessionMeta[] => list.data?.pages.flatMap((page) => page.sessions) ?? [])
+  const sessionsLoaded = createMemo((): SessionMeta[] =>
+    uniqBy(list.data?.pages.flatMap((page) => page.sessions) ?? [], (session) => session.id),
+  )
   const loadMore = () => {
     if (!list.hasNextPage || list.isFetchingNextPage || list.isFetchNextPageError) return undefined
     return list.fetchNextPage()
@@ -133,7 +137,7 @@ export function SessionSelector(props: {
     const id = activeId()
     return id ? [id] : []
   }
-  const [now, setNow] = createSignal(0)
+  const now = () => list.dataUpdatedAt
   const collection = createMemo(() =>
     createListCollection<SessionMeta>({
       items: sessionsLoaded(),
@@ -148,7 +152,6 @@ export function SessionSelector(props: {
     const row = rows().findIndex((candidate) => candidate.kind === 'session' && candidate.session.id === id)
     if (row >= 0) scrollToRow?.(row)
   }
-  onMount(() => setNow(Date.now()))
 
   const activeRow = () => active.data ?? null
   const triggerLabel = () => activeRow()?.title || 'New session'
@@ -199,24 +202,17 @@ export function SessionSelector(props: {
   const isPill = () => props.variant === 'pill'
   return (
     <Combobox.Root
-      ids={{root: idPrefix}}
       class={isPill() ? 'inline-flex min-w-0 max-w-full' : 'flex min-w-0 max-w-full'}
       collection={collection()}
       value={valueArr()}
-      inputValue={query()}
       scrollToIndexFn={(details) => scrollToItem(details.index)}
       onValueChange={(d) => {
         const id = d.value[0]
         if (id) select(id)
-        setQuery('')
       }}
-      onInputValueChange={(d) => setQuery(d.inputValue)}
-      onOpenChange={(d) => {
-        if (d.open) {
-          setNow(Date.now())
-          setQuery('')
-          appData.invalidateSessions()
-        }
+      onInputValueChange={(details) => typed(details.inputValue)}
+      onOpenChange={(details) => {
+        if (details.open) appData.invalidateSessions()
       }}
       openOnClick
       selectionBehavior="clear"
