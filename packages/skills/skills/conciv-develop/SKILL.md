@@ -121,7 +121,8 @@ defineExtension({
   attachments, // AnyAttachmentBuilder[] — see below
   tables, // (table) => ({rounds: table('rounds', {...})}) — drizzle tables, stored as <name>_<table>
   migrations, // drizzle migrations generated from those tables, applied by core with its own
-  commands, // {runs: {description, positionals, run({args, db})}} — CLI commands, run as `conciv <name>:<command>`
+  commands, // ExtensionCommand[] — {name, description, run({sessionId})}; runs in the widget from the / menu (or typed alone and sent), never sent to the agent, replaces a harness command of the same name
+  cliCommands, // {runs: {description, positionals, run({args, db})}} — CLI commands, run as `conciv <name>:<command>`
   views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
   Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot

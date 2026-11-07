@@ -6,7 +6,8 @@ import type {
   ClientFactoryResult,
   ConfigOf,
   ConnectGate,
-  ExtensionCommands,
+  ExtensionCliCommands,
+  ExtensionCommand,
   ExtensionMigrations,
   ExtensionSourcesFactory,
   ExtensionTables,
@@ -43,7 +44,8 @@ export type ExtensionMeta<
   tables?: ExtensionTablesFactory<Tables>
   sources?(tables: Tables): ReturnType<ExtensionSourcesFactory<Tables>>
   migrations?: ExtensionMigrations
-  commands?: ExtensionCommands<Tables>
+  commands?: readonly ExtensionCommand[]
+  cliCommands?: ExtensionCliCommands<Tables>
   views?: readonly ExtensionView[]
   Component?: Component
   Surface?: Component
@@ -70,7 +72,8 @@ export type ExtensionBuilder<
   tables?: ExtensionTablesFactory<Tables>
   sources?(tables: Tables): ReturnType<ExtensionSourcesFactory<Tables>>
   migrations?: ExtensionMigrations
-  commands?: ExtensionCommands<Tables>
+  commands?: readonly ExtensionCommand[]
+  cliCommands?: ExtensionCliCommands<Tables>
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
@@ -177,6 +180,7 @@ export function defineExtension<
     sources: meta.sources,
     migrations: meta.migrations,
     commands: meta.commands,
+    cliCommands: meta.cliCommands,
     views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
     useContext,

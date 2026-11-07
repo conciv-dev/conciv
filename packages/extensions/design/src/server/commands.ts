@@ -1,8 +1,8 @@
-import type {ExtensionCommands} from '@conciv/extension'
+import type {ExtensionCliCommands} from '@conciv/extension'
 import {createRuns} from './runs.js'
 import type {designTables} from './tables.js'
 
-export const DESIGN_COMMANDS: ExtensionCommands<ReturnType<typeof designTables>> = {
+export const DESIGN_COMMANDS: ExtensionCliCommands<ReturnType<typeof designTables>> = {
   runs: {
     description: 'record a harness run: runs start <model> <prompt head file> | runs end <verdict> <cost>',
     positionals: ['action', 'first', 'second'],

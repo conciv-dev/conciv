@@ -35,7 +35,7 @@ const design = defineExtension({
   tables: designTables,
   sources: designSources,
   migrations,
-  commands: DESIGN_COMMANDS,
+  cliCommands: DESIGN_COMMANDS,
 }).server((server) => {
   const {config, db} = server
   const state = createStorage({driver: fsDriver({base: join(server.stateDir, 'design')})})

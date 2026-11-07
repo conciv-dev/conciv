@@ -54,15 +54,23 @@ export type ExtensionDb<Tables extends ExtensionTables> = {
   write(query: SourceWrite): Promise<Record<string, unknown>[]>
 }
 
-export type ExtensionCommand<Tables extends ExtensionTables = ExtensionTables> = {
+export type ExtensionCommandContext = {sessionId: string}
+
+export type ExtensionCommand = {
+  name: string
+  description: string
+  run: (context: ExtensionCommandContext) => void
+}
+
+export type ExtensionCliCommand<Tables extends ExtensionTables = ExtensionTables> = {
   description: string
   positionals: readonly string[]
   run(input: {args: string[]; db: ExtensionDb<Tables>}): unknown
 }
 
-export type ExtensionCommands<Tables extends ExtensionTables = ExtensionTables> = Record<
+export type ExtensionCliCommands<Tables extends ExtensionTables = ExtensionTables> = Record<
   string,
-  ExtensionCommand<Tables>
+  ExtensionCliCommand<Tables>
 >
 
 export type ToolRenderer = Component<ToolCardProps>

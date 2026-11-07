@@ -28,7 +28,7 @@ export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExten
     },
   }))
   const commands = bound.flatMap(({extension, db}) =>
-    Object.entries(extension.commands ?? {}).map(([command, entry]) => ({
+    Object.entries(extension.cliCommands ?? {}).map(([command, entry]) => ({
       name: `${extension.name}:${command}`,
       extension: extension.name,
       command,
