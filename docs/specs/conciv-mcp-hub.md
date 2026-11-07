@@ -71,8 +71,10 @@ agent CLI (any cwd) ──stdio──>   conciv mcp (hub, @conciv/cli)
 
 ### Discovery: the `engines` table
 
-- Home db: `openDb(homedir())` from `@conciv/db` opens `~/.conciv/conciv.db` with the existing migrations, so no
-  second migration set. The hub and the engine both call it. Before opening, `~/.conciv` is created (or chmodded)
+- Home db: the conciv home folder is `$CONCIV_HOME` when set, else `~/.conciv` (the folder `dev-endpoint.json`
+  already lives in). `@conciv/db` opens `<conciv home>/conciv.db` with the existing migrations, so no second
+  migration set; `openDb` gains a way to open a db at a given folder rather than under `<root>/.conciv`. Nothing is
+  written at install time, only by a running engine or hub. The hub and the engine both call it. Before opening, `~/.conciv` is created (or chmodded)
   to `0700`, because the table holds tokens; that covers the db and its `-wal` / `-shm` files.
 - New drizzle table `engines` in `packages/db/src/schema.ts` plus a generated migration (`pnpm --filter @conciv/db
   gen-migrations`): `pid` integer primary key, `root` text (project root), `apiBase` text, `startedAt` integer.
@@ -229,8 +231,8 @@ duplicate or useless tests in the same file, listed in the PR body with the reas
   click on the Claude item copies its install line, and the menu is absent once the hub is installed. The launch-menu tests
   are deleted with the feature.
 
-Tests never touch the real `~/.conciv`, any harness's real config or the user's home db: the home directory is a temp dir
-passed through the same option or env the code reads.
+Tests never touch the real `~/.conciv`, any harness's real config or the user's home db: `CONCIV_HOME` (and each
+harness's own config env, e.g. `CLAUDE_CONFIG_DIR`) points at a temp dir.
 
 ## Changeset
 
