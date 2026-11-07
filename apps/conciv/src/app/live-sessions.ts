@@ -112,7 +112,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       onEvent: () => deps.appData.invalidateSessions(),
       onError: (error) => console.error('[conciv] watching the session search index failed', error),
     })
-    onCleanup(() => void stop())
+    onCleanup(() => void stop().catch(() => undefined))
   })
 
   const chats = createMemo<LiveChat[]>((previous) => {

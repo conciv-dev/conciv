@@ -9,7 +9,7 @@ import {
   VirtualList,
 } from '@conciv/ui-kit-system'
 import {createDebouncedValue} from '@tanstack/solid-pacer'
-import {skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
+import {keepPreviousData, skipToken, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
 import {groupBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
@@ -49,10 +49,8 @@ type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: Ses
 type SessionPage = {next: HarnessListCursor | null}
 
 function bucketOf(updatedAt: number, now: number): Bucket {
-  const day = 86_400_000
-  const startOfToday = now - (now % day)
-  if (updatedAt >= startOfToday) return 'Today'
-  if (updatedAt >= startOfToday - day) return 'Yesterday'
+  if (updatedAt >= new Date(now).setHours(0, 0, 0, 0)) return 'Today'
+  if (updatedAt >= new Date(now).setHours(-24, 0, 0, 0)) return 'Yesterday'
   return 'Earlier'
 }
 
@@ -96,7 +94,11 @@ export function SessionSelector(props: {
   const search = () => (query().trim() === '' ? '' : debouncedQuery().trim())
   const list = useInfiniteQuery(() => {
     const term = search()
-    const paging = {initialPageParam: null, getNextPageParam: (page: SessionPage) => page.next}
+    const paging = {
+      initialPageParam: null,
+      getNextPageParam: (page: SessionPage) => page.next,
+      placeholderData: keepPreviousData,
+    }
     return term === ''
       ? appData.utils.sessions.list.infiniteOptions({
           input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
@@ -216,6 +218,7 @@ export function SessionSelector(props: {
     >
       <Combobox.Control class="inline-flex min-w-0 max-w-full">
         <Combobox.Trigger
+          focusable
           class={`group text-[0.75rem] text-chat-text-2 border border-transparent rounded-chat-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
             isPill()
               ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-chat-line hover:bg-chat-fill-soft data-[state=open]:border-chat-line data-[state=open]:bg-chat-fill-soft data-[state=open]:text-chat-text-hi'
@@ -269,6 +272,7 @@ export function SessionSelector(props: {
                 class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
                 placeholder="Search sessions…"
                 ref={(el) => (searchEl = el)}
+                onPointerDown={(event) => event.stopPropagation()}
               />
               <TooltipIconButton
                 tooltip="Rename current session"

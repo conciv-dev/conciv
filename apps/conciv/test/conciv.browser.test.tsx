@@ -3223,7 +3223,11 @@ describe('session selector', () => {
     await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
     await expect.element(page.getByRole('option', {name: /^a minute after midnight,/})).toBeVisible()
 
-    await expect.element(page.getByRole('listbox')).toHaveTextContent('Yesterdaya minute before midnight')
+    await expect
+      .element(page.getByRole('listbox'))
+      .toMatchTextContent(
+        /Today(?:(?!Yesterday).)*a minute after midnight(?:(?!Earlier).)*Yesterday(?:(?!Earlier).)*a minute before midnight/,
+      )
   })
 
   test('a search typed before indexing finishes shows title matches first, then text matches once it lands', async () => {
