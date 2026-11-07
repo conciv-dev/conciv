@@ -1455,7 +1455,10 @@ describe('engine version', () => {
 
   test('every engine response, refusals and preflights included, names the core release version', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-version-'))
-    const probe = defineExtension({name: 'version probe'}).server(() => ({context: {}, router: versionRouter}))
+    const probe = defineExtension({hosts: ['web', 'ios'], name: 'version probe'}).server(() => ({
+      context: {},
+      router: versionRouter,
+    }))
     const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, extensions: [probe]})
     const served = await serveHono({fetch: made.fetch, port: 0})
     try {

@@ -656,6 +656,38 @@ describe('chat pane', () => {
       await turn.awaitTurnEnd()
       turn.close()
     })
+
+    test('a run pushed to a chat whose load failed leaves the failed load in place, so Retry reopens instead of resending', async () => {
+      const {rpc, sessionId} = await newSession()
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      const attached = await coreControl.pushSocketsOpened()
+      mountChatPane(sessionId)
+      await expect.element(retry()).toBeEnabled()
+      await until(async () => (await coreControl.pushSocketsOpened()) > attached, {hangGuardMs: 20_000})
+      await coreControl.releaseFault(broken)
+
+      await coreControl.scriptTurn({toolCalls: [], text: 'the reply from the other client'})
+      await coreControl.holdTurn()
+      const turn = await sendTurn(core(), sessionId, 'a prompt from the other client')
+      await turn.awaitReply()
+
+      await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
+      await expect.element(page.getByText('a prompt from the other client')).not.toBeInTheDocument()
+
+      await retry().click()
+
+      await expect.element(page.getByText('a prompt from the other client')).toBeVisible()
+      await expect.element(page.getByText('the reply from the other client')).toBeVisible()
+      await expect.element(loadError()).not.toBeInTheDocument()
+
+      await coreControl.releaseTurn()
+      await turn.awaitTurnEnd()
+      turn.close()
+
+      await expect.element(narration()).not.toBeInTheDocument()
+      const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+      expect(asked).toHaveLength(1)
+    })
   })
 })
 

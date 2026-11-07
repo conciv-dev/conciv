@@ -171,11 +171,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   const refresh = async (): Promise<void> => {
     showWindow(await latestWindow())
   }
-  const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
+  const declinesRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId || loadFailed()
   const joinedRun = async (runId: string): Promise<boolean> => {
-    if (ownsRun(runId) || endedHere(runSource(), runId)) return false
+    if (declinesRun(runId) || endedHere(runSource(), runId)) return false
     const window = await latestWindow()
-    if (ownsRun(runId)) return false
+    if (declinesRun(runId)) return false
     showWindow(window)
     return true
   }

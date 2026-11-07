@@ -1,161 +1,96 @@
-import type {ArgDef, ArgsDef, CommandDef, CommandMeta, SubCommandsDef} from 'citty'
+import type {AnyRoute, Issue, MethodNotAllowed, UnprocessableContent} from '@bomb.sh/router'
+import {z} from 'zod'
 import type {EnvelopeError} from './failure.js'
 import {closest, comparisonKey} from './suggest.js'
 
-export type Resolved =
-  | {kind: 'leaf'; command: CommandDef; parent: CommandDef | undefined; rest: string[]; label: string}
-  | {kind: 'missing'; command: CommandDef; parent: CommandDef | undefined; label: string}
-  | {
-      kind: 'unknown'
-      command: CommandDef
-      parent: CommandDef | undefined
-      label: string
-      token: string
-      known: string[]
-    }
-  | {
-      kind: 'arguments'
-      command: CommandDef
-      parent: CommandDef | undefined
-      label: string
-      problem: EnvelopeError
-    }
+type Param = {name: string; label: string; argument: boolean}
 
-const ENVELOPE_FLAGS: ArgsDef = {json: {type: 'boolean'}, help: {type: 'boolean', alias: 'h'}}
+const UNEXPECTED = 'unexpected '
 
-async function subCommandsOf(command: CommandDef): Promise<SubCommandsDef> {
-  const value = command.subCommands
-  if (value === undefined) return {}
-  if (typeof value === 'function') return value()
-  return value
-}
+const TokenSchema = z.string()
 
-export async function argsOf(command: CommandDef): Promise<ArgsDef> {
-  const value = command.args
-  if (value === undefined) return {}
-  if (typeof value === 'function') return value()
-  return value
-}
+const PathKeySchema = z.union([z.string(), z.object({key: z.string()}).transform((segment) => segment.key)])
 
-async function metaOf(command: CommandDef): Promise<CommandMeta> {
-  const value = command.meta
-  if (value === undefined) return {}
-  if (typeof value === 'function') return value()
-  return value
-}
-
-async function subCommandOf(subs: SubCommandsDef, token: string): Promise<CommandDef | null> {
-  const value = subs[token]
-  if (value === undefined) return null
-  if (typeof value === 'function') return value()
-  return value
-}
-
-export async function resolveLeaf(root: CommandDef, rawArgs: string[]): Promise<Resolved> {
-  let command = root
-  let parent: CommandDef | undefined
-  let rest = rawArgs
-  let label = (await metaOf(root)).name ?? 'conciv'
-  for (;;) {
-    const subs = await subCommandsOf(command)
-    const known = Object.keys(subs)
-    if (known.length === 0) return {kind: 'leaf', command, parent, rest, label}
-    const args = await argsOf(command)
-    const index = commandIndex(rest, args)
-    const problem = argumentProblem(index < 0 ? rest : rest.slice(0, index), args, label)
-    if (problem !== null) return {kind: 'arguments', command, parent, label, problem}
-    const token = index < 0 ? undefined : rest[index]
-    if (token === undefined) return {kind: 'missing', command, parent, label}
-    const next = await subCommandOf(subs, token)
-    if (next === null) return {kind: 'unknown', command, parent, label, token, known}
-    parent = command
-    command = next
-    rest = rest.slice(index + 1)
-    label = `${label} ${token}`
-  }
-}
-
-export function commandProblem(resolved: Exclude<Resolved, {kind: 'leaf'}>): EnvelopeError {
-  if (resolved.kind === 'arguments') return resolved.problem
-  if (resolved.kind === 'missing') {
-    return {kind: 'user', message: `No command given for ${resolved.label}.`, hint: commandsHint(resolved.label)}
-  }
-  const suggestion = closest(resolved.token, resolved.known)
-  const tail = suggestion === null ? '' : ` Did you mean '${suggestion}'?`
+export function routeFailure(failure: MethodNotAllowed | UnprocessableContent): EnvelopeError {
+  const label = ['conciv', ...failure.path].join(' ')
+  if (failure.code === 'method-not-allowed') return methodFailure(failure, label)
+  const [first] = failure.issues
+  const token = first === undefined ? null : unexpectedToken(first)
+  if (token !== null) return unexpectedFailure({token, definition: failure.definition, label})
   return {
     kind: 'user',
-    message: `Unknown command '${resolved.token}' for ${resolved.label}.${tail}`,
-    hint: commandsHint(resolved.label),
+    message: failure.issues.map((issue) => issueText(issue, paramsOf(failure.definition))).join('; '),
+    hint: argumentsHint(label),
   }
 }
 
-export function argumentProblem(rest: string[], declared: ArgsDef, label: string): EnvelopeError | null {
-  const args = {...ENVELOPE_FLAGS, ...declared}
-  const scanned = scanTokens(rest, args)
-  return flagProblem(scanned.flags, args, declared, label) ?? positionalProblem(scanned.positionals, declared, label)
-}
-
-function commandIndex(rest: string[], args: ArgsDef): number {
-  let index = 0
-  while (index < rest.length) {
-    const token = rest[index] ?? ''
-    if (token === '--') return -1
-    if (!token.startsWith('-')) return index
-    if (!token.includes('=') && takesValue(token, args)) index += 1
-    index += 1
+function methodFailure(failure: MethodNotAllowed, label: string): EnvelopeError {
+  if (failure.method === 'execute') {
+    return {kind: 'user', message: `No command given for ${label}.`, hint: commandsHint(label)}
   }
-  return -1
+  return {kind: 'user', message: `${label} does not support --${failure.method}.`, hint: commandsHint(label)}
 }
 
-function scanTokens(rest: string[], args: ArgsDef): {flags: string[]; positionals: string[]} {
-  const flags: string[] = []
-  const positionals: string[] = []
-  let index = 0
-  while (index < rest.length) {
-    const token = rest[index] ?? ''
-    index += 1
-    if (token === '--') return {flags, positionals}
-    if (!token.startsWith('-')) {
-      positionals.push(token)
-      continue
+function unexpectedToken(issue: Issue): string | null {
+  if (issue.path !== undefined || !issue.message.startsWith(UNEXPECTED)) return null
+  try {
+    const parsed = TokenSchema.safeParse(JSON.parse(issue.message.slice(UNEXPECTED.length)))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+function unexpectedFailure(input: {token: string; definition: AnyRoute; label: string}): EnvelopeError {
+  const {token, definition, label} = input
+  const params = paramsOf(definition)
+  if (token.startsWith('-')) return flagFailure({token, params, label})
+  const children = definition.phases.flatMap((phase) => phase.routes).map((child) => child.name)
+  if (children.length === 0) {
+    return {kind: 'user', message: `Unexpected argument '${token}' for ${label}.`, hint: argumentsHint(label)}
+  }
+  const suggestion = closest(token, children)
+  const tail = suggestion === null ? '' : ` Did you mean '${suggestion}'?`
+  return {kind: 'user', message: `Unknown command '${token}' for ${label}.${tail}`, hint: commandsHint(label)}
+}
+
+function flagFailure(input: {token: string; params: Param[]; label: string}): EnvelopeError {
+  const {token, params, label} = input
+  const positional = params.find((param) => param.argument && comparisonKey(param.name) === comparisonKey(token))
+  if (positional !== undefined) {
+    return {
+      kind: 'user',
+      message: `${positional.name} is a positional argument of ${label}, not a flag.`,
+      hint: `pass it as: ${label} ${positional.label}`,
     }
-    flags.push(token)
-    if (!token.includes('=') && takesValue(token, args)) index += 1
   }
-  return {flags, positionals}
-}
-
-function flagProblem(flags: string[], args: ArgsDef, declared: ArgsDef, label: string): EnvelopeError | null {
-  const known = knownFlagKeys(args)
-  const positionals = new Map(positionalNames(declared).map((name) => [comparisonKey(name), name]))
-  for (const token of flags) {
-    const key = comparisonKey(token)
-    if (known.has(key)) continue
-    const positional = positionals.get(key)
-    if (positional !== undefined) return positionalAsFlag(positional, label)
-    return unknownFlag(token, flagNames(args), label)
-  }
-  return null
-}
-
-function positionalProblem(seen: string[], declared: ArgsDef, label: string): EnvelopeError | null {
-  const extra = seen[positionalNames(declared).length]
-  if (extra === undefined) return null
-  return {kind: 'user', message: `Unexpected argument '${extra}' for ${label}.`, hint: argumentsHint(label)}
-}
-
-function unknownFlag(token: string, names: string[], label: string): EnvelopeError {
-  const suggestion = closest(token, names)
-  const tail = suggestion === null ? '' : ` Did you mean --${suggestion}?`
+  const flags = params.filter((param) => !param.argument)
+  const suggestion = closest(
+    token,
+    flags.map((param) => param.name),
+  )
+  const spelled = flags.find((param) => param.name === suggestion)
+  const tail = spelled === undefined ? '' : ` Did you mean ${spelled.label}?`
   return {kind: 'user', message: `Unknown flag ${token} for ${label}.${tail}`, hint: argumentsHint(label)}
 }
 
-function positionalAsFlag(name: string, label: string): EnvelopeError {
-  return {
-    kind: 'user',
-    message: `${name} is a positional argument of ${label}, not a flag.`,
-    hint: `pass it as: ${label} <${name.toUpperCase()}>`,
-  }
+function issueText(issue: Issue, params: Param[]): string {
+  const [head] = issue.path ?? []
+  const key = PathKeySchema.safeParse(head)
+  if (!key.success) return issue.message
+  const param = params.find((candidate) => candidate.name === key.data)
+  return `${param?.label ?? key.data}: ${issue.message}`
+}
+
+function paramsOf(definition: AnyRoute): Param[] {
+  return definition.phases
+    .flatMap((phase) => Object.values(phase.model.params))
+    .flatMap((param) => {
+      const syntax = param.cli.syntax
+      if (syntax === undefined) return []
+      const [spelling = param.name] = syntax.label.split(/[ ,]+/)
+      return [{name: param.name, label: spelling, argument: syntax.type === 'argument'}]
+    })
 }
 
 function argumentsHint(label: string): string {
@@ -164,44 +99,4 @@ function argumentsHint(label: string): string {
 
 function commandsHint(label: string): string {
   return `run ${label} --help to list its commands`
-}
-
-function knownFlagKeys(args: ArgsDef): Set<string> {
-  const keys = new Set<string>()
-  for (const [name, def] of Object.entries(args)) {
-    if (def.type === 'positional') continue
-    for (const key of [comparisonKey(name), ...aliasesOf(def).map(comparisonKey)]) {
-      keys.add(key)
-      if (def.type === 'boolean') keys.add(`no${key}`)
-    }
-  }
-  return keys
-}
-
-function flagNames(args: ArgsDef): string[] {
-  return Object.entries(args)
-    .filter(([, def]) => def.type !== 'positional')
-    .map(([name]) => name)
-}
-
-function positionalNames(args: ArgsDef): string[] {
-  return Object.entries(args)
-    .filter(([, def]) => def.type === 'positional')
-    .map(([name]) => name)
-}
-
-function takesValue(token: string, args: ArgsDef): boolean {
-  const key = comparisonKey(token)
-  return Object.entries(args).some(([name, def]) => valueFlagKeys(name, def).includes(key))
-}
-
-function valueFlagKeys(name: string, def: ArgDef): string[] {
-  if (def.type !== 'string' && def.type !== 'enum') return []
-  return [comparisonKey(name), ...aliasesOf(def).map(comparisonKey)]
-}
-
-function aliasesOf(def: ArgDef): string[] {
-  if (!('alias' in def) || def.alias === undefined) return []
-  if (Array.isArray(def.alias)) return def.alias
-  return [def.alias]
 }
