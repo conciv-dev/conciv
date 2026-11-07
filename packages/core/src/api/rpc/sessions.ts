@@ -68,7 +68,7 @@ async function sessionPage(
   nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
 ): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit}
-  return listSessionMetas({
+  const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
     nativePages: await nativePagesOf(page),
@@ -78,6 +78,14 @@ async function sessionPage(
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
   })
+  if (listed.sessions.length >= input.limit || listed.next === null) return listed
+  const rest = await sessionPage(
+    chat,
+    {...input, cursor: listed.next, limit: input.limit - listed.sessions.length},
+    search,
+    nativePagesOf,
+  )
+  return {sessions: [...listed.sessions, ...rest.sessions], next: rest.next}
 }
 
 function cleanTitle(title: string): string {
