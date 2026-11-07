@@ -110,6 +110,7 @@ export type ChatServer = ChatDelivery & {
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
+  record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
 
@@ -263,6 +264,15 @@ function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMes
 }
 
 async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
+  await saveShown(messages, threadId, processor, (message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+}
+
+async function saveShown(
+  messages: MessageStore,
+  threadId: string,
+  processor: StreamProcessor,
+  finish: (message: ModelMessage) => ModelMessage,
+): Promise<void> {
   const stored = await messages.loadThread(threadId)
   const saved = storedToolCallIds(stored)
   const shown = processor
@@ -271,7 +281,7 @@ async function saveStoppedTurn(messages: MessageStore, threadId: string, process
     .map((message) => unsavedParts(message, saved))
     .filter((message) => message.parts.length > 0)
     .flatMap(uiMessageToModelMessages)
-    .map((message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+    .map(finish)
   if (shown.length === 0) return
   const replaced = new Set(shown.flatMap((message) => (message.id === undefined ? [] : [message.id])))
   const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
@@ -558,6 +568,11 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const thread = ReconstructedSchema.parse(await response.json())
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
       return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}
+    },
+    record: async (threadId, chunks) => {
+      const processor = new StreamProcessor({})
+      for (const chunk of chunks) followRun(processor, chunk)
+      await saveShown(stores.messages, threadId, processor, (message) => message)
     },
     codeRunner: (codeMode) => {
       if (driver === null) return null

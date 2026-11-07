@@ -18,7 +18,6 @@ import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {cappedText, safeStringify} from '@conciv/chat'
 import {callTrace} from '../call-trace.js'
-import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export const PAGE_ERROR_NAME = {
   'no-widget': 'NO_PAGE_CLIENT',
@@ -80,15 +79,17 @@ async function hubGated<Result>(
   const refusal = await deps.admitOutside(scope, trace.hub.client)
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
   const callId = randomUUID()
-  const mirror = {threadId: scope.id, live: await scope.run.live()}
-  const publish = (chunks: ChatEvent[]) => chunks.forEach((chunk) => scope.stream.publish(chunk))
-  publish(trace.start(mirror, callId, name, input))
+  const mirrored = {threadId: scope.id, live: await scope.run.live()}
+  const mirror = trace.mirror(mirrored, {publish: scope.stream.publish, record: scope.run.record})
+  mirror.publish(trace.start(mirrored, callId, name, input))
   try {
     const value = await run()
-    publish(trace.result(mirror, callId, cappedText(safeStringify(value)), false))
+    mirror.publish(trace.result(mirrored, callId, cappedText(safeStringify(value)), false))
+    await mirror.settle()
     return value
   } catch (error) {
-    publish(trace.result(mirror, callId, String(error), true))
+    mirror.publish(trace.result(mirrored, callId, String(error), true))
+    await mirror.settle()
     throw error
   }
 }

@@ -110,6 +110,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       stop: (runIds) => deps.plane.stop(id, runIds),
       compact: () => deps.plane.compact(id),
       live: () => deps.plane.live(id),
+      record: (chunks) => deps.plane.record(id, chunks),
     },
   }
 }
@@ -142,6 +143,7 @@ function established(raw: SessionScope): SessionScope {
       stop: inScope(raw.run.stop),
       compact: inScope(raw.run.compact),
       live: raw.run.live,
+      record: inScope(raw.run.record),
     },
   }
   return scope

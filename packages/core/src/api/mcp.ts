@@ -211,18 +211,24 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
   return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
-type PublishChunks = (chunks: ChatEvent[]) => void
+type PublishChunks = (chunks: readonly ChatEvent[]) => void
 
 type CallTrace = ReturnType<typeof callTrace>
 
-type CallPublisher = {publish: PublishChunks; trace: CallTrace; run: {threadId: string; live: boolean}}
+type CallPublisher = {
+  publish: PublishChunks
+  settle: () => Promise<void>
+  trace: CallTrace
+  run: {threadId: string; live: boolean}
+}
 
 function replyText(reply: ExecuteReply): string {
   return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
-function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): void {
+async function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): Promise<void> {
   calls.publish(calls.trace.result(calls.run, callId, replyText(reply), reply.isError === true))
+  await calls.settle()
 }
 
 async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
@@ -236,7 +242,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
   const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
-  publishResult(calls, executionId, reply)
+  await publishResult(calls, executionId, reply)
   return reply
 }
 
@@ -250,7 +256,7 @@ async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): 
       isError: true,
     }),
   )
-  publishResult(calls, callId, reply)
+  await publishResult(calls, callId, reply)
   return reply
 }
 
@@ -284,20 +290,18 @@ type McpCaller = {trace: CallTrace; outside: boolean}
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
   const origin = caller.trace.hub
   const refusal = origin === null || caller.outside ? null : await deps.admitOutside(scope, origin.client)
+  const run = {threadId: scope.id, live: await scope.run.live()}
+  const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
   const runner = await deps.codeRunner(
     scope.id,
-    (chunk) => scope.stream.publish(caller.trace.mark(chunk)),
+    (chunk) => mirror.publish([caller.trace.mark(chunk)]),
     origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client) : undefined,
   )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
   }
-  const calls: CallPublisher = {
-    publish: (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk)),
-    trace: caller.trace,
-    run: {threadId: scope.id, live: await scope.run.live()},
-  }
+  const calls: CallPublisher = {publish: mirror.publish, settle: mirror.settle, trace: caller.trace, run}
   const discover = runner.discover
   const discoverTools =
     discover === null

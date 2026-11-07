@@ -3,6 +3,7 @@ import {generateMessageId} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, HUB_FORWARD_ORIGIN} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/chat'
+import {logError} from '../lib/debug.js'
 
 const HubOriginSchema = z.object({
   origin: z.enum(['hub', HUB_FORWARD_ORIGIN]).optional().catch(undefined),
@@ -14,6 +15,8 @@ type HubOrigin = {client: string | null; forwarded: boolean}
 type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
 
 type CallRun = {threadId: string; live: boolean}
+
+type MirrorSink = {publish: (chunk: ChatEvent) => void; record: (chunks: readonly ChatEvent[]) => Promise<void>}
 
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
@@ -30,6 +33,23 @@ export function callTrace(header: (name: string) => string | null) {
       ...(hub?.forwarded === true ? [] : [resultChunk(callId, text, failed, marker)]),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
+    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, sink),
+  }
+}
+
+function mirrorRun(run: CallRun, sink: MirrorSink) {
+  const recorded: ChatEvent[] = []
+  return {
+    publish: (chunks: readonly ChatEvent[]): void => {
+      if (!run.live) recorded.push(...chunks)
+      chunks.forEach((chunk) => sink.publish(chunk))
+    },
+    settle: async (): Promise<void> => {
+      if (run.live) return
+      await sink
+        .record(recorded.splice(0))
+        .catch((error: unknown) => logError(`[hub] saving an outside call to the chat failed: ${String(error)}`))
+    },
   }
 }
 
