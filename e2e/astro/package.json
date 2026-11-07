@@ -19,6 +19,6 @@
     "@playwright/test": "catalog:"
   },
   "engines": {
-    "node": ">=22.23.4"
+    "node": ">=26.0.0"
   }
 }

@@ -64,7 +64,7 @@ export function stoppedWith(driver: IsolateDriver, signal: AbortSignal, log: Log
       signal.addEventListener('abort', stop, {once: true})
       if (signal.aborted) stop()
       return {
-        execute: <T>(code: string) => context.execute<T>(code),
+        execute: (code, options) => context.execute(code, options),
         dispose: () => {
           signal.removeEventListener('abort', stop)
           return context.dispose()

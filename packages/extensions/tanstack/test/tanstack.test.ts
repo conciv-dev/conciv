@@ -327,11 +327,15 @@ describe('resolution matrix', () => {
   function writeFixtureManifest(dir: string, packed: PackedPackage[]): void {
     const root = packed.find((entry) => entry.name === rootPackage)
     if (!root) throw new Error('root package missing from closure')
+    const {packageManager} = z
+      .object({packageManager: z.string()})
+      .parse(JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8')))
     const manifest = {
       name: 'conciv-resolution-matrix-fixture',
       version: '0.0.0',
       private: true,
       type: 'module',
+      packageManager,
       dependencies: {
         [rootPackage]: `file:${root.tarball}`,
         '@tanstack/react-router': '^1.170.0',

@@ -13,7 +13,7 @@ Persistence package for conciv, internal to `@conciv/it`. It defines the drizzle
 
 ## Invariants
 
-- `package.json:engines.node` is `>=22.13` (needed for `node:sqlite`).
+- `package.json:engines.node` is `>=26.0.0`.
 - `turbo.json` makes `build` and `typecheck` depend on `gen-migrations`, so `src/migrations.gen.ts` is regenerated from `drizzle/` before compiling.
 - Schema changes go through `drizzle-kit` against `drizzle.config.ts`, then `gen-migrations`; `openDb` only applies the bundled `migrations` array.
 

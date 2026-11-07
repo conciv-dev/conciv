@@ -56,7 +56,7 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   runInProgress: Accessor<boolean>
-  hydrated: Accessor<boolean>
+  loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
   harnessAt: (index: number) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
@@ -125,7 +125,6 @@ export function createChat(options: CreateChatOptions): Chat {
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
-  const [hydrated, setHydrated] = createSignal(false)
   const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: (string | null)[]}>({
     pending: [],
     harnesses: [],
@@ -139,7 +138,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         'harnesses',
         reconcile(hydration.messages.map((message) => hydration.messageHarness[message.id] ?? null)),
       )
-      setHydrated(true)
     },
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
@@ -187,6 +185,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
+  const loadFailed = createMemo(() => chat.messages().length === 0 && chat.error() !== undefined)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -250,7 +249,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runError,
     sessionRunning,
     runInProgress,
-    hydrated,
+    loadFailed,
     pendingApprovals: () => served.pending,
     harnessAt: (index) => served.harnesses[index] ?? undefined,
     decide,
