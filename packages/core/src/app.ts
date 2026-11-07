@@ -378,7 +378,6 @@ function makeServerHarness(harness: HarnessAdapter, cwd: string, claudeHome?: st
     ttyCommand: harness.tty?.command,
     transcriptExists: history?.transcriptPath ? transcriptExists : undefined,
     transcriptMessages: history ? (token) => history.messages(cwd, token, claudeHome) : undefined,
-    connectPlan: harness.connect?.plan,
   }
 }
 

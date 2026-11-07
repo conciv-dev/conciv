@@ -53,14 +53,6 @@ export type HarnessConnectContext = {
 
 export type HarnessConnectFile = {path: string; contents: string; mode?: number}
 
-export type HarnessConnectPlan = {
-  argv: string[]
-  env: Record<string, string>
-  files: HarnessConnectFile[]
-}
-
-export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
-
 export type HarnessInitDetection = {bin: string; configDir: string[]}
 
 export type HarnessInitCommand = {bin: string; args: string[]}
@@ -96,10 +88,6 @@ export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
 export type HarnessInitContribution<Id extends string = string> =
   | HarnessInit<Id>
   | (HarnessInitBase<Id> & {init: 'none'})
-
-export type TerminalOpenRequest = {bin: string; args: string[]}
-
-export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
 
 export type HarnessChatDeps = {
   cwd: string

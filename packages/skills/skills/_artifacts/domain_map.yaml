@@ -121,7 +121,7 @@ skills:
   - name: 'Building a conciv harness adapter'
     slug: 'conciv-harness'
     domain: 'harness-adapters'
-    description: 'Wiring a new coding-agent CLI into conciv as a HarnessAdapter: capabilities, connect.plan(), chatConfig(), and the models/history/connect/tty/commands sidecars.'
+    description: 'Wiring a new coding-agent CLI into conciv as a HarnessAdapter: capabilities, chatConfig(), and the models/history/tty/commands sidecars.'
     type: 'core'
     packages:
       - '@conciv/harness'
@@ -130,7 +130,6 @@ skills:
       - 'HarnessAdapter / defineHarness'
       - 'HarnessCapabilities compile-time gating'
       - 'chatConfig() returning a @tanstack/ai-* text adapter'
-      - 'connect.plan() launch args'
       - 'sandbox-virtual cwd handling'
     tasks:
       - 'add a new harness id for a coding-agent CLI'

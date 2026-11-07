@@ -2,7 +2,7 @@
 
 ## Overview
 
-Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combines the model list, connect/TTY argv builders, the chat adapter config (on `claudeCode` from `@conciv/ai/server`), slash-command probing through `@anthropic-ai/claude-agent-sdk`, and transcript parsing of `~/.claude/projects/*.jsonl`. Init behaviour comes from `claudeInit` in `@conciv/harness-init/claude`.
+Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combines the model list, the TTY argv builder, the chat adapter config (on `claudeCode` from `@conciv/ai/server`), slash-command probing through `@anthropic-ai/claude-agent-sdk`, and transcript parsing of `~/.claude/projects/*.jsonl`. Init behaviour comes from `claudeInit` in `@conciv/harness-init/claude`.
 
 ## Interface
 
@@ -23,7 +23,6 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `claudeExecutable` throws when a `--plugin-dir` or `--settings` path contains whitespace, because `@tanstack/ai-claude-code` splits the executable string on spaces (`spaceFreePath`, `chat.ts`).
 - Chat always passes `--strict-mcp-config` and disallows `AskUserQuestion` (`claudeExecutable`, `claudeChatConfig`).
 - Connect uses strict `claudeMcpArgs` only when `ctx.owned`, else `claudeMcpArgsPermissive`; `--resume` when `ctx.resume`, else `--session-id` (`claudeConnectArgs`).
-- `--plugin-dir` is added to connect argv only when `CONCIV_PLUGIN_DIR` is non-null (`claudeConnectPlan`, `index.ts`).
 - `sessionSummary`, `transcriptMessages` and `observeTranscript` refuse session ids whose path escapes `transcriptRoot` (`withinProject` via `containedPath`).
 - History skips sidechain records (`isSidechain`), machinery records in user turns (`isFromMachinery`), `INTERNAL_MARKERS`, `SYNTHETIC_MARKERS` and `MACHINERY_XML_BLOCK`; assistant records sharing `message.id` are merged and tool results attach to the last assistant message (`foldAssistantTurn`, `foldUserTurn`).
 - `MAX_TITLE` 80, `MAX_PREVIEW` 200, `MAX_SESSIONS` 50 (`history.ts`).

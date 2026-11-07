@@ -53,7 +53,6 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
     name: harness.displayName ?? harness.id,
-    canLaunch: Boolean(harness.connect),
     imageInput: harness.capabilities.imageInput,
   }
 }

@@ -661,7 +661,6 @@ describe('api harness switching', () => {
         {
           id: 'alpha',
           name: 'Alpha',
-          canLaunch: false,
           imageInput: false,
           models: [{id: 'a-model', name: 'A'}],
           defaultModel: 'a-model',
@@ -670,7 +669,6 @@ describe('api harness switching', () => {
         {
           id: 'beta',
           name: 'Beta',
-          canLaunch: false,
           imageInput: false,
           models: [{id: 'b-model', name: 'B'}],
           defaultModel: 'b-model',
@@ -679,7 +677,6 @@ describe('api harness switching', () => {
         {
           id: 'gamma',
           name: 'Gamma',
-          canLaunch: false,
           imageInput: false,
           models: [],
           defaultModel: null,

@@ -157,7 +157,6 @@ export const HarnessModelSchema = z.object({
 export const HarnessMetaSchema = z.object({
   id: z.string(),
   name: z.string(),
-  canLaunch: z.boolean(),
   imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
 })
 export type HarnessMeta = z.infer<typeof HarnessMetaSchema>

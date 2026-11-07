@@ -69,8 +69,7 @@ declare module 'vitest/internal/browser' {
     scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
-    setTerminalLaunch: (succeeds: boolean) => Promise<void>
-    terminalLaunches: () => Promise<number>
+    fakeHubCli: (outcome: 'ok' | 'fail' | null) => Promise<void>
     rpcCallCount: (path: string[]) => Promise<number>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>

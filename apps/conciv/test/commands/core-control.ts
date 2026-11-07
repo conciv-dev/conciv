@@ -1,3 +1,5 @@
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import type {EngineStaleness} from '@conciv/contract'
@@ -21,8 +23,6 @@ export type BootCoreInput = {
   text?: string
   resume?: boolean
   displayName?: string
-  connect?: boolean
-  terminal?: boolean
   history?: HarnessSessionMeta[]
   commands?: HarnessCommand[]
   models?: HarnessModel[]
@@ -58,14 +58,14 @@ type Fault = {
 
 type CoreTestkit = typeof import('./core-testkit.js')
 
-type TerminalState = {launches: number; succeeds: boolean}
+type HubCliState = {root: string; saved: {PATH: string; HOME: string; CONCIV_HOME: string}} | null
 
 type FileState = {
   kit: CoreKit | null
   staleness: {value: EngineStaleness}
   faults: Map<string, Fault>
   handles: {count: number}
-  terminal: TerminalState
+  hubCli: {current: HubCliState}
   push: PushWireWatch | null
 }
 
@@ -95,7 +95,7 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     staleness: {value: FRESH},
     faults: new Map(),
     handles: {count: 0},
-    terminal: {launches: 0, succeeds: true},
+    hubCli: {current: null},
     push: null,
   }
   files.set(key, created)
@@ -124,11 +124,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = stateOf(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const openedTerminal = (): Promise<boolean> => {
-    state.terminal.launches += 1
-    return Promise.resolve(state.terminal.succeeds)
-  }
-  const {bootCoreKit, createTerminalExtension, watchPushWire} = await testkitOf(ctx)
+  const {bootCoreKit, watchPushWire} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -140,18 +136,6 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     alternates: input.alternates,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
-    ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),
-    ...(input.connect
-      ? {
-          connect: {
-            plan: (context) => ({
-              argv: ['claude', '--resume', context.harnessSessionId ?? 'new'],
-              env: {},
-              files: [],
-            }),
-          },
-        }
-      : {}),
   })
   state.kit = kit
   state.push = watchPushWire(ctx.page)
@@ -163,8 +147,7 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   for (const fault of state.faults.values()) await fault.dispose()
   state.faults.clear()
   state.staleness.value = FRESH
-  state.terminal.launches = 0
-  state.terminal.succeeds = true
+  restoreHubCli(state)
   state.push = null
   const kit = state.kit
   state.kit = null
@@ -256,11 +239,32 @@ const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value):
   kitOf(ctx).harness.script.scriptCustomEvent(name, value)
 }
 
-const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
-  stateOf(ctx).terminal.succeeds = succeeds
+const fakeHubCli: BrowserCommand<['ok' | 'fail' | null]> = (ctx, outcome): void => {
+  const state = stateOf(ctx)
+  if (outcome === null) return restoreHubCli(state)
+  const current = state.hubCli.current ?? {
+    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
+    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', CONCIV_HOME: process.env.CONCIV_HOME ?? ''},
+  }
+  state.hubCli.current = current
+  mkdirSync(join(current.root, 'bin'), {recursive: true})
+  mkdirSync(join(current.root, 'home'), {recursive: true})
+  const exit = outcome === 'ok' ? 'exit 0' : 'echo "claude: could not add conciv-hub" >&2; exit 2'
+  writeFileSync(join(current.root, 'bin', 'claude'), `#!/bin/sh\n${exit}\n`, {mode: 0o755})
+  Object.assign(process.env, {
+    PATH: join(current.root, 'bin'),
+    HOME: join(current.root, 'home'),
+    CONCIV_HOME: join(current.root, 'conciv'),
+  })
 }
 
-const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
+function restoreHubCli(state: FileState): void {
+  const current = state.hubCli.current
+  if (current === null) return
+  state.hubCli.current = null
+  Object.assign(process.env, current.saved)
+  rmSync(current.root, {recursive: true, force: true})
+}
 
 const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => kitOf(ctx).rpcServed(path)
 
@@ -489,8 +493,7 @@ export const coreCommands = {
   scriptError,
   clearScript,
   scriptCustomEvent,
-  setTerminalLaunch,
-  terminalLaunches,
+  fakeHubCli,
   rpcCallCount,
   installFault,
   releaseFault,

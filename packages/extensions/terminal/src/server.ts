@@ -5,11 +5,10 @@ import {z} from 'zod'
 import {defineExtension, type ServerApi, type ServerHarness} from '@conciv/extension'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
+import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
-import {launchConnectPlan, renderConnectCommand} from './server/launch.js'
 import {
   TERMINAL_NAME,
   TerminalOpenRequestSchema,
@@ -23,7 +22,6 @@ const ESCAPE_KEY = String.fromCharCode(27)
 type TerminalRuntime = {
   server: ServerApi<Record<never, never>>
   tty: ReturnType<typeof createTtySessions>
-  openTerminal?: TerminalOpener
 }
 
 type TerminalEnv = {Variables: {terminal: TerminalRuntime}}
@@ -100,18 +98,6 @@ async function mintHarnessSession(runtime: TerminalRuntime, sessionId: SessionId
   return minted
 }
 
-async function connectPlanFor(
-  runtime: TerminalRuntime,
-  sessionId: SessionId,
-  model: string | null,
-  base: string,
-): Promise<HarnessConnectPlan | null> {
-  const plan = runtime.server.harness(sessionId).connectPlan
-  if (!plan) return null
-  const harnessSessionId = await runtime.server.sessions.resumeToken(sessionId)
-  return plan(await connectContext(runtime, sessionId, harnessSessionId, model, base))
-}
-
 async function openTtySession(
   runtime: TerminalRuntime,
   sessionId: SessionId,
@@ -134,10 +120,7 @@ const terminalOs = os.$context<RpcContext>()
 
 const SessionInputSchema = z.object({sessionId: SessionId})
 
-const LaunchInputSchema = SessionInputSchema.extend({model: z.string().min(1).max(200).optional()})
-
 const noTty = {NO_TTY: {message: 'harness has no terminal mode'}}
-const noConnect = {NO_CONNECT: {message: 'harness cannot be launched in a terminal'}}
 const busy = {BUSY: {message: 'session busy'}}
 
 function makeTerminalRouter(runtime: TerminalRuntime) {
@@ -169,31 +152,6 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
         const session = await liveTty(runtime, input.sessionId)
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
-      }),
-    launch: terminalOs
-      .errors(noConnect)
-      .input(LaunchInputSchema)
-      .output(z.object({ok: z.boolean()}))
-      .handler(async ({input, context, errors}) => {
-        const plan = await connectPlanFor(runtime, input.sessionId, input.model ?? null, apiBase(runtime, context))
-        if (!plan) throw errors.NO_CONNECT()
-        const {server} = runtime
-        return {
-          ok: await launchConnectPlan(plan, {
-            cwd: server.cwd,
-            stateDir: server.stateDir,
-            ...(runtime.openTerminal ? {openTerminal: runtime.openTerminal} : {}),
-          }),
-        }
-      }),
-    connectCommand: terminalOs
-      .errors(noConnect)
-      .input(SessionInputSchema)
-      .output(z.object({command: z.string()}))
-      .handler(async ({input, context, errors}) => {
-        const plan = await connectPlanFor(runtime, input.sessionId, null, apiBase(runtime, context))
-        if (!plan) throw errors.NO_CONNECT()
-        return {command: renderConnectCommand(plan, runtime.server.cwd)}
       }),
   })
 }
@@ -249,10 +207,10 @@ function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
 
 export type TerminalAppType = ReturnType<typeof ttyApp>
 
-export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = {}) {
+export function createTerminalExtension() {
   return defineExtension({name: TERMINAL_NAME}).server((server) => {
     const tty = createTtySessions()
-    const runtime: TerminalRuntime = {server, tty, ...(opts.openTerminal ? {openTerminal: opts.openTerminal} : {})}
+    const runtime: TerminalRuntime = {server, tty}
     return {
       context: {},
       router: makeTerminalRouter(runtime),
