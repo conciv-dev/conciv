@@ -8,7 +8,14 @@ export function reflowAt(input: {
   live: LiveComponent
   width: number
   overflowX: boolean
-}): Reflow {
+}): {reflow: Reflow; rows: GateRow[]} {
+  const reflow = measuredAt(input)
+  return {reflow, rows: failuresOf({root: input.root, renderers: input.renderers, reflow})}
+}
+
+type Input = Parameters<typeof reflowAt>[0]
+
+function measuredAt(input: Input): Reflow {
   const {root, renderers, width, overflowX} = input
   const tagged = [...walk(root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{tag: node.reflow, node}]))
   const tags = tagged.map(({tag, node}) => ({...tag, node: node.id}))
@@ -73,9 +80,7 @@ function overlapsUnder(input: {element: LiveComponent; renderers: ReturnType<typ
   })
   return kids.flatMap((a, index) =>
     kids.slice(index + 1).flatMap((c): [string, string][] => {
-      const x = Math.min(a.box.x + a.box.w, c.box.x + c.box.w) - Math.max(a.box.x, c.box.x)
-      const y = Math.min(a.box.y + a.box.h, c.box.y + c.box.h) - Math.max(a.box.y, c.box.y)
-      return x > COVER_PX && y > COVER_PX && a.box.w > 0 && c.box.w > 0 ? [[a.node, c.node]] : []
+      return covers({a: a.box, b: c.box}) ? [[a.node, c.node]] : []
     }),
   )
 }
@@ -145,4 +150,47 @@ function twoWay(input: {
   return row(
     `${head}: did not ${tag.kind}; it is ${wide}px wide, under its breakpoint ${breakpoint}px, and its children ${how}`,
   )
+}
+
+function failuresOf(input: {root: DesignNode; renderers: Input['renderers']; reflow: Reflow}): GateRow[] {
+  const {root, renderers, reflow} = input
+  const {width} = reflow
+  const twoWayNodes = new Set(reflow.rows.map((entry) => entry.node))
+  const boxes = new Map([...walk(root)].map(({node}) => [node.id, node.figma?.box ?? node.box]))
+  const drawn = (a: string, b: string): boolean => {
+    const one = boxes.get(a)
+    const two = boxes.get(b)
+    return one !== undefined && two !== undefined && covers({a: one, b: two})
+  }
+  const failed = [...walk(root)].flatMap(({node}) => {
+    const says = [
+      ...(reflow.sticksOut.includes(node.id) ? ['sticks out of the page; keep it inside the page width'] : []),
+      ...(node === root && reflow.overflowX ? ['the page scrolls sideways; nothing may be wider than the page'] : []),
+      ...reflow.overlaps.flatMap(([a, b]) =>
+        a === node.id && !drawn(a, b) ? [`covers its sibling [${b}], which the design does not`] : [],
+      ),
+      ...reflow.tags
+        .filter((tag) => tag.node === node.id && tag.ok === false && !twoWayNodes.has(tag.node))
+        .map((tag) => `does not ${tag.kind} as tagged: ${tag.why}`),
+    ]
+    const kind = node.gate?.kind ?? node.kind
+    const name = node.figma?.name ?? ''
+    return says.map((said): GateRow => ({
+      node: node.id,
+      ...renderers.named(node.id),
+      kind,
+      name,
+      text: `${kind} ${name} [${node.id}] at ${width} wide: ${said}`,
+      magnitude: 'reflow',
+      width,
+    }))
+  })
+  return [...reflow.rows.map((entry): GateRow => ({...entry, magnitude: 'reflow', width})), ...failed]
+}
+
+function covers(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
+  const y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
+  return x > COVER_PX && y > COVER_PX && a.w > 0 && b.w > 0
 }

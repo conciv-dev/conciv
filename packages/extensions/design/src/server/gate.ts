@@ -224,6 +224,7 @@ function countsOf(rows: GateRow[]): Counts {
     slightly: count('slightly'),
     pins: count('pin'),
     other: count('other'),
+    reflow: count('reflow'),
     rows: rows.length,
   }
 }

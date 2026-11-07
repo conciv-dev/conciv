@@ -79,9 +79,7 @@ const LiveComponentFieldsSchema = z.object({
   tag: z.string(),
   text: z.string(),
   box: BoxSchema.describe('clipped to the measured viewport'),
-  bounds: BoxSchema.default({x: 0, y: 0, w: 0, h: 0}).describe(
-    'the page box, unclipped and unrounded, scroll included',
-  ),
+  bounds: BoxSchema.default({x: 0, y: 0, w: 0, h: 0}).describe('the page box, unclipped and unrounded, scrolled'),
   scrolls: z.boolean().default(false).describe('its content is wider than its box'),
   textBox: BoxSchema.nullable(),
   glyphs: z.array(GlyphSchema).describe('the text nodes the component paints, each with one box per line'),
@@ -227,7 +225,7 @@ export const MappingSchema = z.array(
   }),
 )
 
-const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other'])
+const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow'])
 
 const GateRowSchema = z.object({
   node: z.string(),
@@ -239,6 +237,7 @@ const GateRowSchema = z.object({
   name: z.string(),
   text: z.string(),
   magnitude: MagnitudeSchema,
+  width: z.number().optional().describe('the page width a reflow row was measured at'),
 })
 
 const ReflowSchema = z.object({
@@ -278,7 +277,9 @@ const CoverageSchema = z.object({
 
 const Count = z.number()
 
-const CountsSchema = z.object({much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count})
+const COUNTED = {much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count}
+
+const CountsSchema = z.object({...COUNTED, reflow: Count.default(0)})
 
 const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
 

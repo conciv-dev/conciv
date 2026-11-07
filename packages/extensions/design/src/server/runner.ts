@@ -51,6 +51,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     await store.writeMapping({id: record.id, mapping})
     const widths = widthsOf({design, styles: measured.queries})
     const results = []
+    const failures = []
     for (const {width} of widths) {
       const narrow =
         width === measured.width
@@ -62,22 +63,32 @@ export function createRunner(runtime: DesignRuntime): Runner {
               selectors: mapping.map((entry) => entry.selector),
             })
       const at = renderersOf({live: narrow.live, mapping, matches: narrow.matches})
-      results.push(reflowAt({root: design.root, renderers: at, live: narrow.live, width, overflowX: narrow.overflowX}))
+      const measuredAt = reflowAt({
+        root: design.root,
+        renderers: at,
+        live: narrow.live,
+        width,
+        overflowX: narrow.overflowX,
+      })
+      results.push(measuredAt.reflow)
+      failures.push(...measuredAt.rows)
     }
     const reflow = {widths, results}
+    const rows = [...gate.rows, ...failures]
+    const counts = {...gate.counts, reflow: failures.length, rows: gate.counts.rows + failures.length}
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const written: Round = {
       round,
-      rows: gate.rows,
+      rows,
       reflow,
       coverage,
-      counts: gate.counts,
+      counts,
       pixels: {share: pixels.share},
       at: Date.now(),
       tree,
     }
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
-    return {round, rows: gate.rows, reflow, coverage, counts: gate.counts}
+    return {round, rows, reflow, coverage, counts}
   }
 }
 
