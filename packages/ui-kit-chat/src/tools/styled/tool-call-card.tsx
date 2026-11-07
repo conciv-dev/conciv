@@ -9,7 +9,6 @@ import type {
   ToolViewCtx,
 } from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
-import {ToolDurationProvider} from '../primitives/tool-duration.js'
 import {
   genericRowProjection,
   headerRowProjection,
@@ -19,7 +18,7 @@ import {
 import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
 import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
 import {PermissionCard} from './permission-card.js'
-import {CardChromeProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
+import {CardChromeProvider, ToolDurationProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
 import {TraceBodyFrame, type TraceOutputTone} from '../../styled/trace/output-block.js'
 import {TracePermissionBlock} from '../../styled/trace/permission-block.js'
@@ -47,32 +46,42 @@ export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
 }
 
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
-  const matched = () => props.tools?.().find((entry) => entry.names.includes(props.part.name))
   const declared = () => props.ctx.catalog.meta(props.part.name)
-  const render = (): ToolUIComponent => {
-    const card = matched()?.render
-    if (card) return card
-    if (declared()) return MetaToolCard
-    return props.fallback?.render ?? ToolFallback
-  }
   const embedded = useEmbeddedCard()
+  const matched = () => matchedEntry(props.tools?.(), props.part.name)
   const ownsApproval = () => !embedded() && (matched() !== undefined || declared() !== undefined)
   const duration = (): number | undefined => props.durationMs
   return (
     <ToolDurationProvider value={duration}>
-      <Dynamic
-        component={render()}
-        part={props.part}
-        result={props.result}
-        ctx={props.ctx}
-        addResult={(value) => props.ctx.addResult(props.part.id, value)}
-        durationMs={props.durationMs}
-        capture={props.ctx.captureFor?.(props.part.id)}
-      />
+      <ToolCardView {...props} />
       <Show when={ownsApproval()}>
         <PermissionCard part={props.part} ctx={props.ctx} />
       </Show>
     </ToolDurationProvider>
+  )
+}
+
+function matchedEntry(tools: ToolCardEntry[] | undefined, name: string): ToolCardEntry | undefined {
+  return tools?.find((entry) => entry.names.includes(name))
+}
+
+function ToolCardView(props: ToolCallCardProps): JSX.Element {
+  const render = (): ToolUIComponent => {
+    const card = matchedEntry(props.tools?.(), props.part.name)?.render
+    if (card) return card
+    if (props.ctx.catalog.meta(props.part.name)) return MetaToolCard
+    return props.fallback?.render ?? ToolFallback
+  }
+  return (
+    <Dynamic
+      component={render()}
+      part={props.part}
+      result={props.result}
+      ctx={props.ctx}
+      addResult={(value) => props.ctx.addResult(props.part.id, value)}
+      durationMs={props.durationMs}
+      capture={props.ctx.captureFor?.(props.part.id)}
+    />
   )
 }
 
@@ -95,8 +104,13 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const embeddedCard = (): JSX.Element => (
-    <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
-      <ToolCallCard
+    <CardChromeProvider
+      value="embedded"
+      headerChannel={publishHeader}
+      rowLine={rowLine}
+      duration={() => local.durationMs}
+    >
+      <ToolCardView
         part={local.part}
         result={local.result}
         ctx={local.ctx}
