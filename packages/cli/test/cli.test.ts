@@ -28,11 +28,16 @@ import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
 import {writeOutcome} from '../src/envelope.js'
+import cliManifest from '../package.json' with {type: 'json'}
 import type {LedgerEntry} from '../src/init/ledger.js'
 import {emitOutro} from '../src/init/outro.js'
 import {type InitContext, type InitStep, runInit, type RunSettings, runSteps} from '../src/init/pipeline.js'
 import {preflight} from '../src/init/preflight.js'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
+import {
+  CLAUDE_CONNECT_PLUGIN_VERSION,
+  claudeConnectDir,
+  claudeConnectPluginFiles,
+} from '@conciv/harness-init/claude/files'
 import {writeConsent} from '../src/init/steps/harness/consent.js'
 import {dlxCommand} from 'nypm'
 import {docsPackStep} from '../src/init/steps/docs-pack.js'
@@ -226,6 +231,11 @@ describe('cli', () => {
     })
 
     describe('the built conciv bin through a pipe', () => {
+      it('prints the cli release version for --version', () => {
+        const printed = conciv(['--version'])
+        expect([printed.status, printed.stdout.trim()]).toEqual([0, cliManifest.version])
+      })
+
       it('prints --help without ANSI escapes when stdout is not a terminal', () => {
         const help = conciv(['--help'])
         expect(help.status).toBe(0)
@@ -3626,7 +3636,7 @@ export default defineConfig({plugins: [conciv()]})`)
           'printf \'%s\\n\' "$*" >> "$CONCIV_CLAUDE_RECORD"',
           '[ "$CONCIV_CLAUDE_EXIT" = "0" ] || exit "$CONCIV_CLAUDE_EXIT"',
           'PLUGINS="$HOME/.claude/plugins"',
-          'CACHE="$PLUGINS/cache/conciv/conciv-connect/0.0.0"',
+          `CACHE="$PLUGINS/cache/conciv/conciv-connect/${CLAUDE_CONNECT_PLUGIN_VERSION}"`,
           'if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "add" ]; then',
           '  mkdir -p "$PLUGINS"',
           '  printf \'%s\' "$4" > "$PLUGINS/conciv-source"',
@@ -3636,7 +3646,7 @@ export default defineConfig({plugins: [conciv()]})`)
           '  ROOT=$(cat "$PLUGINS/conciv-source")',
           '  mkdir -p "$CACHE"',
           '  cp -R "$ROOT/conciv-connect/." "$CACHE/"',
-          '  printf \'{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"0.0.0","installPath":"%s","projectPath":"%s"}]}}\' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"',
+          `  printf '{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"${CLAUDE_CONNECT_PLUGIN_VERSION}","installPath":"%s","projectPath":"%s"}]}}' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"`,
           'fi',
           'exit 0',
           '',
@@ -3683,7 +3693,7 @@ export default defineConfig({plugins: [conciv()]})`)
       }
 
       function pluginCacheDir(home: string): string {
-        return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', '0.0.0')
+        return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', CLAUDE_CONNECT_PLUGIN_VERSION)
       }
 
       function connectFiles(stateDir: string): HarnessConnectFile[] {
@@ -3717,7 +3727,9 @@ export default defineConfig({plugins: [conciv()]})`)
           JSON.stringify({
             version: 2,
             plugins: {
-              'conciv-connect@conciv': [{scope: 'local', version: '0.0.0', installPath: cache, projectPath: opts.cwd}],
+              'conciv-connect@conciv': [
+                {scope: 'local', version: CLAUDE_CONNECT_PLUGIN_VERSION, installPath: cache, projectPath: opts.cwd},
+              ],
             },
           }),
         )

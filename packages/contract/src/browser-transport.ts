@@ -3,6 +3,8 @@ import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
 import type {ContractRouterClient} from '@orpc/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import contractManifest from '../package.json' with {type: 'json'}
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 
 export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
@@ -167,7 +169,11 @@ function bearer(state: TrustState): Record<string, string> {
 
 function requestHeaders(state: TrustState, options: ClientOptions<RpcClientContext>): Record<string, string> {
   const id = options.context.concivSessionId
-  return {...bearer(state), ...(id ? {[CONCIV_SESSION_HEADER]: id} : {})}
+  return {
+    ...bearer(state),
+    ...(id ? {[CONCIV_SESSION_HEADER]: id} : {}),
+    [CONCIV_VERSION_HEADER]: contractManifest.version,
+  }
 }
 
 function fetchLink(

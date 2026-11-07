@@ -45,7 +45,8 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 
 - Holds the page's one engine connection in `globalThis.__concivBrowserRpcConnectionV4`, shared across bundle copies (`connectionEntry` in `browser-transport.ts`); asking for a different normalized api base closes the held connection and replaces it, and closing a base clears the slot only when it holds that base. Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
 - HTTP calls to `${apiBase}/rpc` through `RPCLink` (`makeRpcClient` in `client.ts`; `fetchLink` in `browser-transport.ts`).
-- Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) when the context has `concivSessionId` (`sessionHeaders`, `browser-transport.ts`).
+- Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) when the context has `concivSessionId` (`requestHeaders`, `browser-transport.ts`).
+- Both links send `CONCIV_VERSION_HEADER` (`x-conciv-version`, from `@conciv/protocol/rpc-types`) set to the contract package.json version.
 - Reads `location.href` when defined (`normalizeApiBase`).
 - Calls reachability listeners with `false` when a retry is scheduled and `true` when a retry succeeds (`retryPlugin`, `browser-transport.ts`).
 - `rebind` / `close` remove the previous base's shared connection from the global registry, which affects every client sharing that base (`closeBrowserRpcConnection`).
