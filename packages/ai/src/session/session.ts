@@ -90,6 +90,11 @@ function settledAhead(current: RunClockSource | null, last: RunLifecycle): boole
   return isRunPhaseTerminal(current.lifecycle.phase) && !isRunPhaseTerminal(last.phase)
 }
 
+function stoppingRun(current: RunClockSource | null): RunClockSource | null {
+  if (current === null || isRunPhaseTerminal(current.lifecycle.phase)) return current
+  return {lifecycle: {...current.lifecycle, phase: 'stopping'}, receivedAt: Date.now()}
+}
+
 function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   if (current === null || isRunPhaseTerminal(current.lifecycle.phase)) return current
   const now = Date.now()
@@ -194,12 +199,13 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const stopRun = async (): Promise<void> => {
     const runIds = seenRunIds()
+    setRunSource(stoppingRun)
     try {
       await options.stop(runIds)
     } finally {
       chat.stop()
+      setRunSource(stoppedRun)
     }
-    setRunSource(stoppedRun)
     await refresh()
   }
   const stop = (): Promise<void> => stopRun().catch((error: unknown) => options.onError?.(asError(error)))

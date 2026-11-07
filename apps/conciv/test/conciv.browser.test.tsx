@@ -485,8 +485,14 @@ describe('chat pane', () => {
     await input().fill('bravo step')
     await userEvent.keyboard('{Enter}')
     await expect.element(page.getByRole('button', {name: 'Remove from queue'}).nth(1)).toBeVisible()
+    const stopGate = await faults.install({kind: 'gate', path: ['chat', 'stop']})
 
     await stopButton().click()
+
+    await expect.element(input().filter({hasText: /alpha step\s*bravo step/})).toBeVisible()
+    await input().click()
+    await userEvent.keyboard('{Enter}')
+    await coreControl.releaseFault(stopGate)
 
     await expect.element(stoppedLine()).toBeVisible()
     await expect.element(stopButton()).not.toBeInTheDocument()
@@ -494,6 +500,13 @@ describe('chat pane', () => {
     await expect.element(input().filter({hasText: /alpha step\s*bravo step/})).toBeVisible()
     const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
     expect(asked).toHaveLength(1)
+
+    await page.getByRole('button', {name: 'Send message'}).click()
+
+    await expect.element(stopButton()).toBeVisible()
+    await expect.element(input().filter({hasText: /alpha step/})).not.toBeInTheDocument()
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
   })
 
   test('a stopped turn ends with a Stopped line that a reload still shows', async () => {

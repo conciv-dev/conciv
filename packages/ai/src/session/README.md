@@ -20,7 +20,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 - `session.ts:loadFailed` - the history load failed when the chat holds no messages but an error; the loading state itself is `useChat`'s `isHydrating`, which goes false on success or failure.
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
 - `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`), nor any run while the chat's history load has failed: that chat is reopened, never patched, so its load error and Retry stay.
-- `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.
+- `session.ts:stopRun` - marks the run source `stopping` as soon as Stop is pressed (so the composer blocks every submit until the stop lands), then always calls `chat.stop()` and marks it `aborted` even if `options.stop` throws, then refreshes.
 - `session.ts:decide` - sends a follow-up message (`Approved: ...`, `Approved for this session: ...` or `Denied: ...`) only when the server returns `startsTurn` and the ask was pending.
 - `session.ts:createChatSession` - `useChat` is configured with `persistence: true`, `history: {pageSize: CHAT_HISTORY_PAGE_SIZE}` (50), `live: true`, `queue: 'queue'`.
 - `session.ts:refresh` - stored message ids are the rendered ids, so a refresh stitches by id: messages shown before the refreshed page's first message stay in front of it. A page that starts past everything shown, an empty chat included, pulls the pages before it until it reaches a shown message (or the thread start), so loaded history is kept and the gap is filled.
