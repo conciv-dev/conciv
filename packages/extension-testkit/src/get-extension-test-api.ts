@@ -51,6 +51,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
   const session = await resolveSession(apiBase)
   const {origin, close} = await extension.host({apiBase: engine.origin, session})
   const {page, context, close: closeBrowser} = await launch(await magicLink(engine.origin, engine.terminal, origin))
+  await hostMounted(page)
   return {
     page,
     callTool: makeCallTool(apiBase, session),
@@ -62,6 +63,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     serverContext: extensionContexts[extension.server.name],
     secondClient: async () => {
       const second = await openObservedPage(context, origin)
+      await hostMounted(second)
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
@@ -72,4 +74,8 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       ])
     },
   }
+}
+
+async function hostMounted(page: Page): Promise<void> {
+  await page.getByRole('button', {name: 'Attach fixture file'}).waitFor({state: 'attached', timeout: 30_000})
 }
