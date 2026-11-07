@@ -36,7 +36,7 @@ export default defineConfig(({mode}) => ({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({}),
+            provider: playwright({contextOptions: {timezoneId: 'Pacific/Kiritimati'}}),
             instances: [{browser: 'chromium'}],
             commands: coreCommands,
           },
