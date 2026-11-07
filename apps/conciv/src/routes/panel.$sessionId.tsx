@@ -89,7 +89,12 @@ export const Route = createFileRoute('/panel/$sessionId')({
   component: PanelSession,
 })
 
-function SessionTitle(props: {sessionId: string; savedTitle: string | undefined; refreshing: boolean}): JSX.Element {
+function SessionTitle(props: {
+  sessionId: string
+  savedTitle: string | undefined
+  loading: boolean
+  refreshing: boolean
+}): JSX.Element {
   const appData = useAppData()
   const {rpc} = useChatDeps()
   const announce = useAnnounce()
@@ -99,9 +104,12 @@ function SessionTitle(props: {sessionId: string; savedTitle: string | undefined;
     onError: () => announce('Rename failed', true),
     onSettled: () => appData.invalidateSessions(),
   }))
-  const title = () =>
-    rename.isPending && rename.variables ? rename.variables.title : props.savedTitle || 'New session'
-  const label = () => `${title()}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
+  const title = () => {
+    if (rename.isPending && rename.variables) return rename.variables.title
+    if (props.loading) return ''
+    return props.savedTitle || 'New session'
+  }
+  const label = () => `${title() || 'Session'}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
   const commit = (value: string) => {
     const next = value.trim()
     if (!next || next === title()) return
@@ -333,6 +341,7 @@ function PanelSession(): JSX.Element {
             <SessionTitle
               sessionId={params().sessionId}
               savedTitle={row()?.title}
+              loading={session.isPending}
               refreshing={coordinator.isRefreshing()}
             />
           </div>
