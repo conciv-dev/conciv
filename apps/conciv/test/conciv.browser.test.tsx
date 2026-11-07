@@ -1,5 +1,5 @@
 import '../src/styles.css'
-import {expect, test, vi, it, afterEach, beforeAll, describe, onTestFinished} from 'vitest'
+import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -45,7 +45,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
-import {chatConnection, useChatSession} from '@conciv/client'
+import {useChatSession} from '@conciv/client'
 import {
   defineAttachment,
   defineExtension,
@@ -1423,35 +1423,20 @@ describe('chat history paging', () => {
     await expect.element(exchange(0)).toBeVisible()
   }, 120_000)
 
-  test('an empty chat that a refresh fills with more than one page holds the whole history', async () => {
+  test('an empty pane that a refresh fills with more than one page can still scroll back to the first message', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    const served = chatConnection(coreRpc(core()), core(), sessionId)
-    const quiet: ChatSessionConnection = {
-      ...served,
-      subscribe: async function* (signal) {
-        await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
-        yield* []
-      },
-    }
-    const opened = createRoot((dispose) => ({
-      dispose,
-      chat: createChatSession({
-        sessionId,
-        connect: () => quiet,
-        stop: () => Promise.resolve(),
-        decide: () => Promise.resolve({startsTurn: false}),
-      }),
-    }))
-    onTestFinished(opened.dispose)
-    await vi.waitUntil(() => !opened.chat.isHydrating())
-    expect(opened.chat.messages()).toHaveLength(0)
+    mountPagedChat(sessionId)
+    await expect.element(page.getByText('How can I help you today?')).toBeVisible()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
 
     for (let index = 0; index < 30; index += 1) await runTurn(core(), sessionId, `seeded exchange ${index}`)
-    await opened.chat.refresh()
+    await faults.releaseAll()
 
-    expect(opened.chat.messages()).toHaveLength(60)
-    expect(JSON.stringify(opened.chat.messages()[0])).toContain('seeded exchange 0')
-  }, 60_000)
+    await expect.element(exchange(29)).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(0)).toBeInTheDocument()
+    await expect.element(newSessionLine()).toBeVisible()
+  }, 120_000)
 
   async function seedExchanges(count = SEEDED_EXCHANGES): Promise<string> {
     const rpc = coreRpc(core())

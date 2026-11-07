@@ -234,6 +234,9 @@ function VirtualMessages(props: {
         lastWidth = width
         scheduleEstimateRefresh()
       })
+      const siblings = new MutationObserver(scheduleMetricsRefresh)
+      siblings.observe(viewport, {childList: true})
+      onCleanup(() => siblings.disconnect())
       const previousAnchoring = viewport.style.overflowAnchor
       viewport.style.overflowAnchor = 'none'
       onCleanup(() => {
