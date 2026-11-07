@@ -46,6 +46,9 @@ export const terminalSkin: Skin = {
     'chat-radius-surface-lg': '3px',
     'chat-ease': 'cubic-bezier(0.2, 0, 0, 1)',
     'chat-ease-expo': 'cubic-bezier(0.12, 0.9, 0.1, 1)',
+    'chat-ease-in-out': 'cubic-bezier(0.4, 0, 0.2, 1)',
+    'chat-duration-normal': '200ms',
+    'chat-duration-slow': '300ms',
     'chat-space': '0.235rem',
   },
 }

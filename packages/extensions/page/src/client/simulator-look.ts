@@ -32,10 +32,10 @@ const CURSOR_LAYER = 10000
 const CURSOR_SIZE = 'calc(var(--chat-space) * 8)'
 const SPACING_1 = 'var(--chat-space)'
 const SPACING_2 = 'calc(var(--chat-space) * 2)'
-const DURATION_SLOW = '300ms'
-const DURATION_NORMAL = '200ms'
+const DURATION_SLOW = 'var(--chat-duration-slow)'
+const DURATION_NORMAL = 'var(--chat-duration-normal)'
 const EASE_OUT = 'var(--chat-ease)'
-const EASE_IN_OUT = 'cubic-bezier(0.4, 0, 0.2, 1)'
+const EASE_IN_OUT = 'var(--chat-ease-in-out)'
 
 export const SIMULATOR_CSS = `
 .${MASK_CLASS} {

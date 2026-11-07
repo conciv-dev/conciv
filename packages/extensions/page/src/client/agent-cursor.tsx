@@ -34,7 +34,7 @@ const REST_PX = 0.5
 const SAME_WIDTH_PX = 1
 const STOP_HINT = 'Click again to stop me'
 const TOOLTIP_LOOK =
-  'rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60'
+  'rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[length:var(--chat-text-xs)] font-chat max-w-60'
 
 type Sample = {at: CursorAt; located: Located | null; layout: number}
 
