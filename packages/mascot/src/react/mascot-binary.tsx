@@ -6,10 +6,10 @@ import type {MascotBinaryProps} from './mascot-props.js'
 
 export type BinaryEffectHostProps = MascotBinaryProps & {fallback?: boolean}
 
-export function BinaryEffectHost({curve, ...rest}: BinaryEffectHostProps): ReactElement {
+export function BinaryEffectHost({curve, bounds, ...rest}: BinaryEffectHostProps): ReactElement {
   const context = useMascotContext()
   const resolved = curve ?? context.curve()
-  const mount = useCallback(() => configureBinaryEffect({curve: resolved}), [resolved])
+  const mount = useCallback(() => configureBinaryEffect({curve: resolved, bounds}), [resolved, bounds])
   return <EffectHost {...rest} mount={mount} />
 }
 

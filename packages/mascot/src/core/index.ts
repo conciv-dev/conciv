@@ -17,5 +17,5 @@ export {
   type MascotParts,
   type MascotService,
 } from './mascot.js'
-export type {CurveStyle} from './path.js'
+export type {CurveStyle, EmitterBounds} from './path.js'
 export {type MascotSkin, robotSkin} from './skin.js'

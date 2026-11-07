@@ -92,6 +92,13 @@ and rises straight when there is headroom or arcs toward the open side when the 
 are anchored to the tip and ignore it. Every effect enters staged out of the antenna tip and drains
 back into it when work stops.
 
+The room `'auto'` measures is the viewport unless the host says otherwise:
+`<Mascot.Binary bounds={() => ({top, left, right})}>` (or `configureBinaryEffect({bounds})`) takes an
+`EmitterBounds` getter in viewport pixels, read at every emitter start. Return a lower `top` to put a
+ceiling over the robot, such as the bottom edge of a panel opened above it, and the digits rise only as
+far as that ceiling allows, then bend along it toward the side with more room. Passing a new getter
+re-measures a running emitter: the old trail drains into the tip while the new one grows out of it.
+
 ## Skin
 
 Every art-coupled value — the layer images, transform origins, origin and tip fractions, the awake

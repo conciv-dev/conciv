@@ -659,6 +659,7 @@ type StageSetup = {
   placement?: StagePlacement
   stageSizePx?: number
   layerInsetPx?: number
+  ceilingAtStageTop?: boolean
 }
 
 function buildStage(page: Page, setup: StageSetup): Promise<StagePoint> {
@@ -670,8 +671,16 @@ function buildStage(page: Page, setup: StageSetup): Promise<StagePoint> {
     window.service.registerParts({stage: parts.root, head: parts.head, eyes: parts.eyes, antenna: parts.antenna})
     if (!options.binary) return harness.stageCenter(parts.root)
     const style = options.curve
-    const mount =
-      style === undefined ? harness.mascot.binaryEffect : harness.mascot.configureBinaryEffect({curve: style})
+    const ceiling = () => ({
+      top: parts.root.getBoundingClientRect().top,
+      left: 0,
+      right: document.documentElement.clientWidth,
+    })
+    const mount = options.ceilingAtStageTop
+      ? harness.mascot.configureBinaryEffect({curve: style, bounds: ceiling})
+      : style === undefined
+        ? harness.mascot.binaryEffect
+        : harness.mascot.configureBinaryEffect({curve: style})
     window.service.mountEffect('binary', mount)
     return harness.stageCenter(parts.root)
   }, setup)
@@ -698,6 +707,14 @@ export const buildService = (
   stageSizePx?: number,
   layerInsetPx?: number,
 ): Promise<StagePoint> => buildStage(page, {config, binary: true, stageSizePx, layerInsetPx})
+
+export const buildCeilingService = (
+  page: Page,
+  config: MascotConfig,
+  placement: StagePlacement,
+  stageSizePx: number,
+): Promise<StagePoint> =>
+  buildStage(page, {config, binary: true, placement, stageSizePx, layerInsetPx: 0, ceilingAtStageTop: true})
 
 export const buildStraightService = (page: Page, config: MascotConfig): Promise<StagePoint> =>
   buildStage(page, {config, binary: true, curve: 'straight'})

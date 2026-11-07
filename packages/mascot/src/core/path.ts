@@ -46,10 +46,17 @@ export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds)
   return {rise, bend: -Math.min(wanted, sideRoom(leftRoom))}
 }
 
-export function stageViewportBounds(stage: HTMLElement, scale: number): EmitterBounds {
+export function viewportBounds(): EmitterBounds {
+  return {top: 0, left: 0, right: document.documentElement.clientWidth}
+}
+
+export function stageLocalBounds(stage: HTMLElement, scale: number, bounds: EmitterBounds): EmitterBounds {
   const box = stage.getBoundingClientRect()
-  const viewportWidth = document.documentElement.clientWidth
-  return {top: -box.top / scale, left: -box.left / scale, right: (viewportWidth - box.left) / scale}
+  return {
+    top: (bounds.top - box.top) / scale,
+    left: (bounds.left - box.left) / scale,
+    right: (bounds.right - box.left) / scale,
+  }
 }
 
 type CurveShape = {curviness: number; anchors: (room: EmitterRoom, index: number) => EmitterPoint[]}

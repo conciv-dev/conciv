@@ -6,12 +6,12 @@ The framework-free mascot service. `createMascot` binds the head, eyes and anten
 
 ## Interface
 
-- `index.ts` - the `@conciv/mascot` entry: `createMascot`, `robotSkin`, `robotLayers` and the config, effect, part and curve types.
+- `index.ts` - the `@conciv/mascot` entry: `createMascot`, `robotSkin`, `robotLayers` and the config, effect, part, curve and `EmitterBounds` types.
 - `mascot.ts:createMascot(initial, skin = robotSkin)` - returns a `MascotService` with `update`, `registerParts`, `mountEffect`, `unmountEffect`, `connect`, `destroy`.
 - `mascot.ts:MascotConnect` - `getRootProps`, `getHeadProps`, `getEyesProps`, `getAntennaProps`, `getEffectHostProps(id)`, each `{style, ref, release}`.
 - `config.ts:MascotConfig` / `MascotState` (`'rest' | 'awake'`) / `MascotFollow` / `MascotActivity` - config types; `followChannels`, `activityChannels`, `reduceMotion` and the timing constants (`THROB_BEATS`, `HEAD_BOB_BEATS`, `BLINK_BEATS`, `WORK_CYCLE_S`, ...).
 - `skin.ts:MascotSkin` / `robotSkin` - layer images, origins, tip fractions and reference antenna size.
-- `path.ts:CurveStyle` (`'straight' | 'arc' | 'hook' | 'fan' | 'auto'`), `measureEmitterRoom`, `resolveCurveStyle`, `emitterCurvePoints`, `stageViewportBounds`.
+- `path.ts:CurveStyle` (`'straight' | 'arc' | 'hook' | 'fan' | 'auto'`), `measureEmitterRoom`, `resolveCurveStyle`, `emitterCurvePoints`, `EmitterBounds`, `viewportBounds`, `stageLocalBounds`.
 - `tip-anchor.ts:antennaTipAnchor` / `antennaTipInRoot` / `measureAntennaLayout` / `antennaOriginOffset` - antenna tip geometry.
 - `tip-transition.ts:enterFromTip` / `exitIntoTip` - GSAP enter and exit tweens for effect elements.
 - `layer-styles.ts:rootStyle` / `headStyle` / `eyesStyle` / `antennaStyle` / `effectHostStyle` - inline style records.

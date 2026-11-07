@@ -9,9 +9,9 @@ export type BinaryEffectHostProps = MascotBinaryProps & {fallback?: boolean}
 
 export function BinaryEffectHost(props: BinaryEffectHostProps): JSX.Element {
   const context = useMascotContext()
-  const [local, rest] = splitProps(props, ['curve'])
+  const [local, rest] = splitProps(props, ['curve', 'bounds'])
   const curve = (): CurveStyle | undefined => local.curve ?? context.curve()
-  return <EffectHost {...rest} mount={() => configureBinaryEffect({curve: curve()})} />
+  return <EffectHost {...rest} mount={() => configureBinaryEffect({curve: curve(), bounds: local.bounds})} />
 }
 
 export function MascotBinary(props: MascotBinaryProps): JSX.Element {

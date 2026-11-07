@@ -17,11 +17,13 @@ import {
   type CurveStyle,
   emitterCurvePoints,
   type EmitterAnchor,
+  type EmitterBounds,
   type EmitterPoint,
   type EmitterRoom,
   measureEmitterRoom,
   resolveCurveStyle,
-  stageViewportBounds,
+  stageLocalBounds,
+  viewportBounds,
 } from '../path.js'
 import {antennaTipAnchor} from '../tip-anchor.js'
 import {
@@ -34,7 +36,9 @@ import {
 } from './effect-support.js'
 import type {EffectContext, EffectHandle, EffectMount} from './effect.js'
 
-export type BinaryEffectConfig = {curve?: CurveStyle}
+export type BinaryEffectConfig = {curve?: CurveStyle; bounds?: () => EmitterBounds}
+
+type BinaryPlan = {curve: CurveStyle; bounds: () => EmitterBounds}
 
 type Rider = {element: HTMLElement; path: EmitterPoint[]}
 
@@ -155,25 +159,25 @@ function createCurveTimeline(flights: CurveFlight[]): gsap.core.Timeline {
   return timeline
 }
 
-function measuredRoom(context: EffectContext, factor: number): EmitterRoom {
+function measuredRoom(context: EffectContext, factor: number, bounds: () => EmitterBounds): EmitterRoom {
   const {stage, antenna, skin} = context
   const anchor = antennaTipAnchor(stage, antenna, skin)
-  return measureEmitterRoom({x: anchor.x / factor, y: anchor.y / factor}, stageViewportBounds(stage, factor))
+  return measureEmitterRoom({x: anchor.x / factor, y: anchor.y / factor}, stageLocalBounds(stage, factor, bounds()))
 }
 
-function planRiders(context: EffectContext, factor: number, curve: CurveStyle, elements: HTMLElement[]): Rider[] {
-  const room = measuredRoom(context, factor)
-  const style = resolveCurveStyle(curve, room)
+function planRiders(context: EffectContext, factor: number, plan: BinaryPlan, elements: HTMLElement[]): Rider[] {
+  const room = measuredRoom(context, factor, plan.bounds)
+  const style = resolveCurveStyle(plan.curve, room)
   if (style === 'straight') return []
   return elements.map((element, index) => ({element, path: emitterCurvePoints(style, room, index, factor)}))
 }
 
-function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectHandle {
+function createBinaryEmitter(context: EffectContext, plan: BinaryPlan): EffectHandle {
   const {host, antenna, skin} = context
   const factor = antennaScaleFactor(antenna, skin.referenceAntennaPx)
   const mouth = antennaTipAnchor(host, antenna, skin)
   const element = createTipShell(mouth, digitShellStyle(factor))
-  const curved = curve !== 'straight'
+  const curved = plan.curve !== 'straight'
   const elements = DIGIT_INDEXES.map((index) => (curved ? createRider(factor, index) : createDigit(factor, index)))
   element.append(...elements)
   host.append(element)
@@ -198,7 +202,7 @@ function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectH
   }
 
   const buildCurve = (): gsap.core.Timeline => {
-    const riders = planRiders(context, factor, curve, elements)
+    const riders = planRiders(context, factor, plan, elements)
     if (riders.length === 0) return buildStraight()
     flights = planFlights(riders, nozzle)
     return createCurveTimeline(flights)
@@ -232,9 +236,13 @@ function createBinaryEmitter(context: EffectContext, curve: CurveStyle): EffectH
   return {...emitter, anchor: aimNozzle}
 }
 
-export const binaryEffect: EffectMount = (context) => createBinaryEmitter(context, DEFAULT_BINARY_CURVE)
+export const binaryEffect: EffectMount = (context) =>
+  createBinaryEmitter(context, {curve: DEFAULT_BINARY_CURVE, bounds: viewportBounds})
 
 export const configureBinaryEffect =
   (config: BinaryEffectConfig): EffectMount =>
   (context) =>
-    createBinaryEmitter(context, config.curve ?? DEFAULT_BINARY_CURVE)
+    createBinaryEmitter(context, {
+      curve: config.curve ?? DEFAULT_BINARY_CURVE,
+      bounds: config.bounds ?? viewportBounds,
+    })
