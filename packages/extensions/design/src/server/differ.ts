@@ -56,8 +56,8 @@ const SETTLE_WAIT_MS = 5000
 
 async function stored(input: {runtime: DesignRuntime; record: TargetRecord}): Promise<Got> {
   const {runtime, record} = input
-  const [design, mapping] = await Promise.all([runtime.store.design(record.id), runtime.store.mapping(record.id)])
-  return documentOf({target: record.id, design, mapping})
+  const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids(record.id)])
+  return documentOf({target: record.id, design, ids})
 }
 
 function sameRef(input: {record: TargetRecord; query: GetQuery; cwd: string}): boolean {

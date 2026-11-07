@@ -17,6 +17,7 @@ export const designConfig = Object.assign(
   {
     tolerances: {
       geometryPx: 2,
+      slightShiftPx: 12,
       colorDeltaE: 3,
       declaredColorDeltaE: 1,
       tileGate: 0.005,
@@ -93,7 +94,6 @@ export const designConfig = Object.assign(
         parentBonus: 0.15,
         parentPenalty: 0.1,
         threshold: 0.3,
-        trustedConfidence: 0.5,
         candidatesKept: 3,
       },
     },

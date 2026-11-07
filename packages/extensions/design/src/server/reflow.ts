@@ -1,25 +1,25 @@
 import type {Box, DesignNode, GateRow, LiveComponent, Reflow} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import type {renderersOf} from './renderers.js'
+import type {readIds} from '../shared/id-tree.js'
 
 export function reflowAt(input: {
   root: DesignNode
-  renderers: ReturnType<typeof renderersOf>
+  reads: ReturnType<typeof readIds>
   live: LiveComponent
   width: number
   overflowX: boolean
 }): {reflow: Reflow; rows: GateRow[]} {
   const reflow = measuredAt(input)
-  return {reflow, rows: failuresOf({root: input.root, renderers: input.renderers, reflow})}
+  return {reflow, rows: failuresOf({root: input.root, reads: input.reads, reflow})}
 }
 
 type Input = Parameters<typeof reflowAt>[0]
 
 function measuredAt(input: Input): Reflow {
-  const {root, renderers, width, overflowX} = input
+  const {root, reads, width, overflowX} = input
   const tagged = [...walk(root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{tag: node.reflow, node}]))
   const tags = tagged.map(({tag, node}) => ({...tag, node: node.id}))
-  const page = renderers.of(root.id)[0]
+  const page = reads.of(root.id)[0]
   if (page === undefined) {
     return {
       width,
@@ -31,19 +31,19 @@ function measuredAt(input: Input): Reflow {
       rows: [],
     }
   }
-  const inside = [...walkWithin(page)].filter(({element}) => renderers.nodeOf(element) !== null)
+  const inside = [...walkWithin(page)].filter(({element}) => reads.nodeOf(element) !== null)
   return {
     width,
     rootHeight: Math.round(page.bounds.h),
     sticksOut: inside.flatMap(({element, clipped}) => {
-      const node = renderers.nodeOf(element)
+      const node = reads.nodeOf(element)
       return node !== null && !clipped && runsOut({box: element.bounds, page: page.bounds}) ? [node] : []
     }),
     overflowX,
-    overlaps: inside.flatMap(({element}) => overlapsUnder({element, renderers})),
-    tags: tags.map((tag) => verdictOf({tag, element: renderers.of(tag.node)[0]})),
+    overlaps: inside.flatMap(({element}) => overlapsUnder({element, reads})),
+    tags: tags.map((tag) => verdictOf({tag, element: reads.of(tag.node)[0]})),
     rows: tagged.flatMap(({tag, node}) =>
-      twoWay({tag, node, width, element: renderers.of(node.id)[0], named: renderers.named(node.id)}),
+      twoWay({tag, node, width, element: reads.of(node.id)[0], named: reads.named(node.id)}),
     ),
   }
 }
@@ -73,9 +73,9 @@ function runsOut(input: {box: Box; page: Box}): boolean {
   return box.w > 0 && (box.x + box.w > page.x + page.w + EDGE_PX || box.x < page.x - EDGE_PX)
 }
 
-function overlapsUnder(input: {element: LiveComponent; renderers: ReturnType<typeof renderersOf>}): [string, string][] {
+function overlapsUnder(input: {element: LiveComponent; reads: ReturnType<typeof readIds>}): [string, string][] {
   const kids = input.element.children.flatMap((kid) => {
-    const node = input.renderers.nodeOf(kid)
+    const node = input.reads.nodeOf(kid)
     return node === null || kid.styles.position === ABSOLUTE ? [] : [{node, box: kid.bounds}]
   })
   return kids.flatMap((a, index) =>
@@ -118,7 +118,7 @@ function twoWay(input: {
   node: DesignNode
   width: number
   element: LiveComponent | undefined
-  named: Pick<GateRow, 'selector' | 'source' | 'confidence' | 'margin'>
+  named: Pick<GateRow, 'id' | 'selector' | 'source' | 'confidence' | 'margin'>
 }): GateRow[] {
   const {tag, node, width, element, named} = input
   const {breakpoint} = tag
@@ -152,8 +152,8 @@ function twoWay(input: {
   )
 }
 
-function failuresOf(input: {root: DesignNode; renderers: Input['renderers']; reflow: Reflow}): GateRow[] {
-  const {root, renderers, reflow} = input
+function failuresOf(input: {root: DesignNode; reads: Input['reads']; reflow: Reflow}): GateRow[] {
+  const {root, reads, reflow} = input
   const {width} = reflow
   const twoWayNodes = new Set(reflow.rows.map((entry) => entry.node))
   const boxes = new Map([...walk(root)].map(({node}) => [node.id, node.figma?.box ?? node.box]))
@@ -177,7 +177,7 @@ function failuresOf(input: {root: DesignNode; renderers: Input['renderers']; ref
     const name = node.figma?.name ?? ''
     return says.map((said): GateRow => ({
       node: node.id,
-      ...renderers.named(node.id),
+      ...reads.named(node.id),
       kind,
       name,
       text: `${kind} ${name} [${node.id}] at ${width} wide: ${said}`,

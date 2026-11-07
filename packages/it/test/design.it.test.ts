@@ -45,6 +45,15 @@ const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
+
+const NO_IDS = {
+  id: '',
+  dom: [],
+  cssom: [],
+  src: {at: null, element: 'body', classes: [], parent: null},
+  fom: [],
+  children: [],
+}
 const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -387,16 +396,8 @@ describe('store', () => {
     const record = await store.put({design, image: blankPng({width: 100, height: 50}), session: 'session-a'})
     expect([record.id, record.ref, record.width, record.height]).toEqual(['store-1', 'key/1:2', 100, 50])
     expect((await store.design('store-1')).root.id).toBe('1:2')
-    expect(await store.mapping('store-1')).toEqual([])
-    const mapping = [
-      {
-        figma: {fileKey: 'key', nodeId: '1:2'},
-        selector: '[data-conciv-key="abc"]',
-        source: 'voted' as const,
-        confidence: 1,
-        round: 1,
-      },
-    ]
+    expect(await store.mapping('store-1')).toEqual({})
+    const mapping = {abc: {nodes: [{nodeId: '1:2', instance: null, confidence: 1, margin: 1, round: 1}]}}
     await store.writeMapping({id: 'store-1', mapping})
     expect(await store.mapping('store-1')).toEqual(mapping)
     const round: Round = {
@@ -411,7 +412,7 @@ describe('store', () => {
         notRendered: [],
         dupes: [],
         candidates: [],
-        provisional: 0,
+        revoted: 0,
       },
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, reflow: 0, rows: 0},
       pixels: {share: 0},
@@ -457,9 +458,15 @@ describe('voter', () => {
       sheets: '',
       framework: 'react',
       masks: [],
-      matches: new Map(),
     }
-    const paired = await createVotePairer()({design, measured, target: raster, pins: [], budget: PAIR_BUDGET_MS})
+    const paired = await createVotePairer()({
+      design,
+      measured,
+      target: raster,
+      ids: NO_IDS,
+      pins: [],
+      budget: PAIR_BUDGET_MS,
+    })
     const voted = [...walk(paired.root)].find(({node}) => node.node.id === 'card')?.node.live?.key
     expect(voted).toBe('card-key')
   })

@@ -84,15 +84,13 @@ async function askMeasure(input: {
   width?: number
   height?: number
   timeout: number
-  selectors?: string[]
 }): Promise<MeasureReply> {
-  const {page, width, height, timeout, selectors} = input
+  const {page, width, height, timeout} = input
   return MeasureReplySchema.parse(
     await page.call(measureDef.name, {
       ...(width === undefined ? {} : {width}),
       ...(height === undefined ? {} : {height}),
       timeout,
-      ...(selectors === undefined ? {} : {selectors}),
     }),
   )
 }
@@ -113,7 +111,6 @@ function measuredFrom(reply: MeasureReply): Measured {
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
     framework: frameworkOf(reply),
     masks: reply.masks,
-    matches: new Map(reply.matches.map((match) => [match.selector, match.paths])),
   }
 }
 

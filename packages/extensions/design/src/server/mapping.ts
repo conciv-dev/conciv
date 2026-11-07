@@ -1,151 +1,120 @@
-import type {Coverage, Design, LiveComponent, Mapping, Measured, Pairer, Raster, TargetRecord} from '../shared/defs.js'
+import type {Coverage, Design, IdNode, LiveComponent, Mapping, Match, Measured, Pairer, Raster} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
+import {readIds} from '../shared/id-tree.js'
 
 export async function mappingOf(input: {
-  record: TargetRecord
   design: Design
   measured: Measured
+  built: {root: IdNode; changed: Set<string>}
   stored: Mapping
   round: number
   pairer: Pairer
   target: Raster
 }): Promise<Mapped> {
-  const {measured} = input
-  const matched = (selector: string): string[] => measured.matches.get(selector) ?? []
-  const ambiguous = input.stored.filter((item) => matched(item.selector).length > 1)
-  const resolved = input.stored.filter((item) => matched(item.selector).length === 1)
-  const left = input.stored.filter((item) => matched(item.selector).length === 0).map((item) => item.figma.nodeId)
-  const dupes = ambiguous.map((item) => item.figma.nodeId)
-  const settled = await settle({
-    input,
-    kept: resolved.filter(trusted),
-    before: new Map(resolved.filter((item) => !trusted(item)).map((item) => [item.figma.nodeId, item] as const)),
-  })
-  return {
-    mapping: [...settled.kept, ...settled.written],
-    matches: settled.matches,
-    dupes,
-    candidates: settled.candidates,
-    notRendered: left.filter((node) => !settled.written.some((entry) => entry.figma.nodeId === node)),
-    provisional: settled.written.filter((entry) => !trusted(entry)).length,
-  }
-}
-
-function trusted(entry: Mapping[number]): boolean {
-  return entry.confidence >= designConfig.tolerances.figmaPair.trustedConfidence
-}
-
-async function settle(state: {
-  input: Parameters<typeof mappingOf>[0]
-  kept: Mapping
-  before: Map<string, Mapping[number]>
-}): Promise<Settled> {
-  const {input, kept, before} = state
-  const {record, design, measured, round} = input
-  const fileKey = record.ref.split('/')[0] ?? record.ref
-  const mapped = new Set(kept.map((item) => item.figma.nodeId))
-  const open = new Set([...walk(design.root)].map(({node}) => node.id).filter((node) => !mapped.has(node)))
-  if (open.size === 0) return {kept, written: [], matches: measured.matches, candidates: []}
-  const pins = kept.flatMap((item) => {
-    const [path] = measured.matches.get(item.selector) ?? []
-    return path === undefined ? [] : [{node: item.figma.nodeId, path}]
+  const {design, measured, built, stored, round} = input
+  const sites = [...walk(built.root)].map(({node}) => node)
+  const held = sites.flatMap((site) =>
+    site.fom.map((entry) => ({
+      site: site.id,
+      entry,
+      dom: site.dom.filter((dom) => entry.instance === null || dom.instance === entry.instance),
+    })),
+  )
+  const pins = held.flatMap(({entry, dom}) => {
+    const [only] = dom
+    return only === undefined || dom.length > 1 ? [] : [{node: entry.nodeId, path: only.path, margin: entry.margin}]
   })
   const paired = await input.pairer({
     design,
     measured,
     target: input.target,
+    ids: built.root,
     pins,
     budget: designConfig.tolerances.pairBudgetMs,
   })
-  const tree = treeOf(measured.live)
-  const voted = [...walk(paired.root)].flatMap(({node}) => {
-    if (!open.has(node.node.id) || node.live === null) return []
-    const selector = selectorOf({tree, path: node.live.path})
-    if (selector === null) return []
-    return [{nodeId: node.node.id, selector, path: node.live.path, confidence: node.confidence, margin: node.margin}]
+  const pinned = new Map(pins.map((pin) => [pin.node, pin.path]))
+  const heldOf = new Map(held.map((item) => [item.entry.nodeId, item]))
+  const voted = [...walk(paired.root)].flatMap(({node: match}) => {
+    const {live} = match
+    if (live === null || live.key === null) return []
+    const kept = pinned.get(match.node.id) === live.path ? heldOf.get(match.node.id)?.entry : undefined
+    const fresh = {
+      nodeId: match.node.id,
+      instance: live.repeat,
+      confidence: match.confidence,
+      margin: match.margin ?? 0,
+      round,
+    }
+    return [{id: live.key, entry: kept ?? fresh, kept: kept !== undefined}]
   })
-  const moved = new Set(
-    voted.flatMap((vote) => {
-      const previous = before.get(vote.nodeId)
-      return previous !== undefined && previous.selector !== vote.selector ? [vote.nodeId] : []
-    }),
+  const mapping: Mapping = Object.fromEntries(
+    Object.entries(Object.groupBy(voted, ({id}) => id)).map(([id, list]) => [
+      id,
+      {nodes: (list ?? []).map(({entry}) => entry)},
+    ]),
   )
-  const stale = staleOf({root: design.root, moved, mapped})
-  if (stale.size > 0) return settle({...state, kept: kept.filter((item) => !stale.has(item.figma.nodeId))})
-  const candidates = [...walk(paired.root)].flatMap(({node}) => {
-    const listed = (node.candidates ?? []).flatMap((candidate) => {
-      const selector = selectorOf({tree, path: candidate.path})
-      return selector === null ? [] : [{selector, score: candidate.score}]
-    })
-    return open.has(node.node.id) && node.live === null && listed.length > 0
-      ? [{node: node.node.id, candidates: listed}]
-      : []
-  })
-  const matches = new Map(measured.matches)
-  voted.forEach((vote) => matches.set(vote.selector, matches.get(vote.selector) ?? [vote.path]))
-  const written = voted.map((vote): Mapping[number] => ({
-    figma: {fileKey, nodeId: vote.nodeId},
-    selector: vote.selector,
-    source: 'voted',
-    confidence: vote.confidence,
-    ...(vote.margin === undefined ? {} : {margin: vote.margin}),
-    round,
-  }))
-  return {kept, written, matches, candidates}
-}
-
-function staleOf(input: {root: Design['root']; moved: Set<string>; mapped: Set<string>}): Set<string> {
-  const under = [...walk(input.root)].filter(({node}) => input.moved.has(node.id))
-  return new Set(
-    under.flatMap(({node}) =>
-      [...walk(node)].flatMap(({node: child, depth}) => (depth > 0 && input.mapped.has(child.id) ? [child.id] : [])),
-    ),
-  )
-}
-
-type Settled = {
-  kept: Mapping
-  written: Mapping
-  matches: Map<string, string[]>
-  candidates: Coverage['candidates']
+  const keptNodes = new Set(voted.flatMap(({entry, kept}) => (kept ? [entry.nodeId] : [])))
+  const mappedNow = new Set(voted.map(({entry}) => entry.nodeId))
+  const present = new Set(sites.map((site) => site.id))
+  const lost = [
+    ...held.filter(({dom}) => dom.length === 0).map(({entry}) => entry.nodeId),
+    ...Object.entries(stored).flatMap(([id, {nodes}]) => (present.has(id) ? [] : nodes.map((entry) => entry.nodeId))),
+  ]
+  const dupes = held.filter(({dom}) => dom.length > 1)
+  const revoted = new Set([
+    ...Object.keys(stored).filter((id) => built.changed.has(id) && (stored[id]?.nodes.length ?? 0) > 0),
+    ...pins.flatMap((pin) => (keptNodes.has(pin.node) ? [] : (heldOf.get(pin.node)?.site ?? []))),
+    ...dupes.map(({site}) => site),
+  ])
+  const root = attached({node: built.root, mapping})
+  const reads = readIds({root, live: measured.live})
+  const elements = new Map([...walk(measured.live)].map(({node}) => [node.path, node]))
+  return {
+    mapping,
+    root,
+    dupes: dupes.map(({entry}) => entry.nodeId),
+    candidates: candidatesOf({match: paired.root, mapped: mappedNow, elements, selector: reads.selector}),
+    notRendered: lost.filter((node) => !mappedNow.has(node)),
+    revoted: [...revoted],
+    gone: Object.keys(stored).filter((id) => !present.has(id)),
+  }
 }
 
 type Mapped = {
   mapping: Mapping
-  matches: Map<string, string[]>
+  root: IdNode
   dupes: string[]
   candidates: Coverage['candidates']
   notRendered: string[]
-  provisional: number
+  revoted: string[]
+  gone: string[]
 }
 
-type Tree = {
-  parents: Map<string, LiveComponent | null>
+function attached(input: {node: IdNode; mapping: Mapping}): IdNode {
+  const {node, mapping} = input
+  return {
+    ...node,
+    fom: mapping[node.id]?.nodes ?? [],
+    children: node.children.map((child) => attached({node: child, mapping})),
+  }
+}
+
+function candidatesOf(input: {
+  match: Match
+  mapped: Set<string>
   elements: Map<string, LiveComponent>
-}
-
-function treeOf(live: LiveComponent): Tree {
-  const steps = [...walk(live)].filter(({depth}) => depth > 0)
-  const parents = new Map(steps.map(({node, depth, parent}) => [node.path, depth > 1 ? parent : null]))
-  const elements = new Map(steps.map(({node}) => [node.path, node]))
-  return {parents, elements}
-}
-
-function selectorOf(input: {tree: Tree; path: string}): string | null {
-  const element = input.tree.elements.get(input.path)
-  if (element === undefined || element.key === null) return null
-  const chain = chainOf({tree: input.tree, element})
-  return chain.map(partOf).join(' ')
-}
-
-function chainOf(input: {tree: Tree; element: LiveComponent}): LiveComponent[] {
-  const parent = input.tree.parents.get(input.element.path) ?? null
-  const above = parent === null ? [] : chainOf({tree: input.tree, element: parent})
-  return input.element.key === null ? above : [...above, input.element]
-}
-
-function partOf(element: LiveComponent): string {
-  if (element.repeat !== null) return `[data-conciv-instance=${JSON.stringify(element.repeat)}]`
-  return `[data-conciv-key=${JSON.stringify(element.key ?? '')}]`
+  selector: ReturnType<typeof readIds>['selector']
+}): Coverage['candidates'] {
+  const {mapped, elements, selector} = input
+  return [...walk(input.match)].flatMap(({node}) => {
+    const listed = (node.candidates ?? []).flatMap((candidate) => {
+      const element = elements.get(candidate.path)
+      if (element === undefined || element.key === null) return []
+      return [{selector: selector({id: element.key, instance: element.repeat}), score: candidate.score}]
+    })
+    return mapped.has(node.node.id) || node.live !== null || listed.length === 0
+      ? []
+      : [{node: node.node.id, candidates: listed}]
+  })
 }

@@ -3,33 +3,33 @@ import {z} from 'zod'
 import type {Box, Counts, Coverage, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
-import type {renderersOf} from './renderers.js'
+import type {readIds} from '../shared/id-tree.js'
 
-export function gateOf(input: {root: DesignNode; renderers: ReturnType<typeof renderersOf>}): Gate {
-  const {renderers} = input
+export function gateOf(input: {root: DesignNode; reads: ReturnType<typeof readIds>}): Gate {
+  const {reads} = input
   const records = recordsOf(input.root)
   const byId = new Map(records.map((record) => [record.id, record]))
-  const first = (id: string): LiveComponent | undefined => renderers.of(id)[0]
+  const first = (id: string): LiveComponent | undefined => reads.of(id)[0]
   const rows = records.flatMap((record) => {
     const element = first(record.id)
     if (element === undefined) return []
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
     return rowsOf({record, element, parent, parentElement}).map((row) =>
-      worded({record, named: renderers.named(record.id), row}),
+      worded({record, named: reads.named(record.id), row}),
     )
   })
   const coverage: Coverage = {
     nodes: records.length,
-    mapped: records.filter((record) => renderers.mapped(record.id)).length,
+    mapped: records.filter((record) => reads.mapped(record.id)).length,
     rendered: records.filter((record) => first(record.id) !== undefined).length,
     missing: records.filter((record) => first(record.id) === undefined).map((record) => record.id),
     notRendered: records
-      .filter((record) => renderers.mapped(record.id) && first(record.id) === undefined)
+      .filter((record) => reads.mapped(record.id) && first(record.id) === undefined)
       .map((record) => record.id),
     candidates: [],
-    provisional: 0,
-    dupes: records.filter((record) => renderers.of(record.id).length > 1).map((record) => record.id),
+    revoted: 0,
+    dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
   return {rows: rows.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(rows)}
 }
@@ -54,7 +54,7 @@ const CONTAINER_TOLERANCE = 0.08
 const LEAF_TOLERANCE = 0.2
 const HEIGHT_SLACK = 0.07
 const FLAT_PX = 2
-const SHIFT_PX = 12
+const SHIFT_PX = designConfig.tolerances.slightShiftPx
 const NEAR_PX = 32
 const SLIGHT_PX = 8
 const SLIGHT_SHARE = 0.15
@@ -225,7 +225,7 @@ function positionRows(input: {label: string; r: Record; box: Box; parent: Record
 
 function worded(input: {
   record: Record
-  named: Pick<GateRow, 'selector' | 'source' | 'confidence' | 'margin'>
+  named: Pick<GateRow, 'id' | 'selector' | 'source' | 'confidence' | 'margin'>
   row: Row
 }): GateRow {
   const {record, named, row} = input

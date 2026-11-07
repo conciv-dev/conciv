@@ -1,9 +1,16 @@
-import type {DesignNode, Design, Got, Mapping} from '../shared/defs.js'
+import type {DesignNode, Design, Got, IdTree} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
+import {readIds} from '../shared/id-tree.js'
 
-export function documentOf(input: {target: string; design: Design; mapping: Mapping}): Got {
+export function documentOf(input: {target: string; design: Design; ids: IdTree | null}): Got {
   const {design} = input
-  const keys = new Map(input.mapping.map((entry) => [entry.figma.nodeId, entry.selector]))
+  const reads = input.ids === null ? null : readIds({root: input.ids.root, live: null})
+  const keys = new Map(
+    [...walk(design.root)].flatMap(({node}) => {
+      const selector = reads?.named(node.id).selector ?? null
+      return selector === null ? [] : [[node.id, selector] as const]
+    }),
+  )
   const nodes = [...walk(design.root)].map(({node, parent, depth}) => tagged({node, parent, depth, keys}))
   return {
     target: input.target,

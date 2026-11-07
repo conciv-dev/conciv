@@ -213,22 +213,35 @@ export const TargetRecordSchema = z.object({
   createdAt: z.number(),
 })
 
-export const MappingSchema = z.array(
-  z.object({
-    figma: z.object({fileKey: z.string(), nodeId: z.string()}),
-    selector: z.string().describe('the conciv keys from the outermost keyed ancestor down to the element'),
-    source: z.enum(['voted']),
-    confidence: z.number().describe('the winning score of the vote'),
-    margin: z.number().optional().describe('the winning score minus the runner-up score'),
-    round: z.number().describe('the round that wrote the entry'),
-  }),
-)
+const Count = z.number()
+
+const Id = z.string().nullable()
+
+const FomSchema = z.object({nodeId: z.string(), instance: Id, confidence: Count, margin: Count, round: Count})
+
+export const MappingSchema = z.record(z.string(), z.object({nodes: z.array(FomSchema)}))
+
+const DOM_FIELDS = {instance: Id, at: BoxSchema.describe('the box less the parent site element position'), kids: Count}
+
+const IdNodeSchema = z.object({
+  id: z.string().describe('the conciv key the compiler stamped on the site'),
+  dom: z.array(LiveComponentFieldsSchema.pick({path: true, text: true, drawn: true, box: true}).extend(DOM_FIELDS)),
+  cssom: z.array(LiveStylesSchema.extend({path: z.string(), columns: Count.nullable()})),
+  src: z.object({at: SourceLocSchema.nullable(), element: z.string(), classes: z.array(z.string()), parent: Id}),
+  fom: z.array(FomSchema),
+  get children(): z.ZodArray<typeof IdNodeSchema> {
+    return z.array(IdNodeSchema)
+  },
+})
+
+export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
 const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow'])
 
 const GateRowSchema = z.object({
   node: z.string(),
-  selector: z.string().nullable().describe('the stored selector of the node'),
+  id: Id.describe('the conciv id of the element that renders the node'),
+  selector: z.string().nullable().describe('the selector of that element, from its id and list key'),
   source: z.string().nullable().describe('file:line:column of the element, from data-conciv-source'),
   confidence: z.number().nullable().describe('the winning score of the vote that mapped the node'),
   margin: z.number().nullable().describe('the winning score minus the runner-up score'),
@@ -266,15 +279,13 @@ const CoverageSchema = z.object({
   rendered: z.number().describe('of them, nodes an element renders now'),
   missing: z.array(z.string()).describe('nodes no element renders'),
   notRendered: z.array(z.string()).describe('stored nodes whose element is not on the page'),
-  dupes: z.array(z.string()).describe('nodes whose stored selector matches more than one element'),
-  provisional: z.number().default(0).describe('mapped nodes whose vote is below the trusted line, voted again'),
+  dupes: z.array(z.string()).describe('nodes whose id and list key match more than one element'),
+  revoted: z.number().default(0).describe('stored pins voted again: their evidence changed or a rival outscored them'),
   candidates: z
     .array(z.object({node: z.string(), candidates: z.array(z.object({selector: z.string(), score: z.number()}))}))
     .default([])
     .describe('unmapped nodes whose vote tied, with the best candidates to pick from'),
 })
-
-const Count = z.number()
 
 const COUNTED = {much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count}
 
@@ -331,13 +342,8 @@ const WatchInputSchema = z.object({
 })
 
 const WatchResultSchema = z.union([
-  z.object({
-    round: z.number(),
+  RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
     unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
-    rows: z.array(GateRowSchema),
-    reflow: ReflowsSchema,
-    coverage: CoverageSchema,
-    counts: CountsSchema,
   }),
   z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()}),
 ])
@@ -369,7 +375,6 @@ const MeasureResultSchema = z.object({
   framework: z.enum(['react', 'solid']).nullable().default(null).describe('react with a fiber, solid with vite ids'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
-  matches: z.array(z.object({selector: z.string(), paths: z.array(z.string())})).default([]),
 })
 
 const Width = z.number().int().positive()
@@ -378,7 +383,6 @@ const MeasureInputSchema = z.object({
   width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
   height: Width.optional().describe('the height to capture'),
   timeout: z.number().int().positive().optional(),
-  selectors: z.array(z.string()).optional().describe('stored selectors to resolve with querySelectorAll'),
 })
 
 const DESIGN_ERRORS = {
@@ -492,6 +496,8 @@ export type Match = z.infer<typeof MatchSchema>
 export type TargetRecord = z.infer<typeof TargetRecordSchema>
 export type LiveComponent = z.output<typeof LiveComponentSchema>
 export type Mapping = z.output<typeof MappingSchema>
+export type IdTree = z.output<typeof IdTreeSchema>
+export type IdNode = z.output<typeof IdNodeSchema>
 export type Round = z.output<typeof RoundSchema>
 export type GateRow = z.output<typeof GateRowSchema>
 export type Reflow = z.output<typeof ReflowSchema>
@@ -536,6 +542,8 @@ export type Store = {
   image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
   mapping(id: string): Promise<Mapping>
   writeMapping(input: {id: string; mapping: Mapping}): Promise<void>
+  ids(id: string): Promise<IdTree | null>
+  writeIds(input: {id: string; ids: IdTree}): Promise<void>
   writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
   round(input: {id: string; round: number}): Promise<Round | null>
   rounds(id: string): Promise<Round[]>
@@ -550,28 +558,17 @@ export type Measurer = {
   dispose(): void
 }
 
-export type Measured = {
-  live: LiveComponent
-  raster: Raster
-  route: string
-  width: number
-  path: CapturePath
-  sources: MeasureSource[]
-  overflowX: boolean
-  queries: number[]
-  sheets: string
-  longestTask?: number
-  pageError?: string
-  framework: 'react' | 'solid'
-  masks: Box[]
-  matches: Map<string, string[]>
-}
+export type Measured = Pick<
+  z.output<typeof MeasureResultSchema>,
+  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks'
+> & {live: LiveComponent; raster: Raster; path: CapturePath; sources: MeasureSource[]; framework: 'react' | 'solid'}
 
 export type Pairer = (input: {
   design: Design
   measured: Measured
   target: Raster
-  pins: {node: string; path: string}[]
+  ids: IdNode
+  pins: {node: string; path: string; margin: number}[]
   budget: number
 }) => Promise<{root: Match; partial: boolean}>
 

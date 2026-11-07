@@ -1,7 +1,7 @@
 import {toolError} from '@conciv/extension'
 import type {Storage} from 'unstorage'
 import type {z} from 'zod'
-import {DesignSchema, MappingSchema, RoundSchema, TargetRecordSchema, type Store} from '../shared/defs.js'
+import {DesignSchema, IdTreeSchema, MappingSchema, RoundSchema, TargetRecordSchema, type Store} from '../shared/defs.js'
 
 export function createStore(input: {state: Storage}): Store {
   const {state} = input
@@ -51,8 +51,10 @@ export function createStore(input: {state: Storage}): Store {
     },
     image: ({id, round, kind}) =>
       readRaw({state, key: round === undefined ? `${id}:${IMAGE}` : `${id}:${kind ?? 'live'}:${round}.png`}),
-    mapping: async (id) => (await readItem({state, key: `${id}:${MAPPING}`, schema: MappingSchema})) ?? [],
+    mapping: async (id) => (await readItem({state, key: `${id}:${MAPPING}`, schema: MappingSchema})) ?? {},
     writeMapping: ({id, mapping}) => serial(() => state.setItem(`${id}:${MAPPING}`, mapping)),
+    ids: (id) => readItem({state, key: `${id}:${IDS}`, schema: IdTreeSchema}),
+    writeIds: ({id, ids}) => serial(() => state.setItem(`${id}:${IDS}`, ids)),
     writeRound: ({id, round, live, diff}) =>
       serial(async () => {
         if (live.length > 0) await state.setItemRaw(`${id}:live:${round.round}.png`, live)
@@ -89,6 +91,7 @@ const RECORD = 'record'
 const DESIGN = 'design'
 const IMAGE = 'target.png'
 const MAPPING = 'mapping'
+const IDS = 'ids'
 const ROUNDS = 'rounds'
 
 async function readItem<T>(input: {state: Storage; key: string; schema: z.ZodType<T>}): Promise<T | null> {
