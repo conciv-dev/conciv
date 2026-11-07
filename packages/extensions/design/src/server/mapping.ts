@@ -15,12 +15,13 @@ export async function mappingOf(input: {
   const fileKey = record.ref.split('/')[0] ?? record.ref
   const matched = (selector: string): string[] => measured.matches.get(selector) ?? []
   const ambiguous = input.stored.filter((item) => matched(item.selector).length > 1)
-  const stored = input.stored.filter((item) => matched(item.selector).length <= 1)
+  const stored = input.stored.filter((item) => matched(item.selector).length === 1)
+  const left = input.stored.filter((item) => matched(item.selector).length === 0).map((item) => item.figma.nodeId)
   const nodes = new Set([...walk(design.root)].map(({node}) => node.id))
   const mapped = new Set(stored.map((item) => item.figma.nodeId))
   const unmapped = [...nodes].filter((node) => !mapped.has(node))
   const dupes = ambiguous.map((item) => item.figma.nodeId)
-  if (unmapped.length === 0) return {mapping: stored, matches: measured.matches, dupes, candidates: []}
+  if (unmapped.length === 0) return {mapping: stored, matches: measured.matches, dupes, candidates: [], notRendered: []}
   const pins = stored.flatMap((item) => {
     const [path] = matched(item.selector)
     return path === undefined ? [] : [{node: item.figma.nodeId, path}]
@@ -66,10 +67,17 @@ export async function mappingOf(input: {
     matches,
     dupes,
     candidates,
+    notRendered: left.filter((node) => !voted.some((vote) => vote.nodeId === node)),
   }
 }
 
-type Mapped = {mapping: Mapping; matches: Map<string, string[]>; dupes: string[]; candidates: Coverage['candidates']}
+type Mapped = {
+  mapping: Mapping
+  matches: Map<string, string[]>
+  dupes: string[]
+  candidates: Coverage['candidates']
+  notRendered: string[]
+}
 
 type Tree = {
   parents: Map<string, LiveComponent | null>
