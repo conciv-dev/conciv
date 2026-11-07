@@ -1,6 +1,6 @@
 import {snapdom} from '@zumer/snapdom'
 import {z} from 'zod'
-import {toolError} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR, toolError} from '@conciv/extension'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {DESIGN_ERRORS} from '../shared/defs.js'
 import {CAPTURE_READY, CAPTURE_REQUEST} from '../shared/messages.js'
@@ -20,7 +20,13 @@ function insideCaptureFrame(): boolean {
 
 async function answer(port: MessagePort): Promise<void> {
   try {
-    const capture = await snapdom(document.documentElement, {dpr: 1, embedFonts: true, plugins: [keepBodyMargins]})
+    const capture = await snapdom(document.documentElement, {
+      dpr: 1,
+      exclude: [CONCIV_UI_SELECTOR],
+      excludeMode: 'remove',
+      embedFonts: true,
+      plugins: [keepBodyMargins],
+    })
     port.postMessage({blob: await capture.toBlob({format: 'png'})})
   } catch (error) {
     port.postMessage({error: error instanceof Error ? error.message : String(error)})

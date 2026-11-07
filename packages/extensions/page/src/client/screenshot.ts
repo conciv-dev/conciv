@@ -1,9 +1,9 @@
+import {CONCIV_UI_SELECTOR} from '@conciv/extension'
 import type {PageScreenshot} from '../shared/defs.js'
 import {keepBodyMargins} from './body-margins.js'
 
 const WEBP_QUALITY = 0.8
 const DATA_URL_COMMA = ','
-const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
 
 function base64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -22,7 +22,7 @@ export async function screenshot(): Promise<PageScreenshot> {
   const capture = await snapdom(document.documentElement, {
     clip: 'viewport',
     dpr: 1,
-    exclude: [WIDGET_ROOT_SELECTOR],
+    exclude: [CONCIV_UI_SELECTOR],
     excludeMode: 'remove',
     embedFonts: true,
     plugins: [keepBodyMargins],

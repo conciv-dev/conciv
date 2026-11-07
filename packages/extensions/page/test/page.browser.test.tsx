@@ -589,14 +589,17 @@ describe('page tools', () => {
       expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
     }, 10_000)
 
-    it('leaves the conciv widget host out of the capture', async () => {
+    it('leaves the conciv widget host and effects surface out of the capture', async () => {
       const plain = coverViewport()
       const covered = centrePixel(await decoded((await screenshotOf()).image))
       plain.remove()
-      coverViewport('data-conciv-root')
-      const excluded = centrePixel(await decoded((await screenshotOf()).image))
+      const widget = coverViewport('data-conciv-root')
+      const widgetExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      widget.remove()
+      coverViewport('data-conciv-effects')
+      const effectsExcluded = centrePixel(await decoded((await screenshotOf()).image))
       expect(isRed(covered)).toBe(true)
-      expect(isRed(excluded)).toBe(false)
+      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded)}).toEqual({widget: false, effects: false})
     }, 10_000)
   })
 

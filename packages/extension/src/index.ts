@@ -65,7 +65,7 @@ export type {
 } from './types.js'
 export {MountedExtension, MountedSurface, MountedView} from './mount-extension.js'
 export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'
-export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-host.js'
+export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR, CONCIV_UI_SELECTOR} from './client-host.js'
 export {makeExtRpcClient} from './ext-rpc.js'
 export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'

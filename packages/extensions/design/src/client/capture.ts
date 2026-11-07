@@ -1,6 +1,6 @@
 import {parse} from 'culori'
 import {snapdom} from '@zumer/snapdom'
-import {toolError} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR, toolError} from '@conciv/extension'
 import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
 import type {LiveComponent} from '../shared/types.js'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
@@ -11,7 +11,6 @@ import {ensureCaptureFrame, removeCaptureFrame} from './frame.js'
 export type ClientCapture = {image: string; width: number; height: number; route: string; components: LiveComponent[]}
 
 const DATA_URL_COMMA = ','
-const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
 const CANVAS_FALLBACK = '#ffffff'
 
 function base64(blob: Blob): Promise<string> {
@@ -99,7 +98,7 @@ export async function captureStep(input: CaptureInput): Promise<ClientCapture | 
   const capture = await snapdom(document.documentElement, {
     clip: 'viewport',
     dpr: 1,
-    exclude: [WIDGET_ROOT_SELECTOR],
+    exclude: [CONCIV_UI_SELECTOR],
     excludeMode: 'remove',
     embedFonts: true,
     plugins: [keepBodyMargins],

@@ -329,6 +329,33 @@ it('stays 1x when the device pixel ratio is 2', async () => {
   await cdp.send('Emulation.clearDeviceMetricsOverride')
 })
 
+it('leaves the conciv effects surface out of the tab capture and the frame capture', async () => {
+  const coverWith = (holder: string): Promise<void> =>
+    page.locator(holder).evaluate((element) => {
+      const doc = element instanceof HTMLIFrameElement ? element.contentDocument : element.ownerDocument
+      const cover = doc?.createElement('div')
+      if (!doc || !cover) throw new Error('no document to cover')
+      cover.setAttribute('data-conciv-effects', '')
+      cover.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgb(255,0,0)'
+      doc.body.append(cover)
+    })
+  const centreIsRed = (path: string): boolean => {
+    const png = decodePng(readFileSync(fileUnder(stateRoot, path)))
+    const offset = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4
+    const [red = 0, green = 0, blue = 0] = png.data.subarray(offset, offset + 3)
+    return red > 200 && green < 60 && blue < 60
+  }
+  await page.setViewportSize({width: 1280, height: 720})
+  await coverWith('body')
+  const tab = await call('design_capture', {width: 1280, height: 720})
+  await call('design_capture', {width: 390, height: 720})
+  await coverWith('iframe[data-conciv-capture]')
+  const frame = await call('design_capture', {width: 390, height: 720})
+  expect({tab: centreIsRed(tab.path), frame: centreIsRed(frame.path)}).toEqual({tab: false, frame: false})
+  await call('design_clear', {route: '/'})
+  await goto('/')
+})
+
 it('design_target takes the live route and width when they are omitted', async () => {
   expect(await call('design_target', {image: target('u1-1280')})).toMatchObject({route: '/', width: 1280})
 })
