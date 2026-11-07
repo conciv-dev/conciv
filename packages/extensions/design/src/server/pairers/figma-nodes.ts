@@ -27,6 +27,8 @@ type Pick = {path: string; score: number; margin: number; candidates: {path: str
 
 type Scored = {path: string; score: number}
 
+type Anchor = {node: DesignNode; path: string}
+
 type Vote = {
   elements: Element[]
   byPath: Map<string, Element>
@@ -100,11 +102,18 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   input.pins.forEach((pin) =>
     paired({vote, node: pin.node, pick: {path: pin.path, score: 1, margin: 1, candidates: []}}),
   )
+  const kept = new Set(
+    order.flatMap((entry) => {
+      const pin = pinned.get(entry.node.id)
+      if (pin === undefined) return []
+      if (holds({vote, entry, pin})) return [entry.node.id]
+      released({vote, node: entry.node.id, path: pin.path})
+      return []
+    }),
+  )
   const ties = new Map<string, Pick['candidates']>()
   order.forEach((entry) => {
-    const pin = pinned.get(entry.node.id)
-    if (pin !== undefined && holds({vote, entry, pin})) return
-    if (pin !== undefined) released({vote, node: entry.node.id, path: pin.path})
+    if (kept.has(entry.node.id)) return
     const {pairs} = vote
     const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
     const scored = rivals({vote, entry})
@@ -128,9 +137,10 @@ function holds(input: {vote: Vote; entry: Node; pin: Parameters<Pairer>[0]['pins
   const parentPath = entry.parent === null ? null : (vote.pairs.get(entry.parent.id)?.path ?? null)
   if (parentPath === pin.path) return true
   const element = vote.byPath.get(pin.path)
-  const own = element === undefined ? [] : scoreOf({vote, entry, element})
+  const [own] = element === undefined ? [] : scoreOf({vote, entry, element})
+  if (own === undefined) return false
   const best = picked(rivals({vote, entry}))
-  return best === null || best.score <= (own[0]?.score ?? 0) + pin.margin
+  return best === null || best.score <= own.score + pin.margin
 }
 
 function paired(input: {vote: Vote; node: string; pick: Pick}): void {
@@ -200,23 +210,36 @@ function shiftOf(input: {node: DesignNode | null; vote: Vote}): {x: number; y: n
   return {x: design.x - element.box.x, y: design.y - element.box.y}
 }
 
-function anchorOf(input: {node: DesignNode; vote: Vote; from?: DesignNode}): {node: string; path: string} | null {
+function anchorOf(input: {node: DesignNode; vote: Vote; from?: DesignNode}): Anchor | null {
   const from = input.from ?? input.node
   const parent = input.vote.parents.get(input.node.id) ?? null
   if (parent === null) return null
   const path = input.vote.pairs.get(parent.id)?.path
   const contains = holdsChildren({node: {...parent, children: [from]}, box: boxOf(parent)})
   if (path === undefined || !contains || parent.implied === true) return anchorOf({...input, node: parent, from})
-  return {node: parent.id, path}
+  return {node: parent, path}
 }
 
-function underAnchor(input: {vote: Vote; element: Element; anchor: {node: string; path: string}}): boolean {
+function underAnchor(input: {vote: Vote; element: Element; anchor: Anchor}): boolean {
+  if (directlyUnder(input)) return true
+  const above = twinAbove({vote: input.vote, anchor: input.anchor})
+  return above !== null && underAnchor({...input, anchor: above})
+}
+
+function twinAbove(input: {vote: Vote; anchor: Anchor}): Anchor | null {
+  const parent = input.vote.parents.get(input.anchor.node.id) ?? null
+  const path = parent === null ? undefined : input.vote.pairs.get(parent.id)?.path
+  if (parent === null || path === undefined || !sameBox({a: boxOf(parent), b: boxOf(input.anchor.node)})) return null
+  return {node: parent, path}
+}
+
+function directlyUnder(input: {vote: Vote; element: Element; anchor: Anchor}): boolean {
   const {vote, element, anchor} = input
   const real = (path: string): string[] => [...(vote.holders.get(path) ?? [])].filter((node) => !vote.implied.has(node))
   const holder = element.chain.find((path) => real(path).length > 0)
   if (holder === anchor.path) return true
   if (holder === undefined || !element.ancestors.has(anchor.path)) return false
-  return real(holder).some((node) => within({vote, node, above: anchor.node}))
+  return real(holder).some((node) => within({vote, node, above: anchor.node.id}))
 }
 
 function within(input: {vote: Vote; node: string; above: string}): boolean {
