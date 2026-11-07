@@ -74,9 +74,11 @@ Omri, 2026-11-07:
    - none: says so and lists what is open.
 3. The agent runs `return await external_use_tab({id})` once to learn that tab's tools and instructions, then each
    later block starts with `await external_use_tab({id})` and calls the tab's capabilities.
-4. Under the default policy the first call into that session is refused with "waiting for the user to allow this
-   session in the conciv tab". The tab's widget shows an Allow / Deny prompt naming the outside harness. After
-   Allow, the agent retries and the call runs. Later calls into that session run without asking.
+4. Under the default policy the first call into that session waits while the tab's widget shows an Allow / Deny
+   prompt naming the outside harness (a badge on the mascot when the panel is closed). Allow lets the same call run
+   and return its result; Deny fails it at once. With no decision after 50 s the call is refused with "waiting for
+   the user to allow it in the conciv tab"; the prompt stays, and a retry after Allow runs. Later calls into that
+   session run without asking.
 5. Each `execute_typescript` and approval-tool call appears in that tab's transcript, marked as coming from an
    outside session. `discover_tools` does not publish chunks today and still does not.
 
@@ -220,8 +222,13 @@ the agent to warn the user when it is above 1.
   - `'open'`: no prompt.
   - `'session'`: the first hub call into a session goes through the existing deny-and-retry gate
     (`plane.admitCall`, `packages/chat/src/index.ts`) with a fixed approval target `outside-session` and input
-    `{client}`. The call is refused with the gate's message until the user allows; the allow is recorded for that
-    session only.
+    `{client}`. The gate holds the call until the user decides, the client disconnects, or 50 s pass
+    (`OUTSIDE_DECISION_WAIT_MS`, below Codex's 60 s tool timeout); only then is it refused with the gate's
+    message. One click releases every call waiting on that grant. The allow is recorded for that session only.
+    The check runs when a tool is called, never on `initialize` or `tools/list`, so listing tools never prompts.
+    Known limit: under `'project'`, an Allow clicked in one tab releases calls waiting in other tabs, but their own
+    prompts stay until their history reloads; moving approvals onto TanStack AI's own tool-approval flow (in-app and
+    outside alike) removes the side list that causes it and is its own lane.
   - Deny sticks. Today a Deny outside a running turn records nothing (`approvals.decide` in
     `packages/chat/src/approvals.ts` only stores `denied` when `runId !== null`), so every retry would prompt again.
     For the `outside-session` target a Deny is stored for the session (for the engine under `'project'`), and later
@@ -416,8 +423,9 @@ Run `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion.
   - `/api/tabs` and `/api/mcp` return 401 with no token and with a wrong token;
   - `/api/tabs` returns project name and branch and a joined page with href, title, state and `browserTabs`;
     `?session=` answers open / not open;
-  - under `hubAccess: 'session'` a hub-origin call is refused, an allow lets the retry through, a second session is
-    refused again; after a Deny, retries are refused without a new pending approval until "Allow outside agents"
+  - under `hubAccess: 'session'` a hub-origin call started before the click returns its result after Allow, a
+    call started before Deny fails, an aborted waiting call leaves its prompt pending, listing tools prompts
+    nothing, a second session prompts again; after a Deny, retries are refused without a new pending approval until "Allow outside agents"
     clears it; under `'project'` the second session passes; under `'open'` nothing is refused;
   - an allowed hub-origin `execute_typescript` publishes chunks carrying `metadata.conciv.origin === 'hub'`.
 - `packages/core/test/core-api.it.test.ts`, same `describe('outside sessions')`, two engines in one process with a
