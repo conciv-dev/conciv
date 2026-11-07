@@ -6,12 +6,13 @@ import {fileURLToPath} from 'node:url'
 import {parseArgs} from 'node:util'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
-import {createServer, type ViteDevServer} from 'vite'
+import {createLogger, createServer, type ViteDevServer} from 'vite'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {magicLink} from '@conciv/harness-testkit/login'
 import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS} from '@conciv/extension-design/defs'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
@@ -97,10 +98,11 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   const {options} = input
   const target = await targetInput(options)
   const dirs = await trialDirs(options.state)
-  const server = await hostServer({...dirs, ...options})
+  const printed: string[] = []
+  const server = await hostServer({...dirs, ...options, printed})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
   try {
-    const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target})
+    const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target, printed})
     print(`state ${dirs.stateRoot}`)
     await readCommands({trial, commands: input.commands})
   } finally {
@@ -145,11 +147,17 @@ async function hostServer(input: {
   agent: boolean
   blind: boolean
   noDesign: boolean
+  printed: string[]
 }): Promise<ViteDevServer> {
   const server = await createServer({
     root: HOST_ROOT,
     configFile: false,
-    logLevel: 'silent',
+    customLogger: {
+      ...createLogger('silent'),
+      info: (message) => {
+        input.printed.push(message)
+      },
+    },
     server: {host: '127.0.0.1', port: input.port},
     plugins: [
       react(),
@@ -176,6 +184,7 @@ async function open(input: {
   browser: Browser
   devEndpointDir: string
   target: GetInput
+  printed: string[]
 }): Promise<Trial> {
   const local = input.server.resolvedUrls?.local[0]
   if (local === undefined) throw new Error('the fixture dev server has no local url')
@@ -184,9 +193,10 @@ async function open(input: {
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const page = await input.browser.newPage({viewport: {width: input.options.width, height: TAB_HEIGHT}})
+  const route = await magicLink(new URL(apiBase).origin, () => input.printed.join('\n'), input.options.route)
   await awaitPagePlaneSubscribed(page, async () => {
-    await page.goto(new URL(input.options.route, new URL(local).origin).href, {waitUntil: 'domcontentloaded'})
-    await injectWidget({page, apiBase})
+    await page.goto(new URL(route, new URL(local).origin).href, {waitUntil: 'domcontentloaded'})
+    await injectWidget({page, apiBase: new URL(apiBase).origin})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: PAGE_DRIVER_TIMEOUT_MS})
   })
   const registered = outputOf({

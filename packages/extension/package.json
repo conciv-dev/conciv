@@ -47,6 +47,10 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
+    },
+    "./db": {
+      "types": "./dist/extension-db.d.ts",
+      "import": "./dist/extension-db.js"
     }
   },
   "publishConfig": {

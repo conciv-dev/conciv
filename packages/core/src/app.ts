@@ -9,8 +9,8 @@ import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import {extensionDb} from '@conciv/extension/db'
 import {
-  extensionDb,
   type AnyExtension,
   type AnyToolBuilder,
   type AttachmentDocumentPart,
