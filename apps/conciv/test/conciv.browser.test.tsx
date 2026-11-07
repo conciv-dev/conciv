@@ -3007,7 +3007,6 @@ describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
   const OLDER_SESSIONS = 40
   const DAY_MS = 86_400_000
-  const OLDEST_ID = HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`)
 
   const localMidnight = new Date().setHours(0, 0, 0, 0)
   const MINUTE_MS = 60_000
@@ -3089,72 +3088,6 @@ describe('session selector', () => {
     )
   }
 
-  test('a session with a live core run carries the running dot, an idle one does not', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-
-    await expect.element(page.getByRole('option', {name: /a session mid-run.*running/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^the active session(?!.*running)/})).toBeVisible()
-  })
-
-  test('scrolling the virtual list to its loading row loads the next page of sessions', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    expect(page.getByRole('option', {name: /^older session 39,/}).elements()).toHaveLength(0)
-
-    await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
-    await expect.element(page.getByRole('option', {name: /^older session 28,/})).toBeInTheDocument()
-    await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
-
-    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
-    await expect.element(page.getByText('Loading more…')).not.toBeInTheDocument()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-  })
-
-  test('arrow keys move the highlight to a row outside the virtual window and scroll it into view', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-
-    await userEvent.keyboard('{ArrowUp}')
-
-    await expect
-      .element(page.getByRole('combobox', {name: /search sessions/i}))
-      .toHaveAttribute('aria-activedescendant')
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-  })
-
-  test('typing a search asks the server and finds a session past the first loaded page', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    expect(page.getByRole('option', {name: /^the kiwi orchard plan,/}).elements()).toHaveLength(0)
-
-    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'kiwi')
-
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-
-    await userEvent.clear(page.getByPlaceholder('Search sessions…'))
-
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
-  })
-
-  async function openSearch(): Promise<Locator> {
-    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    const search = page.getByRole('combobox', {name: /search sessions/i})
-    await userEvent.click(search)
-    await expect.element(search).toHaveFocus()
-    return search
-  }
-
   async function typeKeyByKey(search: Locator, keys: string, typedBefore: string): Promise<void> {
     for (const [index, key] of [...keys].entries()) {
       await userEvent.keyboard(key)
@@ -3163,152 +3096,14 @@ describe('session selector', () => {
     }
   }
 
-  test('a pointer click puts focus in the search and every typed key stays there', async () => {
+  test('a user opens, searches, pages, picks by keyboard and by pointer, and the list follows the index', async () => {
     await mountSelector()
-    const search = await openSearch()
-    await userEvent.keyboard('{Tab}')
-    await expect.element(search).not.toHaveFocus()
+    const trigger = page.getByRole('button', {name: 'Session: the active session'})
+    const search = page.getByRole('combobox', {name: /search sessions/i})
+    const option = (title: string) => page.getByRole('option', {name: new RegExp(`^${title},`)})
 
-    await userEvent.click(search)
-    await expect.element(search).toHaveFocus()
-    await typeKeyByKey(search, 'puffin', '')
-
-    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
-    await expect.element(search).toHaveFocus()
-  })
-
-  test('typing keeps focus and every key while search results land between keys', async () => {
-    await mountSelector()
-    const search = await openSearch()
-
-    await typeKeyByKey(search, 'p', '')
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-    await expect.element(search).toHaveFocus()
-
-    await typeKeyByKey(search, 'u', 'p')
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
-    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
-    await expect.element(search).toHaveFocus()
-
-    await typeKeyByKey(search, 'ffin', 'pu')
-    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
-    await expect.element(search).toHaveFocus()
-    await expect.element(search).toHaveValue('puffin')
-  })
-
-  test('clearing the search key by key brings back the plain list with focus kept', async () => {
-    await mountSelector()
-    const search = await openSearch()
-    await typeKeyByKey(search, 'kiwi', '')
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-
-    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}')
-
-    await expect.element(search).toHaveFocus()
-    await expect.element(search).toHaveValue('')
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).not.toBeInTheDocument()
-  })
-
-  test('arrow down and Enter pick a search result and focus returns to the trigger', async () => {
-    await mountSelector()
-    const search = await openSearch()
-    await typeKeyByKey(search, 'kiwi', '')
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
-
-    await userEvent.keyboard('{ArrowDown}')
-    await expect.element(search).toHaveAttribute('aria-activedescendant')
-    await userEvent.keyboard('{Enter}')
-
-    await expect
-      .element(page.getByRole('log', {name: 'Announcements'}))
-      .toHaveTextContent('Switched to the kiwi orchard plan')
-    await expect.element(page.getByRole('button', {name: 'Session: the active session'})).toHaveFocus()
-  })
-
-  test('Escape closes the picker and focus returns to the trigger', async () => {
-    await mountSelector()
-    await openSearch()
-
-    await userEvent.keyboard('{Escape}')
-
-    await expect.element(page.getByRole('option', {name: /^older session 0,/})).not.toBeInTheDocument()
-    await expect.element(page.getByRole('button', {name: 'Session: the active session'})).toHaveFocus()
-  })
-
-  test('a pointer click on a search result switches to that session', async () => {
-    await mountSelector()
-    const search = await openSearch()
-    await typeKeyByKey(search, 'puffin', '')
-
-    await userEvent.click(page.getByRole('option', {name: /^the puffin notes,/}))
-
-    await expect
-      .element(page.getByRole('log', {name: 'Announcements'}))
-      .toHaveTextContent('Switched to the puffin notes')
-  })
-
-  test('typing after scrolling to the second page keeps focus and every key', async () => {
-    await mountSelector()
-    const search = await openSearch()
-
-    await userEvent.wheel(page.getByRole('option', {name: /^older session 0,/}), {delta: {y: 1_000_000}})
-    await expect.element(page.getByRole('option', {name: /^older session 28,/})).toBeInTheDocument()
-    await userEvent.wheel(page.getByRole('option', {name: /^older session 20,/}), {delta: {y: 1_000_000}})
-    await expect.element(page.getByRole('option', {name: /^older session 39,/})).toBeVisible()
-
-    await userEvent.click(search)
-    await expect.element(search).toHaveFocus()
-    await typeKeyByKey(search, 'kiwi', '')
-
-    await expect.element(page.getByRole('option', {name: /^the kiwi orchard plan,/})).toBeVisible()
-  })
-
-  test('the Today and Yesterday groups split at local midnight', async () => {
-    await mountSelector()
-
-    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
-    await expect.element(page.getByRole('option', {name: /^a minute after midnight,/})).toBeVisible()
-
-    await expect
-      .element(page.getByRole('listbox'))
-      .toMatchTextContent(
-        /Today(?:(?!Yesterday).)*a minute after midnight(?:(?!Earlier).)*Yesterday(?:(?!Earlier).)*a minute before midnight/,
-      )
-  })
-
-  test('a search typed before indexing finishes shows title matches first, then text matches once it lands', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-    await userEvent.type(page.getByPlaceholder('Search sessions…'), 'puffin')
-
-    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
-    expect(page.getByRole('option', {name: /^a seabird survey,/}).elements()).toHaveLength(0)
-
-    await coreControl.releaseTranscripts()
-
-    await expect.element(page.getByRole('option', {name: /^a seabird survey,/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^the puffin notes,/})).toBeVisible()
-  })
-
-  test('a session past the first page shows its own title on the trigger', async () => {
-    const sessionId = await adoptNativeSession(coreRpc(core()), OLDEST_ID)
-    keep(
-      mountPane({base: core(), sessionId}, () => (
-        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
-      )),
-    )
-
-    await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
-  })
-
-  test('the selector keeps freshness, transcript size and origin in the row description', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-
+    await userEvent.click(trigger)
+    await expect.element(option('older session 0')).toBeVisible()
     await expect
       .element(
         page.getByRole('option', {name: /^a session mid-run, Edited [^·]+ · 2\.4\sMB · started externally, running$/}),
@@ -3319,6 +3114,84 @@ describe('session selector', () => {
         page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/, selected: true}),
       )
       .toBeVisible()
+    await expect
+      .element(page.getByRole('listbox'))
+      .toMatchTextContent(
+        /Today(?:(?!Yesterday).)*a minute after midnight(?:(?!Earlier).)*Yesterday(?:(?!Earlier).)*a minute before midnight/,
+      )
+
+    await userEvent.keyboard('{Tab}')
+    await expect.element(search).not.toHaveFocus()
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    await typeKeyByKey(search, 'p', '')
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await typeKeyByKey(search, 'u', 'p')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await expect.element(option('the puffin notes')).toBeVisible()
+    await typeKeyByKey(search, 'ffin', 'pu')
+    await expect.element(option('the puffin notes')).toBeVisible()
+    expect(option('a seabird survey').elements()).toHaveLength(0)
+    await coreControl.releaseTranscripts()
+    await expect.element(option('a seabird survey')).toBeVisible()
+    await expect.element(search).toHaveFocus()
+
+    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}')
+    await expect.element(search).toHaveFocus()
+    await expect.element(search).toHaveValue('')
+    await expect.element(option('older session 0')).toBeVisible()
+    await expect.element(option('the puffin notes')).not.toBeInTheDocument()
+
+    await userEvent.wheel(option('older session 0'), {delta: {y: 1_000_000}})
+    await expect.element(option('older session 28')).toBeInTheDocument()
+    await userEvent.wheel(option('older session 20'), {delta: {y: 1_000_000}})
+    await expect.element(option('older session 39')).toBeVisible()
+    await expect.element(page.getByText('Loading more…')).not.toBeInTheDocument()
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.click(search)
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(option('older session 39')).not.toBeInTheDocument()
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(search).toHaveAttribute('aria-activedescendant')
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the kiwi orchard plan')
+    await expect.element(trigger).toHaveFocus()
+
+    await userEvent.click(trigger)
+    await expect.element(search).toHaveValue('')
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveFocus()
+
+    await userEvent.click(trigger)
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('{ArrowUp}')
+    await expect.element(search).toHaveAttribute('aria-activedescendant')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.click(search)
+    await typeKeyByKey(search, 'puffin', '')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await userEvent.click(option('the puffin notes'))
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the kiwi orchard plan | Switched to the puffin notes')
+  }, 30_000)
+
+  test('a session past the first page shows its own title on the trigger', async () => {
+    const sessionId = await adoptNativeSession(coreRpc(core()), HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`))
+    keep(
+      mountPane({base: core(), sessionId}, () => (
+        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+      )),
+    )
+
+    await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
   })
 })
 
