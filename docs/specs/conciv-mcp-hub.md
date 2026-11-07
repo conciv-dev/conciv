@@ -104,24 +104,42 @@ agent CLI (any cwd) ──stdio──> conciv-hub  (`conciv mcp`, @conciv/cli; s
   one operation and closes; no process holds the home db open. Any throw from opening or writing is caught by the
   caller and logged; registration failure never stops an engine.
 - Tables:
-  - `engines`: `id` text primary key (random UUID per `start()`), `pid` integer, `root` text, `apiBase` text.
+  - `engines`: `id` text primary key (random UUID per `start()`), `pid` integer, `root` text, `apiBase` text,
+    `deletedAt` integer nullable.
   - `hub_connections`: `harness` text primary key, `connectedAt` integer. A row means the engine ran that harness's
     install successfully (or the CLI reported the server already exists).
+- Soft delete only: nothing in the home db is ever `DELETE`d. A row that stops being true gets `deletedAt`; every
+  read filters `deletedAt IS NULL`. One row per engine start (Vite restarts included) is small enough to keep.
 - Schema rule for version skew: the home schema only ever adds tables or nullable columns; readers ignore columns
   they do not know. A breaking change gets a new table name.
 - Queries in `packages/db/src/home-queries.ts`, exported from the package index: `registerEngine`,
-  `removeEngine(id)`, `listEngines`, `recordHubConnection(harness)`, `hubConnections()`.
+  `retireEngine(id, now)` (sets `deletedAt`), `listEngines` (live rows only), `recordHubConnection(harness)`, `hubConnections()`.
 
 ### Engine registration
 
 - `start()` gains `homeDir?: string` (beside `devEndpointDir`), passed through from the vite plugin options the same
   way. After the port is known: `registerEngine({id, pid: process.pid, root, apiBase})`. In `stop` (not inside
-  `clearEndpoint`, which returns early without `nativePageDir`): `removeEngine(id)`. Registration happens whether or
+  `clearEndpoint`, which returns early without `nativePageDir`): `retireEngine(id)`. After registering, the engine
+  runs `checkEngines` (below) once in the background, so stale rows are retired even when no hub ever runs. Registration happens whether or
   not `nativePageDir` is set.
 - Keying by a per-start `id` keeps the row correct when Vite restarts (the new server boots before the old one
   closes, in the same process) and when one process runs several engines (test workers do).
 - Test isolation: the shared vitest setup in `@conciv/vitest-config` sets `CONCIV_HOME` to a fresh temp dir for
   every package, so no existing or new test that calls `start()` writes to the real home folder.
+
+### Keeping rows true: identity check on read
+
+Rows are claims, checked on every read; whoever finds a false row retires it. The same `id` is passed from
+`start()` into `makeApp` (`engineId`), and the open `/health` route (`packages/core/src/app.ts`, `HealthSchema`) adds
+`id: engineId` to its response. The id is not a secret: it opens nothing, the token still guards every call.
+
+`checkEngines(home, opts: {timeoutMs: number}): Promise<{live: EngineRow[], unreachable: Array<{root, error}>}>` in
+`@conciv/db` (`packages/db/src/engine-check.ts`), used by the hub and by the engine at start. For each live row, GET
+`<origin>/health` (origin = `apiBase` without the `/t/<token>` path), in parallel:
+
+- answers with this row's `id`: live;
+- connection refused, a different `id`, or a body that is not a conciv health response: retire the row;
+- timeout: keep the row, report it unreachable (a hung or sleeping engine).
 
 ### Engine: `GET /api/tabs`
 
@@ -198,9 +216,9 @@ the agent to warn the user when it is above 1.
   headers})` from `@tanstack/ai-mcp`. Both through `@conciv/ai/server` as #739 does; no `@modelcontextprotocol/sdk`
   dependency. One client per `apiBase`, cached for the hub's life and dropped on a connection error. `@conciv/cli`
   gains `@conciv/db` and `@conciv/ai`.
-- Discovery: `listEngines()`, then for each row `GET <apiBase>/api/tabs` (2s timeout, parallel). Connection refused
-  on 127.0.0.1 means nothing listens there: delete the row. A timeout, 401 or other failure keeps the row and
-  reports it. A 404 reports "engine too old for the hub; upgrade its @conciv packages".
+- Discovery: `checkEngines(home, {timeoutMs: 2000})`, then for each live row `GET <apiBase>/api/tabs` (2s
+  timeout, parallel). A 404 reports "engine too old for the hub; upgrade its @conciv packages"; a 401 or timeout
+  reports unreachable.
 - Tools:
   - `list_tabs()`: `{tabs: [{tab, project, branch, root, href, pageTitle, sessionTitle, lastActive, running,
     state, harness, browserTabs}], unreachable: [{root, error}], home}`. Flat rows, ISO `lastActive`, nulls
@@ -298,11 +316,14 @@ Run `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion.
 
 ## Tests (existing files only, new `describe` blocks; no mocks)
 
-- `packages/db/test/db.test.ts` (404 lines), `describe('home db')`: register, list, remove by id; two engines with
+- `packages/db/test/db.test.ts` (404 lines), `describe('home db')`: register, list, retire by id (the row stays
+  with `deletedAt`, `listEngines` hides it); `checkEngines` against real started HTTP listeners keeps a matching id,
+  retires a refused port and a mismatched id, and reports a listener that never answers; two engines with
   one pid keep two rows; `hub_connections` record and list; a fresh db opened by two connections at once migrates
   once; folder and file modes are `0700` / `0600`; a symlinked home folder is refused.
 - `packages/core/test/core-api.it.test.ts` (over 1000; pay for additions), `describe('outside sessions')`:
-  - a started engine has a row with its root and token-scoped `apiBase`; `stop` removes it; two engines in one
+  - a started engine has a row with its root and token-scoped `apiBase`, and `/health` returns its `id`; `stop`
+    sets `deletedAt`; two engines in one
     process keep two rows;
   - `/api/tabs` and `/api/mcp` return 401 with no token and with a wrong token;
   - `/api/tabs` returns project name and branch and a joined page with href, title, state and `browserTabs`;
@@ -314,7 +335,7 @@ Run `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion.
   and `answerNextQuery` (a fake page subscriber, not a browser): spawn the hub over stdio with a temp
   `CONCIV_HOME`; `list_tabs` returns the tab and never a token; `tab_tools` returns the engine's list including an
   approval tool; `call_tool` runs `execute_typescript` after allow; after restarting the engine on another port the
-  same tab resolves; an unknown tab returns the `list_tabs` error; a row whose port refuses is deleted; a wrong
+  same tab resolves; an unknown tab returns the `list_tabs` error; a row whose port refuses is retired; a wrong
   token lands in `unreachable`.
 - `packages/extensions/page/test/page.browser.test.tsx` (702 lines): `page_route` returns `title` and `state`.
 - `apps/conciv/test/conciv.browser.test.tsx` (over 1000; pay for additions; the deleted launch tests pay most of
@@ -341,7 +362,8 @@ One patch changeset naming `@conciv/cli` (the fixed group bumps every `@conciv/*
 3. Two tabs of one project on different pages: the same request makes the agent ask which, naming the URLs.
 4. Restart that dev server, and separately edit its `vite.config` (Vite restart): the next call on the chosen tab
    still works.
-5. `kill -9` a dev server: it disappears from `list_tabs` and its row is deleted.
+5. `kill -9` a dev server: it disappears from `list_tabs` and its row gets `deletedAt`. Start another dev server on
+   the same port: the old row is retired by the id check, the new one is listed.
 6. A call from the outside session shows in that tab's transcript with "from <harness>".
 7. Set `hubAccess: 'open'`: no prompt. Set `'project'`: one prompt covers a second session.
 8. `ls -l ~/Library/Application\ Support/conciv` shows the folder `drwx------` and `home.db` `-rw-------`.

@@ -51,19 +51,21 @@
   - `openHomeDb(home: string): HomeDb` (prepares folder/file modes, opens `<home>/home.db`, WAL, `timeout: 5000`, migrates in `BEGIN IMMEDIATE`); `closeHomeDb(db: HomeDb): void`
   - `withHomeDb<T>(home: string, run: (db: HomeDb) => T): T` (open, run, close in `finally`)
   - `type EngineRow = {id: string; pid: number; root: string; apiBase: string}`
-  - `registerEngine(db, row: EngineRow): void`, `removeEngine(db, id: string): void`, `listEngines(db): EngineRow[]`
+  - `registerEngine(db, row: EngineRow): void`, `retireEngine(db, id: string, now: number): void` (sets `deletedAt`, never deletes), `listEngines(db): EngineRow[]` (rows with `deletedAt IS NULL`)
+  - `checkEngines(home: string, opts: {timeoutMs: number}): Promise<{live: EngineRow[]; unreachable: Array<{root: string; error: string}>}>` in `packages/db/src/engine-check.ts`: per live row GET `<origin>/health` in parallel; matching `id` → live; refused / other `id` / non-conciv body → `retireEngine`; timeout → unreachable
   - `recordHubConnection(db, harness: string, now: number): void`, `hubConnections(db): string[]`
   - `HomeFolderRefused` error (thrown for a symlink or foreign-owned folder; message names the path and reason)
 
 - [ ] **Step 1: Write the failing tests** in `describe('home db')`:
-  - `registers, lists and removes engines by id`: two rows with the same `pid` and different `id` both list; `removeEngine(db, idA)` leaves only B.
+  - `registers, lists and retires engines by id`: two rows with the same `pid` and different `id` both list; `retireEngine(db, idA, now)` leaves only B listed, and A's row still exists with `deletedAt === now` (read the table directly).
+  - `checkEngines keeps a live engine, retires a refused port and a wrong id, reports a silent one`: real `node:http` listeners on 127.0.0.1 answering `/health` with `{ok: true, id}`; one row pointing at a closed port; one listener answering another id; one that accepts and never answers (`timeoutMs: 300`).
   - `records hub connections once per harness`: recording `codex` twice lists `['codex']`.
   - `two connections migrating a fresh db at once both succeed`: open two `openHomeDb(tmp)` before either runs a query (second opened while the first is mid-migration via two `DatabaseSync` handles); both list `[]`.
   - `creates the folder 0700 and home.db 0600` (`statSync(...).mode & 0o777`); skip on `process.platform === 'win32'`.
   - `refuses a symlinked home folder` (throws `HomeFolderRefused`).
   - `concivHome prefers homeDir, then CONCIV_HOME, then the platform folder`.
 - [ ] **Step 2: Run, expect FAIL** (`openHomeDb` not exported): `pnpm turbo run build --filter=@conciv/db^... && pnpm --filter @conciv/db exec vitest run test/db.test.ts -t 'home db'`
-- [ ] **Step 3: Write `home-schema.ts`** (tables `engines`: `id` text pk, `pid` integer not null, `root` text not null, `apiBase` text not null; `hub_connections`: `harness` text pk, `connectedAt` integer not null) and `drizzle-home.config.ts` (`schema: ['./src/home-schema.ts'], out: './drizzle-home'`). Generate: `pnpm --filter @conciv/db exec drizzle-kit generate --config drizzle-home.config.ts`. Extend `gen-migrations.ts` to write `src/home-migrations.gen.ts` exporting `homeMigrations`.
+- [ ] **Step 3: Write `home-schema.ts`** (tables `engines`: `id` text pk, `pid` integer not null, `root` text not null, `apiBase` text not null, `deletedAt` integer; `hub_connections`: `harness` text pk, `connectedAt` integer not null) and `drizzle-home.config.ts` (`schema: ['./src/home-schema.ts'], out: './drizzle-home'`). Generate: `pnpm --filter @conciv/db exec drizzle-kit generate --config drizzle-home.config.ts`. Extend `gen-migrations.ts` to write `src/home-migrations.gen.ts` exporting `homeMigrations`.
 - [ ] **Step 4: Implement `home-db.ts`** with the Interfaces above. Folder prep: `lstat`; missing → `mkdirSync(home, {recursive: true, mode: 0o700})`; symlink or `uid !== process.getuid()` → throw `HomeFolderRefused`; else `chmodSync(0o700)` (POSIX only). Pre-create `home.db` with `openSync(path, 'a', 0o600)` + `chmodSync(0o600)`. Migration runs `migrateSync(homeMigrations, ...)` wrapped so the first statement is `BEGIN IMMEDIATE`; if drizzle cannot take an outer transaction, run `CREATE TABLE IF NOT EXISTS` statements from the generated SQL inside `BEGIN IMMEDIATE` instead and say so in the commit body.
 - [ ] **Step 5: Run, expect PASS** (same command).
 - [ ] **Step 6: Commit** `feat(db): per-user home db for the engines table and hub connections`.
@@ -75,17 +77,19 @@
 - Test: `packages/core/test/core-api.it.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1 `concivHome`, `withHomeDb`, `registerEngine`, `removeEngine`, `listEngines`.
-- Produces: `StartOpts.homeDir?: string`; every started engine has an `engines` row `{id: randomUUID(), pid: process.pid, root: opts.root, apiBase: tokenScopedBase()}` until `stop()`.
+- Consumes: Task 1 `concivHome`, `withHomeDb`, `registerEngine`, `listEngines`.
+- Consumes also: Task 1 `retireEngine`, `checkEngines`.
+- Produces: `StartOpts.homeDir?: string`; `MakeAppOpts.engineId: string`; `/health` response gains `id`; every started engine has an `engines` row `{id: engineId, pid: process.pid, root: opts.root, apiBase: tokenScopedBase()}`, retired on `stop()`.
 
 - [ ] **Step 1: Confirm isolation first.** Grep every `start(` / plugin boot caller in tests (`packages/**/test`, `e2e/*`, `apps/*/test`); for any runner not built on `ciTest()` (e.g. Playwright configs), set `CONCIV_HOME` to a temp dir in that config too. List them in the commit body.
 - [ ] **Step 2: Write the failing tests** in `describe('outside sessions')`:
-  - `a started engine has a row and stop removes it`: `start({..., homeDir: tmp})`; `withHomeDb(tmp, listEngines)` has one row with `root` and an `apiBase` matching `/^http:\/\/127\.0\.0\.1:\d+\/t\/[0-9a-f-]{36}$/`; after `stop()`, none.
+  - `a started engine has a row and stop retires it`: `start({..., homeDir: tmp})`; `withHomeDb(tmp, listEngines)` has one row with `root` and an `apiBase` matching `/^http:\/\/127\.0\.0\.1:\d+\/t\/[0-9a-f-]{36}$/`; `GET /health` returns that row's `id`; after `stop()`, `listEngines` is empty.
+  - `an engine retires stale rows when it starts`: pre-insert a row for a closed port; after `start()`, that row has `deletedAt`.
   - `two engines in one process keep two rows`.
   - `an engine starts when the home folder cannot be used`: `homeDir` = path of a regular file; `start()` resolves and `/health` answers.
   - `an engine starts when home.db is corrupt`: write garbage bytes to `<tmp>/home.db`; `start()` resolves.
 - [ ] **Step 3: Run, expect FAIL**: `pnpm turbo run build --filter=@conciv/core^... && pnpm --filter @conciv/core exec vitest run test/core-api.it.test.ts -t 'outside sessions'`
-- [ ] **Step 4: Implement** in `start.ts`: after `portRef.port` is set, `try { withHomeDb(concivHome({homeDir: opts.homeDir, env: process.env}), (db) => registerEngine(db, row)) } catch (error) { console.error('conciv: engine not registered for outside agents', error) }`; in `stop`, outside `clearEndpoint`, the same guarded `removeEngine(db, row.id)`.
+- [ ] **Step 4: Implement** in `start.ts`: create `engineId = randomUUID()` and pass it into `makeApp`; `/health` adds `id: engineId` to `HealthSchema`; after `portRef.port` is set, `try { withHomeDb(concivHome({homeDir: opts.homeDir, env: process.env}), (db) => registerEngine(db, row)) } catch (error) { console.error('conciv: engine not registered for outside agents', error) }`; then `void checkEngines(home, {timeoutMs: 2000}).catch(logged)`; in `stop`, outside `clearEndpoint`, the same guarded `retireEngine(db, row.id, Date.now())`.
 - [ ] **Step 5: Run, expect PASS.** Also run `pnpm --filter @conciv/vitest-config exec vitest run` (its own tests).
 - [ ] **Step 6: Commit** `feat(core): engines register in the home db; tests use a temp CONCIV_HOME`.
 
@@ -163,7 +167,7 @@
 - Test: `packages/cli/test/cli.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1 `concivHome`, `withHomeDb`, `listEngines`, `removeEngine`; Task 4 `TabsSchema`, `TabOpenSchema`; Task 5 header names; `createMCPServer`, `serveMCPStdio`, `createMCPClient` via `@conciv/ai/server`.
+- Consumes: Task 1 `concivHome`, `checkEngines`; Task 4 `TabsSchema`, `TabOpenSchema`; Task 5 header names; `createMCPServer`, `serveMCPStdio`, `createMCPClient` via `@conciv/ai/server`.
 - Produces:
   - `runHub(opts: {env: NodeJS.ProcessEnv; stdin: Readable; stdout: Writable}): Promise<void>`
   - Tools `list_tabs()`, `tab_tools({tab})`, `call_tool({tab, name, arguments})` with the spec's output shape and server instructions text (copy verbatim from the spec).
@@ -177,11 +181,11 @@
   - `call_tool runs execute_typescript after allow` (engine `hubAccess: 'open'` for this case).
   - `a restarted engine on another port still resolves the tab`.
   - `an unknown tab says to call list_tabs`.
-  - `a row whose port refuses is deleted`.
+  - `a row whose port refuses is retired`.
   - `a wrong token lands in unreachable`.
   - `an engine that stops mid call returns an error and the next call re-resolves` (Review Focus 3).
 - [ ] **Step 2: Run, expect FAIL**: `pnpm turbo run build --filter=@conciv/cli^... && pnpm --filter @conciv/cli exec vitest run test/cli.test.ts -t 'conciv mcp hub'`
-- [ ] **Step 3: Implement** discovery (`ECONNREFUSED` → `removeEngine`; 404 → "engine too old for the hub; upgrade its @conciv packages"; 401/timeout → `unreachable`), resolve via `?session=` in parallel (zero → "tab <id> is not open; call list_tabs", two → error naming both roots and asking to close one browser tab), client cache per `apiBase` dropped on any transport error, tools zod-validated (`tab` as `SessionId`).
+- [ ] **Step 3: Implement** discovery (`checkEngines(home, {timeoutMs: 2000})`; 404 → "engine too old for the hub; upgrade its @conciv packages"; 401/timeout → `unreachable`), resolve via `?session=` in parallel (zero → "tab <id> is not open; call list_tabs", two → error naming both roots and asking to close one browser tab), client cache per `apiBase` dropped on any transport error, tools zod-validated (`tab` as `SessionId`).
 - [ ] **Step 4: Run, expect PASS.**
 - [ ] **Step 5: Measure** a cold `npx -y @conciv/cli@<local pack> mcp` start (pack the CLI into a temp registry-free tarball, fresh npm cache). Record seconds in the commit body; over 10 s → STOP and report.
 - [ ] **Step 6: Commit** `feat(cli): conciv mcp, the hub that finds and drives open conciv tabs`.
