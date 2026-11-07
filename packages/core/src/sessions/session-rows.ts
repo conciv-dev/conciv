@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {and, desc, eq, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
+import {uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import type {
@@ -373,7 +374,10 @@ async function listedSessions(entries: PageEntry[], input: SessionListInput): Pr
         : listedNative(entry.native, input, current.get(keyOf(entry.native)), earlier.get(keyOf(entry.native))),
     ),
   )
-  return listed.filter((session) => session !== null)
+  return uniqBy(
+    listed.filter((session) => session !== null),
+    (session) => session.row.id,
+  )
 }
 
 function nextCursor(
@@ -451,8 +455,8 @@ async function listedNative(
 ): Promise<ListedSession | null> {
   if (owner) return {row: await visibleRow(owner, input), native: native.meta}
   if (earlierOwner) {
-    await visibleRow(earlierOwner, input)
-    return null
+    const row = await visibleRow(earlierOwner, input)
+    return input.search === null ? null : {row, native: undefined}
   }
   return {row: await materializedRow(native, input), native: native.meta}
 }

@@ -1,3 +1,4 @@
+import {until} from '@conciv/harness-testkit/until'
 import {
   mkdtempSync,
   rmSync,
@@ -838,7 +839,7 @@ describe('api harness switching', () => {
     betaTranscripts.push({
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
-      updatedAt: 6,
+      updatedAt: Date.now() + 3_600_000,
     })
     const listings = async (includeHidden: boolean) => {
       const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
@@ -850,6 +851,12 @@ describe('api harness switching', () => {
 
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})
     expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect((await kit().rpc.sessions.list({limit: 1})).sessions).toHaveLength(1)
+    await until(
+      async () =>
+        (await kit().rpc.sessions.search({term: 'owned transcript'})).sessions.some((meta) => meta.id === sessionId),
+      {hangGuardMs: 5_000, intervalMs: 50},
+    )
     expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     const returned = await turn(sessionId, 'back on beta')
@@ -3537,7 +3544,7 @@ return seen`
     await closed.promise
   }
 
-  async function readSse(response: Response, until: string): Promise<string[]> {
+  async function readSse(response: Response, stopType: string): Promise<string[]> {
     const body = response.body
     if (body === null) throw new Error('the SSE response has no body')
     const reader = body.pipeThrough(new TextDecoderStream()).getReader()
@@ -3554,7 +3561,7 @@ return seen`
         .flatMap((line) => (line.startsWith('data: ') ? [SseChunkSchema.safeParse(JSON.parse(line.slice(6)))] : []))
         .flatMap((parsed) => (parsed.success ? [parsed.data.type] : []))
       seen.push(...types)
-      if (types.includes(until)) {
+      if (types.includes(stopType)) {
         await reader.cancel()
         return seen
       }
