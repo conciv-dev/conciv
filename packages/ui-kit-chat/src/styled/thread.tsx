@@ -6,6 +6,7 @@ import {
   onMount,
   Show,
   Switch,
+  untrack,
   useContext,
   type Accessor,
   type Component,
@@ -189,11 +190,9 @@ function AssistantTurn(props: {
     const segmentActive = () => groupProps.node.indices.some(partLive) || segmentRollup().awaitingApproval
     const items = createMemo(
       mapArray(segmentItems, (item): TraceItem => {
+        const callId = untrack(() => asToolCall(item.part())?.id)
         const call = createMemo(() => asToolCall(item.part()))
-        const result = createMemo(() => {
-          const current = call()
-          return current ? turnParts.resultFor(current.id) : undefined
-        })
+        const result = createMemo(() => (callId === undefined ? undefined : turnParts.resultFor(callId)))
         const live = createMemo(() => {
           const current = call()
           return current !== null && rowMarkOf(current, result()) === 'run'
@@ -204,9 +203,9 @@ function AssistantTurn(props: {
           get live() {
             return live()
           },
-          render: (branch: TraceBranch): JSX.Element => (
-            <Switch>
-              <Match when={asThinking(item.part())}>
+          render: (branch: TraceBranch): JSX.Element =>
+            callId === undefined ? (
+              <Show when={asThinking(item.part())}>
                 {(thinkingPart) => (
                   <TraceRunRow
                     label={PLAN_LABEL}
@@ -216,8 +215,9 @@ function AssistantTurn(props: {
                     body={planBody(thinkingPart)}
                   />
                 )}
-              </Match>
-              <Match when={call()}>
+              </Show>
+            ) : (
+              <Show when={call()}>
                 {(callPart) => (
                   <ToolTraceRow
                     part={callPart()}
@@ -229,9 +229,8 @@ function AssistantTurn(props: {
                     ring={branch.ring}
                   />
                 )}
-              </Match>
-            </Switch>
-          ),
+              </Show>
+            ),
         }
       }),
     )
@@ -271,7 +270,8 @@ function AssistantTurn(props: {
         </Match>
         <Match when={leafCall()}>
           {(part) => {
-            const result = createMemo(() => turnParts.resultFor(part().id))
+            const callId = untrack(part).id
+            const result = createMemo(() => turnParts.resultFor(callId))
             return (
               <ToolCallCard
                 part={part()}

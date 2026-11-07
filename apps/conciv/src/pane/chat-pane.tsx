@@ -320,14 +320,21 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
       if (waiting > previous) announce('conciv is asking for permission.')
       return waiting
     }, 0)
-    const narrationTitle = createMemo(() => {
-      const call = narrating() ? activeToolCall(lastTurn()) : null
-      if (call) return nowTitle(call, catalog)
-      return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
-    })
+    const NarrationRow = (): JSX.Element => {
+      const title = createMemo(() => {
+        const call = activeToolCall(lastTurn())
+        if (call) return nowTitle(call, catalog)
+        return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
+      })
+      return (
+        <div class={NOW_ROW}>
+          <NowLine title={title()} />
+        </div>
+      )
+    }
     const composerPlaceholder = () => (thread.isEmpty ? 'Ask a question…' : 'Add an instruction…')
     const lastMessage = () => lastTurn()?.messages.at(-1)
-    const trailingAnchor = createMemo(() => ((markers.data?.length ?? 0) > 0 ? lastMessage()?.id : undefined))
+    const lastMessageId = createMemo(() => lastMessage()?.id)
     const lastTurnStopped = () => !narrating() && (chat.stopped() || isStoppedTurn(lastMessage()))
     const turnHarnessName = turnHarnessNames(
       chat,
@@ -386,7 +393,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <Divider kind="stopped" />
                   </Show>
                   <Show when={!chat.loadFailed()}>
-                    <For each={markerRowsAfter(trailingAnchor())}>{renderDivider}</For>
+                    <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
                   </Show>
                   <Show when={compacting()}>
                     <Divider kind="compact" pending />
@@ -395,9 +402,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                     <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
                   </Show>
                   <Show when={narrating()}>
-                    <div class={NOW_ROW}>
-                      <NowLine title={narrationTitle()} />
-                    </div>
+                    <NarrationRow />
                   </Show>
                   <Show when={messaging.visibleError()}>
                     {(error) => (
