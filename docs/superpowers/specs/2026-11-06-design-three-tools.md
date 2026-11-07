@@ -319,3 +319,23 @@ from the image. The layout win is real; the look is lost by our own rules. The f
 - Proof: the same three runs on both designs; then a blind screenshot comparison, design against tool page against
   plain-Claude page, scored by a person or a separate model that never saw the rows. The watch is not the judge of
   the look.
+
+### Queries are typed, never SQL (2026-11-07, same day)
+
+The first database lane shipped `conciv db query "<sql>"` and `design_query {sql}` with a read-only sandbox built
+from an `EXPLAIN` walk. Omri: no path may take a statement, for anyone. Raw SQL goes from the CLI and the tool.
+
+One typed API, the shape swamp's `data query` has, over named logical sources, read and write:
+
+- read: `{from, where, select, limit}`. `from` is a source name (`rows`, `votes`, `fom`, `rounds`, `tool_calls`,
+  `runs`, `labels`, `notes`); `where` is a predicate in a small expression grammar (field, comparison, `and`, `or`,
+  `in`, `contains`) compiled to a parameterized `SELECT`; `select` is a list of field names; `limit` a count. An
+  unknown source or field is an error that names the known ones. No argument lists the sources and their fields.
+- write: `{into, values}` for the sources declared writable, compiled to a parameterized `INSERT`. Writable: `labels`
+  (target, round, node, id, verdict right or wrong, by, note) and `notes` (target, round, text). The seven fact tables
+  are written by the tools only.
+
+Sources are a contract over the tables: a migration may move columns while the source keeps its fields. The same API
+serves `conciv db query` (core, generic over every extension's sources), `conciv design:query`, and `design_query`
+(the page builder gets read; a reviewing or learning agent gets read and write). The `EXPLAIN` sandbox, the single-
+`SELECT` wrapper and `readOnlyQuery` go.
