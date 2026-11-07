@@ -21,7 +21,7 @@ const ENGINE_STALE_MESSAGE =
 const ENGINE_REVOKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
 const ENGINE_LOGGED_OUT_MESSAGE = 'Log in to use conciv on this page.'
 
-const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version} and restart the dev server.`
+const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`
 
 const ENGINE_UNREACHABLE_KEY = 'engine-unreachable'
 const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'

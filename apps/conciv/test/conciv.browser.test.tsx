@@ -1182,7 +1182,7 @@ describe('engine version', () => {
     await expect
       .element(page.getByRole('alert'))
       .toHaveTextContent(
-        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version} and restart the dev server.`,
+        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
       )
   })
 })
