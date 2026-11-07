@@ -55,7 +55,7 @@ import {
 } from '@conciv/extension'
 import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
 import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {INERT_TOOL_CTX, ToolCallCard} from '@conciv/ui-kit-chat/tools'
+import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
@@ -63,6 +63,7 @@ import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
+import {RunErrorRow} from '../src/pane/run-error-row.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
@@ -83,7 +84,7 @@ import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import type {RunClockSource} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, type RunClockSource} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -3549,4 +3550,168 @@ describe('wire name coverage', () => {
       .filter((name) => !reachable.has(name) && !HARNESS_NATIVE_CARD_NAMES.includes(name))
     expect(dead).toEqual([])
   })
+})
+
+describe('run errors', () => {
+  const OVERFLOW_TEXT = 'prompt is too long: 250000 tokens > 200000 maximum'
+
+  function FailedRun(props: {failure: ChatEvent; compacted: () => void; compacting?: boolean}): JSX.Element {
+    const chat = createChat({
+      threadId: 'run-errors',
+      connection: {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {type: ChatEventType.RUN_STARTED, threadId: 'run-errors', runId: runContext?.runId ?? 'failed-run'}
+          yield props.failure
+        },
+      },
+    })
+    onMount(() => void chat.sendMessage('go'))
+    return (
+      <Show when={chat.error()}>
+        {(error) => (
+          <RunErrorRow
+            error={error()}
+            compacting={props.compacting ?? false}
+            onRetry={() => void chat.reload()}
+            onCompact={props.compacted}
+          />
+        )}
+      </Show>
+    )
+  }
+
+  it('a context overflow says the conversation is too long and offers to compact it', async () => {
+    const compacted = {count: 0}
+    render(() => (
+      <FailedRun
+        failure={{type: ChatEventType.RUN_ERROR, message: OVERFLOW_TEXT, code: 'context_overflow'}}
+        compacted={() => void (compacted.count += 1)}
+      />
+    ))
+
+    const alert = page.getByRole('alert')
+    await expect.element(alert.getByText(/This conversation is too long for the model\./)).toBeVisible()
+    await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
+    expect(compacted.count).toBe(1)
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
+  })
+
+  it('the Compact action is disabled while a compaction is already running', async () => {
+    render(() => (
+      <FailedRun
+        failure={{type: ChatEventType.RUN_ERROR, message: OVERFLOW_TEXT, code: 'context_overflow'}}
+        compacted={() => {}}
+        compacting
+      />
+    ))
+
+    const compact = page.getByRole('button', {name: 'Compact conversation'})
+    await expect.element(compact).toBeVisible()
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
+    await expect.element(compact).toBeDisabled()
+  })
+
+  it('any other provider error keeps its own text and a retry', async () => {
+    render(() => (
+      <FailedRun failure={{type: ChatEventType.RUN_ERROR, message: 'upstream is overloaded'}} compacted={() => {}} />
+    ))
+
+    await expect.element(page.getByRole('alert').getByText('upstream is overloaded')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Retry'})).toBeVisible()
+  })
+
+  describe('in a live pane', () => {
+    const core = bootedCore('run-errors-live')
+    const keep = keptPane()
+
+    const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const runError = (text: string) =>
+      page.getByRole('alert').filter({hasText: text, has: page.getByRole('button', {name: 'Retry'})})
+
+    async function typeTurn(text: string): Promise<void> {
+      await userEvent.click(input())
+      await userEvent.keyboard(`${text}{Enter}`)
+    }
+
+    it('a finished compaction clears the run error it resolved, and a later failure still shows', async () => {
+      const sessionId = await createSession(coreRpc(core()))
+      keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+      await expect.element(input()).toBeVisible()
+
+      await coreControl.scriptError('upstream is overloaded')
+      await typeTurn('first turn')
+      await expect.element(runError('upstream is overloaded')).toBeVisible()
+
+      await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+      await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+      await expect.element(runError('upstream is overloaded')).not.toBeInTheDocument()
+      await page.screenshot({path: '__screenshots__/run-errors/compacted-clears-error.png'})
+
+      await coreControl.scriptError('the model went away')
+      await typeTurn('second turn')
+      await expect.element(runError('the model went away')).toBeVisible()
+    })
+  })
+})
+
+describe('tool outcomes', () => {
+  const STOPPED_REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
+
+  function stoppedTool(
+    outcome: 'denied' | 'cancelled',
+    name = 'Bash',
+    input: Record<string, unknown> = {command: 'rm -rf build'},
+  ): JSX.Element {
+    const part: ToolCallPart = {
+      type: 'tool-call',
+      id: 'stopped-1',
+      name,
+      arguments: JSON.stringify(input),
+      input,
+      state: 'input-complete',
+    }
+    const result: ToolResultPart = {
+      type: 'tool-result',
+      toolCallId: 'stopped-1',
+      content: JSON.stringify({error: STOPPED_REASON[outcome]}),
+      state: 'error',
+      outcome,
+      error: STOPPED_REASON[outcome],
+    }
+    return <ToolTraceRow part={part} result={result} ctx={INERT_TOOL_CTX} tools={() => builtinToolCards} />
+  }
+
+  it('a denied tool reads as denied, not as a failure', async () => {
+    render(() => stoppedTool('denied'))
+
+    await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
+  })
+
+  it('a cancelled tool reads as cancelled, not as a failure', async () => {
+    render(() => stoppedTool('cancelled'))
+
+    await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
+    await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
+  })
+
+  for (const [outcome, name] of [
+    ['denied', 'Grep'],
+    ['cancelled', 'Glob'],
+  ] as const) {
+    it(`a ${outcome} ${name} search names the outcome on the row, never failed`, async () => {
+      render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
+
+      await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
+      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
+      await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
+      await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
+      await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
+      await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
+    })
+  }
 })

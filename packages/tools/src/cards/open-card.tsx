@@ -21,6 +21,8 @@ function targetOf(input: {file: string; line?: number} | undefined, fallback: st
 
 function statusNote(status: ToolStatus): string {
   if (status === 'error') return 'Could not open the file.'
+  if (status === 'denied') return 'Opening the file was denied.'
+  if (status === 'cancelled') return 'Opening the file was cancelled.'
   if (status === 'complete') return 'Opened in your editor.'
   return 'Opening…'
 }

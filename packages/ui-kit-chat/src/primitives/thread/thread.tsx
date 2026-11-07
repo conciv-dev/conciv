@@ -115,7 +115,7 @@ function TurnSlot(props: TurnSlotProps): JSX.Element {
     <Show when={props.turn()}>
       {(turn) => {
         const pairing = createMemo(() => pairResults(turn().parts))
-        const isLast = () => props.index() === props.total() - 1
+        const isLast = createMemo(() => props.index() === props.total() - 1)
         const components = 'components' in props.messages ? props.messages.components : undefined
         const component = () => (components ? componentForRole(turn().role, components) : undefined)
         return (
@@ -156,6 +156,8 @@ function VirtualMessages(props: {
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
+  const layoutTurns = createMemo(() => turns(), [], {equals: sameSettledTurns})
+  const turnCount = () => layoutTurns().length
   const estimator = useTurnEstimator()
   const [spacer, setSpacer] = createSignal<HTMLDivElement>()
   const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
@@ -176,13 +178,13 @@ function VirtualMessages(props: {
   }
   const virtualizer = createThreadVirtualizer({
     scrollElement: () => props.internal.element(),
-    count: () => turns().length,
+    count: turnCount,
     keyAt: (index) => turns()[index]?.key,
     estimateSizeAt: (index) => settledEstimate(index)?.height ?? ROW_ESTIMATE_PX,
     exactAt: (index) => settledEstimate(index)?.exact === true,
     gap: () => metrics.gap,
     scrollMargin: () => metrics.scrollMargin,
-    overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
+    overscan: () => (turnCount() < VIRTUALIZE_THRESHOLD ? turnCount() : EVICTING_OVERSCAN),
   })
   onMount(() => {
     props.viewport.setScroller({
@@ -271,13 +273,21 @@ function VirtualMessages(props: {
             <TurnSlot
               turn={() => turns()[item.index]}
               index={() => item.index}
-              total={() => turns().length}
+              total={turnCount}
               messages={props.messages}
             />
           </div>
         )}
       </For>
     </div>
+  )
+}
+
+function sameSettledTurns(previous: readonly Turn[], next: readonly Turn[]): boolean {
+  const lastIndex = next.length - 1
+  return (
+    previous.length === next.length &&
+    next.every((turn, index) => (index === lastIndex ? turn.key === previous[index]?.key : turn === previous[index]))
   )
 }
 
@@ -305,7 +315,7 @@ function MessageByIndex(props: MessageByIndexProps): JSX.Element {
     <Show when={turn()} keyed>
       {(value) => {
         const pairing = createMemo(() => pairResults(value.parts))
-        const isLast = () => props.index === thread.turns.length - 1
+        const isLast = createMemo(() => props.index === thread.turns.length - 1)
         const component = componentForRole(value.role, props.components)
         return (
           <MessageProvider value={{message: () => value, index: () => props.index, pairing, isLast}}>
@@ -330,7 +340,7 @@ function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
     <Show when={located()} keyed>
       {(value) => {
         const pairing = createMemo(() => pairResults(value.turn.parts))
-        const isLast = () => value.index === thread.turns.length - 1
+        const isLast = createMemo(() => value.index === thread.turns.length - 1)
         const component = componentForRole(value.turn.role, props.components)
         return (
           <MessageProvider value={{message: () => value.turn, index: () => value.index, pairing, isLast}}>

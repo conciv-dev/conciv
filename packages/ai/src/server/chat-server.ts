@@ -97,7 +97,6 @@ export type ChatThread = {
 export type CodeDiscovery = {description: string; run: (toolNames: string[]) => Promise<unknown>}
 
 export type CodeRunner = {
-  systemPrompt: string
   run: (code: string, emit: CustomEventSink) => Promise<unknown>
   discover: CodeDiscovery | null
 }
@@ -489,6 +488,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       systemPrompts: [...plan.systemPrompts, ...(coded === null ? [] : [coded.systemPrompt])],
       tools: [...(coded?.tools ?? []), ...gatedTools(plan.asking, approvals)],
       lazyToolsConfig: {includeDescription: 'first-sentence'},
+      retry: {maxRetries: 2},
       modelOptions: plan.modelOptions,
       reasoning: plan.reasoning,
       abortController: controller,
@@ -566,7 +566,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const execute = coded.execute.execute
       if (!execute) return null
       return {
-        systemPrompt: coded.systemPrompt,
         run: async (code, emit) => {
           const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit})
           const refusal = secretRefusalOf(result)

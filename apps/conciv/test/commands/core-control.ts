@@ -227,6 +227,10 @@ const releaseResults: BrowserCommand<[PacedRelease?]> = (ctx, paced): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
+  kitOf(ctx).harness.script.scriptError(message)
+}
+
 const clearScript: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.clearScript()
 }
@@ -448,6 +452,7 @@ export const coreCommands = {
   releaseResults,
   releaseTurn,
   scriptTurn,
+  scriptError,
   clearScript,
   scriptCustomEvent,
   setTerminalLaunch,

@@ -1,4 +1,13 @@
-import {createComputed, createEffect, createSignal, onCleanup, onMount, type Accessor} from 'solid-js'
+import {
+  createComputed,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+  type Accessor,
+} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -194,8 +203,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       const element = config.scrollElement()
       return element?.isConnected ? element : null
     },
-    estimateSize: (index) => Math.round(config.estimateSizeAt(index)),
-    getItemKey: (index) => config.keyAt(index) ?? index,
+    estimateSize: (index) => untrack(() => Math.round(config.estimateSizeAt(index))),
+    getItemKey: (index) => untrack(() => config.keyAt(index) ?? index),
     gap: config.gap(),
     scrollMargin: config.scrollMargin(),
     overscan: config.overscan(),
@@ -243,7 +252,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const virtualItems = instance.getVirtualItems()
     setItems(reconcile(virtualItems, {key: 'key'}))
     setTotalSize(instance.getTotalSize())
-    setMeasured(virtualItems.every((item) => instance.itemSizeCache.has(item.key) || config.exactAt(item.index)))
+    setMeasured(
+      virtualItems.every((item) => instance.itemSizeCache.has(item.key) || untrack(() => config.exactAt(item.index))),
+    )
     syncAtEnd()
   }
 
@@ -305,6 +316,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     lastKey: undefined,
   })
 
+  const firstTurnKey = createMemo(() => config.keyAt(0))
+  const lastTurnKey = createMemo(() => config.keyAt(config.count() - 1))
+
   const isSameThread = (element: HTMLElement, firstKey: string | undefined, lastKey: string | undefined): boolean => {
     if (landing.element !== element) return false
     if (firstKey !== undefined && landing.firstKey === firstKey) return true
@@ -317,8 +331,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     totalSize()
     measured()
     if (!element?.isConnected || total === 0) return
-    const firstKey = config.keyAt(0)
-    const lastKey = config.keyAt(total - 1)
+    const firstKey = firstTurnKey()
+    const lastKey = lastTurnKey()
     const sameThread = isSameThread(element, firstKey, lastKey)
     setLanding({element, firstKey, lastKey})
     if (!sameThread) {

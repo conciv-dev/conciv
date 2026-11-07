@@ -66,6 +66,7 @@ declare module 'vitest/internal/browser' {
     releaseResults: (paced?: PacedRelease) => Promise<void>
     releaseTurn: () => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
+    scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
     setTerminalLaunch: (succeeds: boolean) => Promise<void>

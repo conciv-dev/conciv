@@ -64,7 +64,9 @@ function ConsoleCard(props: ToolCardProps): JSX.Element {
     >
       <div class="flex flex-col gap-1.5">
         <Switch>
-          <Match when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Match>
+          <Match when={errorMessage()}>
+            {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+          </Match>
           <Match when={lines()}>
             {(entries) => (
               <Show
