@@ -6,7 +6,7 @@ import {join} from 'node:path'
 import {setImmediate} from 'node:timers/promises'
 import {describe, it, expect, afterEach, afterAll, beforeAll, test, beforeEach, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
-import {createToolCallChunks} from '@conciv/ai/testkit'
+import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
   cappedValue,
   createChatPlane,
@@ -574,7 +574,7 @@ describe('saved harness models', () => {
       id: 'listing',
       binName: 'listing',
       models,
-      chatConfig: () => ({adapter: makeTextAdapter('listing', async function* () {})}),
+      chatConfig: () => ({adapter: fakeText()}),
       capabilities: {
         resume: false,
         permissionGate: 'none',
