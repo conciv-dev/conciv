@@ -12,7 +12,11 @@ export type McpTool = {
   execute: (input: Record<string, unknown>, options?: {signal?: AbortSignal}) => Promise<string | McpContentPart[]>
 }
 
-export type McpClient = {tools: () => Promise<McpTool[]>; close: () => Promise<void>}
+export type McpClient = {
+  tools: () => Promise<McpTool[]>
+  serverVersion: () => string | undefined
+  close: () => Promise<void>
+}
 
 const ContentSchema = z.array(
   z.discriminatedUnion('type', [
@@ -53,6 +57,7 @@ export async function connectMcpClient(url: string, headers?: Record<string, str
           return contentOf(result.content)
         },
       })),
+    serverVersion: () => client.getServerVersion()?.version,
     close: () => client.close(),
   }
 }

@@ -8,7 +8,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 - `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`.
 - `index.ts:ChatPlane.routes` - a Hono app with `GET CHAT_WS_PATH` (WebSocket upgrade), `POST CHAT_SSE_PATH` (start events) and `GET CHAT_SSE_PATH` (resume; 400 `no resume offset` when there is none).
-- `index.ts:CodeTool` / `CodeRunner` / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
+- `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
 - `code-mode.ts:RESULT_CAP_CHARS` (50000), `cappedText`, `cappedValue`, `safeStringify`, `truncationEnvelope` - cap and serialize tool results.
 - `code-mode.ts:registryCapabilities` / `assistCapabilities` / `chatToolSet` - build `CodeCapability` lists and the code-mode and asking tool sets.
 - `approvals.ts:createApprovalStore` - pending approvals and grants per thread over the `metadata` chat store; `ApprovalScope` is `'once' | 'session'`.
