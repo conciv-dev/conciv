@@ -45,6 +45,7 @@ export type ExtensionMigrations = readonly MigrationMeta[]
 export type ExtensionDb<Tables extends ExtensionTables> = {
   orm: NodeSQLiteDatabase
   tables: Tables
+  query(sql: string): Record<string, unknown>[]
 }
 
 export type ExtensionCommand<Tables extends ExtensionTables = ExtensionTables> = {

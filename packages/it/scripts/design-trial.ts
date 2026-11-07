@@ -22,6 +22,7 @@ const TAB_HEIGHT = 720
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
+const RUNS_COMMAND = 'design:runs'
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 const [getDef, watchDef, validateDef] = DESIGN_TOOLS
 
@@ -50,6 +51,7 @@ const COMMANDS: Record<string, Command> = {
   get: ({trial, args: [file]}) => called({trial, name: getDef.name, schema: getDef.outputSchema, file}),
   watch: ({trial, args: [file]}) => called({trial, name: watchDef.name, schema: watchDef.outputSchema, file}),
   validate: ({trial, args: [file]}) => called({trial, name: validateDef.name, schema: validateDef.outputSchema, file}),
+  run: async ({trial, args}) => print(JSON.stringify(await trial.rpc.extensions.run({name: RUNS_COMMAND, args}))),
   screenshot: async ({trial, args: [file = 'trial.png']}) => {
     await trial.page.screenshot({path: resolve(file), fullPage: true})
     print(`wrote ${resolve(file)}`)

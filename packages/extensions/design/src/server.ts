@@ -19,6 +19,7 @@ import {SERVER_STEPS} from './server/tools.js'
 import {designTables} from './server/tables.js'
 import {migrations} from './server/migrations.gen.js'
 import {createRuns} from './server/runs.js'
+import {DESIGN_COMMANDS} from './server/commands.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -32,6 +33,7 @@ const design = defineExtension({
   tools: SERVER_STEPS,
   tables: designTables,
   migrations,
+  commands: DESIGN_COMMANDS,
 }).server((server) => {
   const {config, db} = server
   const state = createStorage({driver: fsDriver({base: join(server.stateDir, 'design')})})
@@ -61,7 +63,7 @@ const design = defineExtension({
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
   return {
-    context: {design: runtime, differ},
+    context: {design: runtime, differ, query: db.query},
     router: xray.router,
     app: xray.app,
     dispose: async () => {

@@ -47,7 +47,16 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import type {ChatContext} from './api/rpc/mount.js'
-import {drafts, extensionTable, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {
+  drafts,
+  extensionTable,
+  modelOf,
+  openDb,
+  readOnlyQuery,
+  sessions,
+  writeToolCapture,
+  type ConcivDb,
+} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -329,7 +338,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
   const declared = extensions.map((extension) => ({
     extension,
-    scoped: {orm: db, tables: extension.tables?.(extensionTable(extension.name)) ?? {}},
+    scoped: {
+      orm: db,
+      tables: extension.tables?.(extensionTable(extension.name)) ?? {},
+      query: (sql: string) => readOnlyQuery({file: db.$client.location() ?? '', sql, prefix: `${extension.name}_`}),
+    },
   }))
   const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
   const extensionCommands = declared.flatMap(({extension, scoped}) =>
