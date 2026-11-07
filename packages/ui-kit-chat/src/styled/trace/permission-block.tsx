@@ -25,7 +25,6 @@ const DENY = `${BUTTON_BASE} [background:transparent] [border:1px_solid_transpar
 const SESSION = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-perm-line)]`
 const HINT = 'select-none text-chat-micro leading-none [font-family:var(--chat-mono)] opacity-70'
 const REQUEST_ITEM = 'list-none min-w-0 relative'
-const ANNOUNCE_ITEM = 'list-none'
 
 const SECOND = 1000
 
@@ -75,72 +74,66 @@ function Block(props: {target: string; explanation?: string; expiresAt?: number}
     })
   }
   return (
-    <>
-      <Show when={permission.pending() || decision() !== undefined}>
-        <li class={REQUEST_ITEM}>
-          <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
-            <div
-              ref={bindKeys}
-              role="group"
-              aria-label="Permission request"
-              tabindex={permission.pending() ? '0' : undefined}
-              class={`${FRAME}  ${FOCUS}`}
-            >
-              <div class={HEADER}>
-                <span class={WARN_GLYPH} aria-hidden="true">
-                  ⚠
-                </span>
-                <span class={HEADER_LABEL}>Permission</span>
-                <Show when={permission.pending() && local.expiresAt}>
-                  {(expiresAt) => <ExpiryChip expiresAt={expiresAt()} />}
-                </Show>
-              </div>
-              <p class={TARGET}>{local.target}</p>
-              <Show when={local.explanation}>{(explanation) => <p class={EXPLANATION}>{explanation()}</p>}</Show>
-              <div class={ACTIONS}>
-                <Show
-                  when={permission.pending()}
-                  fallback={
-                    <Show when={decision()}>
-                      {(settled) => <span class={DECIDED}>{DECISION_CHIP[settled()]}</span>}
-                    </Show>
-                  }
-                >
-                  <Button variant="plain" size="none" class={APPROVE} onClick={permission.approve}>
-                    Approve
-                    <span class={HINT} aria-hidden="true">
-                      ⌘⏎
-                    </span>
-                  </Button>
-                  <Show when={permission.rememberable()}>
-                    <Button
-                      variant="plain"
-                      size="none"
-                      class={SESSION}
-                      title="Allows this exact command for the rest of the session"
-                      onClick={permission.approveForSession}
-                    >
-                      Allow for session
-                    </Button>
-                  </Show>
-                  <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>
-                    Deny
-                    <span class={HINT} aria-hidden="true">
-                      esc
-                    </span>
+    <Show when={permission.pending() || decision() !== undefined}>
+      <li class={REQUEST_ITEM}>
+        <div class={`flex min-w-0 items-start ${TRACE_INDENT}`}>
+          <div
+            ref={bindKeys}
+            role="group"
+            aria-label="Permission request"
+            tabindex={permission.pending() ? '0' : undefined}
+            class={`${FRAME}  ${FOCUS}`}
+          >
+            <div class={HEADER}>
+              <span class={WARN_GLYPH} aria-hidden="true">
+                ⚠
+              </span>
+              <span class={HEADER_LABEL}>Permission</span>
+              <Show when={permission.pending() && local.expiresAt}>
+                {(expiresAt) => <ExpiryChip expiresAt={expiresAt()} />}
+              </Show>
+            </div>
+            <p class={TARGET}>{local.target}</p>
+            <Show when={local.explanation}>{(explanation) => <p class={EXPLANATION}>{explanation()}</p>}</Show>
+            <div class={ACTIONS}>
+              <Show
+                when={permission.pending()}
+                fallback={
+                  <Show when={decision()}>{(settled) => <span class={DECIDED}>{DECISION_CHIP[settled()]}</span>}</Show>
+                }
+              >
+                <Button variant="plain" size="none" class={APPROVE} onClick={permission.approve}>
+                  Approve
+                  <span class={HINT} aria-hidden="true">
+                    ⌘⏎
+                  </span>
+                </Button>
+                <Show when={permission.rememberable()}>
+                  <Button
+                    variant="plain"
+                    size="none"
+                    class={SESSION}
+                    title="Allows this exact command for the rest of the session"
+                    onClick={permission.approveForSession}
+                  >
+                    Allow for session
                   </Button>
                 </Show>
-              </div>
+                <Button variant="plain" size="none" class={DENY} onClick={permission.reject}>
+                  Deny
+                  <span class={HINT} aria-hidden="true">
+                    esc
+                  </span>
+                </Button>
+              </Show>
             </div>
           </div>
-        </li>
-      </Show>
-      <li class={ANNOUNCE_ITEM}>
+        </div>
         <p role="status" aria-live="polite" class="sr-only">
           <Show when={decision()}>{(settled) => DECISION_MESSAGE[settled()]}</Show>
         </p>
       </li>
-    </>
+    </Show>
   )
 }
 
