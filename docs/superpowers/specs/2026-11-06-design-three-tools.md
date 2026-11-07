@@ -339,3 +339,17 @@ Sources are a contract over the tables: a migration may move columns while the s
 serves `conciv db query` (core, generic over every extension's sources), `conciv design:query`, and `design_query`
 (the page builder gets read; a reviewing or learning agent gets read and write). The `EXPLAIN` sandbox, the single-
 `SELECT` wrapper and `readOnlyQuery` go.
+
+### Three tools for the page builder: get, check, status (2026-11-07, same day)
+
+`design_watch` watches nothing: it is one measurement on demand. `design_validate` measures nothing: it reads the last
+round and says one word. Omri: the agent-facing tools are `design_get`, `design_check` and `design_status`; `design_query`
+and `design_write` stay ours and are never given to the page builder.
+
+- `design_get(link)` as today: the design as data plus the rules.
+- `design_check()` is `design_watch` plus the verdict in the same reply: rows, reflow, coverage, `verdict` (`done`,
+  `not yet`, `stalled`, `unsettled`) and `reasons`. One call is one round. `design_validate` goes.
+- `design_status()` reads the last stored round, no measurement: verdict, counts, coverage, what is left. For an agent
+  resuming cold or checking before it edits.
+- Renames carry through `defs.ts`, the trial commands (`check`, `status`), the harness prompt heads, the IT file, the
+  README and the stored `tool_calls.tool` values from the rename on; old rows keep the old name.
