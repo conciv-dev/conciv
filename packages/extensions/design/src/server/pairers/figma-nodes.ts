@@ -1,6 +1,6 @@
 import {formatHex, parse} from 'culori'
 import {z} from 'zod'
-import type {Box, DesignNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
+import type {Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
 
@@ -10,18 +10,30 @@ export function createFigmaNodePairer(): Pairer {
 
 type Element = {
   path: string
-  live: LiveComponent
   box: Box
   text: string
-  all: string
   kids: number
   img: boolean
+  tag: string
+  classes: string[]
+  cssom: IdNode['cssom'][number] | undefined
+  chain: string[]
   ancestors: Set<string>
 }
 
 type Node = {node: DesignNode; parent: DesignNode | null; depth: number; box: Box}
 
 type Pick = {path: string; score: number; margin: number; candidates: {path: string; score: number}[]}
+
+type Scored = {path: string; score: number}
+
+type Vote = {
+  elements: Element[]
+  byPath: Map<string, Element>
+  parents: Map<string, DesignNode | null>
+  pairs: Map<string, Pick>
+  taken: Set<string>
+}
 
 const PAIR = designConfig.tolerances.figmaPair
 
@@ -50,38 +62,45 @@ const FillsSchema = z.array(z.object({type: z.string(), color: z.string().option
 
 const LEAF_SHAPES = new Set(['RECTANGLE', 'VECTOR', 'ELLIPSE'])
 
-const INLINE = 'inline'
-
 const IMAGE_TAGS = new Set(['img', 'svg'])
 
+const SVG = 'svg'
+
+const FLEX = 'flex'
+
+const GRID = 'grid'
+
+const ROW = 'row'
+
+const HORIZONTAL = 'HORIZONTAL'
+
+const FLOWS = new Set([HORIZONTAL, 'VERTICAL'])
+
 function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
-  const elements = elementsOf(input.measured.live)
+  const elements = elementsOf(input.ids)
   const byPath = new Map(elements.map((element) => [element.path, element]))
+  const lives = new Map([...walk(input.measured.live)].map(({node}) => [node.path, node]))
   const nodes = [...walk(input.design.root)].map(({node, parent, depth}) => ({node, parent, depth, box: boxOf(node)}))
   const parents = new Map(nodes.map(({node, parent}) => [node.id, parent]))
   const order = nodes
     .filter(({box}) => box.w > 0 && box.h > 0)
     .toSorted((a, b) => a.depth - b.depth || b.box.w * b.box.h - a.box.w * a.box.h)
-  const pinned = new Map(input.pins.map((pin) => [pin.node, pin.path]))
-  const pairs = new Map<string, Pick>(
-    input.pins.map((pin) => [pin.node, {path: pin.path, score: 1, margin: 1, candidates: []}]),
-  )
-  const taken = new Set(input.pins.map((pin) => pin.path))
+  const pinned = new Map(input.pins.map((pin) => [pin.node, pin]))
+  const vote: Vote = {
+    elements,
+    byPath,
+    parents,
+    pairs: new Map(input.pins.map((pin) => [pin.node, {path: pin.path, score: 1, margin: 1, candidates: []}])),
+    taken: new Set(input.pins.map((pin) => pin.path)),
+  }
   const ties = new Map<string, Pick['candidates']>()
   order.forEach((entry) => {
-    if (pinned.has(entry.node.id)) return
+    const pin = pinned.get(entry.node.id)
+    if (pin !== undefined && holds({vote, entry, pin})) return
+    if (pin !== undefined) released({vote, node: entry.node.id, path: pin.path})
+    const {pairs, taken} = vote
     const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
-    const shift = shiftOf({node: entry.parent, parents, pairs, byPath})
-    const scored = elements.flatMap((element) =>
-      taken.has(element.path) || element.box.w === 0 || element.box.h === 0
-        ? []
-        : scoreOf({
-            entry,
-            element,
-            parentPath,
-            box: {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y},
-          }),
-    )
+    const scored = rivals({vote, entry})
     const pick = picked(scored)
     if (pick !== null && pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath})) {
       const chosen = {...pick, path: paintedTwin({pick, scored, byPath, node: entry.node})}
@@ -94,84 +113,138 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     const parentPick = pairs.get(entry.parent.id)
     if (parentPick !== undefined) pairs.set(entry.node.id, {...parentPick, candidates: []})
   })
-  return {root: matchOf({node: input.design.root, pairs, ties, byPath}), partial: false}
+  return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false}
 }
 
-function elementsOf(live: LiveComponent): Element[] {
-  return live.children.flatMap((child) => collected({live: child, ancestors: []}))
+function holds(input: {vote: Vote; entry: Node; pin: Parameters<Pairer>[0]['pins'][number]}): boolean {
+  const {vote, entry, pin} = input
+  const parentPath = entry.parent === null ? null : (vote.pairs.get(entry.parent.id)?.path ?? null)
+  if (parentPath === pin.path) return true
+  const element = vote.byPath.get(pin.path)
+  const own = element === undefined ? [] : scoreOf({vote, entry, element})
+  const best = picked(rivals({vote, entry}))
+  return best === null || best.score <= (own[0]?.score ?? 0) + pin.margin
 }
 
-function collected(input: {live: LiveComponent; ancestors: string[]}): Element[] {
-  const {live} = input
-  const tag = live.tag.toLowerCase()
-  if (SKIPPED_TAGS.has(tag)) return []
-  const below = tag === 'svg' ? [] : live.children
-  const children = below.flatMap((child) => collected({live: child, ancestors: [...input.ancestors, live.path]}))
-  const own: Element = {
-    path: live.path,
-    live,
-    box: rounded(live.bounds),
-    text: ownText(live),
-    all: allText(live),
-    kids: live.children.length,
-    img: IMAGE_TAGS.has(tag) || live.drawn || live.styles.gradient !== null,
-    ancestors: new Set(input.ancestors),
-  }
-  return [own, ...children]
+function released(input: {vote: Vote; node: string; path: string}): void {
+  const {vote, node, path} = input
+  vote.pairs.delete(node)
+  if (![...vote.pairs.values()].some((pick) => pick.path === path)) vote.taken.delete(path)
 }
 
-function ownText(live: LiveComponent): string {
-  if (live.text !== '' || live.children.length === 0) return live.text
-  return live.children.every((child) => child.styles.display === INLINE) ? allText(live) : ''
+function rivals(input: {vote: Vote; entry: Node}): Scored[] {
+  const {vote, entry} = input
+  return vote.elements.flatMap((element) =>
+    vote.taken.has(element.path) || element.box.w === 0 || element.box.h === 0 ? [] : scoreOf({vote, entry, element}),
+  )
 }
 
-function allText(live: LiveComponent): string {
-  return [live.text, ...live.children.map(allText)].filter(Boolean).join(' ')
+function elementsOf(root: IdNode): Element[] {
+  const doms = [...walk(root)].flatMap(({node}) =>
+    node.dom.map((dom, index) => ({dom, site: node, cssom: node.cssom[index]})),
+  )
+  const tags = new Map(doms.map(({dom, site}) => [dom.path, site.src.element]))
+  return doms.flatMap(({dom, site, cssom}) => {
+    const tag = site.src.element
+    const chain = prefixes(dom.path).filter((path) => tags.has(path))
+    if (SKIPPED_TAGS.has(tag) || chain.some((path) => tags.get(path) === SVG)) return []
+    return [
+      {
+        path: dom.path,
+        box: dom.box,
+        text: dom.text,
+        kids: dom.kids,
+        img: IMAGE_TAGS.has(tag) || dom.drawn,
+        tag,
+        classes: site.src.classes,
+        cssom,
+        chain,
+        ancestors: new Set(chain),
+      },
+    ]
+  })
 }
 
-function shiftOf(input: {
-  node: DesignNode | null
-  parents: Map<string, DesignNode | null>
-  pairs: Map<string, Pick>
-  byPath: Map<string, Element>
-}): {x: number; y: number} {
-  const {node, parents, pairs, byPath} = input
+function prefixes(path: string): string[] {
+  const steps = path.split('/')
+  return steps
+    .slice(1, -1)
+    .map((_, index) => steps.slice(0, index + 2).join('/'))
+    .toReversed()
+}
+
+function shiftOf(input: {node: DesignNode | null; vote: Vote}): {x: number; y: number} {
+  const {node, vote} = input
   if (node === null) return {x: 0, y: 0}
-  const path = pairs.get(node.id)?.path
-  const element = path === undefined ? undefined : byPath.get(path)
-  if (node.implied === true) return shiftOf({...input, node: parents.get(node.id) ?? null})
+  const path = vote.pairs.get(node.id)?.path
+  const element = path === undefined ? undefined : vote.byPath.get(path)
+  if (node.implied === true) return shiftOf({...input, node: vote.parents.get(node.id) ?? null})
   if (element === undefined) return {x: 0, y: 0}
   const design = boxOf(node)
   return {x: design.x - element.box.x, y: design.y - element.box.y}
 }
 
-function scoreOf(input: {
-  entry: Node
-  element: Element
-  parentPath: string | null
-  box: Box
-}): {path: string; score: number}[] {
-  const {entry, element, parentPath} = input
+function anchorOf(input: {node: DesignNode; vote: Vote}): string | null {
+  const parent = input.vote.parents.get(input.node.id) ?? null
+  if (parent === null) return null
+  return input.vote.pairs.get(parent.id)?.path ?? anchorOf({...input, node: parent})
+}
+
+function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
+  const {vote, entry, element} = input
   const {node, box} = entry
-  const geo = iou({a: box, b: input.box})
-  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: input.box}) > PAIR.nearCenterPx) return []
-  if (node.implied === true && !holdsChildren({node, box: input.box})) return []
+  const shift = shiftOf({node: entry.parent, vote})
+  const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
+  const geo = iou({a: box, b: placed})
+  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: placed}) > PAIR.nearCenterPx) return []
+  if (node.implied === true && !holdsChildren({node, box: placed})) return []
+  const anchor = anchorOf({node, vote})
+  if (anchor !== null && element.chain.find((path) => vote.taken.has(path)) !== anchor) return []
   const typed = node.figma?.type ?? ''
   const text = node.kind === 'text' ? normalized(node.text) : ''
   const shown = normalized(element.text)
   const textual =
     node.kind === 'text'
       ? PAIR.textWeight * dice({a: text, b: shown}) - (shown === '' ? PAIR.textlessPenalty : 0)
-      : (element.text !== '' && element.all === '' ? -PAIR.textHolderPenalty : 0) +
-        (LEAF_SHAPES.has(typed) && element.kids === 0 ? PAIR.leafShapeBonus : 0)
+      : LEAF_SHAPES.has(typed) && element.kids === 0
+        ? PAIR.leafShapeBonus
+        : 0
   const image = node.figma?.fields.image === true && element.img ? PAIR.imageBonus : 0
-  const parent =
-    parentPath === null
-      ? 0
-      : element.ancestors.has(parentPath) || element.path === parentPath
-        ? PAIR.parentBonus
-        : -PAIR.parentPenalty
-  return [{path: element.path, score: PAIR.overlapWeight * geo + textual + image + parent}]
+  const parent = anchor === null ? 0 : PAIR.parentBonus
+  const dom = PAIR.overlapWeight * geo + textual + image + parent
+  const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
+  return [{path: element.path, score: dom + src + layoutOf({node, element})}]
+}
+
+function kindOf(input: {node: DesignNode; element: Element}): number {
+  const {node, element} = input
+  const fit = (yes: boolean): number => (yes ? PAIR.elementKindWeight : -PAIR.elementKindWeight)
+  if (node.kind === 'text') return fit(element.text !== '')
+  if (node.kind === 'image' || node.figma?.fields.image === true)
+    return fit(element.img || (element.kids === 0 && element.text === ''))
+  if (node.children.length > 0) return fit(element.kids > 0 || element.text !== '')
+  return 0
+}
+
+function namedAs(input: {node: DesignNode; element: Element}): number {
+  const name = normalized(input.node.figma?.name ?? '')
+  const tokens = [input.element.tag, ...input.element.classes.flatMap((hint) => [hint, ...normalized(hint).split(' ')])]
+  return Math.max(0, ...tokens.map((token) => dice({a: name, b: normalized(token)})))
+}
+
+function layoutOf(input: {node: DesignNode; element: Element}): number {
+  const {node, element} = input
+  const {cssom} = element
+  if (cssom === undefined) return 0
+  const laidOut = cssom.display.includes(FLEX) || cssom.display.includes(GRID)
+  const mode = node.figma?.mode ?? null
+  if (mode !== null && FLOWS.has(mode)) {
+    if (!laidOut) return 0
+    const row = cssom.display.includes(FLEX) ? cssom.flexDirection.startsWith(ROW) : (cssom.columns ?? 1) > 1
+    return row === (mode === HORIZONTAL) ? PAIR.layoutRoleWeight : -PAIR.layoutRoleWeight
+  }
+  if (node.kind !== 'text') return 0
+  return laidOut && element.kids > 0 ? -PAIR.layoutRoleWeight : PAIR.layoutRoleWeight
 }
 
 function paintedTwin(input: {
@@ -185,7 +258,7 @@ function paintedTwin(input: {
   if (pick.margin > 0 || fill === null) return pick.path
   const twins = input.scored.filter((entry) => entry.score === pick.score)
   const match = twins.find((entry) => {
-    const background = parse(byPath.get(entry.path)?.live.styles.background ?? '')
+    const background = parse(byPath.get(entry.path)?.cssom?.background ?? '')
     return background !== undefined && (background.alpha ?? 1) > 0 && formatHex(background) === fill
   })
   return match?.path ?? pick.path
@@ -242,16 +315,16 @@ function matchOf(input: {
   node: DesignNode
   pairs: Map<string, Pick>
   ties: Map<string, Pick['candidates']>
-  byPath: Map<string, Element>
+  lives: Map<string, LiveComponent>
 }): Match {
-  const {node, pairs, ties, byPath} = input
+  const {node, pairs, ties, lives} = input
   const {children, ...own} = node
   const pick = pairs.get(node.id)
-  const element = pick === undefined ? undefined : byPath.get(pick.path)
+  const element = pick === undefined ? undefined : lives.get(pick.path)
   const tied = ties.get(node.id)
   return {
     node: own,
-    live: element === undefined ? null : element.live,
+    live: element ?? null,
     hash: '',
     confidence: pick?.score ?? 0,
     ...(pick === undefined ? {} : {margin: pick.margin}),
@@ -272,10 +345,6 @@ function sameBox(input: {a: Box; b: Box}): boolean {
     Math.abs(a.w - b.w) <= SAME_BOX_PX &&
     Math.abs(a.h - b.h) <= SAME_BOX_PX
   )
-}
-
-function rounded(box: Box): Box {
-  return {x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h)}
 }
 
 function iou(input: {a: Box; b: Box}): number {
