@@ -376,7 +376,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                   <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={hydrated()} fallback={<ConversationSkeleton />}>
-                        <OlderMessages chat={chat} />
+                        <OlderMessages sessionId={sessionId} chat={chat} />
                         <Thread.Welcome>
                           <EmptyStateSlot
                             onStarter={(starter) => void chat.sendMessage(starter)}
