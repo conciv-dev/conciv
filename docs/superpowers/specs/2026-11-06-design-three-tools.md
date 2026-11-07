@@ -230,3 +230,35 @@ A record survives reorder, insert and delete while the app keeps its key. When t
 app passes no key or the index, the instance is the index and the record is positional, which is then the truth.
 The vote decides once which design instance is which list key; the record holds the key after. Nothing in the
 record or the resolver is framework-specific; only the adapter that reads the key is.
+
+### The conciv id is the key of every layer; the vote reads every layer (2026-11-07, same day)
+
+Decided by Omri before the three-tools spec and not built until now: the conciv id maps everything. Every layer is a
+lookup by id, arrays allowed:
+
+- `getDOM(id)`: the live elements stamped with the id (several when the site repeats), with box and text.
+- `getCSSOM(id)`: the winning declarations on those elements (display, flex direction, sizing, position).
+- `getSRC(id)`: the JSX site the compiler stamped: file, line, column, element name, class names, parent site id.
+- `getFOM(id)`: the Figma nodes mapped to the id. This is the stored mapping. Figma node to id is a derived view.
+
+What goes: the stored list keyed by Figma node holding a selector. The record is `id -> figma nodes`; the selector
+for an instance is derived from the id and the list key as the previous ruling says.
+
+The vote scores a Figma node against an id over every layer, not the DOM box alone:
+
+- DOM: box overlap against the parent's element, text dice, as today.
+- SRC: the element name against the node's kind (text to text-capable element, image to an image or empty
+  element, frame to a container), the class names and the element name against the node's name by the same dice
+  used for text, and the parent site id must be mapped to the node's parent or an ancestor within the implied
+  groups.
+- CSSOM: the layout role: a node with auto layout scores against an element whose winning `display` is flex or
+  grid in the same direction; a text node against an element with no flex children.
+
+Same scoring shape as the pairer (weights in the one place, named), parents first, greedy, threshold, confidence and
+margin kept. The Sidebar case of 2026-11-07 (`1:371` onto `nav.lp-items` at 0.56 over `aside.lp-sidebar`) is the
+test: SRC names and parentage decide it.
+
+A pin is re-voted when the evidence under its id changes: the element's box moved against its parent by more than
+the gate's `slightly`, the SRC site changed element name or class, or a sibling id now scores above the pinned id by
+more than the margin. A pin is not re-voted because the agent edited an unrelated file. Pins are stable against
+edits, not against evidence.
