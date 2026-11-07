@@ -48,6 +48,8 @@ function PlainRoot(props: RootProps) {
   const binding: ContentBinding = {bind: setContent, pop}
   return (
     <Ark.Root
+      lazyMount
+      unmountOnExit
       openDelay={local.openDelay ?? 300}
       closeDelay={local.closeDelay ?? 80}
       positioning={{strategy: 'fixed', placement: 'top', gutter: 6, ...local.positioning}}
