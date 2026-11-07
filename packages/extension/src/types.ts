@@ -42,7 +42,11 @@ export type ExtensionTablesFactory<Tables extends ExtensionTables> = (table: SQL
 
 export type ExtensionMigrations = readonly MigrationMeta[]
 
-export type ExtensionSource = {table: AnySQLiteTable; fields: Record<string, AnySQLiteColumn>; writable?: true}
+export type ExtensionSource = {
+  table: AnySQLiteTable
+  fields: Record<string, AnySQLiteColumn | {column: AnySQLiteColumn; path: string}>
+  writable?: true
+}
 
 export type ExtensionSourcesFactory<Tables extends ExtensionTables> = (
   tables: Tables,
