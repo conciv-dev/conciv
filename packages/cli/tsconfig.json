@@ -5,6 +5,8 @@
     "tsBuildInfoFile": ".tsbuildinfo",
     "rootDir": ".",
     "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
     "lib": ["ES2024"],
     "types": ["node"]
   },

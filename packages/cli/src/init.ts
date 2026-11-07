@@ -1,6 +1,8 @@
-import {defineCommand} from 'citty'
+import {z} from 'zod'
+import {command, description, name, toggle} from '@bomb.sh/router'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
+import {handler} from './handler.js'
 import type {InitOptions, InitResult, InitRuntime} from './init/pipeline.js'
 
 export type InitCommandOptions = InitOptions & {json: boolean}
@@ -23,20 +25,14 @@ function initOutcome(result: InitResult, json: boolean): CliOutcome {
   throw userFailure(result.reason, {hint: 'nothing was written'})
 }
 
-export const initCommand = defineCommand({
-  meta: {name: 'init', description: 'Set this project up for conciv: install, wire the bundler, connect your agents.'},
-  args: {
-    yes: {type: 'boolean', default: false, description: 'accept every detected default (no prompts)'},
-    'dry-run': {type: 'boolean', default: false, description: 'print the plan without touching anything'},
-    force: {type: 'boolean', default: false, description: 'run even with uncommitted git changes'},
-    json: {type: 'boolean', default: false, description: 'print one JSON envelope instead of prompting'},
-  },
-  run: ({args}) =>
-    runInitCommand({
-      yes: args.yes,
-      dryRun: args['dry-run'],
-      force: args.force,
-      json: args.json,
-      cwd: process.cwd(),
-    }),
-})
+const InitModelSchema = z.object({yes: z.boolean(), dryRun: z.boolean(), force: z.boolean(), json: z.boolean()})
+
+export const initCommand = command(
+  name('init'),
+  description('Set this project up for conciv: install, wire the bundler, connect your agents.'),
+  toggle(name('yes'), description('accept every detected default (no prompts)')),
+  toggle(name('dryRun'), description('print the plan without touching anything')),
+  toggle(name('force'), description('run even with uncommitted git changes')),
+  toggle(name('json'), description('print one JSON envelope instead of prompting')),
+  handler((model) => runInitCommand({...InitModelSchema.parse(model), cwd: process.cwd()})),
+)

@@ -20,7 +20,7 @@ import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
-import {initCommand, runInitCommand} from '../src/init.js'
+import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
@@ -182,6 +182,20 @@ describe('cli', () => {
         expect(await runCli(cliMain, ['tools', 'page', 'click', '--help'])).toBe(0)
         expect(written).toEqual([])
         expect(logged.join('\n')).toContain('--ref')
+      })
+
+      it('prints the cli version for --version and -v without touching the rpc', async () => {
+        const manifest = z
+          .object({version: z.string()})
+          .parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')))
+        const logged: string[] = []
+        vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+          logged.push(String(line))
+        })
+        expect(await runCli(cliMain, ['--version'])).toBe(0)
+        expect(await runCli(cliMain, ['-v'])).toBe(0)
+        expect(written).toEqual([])
+        expect(logged).toEqual([`conciv ${manifest.version}`, `conciv ${manifest.version}`])
       })
     })
   })
@@ -1116,19 +1130,40 @@ describe('cli', () => {
 describe('init', () => {
   describe('init command', () => {
     describe('init command', () => {
-      it('declares the three flags with kebab-case names', () => {
-        const args = initCommand.args
-        expect(args).toMatchObject({
-          yes: {type: 'boolean', default: false},
-          'dry-run': {type: 'boolean', default: false},
-          force: {type: 'boolean', default: false},
-        })
+      async function initThroughCli(argv: string[]): Promise<{code: number; document: unknown; cwd: string}> {
+        const run = initFixture({recordOutput: false})
+        const home = process.cwd()
+        const written: string[] = []
+        captureStdout(written)
+        process.chdir(run.cwd)
+        try {
+          const code = await runCli(cliMain, argv)
+          return {code, document: onlyDocument(written), cwd: run.cwd}
+        } finally {
+          process.chdir(home)
+          vi.restoreAllMocks()
+        }
+      }
+
+      it('declares the three flags with kebab-case names', async () => {
+        const planned = await initThroughCli(['init', '--yes', '--dry-run', '--force', '--json'])
+        expect(planned.code).toBe(0)
+        expect(planned.document).toMatchObject({ok: true, data: {dryRun: true}})
+        expect(existsSync(join(planned.cwd, '.conciv'))).toBe(false)
+        const defaults = await initThroughCli(['init', '--json'])
+        expect(defaults.code).toBe(1)
+        expect(JSON.stringify(defaults.document)).toContain('--yes')
+        expect(existsSync(join(defaults.cwd, '.conciv'))).toBe(false)
       })
 
       it('registers under the root command', async () => {
-        const {main} = await import('../src/main.js')
-        const subCommands = await Promise.resolve(main.subCommands)
-        expect(Object.keys(subCommands ?? {})).toContain('init')
+        const logged: string[] = []
+        vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+          logged.push(String(line))
+        })
+        expect(await runCli(cliMain, ['--help'])).toBe(0)
+        vi.restoreAllMocks()
+        expect(logged.join('\n')).toMatch(/^\s+init\s/m)
       })
     })
   })
