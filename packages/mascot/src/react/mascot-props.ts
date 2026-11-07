@@ -1,6 +1,6 @@
 import type {ComponentPropsWithRef, CSSProperties, Ref, RefCallback, RefObject} from 'react'
 import type {MascotActivity, MascotFollow, MascotState} from '../core/config.js'
-import type {CurveStyle} from '../core/path.js'
+import type {CurveStyle, EmitterRect} from '../core/path.js'
 import type {MascotSkin} from '../core/skin.js'
 import {camelCaseProperty, isGeometryProperty, kebabCaseProperty} from '../core/style-merge.js'
 
@@ -17,7 +17,7 @@ export type MascotProps = MascotLayerProps & {
   initialSkin?: MascotSkin
 }
 
-export type MascotBinaryProps = MascotLayerProps & {curve?: CurveStyle}
+export type MascotBinaryProps = MascotLayerProps & {curve?: CurveStyle; avoid?: EmitterRect | undefined}
 
 type StyleEntry = [string, string | number]
 

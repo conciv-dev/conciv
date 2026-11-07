@@ -106,6 +106,7 @@ function PanelLayout(): JSX.Element {
                   ? undefined
                   : {...panelPlacement(fabAnchor()), height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}
               }
+              ref={panelChrome.frame}
               role="dialog"
               aria-label="conciv chat agent"
               id="conciv-chat-panel"

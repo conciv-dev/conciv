@@ -41,6 +41,7 @@ export type ActivityController = {
   stop: (recovery: ActivityRecovery) => void
   mountEffect: (id: string, mount: EffectMount, host: HTMLElement | undefined) => void
   unmountEffect: (id: string) => void
+  replanEffect: (id: string) => void
   setEffectHost: (id: string, host: HTMLElement | undefined) => void
   dispose: () => void
 }
@@ -418,6 +419,10 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     detachAndDrain(entry)
   }
 
+  const replanEffect = (id: string) => {
+    effects.get(id)?.handle?.replan?.()
+  }
+
   const setEffectHost = (id: string, host: HTMLElement | undefined) => {
     const entry = effects.get(id)
     if (entry === undefined || entry.host === host) return
@@ -437,5 +442,5 @@ export function createActivityController(parts: ActivityParts, skin: MascotSkin)
     draining.clear()
   }
 
-  return {start, setRest, setVisible, stop, mountEffect, unmountEffect, setEffectHost, dispose}
+  return {start, setRest, setVisible, stop, mountEffect, unmountEffect, replanEffect, setEffectHost, dispose}
 }
