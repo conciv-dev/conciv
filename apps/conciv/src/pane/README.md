@@ -14,7 +14,7 @@ The chat pane for one session: transcript, composer with attachments and element
 - `makeDraftStorage(rpc, sessionId)`, `appendDraft`, `PaneDraftStorage` (`draft-storage.ts`): composer draft storage backed by `rpc.drafts`
 - `makeGrabStaging(deps)`, `GrabStaging`, `ComposerGrabPort` (`grab-staging.ts`): stages page element grabs as composer attachments
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
-- `paneAttachments`, `returnUnsentToDraft` (`pane-attachments.ts`): image and text attachment adapters; unsent queue goes back to the draft
+- `paneAttachments`, `returnQueueToDraft` (`pane-attachments.ts`): image and text attachment adapters; Stop takes the queued messages out of the queue and puts them back in the draft (text in order, images as attachments), unsent
 - `makeRefreshCoordinator(deps)`, `RefreshCoordinator` (`refresh-coordinator.ts`)
 - `useSessionCaptures(sessionId)` (`session-captures.ts`), `useComposerTriggerSources({sessionId, openModelMenu})` (`trigger-sources.ts`): `{triggers, runTyped}`: slash command and tool trigger sources, plus `runTyped(text)` that runs a widget command whose `/<name>` is the whole text; widget commands are the built-in `/model` (opens the model menu) and extension commands from `useInstances()`
 - `QueueStrip` (`queue-strip.tsx`), `PendingApprovals` (`pending-approvals.tsx`), `ContextTracker`, `ContextSummary` (`context-tracker.tsx`), `StatusBar` (`status-bar.tsx`)
