@@ -92,6 +92,7 @@ export function SessionSelector(props: {
   const [query, setQuery] = createSignal('')
   const [debouncedQuery] = createDebouncedValue(query, {wait: SEARCH_WAIT_MS})
   const search = () => (query().trim() === '' ? '' : debouncedQuery().trim())
+  const indexed = useQuery(() => appData.utils.sessions.changes.experimental_liveOptions())
   const list = useInfiniteQuery(() => {
     const term = search()
     const paging = {
@@ -99,15 +100,17 @@ export function SessionSelector(props: {
       getNextPageParam: (page: SessionPage) => page.next,
       placeholderData: keepPreviousData,
     }
-    return term === ''
-      ? appData.utils.sessions.list.infiniteOptions({
-          input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
-          ...paging,
-        })
-      : appData.utils.sessions.search.infiniteOptions({
-          input: (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE}),
-          ...paging,
-        })
+    const options =
+      term === ''
+        ? appData.utils.sessions.list.infiniteOptions({
+            input: (cursor: HarnessListCursor | null) => ({cursor, limit: PAGE_SIZE}),
+            ...paging,
+          })
+        : appData.utils.sessions.search.infiniteOptions({
+            input: (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE}),
+            ...paging,
+          })
+    return {...options, queryKey: [...options.queryKey, {indexVersion: indexed.data?.version ?? null}]}
   })
   const active = useQuery(() => {
     const sessionId = props.activeId()

@@ -39,7 +39,7 @@ const SessionListInput = z.object({
 const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
 const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
 
-const SessionsChangeSchema = z.object({reason: z.literal('indexed')})
+const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
 
 export type SessionsChange = z.infer<typeof SessionsChangeSchema>
 const ChatPendingInterruptSchema = z.object({

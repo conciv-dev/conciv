@@ -65,21 +65,26 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       ? [{harness, history: harness.history}]
       : [],
   )
-  const state: {running: Running | null} = {running: null}
+  const state: {running: Running | null; version: number} = {running: null, version: 0}
   const publisher = new EventPublisher<{indexed: SessionsChange}>()
+
+  const indexedChanged = (): void => {
+    state.version += 1
+    publisher.publish('indexed', {version: state.version})
+  }
 
   const rebuild = async (): Promise<void> => {
     if (state.running === null) return
     const running = state.running
     const passes = await Promise.all(indexed.map((source) => titlePass(running, source)))
-    if (passes.some((pass) => pass.changed)) publisher.publish('indexed', {reason: 'indexed'})
+    if (passes.some((pass) => pass.changed)) indexedChanged()
     if (
       await textPass(
         running,
         passes.flatMap((pass) => pass.unread),
       )
     )
-      publisher.publish('indexed', {reason: 'indexed'})
+      indexedChanged()
   }
 
   const refreshes = new AsyncQueuer<'refresh'>(rebuild, {
@@ -178,8 +183,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       state.running = startIndex()
       setImmediate(refresh)
     },
-    changes(signal) {
-      return publisher.subscribe('indexed', {signal})
+    async *changes(signal) {
+      const later = publisher.subscribe('indexed', {signal})
+      yield {version: state.version}
+      yield* later
     },
     async pages(term, page) {
       if (state.running === null)
