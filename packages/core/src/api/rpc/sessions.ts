@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
+import {uniqBy} from 'es-toolkit'
 import type {SessionMeta} from '@conciv/contract'
 import {
   SessionId,
@@ -66,8 +67,9 @@ async function sessionPage(
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
   search: string | null,
   nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
+  returned: SessionMeta[] = [],
 ): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
-  const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit}
+  const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit - returned.length}
   const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
@@ -78,14 +80,9 @@ async function sessionPage(
     model: (sessionId) => modelOf(chat.db, sessionId),
     includeHidden: input.includeHidden ?? false,
   })
-  if (listed.sessions.length >= input.limit || listed.next === null) return listed
-  const rest = await sessionPage(
-    chat,
-    {...input, cursor: listed.next, limit: input.limit - listed.sessions.length},
-    search,
-    nativePagesOf,
-  )
-  return {sessions: [...listed.sessions, ...rest.sessions], next: rest.next}
+  const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
+  if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
+  return sessionPage(chat, {...input, cursor: listed.next}, search, nativePagesOf, counted)
 }
 
 function cleanTitle(title: string): string {
