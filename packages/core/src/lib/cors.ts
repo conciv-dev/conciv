@@ -1,6 +1,8 @@
 import {cors} from 'hono/cors'
 import type {MiddlewareHandler} from 'hono'
 import {CHAT_DELIVERY_HEADERS, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import coreManifest from '../../package.json' with {type: 'json'}
 
 const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]'] as const
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(LOOPBACK_HOSTNAMES)
@@ -52,6 +54,7 @@ export type CorsVars = {cors: {allowedOrigins: string[]}}
 
 export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
   return async (c, next) => {
+    c.header(CONCIV_VERSION_HEADER, coreManifest.version)
     const extra = new Set(c.var.cors.allowedOrigins)
     const origin = c.req.header('origin') ?? null
     if (!hostAllowed(c.req.header('host') ?? null)) return c.text('forbidden host', 403)
@@ -60,7 +63,14 @@ export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['content-type', 'authorization', CONCIV_SESSION_HEADER, ...CHAT_DELIVERY_HEADERS],
+      allowHeaders: [
+        'content-type',
+        'authorization',
+        CONCIV_SESSION_HEADER,
+        CONCIV_VERSION_HEADER,
+        ...CHAT_DELIVERY_HEADERS,
+      ],
+      exposeHeaders: [CONCIV_VERSION_HEADER],
     })
     return corsHandler(c, next)
   }

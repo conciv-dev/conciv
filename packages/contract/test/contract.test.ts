@@ -4,6 +4,8 @@ import type {SessionMeta} from '../src/rows.js'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '../src/client.js'
 import {createServer, type Server} from 'node:http'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import contractManifest from '../package.json' with {type: 'json'}
 import {
   closeBrowserRpcConnection,
   dynamicBrowserRpcLink,
@@ -162,6 +164,7 @@ describe('rows', () => {
 
 describe('session header scoping', () => {
   const seen: (string | null)[] = []
+  const versions: (string | null)[] = []
 
   let server: Server
   let base = ''
@@ -179,6 +182,8 @@ describe('session header scoping', () => {
     server = createServer((request, response) => {
       const header = request.headers[CONCIV_SESSION_HEADER]
       seen.push(typeof header === 'string' ? header : null)
+      const version = request.headers[CONCIV_VERSION_HEADER]
+      versions.push(typeof version === 'string' ? version : null)
       request.resume()
       request.on('end', () => {
         response.writeHead(200, {'content-type': 'application/json'})
@@ -211,6 +216,14 @@ describe('session header scoping', () => {
     await first.call(['probe'], {}, {context: {}})
 
     expect(seen).toEqual(['conciv_first', 'conciv_second', null, 'conciv_first'])
+  }, 15_000)
+
+  it('the node and browser rpc clients both tell the engine the contract release version', async () => {
+    versions.length = 0
+    await makeRpcClient(base).sessions.list(undefined)
+    await dynamicBrowserRpcLink(() => base).call(['probe'], {}, {context: {}})
+
+    expect(versions).toEqual([contractManifest.version, contractManifest.version])
   }, 15_000)
 })
 

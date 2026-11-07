@@ -17,7 +17,7 @@ The `conciv` CLI, built with citty. Two top-level commands: `init`, which sets u
 - `conciv tools react <verb>` (`page.ts`): `page_*` tools in category 'react'
 - `conciv tools design <verb>` (`tools.ts`): `design_*` tools, offline fallback DESIGN_TOOL_DEFS
 - `ENVELOPE_FLAGS` (`arguments.ts`): --json and --help/-h accepted on every command level
-- `runCli(root, rawArgs)` (`run.ts`): resolves the leaf, prints help or validates and runs it, returns an exit code
+- `runCli(root, rawArgs)` (`run.ts`): prints the root `meta.version` (the cli package.json version) for a lone --version/-v, otherwise resolves the leaf, prints help or validates and runs it, returns an exit code
 - `resolveLeaf` / `commandProblem` / `argumentProblem` / `argsOf` (`arguments.ts`)
 - `toolCommand` / `wireToolCommand` (`tool-command.ts`): turn a zod or wire JSON schema into a citty command
 - `toolGroupCommand` / `groupHelpNote` (`tool-group.ts`): noun command whose verbs come from the live registry catalog
