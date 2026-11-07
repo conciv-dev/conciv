@@ -298,7 +298,7 @@ describe('chat plane', () => {
   }
 
   async function plane(options: PlaneOptions): Promise<ChatPlane> {
-    const db = openDb(options.root)
+    const db = openDb({stateRoot: options.root})
     opened.push(db)
     return createChatPlane({
       db,

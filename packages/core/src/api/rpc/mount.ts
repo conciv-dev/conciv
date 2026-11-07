@@ -29,6 +29,7 @@ export type RpcDeps = {
   runtime: CoreRuntime
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
+  commands: {name: string; description: string; positionals: readonly string[]; run: (args: string[]) => unknown}[]
 }
 
 export const os = implement(contract).$context<RpcContext>()

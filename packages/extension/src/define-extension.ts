@@ -6,7 +6,10 @@ import type {
   ClientFactoryResult,
   ConfigOf,
   ConnectGate,
-  ExtensionCommand,
+  ExtensionCommands,
+  ExtensionMigrations,
+  ExtensionTables,
+  ExtensionTablesFactory,
   ExtensionView,
   RequiredContext,
   ServerApi,
@@ -30,12 +33,15 @@ export type ExtensionMeta<
   Schema extends z.ZodType,
   Tools extends readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+  Tables extends ExtensionTables = Record<never, never>,
 > = {
   name: Name
   configSchema?: Schema
   tools?: Tools
   attachments?: Attachments
-  commands?: readonly ExtensionCommand[]
+  tables?: ExtensionTablesFactory<Tables>
+  migrations?: ExtensionMigrations
+  commands?: ExtensionCommands<Tables>
   views?: readonly ExtensionView[]
   Component?: Component
   Surface?: Component
@@ -49,6 +55,7 @@ export type ExtensionBuilder<
   Tools extends readonly AnyToolBuilder[] = readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly AnyAttachmentBuilder[],
   ClientValue extends object = Record<never, never>,
+  Tables extends ExtensionTables = Record<never, never>,
 > = {
   name: Name
   configSchema?: Schema
@@ -58,21 +65,23 @@ export type ExtensionBuilder<
   connectGate?: ConnectGate
   tools?: Tools
   attachments?: Attachments
-  commands?: readonly ExtensionCommand[]
+  tables?: ExtensionTablesFactory<Tables>
+  migrations?: ExtensionMigrations
+  commands?: ExtensionCommands<Tables>
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
-  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
+  __server?(server: ServerApi<ConfigOf<Schema>, Tables>): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useContext: {
     (): ClientValue
     <Selected>(select: (context: ClientValue) => Selected): Selected
   }
   client: <Value extends object>(
     factory: () => ClientFactoryResult<Value>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value>
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, Tables>
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
+    factory: (server: ServerApi<ConfigOf<Schema>, Tables>) => ServerResult<Context> | Promise<ServerResult<Context>>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Tables>
 }
 
 export type AnyExtension = ExtensionBuilder<
@@ -80,13 +89,21 @@ export type AnyExtension = ExtensionBuilder<
   z.ZodType,
   readonly AnyToolBuilder[],
   readonly AnyAttachmentBuilder[],
-  object
+  object,
+  Record<never, never>
 >
 
 type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
 
 export type RegisterExtension<Extension> =
-  Extension extends ExtensionBuilder<infer Name, infer Schema, infer Tools, infer _Attachments, infer ClientValue>
+  Extension extends ExtensionBuilder<
+    infer Name,
+    infer Schema,
+    infer Tools,
+    infer _Attachments,
+    infer ClientValue,
+    infer _Tables
+  >
     ? {
         [Key in Name]: {
           config: RegisteredConfig<Schema>
@@ -135,9 +152,10 @@ export function defineExtension<
   Schema extends z.ZodType = z.ZodNever,
   const Tools extends readonly AnyToolBuilder[] = readonly [],
   const Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+  Tables extends ExtensionTables = Record<never, never>,
 >(
-  meta: ExtensionMeta<Name, Schema, Tools, Attachments>,
-): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>> {
+  meta: ExtensionMeta<Name, Schema, Tools, Attachments, Tables>,
+): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Tables> {
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
     const value = useExtensionValue(`${meta.name}.useContext`)
     return select ? select(value) : value
@@ -151,6 +169,8 @@ export function defineExtension<
     connectGate: meta.connectGate,
     tools: meta.tools,
     attachments: meta.attachments,
+    tables: meta.tables,
+    migrations: meta.migrations,
     commands: meta.commands,
     views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
@@ -159,10 +179,12 @@ export function defineExtension<
       builder.__client = factory
       return builder
     },
-    server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>) {
+    server(
+      factory: (server: ServerApi<ConfigOf<Schema>, Tables>) => ServerResult<unknown> | Promise<ServerResult<unknown>>,
+    ) {
       builder.__server = factory
       return builder
     },
-  } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>>
+  } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Tables>
   return builder
 }

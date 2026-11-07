@@ -8,6 +8,9 @@ import type {HarnessConnectContext, HarnessConnectPlan} from '@conciv/protocol/h
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
+import type {MigrationMeta} from 'drizzle-orm/migrator'
+import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
+import type {AnySQLiteTable, SQLiteTableFn} from 'drizzle-orm/sqlite-core'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -33,12 +36,27 @@ export type ExtensionServerTool = {
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
-export type ExtensionCommand = {
-  name: string
-  description: string
-  argumentHint?: string
-  prompt(args: string): string
+export type ExtensionTables = Record<string, AnySQLiteTable>
+
+export type ExtensionTablesFactory<Tables extends ExtensionTables> = (table: SQLiteTableFn) => Tables
+
+export type ExtensionMigrations = readonly MigrationMeta[]
+
+export type ExtensionDb<Tables extends ExtensionTables> = {
+  orm: NodeSQLiteDatabase
+  tables: Tables
 }
+
+export type ExtensionCommand<Tables extends ExtensionTables = ExtensionTables> = {
+  description: string
+  positionals: readonly string[]
+  run(input: {args: string[]; db: ExtensionDb<Tables>}): unknown
+}
+
+export type ExtensionCommands<Tables extends ExtensionTables = ExtensionTables> = Record<
+  string,
+  ExtensionCommand<Tables>
+>
 
 export type ToolRenderer = Component<ToolCardProps>
 
@@ -101,7 +119,11 @@ export type PageAskRequest = {sessionId: SessionId; name: string; input: Record<
 
 export type SessionPromptResolver = (context: {cwd: string; sessionId: SessionId}) => Promise<string | undefined>
 
-export type ServerApi<Config> = {
+type DbOf<Tables extends ExtensionTables> = [keyof Tables] extends [never]
+  ? {db?: ExtensionDb<Tables>}
+  : {db: ExtensionDb<Tables>}
+
+export type ServerApi<Config, Tables extends ExtensionTables = Record<never, never>> = DbOf<Tables> & {
   config: Config
   cwd: string
   basePath: string

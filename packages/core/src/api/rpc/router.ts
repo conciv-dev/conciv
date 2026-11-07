@@ -107,6 +107,20 @@ export function makeRpcRouter(deps: RpcDeps) {
     captures: {
       list: os.captures.list.handler(({input}) => deps.runtime.forSession(input.sessionId).captures.list()),
     },
+    extensions: {
+      commands: os.extensions.commands.handler(() =>
+        deps.commands.map(({name, description, positionals}) => ({name, description, positionals: [...positionals]})),
+      ),
+      run: os.extensions.run.handler(async ({input, errors}) => {
+        const command = deps.commands.find((entry) => entry.name === input.name)
+        if (command === undefined) throw errors.UNKNOWN_COMMAND()
+        try {
+          return await command.run(input.args)
+        } catch (error) {
+          throw errors.COMMAND_FAILED({message: error instanceof Error ? error.message : String(error)})
+        }
+      }),
+    },
     page: {
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
       changes: sessionOs.page.changes.handler(({context}) => context.session.page.changes()),

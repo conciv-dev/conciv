@@ -119,7 +119,9 @@ defineExtension({
   configSchema, // optional zod schema; plugin options land here, parsed before .server() sees them
   tools, // AnyToolBuilder[] — see below
   attachments, // AnyAttachmentBuilder[] — see below
-  commands, // ExtensionCommand[] — {name, description, argumentHint?, prompt(args) => string}
+  tables, // (table) => ({rounds: table('rounds', {...})}) — drizzle tables, stored as <name>_<table>
+  migrations, // drizzle migrations generated from those tables, applied by core with its own
+  commands, // {query: {description, positionals, run({args, db})}} — CLI commands, run as `conciv <name>:<command>`
   views, // ExtensionView[] — {id, label, icon?, Component, actions?}, one per full panel
   Component, // Solid component mounted once per widget slot (header/footer/composer/empty/status/widget/surface/connect)
   Surface, // Solid component for the dedicated 'surface' slot — mount via MountedSurface, not branching on useSlot

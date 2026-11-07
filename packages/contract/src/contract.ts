@@ -154,6 +154,18 @@ export const contract = {
   captures: {
     list: oc.input(SessionIdInput).output(SessionCapturesSchema),
   },
+  extensions: {
+    commands: oc.output(
+      z.array(z.object({name: z.string(), description: z.string(), positionals: z.array(z.string())})),
+    ),
+    run: oc
+      .errors({
+        UNKNOWN_COMMAND: {message: 'no extension registers a command by that name'},
+        COMMAND_FAILED: {message: 'the command failed'},
+      })
+      .input(z.object({name: z.string().min(1), args: z.array(z.string())}))
+      .output(z.unknown()),
+  },
   page: {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
     changes: oc.output(z.array(PageChangeEntrySchema)),

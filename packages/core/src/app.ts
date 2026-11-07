@@ -47,7 +47,7 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import type {ChatContext} from './api/rpc/mount.js'
-import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {drafts, extensionTable, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -326,7 +326,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const staleness = opts.staleness ?? engineStaleness
-  const db = openDb(opts.cfg.stateRoot)
+  const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
+  const declared = extensions.map((extension) => ({
+    extension,
+    scoped: {orm: db, tables: extension.tables?.(extensionTable(extension.name)) ?? {}},
+  }))
+  const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
+  const extensionCommands = declared.flatMap(({extension, scoped}) =>
+    Object.entries(extension.commands ?? {}).map(([name, command]) => ({
+      name: `${extension.name}:${name}`,
+      description: command.description,
+      positionals: command.positionals,
+      run: (args: string[]) => command.run({args, db: scoped}),
+    })),
+  )
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -379,6 +392,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     try {
       const result = await extension.__server?.({
         stateDir: concivStateDir(opts.cfg.stateRoot),
+        db: extensionDbs.get(extension.name),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         basePath: opts.basePath ?? '',
@@ -515,6 +529,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     runtime,
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
+    commands: extensionCommands,
   })
 
   const compositeRpc = makeCompositeRpcRouter(

@@ -44,7 +44,7 @@ describe('capture queries', () => {
   describe('tool captures outlive the run that produced them', () => {
     it('keeps both sides of one tool call and hands them back after the database is reopened', async () => {
       const root = freshRoot()
-      await writeToolCapture(openDb(root), {
+      await writeToolCapture(openDb({stateRoot: root}), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -54,7 +54,7 @@ describe('capture queries', () => {
         },
       })
 
-      const reopened = await sessionCaptures(openDb(root), 's1')
+      const reopened = await sessionCaptures(openDb({stateRoot: root}), 's1')
       expect(reopened.captures.map((row) => row.kind).toSorted()).toEqual(['after', 'before'])
       expect(new Set(reopened.captures.map((row) => row.toolCallId))).toEqual(new Set(['call-1']))
       expect(reopened.cssBundles['cssabc']).toBe('i{}')
@@ -62,7 +62,7 @@ describe('capture queries', () => {
 
     it('stores every css bundle a single call reports, one per side', async () => {
       const root = freshRoot()
-      await writeToolCapture(openDb(root), {
+      await writeToolCapture(openDb({stateRoot: root}), {
         sessionId: 's1',
         toolCallId: 'call-1',
         bundle: {
@@ -75,14 +75,14 @@ describe('capture queries', () => {
         },
       })
 
-      const stored = await sessionCaptures(openDb(root), 's1')
+      const stored = await sessionCaptures(openDb({stateRoot: root}), 's1')
       expect(stored.cssBundles['cssbefore']).toBe('.a{}')
       expect(stored.cssBundles['cssafter']).toBe('.a{}.b{}')
     })
 
     it('replaces a side rather than duplicating it when the same call reports twice', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = openDb({stateRoot: root})
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'first')}})
       await writeToolCapture(db, {sessionId: 's1', toolCallId: 'call-1', bundle: {after: side('after', 'second')}})
       const stored = await sessionCaptures(db, 's1')
@@ -92,7 +92,7 @@ describe('capture queries', () => {
 
     it('drops a session capture and only the css bundles nothing else references', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = openDb({stateRoot: root})
       await writeToolCapture(db, {
         sessionId: 's1',
         toolCallId: 'call-1',
@@ -109,7 +109,7 @@ describe('capture queries', () => {
 
     it('leaves no orphan css bundle behind when a capture in the same call fails to write', async () => {
       const root = freshRoot()
-      const db = openDb(root)
+      const db = openDb({stateRoot: root})
       await expect(
         writeToolCapture(db, {
           sessionId: 's1',
@@ -236,7 +236,7 @@ describe('db', () => {
     })
 
     it('boots a fresh db with the attach columns and rejects a duplicate token', () => {
-      const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-cwd-')))
+      const db = openDb({stateRoot: mkdtempSync(join(tmpdir(), 'conciv-db-cwd-'))})
       db.insert(sessions)
         .values({
           ...record('conciv_a'),
@@ -261,7 +261,7 @@ describe('db', () => {
 
   describe('openDb', () => {
     it('sessions round-trip through the typed orm', () => {
-      const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-db-')))
+      const db = openDb({stateRoot: mkdtempSync(join(tmpdir(), 'conciv-db-'))})
       db.insert(sessions).values(record('conciv_a')).run()
       const rows = db.select().from(sessions).where(eq(sessions.id, 'conciv_a')).all()
       expect(rows[0]?.cwd).toBe('/w')
@@ -271,7 +271,7 @@ describe('db', () => {
 
     it('boot sweep neither folds nor wipes run rows: openDb has no harness and cannot decide', () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-fold-'))
-      const first = openDb(stateRoot)
+      const first = openDb({stateRoot})
       const imageTurn = [
         {
           id: 'u1',
@@ -282,7 +282,7 @@ describe('db', () => {
       const textTurn = [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}]
       seedRunMessages(first, 'conciv_img', imageTurn)
       seedRunMessages(first, 'conciv_txt', textTurn)
-      const second = openDb(stateRoot)
+      const second = openDb({stateRoot})
       expect(runMessagesFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
       expect(runMessagesFor(second, 'conciv_txt')?.messages).toEqual(textTurn)
       expect(legacyHistoryRows(second, 'conciv_img')).toEqual([])
@@ -291,8 +291,8 @@ describe('db', () => {
 
     it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-multi-'))
-      const first = openDb(stateRoot)
-      const second = openDb(stateRoot)
+      const first = openDb({stateRoot})
+      const second = openDb({stateRoot})
       first.insert(sessions).values(record('conciv_a')).run()
       second.insert(sessions).values(record('conciv_b')).run()
       first.update(sessions).set({title: 'from-first'}).where(eq(sessions.id, 'conciv_b')).run()
@@ -315,7 +315,7 @@ describe('db', () => {
 })
 
 describe('run queries', () => {
-  const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-')))
+  const fresh = () => openDb({stateRoot: mkdtempSync(join(tmpdir(), 'conciv-run-'))})
 
   describe('run lifecycle queries', () => {
     it('reads fall back safely for unknown sessions', () => {
