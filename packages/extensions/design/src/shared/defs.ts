@@ -1,9 +1,11 @@
 import {z} from 'zod'
 import type {Storage} from 'unstorage'
-import type {ToolBuilder, ToolErrors} from '@conciv/extension'
+import type {ToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {defineTool} from '@conciv/extension/tool'
 import type {Store} from './store.js'
+import {ProgressSchema} from './progress.js'
+import {DESIGN_ERRORS} from './errors.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
@@ -308,6 +310,7 @@ export const RoundSchema = z.object({
   coverage: CoverageSchema,
   counts: CountsSchema,
   pixels: PixelsSchema.nullable(),
+  progress: ProgressSchema.nullable().default(null),
   at: z.number(),
   tree: z.string().default('').describe('sha256 of the measured keys, boxes and styles and the page stylesheets'),
   verdict: z.enum(CHECK_VERDICTS).nullable().default(null),
@@ -349,7 +352,14 @@ const GetResultSchema = z.object({
 
 const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
 
-const MeasuredSchema = RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
+const MeasuredSchema = RoundSchema.pick({
+  round: true,
+  rows: true,
+  reflow: true,
+  coverage: true,
+  counts: true,
+  progress: true,
+}).extend({
   unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
   ...UnsettledSchema.partial().shape,
 })
@@ -361,7 +371,7 @@ const CheckResultSchema = z.union([
   UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
 ])
 
-const StatusSchema = MeasuredSchema.pick({round: true, rows: true}).extend({
+const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: true}).extend({
   ...JUDGED,
   counts: CountsSchema.nullable(),
   coverage: CoverageSchema.nullable(),
@@ -393,19 +403,6 @@ const MeasureInputSchema = z.object({
   height: Width.optional().describe('the height to capture'),
   timeout: z.number().int().positive().optional(),
 })
-
-const DESIGN_ERRORS = {
-  'image-unreadable': {message: 'image is neither a PNG file nor PNG base64'},
-  'no-target': {message: 'no design is registered; call design_get with the Figma link'},
-  'figma-link': {
-    message: 'the Figma link must point at a frame: https://www.figma.com/design/<fileKey>/<name>?node-id=<id>',
-  },
-  'figma-source': {
-    message:
-      'no way to read the Figma frame: set FIGMA_API_KEY for the engine, or fetch the frame with your Figma MCP and pass it as document together with its image',
-  },
-  'figma-request': {message: 'Figma did not answer the request'},
-} satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
   string,

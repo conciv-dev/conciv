@@ -445,6 +445,7 @@ describe('store', () => {
       },
       counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, reflow: 0, rows: 0},
       pixels: {share: 0},
+      progress: null,
       at: 1,
       tree: '',
       verdict: null,

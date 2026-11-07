@@ -257,5 +257,5 @@ function diffMask(input: {output: Uint8Array; width: number; height: number}): U
 
 const EDGE_THRESHOLD = 48
 const MINIMUM_TRIM_SIDE = 2
-const DIFF_OPTIONS = {threshold: 0.1, includeAA: false, diffMask: true} as const
+const DIFF_OPTIONS = {threshold: TOLERANCES.perceptualThreshold, includeAA: false, diffMask: true} as const
 const DIFF_RED = [255, 0, 0, 255]

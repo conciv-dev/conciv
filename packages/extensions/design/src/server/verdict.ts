@@ -12,9 +12,16 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
       rows: [],
       counts: null,
       coverage: null,
+      progress: null,
     }
   }
-  const shown = {round: last.round, rows: last.rows, counts: last.counts, coverage: last.coverage}
+  const shown = {
+    round: last.round,
+    rows: last.rows,
+    counts: last.counts,
+    coverage: last.coverage,
+    progress: last.progress,
+  }
   if (last.unsettled !== null) {
     const {rendered, nodes} = last.coverage
     const told = `the page renders ${rendered} of ${nodes} nodes; the missing ones are listed in coverage.missing`

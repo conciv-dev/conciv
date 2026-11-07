@@ -10,6 +10,7 @@ import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
 import {verdictOf} from './verdict.js'
+import {progressOf} from './progress.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
@@ -83,6 +84,16 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const rows = [...gate.rows, ...failures]
     const counts = {...gate.counts, reflow: failures.length, rows: gate.counts.rows + failures.length}
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
+    const earlier =
+      previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
+    const progress = progressOf({
+      rounds,
+      now: {rows, coverage, pixels: {share: pixels.share}},
+      live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
+      root: mapped.root,
+      design,
+      comparator: runtime.comparator,
+    })
     const names = new Map([...walk(design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
     const gone = coverage.missing.map((id) => ({id, name: names.get(id) ?? ''}))
     const judged = unsettled === null ? coverage : {...coverage, gone}
@@ -93,6 +104,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       coverage: judged,
       counts,
       pixels: {share: pixels.share},
+      progress,
       at: Date.now(),
       tree: built.hash,
       verdict: 'unsettled',
@@ -103,7 +115,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
         ? {...measuredRound, verdict: verdictOf({design, rounds: [...rounds, measuredRound]}).verdict}
         : measuredRound
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
-    const reply = {round, rows, reflow, coverage: judged, counts}
+    const reply = {round, rows, reflow, coverage: judged, counts, progress}
     return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
   }
 }
@@ -121,7 +133,8 @@ function unsettledReason(input: {measured: Measured; rendered: number; settled: 
 }
 
 function shown(last: Round): RoundReply {
-  return {round: last.round, rows: last.rows, reflow: last.reflow, coverage: last.coverage, counts: last.counts}
+  const {round, rows, reflow, coverage, counts, progress} = last
+  return {round, rows, reflow, coverage, counts, progress}
 }
 
 function compared(input: {live: Raster; target: Raster; comparator: string}): {share: number; diff: Uint8Array} {

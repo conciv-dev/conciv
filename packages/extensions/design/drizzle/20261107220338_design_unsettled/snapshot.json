@@ -2,8 +2,12 @@
   "version": "7",
   "dialect": "sqlite",
   "id": "49ba88ba-4bbb-4b14-ac0c-6a41fd85cf68",
-  "prevIds": ["5ed4dc7a-4dc1-49bd-a4c4-697f0be6a9df"],
+  "prevIds": ["f68e3e10-139d-4486-b526-0dcf9102bf37"],
   "ddl": [
+    {
+      "name": "design_candidates",
+      "entityType": "tables"
+    },
     {
       "name": "design_fom",
       "entityType": "tables"
@@ -13,7 +17,15 @@
       "entityType": "tables"
     },
     {
+      "name": "design_missing",
+      "entityType": "tables"
+    },
+    {
       "name": "design_notes",
+      "entityType": "tables"
+    },
+    {
+      "name": "design_regions",
       "entityType": "tables"
     },
     {
@@ -39,6 +51,80 @@
     {
       "name": "design_votes",
       "entityType": "tables"
+    },
+    {
+      "name": "design_widths",
+      "entityType": "tables"
+    },
+    {
+      "table": "design_candidates",
+      "name": "seq",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "round",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "node",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "selector",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "score",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
     },
     {
       "table": "design_fom",
@@ -291,6 +377,66 @@
       "entityType": "columns"
     },
     {
+      "table": "design_missing",
+      "name": "seq",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "round",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "node",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_missing",
+      "name": "kind",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "design_notes",
       "name": "seq",
       "type": "integer",
@@ -351,6 +497,146 @@
       "entityType": "columns"
     },
     {
+      "table": "design_regions",
+      "name": "seq",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "round",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "x",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "y",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "width",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "height",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "node",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "name",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "source",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "overlap",
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_regions",
+      "name": "truncated",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
       "table": "design_rounds",
       "name": "seq",
       "type": "integer",
@@ -392,31 +678,111 @@
     },
     {
       "table": "design_rounds",
-      "name": "counts",
-      "type": "text",
+      "name": "much",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "0",
       "generated": null,
       "entityType": "columns"
     },
     {
       "table": "design_rounds",
-      "name": "coverage",
-      "type": "text",
+      "name": "noticeably",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "slightly",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "pins",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "other",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
       "generated": null,
       "entityType": "columns"
     },
     {
       "table": "design_rounds",
       "name": "reflow",
-      "type": "text",
+      "type": "integer",
       "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "rows_count",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "nodes",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "mapped",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "rendered",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "revoted",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
       "generated": null,
       "entityType": "columns"
     },
@@ -432,29 +798,99 @@
     },
     {
       "table": "design_rounds",
+      "name": "pixel_before",
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "closed",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "opened",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "kept",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "gained",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "lost",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "changed_ratio",
+      "type": "real",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "changed_regions",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "note",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
       "name": "tree",
       "type": "text",
       "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "design_rounds",
-      "name": "verdict",
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "design_rounds",
-      "name": "unsettled",
-      "type": "text",
-      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -485,6 +921,26 @@
       "name": "at",
       "type": "integer",
       "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "verdict",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_rounds",
+      "name": "unsettled",
+      "type": "text",
+      "notNull": false,
       "autoincrement": false,
       "default": null,
       "generated": null,
@@ -852,21 +1308,21 @@
     },
     {
       "table": "design_targets",
-      "name": "unsettled",
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "entityType": "columns"
-    },
-    {
-      "table": "design_targets",
       "name": "at",
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
       "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_targets",
+      "name": "unsettled",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
       "generated": null,
       "entityType": "columns"
     },
@@ -1111,6 +1567,93 @@
       "entityType": "columns"
     },
     {
+      "table": "design_widths",
+      "name": "seq",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "target_id",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "run_id",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "round",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "width",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "from",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "root_height",
+      "type": "real",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_widths",
+      "name": "overflow_x",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "design_candidates",
+      "name": "design_candidates_pk",
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
       "table": "design_fom",
       "name": "design_fom_pk",
       "columns": ["seq"],
@@ -1125,8 +1668,22 @@
       "entityType": "pks"
     },
     {
+      "table": "design_missing",
+      "name": "design_missing_pk",
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
       "table": "design_notes",
       "name": "design_notes_pk",
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "design_regions",
+      "name": "design_regions_pk",
       "columns": ["seq"],
       "nameExplicit": false,
       "entityType": "pks"
@@ -1169,6 +1726,13 @@
     {
       "table": "design_votes",
       "name": "design_votes_pk",
+      "columns": ["seq"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "design_widths",
+      "name": "design_widths_pk",
       "columns": ["seq"],
       "nameExplicit": false,
       "entityType": "pks"

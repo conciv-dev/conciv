@@ -386,6 +386,35 @@ Omri: `design_get` returns something the agent can select from with `querySelect
 - Proof is the same A/B: three sonnet runs on the markup build beside the three full-tree JSON runs of wave 9, on bytes,
   rounds, verdicts, cost and nodes missing at round 1.
 
+### Progress between rounds is reported, with changed regions resolved to ids (2026-11-07, evening)
+
+Omri: the agent needs to know whether it is progressing. The rounds table holds everything; the diff between a round and the
+one before becomes a `progress` block on `design_check` and `design_status`:
+
+- rows closed, new and kept since the previous round, the kept ones listed (kept is the `repeat` column);
+- nodes newly mapped and nodes lost;
+- pixel share against the design for this round and the previous one;
+- the changed ratio between this round's screenshot and the previous one's, anti-aliasing excluded, and the changed regions
+  (diff mask, tiled, clustered, noise dropped, capped with an aggregate) each resolved to the conciv ids whose measured boxes
+  it overlaps, with file and line. This is the practice of SnapEye (MIT), ported as practice, with the resolution to ids
+  that SnapEye has no mapping for. See `$S/figma-loop/ref-snapeye-progress.md`.
+- Captures are frozen first (animations paused and rewound, transitions off, restored after), so an unchanged page
+  measures identical twice.
+- In words, once: "your edits since the last check changed no pixels" when the ratio is zero while rows remained.
+  The verdict logic does not change; `progress` reports, `stalled` still decides.
+
+### Scalars are columns, lists are tables (2026-11-07, evening)
+
+Swamp's catalog is flat columns with one JSON column for tags. Ours grew JSON by convenience: `counts` beside the columns it
+duplicates, `coverage` hiding `mapped` behind a path, `reflow_detail` a list in a cell. Omri: no reason for it.
+
+- A scalar is a column. A list is a table keyed by target, run, round. JSON stays only for a blob nobody filters on.
+- `rounds` loses `counts` and `coverage`; it gains `mapped`, `rendered`, `revoted`; `design_missing` holds the missing nodes;
+  the reflow widths live in rows or `design_widths`.
+- Progress is columns on `rounds` (`closed`, `opened`, `kept`, `gained`, `lost`, `changed_ratio`, `pixel_before`, `note`) and
+  a `design_regions` table, one row per region and id.
+- The tool replies keep their shapes; only storage flattens.
+
 ### Markup withdrawn; the design stays whole JSON; unsettled is never a trap (2026-11-07, night)
 
 Markup against full-tree JSON, sonnet, same pages: JSON 3 of 3 done at $3.83; markup 0 of 3 at $4.14, stuck rows 264 and

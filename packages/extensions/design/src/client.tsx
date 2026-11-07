@@ -16,6 +16,7 @@ import {designConfig} from './shared/tolerances.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
+import {frozen} from './client/freeze.js'
 
 declare global {
   interface Window {
@@ -183,7 +184,10 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
   const pageError = overlayError()
-  const measured = size.width === innerWidth ? await measureLive({size}) : await measureMirror({size})
+  const measured = await frozen({
+    doc: document,
+    run: () => (size.width === innerWidth ? measureLive({size}) : measureMirror({size})),
+  })
   const queried = {...measured, ...(await pageQueries(document))}
   return pageError === null ? queried : {...queried, pageError}
 }
@@ -239,6 +243,11 @@ function watchLongTasks(): () => number | null {
 async function measureMirror(input: {size: Size}): Promise<Measuring> {
   const {size} = input
   const doc = mirrorDocument(await mirrorAt(size))
+  return frozen({doc, run: () => measureMirrorDoc({doc, size})})
+}
+
+async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
+  const {doc, size} = input
   const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
