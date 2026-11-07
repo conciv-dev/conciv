@@ -251,7 +251,11 @@ describe('define extension', () => {
 })
 
 describe('define tool', () => {
-  const request: ToolRequest = {sessionId: SessionId.parse('conciv_define_tool'), model: null}
+  const request: ToolRequest = {
+    sessionId: SessionId.parse('conciv_define_tool'),
+    agentId: 'conciv_define_tool',
+    model: null,
+  }
 
   const noPage: ServerToolPageAccess = {
     call: (name) => Promise.reject(new Error(`${name}: this test never reaches the page`)),
@@ -262,6 +266,7 @@ describe('define tool', () => {
   }
 
   const unusedCtx: ClientToolCtx = {
+    agentId: 'conciv_define_tool',
     get document(): Document {
       throw new Error('this test never touches the document')
     },
@@ -426,7 +431,7 @@ describe('rpc websocket route', () => {
 })
 
 describe('tool registry', () => {
-  const TEST_REQUEST: ToolRequest = {sessionId: SessionId.parse('conciv_test'), model: null}
+  const TEST_REQUEST: ToolRequest = {sessionId: SessionId.parse('conciv_test'), agentId: 'conciv_test', model: null}
 
   function testClient(registry: ToolRegistry, request: ToolRequest = TEST_REQUEST): unknown {
     return createRouterClient<AnyRouter, Record<never, never>>(registry.router, {context: {request}})
@@ -872,7 +877,7 @@ describe('tool registry', () => {
       return {ok: true}
     })
     registry.register(probe, {owner: 'a test registrant', context: {db: 'handle'}})
-    const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), model: null}
+    const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), agentId: 'conciv_s1', model: null}
     const client = testClient(registry, request)
     await clientTool(client, 'server_probe')({})
     expect(seen).toEqual([{db: 'handle'}, request])
@@ -1004,7 +1009,7 @@ describe('tool registry', () => {
       },
     })
     registry.register(fillTool().client(), {owner: 'a test registrant'})
-    const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), model: 'sonnet'}
+    const request: ToolRequest = {sessionId: SessionId.parse('conciv_s1'), agentId: 'conciv_s1', model: 'sonnet'}
     await registry.call('page_fill', {target: '#name'}, {request})
     expect(seen).toEqual([request])
   })
@@ -1071,7 +1076,9 @@ describe('tool registry', () => {
     const status = tools[1]
     if (!status) throw new Error('server_status missing')
     expect(status.schema.safeParse({}).success).toBe(true)
-    await expect(status.run({}, {sessionId: SessionId.parse('conciv_x'), model: null})).resolves.toEqual({ok: true})
+    await expect(
+      status.run({}, {sessionId: SessionId.parse('conciv_x'), agentId: 'conciv_x', model: null}),
+    ).resolves.toEqual({ok: true})
   })
 
   test('sandboxTools sees a tool registered after the registry was handed out', () => {

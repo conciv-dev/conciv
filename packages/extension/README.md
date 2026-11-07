@@ -72,7 +72,8 @@ export default defineExtension({
 Bodies are `(input, ctx)`: the input arrives schema-validated, and the dispatcher builds `ctx` per
 call — `ctx.document`, a lazy `ctx.target(locator)` that resolves a `{ref, selector, name}` locator
 (and fires the action mirror when the declaration sets `meta.mirrors`), a non-throwing
-`ctx.resolve(locator)`, `ctx.addRef`/`ctx.resetRefs` for snapshot refs, and `ctx.consoleEntries()`.
+`ctx.resolve(locator)`, `ctx.addRef`/`ctx.resetRefs` for snapshot refs, `ctx.consoleEntries()`, and
+`ctx.agentId`, the agent the page call acts for. A selector, ref or name never resolves to the widget's own elements.
 Return a plain JSON-serializable record; declare `meta.mutating: true` and the call is journaled and
 prompts for user approval on every surface.
 
