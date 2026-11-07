@@ -10,7 +10,7 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 - `card-shell.tsx:CardShell`, `cardHeader`, `detailChips`; `card-chrome.tsx:CardChromeProvider`, `useCardChrome`, `useEmbeddedCard`; `card-headline.tsx:CardHeadline`; `collapsible-card.tsx:CollapsibleCard` (kit-internal).
 - `meta-tool-card.tsx:MetaToolCard`, `metaToolHasEmbeddedBody`; `permission-card.tsx:PermissionCard`.
 - `chip.tsx:Chip`, `ChipRow`, `ChipGroup`, `CHIP`; `code-block.tsx:CodeBlock`, `DiffBlock`, `diffBlockClass`; `json-tree.tsx:JsonTree`; `shaped-content.tsx:ShapedValue`; `error-block.tsx:ErrorBlock`; `result-image.tsx:ResultImage`.
-- `element-preview.tsx:ElementPreview` (`{Root, Frame, Descriptor}`); `inline-row.tsx:InlineRow`, `InlineShell`; `note-row.tsx:NoteRow`, `MirrorRow`; `action-row.tsx:ActionRow`, `ActionButton`; `collapsible-section.tsx:CollapsibleSection`; `tool-icon.tsx:toolIconRender`, `GENERIC_TOOL_ICON`.
+- `element-preview.tsx:ElementPreview` (`{Root, Frame, Descriptor}`); `inline-row.tsx:InlineRow`, `InlineShell`; `note-row.tsx:NoteRow`; `action-row.tsx:ActionRow`, `ActionButton`; `collapsible-section.tsx:CollapsibleSection`; `tool-icon.tsx:toolIconRender`, `GENERIC_TOOL_ICON`.
 
 ## Invariants
 

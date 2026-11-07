@@ -35,7 +35,6 @@ function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
       icon: entry.icon,
       label: entry.label,
       mutating: signature.mutating,
-      mirrors: signature.mirrors,
       reachable: entry.reachable,
       approval: signature.approval,
       inputSchema: signature.inputSchema,
@@ -74,8 +73,9 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {page, registry, stream} = deps.primitives
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
+  const agentId: string = id
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
-    toolCallId === undefined ? {sessionId: id, model} : {sessionId: id, model, toolCallId}
+    toolCallId === undefined ? {sessionId: id, agentId, model} : {sessionId: id, agentId, model, toolCallId}
   return {
     id,
     model,
@@ -85,7 +85,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       catalog: view.catalog,
     },
     page: {
-      ask: async (name, input) => (await page.bus.ask(id, {name, input})).result,
+      ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
       queries: (signal) => pageQueryStream(page.bus, id, signal),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),

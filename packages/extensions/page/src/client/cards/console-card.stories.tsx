@@ -41,7 +41,6 @@ const consoleMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Reading the console', done: 'Read the console'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {since: {type: 'number'}}, required: []},
   outputSchema: {type: 'object', properties: {entries: {type: 'array'}}},
 }

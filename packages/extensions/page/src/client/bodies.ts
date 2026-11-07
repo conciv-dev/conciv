@@ -65,6 +65,8 @@ import {readBulkCard} from './cards/read-bulk-card.js'
 import {readValueCard} from './cards/read-value-card.js'
 import {screenshot} from './screenshot.js'
 import {watchHotUpdates} from './hmr.js'
+import {actionable, fill, focusedElement, hover, isDisabled, isHtml, press, select, setChecked} from './page-act.js'
+import {pointAt, simulateClick, startTask, touchTask} from './simulator.js'
 
 function fail(message: string): never {
   throw pageFailure('handler-error', message)
@@ -73,8 +75,6 @@ function fail(message: string): never {
 function badArgs(message: string): never {
   throw pageFailure('invalid-args', message)
 }
-
-const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 function serialize(value: unknown): unknown {
   if (value instanceof Element) return describeElement(value)
@@ -97,39 +97,49 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
   })
 }
 
-function fireInput(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement): void {
-  el.dispatchEvent(new Event('input', {bubbles: true}))
-  el.dispatchEvent(new Event('change', {bubbles: true}))
-}
-
-function setNative(el: Element, prop: 'value' | 'checked', value: string | boolean): void {
-  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), prop)?.set
-  if (setter) setter.call(el, value)
-  else Reflect.set(el, prop, value)
-}
-
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
 }
 
-function toggleChecked(el: Element, desired: boolean, verb: 'check' | 'uncheck'): PageResult {
-  if (!(el instanceof HTMLInputElement)) badArgs(`${verb} target is not an input`)
-  if (el.checked === desired) return ok({checked: desired})
-  if (el.type === 'radio' && !desired) badArgs('cannot uncheck a radio; check another radio in the same group instead')
-  el.click()
-  if (el.checked !== desired) {
-    fail(`${verb} did not take: the box is still ${desired ? 'unchecked' : 'checked'} (disabled or prevented)`)
+function touching<Input>(
+  body: (input: Input, ctx: ClientToolCtx) => unknown,
+): (input: Input, ctx: ClientToolCtx) => unknown {
+  return (input, ctx) => {
+    touchTask()
+    return body(input, ctx)
   }
-  return ok({checked: desired})
 }
 
-function optionFor(el: HTMLSelectElement, wanted: string): HTMLOptionElement {
-  const options = Array.from(el.options)
-  const match =
-    options.find((option) => option.value === wanted) ?? options.find((option) => option.label === wanted.trim())
-  if (match) return match
-  const listed = options.map((option) => `${option.value} "${option.label}"`).join(', ')
-  return badArgs(`no option with value or label "${wanted}"; options: ${listed}`)
+function acting<Input>(
+  body: (input: Input, ctx: ClientToolCtx) => unknown,
+): (input: Input, ctx: ClientToolCtx) => unknown {
+  return (input, ctx) => {
+    startTask(ctx.agentId)
+    touchTask()
+    return body(input, ctx)
+  }
+}
+
+function actionableTarget(ctx: ClientToolCtx, input: ClientToolLocator): Element {
+  const element = actionable(ctx.target(input))
+  if (typeof element === 'string') badArgs(element)
+  return element
+}
+
+function outcomeOf<Result extends Record<string, unknown>>(result: Result | string): PageResult {
+  if (typeof result === 'string') badArgs(result)
+  return ok(result)
+}
+
+function fieldValue(el: Element): string {
+  if (!isField(el)) return ''
+  return isSensitiveField(el) ? MASKED_VALUE : el.value
+}
+
+async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
+  const element = ctx.target(input)
+  if (isDisabled(element)) badArgs('That element is disabled.')
+  return outcomeOf(await setChecked({element, checked, agent: ctx.agentId}))
 }
 
 const INSERT_POS: Record<string, InsertPosition> = {
@@ -148,115 +158,137 @@ function hasLocator(input: ClientToolLocator): boolean {
 }
 
 const routeTool = routeDef
-  .client(() => ({
-    pathname: location.pathname,
-    search: location.search,
-    href: location.href,
-    title: document.title,
-    state: document.visibilityState === 'visible' ? 'visible' : 'hidden',
-  }))
+  .client(
+    touching(() => ({
+      pathname: location.pathname,
+      search: location.search,
+      href: location.href,
+      title: document.title,
+      state: document.visibilityState === 'visible' ? 'visible' : 'hidden',
+    })),
+  )
   .render(readValueCard)
 
-const consoleTool = consoleDef.client((input, ctx) => ({entries: ctx.consoleEntries(input.since)})).render(consoleCard)
+const consoleTool = consoleDef
+  .client(touching((input, ctx) => ({entries: ctx.consoleEntries(input.since)})))
+  .render(consoleCard)
 
 const domTool = domDef
-  .client((input, ctx) => {
-    const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
-    return {html: root.outerHTML.slice(0, DOM_CAP)}
-  })
+  .client(
+    touching((input, ctx) => {
+      const root = hasLocator(input) ? ctx.target(input) : ctx.document.body
+      return {html: root.outerHTML.slice(0, DOM_CAP)}
+    }),
+  )
   .render(readBulkCard)
 
 const queryTool = queryDef
-  .client((input, ctx) => {
-    const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
-    return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
-  })
+  .client(
+    touching((input, ctx) => {
+      const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
+      return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
+    }),
+  )
   .render(readBulkCard)
 
 const existsTool = existsDef
-  .client((input, ctx) => {
-    const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
-    return {exists: matches.length > 0, count: matches.length}
-  })
+  .client(
+    touching((input, ctx) => {
+      const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
+      return {exists: matches.length > 0, count: matches.length}
+    }),
+  )
   .render(readValueCard)
 
 const snapshotTool = snapshotDef
-  .client((input, ctx) => {
-    const root = rootOf(ctx, input.selector)
-    if (!root) return {nodes: []}
-    ctx.resetRefs()
-    return {nodes: buildSnapshot(root, ctx.addRef)}
-  })
+  .client(
+    touching((input, ctx) => {
+      const root = rootOf(ctx, input.selector)
+      if (!root) return {nodes: []}
+      ctx.resetRefs()
+      return {nodes: buildSnapshot(root, ctx.addRef)}
+    }),
+  )
   .render(readBulkCard)
 
-const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
+const screenshotTool = screenshotDef.client(touching(screenshot)).render(readValueCard)
 
 const waitForHotUpdate = watchHotUpdates(import.meta.hot)
 
-const hmrTool = hmrDef.client((input) => waitForHotUpdate(input.timeout)).render(readValueCard)
+const hmrTool = hmrDef.client(touching((input) => waitForHotUpdate(input.timeout))).render(readValueCard)
 
 const locateTool = locateDef
-  .client(async (input, ctx) => {
-    const result = await reactBridge.locate(ctx.target(input), ctx.addRef)
-    return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
-  })
+  .client(
+    touching(async (input, ctx) => {
+      const result = await reactBridge.locate(ctx.target(input), ctx.addRef)
+      return result ?? fail('no React fiber: element may be outside a React tree or not hydrated yet')
+    }),
+  )
   .render(reactCard)
 
 const inspectTool = inspectDef
-  .client(async (input, ctx) => {
-    const result = await reactBridge.inspect(ctx.target(input))
-    if (!result) fail('no React fiber for element')
-    const root = {props: result.props, state: result.state, hooks: result.hooks}
-    if (input.path) {
-      const hit = navigatePath(root, input.path)
-      if (!hit.found) badArgs(`path not found: ${input.path}`)
-      return {component: result.component, path: input.path, value: dehydrate(hit.value)}
-    }
-    return {
-      component: result.component,
-      props: dehydrate(result.props),
-      state: dehydrate(result.state),
-      hooks: dehydrate(result.hooks),
-      rect: result.rect,
-    }
-  })
+  .client(
+    touching(async (input, ctx) => {
+      const result = await reactBridge.inspect(ctx.target(input))
+      if (!result) fail('no React fiber for element')
+      const root = {props: result.props, state: result.state, hooks: result.hooks}
+      if (input.path) {
+        const hit = navigatePath(root, input.path)
+        if (!hit.found) badArgs(`path not found: ${input.path}`)
+        return {component: result.component, path: input.path, value: dehydrate(hit.value)}
+      }
+      return {
+        component: result.component,
+        props: dehydrate(result.props),
+        state: dehydrate(result.state),
+        hooks: dehydrate(result.hooks),
+        rect: result.rect,
+      }
+    }),
+  )
   .render(reactCard)
 
 const overrideTool = overrideDef
-  .client(async (input, ctx) => {
-    const el = ctx.target(input)
-    let value: unknown
-    try {
-      value = input.json === undefined ? undefined : JSON.parse(input.json)
-    } catch {
-      badArgs(`--json is not valid JSON: ${input.json}`)
-    }
-    const path = input.path ? input.path.split('.') : []
-    const result = await reactBridge.override(el, input.target, path, value, input.hookId)
-    if ('error' in result) fail(result.error)
-    return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
-  })
+  .client(
+    touching(async (input, ctx) => {
+      const el = ctx.target(input)
+      let value: unknown
+      try {
+        value = input.json === undefined ? undefined : JSON.parse(input.json)
+      } catch {
+        badArgs(`--json is not valid JSON: ${input.json}`)
+      }
+      const path = input.path ? input.path.split('.') : []
+      const result = await reactBridge.override(el, input.target, path, value, input.hookId)
+      if ('error' in result) fail(result.error)
+      return ok({target: input.target, path: input.path ?? '', ...(value === undefined ? {} : {value})})
+    }),
+  )
   .render(reactCard)
 
 const treeTool = treeDef
-  .client(async (input, ctx) => {
-    const root = rootOf(ctx, input.selector)
-    return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
-  })
+  .client(
+    touching(async (input, ctx) => {
+      const root = rootOf(ctx, input.selector)
+      return root ? await reactBridge.tree(root, ctx.addRef) : badArgs('no root element')
+    }),
+  )
   .render(reactCard)
 
-const findTool = findDef.client((input, ctx) => reactBridge.find(input.name, ctx.addRef)).render(reactCard)
+const findTool = findDef.client(touching((input, ctx) => reactBridge.find(input.name, ctx.addRef))).render(reactCard)
 
 const trackTool = trackDef
-  .client((input) => {
-    const action = input.action ?? 'report'
-    if (action === 'start') {
-      startTracking()
-      return ok({tracking: true})
-    }
-    if (action === 'stop') return stopTracking()
-    return trackReport({name: input.name})
-  })
+  .client(
+    touching((input) => {
+      const action = input.action ?? 'report'
+      if (action === 'start') {
+        startTracking()
+        return ok({tracking: true})
+      }
+      if (action === 'stop') return stopTracking()
+      return trackReport({name: input.name})
+    }),
+  )
   .render(reactCard)
 
 function listEffects(effects: readonly ClientEffect[], requestedEffect: string | undefined) {
@@ -282,20 +314,24 @@ function driveEffect(effect: ClientEffect, action: string): void {
 }
 
 const effectTool = effectDef
-  .client((input, ctx) => {
-    const action = input.action ?? 'list'
-    if (action === 'list') return listEffects(ctx.effects, input.effect)
-    const effect = requireEffect(ctx.effects, input.effect, action)
-    driveEffect(effect, action)
-    return {effect: effect.name, enabled: effect.enabled()}
-  })
+  .client(
+    touching((input, ctx) => {
+      const action = input.action ?? 'list'
+      if (action === 'list') return listEffects(ctx.effects, input.effect)
+      const effect = requireEffect(ctx.effects, input.effect, action)
+      driveEffect(effect, action)
+      return {effect: effect.name, enabled: effect.enabled()}
+    }),
+  )
   .render(effectCard)
 
 const waitTool = waitDef
-  .client((input) =>
-    input.selector
-      ? waitFor(input.selector, input.state ?? 'visible', input.timeout ?? 5000)
-      : badArgs('wait requires a selector'),
+  .client(
+    touching((input) =>
+      input.selector
+        ? waitFor(input.selector, input.state ?? 'visible', input.timeout ?? 5000)
+        : badArgs('wait requires a selector'),
+    ),
   )
   .render(actCard)
 
@@ -304,173 +340,208 @@ function afterResultFlush(action: () => void): void {
 }
 
 const reloadTool = reloadDef
-  .client((_input, ctx) => {
-    afterResultFlush(() => ctx.document.location.reload())
-    return ok({initiated: true})
-  })
+  .client(
+    touching((_input, ctx) => {
+      afterResultFlush(() => ctx.document.location.reload())
+      return ok({initiated: true})
+    }),
+  )
   .render(actCard)
 
 const textTool = textDef
-  .client((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)}))
+  .client(touching((input, ctx) => ({text: (ctx.target(input).textContent ?? '').slice(0, DOM_CAP)})))
   .render(readValueCard)
 
 const valueTool = valueDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!isField(el)) return {value: null}
-    return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
-  })
+  .client(
+    touching((input, ctx) => {
+      const el = ctx.target(input)
+      if (!isField(el)) return {value: null}
+      return {value: isSensitiveField(el) ? MASKED_VALUE : el.value}
+    }),
+  )
   .render(readValueCard)
 
 const attrTool = attrDef
-  .client((input, ctx) => ({value: ctx.target(input).getAttribute(input.attribute)}))
+  .client(touching((input, ctx) => ({value: ctx.target(input).getAttribute(input.attribute)})))
   .render(readValueCard)
 
 const clickTool = clickDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!(el instanceof HTMLElement)) badArgs('click target is not an HTMLElement')
-    el.click()
-    return ok()
-  })
+  .client(
+    acting(async (input, ctx) => {
+      await simulateClick({element: actionableTarget(ctx, input), agent: ctx.agentId})
+      return ok()
+    }),
+  )
   .render(actCard)
 
 const hoverTool = hoverDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}))
-    el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
-    return ok()
-  })
+  .client(
+    acting(async (input, ctx) => {
+      const element = actionableTarget(ctx, input)
+      await pointAt({element, agent: ctx.agentId})
+      hover(element)
+      return ok()
+    }),
+  )
   .render(actCard)
 
 const scrollTool = scrollDef
-  .client((input, ctx) => {
-    ctx.target(input).scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'})
-    return ok()
-  })
+  .client(
+    acting(async (input, ctx) => {
+      await pointAt({element: ctx.target(input), agent: ctx.agentId})
+      return ok()
+    }),
+  )
   .render(actCard)
 
 const submitTool = submitDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    const form = el instanceof HTMLFormElement ? el : el.closest('form')
-    if (!form) badArgs('no form to submit')
-    form.requestSubmit()
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      const el = ctx.target(input)
+      const form = el instanceof HTMLFormElement ? el : el.closest('form')
+      if (!form) badArgs('no form to submit')
+      form.requestSubmit()
+      return ok()
+    }),
+  )
   .render(actCard)
 
 const fillTool = fillDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!isField(el)) badArgs('fill target is not an input/textarea/select')
-    const value = el instanceof HTMLSelectElement ? optionFor(el, input.value).value : input.value
-    setNative(el, 'value', value)
-    if (value !== '' && el.value === '') fail(`the field rejected "${input.value}" and stayed empty`)
-    fireInput(el)
-    return ok({value: isSensitiveField(el) ? MASKED_VALUE : el.value})
-  })
+  .client(
+    acting(async (input, ctx) => {
+      const element = actionableTarget(ctx, input)
+      const problem = await fill({element, value: input.value, agent: ctx.agentId})
+      if (problem) badArgs(problem)
+      return ok({value: fieldValue(element)})
+    }),
+  )
   .render(actCard)
 
 const selectTool = selectDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!(el instanceof HTMLSelectElement)) badArgs('select target is not a <select>')
-    setNative(el, 'value', optionFor(el, input.value).value)
-    fireInput(el)
-    return ok({value: el.value})
-  })
+  .client(
+    acting(async (input, ctx) => {
+      const element = ctx.target(input)
+      if (isDisabled(element)) badArgs('That element is disabled.')
+      await pointAt({element, agent: ctx.agentId})
+      return outcomeOf(select({element, value: input.value}))
+    }),
+  )
   .render(actCard)
 
-const checkTool = checkDef.client((input, ctx) => toggleChecked(ctx.target(input), true, 'check')).render(actCard)
+const checkTool = checkDef.client(acting((input, ctx) => setCheckedOn(input, ctx, true))).render(actCard)
 
-const uncheckTool = uncheckDef
-  .client((input, ctx) => toggleChecked(ctx.target(input), false, 'uncheck'))
-  .render(actCard)
+const uncheckTool = uncheckDef.client(acting((input, ctx) => setCheckedOn(input, ctx, false))).render(actCard)
 
 const pressTool = pressDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    el.dispatchEvent(new KeyboardEvent('keydown', {key: input.key, bubbles: true}))
-    el.dispatchEvent(new KeyboardEvent('keyup', {key: input.key, bubbles: true}))
-    return ok()
-  })
+  .client(
+    acting(async (input, ctx) => {
+      if (!hasLocator(input)) {
+        press({element: focusedElement(), key: input.key})
+        return ok()
+      }
+      const element = actionableTarget(ctx, input)
+      await pointAt({element, agent: ctx.agentId})
+      if (isHtml(element)) element.focus({preventScroll: true})
+      press({element, key: input.key})
+      return ok()
+    }),
+  )
   .render(actCard)
 
 const setattrTool = setattrDef
-  .client((input, ctx) => {
-    ctx.target(input).setAttribute(input.attribute, input.value)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).setAttribute(input.attribute, input.value)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const removeattrTool = removeattrDef
-  .client((input, ctx) => {
-    ctx.target(input).removeAttribute(input.attribute)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).removeAttribute(input.attribute)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const addclassTool = addclassDef
-  .client((input, ctx) => {
-    ctx.target(input).classList.add(input.class)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).classList.add(input.class)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const removeclassTool = removeclassDef
-  .client((input, ctx) => {
-    ctx.target(input).classList.remove(input.class)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).classList.remove(input.class)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const setstyleTool = setstyleDef
-  .client((input, ctx) => {
-    const el = ctx.target(input)
-    if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
-    el.style.setProperty(input.prop, input.value)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      const el = ctx.target(input)
+      if (!(el instanceof HTMLElement)) badArgs('setstyle target is not an HTMLElement')
+      el.style.setProperty(input.prop, input.value)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const settextTool = settextDef
-  .client((input, ctx) => {
-    ctx.target(input).textContent = input.text
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).textContent = input.text
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const sethtmlTool = sethtmlDef
-  .client((input, ctx) => {
-    ctx.target(input).innerHTML = input.html
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).innerHTML = input.html
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const removeTool = removeDef
-  .client((input, ctx) => {
-    ctx.target(input).remove()
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).remove()
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const insertTool = insertDef
-  .client((input, ctx) => {
-    ctx.target(input).insertAdjacentHTML(INSERT_POS[input.position ?? 'append'] ?? 'beforeend', input.html)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      ctx.target(input).insertAdjacentHTML(INSERT_POS[input.position ?? 'append'] ?? 'beforeend', input.html)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 const cssTool = cssDef
-  .client((input, ctx) => {
-    const style = ctx.document.createElement('style')
-    style.setAttribute('data-vibe-css', '')
-    style.textContent = input.text
-    ctx.document.head.appendChild(style)
-    return ok()
-  })
+  .client(
+    touching((input, ctx) => {
+      const style = ctx.document.createElement('style')
+      style.setAttribute('data-vibe-css', '')
+      style.textContent = input.text
+      ctx.document.head.appendChild(style)
+      return ok()
+    }),
+  )
   .render(editLiveCard)
 
 function evaluate(code: string): unknown {
@@ -483,10 +554,12 @@ function evaluate(code: string): unknown {
 }
 
 const evalTool = evalDef
-  .client(async (input) => {
-    const result: unknown = await evaluate(input.code)
-    return {result: serialize(result)}
-  })
+  .client(
+    touching(async (input) => {
+      const result: unknown = await evaluate(input.code)
+      return {result: serialize(result)}
+    }),
+  )
   .render(editLiveCard)
 
 export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [

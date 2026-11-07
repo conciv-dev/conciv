@@ -9,7 +9,6 @@ import type {
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
-import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {toCssBundle, type PendingCssText} from './css-bundle.js'
@@ -19,13 +18,27 @@ export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
 export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
 
+const OURS = '[data-conciv-root]'
+
+function isOurs(el: Element): boolean {
+  if (el.closest(OURS) !== null) return true
+  const root = el.getRootNode()
+  return root instanceof ShadowRoot && isOurs(root.host)
+}
+
+function notOurs(el: Element | null | undefined): Element | null {
+  return el && !isOurs(el) ? el : null
+}
+
 function locatorTarget(locator: ClientToolLocator, refs: Refs): Element | null {
   if (locator.ref !== undefined) {
     const el = refs.map.get(locator.ref)?.deref()
-    return el?.isConnected ? el : null
+    return el?.isConnected ? notOurs(el) : null
   }
-  if (locator.selector !== undefined) return document.querySelector(locator.selector)
-  if (locator.name !== undefined) return elementByName(locator.name)
+  if (locator.selector !== undefined) {
+    return Array.from(document.querySelectorAll(locator.selector)).find((el) => !isOurs(el)) ?? null
+  }
+  if (locator.name !== undefined) return notOurs(elementByName(locator.name))
   return null
 }
 
@@ -39,7 +52,7 @@ function missingTarget(locator: ClientToolLocator): never {
 type TargetSlot = {el: Element | null}
 
 function callCtx(
-  tool: ClientToolEntry,
+  agentId: string,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
   effects: readonly ClientEffect[],
@@ -51,12 +64,12 @@ function callCtx(
   }
   const resolve = (locator: ClientToolLocator): Element | null => remember(locatorTarget(locator, refs))
   return {
+    agentId,
     document,
     resolve,
     target: (locator) => {
       const el = resolve(locator)
       if (!el) missingTarget(locator)
-      if (tool.mirrors) mirrorPageAction(el)
       return el
     },
     addRef: (el) => addRef(el, refs),
@@ -138,7 +151,7 @@ export function makePageToolDispatcher(
     void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector()
-    const ctx = callCtx(tool, refs, consoleBuf, effects, slot)
+    const ctx = callCtx(query.agentId, refs, consoleBuf, effects, slot)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)

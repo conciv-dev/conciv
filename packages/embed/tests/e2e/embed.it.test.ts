@@ -967,7 +967,7 @@ test.describe('page dispatch parity', () => {
     )
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes.map((entry) => entry.verb)).toContain('page_click')
-    await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
+    await expect(page.getByRole('img', {name: "Agent's cursor"})).toHaveCount(1, {timeout: 10_000})
   }
 
   test.describe('bootNormal: the widget embed serves page tools through the dispatcher', () => {
@@ -988,7 +988,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
   })
@@ -1018,7 +1018,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
 

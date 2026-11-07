@@ -106,7 +106,6 @@ export const ToolCommandSignatureSchema = z.object({
     .optional()
     .catch(undefined),
   mutating: z.boolean(),
-  mirrors: z.boolean(),
   reachable: z.boolean(),
   approval: z.literal('ask').optional(),
   inputSchema: z.unknown(),

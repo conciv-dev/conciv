@@ -37,13 +37,13 @@ describe('effects', () => {
   const banner = () => page.getByText('fixture banner shown')
 
   const effectResult = async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (!outcome.ok) throw new Error(`expected a result, got ${outcome.error.code}: ${outcome.error.message}`)
     return outcome.result
   }
 
   const effectFailure = async (input: Record<string, unknown>): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (outcome.ok) throw new Error('expected a failure, got a result')
     return outcome.error
   }
@@ -134,7 +134,7 @@ describe('page tools', () => {
   }
 
   const resultOf = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (!outcome.ok) throw new Error(`expected a result for ${verb}, got ${outcome.error.code}`)
     const result = {...outcome.result}
     expect(declaredOutputOf(verb).parse(result)).toEqual(result)
@@ -142,7 +142,7 @@ describe('page tools', () => {
   }
 
   const failureOf = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (outcome.ok) throw new Error(`expected a failure for ${verb}, got a result`)
     return outcome.error
   }
@@ -159,6 +159,7 @@ describe('page tools', () => {
     <select id="sel"><option value="a">A</option><option value="b">B</option><option value="fs">Full Stack</option></select>
     <input id="locked" type="checkbox" disabled />
     <input id="qty" type="number" />
+    <input id="stuck" type="checkbox" />
     <button id="hovbtn">hover me</button>
     <div id="htmlhost"><i>old</i></div>
   `
@@ -217,10 +218,9 @@ describe('page tools', () => {
   })
 
   describe('dom verbs', () => {
-    it('clicks through React handlers and mirrors the action', async () => {
+    it('clicks through React handlers', async () => {
       expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
       await expect.element(leaf()).toMatchTextContent(':1:')
-      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
     })
 
     it('fills form fields with native events', async () => {
@@ -228,7 +228,7 @@ describe('page tools', () => {
       expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
       expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
         code: 'invalid-args',
-        message: 'fill target is not an input/textarea/select',
+        message: 'That element is not a text field.',
       })
     })
 
@@ -252,7 +252,7 @@ describe('page tools', () => {
 
       expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
         code: 'invalid-args',
-        message: 'cannot uncheck a radio; check another radio in the same group instead',
+        message: 'A radio is unchecked by checking another one.',
       })
       await expect.element(formState()).toMatchTextContent('plan: pro')
 
@@ -281,7 +281,7 @@ describe('page tools', () => {
       expect(route.pathname).toBe(location.pathname)
       expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await resultOf('query', {selector: 'input'})
-      expect(query.count).toBe(7)
+      expect(query.count).toBe(8)
     })
 
     it('route reports the document title and visibility', async () => {
@@ -372,24 +372,26 @@ describe('page tools', () => {
 
     it('selects by visible label, and a missing option fails listing the options without changing the select', async () => {
       expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
-      const missing = {
+      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual({
         code: 'invalid-args',
-        message: 'no option with value or label "fullstack"; options: a "A", b "B", fs "Full Stack"',
-      }
-      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual(missing)
-      expect(await failureOf('fill', {selector: '#sel', value: 'fullstack'})).toEqual(missing)
+        message: 'No option "fullstack"; options: a "A", b "B", fs "Full Stack".',
+      })
       expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'fs'})
-      expect(await resultOf('fill', {selector: '#sel', value: 'A'})).toEqual({ok: true, value: 'a'})
     })
 
     it('fails instead of reporting ok when a field or box refuses the change', async () => {
+      document.querySelector('#stuck')?.addEventListener('click', (event) => event.preventDefault())
       expect(await failureOf('fill', {selector: '#qty', value: 'many'})).toEqual({
-        code: 'handler-error',
-        message: 'the field rejected "many" and stayed empty',
+        code: 'invalid-args',
+        message: 'The field rejected "many" and stayed empty.',
       })
       expect(await failureOf('check', {selector: '#locked'})).toEqual({
-        code: 'handler-error',
-        message: 'check did not take: the box is still unchecked (disabled or prevented)',
+        code: 'invalid-args',
+        message: 'That element is disabled.',
+      })
+      expect(await failureOf('check', {selector: '#stuck'})).toEqual({
+        code: 'invalid-args',
+        message: 'The box is still unchecked; the page prevented the change.',
       })
     })
 
@@ -541,6 +543,7 @@ describe('page tools', () => {
     }
 
     const ctxOver = (target: Document): ClientToolCtx => ({
+      agentId: 'test-agent',
       document: target,
       target: documentOnly,
       resolve: documentOnly,
@@ -582,7 +585,7 @@ describe('page tools', () => {
     const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
 
     const screenshotOf = async () => {
-      const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
     }

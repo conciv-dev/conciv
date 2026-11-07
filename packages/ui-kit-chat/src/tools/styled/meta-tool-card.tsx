@@ -12,7 +12,7 @@ import {CHIP} from './chip.js'
 import {JsonTree} from './json-tree.js'
 import {ShapedValue} from './shaped-content.js'
 import {ElementPreview} from './element-preview.js'
-import {MirrorRow, NoteRow} from './note-row.js'
+import {NoteRow} from './note-row.js'
 import {CodeBlock} from './code-block.js'
 import {ErrorBlock} from './error-block.js'
 
@@ -120,7 +120,7 @@ export function metaToolHasEmbeddedBody(
   const capture = ctx.captureFor?.(part.id)
   if ((capture?.after ?? capture?.before) !== undefined) return true
   if (summaryLine(part, meta) !== undefined) return true
-  if (meta?.hint !== undefined || meta?.approval === 'ask' || meta?.mirrors === true) return true
+  if (meta?.hint !== undefined || meta?.approval === 'ask') return true
   if (failureText(result, meta?.errors) !== undefined) return true
   return resultText(result).length > 0
 }
@@ -176,9 +176,6 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
         <NoteRow icon={<ShieldAlert size={12} aria-hidden="true" />} tone="accent">
           asks before it runs
         </NoteRow>
-      </Show>
-      <Show when={meta()?.mirrors === true}>
-        <MirrorRow />
       </Show>
       <Show when={errorMessage()}>
         {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}

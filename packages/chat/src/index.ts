@@ -222,7 +222,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, model})
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {

@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it, beforeEach, vi, beforeAll, test, afterAll} from 'vitest'
+import {afterEach, describe, expect, it, beforeEach, vi, beforeAll, test, afterAll, onTestFinished} from 'vitest'
 import {captureElement} from '../src/react-grab/capture-element.js'
 import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool, toolError, type ClientEffect} from '@conciv/extension'
@@ -57,7 +57,11 @@ describe('a tool that outlasts the preview library load', () => {
   it('previews the after state even though the before state was captured without the library', async () => {
     document.body.innerHTML = '<p id="late-library">original</p>'
     const driver = makeDomPageDriver({tools: collectClientTools([probes])})
-    const outcome = await driver.execute({name: 'probe_edit_after_load', input: {selector: '#late-library'}})
+    const outcome = await driver.execute({
+      agentId: 'test-agent',
+      name: 'probe_edit_after_load',
+      input: {selector: '#late-library'},
+    })
     driver.dispose()
     if (!outcome.ok) throw new Error(`the tool failed: ${outcome.error.message}`)
     expect(outcome.capture?.before?.node).toBeUndefined()
@@ -293,7 +297,7 @@ describe('element capture', () => {
   })
 
   async function captureOf(name: string, input: Record<string, unknown>): Promise<PageCaptureBundle> {
-    const outcome = await driver.execute({name, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name, input})
     if (!outcome.ok) throw new Error(`the ${name} call failed: ${outcome.error.message}`)
     if (outcome.capture === undefined) throw new Error(`the ${name} call carried no capture`)
     return outcome.capture
@@ -443,7 +447,11 @@ describe('element capture', () => {
     })
 
     it('keeps a password out of the capture payload and out of the result', async () => {
-      const outcome = await driver.execute({name: 'probe_fill', input: {selector: '#secret', value: 'typed'}})
+      const outcome = await driver.execute({
+        agentId: 'test-agent',
+        name: 'probe_fill',
+        input: {selector: '#secret', value: 'typed'},
+      })
       if (!outcome.ok) throw new Error('the fill failed')
       expect(JSON.stringify(outcome.result)).not.toContain(PASSWORD)
       expect(JSON.stringify(outcome.capture)).not.toContain(PASSWORD)
@@ -451,7 +459,11 @@ describe('element capture', () => {
     })
 
     it('keeps a payment field out of the capture payload and out of the result', async () => {
-      const outcome = await driver.execute({name: 'probe_fill', input: {selector: '#card', value: CARD_SENTINEL}})
+      const outcome = await driver.execute({
+        agentId: 'test-agent',
+        name: 'probe_fill',
+        input: {selector: '#card', value: CARD_SENTINEL},
+      })
       if (!outcome.ok) throw new Error('the fill failed')
       expect(JSON.stringify(outcome.result)).not.toContain(CARD_SENTINEL)
       expect(JSON.stringify(outcome.capture)).not.toContain(CARD_SENTINEL)
@@ -459,7 +471,11 @@ describe('element capture', () => {
     })
 
     it('takes no capture for a read verb', async () => {
-      const outcome = await driver.execute({name: 'probe_readvalue', input: {selector: '#prose'}})
+      const outcome = await driver.execute({
+        agentId: 'test-agent',
+        name: 'probe_readvalue',
+        input: {selector: '#prose'},
+      })
       expect(outcome).toEqual({ok: true, result: {value: 'original prose'}})
     })
 
@@ -943,12 +959,12 @@ describe('page dispatcher', () => {
     meta: {summary: 'read text through the dispatcher', category: 'read'},
   }).client((input, ctx) => ({text: ctx.target(input).textContent ?? ''}))
 
-  const mirroredClick = defineTool({
+  const dispatchedClick = defineTool({
     name: 'probe_click',
-    description: 'clicks through the dispatcher ctx and mirrors',
+    description: 'clicks through the dispatcher ctx',
     inputSchema: z.object({selector: z.string()}),
     outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'click through the dispatcher', category: 'act', mutating: true, mirrors: true},
+    meta: {summary: 'click through the dispatcher', category: 'act', mutating: true},
   }).client((input, ctx) => {
     const el = ctx.target(input)
     if (!(el instanceof HTMLElement)) throw toolError('NOT_CLICKABLE')
@@ -963,6 +979,18 @@ describe('page dispatcher', () => {
     outputSchema: z.object({ref: z.string()}),
     meta: {summary: 'add a ref through the dispatcher', category: 'read'},
   }).client((input, ctx) => ({ref: ctx.addRef(ctx.target(input))}))
+
+  const widgetRefMaker = defineTool({
+    name: 'probe_mark_widget',
+    description: 'adds a ref for a control inside the widget shadow root',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ref: z.string()}),
+    meta: {summary: 'add a ref to a widget control', category: 'read'},
+  }).client((_input, ctx) => {
+    const control = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('button')
+    if (!control) throw new Error('widget control missing')
+    return {ref: ctx.addRef(control)}
+  })
 
   const raiser = defineTool({
     name: 'probe_raise',
@@ -993,7 +1021,7 @@ describe('page dispatcher', () => {
 
   const probes = defineExtension({
     name: 'probes',
-    tools: [readText, mirroredClick, refMaker, raiser, misbehaved, undefinedLeaker],
+    tools: [readText, dispatchedClick, refMaker, widgetRefMaker, raiser, misbehaved, undefinedLeaker],
   }).client(() => ({value: {}}))
 
   let host: HTMLElement
@@ -1017,59 +1045,78 @@ describe('page dispatcher', () => {
 
   describe('the page-tool dispatcher', () => {
     it('runs a client body by registry name with a lazily resolved target', async () => {
-      expect(await driver.execute({name: 'probe_text', input: {selector: '#prose'}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {selector: '#prose'}})).toEqual({
         ok: true,
         result: {text: 'hello dispatcher'},
       })
     })
 
     it('rejects an undeclared name as unknown-verb', async () => {
-      expect(await driver.execute({name: 'probe_nothing', input: {}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_nothing', input: {}})).toEqual({
         ok: false,
         error: {code: 'unknown-verb', message: 'no mounted extension declares a client tool named "probe_nothing"'},
       })
     })
 
     it('explains each way a target can be missing, as an invalid-args failure', async () => {
-      const stale = await driver.execute({name: 'probe_text', input: {ref: 'v999'}})
+      const stale = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref: 'v999'}})
       expect(stale).toEqual({ok: false, error: {code: 'invalid-args', message: 'stale ref v999; re-run page snapshot'}})
-      const missing = await driver.execute({name: 'probe_text', input: {selector: '#nope'}})
+      const missing = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {selector: '#nope'}})
       expect(missing).toEqual({ok: false, error: {code: 'invalid-args', message: 'no element for selector #nope'}})
-      const bare = await driver.execute({name: 'probe_text', input: {}})
+      const bare = await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {}})
       expect(bare).toEqual({
         ok: false,
         error: {code: 'invalid-args', message: 'no target: pass ref, selector, or name'},
       })
     })
 
-    it('mirrors an action when the declaration says so and shares refs across calls', async () => {
-      const marked = await driver.execute({name: 'probe_mark', input: {selector: '#btn'}})
+    it('shares refs across calls', async () => {
+      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark', input: {selector: '#btn'}})
       if (!marked.ok) throw new Error('mark failed')
       const ref = String(marked.result.ref)
-      expect(await driver.execute({name: 'probe_click', input: {selector: '#btn'}})).toMatchObject({
+      expect(
+        await driver.execute({agentId: 'test-agent', name: 'probe_click', input: {selector: '#btn'}}),
+      ).toMatchObject({
         ok: true,
         result: {ok: true},
       })
-      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
-      expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({ok: true, result: {text: 'clicked'}})
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
+        ok: true,
+        result: {text: 'clicked'},
+      })
+    })
+
+    it('never resolves a ref to a control inside the widget shadow root', async () => {
+      const widget = document.createElement('div')
+      widget.setAttribute('data-conciv-root', '')
+      widget.attachShadow({mode: 'open'}).innerHTML = '<button>Send</button>'
+      document.body.append(widget)
+      onTestFinished(() => widget.remove())
+      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark_widget', input: {}})
+      if (!marked.ok) throw new Error('mark failed')
+      const ref = String(marked.result.ref)
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
+        ok: false,
+        error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
+      })
     })
 
     it('carries a thrown toolError as a raised handler-error', async () => {
-      expect(await driver.execute({name: 'probe_raise', input: {}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_raise', input: {}})).toEqual({
         ok: false,
         error: {code: 'handler-error', message: 'not today', raised: {code: 'NO_LUCK', message: 'not today'}},
       })
     })
 
     it('reports a schema-rejected input as invalid-args', async () => {
-      const outcome = await driver.execute({name: 'probe_click', input: {}})
+      const outcome = await driver.execute({agentId: 'test-agent', name: 'probe_click', input: {}})
       expect(outcome.ok).toBe(false)
       if (outcome.ok) return
       expect(outcome.error.code).toBe('invalid-args')
     })
 
     it('refuses a non-record result', async () => {
-      expect(await driver.execute({name: 'probe_badresult', input: {}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_badresult', input: {}})).toEqual({
         ok: false,
         error: {code: 'handler-error', message: 'probe_badresult returned a non-serializable result'},
       })
@@ -1078,7 +1125,7 @@ describe('page dispatcher', () => {
     it.each(['object', 'array'] as const)(
       'refuses a result carrying undefined in an %s, which JSON would silently mutate in transit',
       async (where) => {
-        expect(await driver.execute({name: 'probe_undef', input: {where}})).toEqual({
+        expect(await driver.execute({agentId: 'test-agent', name: 'probe_undef', input: {where}})).toEqual({
           ok: false,
           error: {code: 'handler-error', message: 'probe_undef returned a non-serializable result'},
         })
@@ -1090,15 +1137,15 @@ describe('page dispatcher', () => {
       ephemeral.id = 'ephemeral'
       ephemeral.textContent = 'about to vanish'
       host.appendChild(ephemeral)
-      const marked = await driver.execute({name: 'probe_mark', input: {selector: '#ephemeral'}})
+      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark', input: {selector: '#ephemeral'}})
       if (!marked.ok) throw new Error('mark failed')
       const ref = String(marked.result.ref)
-      expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
         ok: true,
         result: {text: 'about to vanish'},
       })
       ephemeral.remove()
-      expect(await driver.execute({name: 'probe_text', input: {ref}})).toEqual({
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
         ok: false,
         error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
       })
