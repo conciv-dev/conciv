@@ -58,9 +58,8 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
     projectName(deps.root),
     gitBranch(deps.root),
   ])
-  const metaById = new Map(metas.map((meta) => [meta.id, meta]))
   const tabs = open.flatMap((entry, index) => {
-    const meta = metaById.get(entry.sessionId)
+    const meta = metas.find((candidate) => candidate.id === entry.sessionId)
     if (meta === undefined) return []
     return [
       {

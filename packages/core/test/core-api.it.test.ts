@@ -28,6 +28,7 @@ import {
   defineAttachment,
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
+import {getHarness} from '@conciv/harness'
 import {
   anchorKey,
   chatMetadata,
@@ -117,35 +118,6 @@ function sharedKit(boot: () => Promise<Kit>): () => Kit {
     return held.kit
   }
 }
-
-describe('api connect gate', () => {
-  let engine: Engine
-
-  beforeAll(async () => {
-    engine = await start({
-      options: {},
-      root: mkdtempSync(join(tmpdir(), 'conciv-gate-')),
-      launchEditor: () => {},
-      harness: createFakeHarness({id: 'fake-gate'}),
-      accessToken: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
-    })
-  }, 30_000)
-
-  afterAll(async () => {
-    await engine.stop()
-  })
-
-  describe('token-gated core', () => {
-    it('serves only liveness and the stale flag on health, with or without the token', async () => {
-      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}, id: expect.any(String)}
-      const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
-      const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect([prefixed.status, bare.status]).toEqual([200, 200])
-      expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
-      expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
-    })
-  })
-})
 
 describe('cors', () => {
   const ORIGIN = 'http://localhost:3000'
@@ -245,24 +217,24 @@ describe('api engine staleness di', () => {
       }
     }
 
-    it('reports the injected probe on /health, rpc meta.engine and the execute tool description, and the core version', async () => {
+    it('reports the injected probe on /health with or without the token, rpc meta.engine and the execute tool description, and the core version', async () => {
       const calls = {count: 0}
       const served = await serveWithProbe(() => {
         calls.count += 1
         return INJECTED
       })
 
-      const health: unknown = await (await fetch(`${served.base}/health`)).json()
+      const health = await Promise.all(
+        [served.base, `http://127.0.0.1:${served.port}`].map(async (base): Promise<unknown> =>
+          (await fetch(`${base}/health`)).json(),
+        ),
+      )
       const engine = await makeRpcClient(served.base).meta.engine()
       const {description, discoverDescription, sandboxNames, version} = await executeTool(served.base)
 
       expect(version).toBe(corePackage.version)
-      expect(health).toEqual({
-        ok: true,
-        harness: expect.any(String),
-        engine: {stale: INJECTED.stale},
-        id: expect.any(String),
-      })
+      const liveness = {ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}, id: expect.any(String)}
+      expect(health).toEqual([liveness, liveness])
       expect(engine).toEqual(INJECTED)
       expect(description).toMatch(/^WARNING: this engine is running outdated code/)
       expect(description).toContain('@conciv/injected-probe')
@@ -1073,6 +1045,43 @@ describe('api mcp execute result', () => {
         {type: 'text', content: JSON.stringify({width: 4})},
       ])
     })
+
+    it('marks a failed execution as an MCP error, never a success-shaped result', async () => {
+      await expect(execute(kit().base, "throw new Error('deliberate failure')")).rejects.toThrow('deliberate failure')
+    })
+  })
+})
+
+describe('api mcp mcp', () => {
+  const draw = defineTool({
+    name: 'acme_draw',
+    description: 'Draw a shape on the canvas',
+    inputSchema: z.object({shape: z.string()}),
+    outputSchema: z.object({drawn: z.string()}),
+    meta: {summary: 'draw a shape on the canvas', category: 'fixture', mutating: false},
+  }).server((input) => ({drawn: input.shape}))
+
+  const acme = defineExtension({name: 'acme', tools: [draw]})
+
+  describe('/api/mcp single code-mode surface', () => {
+    it('exposes the identical tool shape on more than one harness, over the token path', async () => {
+      const codex = getHarness('codex')
+      if (!codex) throw new Error('codex adapter not registered')
+      const shapes: string[][] = []
+      for (const harness of [requireClaude(), codex]) {
+        const kit = await bootKit({extensions: [acme]}, createTestHarness(harness))
+        expect(new URL(kit.base).pathname).toMatch(/^\/t\/[0-9a-f-]{36}$/)
+        const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
+        try {
+          shapes.push((await mcp.tools()).map((tool) => tool.name))
+        } finally {
+          await mcp.close()
+          await kit.cleanup()
+        }
+      }
+      expect(shapes[1]).toEqual(shapes[0])
+      expect(shapes[0]).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools']))
+    }, 60_000)
   })
 })
 
@@ -1517,11 +1526,6 @@ describe('rpc wire', () => {
         opened.splice(0)
       })
 
-      it('editor.open reaches the injected editor opener', async () => {
-        await kit().rpc.editor.open({file: 'src/thing.ts', line: 3})
-        expect(opened).toEqual([{file: 'src/thing.ts', line: 3}])
-      })
-
       it('extension openSource drives editor.open and openFromFrames over rpc', async () => {
         const located = {component: null, stack: [], owners: []}
         const sessionId = await kit().session()
@@ -1581,23 +1585,13 @@ describe('rpc wire', () => {
       expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['first question', 'second question'])
     })
 
-    it('navigation set → get round-trips the app URL stack including per-entry state', async () => {
+    it('navigation set round-trips the URL stack with per-entry state and drops a write that is not strictly newer', async () => {
       const {kit} = await bootWire()
       expect(await kit.rpc.navigation.get(undefined)).toBeNull()
-      const state = {
+      const first = {
         entries: [{href: '/'}, {href: '/panel/s1/chat', state: {key: 'k1', __TSR_index: 1, usr: {from: 'fab'}}}],
         index: 1,
       }
-      await kit.rpc.navigation.set({...state, updatedAt: 100})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...state, updatedAt: 100})
-      const replaced = {entries: [{href: '/quick'}], index: 0}
-      await kit.rpc.navigation.set({...replaced, updatedAt: 200})
-      expect(await kit.rpc.navigation.get(undefined)).toEqual({...replaced, updatedAt: 200})
-    })
-
-    it('navigation set drops a write whose intent stamp is not strictly newer than the stored one', async () => {
-      const {kit} = await bootWire()
-      const first = {entries: [{href: '/first'}], index: 0}
       const stale = {entries: [{href: '/stale'}], index: 0}
       const latest = {entries: [{href: '/latest'}], index: 0}
 
@@ -3306,10 +3300,12 @@ describe('outside sessions', () => {
       pages.push(() => abort.abort())
     }
 
-    it('/api/tabs and /api/mcp refuse a missing or wrong token', async () => {
+    it('/api/tabs and /api/mcp refuse a missing or wrong token, and /health a malformed one', async () => {
       const paths = ['/api/tabs', '/api/mcp'].flatMap((path) => [path, `/t/${randomUUID()}${path}`])
-      const statuses = await Promise.all(paths.map(async (path) => (await fetch(`${kit().origin}${path}`)).status))
-      expect(statuses).toEqual([401, 401, 401, 401])
+      const statuses = await Promise.all(
+        [...paths, '/t/nope/health'].map(async (path) => (await fetch(`${kit().origin}${path}`)).status),
+      )
+      expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
     it('/api/tabs lists a joined page', async () => {
