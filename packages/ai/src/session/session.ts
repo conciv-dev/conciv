@@ -108,7 +108,7 @@ function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage
 
 function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydration): boolean {
   const start = hydration.messages[0]
-  return start === undefined || rendered.length === 0 || rendered.some((message) => message.id === start.id)
+  return start === undefined || rendered.some((message) => message.id === start.id)
 }
 
 function asError(value: unknown): Error {
