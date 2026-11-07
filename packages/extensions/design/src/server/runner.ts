@@ -24,7 +24,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     if (measured.pageError !== undefined) return {unsettled: true, rendered: 0, error: measured.pageError}
     const previous = rounds.at(-1)
     const tree = treeOf(measured)
-    if (previous !== undefined && previous.tree === tree) return shown(previous)
+    if (previous !== undefined && previous.tree === tree) return {...shown(previous), unchanged: true}
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)

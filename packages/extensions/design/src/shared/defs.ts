@@ -333,6 +333,7 @@ const WatchInputSchema = z.object({
 const WatchResultSchema = z.union([
   z.object({
     round: z.number(),
+    unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
     rows: z.array(GateRowSchema),
     reflow: ReflowsSchema,
     coverage: CoverageSchema,
@@ -447,7 +448,7 @@ const getDef = designTool({
 const watchDef = designTool({
   verb: 'watch',
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, and which nodes are rendered, missing or rendered twice.',
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, and which nodes are rendered, missing or rendered twice. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
   running: 'Measuring the page against the design',
   done: 'Measured the page against the design',
   input: WatchInputSchema,
