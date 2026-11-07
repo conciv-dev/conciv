@@ -215,10 +215,9 @@ describe('page tools', () => {
   })
 
   describe('dom verbs', () => {
-    it('clicks through React handlers and mirrors the action', async () => {
+    it('clicks through React handlers', async () => {
       expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
       await expect.element(leaf()).toMatchTextContent(':1:')
-      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
     })
 
     it('fills form fields with native events', async () => {

@@ -137,7 +137,6 @@ describe('catalog cards', () => {
       icon: 'edit',
       label: {running: 'Painting the banner', done: 'Painted the banner'},
       mutating: true,
-      mirrors: true,
       hint: 'the banner disappears on the next navigation',
     },
   }).client()
@@ -195,7 +194,7 @@ describe('catalog cards', () => {
     await page.screenshot({path: '__screenshots__/catalog-cards/declared-non-builtin.png'})
   })
 
-  it('a mutating mirroring registry tool shows its write badge, its hint and the mirror row', async () => {
+  it('a mutating registry tool shows its write badge and its hint', async () => {
     const catalog = registryCatalogView(declaredRegistry())
 
     mountView(() => (
@@ -209,7 +208,6 @@ describe('catalog cards', () => {
 
     await expect.element(page.getByText('page edit')).toBeVisible()
     await page.getByRole('button').click()
-    await expect.element(page.getByText('shown on your page')).toBeVisible()
     await expect.element(page.getByText('the banner disappears on the next navigation')).toBeVisible()
   })
 
@@ -432,20 +430,6 @@ describe('page tool cards', () => {
     await expect.element(page.getByText('Pressed')).toBeVisible()
     await page.getByRole('button').click()
     await expect.element(page.getByText('Enter')).toBeVisible()
-  })
-
-  it('shows the mirror affordance for a verb the page reflects back', async () => {
-    mountView(() => (
-      <MetaToolCard
-        part={part('click', {selector: '#submit'})}
-        result={undefined}
-        ctx={ctx}
-        addResult={INERT_ADD_RESULT}
-      />
-    ))
-
-    await page.getByRole('button').click()
-    await expect.element(page.getByText('shown on your page')).toBeVisible()
   })
 
   it('falls back to the bare tool name when the catalog declares nothing for it', async () => {

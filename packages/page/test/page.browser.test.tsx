@@ -959,12 +959,12 @@ describe('page dispatcher', () => {
     meta: {summary: 'read text through the dispatcher', category: 'read'},
   }).client((input, ctx) => ({text: ctx.target(input).textContent ?? ''}))
 
-  const mirroredClick = defineTool({
+  const dispatchedClick = defineTool({
     name: 'probe_click',
-    description: 'clicks through the dispatcher ctx and mirrors',
+    description: 'clicks through the dispatcher ctx',
     inputSchema: z.object({selector: z.string()}),
     outputSchema: z.object({ok: z.literal(true)}),
-    meta: {summary: 'click through the dispatcher', category: 'act', mutating: true, mirrors: true},
+    meta: {summary: 'click through the dispatcher', category: 'act', mutating: true},
   }).client((input, ctx) => {
     const el = ctx.target(input)
     if (!(el instanceof HTMLElement)) throw toolError('NOT_CLICKABLE')
@@ -1009,7 +1009,7 @@ describe('page dispatcher', () => {
 
   const probes = defineExtension({
     name: 'probes',
-    tools: [readText, mirroredClick, refMaker, raiser, misbehaved, undefinedLeaker],
+    tools: [readText, dispatchedClick, refMaker, raiser, misbehaved, undefinedLeaker],
   }).client(() => ({value: {}}))
 
   let host: HTMLElement
@@ -1058,7 +1058,7 @@ describe('page dispatcher', () => {
       })
     })
 
-    it('mirrors an action when the declaration says so and shares refs across calls', async () => {
+    it('shares refs across calls', async () => {
       const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark', input: {selector: '#btn'}})
       if (!marked.ok) throw new Error('mark failed')
       const ref = String(marked.result.ref)
@@ -1068,7 +1068,6 @@ describe('page dispatcher', () => {
         ok: true,
         result: {ok: true},
       })
-      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
       expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
         ok: true,
         result: {text: 'clicked'},

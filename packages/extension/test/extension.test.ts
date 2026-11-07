@@ -475,7 +475,7 @@ describe('tool registry', () => {
       errors: {
         ELEMENT_NOT_FOUND: {message: 'no element matched the target', data: z.object({target: z.string()})},
       },
-      meta: {summary: 'type text into a field', category: 'act', mutating: true, mirrors: true, keywords: ['type']},
+      meta: {summary: 'type text into a field', category: 'act', mutating: true, keywords: ['type']},
     })
   }
 
@@ -709,7 +709,6 @@ describe('tool registry', () => {
     expect(signature.name).toBe('page_fill')
     expect(signature.category).toBe('act')
     expect(signature.mutating).toBe(true)
-    expect(signature.mirrors).toBe(true)
     expect(signature.keywords).toEqual(['type'])
     expect(signature.inputSchema).toMatchObject({
       type: 'object',

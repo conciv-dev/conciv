@@ -1472,14 +1472,13 @@ describe('rpc registry catalog cosmetics', () => {
       icon: 'pointer',
       label: {running: 'Raising the beacon', done: 'Raised the beacon'},
       mutating: true,
-      mirrors: true,
     },
   }).server(() => ({raised: true}))
 
   const acme = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
   describe('the rpc catalog carries the card cosmetics a widget needs', () => {
-    it('projects icon, label, mutating and mirrors across the wire', async () => {
+    it('projects icon, label and mutating across the wire', async () => {
       const kit = await bootKit({extensions: [acme]})
       try {
         const catalog = await kit.rpc.registry.catalog(undefined)
@@ -1488,7 +1487,6 @@ describe('rpc registry catalog cosmetics', () => {
           icon: 'pointer',
           label: {running: 'Raising the beacon', done: 'Raised the beacon'},
           mutating: true,
-          mirrors: true,
         })
       } finally {
         await kit.cleanup()

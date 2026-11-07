@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {CardShell, ElementPreview, ErrorBlock, MirrorRow, cardHeader} from '@conciv/ui-kit-chat/tools'
+import {CardShell, ElementPreview, ErrorBlock, cardHeader} from '@conciv/ui-kit-chat/tools'
 import {ELEMENT_TARGET_KEYS, cardErrorMessage, elementChip, mutatingBadge} from './shared.js'
 
 export function ActCard(props: ToolCardProps): JSX.Element {
@@ -28,9 +28,6 @@ export function ActCard(props: ToolCardProps): JSX.Element {
             </ElementPreview.Root>
           )}
         </Show>
-        <Show when={meta()?.mirrors === true}>
-          <MirrorRow />
-        </Show>
         <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
       </div>
     </CardShell>
@@ -40,7 +37,5 @@ export function ActCard(props: ToolCardProps): JSX.Element {
 export const actCard: ToolCardView = {
   render: ActCard,
   hasEmbeddedBody: (part, result, ctx) =>
-    ctx.captureFor?.(part.id)?.after !== undefined ||
-    ctx.catalog.meta(part.name)?.mirrors === true ||
-    cardErrorMessage(result) !== undefined,
+    ctx.captureFor?.(part.id)?.after !== undefined || cardErrorMessage(result) !== undefined,
 }

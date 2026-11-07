@@ -105,7 +105,7 @@ describe('router card', () => {
 
   function toViewMeta(meta: (typeof DEFS)[number]['meta']): ToolViewMeta {
     if (!meta) throw new Error('def is missing meta')
-    return {...meta, summary: meta.summary ?? '', mutating: meta.mutating ?? false, mirrors: meta.mirrors ?? false}
+    return {...meta, summary: meta.summary ?? '', mutating: meta.mutating ?? false}
   }
 
   const metaByName = new Map<string, ToolViewMeta>(DEFS.map((def) => [def.name, toViewMeta(def.meta)]))
@@ -401,7 +401,7 @@ describe('server card', () => {
 
   function toViewMeta(meta: (typeof DEFS)[number]['meta']): ToolViewMeta {
     if (!meta) throw new Error('def is missing meta')
-    return {...meta, summary: meta.summary ?? '', mutating: meta.mutating ?? false, mirrors: meta.mirrors ?? false}
+    return {...meta, summary: meta.summary ?? '', mutating: meta.mutating ?? false}
   }
 
   const metaByName = new Map<string, ToolViewMeta>(DEFS.map((def) => [def.name, toViewMeta(def.meta)]))

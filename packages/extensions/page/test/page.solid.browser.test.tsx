@@ -31,14 +31,12 @@ describe('act card body nonempty', () => {
     summary: 'run a synthetic effect with no declared inputs',
     category: 'act',
     mutating: true,
-    mirrors: false,
   }
 
   const FILL_META: ToolViewMeta = {
     summary: 'type a value into a form field',
     category: 'act',
     mutating: true,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, value: {type: 'string'}},
@@ -100,7 +98,6 @@ describe('card input chips', () => {
     summary: 'read the visible text of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, trim: {type: 'boolean'}},
@@ -112,7 +109,6 @@ describe('card input chips', () => {
     summary: 'read the markup of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, maxChars: {type: 'number'}},
@@ -124,7 +120,6 @@ describe('card input chips', () => {
     summary: 'locate the react source of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, action: {type: 'string'}},
@@ -310,7 +305,6 @@ describe('read value card image', () => {
     icon: 'read',
     label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
     mutating: false,
-    mirrors: false,
   }
 
   function webpBase64(): string {

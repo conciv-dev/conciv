@@ -461,7 +461,6 @@ describe('chat plane', () => {
       binding: 'server',
       summary: 'Do the unit thing',
       mutating: false,
-      mirrors: false,
       reachable: true,
       inputSchema: {},
       outputSchema: {},

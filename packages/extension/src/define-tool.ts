@@ -14,7 +14,6 @@ export type ToolMeta = {
   summary: string
   category?: string
   mutating?: boolean
-  mirrors?: boolean
   capture?: ToolCaptureMode
   keywords?: readonly string[]
   positional?: string

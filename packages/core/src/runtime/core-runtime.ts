@@ -35,7 +35,6 @@ function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
       icon: entry.icon,
       label: entry.label,
       mutating: signature.mutating,
-      mirrors: signature.mirrors,
       reachable: entry.reachable,
       approval: signature.approval,
       inputSchema: signature.inputSchema,

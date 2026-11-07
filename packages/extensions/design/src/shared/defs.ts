@@ -256,7 +256,6 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       label: {running: spec.running, done: spec.done},
       hint: spec.hint,
       mutating: spec.mutating,
-      mirrors: false,
       capture: 'none',
       keywords: spec.keywords,
       ...(spec.positional === undefined ? {} : {positional: spec.positional}),

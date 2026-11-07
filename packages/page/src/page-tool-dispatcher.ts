@@ -9,7 +9,6 @@ import type {
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
-import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
 import {toCssBundle, type PendingCssText} from './css-bundle.js'
@@ -52,7 +51,6 @@ type TargetSlot = {el: Element | null}
 
 function callCtx(
   agentId: string,
-  tool: ClientToolEntry,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
   effects: readonly ClientEffect[],
@@ -70,7 +68,6 @@ function callCtx(
     target: (locator) => {
       const el = resolve(locator)
       if (!el) missingTarget(locator)
-      if (tool.mirrors) mirrorPageAction(el)
       return el
     },
     addRef: (el) => addRef(el, refs),
@@ -152,7 +149,7 @@ export function makePageToolDispatcher(
     void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector()
-    const ctx = callCtx(query.agentId, tool, refs, consoleBuf, effects, slot)
+    const ctx = callCtx(query.agentId, refs, consoleBuf, effects, slot)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)
