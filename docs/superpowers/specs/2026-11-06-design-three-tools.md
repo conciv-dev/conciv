@@ -402,3 +402,15 @@ one before becomes a `progress` block on `design_check` and `design_status`:
   measures identical twice.
 - In words, once: "your edits since the last check changed no pixels" when the ratio is zero while rows remained.
   The verdict logic does not change; `progress` reports, `stalled` still decides.
+
+### Scalars are columns, lists are tables (2026-11-07, evening)
+
+Swamp's catalog is flat columns with one JSON column for tags. Ours grew JSON by convenience: `counts` beside the columns it
+duplicates, `coverage` hiding `mapped` behind a path, `reflow_detail` a list in a cell. Omri: no reason for it.
+
+- A scalar is a column. A list is a table keyed by target, run, round. JSON stays only for a blob nobody filters on.
+- `rounds` loses `counts` and `coverage`; it gains `mapped`, `rendered`, `revoted`; `design_missing` holds the missing nodes;
+  the reflow widths live in rows or `design_widths`.
+- Progress is columns on `rounds` (`closed`, `opened`, `kept`, `gained`, `lost`, `changed_ratio`, `pixel_before`, `note`) and
+  a `design_regions` table, one row per region and id.
+- The tool replies keep their shapes; only storage flattens.
