@@ -3,7 +3,7 @@ import {snapdom} from '@zumer/snapdom'
 import {CONCIV_UI_SELECTOR, toolError} from '@conciv/extension'
 import {DESIGN_ERRORS, type CaptureInput, type ViewportResult} from '../shared/defs.js'
 import type {LiveComponent} from '../shared/types.js'
-import {keepBodyMargins} from '@conciv/extension-page/body-margins'
+import {capturePlugins} from '@conciv/extension-page/body-margins'
 import {collectComponents} from './components.js'
 import {requestFrameCapture} from './frame-capture.js'
 import {ensureCaptureFrame, removeCaptureFrame} from './frame.js'
@@ -101,7 +101,7 @@ export async function captureStep(input: CaptureInput): Promise<ClientCapture | 
     exclude: [CONCIV_UI_SELECTOR],
     excludeMode: 'remove',
     embedFonts: true,
-    plugins: [keepBodyMargins],
+    plugins: capturePlugins,
   })
   const blob = await composited({blob: await capture.toBlob({format: 'png'}), doc: document, ...viewport})
   return {

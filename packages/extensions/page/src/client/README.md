@@ -9,7 +9,7 @@ bodies.ts pairs each shared def with a DOM or React-bridge implementation runnin
 - `PAGE_CLIENT_TOOLS` (`bodies.ts`): readonly `AnyToolBuilder[]` with client bodies for page_route, dom, query, console, text, value, attr, exists, snapshot, screenshot, hmr, locate, tree, inspect, override, find, track, effect, wait, reload, click, fill, select, check, uncheck, press, hover, scroll, submit, setattr, removeattr, addclass, removeclass, setstyle, settext, sethtml, remove, insert, css and eval
 - `screenshot()` (`screenshot.ts`): returns `PageScreenshot` `{image (base64 webp), width, height}`
 - `watchHotUpdates(hot)` (`hmr.ts`): returns `(timeoutMs) => Promise<HotUpdateWait>`; `HotSurface` type
-- `keepBodyMargins` (`body-margins.ts`): `SnapdomPlugin` named `keep-body-margins`
+- `capturePlugins` (`body-margins.ts`): the `SnapdomPlugin` list every capture passes: `keep-body-margins` and `keep-one-line-text` (a box snapdom pinned to one line passes `text-wrap-mode: nowrap` down to its descendants, which snapdom's tag reset would otherwise set back to `wrap`)
 - `formatHtml(src)` (`page-format.ts`): pretty-prints HTML with js-beautify (indent 2, no wrap)
 - `A11yNodeList`, `PageHtmlBlock`, `PageValueChip`, `A11yNode` (`page-result-views.tsx`): Solid components for snapshot nodes, an HTML code block and a value chip
 - module declaration `js-beautify/js/lib/beautifier.js` (`js-beautify-html.d.ts`): types for the `html` export
@@ -42,7 +42,7 @@ bodies.ts pairs each shared def with a DOM or React-bridge implementation runnin
 - `page_effect` (`bodies.ts`) toggles host-registered effects through `effect.set`
 - `watchHotUpdates(import.meta.hot)` (`bodies.ts`, `hmr.ts`) registers listeners for `vite:beforeUpdate`, `vite:afterUpdate` and `vite:error` at module load
 - `screenshot` (`screenshot.ts`) dynamically imports @zumer/snapdom, clones and rasterizes the document, and uses `FileReader` and `createImageBitmap`
-- `keepBodyMargins` (`body-margins.ts`) changes the snapdom clone's styles, not the live DOM
+- `capturePlugins` (`body-margins.ts`) changes the snapdom clone's styles, not the live DOM
 
 ## Verification
 

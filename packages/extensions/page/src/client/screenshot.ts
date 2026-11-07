@@ -1,6 +1,6 @@
 import {CONCIV_UI_SELECTOR} from '@conciv/extension'
 import type {PageScreenshot} from '../shared/defs.js'
-import {keepBodyMargins} from './body-margins.js'
+import {capturePlugins} from './body-margins.js'
 
 const WEBP_QUALITY = 0.8
 const DATA_URL_COMMA = ','
@@ -25,7 +25,7 @@ export async function screenshot(): Promise<PageScreenshot> {
     exclude: [CONCIV_UI_SELECTOR],
     excludeMode: 'remove',
     embedFonts: true,
-    plugins: [keepBodyMargins],
+    plugins: capturePlugins,
   })
   const blob = await capture.toBlob({format: 'webp', quality: WEBP_QUALITY})
   const bitmap = await createImageBitmap(blob)
