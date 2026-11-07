@@ -165,7 +165,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     after: HarnessListCursor | null,
     limit: number,
   ): Promise<Hit[]> => {
-    const found = await running.index.search({term, tolerance: typoTolerance(term), after, limit})
+    const found = await running.index.search(
+      {term, tolerance: typoTolerance(term), after, limit},
+      {signal: running.stopped.signal},
+    )
     return found.flatMap((hit) => {
       const harness = indexed.find((source) => source.harness.id === hit.harness)?.harness
       if (harness === undefined) return []
@@ -183,7 +186,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   return {
     listed() {
       if (state.running !== null) return
-      state.running = startIndex()
+      const running = startIndex(() => {
+        running.stopped.abort()
+        state.running = null
+      })
+      state.running = running
       setImmediate(refresh)
     },
     async *changes(signal) {
@@ -209,7 +216,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     },
     async retitle(harnessKind, nativeId, title) {
       if (state.running === null) return
-      await state.running.index.rename({id: documentIdOf(harnessKind, nativeId), title})
+      await state.running.index.rename(
+        {id: documentIdOf(harnessKind, nativeId), title},
+        {signal: state.running.stopped.signal},
+      )
     },
     async dispose() {
       refreshes.stop()
@@ -221,10 +231,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   }
 }
 
-function startIndex(): Running {
+function startIndex(exited: () => void): Running {
   const channel = new MessageChannel()
   const worker = new Worker(workerUrl(), {workerData: {port: channel.port2}, transferList: [channel.port2]})
   worker.on('error', (error) => logError(`[core] the session search index worker failed: ${String(error)}`))
+  worker.on('exit', exited)
   worker.unref()
   channel.port1.unref()
   const index: SearchIndex = createORPCClient(new RPCLink({port: channel.port1}))
