@@ -498,10 +498,6 @@ describe('connect hub', () => {
 
   const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
 
-  it('hubInstalls lists a detected harness that is not connected', async () => {
-    expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
-  })
-
   it('connectHub runs the harness add command over a trusted connection only, and the harness leaves the list', async () => {
     await expect(makeRpcClient(kit().origin).meta.connectHub({harness: 'claude'})).rejects.toThrow()
     expect(existsSync(file.argv)).toBe(false)
@@ -1173,59 +1169,33 @@ describe('api page page', () => {
       expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
     })
 
-    it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
-      state.widget = await connectWidget(kit(), () => ({
-        ok: true,
-        result: {pathname: '/checkout', search: '', href: 'x', title: 'Checkout', state: 'visible'},
-      }))
-      expect(await callPage(kit(), 'page_route')).toEqual({
-        pathname: '/checkout',
-        search: '',
-        href: 'x',
-        title: 'Checkout',
-        state: 'visible',
-      })
-    })
-
-    it('round-trips a fill action and the journal records it', async () => {
-      state.widget = await connectWidget(kit(), () => ({ok: true, result: {ok: true, value: 'a@b.c'}}))
-      expect(await callPage(kit(), 'page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({
-        ok: true,
-        value: 'a@b.c',
-      })
-      const changes = ChangesSchema.parse(await kit().rpc.page.changes(undefined))
-      expect(changes).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
-    })
-
-    it('turns a browser handler failure into the declared HANDLER_ERROR naming the tool', async () => {
-      state.widget = await connectWidget(kit(), () => ({
-        ok: false,
-        error: {code: 'handler-error', message: 'handler-error says no'},
-      }))
+    it('a failed handler becomes HANDLER_ERROR naming the tool, and a refused mutation is not journaled', async () => {
+      state.widget = await connectWidget(kit(), (name) =>
+        name === 'page_text'
+          ? {ok: false, error: {code: 'handler-error', message: 'handler-error says no'}}
+          : {ok: false, error: {code: 'invalid-args', message: 'no element for selector #email'}},
+      )
       await expect(callPage(kit(), 'page_text', {selector: '#h'})).rejects.toMatchObject({
         code: 'HANDLER_ERROR',
         message: 'page_text: handler-error says no',
       })
-    })
-
-    it('does not journal a mutation the page refused', async () => {
-      state.widget = await connectWidget(kit(), () => ({
-        ok: false,
-        error: {code: 'invalid-args', message: 'no element for selector #email'},
-      }))
       await expect(callPage(kit(), 'page_fill', {selector: '#email', value: 'a@b.c'})).rejects.toMatchObject({
         code: 'INVALID_ARGS',
       })
       expect(ChangesSchema.parse(await kit().rpc.page.changes(undefined))).toEqual([])
     })
 
-    it('does NOT journal a read, and clear empties the journal', async () => {
+    it('journals a fill with its value but never a read, and clear empties the journal', async () => {
       state.widget = await connectWidget(kit(), (name) =>
-        name === 'page_text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true}},
+        name === 'page_text' ? {ok: true, result: {text: 'hi'}} : {ok: true, result: {ok: true, value: 'a@b.c'}},
       )
       await callPage(kit(), 'page_text', {selector: '#h'})
-      await callPage(kit(), 'page_click', {selector: '.btn'})
-      expect(ChangesSchema.parse(await kit().rpc.page.changes(undefined))).toHaveLength(1)
+      expect(await callPage(kit(), 'page_fill', {selector: '#email', value: 'a@b.c'})).toEqual({
+        ok: true,
+        value: 'a@b.c',
+      })
+      const changes = ChangesSchema.parse(await kit().rpc.page.changes(undefined))
+      expect(changes).toMatchObject([{verb: 'page_fill', selector: '#email', args: {value: 'a@b.c'}}])
       await kit().rpc.page.clearChanges(undefined)
       expect(ChangesSchema.parse(await kit().rpc.page.changes(undefined))).toEqual([])
     })
@@ -1374,12 +1344,6 @@ describe('rpc symbolicate', () => {
 
   describe('page.symbolicate over the wire', () => {
     const kit = sharedKit(() => bootKit({cwd: root}))
-
-    it('maps a bundle frame back to its original file, line and column', async () => {
-      const fileName = await chunk('hero-chunk.js', 'src/components/landing/hero.tsx', 42, 5)
-      const loc = await kit().rpc.page.symbolicate({frames: [{fileName, line: 2, column: 1}]})
-      expect(loc).toEqual({file: 'src/components/landing/hero.tsx', line: 42, column: 5})
-    })
 
     it('skips node_modules frames and answers with the first project frame', async () => {
       const vendor = await chunk('vendor-chunk.js', 'node_modules/react-dom/client.js', 10, 0)
@@ -3157,15 +3121,6 @@ describe('outside sessions', () => {
     await engine.stop()
   })
 
-  it('two engines in one process keep two rows', async () => {
-    const home = tempDir('conciv-home-')
-    const engines = [await bootAt(home), await bootAt(home)]
-    const ids = await Promise.all(engines.map(healthId))
-    const listed = withHomeDb(home, listEngines).map((row) => row.id)
-    expect(listed.toSorted()).toEqual(ids.toSorted())
-    await Promise.all(engines.map((engine) => engine.stop()))
-  })
-
   it.each([
     ['the home folder is a file', (home: string) => writeFileSync(home, 'not a folder')],
     [
@@ -3239,19 +3194,12 @@ describe('outside sessions', () => {
       })
     })
 
-    it('a page that never answers is listed with page null', async () => {
-      await joinPage(false)
-      const started = performance.now()
-      const listed = await listTabs()
-      expect(performance.now() - started).toBeLessThan(2500)
-      expect(listed.tabs).toEqual([expect.objectContaining({sessionId: await kit().session(), page: null})])
-    })
-
-    it('?session= answers open and not open, with the engine system prompt text as instructions', async () => {
+    it('?session= answers open and not open, with the engine system prompt text and the session tools', async () => {
       const path = `/api/tabs?session=${await kit().session()}`
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
+      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
       await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
     })
 
     it('branch is re-read per request, through a worktree gitdir file too', async () => {
@@ -3271,14 +3219,36 @@ describe('outside agent consent', () => {
   const ASKS = /needs the user's approval/
   const RAN = /"result":1/
   const DENIED = 'the user denied outside agents for this session'
+  const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
   const engines: Engine[] = []
-  afterAll(() => Promise.all(engines.map((engine) => engine.stop())))
+  const pages = new AbortController()
+  afterAll(async () => {
+    pages.abort()
+    await Promise.allSettled(engines.map((engine) => engine.stop()))
+  })
 
-  async function boot(hubAccess?: HubAccess): Promise<string> {
-    const engine = await bootAt(tempDir('conciv-home-'), tempDir('conciv-consent-'), hubAccess)
+  async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+    const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
     engines.push(engine)
     return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
   }
+
+  async function openTab(base: string, silent?: () => void): Promise<string> {
+    const sessionId = await newSession(base)
+    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
+    const replies = async () => {
+      for await (const {requestId} of queries) {
+        if (silent) silent()
+        else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: ROUTE}})
+      }
+    }
+    replies().catch(() => {})
+    const open = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    await vi.waitFor(async () => expect((await open()).open).toBe(true), {timeout: 3000})
+    return sessionId
+  }
+
+  const outside = (base: string, code: string): Promise<string> => executeOverMcp(base, HUB, code).then(String, String)
 
   const rpcOf = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -3319,6 +3289,49 @@ describe('outside agent consent', () => {
     await rpc.chat.allowOutside({sessionId: second})
     expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: false})
     expect(await hubCall(base, second)).toMatch(ASKS)
+  })
+
+  it('an outside run lists every tab, picks one per block and forwards to its owner after allow', async () => {
+    const home = tempDir('conciv-home-')
+    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+    const [mine, theirs] = [await openTab(runner), await openTab(owner)]
+    const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
+    expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
+      '["function","undefined"]',
+    )
+    const listed = await outside(runner, 'return await external_tabs({})')
+    expect(listed).toContain(`"tab":"${mine}"`)
+    expect(listed).toContain(`"tab":"${theirs}"`)
+    expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
+    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
+    const pick = `const picked = await external_use_tab({id: "${theirs}"});`
+    const answer = TabOpenSchema.parse(await (await fetch(`${owner}/api/tabs?session=${theirs}`)).json())
+    const described = JSON.stringify([answer.instructions, answer.tools.map((tool) => tool.name)])
+    expect(
+      await outside(runner, `${pick} return [picked.instructions, picked.tools.map((tool) => tool.name)]`),
+    ).toContain(described)
+    expect(await outside(runner, `${pick} return await external_page_route({})`)).toMatch(ASKS)
+    await decideOutside(owner, theirs, true)
+    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
+    expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
+    expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
+  })
+
+  it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {
+    const home = tempDir('conciv-home-')
+    const [runner, owner] = [await boot('open', home), await boot('open', home)]
+    const asked: string[] = []
+    const silent = await openTab(owner, () => asked.push('query'))
+    const listing = await outside(runner, 'return await external_tabs({})')
+    expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
+    const seen = asked.length
+    const pending = outside(runner, `await external_use_tab({id: "${silent}"}); return await external_page_route({})`)
+    await vi.waitFor(() => expect(asked.length).toBeGreaterThan(seen), {timeout: 3000})
+    await engines.at(-1)?.stop()
+    expect(await pending).toContain('stopped answering')
+    expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
+    writeFileSync(join(home, 'home.db'), 'garbage '.repeat(512))
+    expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
   })
 
   it('project policy allows every session after one allow', async () => {

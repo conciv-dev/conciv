@@ -74,7 +74,11 @@ export type ChatPlane = {
   ) => Promise<ApprovalDecision | null>
   answerUi: (sessionId: SessionId, toolCallId: string, value: unknown) => boolean
   askUi: (sessionId: SessionId) => Promise<UiAnswer>
-  codeRunner: (sessionId: SessionId, publish: (chunk: ChatEvent) => void) => Promise<CodeRunner | null>
+  codeRunner: (
+    sessionId: SessionId,
+    publish: (chunk: ChatEvent) => void,
+    capabilities?: readonly CodeCapability[],
+  ) => Promise<CodeRunner | null>
   admitCall: (
     sessionId: SessionId,
     toolName: string,
@@ -189,9 +193,9 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     admitCall,
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
-    codeRunner: async (sessionId, publish) => {
+    codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
-      const capabilities = deps.capabilities(sessionId)
+      const capabilities = given ?? deps.capabilities(sessionId)
       const toolSet = chatToolSet(capabilities, {sessionId, model})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null

@@ -197,7 +197,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     return tokenScopedBase()
   }
 
+  const home = concivHome({homeDir: opts.homeDir, env: process.env})
   const appOpts: MakeAppOpts = {
+    home,
     cfg,
     cwd: opts.root,
     agentToken,
@@ -244,7 +246,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     throw error
   }
   const retire = base
-    ? registerForOutsideAgents(concivHome({homeDir: opts.homeDir, env: process.env}), {
+    ? registerForOutsideAgents(home, {
         id: engineId,
         pid: process.pid,
         root: opts.root,

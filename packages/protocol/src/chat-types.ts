@@ -239,7 +239,34 @@ export const TabsSchema = z.object({
 })
 export type Tabs = z.infer<typeof TabsSchema>
 
-export const TabOpenSchema = z.object({open: z.boolean(), instructions: z.string().nullable()})
+const TabToolSchema = z.object({name: z.string(), description: z.string(), typeStub: z.string()})
+
+export const TabOpenSchema = z.object({
+  open: z.boolean(),
+  instructions: z.string().nullable(),
+  tools: z.array(TabToolSchema),
+})
 export type TabOpen = z.infer<typeof TabOpenSchema>
+
+export const TabsListingSchema = z.object({
+  tabs: z.array(
+    z.object({
+      tab: SessionId,
+      project: z.string().optional(),
+      branch: z.string().optional(),
+      root: z.string(),
+      href: z.string().optional(),
+      pageTitle: z.string().optional(),
+      sessionTitle: z.string(),
+      lastActive: z.string(),
+      running: z.boolean(),
+      state: z.enum(['visible', 'hidden']).optional(),
+      harness: z.string(),
+      browserTabs: z.number(),
+    }),
+  ),
+  unreachable: z.array(z.object({root: z.string(), error: z.string()})),
+})
+export type TabsListing = z.infer<typeof TabsListingSchema>
 
 export type RequestMeta = Record<string, unknown>

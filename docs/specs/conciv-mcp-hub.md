@@ -49,8 +49,8 @@ Omri, 2026-11-07:
 - Installing is done by the engine on click: picking "Connect <harness>" makes the engine run that harness's
   `mcp add` command itself. No copy-paste, no spawn-based "is it installed" check.
 - No new MCP tools (revision 5). The hub is a pass-through: the agent sees conciv's own `execute_typescript` and
-  `discover_tools`, nothing else. Finding tabs is one normal registry tool, `tabs` (revision 6): `external_tabs()` in
-  the sandbox, `conciv tools tabs` in the CLI, in every run. Picking a tab is `external_use_tab(id)` in outside
+  `discover_tools`, nothing else. Finding tabs is one normal registry tool, `tabs` (revision 6): `external_tabs({})` in
+  the sandbox, `conciv tools tabs` in the CLI, in every run. Picking a tab is `external_use_tab({id})` in outside
   runs, and `--tab <id>` (or `CONCIV_SESSION_ID`) in the CLI; with neither, tools act on the default as today; `external_use_tab` returns that tab's tool signatures and instructions. The pick lasts for
   one `execute_typescript` block. Calls into a tab on another engine are forwarded engine to engine.
 - The hub is the `conciv mcp` subcommand of `@conciv/cli`, started by the harness over stdio, with no arguments.
@@ -68,12 +68,12 @@ Omri, 2026-11-07:
    hub is not yet connected to. Picking "Connect Codex" runs the install; the item turns into a "Connected" notice
    and leaves the menu. The menu is gone when every listed harness is connected.
 2. In any session the user describes the tab. The agent runs `execute_typescript` with
-   `return await external_tabs()` and matches the words:
+   `return await external_tabs({})` and matches the words:
    - exactly one match: uses it and says which (project, branch, URL);
    - several: asks which, naming the field that differs; never guesses;
    - none: says so and lists what is open.
-3. The agent runs `return await external_use_tab(id)` once to learn that tab's tools and instructions, then each
-   later block starts with `await external_use_tab(id)` and calls the tab's capabilities.
+3. The agent runs `return await external_use_tab({id})` once to learn that tab's tools and instructions, then each
+   later block starts with `await external_use_tab({id})` and calls the tab's capabilities.
 4. Under the default policy the first call into that session is refused with "waiting for the user to allow this
    session in the conciv tab". The tab's widget shows an Allow / Deny prompt naming the outside harness. After
    Allow, the agent retries and the call runs. Later calls into that session run without asking.
@@ -88,8 +88,8 @@ agent CLI (any cwd) ──stdio──> conciv-hub  (`conciv mcp`, @conciv/cli; p
                                  ▼
                     runner engine  POST <apiBase>/api/mcp   headers: conciv-origin: hub, conciv-client
                       execute_typescript runs in the runner's sandbox, outside run (no session):
-                        external_tabs()   → GET <apiBase>/api/tabs of every live engine (home.db)
-                        external_use_tab(id)   → owning engine's tools + instructions for that session
+                        external_tabs({})   → GET <apiBase>/api/tabs of every live engine (home.db)
+                        external_use_tab({id})   → owning engine's tools + instructions for that session
                         external_<anything>    → POST <owner apiBase>/api/mcp execute_typescript
                                                   `return await external_<name>(input)`,
                                                   headers: conciv-session-id, conciv-origin: hub, conciv-client
@@ -193,7 +193,7 @@ Response zod schema in `@conciv/protocol`:
   listed.
 - `harness` is the session's `harnessKind`; `session` fields come from `rpcSessionList(chatDeps, false)`
   (`packages/core/src/api/rpc/sessions.ts`). That reads native transcript lists; acceptable because only
-  `external_tabs()` asks for the full listing.
+  `external_tabs({})` asks for the full listing.
 - `?session=<id>` (zod: `SessionId.optional().catch(undefined)`) is the cheap form `external_use_tab` uses:
   it answers `{open: boolean, instructions: string | null}` from `openSessions()` membership and the engine's
   system prompt text, with no page query and no session listing.
@@ -245,7 +245,7 @@ the agent to warn the user when it is above 1.
 - A builtin tool beside `open` in `packages/tools/src/builtins/server-tools.ts`: `BUILTIN_TABS_TOOL`, name `tabs`,
   category `read`, no input, not mutating, no approval. Registered in `packages/core/src/tool-registry.ts` like the
   others, with a context `{listTabs: () => Promise<TabsListing>}` that core implements. Because `/api/mcp` and
-  `conciv tools` both call the one registry, it is `external_tabs()` in every sandbox (in-page and outside runs) and
+  `conciv tools` both call the one registry, it is `external_tabs({})` in every sandbox (in-page and outside runs) and
   `conciv tools tabs` in the CLI with no extra wiring.
 - Output (zod in `@conciv/protocol`): `{tabs: [{tab, project, branch, root, href, pageTitle, sessionTitle,
   lastActive, running, state, harness, browserTabs}], unreachable: [{root, error}]}`. Flat rows, ISO `lastActive`,
@@ -273,21 +273,21 @@ the agent to warn the user when it is above 1.
 An outside run is an `execute_typescript` call on `/api/mcp` with `conciv-origin: hub` and no `conciv-session-id`.
 The engine that receives it (the runner) runs the code in its sandbox like any other run, with these differences:
 
-- `external_tabs()` is the registry `tabs` tool above, present in every run. One capability exists only in outside
+- `external_tabs({})` is the registry `tabs` tool above, present in every run. One capability exists only in outside
   runs, built per request and passed through `ChatPlane.codeRunner(sessionId, publish, capabilities?)` (the optional
   argument approved 2026-11-07; in-page calls pass nothing):
-  - `external_use_tab(id)`: zod-parses `id` as `SessionId`, finds the engine whose `/api/tabs?session=<id>` says
+  - `external_use_tab({id})`: zod-parses `id` as `SessionId`, finds the engine whose `/api/tabs?session=<id>` says
     open (all live engines in parallel), and returns `{instructions, tools}`: `instructions` is that engine's conciv
     system prompt text (the same text its in-page agent gets), `tools` is that session's capability signatures,
     the same content `discover_tools` returns there, read from the owner's `GET /api/tabs?session=<id>`, whose answer
     gains `tools` (approved 2026-11-07; no consent since nothing runs). Not open anywhere: throws `TAB_NOT_OPEN: tab <id> is not open;
-    call external_tabs()`. Open on two engines: throws naming both roots and asking the user to close one
+    call external_tabs({})`. Open on two engines: throws naming both roots and asking the user to close one
     browser tab. It also sets the run's tab for the rest of this `execute_typescript` block only; the next block
     starts with no tab.
   - Its description carries the agent guidance below (harnesses read MCP instructions differently, and
     `createMCPServer` 1.1.0 has no server `instructions` option).
 - Every other capability in an outside run except `external_tabs` is forwarded: before `external_use_tab` it throws `NO_TAB: call
-  external_use_tab(id) first; external_tabs() lists the open tabs`. After it, the call becomes
+  external_use_tab({id}) first; external_tabs({}) lists the open tabs`. After it, the call becomes
   `execute_typescript` with code `return await external_<name>(<input as JSON>)` on the owning engine's
   `/api/mcp`, headers `conciv-session-id: <id>`, `conciv-origin: hub`, `conciv-client: <client>` (passed on from
   the runner's request), token from the owner's `apiBase`. The owner's reply becomes the capability's result, or
@@ -301,15 +301,15 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 - Agent guidance, in the `tabs` tool and `external_use_tab` descriptions:
 
 > conciv tabs are live web pages running the conciv widget. When the user refers to a conciv tab, session or page
-> in words, call external_tabs() and match their words against project, branch, root, href, pageTitle and
+> in words, call external_tabs({}) and match their words against project, branch, root, href, pageTitle and
 > sessionTitle. If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If
 > more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose
 > state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what
-> is open. Then call external_use_tab(id) once and follow the instructions it returns. Start every later block with
-> await external_use_tab(id) and call the tools it listed. If browserTabs is above 1, tell the user page actions run
+> is open. Then call external_use_tab({id}) once and follow the instructions it returns. Start every later block with
+> await external_use_tab({id}) and call the tools it listed. If browserTabs is above 1, tell the user page actions run
 > in every browser tab of that session. If a call says the user must allow this session, tell the user to click
 > Allow in the conciv tab, then retry; if it says the user denied outside agents, stop and tell the user, do not
-> retry. If a call says the tab is not open, call external_tabs() again.
+> retry. If a call says the tab is not open, call external_tabs({}) again.
 
 ### Hub: `conciv mcp` (`@conciv/cli`)
 
@@ -319,7 +319,7 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   directly, never on `@conciv/ai` (the CLI `prod closure` test stays unchanged and passes).
 - Its tool list is fixed for the life of the process: `execute_typescript` and `discover_tools` with the same names
   and input schemas as `/api/mcp`. No tool of its own. Descriptions come from the runner's `tools/list` when one is
-  live at startup, else from fixed text that names `external_tabs()` and `external_use_tab(id)`.
+  live at startup, else from fixed text that names `external_tabs({})` and `external_use_tab({id})`.
 - Each call: `checkEngines(home, {timeoutMs: 2000})`, pick the most recently registered live engine as runner,
   forward the call to its `/api/mcp` with `conciv-origin: hub` and `conciv-client: <clientInfo name>` (captured via
   the `setup` hook), and return the reply unchanged. One client per runner `apiBase`, dropped on a transport error.
@@ -417,21 +417,21 @@ Run `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion.
   - an allowed hub-origin `execute_typescript` publishes chunks carrying `metadata.conciv.origin === 'hub'`.
 - `packages/core/test/core-api.it.test.ts`, same `describe('outside sessions')`, two engines in one process with a
   fake page subscriber (`answerNextQuery`): an in-page call (session header, no hub origin) sees neither
-  `external_tabs` nor `external_use_tab`; an outside run's `external_tabs()` lists the tabs of both engines
+  `external_tabs` nor `external_use_tab`; an outside run's `external_tabs({})` lists the tabs of both engines
   and no token; a capability before `external_use_tab` throws `NO_TAB`; `external_use_tab` on the other engine's tab
   returns its instructions and tools, and a following capability call is refused until allow, then runs on the
   owner and its chunks carry the marker on the owner's transcript; the next block starts with no tab; an unknown tab
   throws `TAB_NOT_OPEN`.
 - `packages/cli/test/cli.test.ts` (over 1000; pay for additions), `describe('conciv mcp hub')`, using `startEngine`:
   spawn the hub over stdio with a temp `CONCIV_HOME`; `tools/list` is exactly `execute_typescript` and
-  `discover_tools`; an `execute_typescript` of `return await external_tabs()` returns the engine's tab; after
+  `discover_tools`; an `execute_typescript` of `return await external_tabs({})` returns the engine's tab; after
   restarting the engine on another port the same call still works; with no engine running the call returns the
   "no conciv dev server is running" error naming the home folder.
 - `packages/cli/test/cli.test.ts`, `describe('conciv tools on any tab')`: from a temp folder with no
   `.conciv/server.json`, `conciv tools tabs` lists the engine's tab from the temp home db; `--tab <id>` runs a tool on
   that tab and is refused until allow; an invalid `--tab` fails with a clear message; inside a project folder with
   no `--tab` the call goes to that folder's engine exactly as today.
-- `packages/core/test/core-api.it.test.ts`: an in-page `execute_typescript` can call `external_tabs()`.
+- `packages/core/test/core-api.it.test.ts`: an in-page `execute_typescript` can call `external_tabs({})`.
 - `packages/extensions/page/test/page.browser.test.tsx` (702 lines): `page_route` returns `title` and `state`.
 - `apps/conciv/test/conciv.browser.test.tsx` (over 1000; pay for additions; the deleted launch tests pay most of
   it): the menu lists a harness found by detection with no `hub_connections` row; a real pointer click on its item
@@ -459,7 +459,7 @@ One patch changeset naming `@conciv/cli` (the fixed group bumps every `@conciv/*
 4. Two tabs of one project on different pages: the same request makes the agent ask which, naming the URLs.
 5. Restart that dev server, and separately edit its `vite.config` (Vite restart): the next call on the chosen tab
    still works.
-6. `kill -9` a dev server: it disappears from `external_tabs()` and its row gets `deletedAt`. Start another dev server on
+6. `kill -9` a dev server: it disappears from `external_tabs({})` and its row gets `deletedAt`. Start another dev server on
    the same port: the old row is retired by the id check, the new one is listed.
 7. A call from the outside session shows in that tab's transcript with "from <harness>".
 8. Set `hubAccess: 'open'`: no prompt. Set `'project'`: one prompt covers a second session.

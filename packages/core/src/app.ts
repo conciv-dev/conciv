@@ -26,7 +26,14 @@ import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
 import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {
+  OUTSIDE_SESSION_TARGET,
+  TabOpenSchema,
+  type ChatTool,
+  type HarnessSessionId,
+  type SessionId,
+  type TabOpen,
+} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -54,6 +61,8 @@ import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import tabsApp, {type TabsVars} from './api/tabs.js'
+import {createOutsideTabs} from './api/outside-tabs.js'
+import {outsideRunCapabilities} from './api/outside-run.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
@@ -122,6 +131,8 @@ export type MakeAppOpts = {
   nativeUrl?: () => string | undefined
 
   staleness?: () => EngineStaleness
+
+  home?: string
 }
 
 export function slug(name: string): string {
@@ -380,6 +391,15 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
+const DiscoveredSchema = z.object({tools: TabOpenSchema.shape.tools})
+
+async function discoveredTools(plane: ChatPlane, sessionId: SessionId): Promise<TabOpen['tools']> {
+  const runner = await plane.codeRunner(sessionId, () => {})
+  if (runner === null || runner.discover === null) return []
+  const found = await runner.discover.run(runner.capabilities.map((capability) => capability.name))
+  return DiscoveredSchema.parse(found).tools
+}
+
 export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
   return [pageServerExtension, ...(extensions ?? [])]
 }
@@ -404,12 +424,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
+  const outsideTabs = createOutsideTabs(opts.home)
   const primitives = makeSessionPrimitives({
     db,
     root: opts.cwd,
     storeCapture: (params) => writeToolCapture(db, params),
     bundler: () => opts.bridge,
     openInEditor: opts.openInEditor,
+    listTabs: outsideTabs.list,
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
@@ -598,7 +620,17 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
       mcp: {
-        codeRunner: (sessionId) => plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk)),
+        codeRunner: (sessionId, capabilities) =>
+          plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk), capabilities),
+        outsideCapabilities: (sessionId, client) =>
+          outsideRunCapabilities({
+            tabs: outsideTabs,
+            client,
+            capabilities: [
+              ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+              ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+            ],
+          }),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         admitOutside: async (scope, client) =>
           opts.cfg.hubAccess === 'open'
@@ -611,6 +643,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessions: () => rpcSessionList(chatDeps, false),
         root: opts.cwd,
         instructions: systemPromptText,
+        tools: (sessionId) => discoveredTools(plane, sessionId),
       },
     },
     compositeRpc,

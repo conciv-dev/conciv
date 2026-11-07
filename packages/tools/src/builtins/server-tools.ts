@@ -3,12 +3,15 @@ import {defineTool, toolError} from '@conciv/extension/tool'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {HOT_UPDATE_WAIT_MS, HotUpdateWaitSchema, hmrDef} from '@conciv/extension-page/defs'
 import {BundlerConfigSchema, ModuleNodeSchema, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import {TabsListingSchema, type TabsListing} from '@conciv/protocol/chat-types'
 import {OkResult, type BuiltinCategory} from './shared.js'
 import {OpenInput} from './open-input.js'
 
 export type ServerToolContext = {bundler: () => BundlerBridge | undefined}
 
 export type OpenToolContext = {openInEditor: (file: string, line?: number) => void}
+
+export type TabsToolContext = {listTabs: () => Promise<TabsListing>}
 
 const NO_BUNDLER_MESSAGE = 'no dev server is attached to conciv'
 
@@ -175,3 +178,23 @@ export const BUILTIN_OPEN_TOOL = defineTool({
   ctx.openInEditor(input.file, input.line)
   return input.line === undefined ? {ok: true, file: input.file} : {ok: true, file: input.file, line: input.line}
 })
+
+export const TABS_GUIDANCE =
+  'conciv tabs are live web pages running the conciv widget. When the user refers to a conciv tab, session or page in words, call external_tabs({}) and match their words against project, branch, root, href, pageTitle and sessionTitle. If exactly one tab matches, use it and tell the user which one you picked (project, branch, URL). If more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what is open. Then call external_use_tab({id}) once and follow the instructions it returns. Start every later block with await external_use_tab({id}) and call the tools it listed. If browserTabs is above 1, tell the user page actions run in every browser tab of that session. If a call says the user must allow this session, tell the user to click Allow in the conciv tab, then retry; if it says the user denied outside agents, stop and tell the user, do not retry. If a call says the tab is not open, call external_tabs({}) again.'
+
+const TABS_SUMMARY = 'list the open conciv tabs of every running conciv engine on this machine'
+
+export const BUILTIN_TABS_TOOL = defineTool({
+  name: 'tabs',
+  description: TABS_SUMMARY,
+  inputSchema: z.object({}),
+  outputSchema: TabsListingSchema,
+  meta: {
+    summary: TABS_SUMMARY,
+    hint: TABS_GUIDANCE,
+    category: 'read',
+    mutating: false,
+    mirrors: false,
+    keywords: ['sessions', 'pages'],
+  },
+}).server((_input, ctx: TabsToolContext) => ctx.listTabs())

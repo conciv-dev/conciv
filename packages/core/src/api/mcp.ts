@@ -25,6 +25,7 @@ import {
   RESULT_CAP_CHARS,
   safeStringify,
   truncationEnvelope,
+  type CodeCapability,
   type CodeRunner,
   type CodeTool,
 } from '@conciv/chat'
@@ -295,7 +296,8 @@ async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<Exe
 }
 
 type McpDeps = {
-  codeRunner: (sessionId: SessionId) => Promise<CodeRunner | null>
+  codeRunner: (sessionId: SessionId, capabilities?: readonly CodeCapability[]) => Promise<CodeRunner | null>
+  outsideCapabilities: (sessionId: SessionId, client: string | null) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null) => Promise<string | null>
   staleness: () => EngineStaleness
@@ -308,9 +310,15 @@ function gated<Args>(refusal: string | null, run: (args: Args) => Promise<Execut
   return async (): Promise<ExecuteReply> => ({content: [{type: 'text', text: refusal}], isError: true})
 }
 
-async function sessionTools(deps: McpDeps, scope: SessionScope, origin: HubOrigin | null) {
-  const refusal = origin === null ? null : await deps.admitOutside(scope, origin.client)
-  const runner = await deps.codeRunner(scope.id)
+type McpCaller = {origin: HubOrigin | null; outside: boolean}
+
+async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
+  const origin = caller.origin
+  const refusal = origin === null || caller.outside ? null : await deps.admitOutside(scope, origin.client)
+  const runner = await deps.codeRunner(
+    scope.id,
+    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client) : undefined,
+  )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
@@ -354,14 +362,15 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, origin: HubOrigi
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
-  const scope = await c.var.mcp.resolveSession(
-    sessionIdFromHeaders(c.req.raw.headers),
-    nativeIdFromHeaders(c.req.raw.headers),
-  )
+  const header = sessionIdFromHeaders(c.req.raw.headers)
+  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+  const origin = hubOriginFromHeaders(c.req.raw.headers)
+  const scope = await c.var.mcp.resolveSession(header, nativeId)
+  const caller = {origin, outside: origin !== null && header === null && nativeId === null}
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,
-    tools: await sessionTools(c.var.mcp, scope, hubOriginFromHeaders(c.req.raw.headers)),
+    tools: await sessionTools(c.var.mcp, scope, caller),
     onerror: (error) => logError(`[mcp] ${error.message}`),
   })
   return server.handle(c.req.raw)

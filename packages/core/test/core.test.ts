@@ -920,6 +920,7 @@ describe('runtime ambient session', () => {
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
       openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
     })
     primitives.registry.register(clicker, {owner: 'a fixture'})
     const runtime = makeCoreRuntime({
