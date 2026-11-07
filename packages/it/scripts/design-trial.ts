@@ -34,6 +34,7 @@ type Options = {
   figma?: string
   document?: string
   state?: string
+  model?: string
   port: number
   agent: boolean
   blind: boolean
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
       figma: {type: 'string'},
       document: {type: 'string'},
       state: {type: 'string'},
+      model: {type: 'string'},
       port: {type: 'string', default: '0'},
       render: {type: 'string'},
       agent: {type: 'boolean', default: false},
@@ -193,6 +195,7 @@ async function open(input: {
   const {apiBase} = EndpointSchema.parse(JSON.parse(endpoint))
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
+  if (input.options.model !== undefined) await rpc.sessions.model({sessionId: session, model: input.options.model})
   const page = await input.browser.newPage({viewport: {width: input.options.width, height: TAB_HEIGHT}})
   const route = await magicLink(new URL(apiBase).origin, () => input.printed.join('\n'), input.options.route)
   await awaitPagePlaneSubscribed(page, async () => {
