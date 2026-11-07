@@ -233,6 +233,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const geo = iou({a: box, b: placed})
   if (geo < PAIR.overlapFloor && centerDistance({a: box, b: placed}) > PAIR.nearCenterPx) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
+  if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
   if (anchor !== null && !underAnchor({vote, element, anchor})) return []
   const typed = node.figma?.type ?? ''
@@ -249,6 +250,11 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const dom = PAIR.overlapWeight * geo + textual + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
   return [{path: element.path, score: dom + src + layoutOf({node, element})}]
+}
+
+function holdsText(node: DesignNode): boolean {
+  const drawn = node.children.filter((child) => child.implied !== true)
+  return drawn.length > 1 && drawn.some((child) => child.kind === 'text')
 }
 
 function kindOf(input: {node: DesignNode; element: Element}): number {
