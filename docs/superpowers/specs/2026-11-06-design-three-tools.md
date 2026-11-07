@@ -364,3 +364,24 @@ returns the whole tree.
 - `design_get(link, node)` returns that node's subtree in full detail with the path of its ancestors.
 - The rules say: read each section with its node id before building it. Coverage in `design_check` reports the sections
   never built.
+
+### The outline is withdrawn; the design is markup the agent can query (2026-11-07, evening)
+
+The outline ran against the full tree on sonnet, same pages, same build: full tree 3 of 3 done, $3.83; outline 2 of 3,
+$4.55, 152 nodes missing at the first check on OrangeFarm. The agent built from the outline without reading every section.
+A single section is 12 to 32 KB, so the outline saved bytes only because the full-tree agent reread 77 KB seven times. The
+outline goes.
+
+Omri: `design_get` returns something the agent can select from with `querySelector` and `querySelectorAll`.
+
+- The design is one markup document: one element per node, the node type as the tag (`frame`, `text`, `image`, `group`,
+  `shape`), attributes for id, name, box, layout words, fills, strokes, font, reflow tags, implied, the known conciv key;
+  text content as the element's text. No repeated keys, no JSON. The rules travel as the same sentences, once.
+- `design_get(link)` returns the whole document. `design_get(link, selector)` runs `querySelectorAll` over it and returns
+  the matching elements with their subtrees and the path of each match's ancestors. The agent asks by selector, the tool
+  slices; nothing is paged, nothing is hidden.
+- `design_check` rows quote the node in the same selector form (`[id="1:371"]`), so a row and a get speak one language.
+- The agent is told how big the document is and that a selector gets a part of it. Nothing forces a selector; coverage in
+  `design_check` reports what was never built.
+- Proof is the same A/B: three sonnet runs on the markup build beside the three full-tree JSON runs of wave 9, on bytes,
+  rounds, verdicts, cost and nodes missing at round 1.
