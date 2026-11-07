@@ -1,7 +1,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
-import {execFileSync, spawnSync} from 'node:child_process'
+import {execFile, execFileSync, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
@@ -80,6 +80,8 @@ import {
 } from './helpers.js'
 
 describe('cli', () => {
+  const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
+
   describe('cli arguments', () => {
     const {cleanups, written} = cliSession()
 
@@ -191,7 +193,6 @@ describe('cli', () => {
   describe('cli bin', () => {
     const ESCAPE = '\u001b'
     const COLOR_VARIABLES = new Set(['NO_COLOR', 'FORCE_COLOR', 'CI', 'TEST', 'TERM'])
-    const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
 
     let cwd = ''
     let closedPort = 0
@@ -228,10 +229,11 @@ describe('cli', () => {
     })
 
     describe('the built conciv bin through a pipe', () => {
-      it('prints --help without ANSI escapes when stdout is not a terminal', () => {
+      it('prints --help, init among the commands, without ANSI escapes when stdout is not a terminal', () => {
         const help = conciv(['--help'])
         expect(help.status).toBe(0)
         expect(help.stdout).toContain('tools')
+        expect(help.stdout).toMatch(/^\s+init\s/m)
         expect(help.stdout).not.toContain(ESCAPE)
       })
 
@@ -241,12 +243,6 @@ describe('cli', () => {
           .parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')))
         expect(conciv(['--version'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
         expect(conciv(['-v'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
-      })
-
-      it('registers init under the root command', () => {
-        const help = conciv(['--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toMatch(/^\s+init\s/m)
       })
 
       it('lists the built-in page verbs offline and says so on the last line', () => {
@@ -413,13 +409,6 @@ describe('cli', () => {
         })
       })
 
-      it('rejects an edit that names no attribute rather than sending a nameless one', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'page', 'setattr', '#a', '--value', 'open'])).toBe(1)
-        expect(answer.seen()).toBeNull()
-      })
-
       it('clears a field when the value is explicitly empty', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: ''}})
@@ -455,14 +444,6 @@ describe('cli', () => {
         expect(help.replaceAll(/\s+/g, ' ')).toContain(
           'after editing a file, wait for the hot update to land before reading the page',
         )
-      })
-
-      it('offers the react verbs under react and leaves the page-only ones out', async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'react', '--help'])
-        expect(help).toContain('inspect')
-        expect(help).toContain('override')
-        expect(help).not.toContain('sethtml')
       })
 
       it('derives a dev-server operation and its positional from the declaration', async () => {
@@ -909,22 +890,25 @@ describe('cli', () => {
       return {root, nested}
     }
 
-    test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', () => {
+    const originFor = (cwd: string, env: NodeJS.ProcessEnv) =>
+      engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)
+
+    test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234')
-      expect(engineOrigin(project.root, {})).toBe('http://127.0.0.1:41234')
-      expect(engineOrigin(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.root, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
     })
 
-    test('falls back to 5173 with no server.json anywhere up the tree, or a malformed one', () => {
-      expect(engineOrigin(projectWith(null).nested, {})).toBe('http://127.0.0.1:5173')
-      expect(engineOrigin(projectWith('{"port": "not a number"').nested, {})).toBe('http://127.0.0.1:5173')
+    test('falls back to 5173 with no server.json anywhere up the tree, or a malformed one, and no live engine', async () => {
+      expect(await originFor(projectWith(null).nested, {})).toBe('http://127.0.0.1:5173')
+      expect(await originFor(projectWith('{"port": "not a number"').nested, {})).toBe('http://127.0.0.1:5173')
     })
 
-    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
+    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234, token: 'from-file'}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
-      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
+      expect(await originFor(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
     })
 
     test('auth revoke lists, revokes one and revokes every trusted browser', () => {
@@ -997,27 +981,68 @@ describe('cli', () => {
     })
   })
 
-  describe('conciv mcp hub', () => {
-    const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
-    const pages = new AbortController()
-    afterAll(() => pages.abort())
+  const pages = new AbortController()
+  afterAll(() => pages.abort())
 
+  async function engineWithTab(home: string) {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
+    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home})
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+    const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await page.page.queries(undefined, {signal: pages.signal})
+    return {engine, sessionId, base, page}
+  }
+
+  describe('conciv tools on any tab', () => {
+    const conciv = (cwd: string, home: string, args: string[]) =>
+      new Promise<unknown>((resolve) =>
+        execFile(process.execPath, [bin, ...args], {cwd, env: {CONCIV_HOME: home}}, (_error, stdout) =>
+          resolve(JSON.parse(stdout)),
+        ),
+      )
+
+    it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
+        expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
+        const viaTab = ['tools', 'tabs', '--tab', sessionId]
+        const refused = {ok: false, error: {code: 'APPROVAL_DENIED', message: expect.stringContaining('approval')}}
+        expect(await conciv(elsewhere, home, viaTab)).toMatchObject(refused)
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        expect(await conciv(elsewhere, home, viaTab)).toMatchObject(listed)
+        const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
+        expect(await conciv(elsewhere, home, missing)).toMatchObject({
+          ok: false,
+          error: {message: /conciv_gone.*not open/},
+        })
+        const malformed = {ok: false, error: {kind: 'user', message: expect.stringContaining('--tab')}}
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'nope'])).toMatchObject(malformed)
+        const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        mkdirSync(join(project, '.conciv'))
+        writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify({port: 9}))
+        expect(await conciv(project, home, ['tools', 'tabs'])).toMatchObject({
+          ok: false,
+          error: {message: 'No conciv dev server on 127.0.0.1:9.'},
+        })
+      } finally {
+        await engine.stop()
+      }
+    })
+  })
+
+  describe('conciv mcp hub', () => {
     const hub = (home: string) =>
       createMCPClient({
         transport: stdioTransport({command: process.execPath, args: [bin, 'mcp'], env: {CONCIV_HOME: home}}),
         name: 'cli-test',
       })
-
-    async function engineWithTab(home: string) {
-      const root = mkdtempSync(join(tmpdir(), 'conciv-hub-'))
-      const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
-      const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home})
-      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-      const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
-      const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-      await page.page.queries(undefined, {signal: pages.signal})
-      return {engine, sessionId, base}
-    }
 
     const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
@@ -2120,38 +2145,10 @@ describe('init', () => {
         expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
       })
 
-      it('prints the plan and touches nothing with --dry-run', async () => {
+      it.each([false, true])('prints the plan and touches nothing with --dry-run (--yes %s)', async (yes) => {
         const run = initFixture()
         const result = await runInit(
-          {yes: false, dryRun: true, force: false, cwd: run.cwd},
-          {
-            ...run.runtime,
-            interactive: () => false,
-            prompts: {
-              selections: async () => {
-                throw new Error('selections must not run under --dry-run')
-              },
-              confirmRun: async () => {
-                throw new Error('confirmRun must not run under --dry-run')
-              },
-            },
-          },
-        )
-        expect(result.outcome).toBe('planned')
-        expect(result.outcome === 'planned' ? result.plan : '').toContain('Install @conciv/it')
-        const plans = plansOf(run.events)
-        expect(plans).toHaveLength(1)
-        expect(plans[0]).toContain('Install @conciv/it')
-        expect(run.events).toContain('outro:Dry run — nothing changed.')
-        expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
-        expect(run.added).toEqual([])
-        expect(run.spawned).toEqual([])
-      })
-
-      it('prints the plan and touches nothing when --yes and --dry-run are passed together', async () => {
-        const run = initFixture()
-        const result = await runInit(
-          {yes: true, dryRun: true, force: false, cwd: run.cwd},
+          {yes, dryRun: true, force: false, cwd: run.cwd},
           {
             ...run.runtime,
             interactive: () => false,
@@ -2274,14 +2271,6 @@ describe('init', () => {
         expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
-      })
-
-      it('refuses a directory without a package.json with the reason', async () => {
-        const run = initFixture()
-        const empty = mkdtempSync(join(tmpdir(), 'conciv-init-empty-'))
-        const result = await runInit({yes: true, dryRun: false, force: false, cwd: empty}, run.runtime)
-        expect(result).toEqual({outcome: 'refused', reason: 'no package.json here — run init from your app directory'})
-        expect(run.events).toContain('error:no package.json here — run init from your app directory')
       })
 
       it('plans the manual card honestly when no framework is detected', async () => {

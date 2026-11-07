@@ -3,6 +3,7 @@ import {PAGE_TOOL_DEFS, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {envelopeFlag} from './envelope.js'
 import {handler} from './router/handler.js'
 import {runRpc} from './request.js'
+import {tabFlag} from './tab-flag.js'
 import {toolGroupRoute} from './tool-group.js'
 
 const REACT_CATEGORY = 'react'
@@ -12,8 +13,9 @@ const changesCommand = command(
   description('list (or --clear) the live-edit journal'),
   toggle(name('clear'), description('reset the journal after listing')),
   envelopeFlag,
-  handler((model) =>
-    runRpc((rpc) => (model.clear === true ? rpc.page.clearChanges(undefined) : rpc.page.changes(undefined))),
+  tabFlag,
+  handler((model, target) =>
+    runRpc(target, (rpc) => (model.clear === true ? rpc.page.clearChanges(undefined) : rpc.page.changes(undefined))),
   ),
 )
 

@@ -3,6 +3,7 @@ import type {RpcClient} from '@conciv/contract'
 import {BUILTIN_SERVER_TOOLS, serverOperationOfTool} from '@conciv/tools/builtins'
 import {envelopeFlag} from './envelope.js'
 import {runRpc} from './request.js'
+import {tabFlag} from './tab-flag.js'
 import {toolCommand} from './tool-command.js'
 
 type OperationCall = (input: unknown) => Promise<unknown>
@@ -23,7 +24,7 @@ function operationCommands() {
     return toolCommand(tool, {
       name: operation,
       positional: tool.meta?.positional,
-      run: (input) => runRpc((rpc) => callOperation(rpc, operation, input)),
+      run: (input, target) => runRpc(target, (rpc) => callOperation(rpc, operation, input)),
     })
   })
 }
@@ -32,5 +33,6 @@ export const serverRoute = route(
   name('server'),
   description('inspect & nudge the live dev server'),
   envelopeFlag,
+  tabFlag,
   extend(...operationCommands()),
 )

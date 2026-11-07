@@ -1,9 +1,14 @@
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
+import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
+import {TabOpenSchema, type SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {userFailure} from './failure.js'
 
 const DEFAULT_ENGINE_PORT = '5173'
+
+const PROBE_MS = 2000
 
 const ServerStateSchema = z.object({
   port: z.number().int().min(1).max(65535),
@@ -30,10 +35,41 @@ export function discoveredEngine(directory: string): ServerState | undefined {
   return discoveredEngine(parent)
 }
 
-export function engineOrigin(cwd: string, env: NodeJS.ProcessEnv): string {
+export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: SessionId | null): Promise<string> {
+  if (tab !== null) return tabOwner(await liveEngines(env), tab)
   const discovered = discoveredEngine(cwd)
-  const port = env.CONCIV_PORT ?? discovered?.port ?? DEFAULT_ENGINE_PORT
+  const port = env.CONCIV_PORT ?? discovered?.port
   const token = env.CONCIV_TOKEN ?? discovered?.token
+  if (port !== undefined) return scopedOrigin(port, token)
+  const latest = (await liveEngines(env)).at(-1)
+  return latest?.apiBase ?? scopedOrigin(DEFAULT_ENGINE_PORT, token)
+}
+
+function scopedOrigin(port: string | number, token: string | undefined): string {
   const origin = `http://127.0.0.1:${port}`
   return token === undefined ? origin : `${origin}/t/${token}`
+}
+
+async function liveEngines(env: NodeJS.ProcessEnv): Promise<EngineRow[]> {
+  return (await checkEngines(concivHome({env}), {timeoutMs: PROBE_MS})).live
+}
+
+async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
+  const answers = await Promise.allSettled(live.map((row) => holdsTab(row, tab)))
+  const owner = live.find((_row, index) => {
+    const answer = answers[index]
+    return answer?.status === 'fulfilled' && answer.value
+  })
+  if (owner !== undefined) return owner.apiBase
+  const silent = answers.filter((answer) => answer.status === 'rejected').length
+  const unanswered = silent === 0 ? '' : ` (${silent} of them did not answer)`
+  throw userFailure(`tab ${tab} is not open in any of the ${live.length} running conciv dev servers${unanswered}.`, {
+    hint: 'conciv tools tabs lists the open tabs; open the page again if it was closed.',
+  })
+}
+
+async function holdsTab(row: EngineRow, tab: SessionId): Promise<boolean> {
+  const response = await fetch(`${row.apiBase}/api/tabs?session=${tab}`, {signal: AbortSignal.timeout(PROBE_MS)})
+  if (!response.ok) throw new Error(`${row.root} answered ${response.status}`)
+  return TabOpenSchema.parse(await response.json()).open
 }

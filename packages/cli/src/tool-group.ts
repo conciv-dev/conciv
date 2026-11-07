@@ -4,7 +4,8 @@ import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/con
 import type {ToolMeta} from '@conciv/extension/tool'
 import {envelopeFlag} from './envelope.js'
 import {userFailure} from './failure.js'
-import {runRpc, runRpcWhenServing} from './request.js'
+import {runRpc, runRpcWhenServing, type CliTarget} from './request.js'
+import {tabFlag} from './tab-flag.js'
 import {wireToolCommand} from './tool-command.js'
 
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
@@ -26,8 +27,8 @@ export type ToolGroupOptions = {
   extra?: readonly AnyRoute[]
 }
 
-export async function liveCatalog(): Promise<LiveCatalog> {
-  const outcome = await runRpcWhenServing((rpc) => rpc.registry.catalog(undefined))
+export async function liveCatalog(target: CliTarget): Promise<LiveCatalog> {
+  const outcome = await runRpcWhenServing(target, (rpc) => rpc.registry.catalog(undefined))
   if (outcome === null) return null
   if (outcome.report !== 'json') throw new Error('the registry catalog returned no data')
   return CatalogSchema.parse(outcome.data)
@@ -38,6 +39,7 @@ export function toolGroupRoute(options: ToolGroupOptions) {
     name(options.name),
     description(options.description),
     envelopeFlag,
+    tabFlag,
     dynamic(LiveCatalogSchema, (catalog) => extend(...verbCommands(options, catalog), ...(options.extra ?? []))),
   )
 }
@@ -57,7 +59,7 @@ function verbCommands(options: ToolGroupOptions, catalog: LiveCatalog) {
     return wireToolCommand(signature, {
       name: verb,
       positional: signature.positional,
-      run: (input) => runRpc((rpc) => rpc.registry.call({name: signature.name, input})),
+      run: (input, target) => runRpc(target, (rpc) => rpc.registry.call({name: signature.name, input})),
     })
   })
 }

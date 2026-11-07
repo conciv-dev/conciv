@@ -1,5 +1,6 @@
 import {parse, printHelp, printVersion} from '@bomb.sh/router'
 import {z} from 'zod'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {routeFailure} from './arguments.js'
 import {writeFailure, writeOutcome} from './envelope.js'
 import {failureOf} from './failure.js'
@@ -8,6 +9,10 @@ import type {main} from './main.js'
 import {liveCatalog, type LiveCatalog} from './tool-group.js'
 
 const ModelSchema = z.record(z.string(), z.unknown())
+
+const TabModelSchema = z.object({tab: SessionId.optional()}).loose()
+
+const ModelsSchema = z.record(z.string(), TabModelSchema)
 
 type Parsed = ReturnType<typeof parse<typeof main>>
 
@@ -25,7 +30,8 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
     const run = handlerOf(result.definition)
     if (run === null) throw new Error(`the route ${result.route} has no handler`)
     const model = ModelSchema.parse(result.model)
-    return await writeOutcome(Promise.resolve().then(() => run(model)))
+    const tab = Object.values(ModelsSchema.parse(result.models)).find((routeModel) => routeModel.tab !== undefined)?.tab
+    return await writeOutcome(Promise.resolve().then(() => run(model, {tab: tab ?? null})))
   } catch (error) {
     return writeFailure(failureOf(error))
   }
@@ -33,7 +39,7 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
 
 async function settle(parsed: Parsed, offline: string[]): Promise<Settled> {
   if (!('resume' in parsed)) return {result: parsed, offline}
-  const catalog: LiveCatalog = await liveCatalog()
+  const catalog: LiveCatalog = await liveCatalog({tab: TabModelSchema.parse(parsed.model).tab ?? null})
   const noun = parsed.route.split('/').at(-1) ?? parsed.route
   return settle(parsed.resume(catalog), catalog === null ? [...offline, noun] : offline)
 }

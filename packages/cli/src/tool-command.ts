@@ -7,6 +7,8 @@ import type {ToolMeta} from '@conciv/extension/tool'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {handler} from './router/handler.js'
+import type {CliTarget} from './request.js'
+import {tabFlag} from './tab-flag.js'
 
 export type ToolDeclaration = {
   name: string
@@ -19,7 +21,7 @@ export type WireToolSignature = {name: string; summary: string; positional?: str
 type ToolCommandOptions = {
   name: string
   positional?: string
-  run: (input: Record<string, unknown>) => Promise<CliOutcome>
+  run: (input: Record<string, unknown>, target: CliTarget) => Promise<CliOutcome>
 }
 
 const DeclaredField = z.object({
@@ -54,7 +56,7 @@ export function toolCommand(tool: ToolDeclaration, options: ToolCommandOptions) 
     fields,
     options: {
       ...options,
-      run: (input) => options.run(validInput(tool, input)),
+      run: (input, target) => options.run(validInput(tool, input), target),
     },
   })
 }
@@ -68,12 +70,14 @@ function verbCommand(input: {summary: string; fields: ToolField[]; options: Tool
   const {summary, fields, options} = input
   const positional = fields.some((field) => field.name === options.positional) ? options.positional : undefined
   const envelope: Element[] = fields.some((field) => field.name === 'json') ? [] : [envelopeFlag]
+  const tab: Element[] = fields.some((field) => field.name === 'tab') ? [] : [tabFlag]
   return command(
     name(options.name),
     description(summary),
     ...fields.map((field) => fieldElement(field, positional)),
     ...envelope,
-    handler((model) => options.run(suppliedInput(fields, model))),
+    ...tab,
+    handler((model, target) => options.run(suppliedInput(fields, model), target)),
   )
 }
 
