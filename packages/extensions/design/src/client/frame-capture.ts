@@ -1,7 +1,7 @@
 import {snapdom} from '@zumer/snapdom'
 import {z} from 'zod'
 import {CONCIV_UI_SELECTOR, toolError} from '@conciv/extension'
-import {capturePlugins} from '@conciv/extension-page/body-margins'
+import {capturePlugins} from '@conciv/extension-page/capture-plugins'
 import {DESIGN_ERRORS} from '../shared/defs.js'
 import {CAPTURE_READY, CAPTURE_REQUEST} from '../shared/messages.js'
 import {TOLERANCES} from '../shared/tolerances.js'

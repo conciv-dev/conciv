@@ -2,16 +2,16 @@
 
 ## Overview
 
-package.json routes the `.` export through conditions: `browser` resolves to dist/client.js and `import` resolves to dist/server.js. It also exports `./client`, `./server`, `./defs` and `./body-margins`. The build runs in three steps: tsdown bundles src/server.ts, src/shared/defs.ts and src/client/body-margins.ts as ESM; vite builds src/client.tsx with solid into dist/client.js; tsc emits declarations only. vitest runs two Chromium browser projects through Playwright: `browser` uses the React JSX runtime and `browser-solid` covers `*.solid.browser.test.tsx`. Children: src/ (sources) and test/ (page.browser.test.tsx, page.solid.browser.test.tsx and fixtures/).
+package.json routes the `.` export through conditions: `browser` resolves to dist/client.js and `import` resolves to dist/server.js. It also exports `./client`, `./server`, `./defs` and `./capture-plugins`. The build runs in three steps: tsdown bundles src/server.ts, src/shared/defs.ts and src/client/capture-plugins.ts as ESM; vite builds src/client.tsx with solid into dist/client.js; tsc emits declarations only. vitest runs three browser projects through Playwright: `browser` (Chromium) uses the React JSX runtime, `browser-solid` (Chromium) covers `*.solid.browser.test.tsx`, and `browser-firefox` runs only the one-line-text capture test from page.browser.test.tsx in Firefox at device pixel ratio 2, where snapdom's line-wrap drift shows. Children: src/ (sources) and test/ (page.browser.test.tsx, page.solid.browser.test.tsx and fixtures/).
 
 ## Interface
 
 - `.` export (`package.json`): `browser` condition gives dist/client.js, `import` condition gives dist/server.js
 - `./defs` export (`package.json`): dist/shared/defs.js
-- `./body-margins` export (`package.json`): dist/client/body-margins.js
+- `./capture-plugins` export (`package.json`): dist/client/capture-plugins.js
 - `build` script (`package.json`): `tsdown && vite build && tsc -p tsconfig.build.json`
 - `test` script (`package.json`): `vitest run` with projects `browser` and `browser-solid` (`vitest.config.ts`)
-- `defineConfig` entry list (`tsdown.config.ts`): src/server.ts, src/shared/defs.ts, src/client/body-margins.ts
+- `defineConfig` entry list (`tsdown.config.ts`): src/server.ts, src/shared/defs.ts, src/client/capture-plugins.ts
 - `build.lib.entry` (`vite.config.ts`): src/client.tsx, output fileName client.js
 - `presetConciv` (`uno.config.ts`): UnoCSS preset that scans src/**/*.{ts,tsx}
 - Subdirectories:

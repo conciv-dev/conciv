@@ -1,6 +1,6 @@
 import {CONCIV_UI_SELECTOR} from '@conciv/extension'
 import type {PageScreenshot} from '../shared/defs.js'
-import {capturePlugins} from './body-margins.js'
+import {capturePlugins} from './capture-plugins.js'
 
 const WEBP_QUALITY = 0.8
 const DATA_URL_COMMA = ','

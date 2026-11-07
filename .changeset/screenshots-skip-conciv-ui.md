@@ -13,3 +13,5 @@ Captures also keep text that sits on one line on one line. In Firefox, snapdom d
 Page tools never act on an element inside conciv's effects layer, the same as the widget, and the grab toast carries its own `data-conciv-toast` marker so it stays out of captures too.
 
 `page_screenshot` takes an optional `exclude` list of CSS selectors for host-page elements to leave out, such as a devtools button. A selector the page cannot read is skipped, the capture still runs, and the result lists it under `warnings`.
+
+The capture plugins moved from the `@conciv/extension-page/body-margins` subpath to `@conciv/extension-page/capture-plugins`; the old subpath is gone.
