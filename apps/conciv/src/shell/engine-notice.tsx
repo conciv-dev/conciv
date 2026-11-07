@@ -5,7 +5,8 @@ import {useRouteContext, useRouter, useSearch} from '@tanstack/solid-router'
 import {engineProbeRefetchInterval, voteEngineProbeSettled} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
-import {lt, valid} from 'semver'
+import lt from 'semver/functions/lt'
+import valid from 'semver/functions/valid'
 import appManifest from '../../package.json' with {type: 'json'}
 import {useApiBase, useAppData, useConnected} from '../app/context.js'
 import {useEngineReachability} from '../app/reachability.js'
@@ -20,8 +21,7 @@ const ENGINE_STALE_MESSAGE =
 const ENGINE_REVOKED_MESSAGE = 'This browser is no longer authorized to use conciv.'
 const ENGINE_LOGGED_OUT_MESSAGE = 'Log in to use conciv on this page.'
 
-const ENGINE_OUTDATED_MESSAGE =
-  'The conciv engine is older than this widget. Update it with npm install -D @conciv/it, then restart the dev server.'
+const ENGINE_OUTDATED_MESSAGE = `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version} and restart the dev server.`
 
 const ENGINE_UNREACHABLE_KEY = 'engine-unreachable'
 const ENGINE_UNREACHABLE_MESSAGE = 'conciv lost connection to the engine.'

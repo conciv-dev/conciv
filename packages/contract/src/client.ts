@@ -28,14 +28,9 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
   const link = new RPCLink<RpcClientContext>({
     url: `${apiBase}/rpc`,
     fetch: abortableFetch,
-    headers: {...options.headers, ...versionHeader()},
+    headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
   })
   return createORPCClient(link)
-}
-
-function versionHeader(): Record<string, string> {
-  if (typeof location !== 'undefined') return {}
-  return {[CONCIV_VERSION_HEADER]: contractManifest.version}
 }
 
 export type BrowserRpcClientOptions = {session?: SessionAccessor}

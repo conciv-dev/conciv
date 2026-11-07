@@ -2,7 +2,8 @@ import '../src/styles.css'
 import {expect, test, vi, it, afterEach, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
@@ -1174,13 +1175,13 @@ describe('engine version', () => {
 
   test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
     await coreControl.installFault({kind: 'pre-version-engine'})
-    const sessionId = await createSession(coreRpc(core()))
+    const sessionId = await createSession(makeBrowserRpcClient(core()).rpc)
     keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
 
     await expect
       .element(page.getByRole('alert'))
       .toHaveTextContent(
-        'The conciv engine is older than this widget. Update it with npm install -D @conciv/it, then restart the dev server.',
+        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version} and restart the dev server.`,
       )
   })
 })
