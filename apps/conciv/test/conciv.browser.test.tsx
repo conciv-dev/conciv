@@ -1,5 +1,5 @@
 import '../src/styles.css'
-import {expect, test, vi, it, afterEach, describe} from 'vitest'
+import {expect, test, vi, it, afterEach, describe, onTestFinished} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -653,6 +653,52 @@ describe('chat pane', () => {
       await expect.element(loadError()).not.toBeInTheDocument()
       await turn.awaitTurnEnd()
       turn.close()
+    })
+
+    test('a run pushed to a chat whose load failed leaves the failed load in place, so Retry reopens instead of resending', async () => {
+      const pushed: {joinsRun: (runId: string) => Promise<boolean>} = {joinsRun: () => Promise.resolve(false)}
+      const loaded: ChatSessionHydration = {
+        messages: [
+          {id: 'asked', role: 'user', parts: [{type: 'text', content: 'a prompt sent before the pane opened'}]},
+        ],
+        messageHarness: {},
+        lastRun: null,
+        pendingApprovals: [],
+      }
+      const connection: ChatSessionConnection = {
+        subscribe: async function* (signal) {
+          await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
+          yield* []
+        },
+        send: () => Promise.resolve(),
+        hydrate: () => Promise.reject(new Error('Internal Server Error')),
+        refresh: () => Promise.resolve(loaded),
+        close: () => undefined,
+      }
+      const session = createRoot((dispose) => {
+        onTestFinished(dispose)
+        return createChatSession({
+          sessionId: 'failed-load',
+          connect: (callbacks) => {
+            pushed.joinsRun = callbacks.joinsRun
+            return connection
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const load = () => page.getByRole('status', {name: 'Conversation load'})
+      render(() => (
+        <output aria-label="Conversation load">
+          {session.loadFailed() ? 'failed' : 'loaded'} with {session.messages().length} messages
+        </output>
+      ))
+
+      await expect.element(load()).toHaveTextContent('failed with 0 messages')
+
+      await pushed.joinsRun('a-run-already-in-flight')
+
+      await expect.element(load()).toHaveTextContent('failed with 0 messages')
     })
   })
 })

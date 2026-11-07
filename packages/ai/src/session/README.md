@@ -19,7 +19,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 - `session.ts:harnessAt` - the harness that produced the message at that index of the last hydration (`messageHarness`), aligned by index because `refresh` keeps rendered ids; `undefined` past the hydrated messages.
 - `session.ts:loadFailed` - the history load failed when the chat holds no messages but an error; the loading state itself is `useChat`'s `isHydrating`, which goes false on success or failure.
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
-- `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`).
+- `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`), nor any run while the chat's history load has failed: that chat is reopened, never patched, so its load error and Retry stay.
 - `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.
 - `session.ts:interruptAndFlush` - a newer stop request cancels the flush; all-text queues are joined with a newline into one message.
 - `session.ts:decide` - sends a follow-up message (`Approved: ...`, `Approved for this session: ...` or `Denied: ...`) only when the server returns `startsTurn` and the ask was pending.

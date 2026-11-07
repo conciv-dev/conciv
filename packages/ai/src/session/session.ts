@@ -157,11 +157,11 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     const hydration = await connection.refresh()
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
   }
-  const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
+  const declinesRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId || loadFailed()
   const joinedRun = async (runId: string): Promise<boolean> => {
-    if (ownsRun(runId)) return false
+    if (declinesRun(runId)) return false
     const hydration = await connection.refresh()
-    if (ownsRun(runId)) return false
+    if (declinesRun(runId)) return false
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
     return true
   }
