@@ -80,6 +80,7 @@ export type ThreadVirtualizer = {
   totalSize: Accessor<number>
   measured: Accessor<boolean>
   atEnd: Accessor<boolean>
+  nearStart: Accessor<boolean>
   landOnEnd: () => void
   measureRow: (element: Element) => void
   remeasure: () => void
@@ -139,7 +140,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const rememberAnchor = (element: HTMLElement): void => {
     restingAnchor =
-      landedOffset === undefined && !atEnd()
+      landedOffset === undefined && !edges.atEnd
         ? {mode: 'preserve-reader-anchor', offset: element.scrollTop}
         : {mode: 'resume-following'}
   }
@@ -226,7 +227,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const [items, setItems] = createStore(instance.getVirtualItems())
   const [totalSize, setTotalSize] = createSignal(instance.getTotalSize())
   const [measured, setMeasured] = createSignal(false)
-  const [atEnd, setAtEnd] = createSignal(true)
+  const [edges, setEdges] = createStore({atEnd: true, nearStart: false})
 
   const liveAtEnd = (): boolean => {
     const element = config.scrollElement()
@@ -238,8 +239,13 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     return liveAtEnd() || (element !== undefined && stillOnTheLanding(element))
   }
 
+  const liveNearStart = (): boolean => {
+    const element = config.scrollElement()
+    return element?.isConnected === true && element.scrollTop <= element.clientHeight
+  }
+
   const syncAtEnd = () => {
-    setAtEnd(followingReader())
+    setEdges({atEnd: followingReader(), nearStart: liveNearStart()})
   }
 
   const sync = () => {
@@ -270,7 +276,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createEffect(() => {
     const element = config.scrollElement()
-    createResizeObserver(element, update)
+    createResizeObserver(element, syncAtEnd)
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
@@ -340,7 +346,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     items,
     totalSize,
     measured,
-    atEnd,
+    atEnd: () => edges.atEnd,
+    nearStart: () => edges.nearStart,
     landOnEnd: returnToEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {

@@ -8,7 +8,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 - `db.ts:openDb(stateRoot)` - returns `ConcivDb` (`db.ts:ConcivDb = ReturnType<typeof drizzle>`).
 - `schema.ts` tables: `sessions` (`sessions`), `drafts` (`drafts`), `navigation` (`navigation`), `toolCaptures` (`tool_captures`), `cssBundles` (`css_bundles`), `markers` (`markers`), `pageChanges` (`page_changes`).
-- `run-schema.ts` tables: `runs` (`runs`), `runMessages` (`run_messages`), `sessionHistory` (`image_history`); `RUN_PHASES`; re-exports `chatMetadata`, `chatRuns`, `chatThreads` from `@conciv/ai/server`.
+- `run-schema.ts` tables: `runs` (`runs`), `runMessages` (`run_messages`), `sessionHistory` (`image_history`); `RUN_PHASES`; re-exports `chatMessages`, `chatMetadata`, `chatRuns` from `@conciv/ai/server`.
 - `capture-queries.ts:writeToolCapture`, `capture-queries.ts:sessionCaptures`, `capture-queries.ts:deleteSessionCaptures`.
 - `page-change-queries.ts:appendPageChange`, `page-change-queries.ts:pageChangesFor`, `page-change-queries.ts:clearPageChanges`, type `PageChangeEntry`.
 - `run-queries.ts:modelOf`, `run-queries.ts:runMessagesFor`.
@@ -25,6 +25,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `db.ts:openDb` runs, in order: `migrateSync(migrations)`, `importLegacyRuns`, `importLegacyThreads`, `markRunningRunsDetached`, all with one `Date.now()`.
 - `chat-thread-import.ts:importLegacyThreads` runs once: it returns early when `chatMetadata` holds key `chatThreads.importedAt` in namespace `conciv.migration`, and writes that key in the same transaction as the import.
 - `run-migrations.ts:importLegacyRuns` maps legacy `runs.phase` to `chatRuns.status` via `STATUS_BY_PHASE` (`stopping` becomes `running` with `cancelRequested: true`) and inserts with `onConflictDoNothing` on `runId`; each run takes its session's `harnessKind` as `harness_id`, `claude` when the session is gone.
+- `chat_messages` (migration `20261107095617_chat_messages`) is filled from every `chat_threads.messages_json` array with `json_each`, one row per message at its array index; `20261107095629_drop_chat_threads` then drops `chat_threads`. The import marker key keeps its old name `chatThreads.importedAt` so a migrated database is not imported twice.
 - `chat_runs.harness_id` (migration `20261105092249_chat_run_harness`) is not null; the migration backfills it from the run's session `harness_kind`, `claude` for a run without a session.
 - `capture-queries.ts:writeToolCapture` dedupes CSS by `cssBundles.hash` (`onConflictDoNothing`) and upserts a capture on the composite key; `deleteSessionCaptures` deletes CSS bundles no remaining capture references.
 - `page-change-queries.ts:pageChangesFor` orders by the autoincrement `page_changes.id`, exposed as `seq`; `appendPageChange` throws when the insert returns no row.
@@ -32,7 +33,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 ## Side Effects
 
 - `db.ts:openDb` creates `<stateRoot>/.conciv` with `mkdirSync`, opens `conciv.db` under `concivStateDir(stateRoot)` with `DatabaseSync` (5000 ms busy timeout), and sets `PRAGMA journal_mode = WAL`.
-- `db.ts:openDb` applies schema migrations and writes legacy rows into `chatRuns`, `chatThreads` and `chatMetadata`, and sets `detachedSince` on `chatRuns` rows still `running`.
+- `db.ts:openDb` applies schema migrations and writes legacy rows into `chatRuns`, `chatMessages` and `chatMetadata`, and sets `detachedSince` on `chatRuns` rows still `running`.
 - Query helpers in `capture-queries.ts`, `page-change-queries.ts` write and delete rows in `tool_captures`, `css_bundles` and `page_changes`.
 
 ## Verification

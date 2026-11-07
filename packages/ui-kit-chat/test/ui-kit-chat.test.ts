@@ -240,5 +240,12 @@ describe('grouping diff', () => {
       const next = [...conversation(), assistant('a4', [text('appended')])]
       expect(diffTurns(previousTurns, previousMessages, next)).toEqual(coalesceTurns(next))
     })
+
+    it('gives a prepended page that repeats the same replies its own turn keys', () => {
+      const previousMessages = [user('u3', 'later'), assistant('a3', [text('same reply')])]
+      const previousTurns = diffTurns([], [], previousMessages)
+      const next = [user('u1', 'earlier'), assistant('a1', [text('same reply')]), ...previousMessages]
+      expect(diffTurns(previousTurns, previousMessages, next).map((turn) => turn.key)).toEqual(['u1', 'a1', 'u3', 'a3'])
+    })
   })
 })

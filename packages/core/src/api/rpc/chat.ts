@@ -5,7 +5,9 @@ export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
     events: os.chat.events.handler(({input, signal}) =>
       deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),
     ),
-    hydrate: os.chat.hydrate.handler(({input}) => deps.runtime.forSession(input.sessionId).history.hydrate()),
+    hydrate: os.chat.hydrate.handler(({input}) =>
+      deps.runtime.forSession(input.sessionId).history.hydrate({limit: input.limit, before: input.before}),
+    ),
     stop: os.chat.stop.handler(({input}) => deps.runtime.forSession(input.sessionId).run.stop(input.runIds)),
     permissionDecision: sessionOs.chat.permissionDecision.handler(async ({input, context, errors}) => {
       const decision = await deps.chat.plane.decide(context.session.id, input.approvalId, input.approved, input.scope)
