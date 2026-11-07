@@ -1,4 +1,4 @@
-# conciv MCP hub: every Claude Code session finds and drives any open conciv tab
+# conciv MCP hub: any agent session finds and drives any open conciv tab
 
 Status: spec for implementation, revised 2026-11-07 against `main`. Base: stacked on PR #739
 (`feat/ai-mcp-server`, `/api/mcp` on `createMCPServer`); branch `feat/mcp-hub`. The first version (2026-11-03)
@@ -8,7 +8,8 @@ Devframe dependency on `main`, so discovery, the tab list and the install check 
 
 ## Goal
 
-Once the conciv MCP server is installed, the user says to any Claude Code session, in any directory, something like
+Once the conciv MCP server is installed, the user says to any session of a supported harness (Claude Code, Codex,
+opencode, Gemini CLI), in any directory, something like
 "find the conciv session in my tanstack project" or "use the conciv tab on the settings page". Claude finds the tab
 and drives it with the full conciv tool set. If several tabs match, Claude asks which one. Nothing is pasted.
 
@@ -27,22 +28,25 @@ From 2026-11-03, still standing:
   browser (`makeConnectionTrust`, `packages/core/src/app.ts`). The hub never has a tokenless path.
 - Matching the user's words to a tab is Claude's job. The hub returns a small descriptive listing; no search logic.
 - A tab is identified by its conciv session id. Several browser tabs on one session are one "tab" here.
-- The widget's terminal launch menu ("Open in <harness>" / "Copy command") is replaced by a "Connect Claude Code"
-  install button.
+- The widget's terminal launch menu ("Open in <harness>" / "Copy command") is replaced by a "Connect agents"
+  install menu.
 
 New, 2026-11-07 (Omri):
 
 - Engine discovery is a SQLite table in a home-level conciv db, not JSON files and not Devframe. `@conciv/db`
   already runs on `node:sqlite` with drizzle and migrations; no new dependency.
 - The work stacks on #739 and its PR targets `feat/ai-mcp-server` until #739 merges.
+- Every harness we support that can load an MCP server gets the hub: Claude Code, Codex, opencode, Gemini CLI.
+  pi has no MCP support (extensions only) and is out of v1.
 - New tests go in as `describe` blocks in the existing files; each one is paid for by deleting the same number of
   duplicate or useless lines in that file, so no file grows.
 
 ## User flow
 
-1. Install once: while `~/.claude.json` has no top-level `mcpServers.conciv`, the composer shows a "Connect Claude
-   Code" button where the launch menu was. Clicking copies `claude mcp add -s user conciv -- npx -y @conciv/cli mcp`
-   and posts a notice. After install the button disappears.
+1. Install once per harness: while any harness installed on the machine lacks the `conciv` MCP server, the composer
+   shows a "Connect agents" menu where the launch menu was, with one item per such harness. Picking one copies that
+   harness's install line and posts a notice. The item disappears once that harness has it; the menu disappears
+   when none are left.
 2. In any session the user describes the tab. Claude calls `list_tabs`, matches the words against the descriptors:
    - exactly one match: uses it and says which (project, branch, URL);
    - several: asks which, naming the field that differs; never guesses;
@@ -53,7 +57,7 @@ New, 2026-11-07 (Omri):
 ## Architecture
 
 ```
-Claude Code (any cwd) ──stdio──> conciv mcp (hub, @conciv/cli)
+agent CLI (any cwd) ──stdio──>   conciv mcp (hub, @conciv/cli)
                                    │ 1. SELECT * FROM engines   (~/.conciv/conciv.db, dir 0700)
                                    │    prune rows whose pid is dead
                                    ▼
@@ -168,14 +172,30 @@ Server instructions (also in the `list_tabs` description):
   `packages/harness/src/{claude,codex,opencode}/index.ts`; and whatever becomes dead after. Run
   `pnpm exec fallow dead-code --trace '<file>:<symbol>'` before each deletion. `claudeConnectArgs` stays: it is
   also used by `packages/harness/src/claude/tty.ts`.
-- Install check: a `hubInstalled: boolean` field on the same meta query the composer already reads for
-  `canLaunch` (it replaces that field, so no new procedure). Server side reads `~/.claude.json`
-  (`CLAUDE_CONFIG_DIR` honoured), zod-parses top-level `mcpServers` with `.catch`, true when `conciv` exists.
-  Missing or unreadable file = false.
-- In the launch menu's composer slot: a `TooltipIconButton` "Connect Claude Code", shown only while `hubInstalled`
-  is false. Click copies the install line and notifies via `useNotices()`: "Copied. Run it in a terminal once; then
-  ask any Claude Code session for your conciv tab."
-- Claude only. Codex / opencode install lines are a follow-up.
+- Per-harness install data lives with each harness's existing init contribution in `@conciv/harness-init`
+  (`packages/harness-init/src/registry.ts`, `HarnessInitContribution` in `@conciv/protocol/harness-types`), which
+  already carries `detection: {bin, configDir}`. Add an optional `hub` field: `{install: string[], check: string[]}`,
+  both argv arrays run through the harness's own CLI, so conciv parses no TOML or JSONC config of any CLI. Starting
+  values, each verified against the real CLI's `--help` and a real install before it ships:
+
+  | harness | `install` | `check` (installed = exit 0 and `conciv` listed) |
+  | --- | --- | --- |
+  | claude | `claude mcp add -s user conciv -- npx -y @conciv/cli mcp` | `claude mcp get conciv` |
+  | codex | `codex mcp add conciv -- npx -y @conciv/cli mcp` | `codex mcp get conciv` |
+  | gemini-cli | `gemini mcp add -s user conciv npx -y @conciv/cli mcp` | `gemini mcp list` |
+  | opencode | to be found: `opencode mcp add` takes `--url` for remote servers but its local-command form may be interactive; if no non-interactive form exists, stop and ask Omri | `opencode mcp list` |
+
+  pi gets no `hub` field.
+- Install check: a `hubInstalls: Array<{harnessId, name, install: string}>` field on the same meta query the
+  composer already reads for `canLaunch` (it replaces that field, so no new procedure). It lists harnesses whose
+  `bin` is on PATH, that have a `hub` field, and whose `check` says not installed. Checks run in parallel with a 3s
+  timeout each; a timeout or spawn failure counts as not installed. Results are cached for the engine's life and
+  refreshed when the composer refetches meta.
+- In the launch menu's composer slot: a `TooltipIconButton` "Connect agents" opening a `Menu`, shown only while
+  `hubInstalls` is non-empty, with one item per entry ("Connect <name>"). Picking one copies its install line and
+  notifies via `useNotices()`: "Copied. Run it in a terminal once; then ask any <name> session for your conciv tab."
+- The CLIs read the server's instructions differently; the `list_tabs` description repeats them so every harness
+  sees them.
 
 ## Out of scope / follow-ups
 
@@ -184,7 +204,7 @@ Server instructions (also in the `list_tabs` description):
 - Removing the project-scoped `conciv-connect` plugin and its stdio bridge
   (`packages/harness-init/src/claude/bridge.ts`); `conciv init` would register the hub at user scope instead.
   Needs Omri's yes.
-- Codex / opencode install lines.
+- pi: needs a pi extension (pi has no MCP support).
 
 ## Tests (existing files only, new `describe` blocks; no mocks)
 
@@ -198,17 +218,18 @@ duplicate or useless tests in the same file, listed in the PR body with the reas
   - `/api/tabs` with the token returns project name and branch, and a joined page with href, title and state;
     `includeClosed` adds a session with no tab;
   - an `/api/mcp` call with `conciv-origin: hub` publishes chunks carrying the outside-call marker;
-  - `hubInstalled` is false, then true, against a temp `CLAUDE_CONFIG_DIR`.
+  - `hubInstalls` lists claude, then drops it after a real `claude mcp add` against a temp `CLAUDE_CONFIG_DIR`
+    (the only harness CLI guaranteed on CI; the others are covered by the live acceptance run).
 - `packages/cli/test/cli.test.ts`, `describe('conciv mcp hub')`: spawn the hub over stdio with a temp home and a real
   engine with a joined page: `list_tabs` returns the tab with descriptors; `execute_typescript` on it runs; after
   restarting the engine on another port the same tab id resolves; an unknown tab returns the `list_tabs` error; a
   row whose pid is dead is pruned; an engine whose `apiBase` token is wrong lands in `unreachable`.
 - `packages/extensions/page` existing browser test file: `route` returns `title` and `state`.
-- `apps/conciv/test/conciv.browser.test.tsx`: the button shows with a temp config lacking `conciv`, a real pointer
-  click copies the install line, and the button is absent once `mcpServers.conciv` exists. The launch-menu tests
+- `apps/conciv/test/conciv.browser.test.tsx`: the menu shows with a temp config lacking `conciv`, a real pointer
+  click on the Claude item copies its install line, and the menu is absent once the hub is installed. The launch-menu tests
   are deleted with the feature.
 
-Tests never touch the real `~/.conciv`, `~/.claude.json` or the user's home db: the home directory is a temp dir
+Tests never touch the real `~/.conciv`, any harness's real config or the user's home db: the home directory is a temp dir
 passed through the same option or env the code reads.
 
 ## Changeset
@@ -217,11 +238,12 @@ One patch changeset naming `@conciv/cli` (the fixed group bumps every `@conciv/*
 
 ## Acceptance (Fable runs these live before calling it done)
 
-1. Run the copied install line. Start the tanstack-start example and `apps/conciv`, one tab each. In a Claude
-   session in `~`: "find the conciv session in my tanstack project" picks the tanstack tab and says so.
+1. Run the copied install line for each of Claude, Codex, opencode and Gemini CLI (install Gemini CLI first; it is
+   not on this machine). Start the tanstack-start example and `apps/conciv`, one tab each. In a session of each
+   harness in `~`: "find the conciv session in my tanstack project" picks the tanstack tab and says so.
 2. Two tabs of one project on different pages: the same request makes Claude ask which, naming the URLs.
 3. Restart that dev server: the next call on the chosen tab still works.
 4. Kill a dev server with `kill -9`: it disappears from `list_tabs` (pid pruned).
 5. A call from the outside session shows in that tab's widget transcript with the outside-call marker.
-6. Remove `mcpServers.conciv` from `~/.claude.json`: the button comes back.
+6. `claude mcp remove -s user conciv`: the Claude item comes back in the menu.
 7. `ls -ld ~/.conciv` shows `drwx------`.
