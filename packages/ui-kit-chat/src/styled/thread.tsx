@@ -15,6 +15,7 @@ import {
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
+import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
 import {useChatContext, useThread} from '../store/chat-context.js'
@@ -472,7 +473,9 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
       }}
     >
       <TurnEstimateProvider value={estimator}>
-        <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+        <TruncatedTextGroup>
+          <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+        </TruncatedTextGroup>
       </TurnEstimateProvider>
     </ThreadConfigContext.Provider>
   )

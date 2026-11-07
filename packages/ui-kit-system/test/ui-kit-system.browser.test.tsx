@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
-import {createSignal, For, createRoot} from 'solid-js'
+import {createSignal, For, createRoot, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -16,7 +16,7 @@ import {contrastRatio, type SkinSchemeAnchorName} from './wcag.js'
 import {TextArea} from '../src/text-field.js'
 import {Menu} from '../src/menu.js'
 import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
-import {TruncatedText} from '../src/truncated-text.js'
+import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {VirtualJsonTree} from '../src/virtual-json-tree.js'
 
@@ -904,7 +904,13 @@ describe('tooltip icon button', () => {
   })
 })
 
-describe('truncated text', () => {
+describe.each([
+  {mode: 'own tooltip', Wrap: (props: {children: JSX.Element}) => <>{props.children}</>},
+  {
+    mode: 'shared group tooltip',
+    Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
+  },
+])('truncated text with $mode', ({Wrap}) => {
   const LONG = 'I accept the terms and conditions. Required. Validation runs on submit and again on blur.'
   const SHORT = 'Submit'
 
@@ -913,14 +919,16 @@ describe('truncated text', () => {
 
   function mount(): Element {
     const {container, unmount} = render(() => (
-      <ul class="m-0 p-0 list-none flex flex-row gap-2">
-        <li class={ROW} aria-label="clipped row">
-          <TruncatedText class={TEXT} text={LONG} />
-        </li>
-        <li class={ROW} aria-label="fitting row">
-          <TruncatedText class={TEXT} text={SHORT} />
-        </li>
-      </ul>
+      <Wrap>
+        <ul class="m-0 p-0 list-none flex flex-row gap-2">
+          <li class={ROW} aria-label="clipped row">
+            <TruncatedText class={TEXT} text={LONG} />
+          </li>
+          <li class={ROW} aria-label="fitting row">
+            <TruncatedText class={TEXT} text={SHORT} />
+          </li>
+        </ul>
+      </Wrap>
     ))
     onTestFinished(unmount)
     return container
