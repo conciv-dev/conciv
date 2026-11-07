@@ -1888,7 +1888,7 @@ describe('rpc wire', () => {
         await chatKit().rpc.drafts.set({sessionId, text: 'a saved draft', selectionStart: 0, selectionEnd: 0})
         const ended = nextTurnEnd(sessionId)
         const events = await finished(sessionId, 'hello', {runId: 'client-run', messageId: 'client-user'})
-        await ended
+        await ended()
         expect(events.text()).toBe('ok')
         expect(eventRunIdsOf(events, ChatEventType.RUN_STARTED)).toEqual(['client-run'])
         expect(eventRunIdsOf(events, ChatEventType.RUN_FINISHED)).toEqual(['client-run'])
@@ -1980,7 +1980,7 @@ describe('rpc wire', () => {
         script().scriptError('the adapter exploded')
         const ended = nextTurnEnd(sessionId)
         const {result: events, lines} = await capturingConsole(() => finished(sessionId, 'boom'))
-        await ended
+        await ended()
         expect(events.errors().join(' ')).toContain('the adapter exploded')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
           phase: 'failed',
@@ -2021,7 +2021,7 @@ describe('rpc wire', () => {
         const ended = nextTurnEnd(sessionId)
         await chatKit().rpc.chat.stop({sessionId, runIds: ['stopped-run']})
         expect(['stopping', 'aborted']).toContain((await chatKit().hydrate(sessionId)).lastRun?.phase)
-        await ended
+        await ended()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
           phase: 'aborted',
           finishedAt: expect.any(Number),
@@ -2043,7 +2043,7 @@ describe('rpc wire', () => {
           lastRun: {runId: 'scoped-next', phase: 'running'},
         })
         await chatKit().rpc.chat.stop({sessionId, runIds: ['scoped-next']})
-        await ended
+        await ended()
         script().release()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({runId: 'scoped-next', phase: 'aborted'})
       })
@@ -2056,7 +2056,7 @@ describe('rpc wire', () => {
         await leaveAfterFirstText(sessionId, 'detached-run')
         const rejoin = chatKit().join('detached-run')
         script().release()
-        await ended
+        await ended()
         expect((await rejoin.done(GUARD)).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({phase: 'completed'})
         expect(await assistantTexts(sessionId)).toEqual(['ok'])
@@ -2068,7 +2068,7 @@ describe('rpc wire', () => {
         await heldTurn(sessionId, 'delete me', 'deleted-run')
         const ended = nextTurnEnd(sessionId)
         await chatKit().rpc.sessions.delete({sessionId})
-        await ended
+        await ended()
         expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
         expect((await chatKit().rpc.sessions.list(undefined)).sessions.some((meta) => meta.id === sessionId)).toBe(
           false,
@@ -2142,7 +2142,7 @@ describe('rpc wire', () => {
         expect((await chatKit().hydrate(sessionId)).activeRun).toEqual({runId: 'reloaded-run'})
         const rejoin = chatKit().join('reloaded-run')
         script().release()
-        await ended
+        await ended()
         expect((await rejoin.done(GUARD)).text()).toBe('ok')
         expect(await chatKit().hydrate(sessionId)).toMatchObject({
           activeRun: null,
@@ -2448,7 +2448,7 @@ describe('rpc wire', () => {
         const turn = await send(sessionId, 'silence', {runId: 'silent-run'})
         await turn.waitForRunStart({runId: 'silent-run'})
         const error = turn.waitFor((chunk) => chunk.type === ChatEventType.RUN_ERROR, {hangGuardMs: SILENCE_MS * 2})
-        await ended
+        await ended()
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({
           runId: 'silent-run',
           phase: 'failed',
@@ -2977,7 +2977,7 @@ return seen`
         expect(performance.now() - asked).toBeLessThan(1_000)
         const ended = nextTurnEnd(sessionId)
         await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
-        await ended
+        await ended()
       })
 
       it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
@@ -3335,17 +3335,23 @@ return seen`
     ready.forEach((waiter) => waiter.settle())
   }
 
-  function nextTurnEnd(sessionId: string): Promise<void> {
-    return new Promise((settle, fail) => {
-      const guard = setTimeout(() => fail(new Error(`the run-end hook did not fire for ${sessionId} within 3s`)), 3_000)
-      turnEndWaiters.push({
-        sessionId,
-        settle: () => {
-          clearTimeout(guard)
-          settle()
-        },
-      })
-    })
+  function nextTurnEnd(sessionId: string): () => Promise<void> {
+    const fired = Promise.withResolvers<void>()
+    turnEndWaiters.push({sessionId, settle: fired.resolve})
+    return () => firedWithin(fired.promise, sessionId)
+  }
+
+  async function firedWithin(fired: Promise<void>, sessionId: string): Promise<void> {
+    const stall = Promise.withResolvers<never>()
+    const guard = setTimeout(
+      () => stall.reject(new Error(`the run-end hook did not fire for ${sessionId} within 3s`)),
+      3_000,
+    )
+    try {
+      await Promise.race([fired, stall.promise])
+    } finally {
+      clearTimeout(guard)
+    }
   }
 
   function recordingHarness(base: TestHarness): TestHarness {
