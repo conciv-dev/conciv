@@ -13,7 +13,7 @@ import {
   type TurnHooks,
 } from '../src/server.js'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it, vi} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
@@ -364,13 +364,18 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const launched: string[] = []
     const inSetup = Promise.withResolvers<void>()
     const setupHeld = Promise.withResolvers<void>()
+    const streamed = Promise.withResolvers<void>()
+    const stopped = Promise.withResolvers<void>()
     const hooks: TurnHooks = {
       plan: (turn) => ({
         adapter: makeTextAdapter('abortable', async function* (options) {
           launched.push(turn.runId)
           yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
           yield* createTextChunks('partial')
-          await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
+          streamed.resolve()
+          await stopped.promise
+          const signal = options.request?.signal
+          if (!signal?.aborted) await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
         }),
         systemPrompts: [],
         codeMode: [],
@@ -401,8 +406,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const streaming = server.drive({threadId: 'thread', runId: 'streaming', kind: 'chat'}, [
       {role: 'user', content: 'b'},
     ])
-    await vi.waitUntil(() => launched.includes('streaming'))
+    await streamed.promise
     await server.stop('thread', ['streaming'])
+    stopped.resolve()
     await streaming
     expect({
       announced,
