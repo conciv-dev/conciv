@@ -156,7 +156,9 @@ describe('page tools', () => {
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
     <span id="failprobe">probe</span>
-    <select id="sel"><option value="a">A</option><option value="b">B</option></select>
+    <select id="sel"><option value="a">A</option><option value="b">B</option><option value="fs">Full Stack</option></select>
+    <input id="locked" type="checkbox" disabled />
+    <input id="qty" type="number" />
     <button id="hovbtn">hover me</button>
     <div id="htmlhost"><i>old</i></div>
   `
@@ -279,7 +281,7 @@ describe('page tools', () => {
       expect(route.pathname).toBe(location.pathname)
       expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await resultOf('query', {selector: 'input'})
-      expect(query.count).toBe(5)
+      expect(query.count).toBe(7)
     })
 
     it('route reports the document title and visibility', async () => {
@@ -366,6 +368,29 @@ describe('page tools', () => {
       expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
       expect(changes).toEqual(['b'])
       expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
+    })
+
+    it('selects by visible label, and a missing option fails listing the options without changing the select', async () => {
+      expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
+      const missing = {
+        code: 'invalid-args',
+        message: 'no option with value or label "fullstack"; options: a "A", b "B", fs "Full Stack"',
+      }
+      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual(missing)
+      expect(await failureOf('fill', {selector: '#sel', value: 'fullstack'})).toEqual(missing)
+      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'fs'})
+      expect(await resultOf('fill', {selector: '#sel', value: 'A'})).toEqual({ok: true, value: 'a'})
+    })
+
+    it('fails instead of reporting ok when a field or box refuses the change', async () => {
+      expect(await failureOf('fill', {selector: '#qty', value: 'many'})).toEqual({
+        code: 'handler-error',
+        message: 'the field rejected "many" and stayed empty',
+      })
+      expect(await failureOf('check', {selector: '#locked'})).toEqual({
+        code: 'handler-error',
+        message: 'check did not take: the box is still unchecked (disabled or prevented)',
+      })
     })
 
     it('submits the form owning the target without navigating', async () => {

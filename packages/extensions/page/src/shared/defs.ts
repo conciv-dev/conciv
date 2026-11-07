@@ -503,7 +503,7 @@ export const selectDef = pageTool({
   mutating: true,
   mirrors: true,
   keywords: ['option', 'dropdown'],
-  input: z.object({...ElementTarget, value: z.string().describe('the option value to choose')}),
+  input: z.object({...ElementTarget, value: z.string().describe('the option value, or its visible label, to choose')}),
   output: z.object({ok: z.literal(true), value: z.string()}),
 })
 
