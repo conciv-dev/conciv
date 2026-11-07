@@ -1,7 +1,13 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat/tools'
-export type BashOutput = {stdout?: string; stderr?: string; exitCode?: number}
+import {z} from 'zod'
+
+const BashOutputSchema = z
+  .object({stdout: z.string().optional(), stderr: z.string().optional(), exitCode: z.number().optional()})
+  .refine((output) => output.stdout !== undefined || output.stderr !== undefined || output.exitCode !== undefined)
+
+export type BashOutput = z.infer<typeof BashOutputSchema>
 
 function argString(part: ToolCallPart, key: string): string {
   try {
@@ -12,15 +18,20 @@ function argString(part: ToolCallPart, key: string): string {
   }
 }
 
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 export function parseBashOutput(result: ToolResultPart | undefined): BashOutput {
   if (!result) return {}
   const content = result.content
   if (typeof content !== 'string') return {stdout: JSON.stringify(content, null, 2)}
-  try {
-    const parsed = JSON.parse(content)
-    if (parsed && typeof parsed === 'object') return parsed as BashOutput
-  } catch {}
-  return {stdout: content}
+  const parsed = BashOutputSchema.safeParse(parsedJson(content))
+  return parsed.success ? parsed.data : {stdout: content}
 }
 
 function truncate(value: string, max = 80): string {

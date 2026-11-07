@@ -575,6 +575,19 @@ describe('tool row projections', () => {
     await expect.element(page.getByText('1 test failed')).toBeVisible()
   })
 
+  for (const [shape, content] of [
+    ['an object with none of the bash fields', '{"result":"build finished in 4s"}'],
+    ['bash fields of the wrong type', '{"stdout":"build finished in 4s","exitCode":"0"}'],
+  ] as const) {
+    it(`renders a bash result holding ${shape} as plain text instead of dropping it`, async () => {
+      mountView(() => row(call('Bash', {command: 'pnpm build'}), result(content)))
+
+      await expect.element(page.getByText(/build finished in 4s/)).toBeVisible()
+      await expect.element(page.getByRole('img', {name: 'succeeded'})).toBeVisible()
+      await expect.element(page.getByText('no output')).not.toBeInTheDocument()
+    })
+  }
+
   const STOPPED = {
     denied: {label: 'Denied', error: 'User declined tool execution'},
     cancelled: {label: 'Cancelled', error: 'Tool execution cancelled'},
