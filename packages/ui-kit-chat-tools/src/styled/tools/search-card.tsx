@@ -15,6 +15,7 @@ import {
   CodeBlock,
   countLabel,
   DANGER_TEXT_CLASS,
+  ErrorBlock,
   formatDuration,
   QUIET_TEXT_CLASS,
   StatusVisual,
@@ -122,25 +123,32 @@ function Body(): JSX.Element {
       result={search.result()}
       meta={search.meta()}
     >
-      <Show
-        when={search.count() > 0 || search.status() === 'error'}
-        fallback={<p class={emptyClass(search.status())}>{emptyLabel(search.status())}</p>}
-      >
+      <Show when={search.result()?.outcome === undefined} fallback={<StoppedBody />}>
         <Show
-          when={embedded()}
-          fallback={
-            <CodeBlock
-              size="xs"
-              maxHeight="result"
-              file={{name: 'results.txt', lang: 'text', contents: search.text()}}
-            />
-          }
+          when={search.count() > 0 || search.status() === 'error'}
+          fallback={<p class={emptyClass(search.status())}>{emptyLabel(search.status())}</p>}
         >
-          <EmbeddedResults text={search.text()} failed={search.status() === 'error'} />
+          <Show
+            when={embedded()}
+            fallback={
+              <CodeBlock
+                size="xs"
+                maxHeight="result"
+                file={{name: 'results.txt', lang: 'text', contents: search.text()}}
+              />
+            }
+          >
+            <EmbeddedResults text={search.text()} failed={search.status() === 'error'} />
+          </Show>
         </Show>
       </Show>
     </ToolCard>
   )
+}
+
+function StoppedBody(): JSX.Element {
+  const search = useSearch()
+  return <ErrorBlock message={search.result()?.error ?? ''} outcome={search.result()?.outcome} />
 }
 
 export function SearchCard(props: ToolCardProps): JSX.Element {

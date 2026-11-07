@@ -27,6 +27,8 @@ function notifyUnlessOffline(sustainedOffline: boolean, notify: () => void): voi
   notify()
 }
 
+type CompactContext = {resolving: Error | undefined}
+
 type PaneMessagingDeps = {
   rpc: RpcClient
   sessionId: string
@@ -39,7 +41,7 @@ type PaneMessagingDeps = {
 
 export type PaneMessaging = {
   uiReply: CreateMutationResult<unknown, Error, {toolCallId: string; value: UiAnswerValue}, unknown>
-  compact: CreateMutationResult<unknown, Error, void, unknown>
+  compact: CreateMutationResult<unknown, Error, void, CompactContext>
   compacting: () => boolean
   visibleError: () => Error | undefined
   onSend: (content: string | SendContent) => Promise<void>
@@ -58,6 +60,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
 
   const compact = useMutation(() => ({
     mutationFn: () => deps.rpc.sessions.compact({sessionId: deps.sessionId}),
+    onMutate: (): CompactContext => ({resolving: deps.chat.error()}),
     onError: () =>
       notifyUnlessOffline(deps.reachability.sustainedOffline(), () =>
         deps.notices.notify('Compaction failed. The session may be busy. Try again in a moment.'),
@@ -71,6 +74,7 @@ export function usePaneMessaging(deps: PaneMessagingDeps): PaneMessaging {
 
   const visibleError = (): Error | undefined => {
     const error = deps.reachability.sustainedOffline() ? undefined : deps.chat.error()
+    if (compact.isSuccess && compact.context?.resolving === error) return undefined
     return error && error.message !== 'stopped' ? error : undefined
   }
 

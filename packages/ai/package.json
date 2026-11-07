@@ -52,6 +52,7 @@
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-code-mode": "catalog:",
     "@tanstack/ai-isolate-quickjs": "catalog:",
+    "@tanstack/ai-mcp": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "drizzle-orm": "catalog:",

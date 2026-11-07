@@ -10,6 +10,7 @@ import {
   type JSX,
   type ParentProps,
 } from 'solid-js'
+import Ban from 'lucide-solid/icons/ban'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Loader from 'lucide-solid/icons/loader'
@@ -38,6 +39,7 @@ import {
 import {createGrouping, type PageSessionConfig} from '../store/page-session.js'
 import {Dynamic} from 'solid-js/web'
 import {toolStatus, type ToolStatus} from '../tools/primitives/tool-status.js'
+import {OUTCOME_TONE} from '../tools/primitives/tool-presentation.js'
 import {createSettleFold} from '../primitives/util/create-settle-fold.js'
 import {ToolCallCard} from '../tools/styled/tool-call-card.js'
 import {Group} from './group.js'
@@ -108,7 +110,13 @@ function stepGlyph(status: ToolStatus): JSX.Element {
         <Loader size={12} class={SPIN} aria-hidden="true" />
       </Match>
       <Match when={status === 'error'}>
-        <X size={12} class="text-chat-danger shrink-0" aria-hidden="true" />
+        <X size={12} class={`${OUTCOME_TONE.error.text} shrink-0`} aria-hidden="true" />
+      </Match>
+      <Match when={status === 'denied'}>
+        <Ban size={12} class={`${OUTCOME_TONE.denied.text} shrink-0`} aria-hidden="true" />
+      </Match>
+      <Match when={status === 'cancelled'}>
+        <Ban size={12} class={`${OUTCOME_TONE.cancelled.text} shrink-0`} aria-hidden="true" />
       </Match>
       <Match when={status === 'approval'}>
         <ShieldQuestion size={12} class="text-chat-accent shrink-0" aria-hidden="true" />

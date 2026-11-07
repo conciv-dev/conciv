@@ -171,7 +171,7 @@ export function createTurnEstimator(
 ): TurnEstimator {
   let metrics: Metrics | undefined
   const prepared = new Map<string, PreparedTextWithSegments>()
-  const heights = new Map<string, TurnEstimate>()
+  let heights = new WeakMap<Turn, {containerWidth: number; estimate: TurnEstimate}>()
 
   const prepare = (text: string, style: RowStyle): PreparedTextWithSegments => {
     const key = `${style.font} ${text}`
@@ -267,19 +267,18 @@ export function createTurnEstimator(
       if (options?.disabled?.()) return undefined
       const containerWidth = resolveContainerWidth()
       if (containerWidth === undefined) return undefined
-      const cacheKey = `${turn.key} ${turn.role} ${containerWidth} ${turn.parts.length}`
-      const cached = heights.get(cacheKey)
-      if (cached) return cached
+      const cached = heights.get(turn)
+      if (cached?.containerWidth === containerWidth) return cached.estimate
       const estimate = computeEstimate(turn, containerWidth)
       if (!estimate) return undefined
       const resolved = applyExactPolicy(estimate)
-      heights.set(cacheKey, resolved)
+      heights.set(turn, {containerWidth, estimate: resolved})
       return resolved
     },
     reset: () => {
       metrics = undefined
       prepared.clear()
-      heights.clear()
+      heights = new WeakMap()
       clearCache()
     },
   }

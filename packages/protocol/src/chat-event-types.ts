@@ -7,6 +7,8 @@ export type ChatCustomEvent = CustomEvent
 
 export const ChatEventType = EventType
 
+export {CONTEXT_OVERFLOW_CODE} from '@tanstack/ai'
+
 export type ChatEventDefinition<Name extends string, Schema extends z.ZodType> = {
   name: Name
   create: (value: z.input<Schema>) => ChatCustomEvent

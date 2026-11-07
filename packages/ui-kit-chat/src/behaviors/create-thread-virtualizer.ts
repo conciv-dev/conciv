@@ -1,4 +1,13 @@
-import {createComputed, createEffect, createSignal, onCleanup, onMount, type Accessor} from 'solid-js'
+import {
+  createComputed,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+  untrack,
+  type Accessor,
+} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -71,6 +80,7 @@ export type ThreadVirtualizer = {
   totalSize: Accessor<number>
   measured: Accessor<boolean>
   atEnd: Accessor<boolean>
+  nearStart: Accessor<boolean>
   landOnEnd: () => void
   measureRow: (element: Element) => void
   remeasure: () => void
@@ -130,7 +140,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const rememberAnchor = (element: HTMLElement): void => {
     restingAnchor =
-      landedOffset === undefined && !atEnd()
+      landedOffset === undefined && !edges.atEnd
         ? {mode: 'preserve-reader-anchor', offset: element.scrollTop}
         : {mode: 'resume-following'}
   }
@@ -193,8 +203,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       const element = config.scrollElement()
       return element?.isConnected ? element : null
     },
-    estimateSize: (index) => Math.round(config.estimateSizeAt(index)),
-    getItemKey: (index) => config.keyAt(index) ?? index,
+    estimateSize: (index) => untrack(() => Math.round(config.estimateSizeAt(index))),
+    getItemKey: (index) => untrack(() => config.keyAt(index) ?? index),
     gap: config.gap(),
     scrollMargin: config.scrollMargin(),
     overscan: config.overscan(),
@@ -217,7 +227,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   const [items, setItems] = createStore(instance.getVirtualItems())
   const [totalSize, setTotalSize] = createSignal(instance.getTotalSize())
   const [measured, setMeasured] = createSignal(false)
-  const [atEnd, setAtEnd] = createSignal(true)
+  const [edges, setEdges] = createStore({atEnd: true, nearStart: false})
 
   const liveAtEnd = (): boolean => {
     const element = config.scrollElement()
@@ -229,15 +239,22 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     return liveAtEnd() || (element !== undefined && stillOnTheLanding(element))
   }
 
+  const liveNearStart = (): boolean => {
+    const element = config.scrollElement()
+    return element?.isConnected === true && element.scrollTop <= element.clientHeight
+  }
+
   const syncAtEnd = () => {
-    setAtEnd(followingReader())
+    setEdges({atEnd: followingReader(), nearStart: liveNearStart()})
   }
 
   const sync = () => {
     const virtualItems = instance.getVirtualItems()
     setItems(reconcile(virtualItems, {key: 'key'}))
     setTotalSize(instance.getTotalSize())
-    setMeasured(virtualItems.every((item) => instance.itemSizeCache.has(item.key) || config.exactAt(item.index)))
+    setMeasured(
+      virtualItems.every((item) => instance.itemSizeCache.has(item.key) || untrack(() => config.exactAt(item.index))),
+    )
     syncAtEnd()
   }
 
@@ -259,7 +276,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createEffect(() => {
     const element = config.scrollElement()
-    createResizeObserver(element, update)
+    createResizeObserver(element, syncAtEnd)
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
@@ -299,6 +316,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     lastKey: undefined,
   })
 
+  const firstTurnKey = createMemo(() => config.keyAt(0))
+  const lastTurnKey = createMemo(() => config.keyAt(config.count() - 1))
+
   const isSameThread = (element: HTMLElement, firstKey: string | undefined, lastKey: string | undefined): boolean => {
     if (landing.element !== element) return false
     if (firstKey !== undefined && landing.firstKey === firstKey) return true
@@ -311,8 +331,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     totalSize()
     measured()
     if (!element?.isConnected || total === 0) return
-    const firstKey = config.keyAt(0)
-    const lastKey = config.keyAt(total - 1)
+    const firstKey = firstTurnKey()
+    const lastKey = lastTurnKey()
     const sameThread = isSameThread(element, firstKey, lastKey)
     setLanding({element, firstKey, lastKey})
     if (!sameThread) {
@@ -326,7 +346,8 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     items,
     totalSize,
     measured,
-    atEnd,
+    atEnd: () => edges.atEnd,
+    nearStart: () => edges.nearStart,
     landOnEnd: returnToEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {

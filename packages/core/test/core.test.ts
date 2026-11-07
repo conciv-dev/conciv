@@ -18,19 +18,18 @@ import {
 } from '@conciv/chat'
 import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
-import {defineTool, defineExtension} from '@conciv/extension'
+import {defineTool, defineExtension, makeExtRpcClient} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {eq} from 'drizzle-orm'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
-import {serverInstructions} from '../src/api/mcp.js'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig, defineConfig} from '../src/config.js'
 import {symbolicateFrame} from '../src/editor/symbolicate.js'
@@ -49,18 +48,14 @@ import {CODE_LIFETIME_MS, OPEN_PATHS, isOpenPath, makeCodeStore} from '../src/en
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
+import {os} from '@orpc/server'
+import {createORPCClient} from '@orpc/client'
+import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
+import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
+import {CONCIV_VERSION_HEADER, type RpcContext} from '@conciv/protocol/rpc-types'
+import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
+import coreManifest from '../package.json' with {type: 'json'}
 import {chunkWithInlineMap, cleanupChunks, makeChatFixture, type ChatFixture} from './helpers.js'
-
-describe('api mcp instructions', () => {
-  const FRESH = {stale: false, changed: [], tracked: ['@conciv/core'], bootedAt: 0, fingerprint: 'aaaa1111'}
-
-  describe('mcp server instructions', () => {
-    it('says nothing about staleness while the engine matches the code on disk', () => {
-      const text = serverInstructions('page', FRESH)
-      expect(text).not.toMatch(/outdated|restart the dev server/i)
-    })
-  })
-})
 
 describe('api native page document', () => {
   describe('native host document', () => {
@@ -157,6 +152,41 @@ describe('chat plane', () => {
       )
       expect(texts).toEqual(['finished turn', 'partial reply', 'interrupted turn', 'partial reply'])
       cli.release()
+    })
+  })
+
+  describe('native transcript history', () => {
+    const said = (id: string, role: 'user' | 'assistant', content: string): ChatMessage => ({
+      id,
+      role,
+      parts: [{type: 'text', content}],
+    })
+
+    it('an older page is read from the stored thread without reading the native transcript again', async () => {
+      const native: NativeTranscript = {
+        reads: 0,
+        messages: [0, 1, 2].flatMap((turn) => [
+          said(`native-u${turn}`, 'user', `question ${turn}`),
+          said(`native-a${turn}`, 'assistant', `answer ${turn}`),
+        ]),
+      }
+      const chat = await plane({
+        root: stateRoot(),
+        harness: nativeHarness(native),
+        sessions: sessionPort(HarnessSessionId.parse('native-session'), 'native'),
+      })
+      const id = SessionId.parse(sessionId('native-paged'))
+      const newest = await chat.hydrate(id, {limit: 2})
+      const readsForNewest = native.reads
+      const older = await chat.hydrate(id, {
+        limit: 2,
+        before: newest.page?.truncated === true ? newest.page.cursor : '',
+      })
+
+      expect(textsOf(newest.messages)).toEqual(['question 2', 'answer 2'])
+      expect(textsOf(older.messages)).toEqual(['question 1', 'answer 1'])
+      expect(readsForNewest).toBe(1)
+      expect(native.reads).toBe(readsForNewest)
     })
   })
 
@@ -332,9 +362,44 @@ describe('chat plane', () => {
     return defineHarness({...shared, capabilities: {...base, transcriptHistory: false}})
   }
 
-  function sessionPort(): SessionPort {
+  type NativeTranscript = {reads: number; messages: ChatMessage[]}
+
+  function nativeHarness(native: NativeTranscript): HarnessAdapter {
+    return defineHarness({
+      id: 'native',
+      binName: 'true',
+      models: undefined,
+      tty: undefined,
+      chatConfig: () => ({adapter: fakeText()}),
+      history: {
+        messages: async () => {
+          native.reads += 1
+          return native.messages
+        },
+        observe: () => ({
+          revision: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
+          read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
+          close: () => undefined,
+        }),
+        list: async () => [],
+      },
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        compaction: false,
+        systemPrompt: 'file',
+        mcp: 'none',
+        imageInput: false,
+        init: 'none',
+        slashCommands: 'none',
+        transcriptHistory: true,
+      },
+    })
+  }
+
+  function sessionPort(nativeId: HarnessSessionId | null = null, harnessKind = 'fake-cli'): SessionPort {
     return {
-      row: () => ({model: null, effort: null, nativeId: null, cwd: '/workspace', harnessKind: 'fake-cli'}),
+      row: () => ({model: null, effort: null, nativeId, cwd: '/workspace', harnessKind}),
       ensure: async () => undefined,
       recordNativeId: async () => undefined,
       recordUsage: async () => undefined,
@@ -352,6 +417,7 @@ describe('chat plane', () => {
     capabilities?: CodeCapability[]
     systemPrompt?: {systemPromptFile?: string; systemPromptText?: string}
     log?: string[]
+    sessions?: SessionPort
   }
 
   async function plane(options: PlaneOptions): Promise<ChatPlane> {
@@ -363,7 +429,7 @@ describe('chat plane', () => {
       cwd: options.root,
       harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},
-      sessions: sessionPort(),
+      sessions: options.sessions ?? sessionPort(),
       toolNames: new Set(),
       capabilities: () => options.capabilities ?? [],
       attachmentExpanders: {},
@@ -437,6 +503,12 @@ describe('chat plane', () => {
 
   function partTypes(messages: ChatMessage[]): string[][] {
     return messages.map((message) => message.parts.map((part) => part.type))
+  }
+
+  function textsOf(messages: ChatMessage[]): string[] {
+    return messages.map((message) =>
+      message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(''),
+    )
   }
 
   function sessionId(name: string): string {
@@ -1264,6 +1336,85 @@ describe('engine login', () => {
       await served.close()
       await made.dispose()
       rmSync(root, {recursive: true, force: true})
+    }
+  })
+})
+
+describe('engine version', () => {
+  const probeOs = os.$context<RpcContext>()
+  const versionRouter = probeOs.router({
+    clientVersion: probeOs.handler(({context}) => context.clientVersion ?? null),
+  })
+
+  function versionCall(link: FetchRpcLink<Record<never, never>> | WebsocketRpcLink<Record<never, never>>) {
+    return createORPCClient<{clientVersion: () => Promise<string | null>}>(link).clientVersion()
+  }
+
+  test('every engine response, refusals and preflights included, names the core release version', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-version-'))
+    const probe = defineExtension({name: 'version probe'}).server(() => ({context: {}, router: versionRouter}))
+    const made = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, extensions: [probe]})
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    try {
+      const origin = `http://127.0.0.1:${served.port}`
+      const health = await fetch(`${origin}/health`)
+      const refused = await fetch(`${origin}/rpc/meta/engine`, {method: 'POST', body: '{}'})
+      const trusted = await fetch(`${origin}/t/${made.agentToken}/rpc/meta/engine`, {method: 'POST', body: '{}'})
+      const forbidden = await fetch(`${origin}/health`, {headers: {origin: 'http://conciv.example'}})
+      const preflight = await fetch(`${origin}/rpc/meta/engine`, {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://localhost:5173',
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': CONCIV_VERSION_HEADER,
+        },
+      })
+      const responses = [health, refused, trusted, forbidden, preflight]
+      expect(responses.map((response) => response.status)).toEqual([200, 401, 200, 403, 204])
+      for (const response of responses) expect(response.headers.get(CONCIV_VERSION_HEADER)).toBe(coreManifest.version)
+      expect(preflight.headers.get('access-control-allow-headers')).toContain(CONCIV_VERSION_HEADER)
+      expect(preflight.headers.get('access-control-expose-headers')).toContain(CONCIV_VERSION_HEADER)
+      const client = makeExtRpcClient<typeof versionRouter>(`${origin}/t/${made.agentToken}`, 'version-probe')
+      expect(await client.clientVersion()).toBe(coreManifest.version)
+    } finally {
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('the rpc mount keeps a valid client version from the http and websocket links and drops a malformed one', async () => {
+    const served = await serveRpcRouter({router: versionRouter})
+    const sockets: WebSocket[] = []
+    try {
+      const overHttp = (version: string) =>
+        versionCall(new FetchRpcLink({url: served.rpcUrl, headers: {[CONCIV_VERSION_HEADER]: version}}))
+      const overSocket = (version: string) => {
+        const websocket = new WebSocket(served.wsUrl)
+        sockets.push(websocket)
+        return versionCall(new WebsocketRpcLink({websocket, headers: {[CONCIV_VERSION_HEADER]: version}}))
+      }
+      expect(
+        await Promise.all([
+          overHttp('1.2.3'),
+          overSocket('4.5.6-beta.1'),
+          overHttp('1.2.3+build.7'),
+          overSocket('1.2.3+build.7'),
+        ]),
+      ).toEqual(['1.2.3', '4.5.6-beta.1', '1.2.3+build.7', '1.2.3+build.7'])
+      expect(
+        await Promise.all([
+          overHttp('not a version'),
+          overSocket(''),
+          overHttp('01.2.3'),
+          overSocket('01.2.3'),
+          overHttp('1.2.3-beta..1'),
+          overSocket('1.2.3-beta..1'),
+        ]),
+      ).toEqual([null, null, null, null, null, null])
+    } finally {
+      for (const websocket of sockets) websocket.close()
+      await served.close()
     }
   })
 })

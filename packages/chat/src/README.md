@@ -8,7 +8,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 - `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`.
 - `index.ts:ChatPlane.routes` - a Hono app with `GET CHAT_WS_PATH` (WebSocket upgrade), `POST CHAT_SSE_PATH` (start events) and `GET CHAT_SSE_PATH` (resume; 400 `no resume offset` when there is none).
-- `index.ts:CodeTool` / `CodeRunner` / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
+- `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
 - `code-mode.ts:RESULT_CAP_CHARS` (50000), `cappedText`, `cappedValue`, `safeStringify`, `truncationEnvelope` - cap and serialize tool results.
 - `code-mode.ts:registryCapabilities` / `assistCapabilities` / `chatToolSet` - build `CodeCapability` lists and the code-mode and asking tool sets.
 - `approvals.ts:createApprovalStore` - pending approvals and grants per thread over the `metadata` chat store; `ApprovalScope` is `'once' | 'session'`.
@@ -25,14 +25,14 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `approvals.ts:createApprovalStore.forRun` - `once` and `denied` grants are cleared when a run reads them; `session` grants persist for the thread.
 - `transcript.ts:createTranscriptImporter.sync` - messages already stored (by id) are skipped, and import resumes after the stored anchor `nativeId`; it reads only when the row's `harnessKind` is the session's harness, and stamps each imported assistant message with `metadata.conciv.harnessId`.
 - `turn.ts:turnHooks` - every hook resolves the adapter with `deps.harnessFor(sessionId)`; a native id is resumed only when the row's `harnessKind` is that adapter, otherwise the full history is replayed.
-- `index.ts:hydrate` - `messageHarness` maps each assistant message id to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp.
+- `index.ts:hydrate` - takes an optional `{limit, before}` window and returns that page plus `page`; `messageHarness` maps each assistant message id of the page to the harness that produced it: the `chat_runs.harness_id` of its run, else its import stamp. `pendingApprovals` and `lastRun` are never paged.
 - `turn.ts:turnHooks` - throws `the message is empty` for an empty user message.
 - `turn.ts:turnHooks` - plans the turn with `reasoning` set to the session row's `effort`, or none when it is null (the CLI's default).
 - `code-mode.ts:cappedValue` - a result whose serialization exceeds `RESULT_CAP_CHARS` is replaced by a truncation payload keeping the first 4000 characters.
 
 ## Side Effects
 
-- `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the `@conciv/db` tables `runs`, `chatRuns`, `chatThreads`, `runMessages`, `sessionHistory`, and its `chatMetadata` keys prefixed `<threadId>:`.
+- `stores.ts:clearThread` - one SQLite transaction deletes the thread's rows from the `@conciv/db` tables `runs`, `chatRuns`, `chatMessages`, `runMessages`, `sessionHistory`, and its `chatMetadata` keys prefixed `<threadId>:`.
 - `index.ts:ChatPlane.compact` - inserts a row with `kind: 'compact'` into the `@conciv/db` `markers` table.
 - `index.ts:createChatPlane` - the chat server writes run journals under `concivStateDir(stateRoot)/runs`.
 - `approvals.ts:createUiChannel` - sets a `setTimeout` per wait that resolves with a fallback value.

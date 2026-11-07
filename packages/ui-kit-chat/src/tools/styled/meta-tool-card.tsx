@@ -177,7 +177,9 @@ export function MetaToolCard(props: ToolCardProps): JSX.Element {
           asks before it runs
         </NoteRow>
       </Show>
-      <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
+      <Show when={errorMessage()}>
+        {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+      </Show>
       <Show when={errorMessage() === undefined && raw().length > 0}>
         <ResultView outputSchema={meta()?.outputSchema} payload={payload()} raw={raw()} />
       </Show>

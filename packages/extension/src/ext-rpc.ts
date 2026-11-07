@@ -4,12 +4,14 @@ import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plu
 import type {AnyRouter, RouterClient} from '@orpc/server'
 import {abortableFetch, dynamicBrowserRpcLink, type SessionAccessor} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import extensionManifest from '../package.json' with {type: 'json'}
 
 export type ExtRpcContext = ClientRetryPluginContext
 
-const sessionHeaders = (session: SessionAccessor | undefined): Record<string, string> => {
+const requestHeaders = (session: SessionAccessor | undefined): Record<string, string> => {
   const id = session?.()
-  return id ? {[CONCIV_SESSION_HEADER]: id} : {}
+  return {...(id ? {[CONCIV_SESSION_HEADER]: id} : {}), [CONCIV_VERSION_HEADER]: extensionManifest.version}
 }
 
 function nodeFetchClient<TRouter extends AnyRouter>(
@@ -20,7 +22,7 @@ function nodeFetchClient<TRouter extends AnyRouter>(
   const link = new RPCLink<ExtRpcContext>({
     url: `${apiBase}/rpc/ext/${extensionSlug}`,
     fetch: abortableFetch,
-    headers: () => sessionHeaders(session),
+    headers: () => requestHeaders(session),
     plugins: [new ClientRetryPlugin<ExtRpcContext>()],
   })
   return createORPCClient(link)

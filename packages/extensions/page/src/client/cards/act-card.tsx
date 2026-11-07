@@ -28,7 +28,9 @@ export function ActCard(props: ToolCardProps): JSX.Element {
             </ElementPreview.Root>
           )}
         </Show>
-        <Show when={errorMessage()}>{(message) => <ErrorBlock message={message()} />}</Show>
+        <Show when={errorMessage()}>
+          {(message) => <ErrorBlock message={message()} outcome={props.result?.outcome} />}
+        </Show>
       </div>
     </CardShell>
   )

@@ -36,6 +36,7 @@ catalog:
   '@tanstack/ai-codex': 1.0.1
   '@tanstack/ai-opencode': 1.0.1
   '@tanstack/ai-acp': 1.0.1
+  '@tanstack/ai-mcp': 1.1.0
 
   '@ark-ui/solid': '^5.39.3'
   '@blazediff/core': ^1.10.0
@@ -79,6 +80,7 @@ catalog:
   '@types/pngjs': ^6.0.5
   '@types/react': '^19.3.0'
   '@types/react-dom': '^19.3.0'
+  '@types/semver': '^7.7.1'
   '@types/ws': '^8.18.2'
   '@unocss/postcss': '^66.12.0'
   '@unocss/reset': '^66.12.0'
@@ -132,6 +134,7 @@ catalog:
   remark-rehype: '^11.1.2'
   remend: '^1.4.0'
   rrweb-snapshot: 2.2.0
+  semver: '^7.8.5'
   shiki: '^4.5.0'
   solid-js: '^1.9.17'
   storybook: '^10.6.5'
