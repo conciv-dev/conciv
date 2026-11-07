@@ -4,7 +4,7 @@ import {getExtensionApi, type ExtensionApi} from '../src/extension-api.js'
 import {getHostApi, HostApiProvider} from '../src/host.js'
 import type {ConnectHostApi, HostWiring} from '../src/host.js'
 
-const extension = defineExtension({name: 'canvas'})
+const extension = defineExtension({hosts: ['web', 'ios'], name: 'canvas'})
   .client(() => {
     const value = {
       selection: (() => null) as Accessor<string | null>,
@@ -24,7 +24,7 @@ function ProbeComponent() {
   return {slot, insert, selection, fullSelection}
 }
 
-const reversedOrder = defineExtension({name: 'reversed'})
+const reversedOrder = defineExtension({hosts: ['web', 'ios'], name: 'reversed'})
   .server(() => ({context: {}}))
   .client(() => ({value: {count: 1}}))
 

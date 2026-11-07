@@ -14,6 +14,7 @@ export function registryCatalogView(registry: ToolRegistry): ToolCatalogView {
 
 export function builtinPageRegistry(): ToolRegistry {
   const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-  for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'a built-in page tool'})
+  for (const def of PAGE_TOOL_DEFS)
+    registry.register(def.client(), {hosts: ['web', 'ios'], owner: 'a built-in page tool'})
   return registry
 }

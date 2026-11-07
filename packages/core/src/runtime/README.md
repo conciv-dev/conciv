@@ -18,7 +18,7 @@ Builds the per-session and engine-wide scope objects that join the tool registry
 - `session` (`session-context.ts`): throws `MISSING_SESSION` when no scope is set on the async call path
 - `established` (`core-runtime.ts`): every effectful scope method except tools.has, tools.catalog, page.connected and run.live runs inside `runWithSession`
 - `navigation.set` (`core-runtime.ts`): a write dated more than 24h ahead is not applied; the upsert is last-writer-wins on `updatedAt` in a single row with id 'navigation'
-- `makeSessionScope` (`core-runtime.ts`): the catalog view is gated by `registry.whenPageConnected`; `model` is read once at scope creation
+- `makeSessionScope` (`core-runtime.ts`): tools (catalog, has, call) go through `registry.servedBy(() => page.bus.host(id))`; `model` is read once at scope creation
 
 ## Side Effects
 

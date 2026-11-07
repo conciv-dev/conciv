@@ -4,15 +4,14 @@ import {serveHono, type ServeFetch} from '@conciv/serve'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/harness'
-import type {AnyExtension, ExtensionPromptContext} from '@conciv/extension'
-import {makeApp, withBuiltinExtensions, type MakeAppOpts} from './app.js'
+import type {AnyExtension} from '@conciv/extension'
+import {makeApp, type MakeAppOpts} from './app.js'
 import {agentPath} from './engine-login.js'
 
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './lib/state-paths.js'
-import {writeText} from './lib/fs.js'
 import {runInOrder, type ShutdownStep} from './lib/shutdown.js'
 import {isAddressInUse, readPersistedPort, writePersistedPort} from './lib/server-port.js'
 import {defaultDevEndpointDir, removeDevEndpoint, writeDevEndpoint, writePrivateFile} from './lib/dev-endpoint.js'
@@ -132,27 +131,10 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-export type ComposePromptOpts = ExtensionPromptContext & {extensions?: Record<string, unknown>}
-
-export function composeSystemPrompt(
-  base: string | undefined,
-  extensions: readonly AnyExtension[],
-  opts: ComposePromptOpts,
-): string {
-  const prompts = extensions.map((extension) => extension.systemPrompt?.(opts.extensions?.[extension.name], opts))
-  return [base, ...prompts].filter(Boolean).join('\n\n')
-}
-
 export async function start(opts: StartOpts): Promise<Engine> {
   assertAccessToken(opts.accessToken)
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-
-  const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
-    cwd: opts.root,
-    extensions: cfg.extensions,
-  })
-  if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
     (file, line) => opts.launchEditor(file, line),
@@ -183,8 +165,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     onTrusted: onceNotifier(opts.onClientRequest),
     bridge: opts.bridge,
     openInEditor,
-    systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
-    systemPromptText: systemPrompt,
     extensions: opts.extensions,
     extensionConfig: cfg.extensions,
     harness: opts.harness,

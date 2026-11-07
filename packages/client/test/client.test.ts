@@ -114,6 +114,38 @@ describe('chat client', () => {
         client.dispose()
       }
     }, 60_000)
+
+    it('a client that rejoined a run settles generating when the run is stopped elsewhere', async () => {
+      const clientKit = await bootClientKit()
+      kit = clientKit
+      const sessionId = await clientKit.session()
+      clientKit.gate.hold()
+      const elsewhere = await clientKit.turn('stopped elsewhere', {session: sessionId, runId: 'chat-client-stop'})
+      await elsewhere.waitForRunStart()
+
+      const generating = Promise.withResolvers<void>()
+      const settled = Promise.withResolvers<'settled'>()
+      const {client} = observeClient(clientKit.base, sessionId, (update) => {
+        if (update.kind !== 'generating') return
+        if (update.generating) generating.resolve()
+        if (!update.generating) settled.resolve('settled')
+      })
+      client.subscribe()
+      client.attach()
+      try {
+        await generating.promise
+        await clientKit.rpc.chat.stop({sessionId, runIds: ['chat-client-stop']})
+        const outcome = await Promise.race([
+          settled.promise,
+          new Promise<string>((resolve) => setTimeout(resolve, 5_000, 'still generating after the stop')),
+        ])
+        expect(outcome).toBe('settled')
+      } finally {
+        clientKit.gate.release()
+        client.unsubscribe()
+        client.dispose()
+      }
+    }, 60_000)
   })
 })
 
@@ -476,7 +508,7 @@ describe('push channel', () => {
   describe('the per-tab push socket', () => {
     it('carries a page query to the tab and the reply resolves the caller', async () => {
       const {booted, channel, abort} = await bootWithChannel()
-      const arriving = nextQuery(channel.queries(abort.signal))
+      const arriving = nextQuery(channel.queries('web', abort.signal))
       await settled(SETTLE_MS)
       const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
 
@@ -490,7 +522,7 @@ describe('push channel', () => {
 
     it('reopens itself after the engine restarts and serves page queries again', async () => {
       const {booted, channel, abort} = await bootWithChannel()
-      const warming = nextQuery(channel.queries(abort.signal))
+      const warming = nextQuery(channel.queries('web', abort.signal))
       await settled(SETTLE_MS)
       const warmup = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
       const warmupFrame = await warming
@@ -500,7 +532,7 @@ describe('push channel', () => {
       await booted.restartServer()
       const seen: PageQueryFrame[] = []
       const collecting = (async () => {
-        for await (const frame of channel.queries(abort.signal)) seen.push(frame)
+        for await (const frame of channel.queries('web', abort.signal)) seen.push(frame)
       })()
       await settled(RECONNECT_MS)
       const calling = booted.rpc.registry.call({name: 'page_text', input: {selector: 'body'}})
@@ -559,7 +591,7 @@ describe('push channel', () => {
       const {booted, sessionId: background, channel: backgroundChannel, abort} = await bootWithChannel()
       const {sessionId: shown} = await booted.rpc.sessions.create(undefined)
       const shownChannel = acquirePushChannel({apiBase: booted.base, sessionId: shown})
-      void shownChannel.queries(abort.signal)
+      void shownChannel.queries('web', abort.signal)
       const backgroundRpc = makeRpcClient(booted.base, {headers: {[CONCIV_SESSION_HEADER]: background}})
 
       await expect
@@ -571,7 +603,7 @@ describe('push channel', () => {
           ),
         })
 
-      const serving = answerEvery(backgroundChannel.queries(abort.signal), backgroundRpc, 'shown again')
+      const serving = answerEvery(backgroundChannel.queries('web', abort.signal), backgroundRpc, 'shown again')
       await expect.poll(() => outcomeOf(backgroundRpc.registry.call(pageText)), POLL).toEqual({text: 'shown again'})
 
       abort.abort()
@@ -583,7 +615,7 @@ describe('push channel', () => {
     it('stops serving page queries once its query loop exits, while the chat stream keeps the socket', async () => {
       const {booted, channel, abort} = await bootWithChannel()
       void channel.events(abort.signal)
-      const servedOnce = answerOnce(channel.queries(), booted.rpc, 'once')
+      const servedOnce = answerOnce(channel.queries('web'), booted.rpc, 'once')
 
       await expect.poll(() => outcomeOf(booted.rpc.registry.call(pageText)), POLL).toEqual({text: 'once'})
       await servedOnce

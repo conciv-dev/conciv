@@ -201,9 +201,10 @@ describe('catalog cards', () => {
 
   function declaredRegistry() {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const def of PAGE_TOOL_DEFS) registry.register(def.client(), {owner: 'a built-in page tool'})
+    for (const def of PAGE_TOOL_DEFS)
+      registry.register(def.client(), {hosts: ['web', 'ios'], owner: 'a built-in page tool'})
     for (const tool of [shipTool, bannerTool, plainTool, countTool])
-      registry.register(tool, {owner: 'a test registrant'})
+      registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant'})
     return registry
   }
 
@@ -346,8 +347,9 @@ describe('new tool projection', () => {
 
   function registryWith(extra: AnyToolBuilder) {
     const registry = createToolRegistry({pageCaller: async () => ({ok: true})})
-    for (const tool of PAGE_TOOL_DEFS) registry.register(tool.client(), {owner: 'a built-in page tool'})
-    registry.register(extra, {owner: 'a test registrant'})
+    for (const tool of PAGE_TOOL_DEFS)
+      registry.register(tool.client(), {hosts: ['web', 'ios'], owner: 'a built-in page tool'})
+    registry.register(extra, {hosts: ['web', 'ios'], owner: 'a test registrant'})
     return registry
   }
 

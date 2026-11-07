@@ -92,7 +92,7 @@ describe('extension tool call id', () => {
     meta: {summary: 'echo the request tool call id', category: 'fixture', mutating: false},
   }).server((_input, _ctx, request) => ({toolCallId: request.toolCallId ?? 'none'}))
 
-  const acme = defineExtension({name: 'acme', tools: [echoCallId]})
+  const acme = defineExtension({hosts: ['web', 'ios'], name: 'acme', tools: [echoCallId]})
 
   const EchoResultSchema = z.object({toolCallId: z.string()})
 
@@ -143,7 +143,7 @@ describe('registry extension tools', () => {
     return {zoom: input.zoom, focused: true}
   })
 
-  const acme = defineExtension({name: 'acme', tools: [lens]})
+  const acme = defineExtension({hosts: ['web', 'ios'], name: 'acme', tools: [lens]})
 
   const halfDeclared = defineTool({
     name: 'acme_dial',
@@ -151,7 +151,7 @@ describe('registry extension tools', () => {
     inputSchema: z.object({turns: z.number().int()}),
   }).server((input) => ({turns: input.turns}))
 
-  const legacy = defineExtension({name: 'legacy-acme', tools: [halfDeclared]})
+  const legacy = defineExtension({hosts: ['web', 'ios'], name: 'legacy-acme', tools: [halfDeclared]})
 
   async function discover(kit: Kit, name: string): Promise<unknown> {
     const client = await connectMcpClient(`${kit.base}/api/mcp`, {[CONCIV_SESSION_HEADER]: await kit.session()})
@@ -312,7 +312,7 @@ describe('api mcp claude session header', () => {
     meta: {summary: 'echo the request session back', category: 'fixture', mutating: false},
   }).server((_input, _ctx, request) => ({sessionId: request.sessionId}))
 
-  const acme = defineExtension({name: 'acme', tools: [echo]})
+  const acme = defineExtension({hosts: ['web', 'ios'], name: 'acme', tools: [echo]})
 
   async function echoedSession(base: string, headers: Record<string, string>): Promise<string> {
     const mcp = await connectMcpClient(`${base}/api/mcp`, headers)

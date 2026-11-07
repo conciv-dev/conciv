@@ -33,7 +33,7 @@ const deployRun = defineTool({
     hasEmbeddedBody: () => true,
   })
 
-const deploy = defineExtension({name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
+const deploy = defineExtension({hosts: ['web', 'ios'], name: DEPLOY_NAME, Component: DeploySurface, tools: [deployRun]})
 export default deploy
 
 function DeploySurface() {

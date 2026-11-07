@@ -15,7 +15,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 - `approvals.ts:createUiChannel` - per-thread waiters for UI answers.
 - `stores.ts:runningThreadIds` / `clearThread` - list threads with a `running` chat run, delete a thread's rows.
 - `transcript.ts:createTranscriptImporter` - `sync` and `settle` a session's harness transcript into the message store; `toolNameNormalizer`, `normalizedChunk`, `normalizedMessages`.
-- `turn.ts:turnHooks` / `systemTextOf` / `COMPACT_FALLBACK_PROMPT` - turn planning hooks and system prompt assembly.
+- `turn.ts:turnHooks` / `COMPACT_FALLBACK_PROMPT` - turn planning hooks; the system prompt is `deps.systemPrompt(sessionId)`, read per turn (empty for a harness whose `systemPrompt` capability is 'none').
 
 ## Invariants
 

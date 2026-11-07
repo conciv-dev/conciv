@@ -22,10 +22,11 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `socketOpens` (`chat-connection.ts`): false when `WebSocket` is undefined
 - `send` (`chat-connection.ts`): for ChatMessages sends only the last turn from the last user message
 - `announcedRuns` (`chat-connection.ts`): joins a pushed run only when `sessionRunEvent.parse` succeeds and `options.joinsRun(runId)` is true
+- `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own terminal run lifecycle without a `RUN_FINISHED`/`RUN_ERROR` (a stopped run) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
 - `decoded` (`push-channel.ts`): drops frames failing `PushFrameSchema.safeParse`
 - `acquirePushChannel` (`push-channel.ts`): ref-counted per apiBase and session; the socket closes when the last holder releases
-- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame) while at least one `queries()` consumer is live, and says so again on every reconnect; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
+- `openPushChannel` (`push-channel.ts`): the socket tells the server it serves page queries (`page-serving` frame carrying the host the `queries(host)` consumer runs in) while at least one `queries()` consumer is live, and says so again on every reconnect; a `queries()` consumer stops it when aborted, returned or broken out of; a socket held only for `events()` never receives page queries, so a session the page is not showing has its page tools refused at once
 - `registerReachabilitySource` (`reachability.ts`): restores the default onlineManager listener on the last release
 
 ## Side Effects

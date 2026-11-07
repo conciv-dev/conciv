@@ -1,4 +1,4 @@
-import {existsSync, readFileSync} from 'node:fs'
+import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {approvalAskOf, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -32,8 +32,6 @@ export type SessionPort = {
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
 }
 
-export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?: string}
-
 export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
 
 export type TurnDeps = {
@@ -41,7 +39,7 @@ export type TurnDeps = {
   claudeHome?: string
   harnessFor: (sessionId: SessionId) => HarnessAdapter
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
-  systemPrompt: SystemPromptSources
+  systemPrompt: (sessionId: SessionId) => string
   sessions: SessionPort
   toolNames: ReadonlySet<string>
   capabilities: (sessionId: SessionId) => CodeCapability[]
@@ -54,19 +52,9 @@ export const COMPACT_FALLBACK_PROMPT =
 
 const TITLE_MAX_CHARS = 120
 
-export function systemTextOf(
-  sources: SystemPromptSources,
-  mode: HarnessAdapter['capabilities']['systemPrompt'],
-  log: TurnDeps['log'],
-): string {
-  if (mode === 'none') return ''
-  if (mode !== 'file' || sources.systemPromptFile === undefined) return sources.systemPromptText ?? ''
-  try {
-    return readFileSync(sources.systemPromptFile, 'utf8')
-  } catch (error) {
-    log(`[chat] system prompt file unreadable (${sources.systemPromptFile}), using inline text: ${String(error)}`)
-    return sources.systemPromptText ?? ''
-  }
+function systemTextFor(deps: TurnDeps, harness: HarnessAdapter, sessionId: SessionId): string {
+  if (harness.capabilities.systemPrompt === 'none') return ''
+  return deps.systemPrompt(sessionId)
 }
 
 function ownRow(harness: HarnessAdapter, row: SessionRow | null): SessionRow | null {
@@ -184,7 +172,7 @@ export function turnHooks(
     plan: (turn) => {
       const sessionId = SessionId.parse(turn.threadId)
       const harness = deps.harnessFor(sessionId)
-      const systemText = systemTextOf(deps.systemPrompt, harness.capabilities.systemPrompt, deps.log)
+      const systemText = systemTextFor(deps, harness, sessionId)
       const row = deps.sessions.row(sessionId)
       const own = ownRow(harness, row)
       const model = own?.model ?? null

@@ -117,8 +117,8 @@ export function makeRpcRouter(deps: RpcDeps) {
         await context.session.page.clearChanges()
         return {ok: true as const}
       }),
-      queries: sessionOs.page.queries.handler(({context, signal}) =>
-        context.session.page.queries(signal ?? new AbortController().signal),
+      queries: sessionOs.page.queries.handler(({input, context, signal}) =>
+        context.session.page.queries(input.host, signal ?? new AbortController().signal),
       ),
       reply: sessionOs.page.reply.handler(({input, context, errors}) => {
         if (!context.session.page.reply(input.requestId, input.outcome)) throw errors.UNKNOWN_REQUEST()

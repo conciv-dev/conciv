@@ -6,7 +6,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 
 ## Interface
 
-- `defineExtension` / `ExtensionBuilder` / `AnyExtension` / `ExtensionMeta` / `RegisterExtension` (`define-extension.ts`): chainable .client(factory) / .server(factory), parseConfig, useContext
+- `defineExtension` / `ExtensionBuilder` / `AnyExtension` / `ExtensionMeta` / `RegisterExtension` (`define-extension.ts`): chainable .client(factory) / .server(factory), parseConfig, useContext; every extension declares `hosts` (non-empty, `web` and/or `ios`), the widget hosts it serves
 - `defineTool` / `toolDefinition` (`define-tool.ts`): .server(execute), .client(execute?), .render(card)
 - `toolError` / `isToolError` / `ToolError` (`define-tool.ts`)
 - `ToolMeta`, `ToolDefinition`, `ToolBuilder`, `ToolBinding`, `ClientToolCtx`, `RegisteredTools`, `ToolNameProblem` (`define-tool.ts`)
@@ -40,6 +40,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `registerTool` (`tool-registry.ts`): duplicate owners, empty or forbidden segments and overwrites throw
 - `pageFailure` (`tool-registry.ts`): no-widget, timeout, unknown-verb, invalid-args, handler-error map to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
 - `catalogEntries` (`tool-registry.ts`): client tools are reachable only while a page is connected
+- `servedBy` (`tool-registry.ts`): a registration names its `hosts`; the view for a session served by a host lists, finds and calls only tools registered for that host (unknown otherwise), and a session with no host sees every tool
 - `makeCompositeRpcRouter` (`rpc-mount.ts`): throws on an extension slug collision
 - `rpcHandlerOptions` (`rpc-mount.ts`): copies the request headers onto the context and sets `clientVersion` from `x-conciv-version` when it is a semver string (zod; anything else leaves it unset), for the HTTP and the websocket handler alike
 - `use` (`host-context.ts`): a hook used without its host wiring throws

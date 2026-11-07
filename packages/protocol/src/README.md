@@ -11,7 +11,7 @@ Zod schemas and TypeScript types for the conciv wire protocol: chat sessions and
 - Chat events (`chat-event-types.ts`): `defineChatEvent`; 'approval-requested', 'conciv.run-lifecycle', 'conciv.session-run'; `approvalAskOf`, `isRunPhaseTerminal`
 - Chat messages (`chat-message-types.ts`): @tanstack/ai aliases, `toModelMessages`, `toChatMessages`
 - `chatBusy` (`chat-busy.ts`); `ChatTool` / `defineTool` (`chat-tool-types.ts`)
-- Push frames (`push-types.ts`): PUSH_WS_PATH '/push-ws', PUSH_SESSION_PARAM 'sessionId', PushFrameSchema (channels ready, page, chat), PageServingFrameSchema (client to server: 'page-serving' with `serving`)
+- Push frames (`push-types.ts`): PUSH_WS_PATH '/push-ws', PUSH_SESSION_PARAM 'sessionId', PushFrameSchema (channels ready, page, chat), PageServingFrameSchema (client to server: 'page-serving' with `host`, the WidgetHostSchema value `web` or `ios` the widget runs in, or null when it stops serving)
 - Page protocol (`page-types.ts`): PageQuerySchema, PageReplySchema, PAGE_ERROR_CODES, SymbolicateSchema, OpenSourceResultSchema, `pageFailure`
 - Element captures (`element-capture-types.ts`): ELEMENT_CAPTURE_KINDS, TOOL_CAPTURE_MODES, ElementCaptureSchema, PageCaptureBundleSchema
 - Terminal control (`terminal-types.ts`): TtyClientControlSchema (resize, inject), TtyServerControlSchema (exit, busy, error)

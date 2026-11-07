@@ -2,6 +2,7 @@ import type {AnyExtension} from '@conciv/extension'
 import type {GrabProvider} from '@conciv/grab'
 import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 import type {EventBusClient, PanelCommandEventMap} from '@conciv/protocol/event-bus'
+import type {WidgetHost} from '@conciv/protocol/push-types'
 
 export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
@@ -13,6 +14,7 @@ export type ConcivInit = {
   apiBase?: string
   grabProvider?: GrabProvider
   engineToken?: () => Promise<string>
+  host?: WidgetHost
 }
 
 export type ConcivHandle = {

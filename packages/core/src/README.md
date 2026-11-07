@@ -7,8 +7,9 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 ## Interface
 
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
-- `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
-- `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
+- `StartOpts`, `PortRequest` = {exact}|{preferred} (`start.ts`)
+- `createSystemPrompt(base, extensions, opts)` (`system-prompt.ts`): resolves each extension prompt once and returns `(host) => string`, the prompt for a session served by `host` (every extension when `host` is null)
+- `makeApp(opts): Promise<MadeApp>` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
 - Routes (`app.ts`): `GET /health`, `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
@@ -41,10 +42,11 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `resolveConfig` (`config.ts`): session ids must pass `isSessionId` / `isHarnessSessionId`; harness defaults to 'claude'
 - `ask` (`page-bus.ts`): 'no-widget' without a subscriber for the session (with the message `the page is showing another session; switch back to this session to use page tools` when another session has one), 'timeout' on expiry
 - `runClientTool` (`tool-registry.ts`): mutating page tools append a journal entry after success
+- `makePageBus` (`page-bus.ts`): `host(sessionId)` is the host of the widget serving the session's page, null when none; a session served by a host sees only the tools and prompts of extensions that list that host, and a session with no widget sees every extension
 
 ## Side Effects
 
-- `start` (`start.ts`): writes the system prompt file, the persisted-port file and the MCP connect endpoint file; binds 127.0.0.1
+- `start` (`start.ts`): writes the persisted-port file and the MCP connect endpoint file; binds 127.0.0.1
 - `start` (`start.ts`): with nativePageDir writes the dev-endpoint file; `stop` removes it
 - `stop` (`start.ts`): closes the listener first, then disposes the app; `dispose` (`app.ts`) ends every live run, runs the extension disposers, then closes the database; each step runs even when an earlier one fails and the failures are rethrown as one `AggregateError` (`lib/shutdown.ts:runInOrder`)
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes

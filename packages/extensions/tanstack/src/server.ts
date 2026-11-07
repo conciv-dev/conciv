@@ -7,34 +7,33 @@ import {readRouteManifest} from './server/route-manifest.js'
 import {makeTanstackAdapter} from './server/adapter.js'
 import {tanstackServerTools} from './tool/server.js'
 
-export const tanstack = defineExtension({
-  name: 'tanstack',
-  tools: [...tanstackServerTools],
-}).server((server) => {
-  const ring = makeDiagnosticsRing()
-  const serverFnRing = makeServerFnTraceRing()
-  const bundler = server.bundler
-  const bundlerAvailable = typeof bundler?.subscribe === 'function'
-  const unsubscribe = bundler?.subscribe?.((diagnostic) => {
-    if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
-    serverFnRing.observe(diagnostic)
-  })
-  const makeAdapter = (tools: ServerToolRegistryAccess): FrameworkAdapter =>
-    makeTanstackAdapter({
-      tools,
-      buildErrors: () => {
-        if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
-        return ring.list()
-      },
-      routeManifest: () => readRouteManifest(server.cwd),
-      serverFnTraces: (count) => serverFnRing.traces(count),
-      serverFns: () => serverFnRing.functions(),
-      bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
+export const tanstack = defineExtension({hosts: ['web'], name: 'tanstack', tools: [...tanstackServerTools]}).server(
+  (server) => {
+    const ring = makeDiagnosticsRing()
+    const serverFnRing = makeServerFnTraceRing()
+    const bundler = server.bundler
+    const bundlerAvailable = typeof bundler?.subscribe === 'function'
+    const unsubscribe = bundler?.subscribe?.((diagnostic) => {
+      if (diagnostic.kind === 'build-error') ring.push(buildErrorToAppError(diagnostic))
+      serverFnRing.observe(diagnostic)
     })
-  return {
-    context: {makeAdapter},
-    dispose: () => unsubscribe?.(),
-  }
-})
+    const makeAdapter = (tools: ServerToolRegistryAccess): FrameworkAdapter =>
+      makeTanstackAdapter({
+        tools,
+        buildErrors: () => {
+          if (!bundlerAvailable) throw toolError('BUNDLER_UNAVAILABLE', {message: 'bundler bridge unavailable'})
+          return ring.list()
+        },
+        routeManifest: () => readRouteManifest(server.cwd),
+        serverFnTraces: (count) => serverFnRing.traces(count),
+        serverFns: () => serverFnRing.functions(),
+        bundlerSubscribe: (listener) => bundler?.subscribe?.(listener) ?? (() => {}),
+      })
+    return {
+      context: {makeAdapter},
+      dispose: () => unsubscribe?.(),
+    }
+  },
+)
 
 export default tanstack

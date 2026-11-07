@@ -144,7 +144,7 @@ function HighlightSurface(): JSX.Element {
   )
 }
 
-const highlight = defineExtension({name: 'highlight', Surface: HighlightSurface}).client(() => {
+const highlight = defineExtension({hosts: ['web'], name: 'highlight', Surface: HighlightSurface}).client(() => {
   const [driven, setDriven] = createSignal(false)
   return {
     value: {driven, setDriven},

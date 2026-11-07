@@ -1,5 +1,6 @@
 import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
+import type {WidgetHost} from '@conciv/protocol/push-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
 
@@ -64,9 +65,10 @@ export type PageAnswer = {result: Record<string, unknown>; capture?: PageCapture
 export type PageBus = {
   ask: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
   connected: (sessionId: SessionId) => boolean
+  host: (sessionId: SessionId) => WidgetHost | null
   anySubscriber: () => boolean
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
-  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => () => void
+  subscribe: (sessionId: SessionId, host: WidgetHost, emit: (frame: unknown) => void) => () => void
 }
 
 export type CaptureSink = (params: {
@@ -77,7 +79,7 @@ export type CaptureSink = (params: {
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
 
-type SessionPage = {pending: Pending<PageOutcome>; subscribers: Set<(frame: unknown) => void>}
+type SessionPage = {pending: Pending<PageOutcome>; subscribers: Map<(frame: unknown) => void, WidgetHost>}
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
@@ -86,7 +88,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
     if (existing) return existing
-    const created: SessionPage = {pending: makePending<PageOutcome>(), subscribers: new Set()}
+    const created: SessionPage = {pending: makePending<PageOutcome>(), subscribers: new Map()}
     bySession.set(sessionId, created)
     return created
   }
@@ -96,9 +98,9 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     if (bySession.get(sessionId) === page) bySession.delete(sessionId)
   }
 
-  function subscribe(sessionId: SessionId, emit: (frame: unknown) => void): () => void {
+  function subscribe(sessionId: SessionId, host: WidgetHost, emit: (frame: unknown) => void): () => void {
     const page = pageOf(sessionId)
-    page.subscribers.add(emit)
+    page.subscribers.set(emit, host)
     return () => {
       page.subscribers.delete(emit)
       dropIfIdle(sessionId, page)
@@ -124,7 +126,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const requestId = `pq${idState.n}`
     const declared = query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
-    for (const emit of page.subscribers) emit({requestId, ...query})
+    for (const emit of page.subscribers.keys()) emit({requestId, ...query})
     const outcome = await page.pending
       .await(requestId, ms)
       .catch(() => {
@@ -136,9 +138,13 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return {result: outcome.result, capture: outcome.capture}
   }
 
+  const host = (sessionId: SessionId): WidgetHost | null =>
+    [...(bySession.get(sessionId)?.subscribers.values() ?? [])].at(-1) ?? null
+
   return {
     ask,
-    connected: (sessionId) => (bySession.get(sessionId)?.subscribers.size ?? 0) > 0,
+    connected: (sessionId) => host(sessionId) !== null,
+    host,
     anySubscriber,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
@@ -154,11 +160,12 @@ function frameRequestId(frame: unknown): string | null {
 export async function* pageQueryStream(
   bus: PageBus,
   sessionId: SessionId,
+  host: WidgetHost,
   signal: AbortSignal,
 ): AsyncGenerator<{requestId: string; query: unknown}> {
   const queue: unknown[] = []
   const waiter = {wake: () => {}}
-  const unsubscribe = bus.subscribe(sessionId, (frame) => {
+  const unsubscribe = bus.subscribe(sessionId, host, (frame) => {
     queue.push(frame)
     waiter.wake()
   })

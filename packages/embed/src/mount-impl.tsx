@@ -13,6 +13,7 @@ import {
 } from '@conciv/extension'
 import pageExtension from '@conciv/extension-page/client'
 import type {GrabProvider} from '@conciv/grab'
+import type {WidgetHost} from '@conciv/protocol/push-types'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter, disposeConcivRouter} from '@conciv/app/router'
 import {parseConcivSettings, type ConcivSettings} from '@conciv/app/settings'
@@ -72,6 +73,7 @@ function runDisposers(disposers: Array<() => void>): void {
 }
 
 type SessionPagePlaneConfig = {
+  host: WidgetHost
   session: () => string | null
   apiBase: () => string
   rpc: RpcClient
@@ -89,7 +91,10 @@ function startSessionPagePlane(config: SessionPagePlaneConfig): {dispose: () => 
       if (!sessionId || apiBase === '' || !config.trusted()) return
       const channel = acquirePushChannel({apiBase, sessionId})
       const plane = startPagePlane({
-        source: {queries: channel.queries, reply: (input) => config.rpc.page.reply(input)},
+        source: {
+          queries: (abortSignal) => channel.queries(config.host, abortSignal),
+          reply: (input) => config.rpc.page.reply(input),
+        },
         driver: config.driver(),
       })
       onCleanup(() => {
@@ -123,6 +128,7 @@ function makeActiveSessionBinding(
 }
 
 type BootNormalConfig = {
+  host: WidgetHost
   root: ShadowRoot
   extensions: AnyExtension[]
   settings: ConcivSettings
@@ -161,6 +167,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
+      host: config.host,
       session,
       apiBase,
       rpc,
@@ -242,6 +249,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
 }
 
 type BootConnectConfig = {
+  host: WidgetHost
   root: ShadowRoot
   extensions: AnyExtension[]
   settings: ConcivSettings
@@ -254,6 +262,7 @@ function bootConnect(config: BootConnectConfig): BootResult {
   const [apiBase, setApiBase] = createSignal('')
   const activeSession = makeActiveSessionBinding((session) =>
     startSessionPagePlane({
+      host: config.host,
       session,
       apiBase,
       rpc: deferred.rpc,
@@ -309,13 +318,16 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<BootResult> {
   const settings = initSettings(init)
   const grabProvider = init.grabProvider
   const engineToken = init.engineToken
+  const host = init.host ?? 'web'
   const apiBase = init.apiBase ?? resolveApiBase()
-  if (apiBase) return bootNormal({root, extensions, settings, apiBase, grabProvider, engineToken})
+  if (apiBase) return bootNormal({host, root, extensions, settings, apiBase, grabProvider, engineToken})
   const gate = extensions.find((extension) => extension.connectGate)
-  if (!gate?.connectGate) return bootNormal({root, extensions, settings, apiBase, grabProvider})
+  if (!gate?.connectGate) return bootNormal({host, root, extensions, settings, apiBase, grabProvider})
   const found = await gate.connectGate.preflight()
-  if (found) return bootNormal({root, extensions, settings, ...engineAddress(found), grabProvider, connectMode: true})
-  return bootConnect({root, extensions, settings, grabProvider})
+  if (found) {
+    return bootNormal({host, root, extensions, settings, ...engineAddress(found), grabProvider, connectMode: true})
+  }
+  return bootConnect({host, root, extensions, settings, grabProvider})
 }
 
 function initSettings(init: ConcivInit): ConcivSettings {

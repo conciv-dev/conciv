@@ -23,7 +23,7 @@ import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {eq} from 'drizzle-orm'
@@ -42,7 +42,8 @@ import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives, type SessionPrimitives} from '../src/runtime/primitives.js'
 import {type CoreRuntime} from '../src/runtime/scope-types.js'
 import {runWithSession} from '../src/runtime/session-context.js'
-import {start, composeSystemPrompt} from '../src/start.js'
+import {start} from '../src/start.js'
+import {createSystemPrompt} from '../src/system-prompt.js'
 import {makeApp} from '../src/app.js'
 import {CODE_LIFETIME_MS, OPEN_PATHS, isOpenPath, makeCodeStore} from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
@@ -100,24 +101,6 @@ describe('chat plane', () => {
       expect(seen).toContain(ChatEventType.RUN_FINISHED)
       const runner = await chat.codeRunner(SessionId.parse(sessionId('secret')), () => undefined)
       await expect(runner?.run('return await external_unit_secret({apiKey: "k"})', 'parent')).rejects.toThrow(/secret/i)
-    })
-  })
-
-  describe('system prompt', () => {
-    it('an unreadable systemPromptFile logs a line with the path and the turn uses systemPromptText', async () => {
-      const root = stateRoot()
-      const cli = fakeCli()
-      const log: string[] = []
-      const missing = join(root, 'no-such-prompt.md')
-      const chat = await plane({
-        root,
-        harness: cliHarness(cli),
-        systemPrompt: {systemPromptFile: missing, systemPromptText: 'the fallback prompt'},
-        log,
-      })
-      await readUntil(await startTurn(chat, sessionId('prompt'), 'prompt-run', 'hi'), 'end')
-      expect(cli.systemPrompts.flat()).toContain('the fallback prompt')
-      expect(log.some((line) => line.includes(missing))).toBe(true)
     })
   })
 
@@ -415,8 +398,6 @@ describe('chat plane', () => {
     root: string
     harness: HarnessAdapter
     capabilities?: CodeCapability[]
-    systemPrompt?: {systemPromptFile?: string; systemPromptText?: string}
-    log?: string[]
     sessions?: SessionPort
   }
 
@@ -428,13 +409,13 @@ describe('chat plane', () => {
       stateRoot: options.root,
       cwd: options.root,
       harnessFor: () => options.harness,
-      systemPrompt: options.systemPrompt ?? {},
+      systemPrompt: () => '',
       sessions: options.sessions ?? sessionPort(),
       toolNames: new Set(),
       capabilities: () => options.capabilities ?? [],
       attachmentExpanders: {},
       firstOutputTimeoutMs: 30_000,
-      log: (line) => options.log?.push(line),
+      log: () => undefined,
     })
   }
 
@@ -913,7 +894,7 @@ describe('engine stamp', () => {
         taken.listen(port, '127.0.0.1', () => resolve())
       })
       const written = vi.spyOn(console, 'error')
-      const failingDispose = defineExtension({name: 'failing-dispose'}).server(() => ({
+      const failingDispose = defineExtension({hosts: ['web', 'ios'], name: 'failing-dispose'}).server(() => ({
         context: null,
         dispose: () => {
           throw new Error('extension dispose failed')
@@ -959,11 +940,11 @@ describe('page bus inflight teardown', () => {
   it('a reply still settles the in-flight ask after the asking widget unsubscribes and a fresh one attaches', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
-    const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
+    const unsubscribe = bus.subscribe(SESSION, 'web', (frame) => frames.push(frame))
     const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}, agentId: SESSION})
     await Promise.resolve()
     unsubscribe()
-    bus.subscribe(SESSION, () => {})
+    bus.subscribe(SESSION, 'web', () => {})
     expect(bus.resolve(SESSION, requestIdOf(frames), {ok: true, result: {clicked: 'yes'}})).toBe(true)
     await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
   }, 10_000)
@@ -1003,7 +984,7 @@ describe('runtime ambient session', () => {
       bundler: () => undefined,
       openInEditor: () => {},
     })
-    primitives.registry.register(clicker, {owner: 'a fixture'})
+    primitives.registry.register(clicker, {hosts: ['web', 'ios'], owner: 'a fixture'})
     const runtime = makeCoreRuntime({
       primitives,
       plane: fixture.plane,
@@ -1021,7 +1002,7 @@ describe('runtime ambient session', () => {
   }
 
   function widgetOn(primitives: SessionPrimitives, id: SessionId, reply: Record<string, unknown>): () => void {
-    return primitives.page.bus.subscribe(id, (frame) => {
+    return primitives.page.bus.subscribe(id, 'web', (frame) => {
       const requestId = requestIdOf(frame)
       if (requestId === null) return
       queueMicrotask(() => primitives.page.bus.resolve(id, requestId, {ok: true, result: reply}))
@@ -1084,13 +1065,14 @@ describe('system prompt', () => {
   }).server(async () => ({}))
 
   const demoExtension = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'demo',
     systemPrompt: 'Demo extension rules.',
     tools: [demoTool],
   })
 
   test('standing prompt contains extension systemPrompt but never tool prose', () => {
-    const prompt = composeSystemPrompt('base prompt', [demoExtension], {cwd: '/repo'})
+    const prompt = createSystemPrompt('base prompt', [demoExtension], {cwd: '/repo'})(null)
     expect(prompt).toContain('base prompt')
     expect(prompt).toContain('Demo extension rules.')
     expect(prompt).not.toContain('NEVER-IN-PROMPT')
@@ -1102,18 +1084,21 @@ describe('system prompt', () => {
   }
 
   const configuredExtension = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'ios',
     systemPrompt: 'iOS overlay rules.',
     configSchema: z.preprocess(emptyToUndefined, z.object({projectRoot: z.string()}).optional()),
   })
 
   const groundedExtension = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'ios',
     systemPrompt: (config, context) => `project ${config.projectRoot} under ${context.cwd}`,
     configSchema: z.preprocess(emptyToUndefined, z.object({projectRoot: z.string()}).optional()),
   })
 
   const transformedExtension = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'ios',
     systemPrompt: (config) => `simulator ${config.simulator} in ${config.projectRoot}`,
     configSchema: z.preprocess(
@@ -1126,25 +1111,143 @@ describe('system prompt', () => {
   })
 
   test('an extension whose config is absent contributes no systemPrompt', () => {
-    const prompt = composeSystemPrompt('base prompt', [configuredExtension], {cwd: '/repo', extensions: {}})
+    const prompt = createSystemPrompt('base prompt', [configuredExtension], {cwd: '/repo', extensions: {}})(null)
     expect(prompt).toBe('base prompt')
     expect(prompt).not.toContain('iOS overlay rules.')
   })
 
   test('an extension can ground its prompt in its own config and the working directory', () => {
-    const prompt = composeSystemPrompt('base prompt', [groundedExtension], {
+    const prompt = createSystemPrompt('base prompt', [groundedExtension], {
       cwd: '/repo',
       extensions: {ios: {projectRoot: '/app'}},
-    })
+    })(null)
     expect(prompt).toContain('project /app under /repo')
   })
 
   test('a prompt factory receives the parsed config, not the raw options', () => {
-    const prompt = composeSystemPrompt(undefined, [transformedExtension], {
+    const prompt = createSystemPrompt(undefined, [transformedExtension], {
       cwd: '/repo',
       extensions: {ios: {projectRoot: '/app/'}},
-    })
+    })(null)
     expect(prompt).toBe('simulator iPhone 17 Pro in /app')
+  })
+})
+
+describe('host-scoped extensions', () => {
+  const IOS_RULES = 'You are running as an overlay inside a native iOS app.'
+
+  const iosProbe = defineTool({
+    name: 'ios_probe',
+    description: 'Probe the booted simulator.',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ok: z.boolean()}),
+    meta: {summary: 'probe the booted simulator', category: 'ios'},
+  }).server(() => ({ok: true}))
+
+  const iosOnly = defineExtension({name: 'ios', hosts: ['ios'], systemPrompt: IOS_RULES, tools: [iosProbe]})
+
+  function recordingHarness(prompts: string[]): HarnessAdapter {
+    return defineHarness({
+      id: 'fake-host',
+      binName: 'true',
+      models: undefined,
+      tty: undefined,
+      chatConfig: () => ({
+        adapter: makeTextAdapter('fake-host', async function* (options) {
+          prompts.push((options.systemPrompts ?? []).map(String).join('\n'))
+          const run = {threadId: options.threadId ?? '', runId: options.runId ?? ''}
+          yield {type: ChatEventType.RUN_STARTED, ...run}
+          yield {type: ChatEventType.RUN_FINISHED, ...run}
+        }),
+      }),
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        compaction: false,
+        systemPrompt: 'flag',
+        mcp: 'none',
+        imageInput: false,
+        init: 'none',
+        slashCommands: 'none',
+        transcriptHistory: false,
+      },
+    })
+  }
+
+  function servePage(origin: string, sessionId: string, host: 'web' | 'ios'): Promise<WebSocket> {
+    return new Promise((resolve, reject) => {
+      const socket = new WebSocket(`${origin.replace('http', 'ws')}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+      socket.addEventListener('open', () => socket.send(JSON.stringify({channel: 'page-serving', host})))
+      socket.addEventListener('message', () => resolve(socket), {once: true})
+      socket.addEventListener('close', (event) => reject(new Error(`the push socket closed with ${event.code}`)))
+    })
+  }
+
+  async function turnIn(origin: string, sessionId: string, runId: string): Promise<void> {
+    const response = await fetch(`${origin}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: sessionId,
+        runId,
+        messages: [{id: `${runId}-user`, role: 'user', content: 'fill in the form in the page'}],
+        tools: [],
+        context: [],
+      }),
+    })
+    await response.text()
+  }
+
+  async function probeOutcome(origin: string, sessionId: string): Promise<string> {
+    const rpc = makeRpcClient(origin, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    return rpc.registry.call({name: 'ios_probe', input: {}}).then(
+      (result) => JSON.stringify(result),
+      (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''),
+    )
+  }
+
+  test('a web-served session sees no ios tools or ios prompt; an ios-served session sees both', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-hosts-'))
+    const prompts: string[] = []
+    const made = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      extensions: [iosOnly],
+      harness: recordingHarness(prompts),
+    })
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    const origin = `http://127.0.0.1:${served.port}/t/${made.agentToken}`
+    const sockets: WebSocket[] = []
+    try {
+      const rpc = makeRpcClient(origin)
+      const web = (await rpc.sessions.create(undefined)).sessionId
+      const ios = (await rpc.sessions.create(undefined)).sessionId
+      sockets.push(await servePage(origin, web, 'web'), await servePage(origin, ios, 'ios'))
+      await turnIn(origin, web, 'web-run')
+      await turnIn(origin, ios, 'ios-run')
+      const [webPrompt = '', iosPrompt = ''] = prompts
+      expect({
+        webPrompt: webPrompt.includes(IOS_RULES),
+        webTools: webPrompt.includes('external_ios_probe'),
+        webCall: await probeOutcome(origin, web),
+        iosPrompt: iosPrompt.includes(IOS_RULES),
+        iosTools: iosPrompt.includes('external_ios_probe'),
+        iosCall: await probeOutcome(origin, ios),
+      }).toEqual({
+        webPrompt: false,
+        webTools: false,
+        webCall: 'UNKNOWN_TOOL',
+        iosPrompt: true,
+        iosTools: true,
+        iosCall: '{"ok":true}',
+      })
+    } finally {
+      sockets.forEach((socket) => socket.close())
+      await served.close()
+      await made.dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
   })
 })
 
@@ -1253,7 +1356,7 @@ describe('engine login', () => {
 
   test('every route the engine registers refuses an unknown caller except the declared open paths', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-gate-'))
-    const probe = defineExtension({name: 'probe'}).server(() => ({
+    const probe = defineExtension({hosts: ['web', 'ios'], name: 'probe'}).server(() => ({
       context: {},
       app: new Hono().get('/ping', (c) => c.text('pong')),
     }))
@@ -1308,7 +1411,7 @@ describe('engine login', () => {
         expect.stringContaining('authorization'),
       ])
       const {sessionId} = await makeRpcClient(`${origin}/t/${made.agentToken}`).sessions.create(undefined)
-      const serving = JSON.stringify({channel: 'page-serving', serving: true})
+      const serving = JSON.stringify({channel: 'page-serving', host: 'web'})
       const pushSocket = (prefix: string, ...frames: string[]) =>
         new Promise<string>((resolve) => {
           const socket = new WebSocket(
