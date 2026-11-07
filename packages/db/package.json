@@ -40,7 +40,9 @@
   "dependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "env-paths": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

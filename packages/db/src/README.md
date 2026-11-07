@@ -14,6 +14,10 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `run-queries.ts:modelOf`, `run-queries.ts:runMessagesFor`.
 - `run-migrations.ts:importLegacyRuns`, `run-migrations.ts:markRunningRunsDetached`.
 - `chat-thread-import.ts:importLegacyThreads`, `chat-thread-import.ts:TRANSCRIPT_NAMESPACE` (`conciv.transcript`), `chat-thread-import.ts:anchorKey`, `chat-thread-import.ts:pendingFromKey`.
+- `home-schema.ts` tables (home db): `engines` (`id`, `pid`, `root`, `apiBase`, `deletedAt`), `hubConnections` (`hub_connections`: `harness`, `connectedAt`).
+- `home-db.ts:concivHome({homeDir?, env})` - `homeDir`, else a non-empty `env.CONCIV_HOME` (zod-parsed), else `envPaths('conciv', {suffix: ''}).data`.
+- `home-db.ts:openHomeDb(home)` / `closeHomeDb(db)` / `withHomeDb(home, run)` - `HomeDb`; `registerEngine`, `retireEngine(db, id, now)`, `listEngines` (rows with `deletedAt` null), type `EngineRow`; `recordHubConnection(db, harness, now)`, `hubConnections`; `isHomeFolderRefused(error)`.
+- `engine-check.ts:checkEngines(home, {timeoutMs})` - GETs `<origin>/health` for every listed engine in parallel: matching `id` is live; refused, another `id` or a non-conciv body retires the row; a timeout reports it unreachable.
 - `index.ts` - `export *` of the modules above and `export {migrations} from './migrations.gen.js'` (generated, not committed source).
 
 ## Invariants
@@ -29,7 +33,13 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `capture-queries.ts:writeToolCapture` dedupes CSS by `cssBundles.hash` (`onConflictDoNothing`) and upserts a capture on the composite key; `deleteSessionCaptures` deletes CSS bundles no remaining capture references.
 - `page-change-queries.ts:pageChangesFor` orders by the autoincrement `page_changes.id`, exposed as `seq`; `appendPageChange` throws when the insert returns no row.
 
+- `home-db.ts:openHomeDb` refuses (`HomeFolderRefused`) a home folder that is a symlink, not a directory, or owned by another uid. It sets WAL and applies `homeMigrations` with drizzle's `migrateSync`; when two processes migrate a fresh db at once the loser's run throws, and it runs the pragma and `migrateSync` once more on the same connection, which skips the migrations the winner recorded.
+- `home-db.ts:retireEngine` only sets `deletedAt`; no home db query deletes rows.
+
 ## Side Effects
+
+- `home-db.ts:openHomeDb` creates the home folder (`0700`, or `chmod 0700` when it exists), creates `home.db` with mode `0600`, opens it with a 5000 ms busy timeout and WAL.
+- `engine-check.ts:checkEngines` makes HTTP requests to each registered engine's `/health` and retires rows that fail the identity check.
 
 - `db.ts:openDb` creates `<stateRoot>/.conciv` with `mkdirSync`, opens `conciv.db` under `concivStateDir(stateRoot)` with `DatabaseSync` (5000 ms busy timeout), and sets `PRAGMA journal_mode = WAL`.
 - `db.ts:openDb` applies schema migrations and writes legacy rows into `chatRuns`, `chatThreads` and `chatMetadata`, and sets `detachedSince` on `chatRuns` rows still `running`.
