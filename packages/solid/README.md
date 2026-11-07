@@ -37,7 +37,7 @@ Published package that wraps @conciv/embed in a Solid `<ConcivWidget />` compone
 
 ## Interface
 
-- `exports['.']` (`package.json`): ./dist/index.js with ./dist/index.d.ts; sideEffects false; engines node &gt;=22.13
+- `exports['.']` (`package.json`): ./dist/index.js with ./dist/index.d.ts; sideEffects false; engines node &gt;=26.0.0
 - `dependencies` / `peerDependencies` (`package.json`): @conciv/embed and peer solid-js &gt;=1.8
 - `scripts.test` (`package.json`): `vite build --config vite.fixture.config.ts && vitest run`; also build (tsdown), typecheck, lint, publint, attw
 - `tsdown.config.ts`: entry src/index.ts, esm, dts; externals @conciv/*, solid-js, solid-js/web
