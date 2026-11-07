@@ -138,6 +138,9 @@ catalogs:
     '@tanstack/router-plugin':
       specifier: 1.168.48
       version: 1.168.48
+    '@tanstack/solid-pacer':
+      specifier: 0.24.0
+      version: 0.24.0
     '@tanstack/solid-query':
       specifier: ^5.105.0
       version: 5.105.0
@@ -207,6 +210,9 @@ catalogs:
     '@zumer/snapdom':
       specifier: 3.3.3
       version: 3.3.3
+    ai-motion:
+      specifier: 0.4.8
+      version: 0.4.8
     bippy:
       specifier: 0.6.1
       version: 0.6.1
@@ -2790,9 +2796,15 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@tanstack/solid-pacer':
+        specifier: 'catalog:'
+        version: 0.24.0(solid-js@1.9.17)
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
+      ai-motion:
+        specifier: 'catalog:'
+        version: 0.4.8
       js-beautify:
         specifier: ^2.0.3
         version: 2.0.3
@@ -5653,7 +5665,7 @@ packages:
 
   '@conciv/react@file:packages/react':
     resolution: {directory: packages/react, type: directory}
-    engines: {node: '>=22.13'}
+    engines: {node: '>=26.0.0'}
     peerDependencies:
       '@types/react': '>=16.8'
       react: '>=16.8'
@@ -12182,6 +12194,9 @@ packages:
   agent-install@0.0.6:
     resolution: {integrity: sha512-7NRMZ/ZDz2vHevQTgJsocBFpakB1/Wx5ip19YSJuj4VOXpraWztTerViNtdSyARKZT9e2yVwUUB5JXXCE7mNrA==}
     hasBin: true
+
+  ai-motion@0.4.8:
+    resolution: {integrity: sha512-9nQVjf8lrYQWSW0sZdb9bES4x8Ei1w9C0S62po2KvRbMjslmjm0WMeszyW771SEauDnu4YGWqurLZ/gCkCTosQ==}
 
   ajv-formats@2.1.1:
     resolution: {integrity: sha512-Wx0Kx52hxE7C18hkMEggYlEifqWZtYaRgouJor+WMdPnQyEK13vgEWyVNup7SoeeoLMsr4kf5h6dOW11I15MUA==}
@@ -25545,6 +25560,8 @@ snapshots:
       picocolors: 1.1.1
       prompts: 2.4.2
       yaml: 2.9.1
+
+  ai-motion@0.4.8: {}
 
   ajv-formats@2.1.1(ajv@8.20.0):
     optionalDependencies:

@@ -37,13 +37,13 @@ describe('effects', () => {
   const banner = () => page.getByText('fixture banner shown')
 
   const effectResult = async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (!outcome.ok) throw new Error(`expected a result, got ${outcome.error.code}: ${outcome.error.message}`)
     return outcome.result
   }
 
   const effectFailure = async (input: Record<string, unknown>): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (outcome.ok) throw new Error('expected a failure, got a result')
     return outcome.error
   }
@@ -134,7 +134,7 @@ describe('page tools', () => {
   }
 
   const resultOf = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (!outcome.ok) throw new Error(`expected a result for ${verb}, got ${outcome.error.code}`)
     const result = {...outcome.result}
     expect(declaredOutputOf(verb).parse(result)).toEqual(result)
@@ -142,7 +142,7 @@ describe('page tools', () => {
   }
 
   const failureOf = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (outcome.ok) throw new Error(`expected a failure for ${verb}, got a result`)
     return outcome.error
   }
@@ -226,7 +226,7 @@ describe('page tools', () => {
       expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
       expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
         code: 'invalid-args',
-        message: 'fill target is not an input/textarea/select',
+        message: 'That element is not a text field.',
       })
     })
 
@@ -250,7 +250,7 @@ describe('page tools', () => {
 
       expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
         code: 'invalid-args',
-        message: 'cannot uncheck a radio; check another radio in the same group instead',
+        message: 'A radio is unchecked by checking another one.',
       })
       await expect.element(formState()).toMatchTextContent('plan: pro')
 
@@ -511,6 +511,7 @@ describe('page tools', () => {
     }
 
     const ctxOver = (target: Document): ClientToolCtx => ({
+      agentId: 'test-agent',
       document: target,
       target: documentOnly,
       resolve: documentOnly,
@@ -552,7 +553,7 @@ describe('page tools', () => {
     const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
 
     const screenshotOf = async () => {
-      const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
     }

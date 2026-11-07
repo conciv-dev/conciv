@@ -11,6 +11,7 @@ import {QueryClientProvider} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
+import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -110,8 +111,19 @@ function RootComponent() {
     appData: app.data,
     queryClient: app.queryClient,
     announce,
+    onRunEnd: endRun,
   })
   const rootNode = app.environment.rootNode
+  if (rootNode instanceof ShadowRoot) {
+    mountSimulator({
+      root: rootNode,
+      session: activeSession,
+      onStop: (sessionId) => {
+        liveSessions.stop(sessionId)
+        endTask()
+      },
+    })
+  }
   const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
   const colorScheme = () => theme().scheme
 
