@@ -17,7 +17,7 @@ export function TraceActionRow(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'explainer', 'disabled', 'onAction'])
   return (
-    <li class="pb-[3px] list-none min-w-0 relative">
+    <li class="list-none min-w-0 relative">
       <div class={ROW}>
         <Button variant="plain" size="none" class={BUTTON} disabled={local.disabled} onClick={() => local.onAction?.()}>
           {local.label}

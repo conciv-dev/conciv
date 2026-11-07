@@ -6,7 +6,7 @@ import Square from 'lucide-solid/icons/square'
 import {Progress} from '@conciv/ui-kit-system'
 
 const DIVIDER =
-  "self-stretch flex items-center gap-2.5 my-1.5 mx-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-chat-line-soft after:content-[''] after:flex-1 after:h-px after:bg-chat-line-soft"
+  "self-stretch flex items-center gap-2.5 px-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-chat-line-soft after:content-[''] after:flex-1 after:h-px after:bg-chat-line-soft"
 const DIVIDER_LABEL =
   'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
 const DOT = 'w-1.5 h-1.5 rounded-chat-pill bg-chat-text-2'

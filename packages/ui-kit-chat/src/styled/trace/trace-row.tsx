@@ -7,9 +7,9 @@ import {OUTCOME_TONE} from '../../tools/primitives/tool-presentation.js'
 
 export const TRACE_MICROLABEL =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
-export const TRACE_LINE = 'relative flex items-center gap-[9px] min-w-0 h-[var(--chat-trace-gutter)]'
+export const TRACE_LINE = 'relative flex items-center gap-2.25 min-w-0 h-[var(--chat-trace-gutter)]'
 export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
-export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+0.5rem)]'
+export const TRACE_HOVER_INDENT = 'ps-[var(--chat-trace-gutter)] pe-2'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
 const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
@@ -19,8 +19,8 @@ const RUN_LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-accent`
 const TARGET = 'flex-1 min-w-0 truncate text-[12px] leading-none [font-family:var(--chat-mono)] text-chat-target'
 const RUN_TEXT = 'flex-1 min-w-0 truncate text-[12.5px] leading-none [font-family:var(--chat-font)] text-chat-text-2'
 const META = 'flex-none min-w-0 max-w-[50%] truncate text-[11px] leading-none [font-family:var(--chat-mono)]'
-const BLOCK = `flex flex-col gap-1 min-w-0 pt-[3px] pb-[5px] ${TRACE_INDENT}`
-const ROW_ITEM = 'relative list-none min-w-0 pb-px'
+const BLOCK = `flex flex-col gap-1 min-w-0 pt-0.75 pb-1.25 ${TRACE_INDENT}`
+const ROW_ITEM = 'relative list-none min-w-0'
 const FOLD_SLOT = 'flex-none inline-flex w-3 justify-center'
 const FOLD = `${FOLD_SLOT} text-chat-affordance opacity-0 group-hover/row:opacity-70 group-focus-visible/row:opacity-100 data-[state=closed]:opacity-70 data-[state=closed]:-rotate-90 [transition:opacity_110ms_var(--chat-ease),rotate_150ms_var(--chat-ease)] motion-reduce:[transition:none]`
 

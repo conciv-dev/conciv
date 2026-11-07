@@ -9,7 +9,7 @@ import {FOCUS} from '../classes.js'
 import {TRACE_INDENT, TRACE_MICROLABEL} from './trace-row.js'
 
 const FRAME =
-  'flex flex-col gap-[7px] flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-2.75 py-2.25 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
+  'flex flex-col gap-1.75 flex-1 min-w-0 rounded-[var(--chat-radius-sm)] px-2.75 py-2.25 [background:var(--chat-perm-bg)] [border:1px_solid_var(--chat-perm-line)]'
 const HEADER = 'flex items-center gap-1.5 min-w-0'
 const HEADER_LABEL = `${TRACE_MICROLABEL} text-chat-perm-label`
 const WARN_GLYPH = 'select-none flex-none text-[11px] leading-none text-chat-perm-label'
@@ -24,7 +24,7 @@ const APPROVE = `${BUTTON_BASE} [background:var(--chat-perm-chip-bg)] [border:1p
 const DENY = `${BUTTON_BASE} [background:transparent] [border:1px_solid_transparent] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line)]`
 const SESSION = `${BUTTON_BASE} [background:transparent] [border:1px_solid_var(--chat-line)] text-chat-text-2 hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-perm-line)]`
 const HINT = 'select-none text-[9px] leading-none [font-family:var(--chat-mono)] opacity-70'
-const REQUEST_ITEM = 'pb-[3px] list-none min-w-0 relative'
+const REQUEST_ITEM = 'list-none min-w-0 relative'
 const ANNOUNCE_ITEM = 'list-none'
 
 const SECOND = 1000

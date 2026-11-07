@@ -16,7 +16,7 @@ const SUMMARY = 'flex-1 min-w-0 truncate text-[12.5px] leading-none [font-family
 const COMPACT_LINE = 'flex-1 min-w-0 truncate text-[11px] leading-none [font-family:var(--chat-mono)] text-chat-text-3'
 const TOGGLE =
   'flex-none text-[11.5px] leading-none [font-family:var(--chat-font)] text-chat-dim group-hover:text-chat-affordance [transition:color_120ms_var(--chat-ease)] motion-reduce:[transition:none]'
-const ROWS = 'relative flex flex-col min-w-0 p-0 m-0 list-none'
+const ROWS = 'relative flex flex-col gap-px min-w-0 p-0 m-0 list-none'
 
 export function Trace(props: {
   summary: string
@@ -62,7 +62,7 @@ export function Trace(props: {
       open={open()}
       onOpenChange={(details) => change(details.open)}
       ref={setRootEl}
-      class="mt-1 min-w-0 w-full relative"
+      class="min-w-0 w-full relative"
     >
       <TraceRail root={rootEl} header={headerEl} list={listEl} liveKey={lastLiveKey} open={open} />
       <div ref={setHeaderEl} class={HEADER_ITEM}>

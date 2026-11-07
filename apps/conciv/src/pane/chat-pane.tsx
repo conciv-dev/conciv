@@ -72,9 +72,8 @@ const PAGE_SESSION: PageSessionConfig = {
 }
 
 const ABOVE_COMPOSER =
-  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
-const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
-const NOW_ROW_UNDER_TURN = 'shrink-0 self-stretch min-w-0 pb-[6px] -mt-[13px]'
+  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-2.25 pe-5 pb-2.5 ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-1.25 [&>*+*]:before:[color:var(--chat-separator)]'
+const NOW_ROW = 'shrink-0 self-stretch min-w-0'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
@@ -212,9 +211,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
-  const narrationRowClass = createMemo(() =>
-    chat.messages().at(-1)?.role === 'assistant' ? NOW_ROW_UNDER_TURN : NOW_ROW,
-  )
   const activeCall = createMemo(() => activeToolCall(chat.messages()))
   const transcriptToolCallIds = createMemo(
     () =>
@@ -400,7 +396,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                           <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
                         </Show>
                         <Show when={narrating()}>
-                          <div class={narrationRowClass()}>
+                          <div class={NOW_ROW}>
                             <NowLine title={narrationTitle()} />
                           </div>
                         </Show>

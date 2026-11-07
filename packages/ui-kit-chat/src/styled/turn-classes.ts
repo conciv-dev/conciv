@@ -13,11 +13,11 @@ export const PROMPT_TEXT_CLASS =
 export const PROMPT_TIME_CLASS =
   'flex-none self-start text-end tabular-nums text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
 
-export const ASSISTANT_ROOT_CLASS = `flex flex-col gap-1.5 min-w-0 pb-[22px] [color:var(--chat-text)] self-stretch relative anim-msg ${TURN_MEASURE_CLASS}`
+export const ASSISTANT_ROOT_CLASS = `flex flex-col gap-1.5 min-w-0 [color:var(--chat-text)] self-stretch relative anim-msg ${TURN_MEASURE_CLASS}`
 
-export const ANSWER_ROW_CLASS = `flex min-w-0 w-full pt-[6px] ${TURN_INDENT_CLASS}`
+export const ANSWER_ROW_CLASS = `flex min-w-0 w-full ${TURN_INDENT_CLASS}`
 
-export const ANSWER_ACTION_ROW_CLASS = `absolute bottom-0 start-0 flex items-start pointer-events-none ${TURN_INDENT_CLASS}`
+export const ANSWER_ACTION_ROW_CLASS = `flex items-start h-6 min-w-0 ${TURN_INDENT_CLASS}`
 
 export const ANSWER_CONTENT_CLASS = 'min-w-0 text-[14px] leading-[1.6] text-chat-text'
 

@@ -241,7 +241,13 @@ function VirtualMessages(props: {
   return (
     <div
       ref={setSpacer}
-      style={{position: 'relative', width: '100%', flex: 'none', height: `${virtualizer.totalSize()}px`}}
+      style={{
+        position: 'relative',
+        width: '100%',
+        flex: 'none',
+        'row-gap': 'inherit',
+        height: `${virtualizer.totalSize()}px`,
+      }}
     >
       <For each={virtualizer.items}>
         {(item) => (
@@ -259,6 +265,7 @@ function VirtualMessages(props: {
               width: '100%',
               display: 'flex',
               'flex-direction': 'column',
+              'row-gap': 'inherit',
               transform: `translateY(${item.start - metrics.scrollMargin}px)`,
             }}
           >

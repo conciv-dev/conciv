@@ -918,7 +918,7 @@ describe('thread session log', () => {
     await expect.element(triggerLocator, {timeout: 3000}).toBeVisible()
     await expect.element(answerLocator, {timeout: 3000}).toBeVisible()
 
-    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(.absolute)')]
+    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(:has([role="toolbar"]))')]
     const firstTextRow = firstTextLocator.element()
     const triggerRow = triggerLocator.element()
     const answerRow = answerLocator.element()

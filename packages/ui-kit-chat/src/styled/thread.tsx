@@ -408,7 +408,7 @@ function ThreadRoot(props: ThreadRootProps): JSX.Element {
 }
 
 const LATEST_STRIP =
-  'absolute inset-inline-0 bottom-[6px] flex justify-center pointer-events-none opacity-0 translate-y-1 [transition:opacity_160ms_var(--chat-ease),transform_160ms_var(--chat-ease)] motion-reduce:[transition:none] data-[shown]:opacity-100 data-[shown]:translate-y-0'
+  'absolute inset-inline-0 bottom-1.5 flex justify-center pointer-events-none opacity-0 translate-y-1 [transition:opacity_160ms_var(--chat-ease),transform_160ms_var(--chat-ease)] motion-reduce:[transition:none] data-[shown]:opacity-100 data-[shown]:translate-y-0'
 
 const LATEST_CHIP = `pointer-events-auto [font-family:var(--chat-mono)] text-[10.5px] uppercase tracking-[0.08em] px-2 rounded-[var(--chat-radius-chip)] inline-flex gap-1 min-h-5.5 cursor-pointer [background:var(--chat-rail-bg)] [border:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-2)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] items-center hover:[border-color:var(--chat-line)] hover:[color:var(--chat-text-hi)] ${FOCUS}`
 
@@ -433,7 +433,7 @@ function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void
     <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pb-4 pt-[13px] flex flex-1 flex-col min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}
