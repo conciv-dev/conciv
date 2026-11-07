@@ -58,7 +58,7 @@ New, 2026-11-07 (Omri):
 
 ```
 agent CLI (any cwd) ──stdio──>   conciv mcp (hub, @conciv/cli)
-                                   │ 1. SELECT * FROM engines   (~/.conciv/conciv.db, dir 0700)
+                                   │ 1. SELECT * FROM engines   (<conciv home>/conciv.db, dir 0700)
                                    │    prune rows whose pid is dead
                                    ▼
                      engine A, engine B ...
@@ -71,10 +71,15 @@ agent CLI (any cwd) ──stdio──>   conciv mcp (hub, @conciv/cli)
 
 ### Discovery: the `engines` table
 
-- Home db: the conciv home folder is `$CONCIV_HOME` when set, else `~/.conciv` (the folder `dev-endpoint.json`
-  already lives in). `@conciv/db` opens `<conciv home>/conciv.db` with the existing migrations, so no second
+- Home db: the conciv home folder is `$CONCIV_HOME` when set, else the platform data folder from `env-paths`
+  (`envPaths('conciv', {suffix: ''}).data`): `~/Library/Application Support/conciv` on macOS,
+  `$XDG_DATA_HOME/conciv` (default `~/.local/share/conciv`) on Linux, `%LOCALAPPDATA%\conciv\Data` on Windows. This
+  is the pattern `conf` uses for Next.js, Astro, Wrangler and others. `env-paths@3.0.0` is already in the lockfile
+  as a transitive dependency; adding it as a direct dependency of `@conciv/db` needs Omri's yes (given 2026-11-07:
+  "use well known patterns"). The folder is created with mode `0700`. `~/.conciv/dev-endpoint.json` (Swift) is
+  not moved. `@conciv/db` opens `<conciv home>/conciv.db` with the existing migrations, so no second
   migration set; `openDb` gains a way to open a db at a given folder rather than under `<root>/.conciv`. Nothing is
-  written at install time, only by a running engine or hub. The hub and the engine both call it. Before opening, `~/.conciv` is created (or chmodded)
+  written at install time, only by a running engine or hub. The hub and the engine both call it. Before opening, the conciv home folder is created (or chmodded)
   to `0700`, because the table holds tokens; that covers the db and its `-wal` / `-shm` files.
 - New drizzle table `engines` in `packages/db/src/schema.ts` plus a generated migration (`pnpm --filter @conciv/db
   gen-migrations`): `pid` integer primary key, `root` text (project root), `apiBase` text, `startedAt` integer.
@@ -231,7 +236,7 @@ duplicate or useless tests in the same file, listed in the PR body with the reas
   click on the Claude item copies its install line, and the menu is absent once the hub is installed. The launch-menu tests
   are deleted with the feature.
 
-Tests never touch the real `~/.conciv`, any harness's real config or the user's home db: `CONCIV_HOME` (and each
+Tests never touch the real conciv home folder, any harness's real config or the user's home db: `CONCIV_HOME` (and each
 harness's own config env, e.g. `CLAUDE_CONFIG_DIR`) points at a temp dir.
 
 ## Changeset
@@ -248,4 +253,4 @@ One patch changeset naming `@conciv/cli` (the fixed group bumps every `@conciv/*
 4. Kill a dev server with `kill -9`: it disappears from `list_tabs` (pid pruned).
 5. A call from the outside session shows in that tab's widget transcript with the outside-call marker.
 6. `claude mcp remove -s user conciv`: the Claude item comes back in the menu.
-7. `ls -ld ~/.conciv` shows `drwx------`.
+7. `ls -ld ~/Library/Application\ Support/conciv` shows `drwx------`.
