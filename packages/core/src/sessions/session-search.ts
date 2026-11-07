@@ -1,6 +1,6 @@
 import {count, create, getByID, removeMultiple, search, upsert, upsertMultiple} from '@orama/orama'
 import {and, eq, inArray, isNotNull} from 'drizzle-orm'
-import {chunk, difference, sortBy, xor} from 'es-toolkit'
+import {difference, sortBy, xor} from 'es-toolkit'
 import {setImmediate as yieldToRequests} from 'node:timers/promises'
 import {EventPublisher} from '@orpc/server'
 import {AsyncQueuer} from '@tanstack/pacer'
@@ -56,8 +56,6 @@ const SearchDocumentSchema = z.object({
 type SearchDocument = z.infer<typeof SearchDocumentSchema>
 
 const REFRESH_PAGE = Number.MAX_SAFE_INTEGER
-
-const READ_BATCH = 8
 
 const TYPO_MIN_LENGTH = 4
 
@@ -129,10 +127,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const textPass = async (unread: Listed[]): Promise<boolean> => {
     const ordered = sortBy(unread, [(entry) => entry.meta.sizeBytes ?? 0])
-    for (const batch of chunk(ordered, READ_BATCH)) {
+    for (const entry of ordered) {
+      const document = await textDocumentOf(entry, Date.now())
       await yieldToRequests()
-      const now = Date.now()
-      await upsertMultiple(index, await Promise.all(batch.map((entry) => textDocumentOf(entry, now))))
+      await upsert(index, document)
     }
     return ordered.length > 0
   }
