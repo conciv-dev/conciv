@@ -68,8 +68,16 @@ async function refused<Rows>(run: () => Promise<Rows>, failed: (options: {messag
   try {
     return await run()
   } catch (error) {
-    throw failed({message: error instanceof Error ? error.message : String(error)})
+    throw failed({message: chainedMessage(error)})
   }
+}
+
+function chainedMessage(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  if (error.cause === undefined) return error.message
+  const cause = chainedMessage(error.cause)
+  if (error.message.includes(cause)) return error.message
+  return `${error.message}: ${cause}`
 }
 
 export function makeRpcRouter(deps: RpcDeps) {
