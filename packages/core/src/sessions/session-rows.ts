@@ -307,10 +307,12 @@ type ListedSession = {row: SessionRecord; native: HarnessSessionMeta | undefined
 export async function listSessionMetas(
   input: SessionListInput,
 ): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
+  const frontier = sourcesFrontier(input.nativePages)
   const entries = [...nativeEntries(input.nativePages), ...(await concivOnlyEntries(input))]
-  const merged = pageAfter(entries, input.page, (entry) => entry.cursor)
+  const covered = frontier === null ? entries : entries.filter((entry) => !olderThan(entry.cursor, frontier))
+  const merged = pageAfter(covered, input.page, (entry) => entry.cursor)
   const listed = await listedSessions(merged.items, input)
-  return {sessions: listed.map((session) => rowMeta(session, input)), next: nextCursor(merged, input)}
+  return {sessions: listed.map((session) => rowMeta(session, input)), next: merged.next ?? frontier}
 }
 
 export function sessionMetaOf(context: MetaContext, session: ListedSession): SessionMeta {
@@ -380,14 +382,17 @@ async function listedSessions(entries: PageEntry[], input: SessionListInput): Pr
   )
 }
 
-function nextCursor(
-  merged: {items: PageEntry[]; next: HarnessListCursor | null},
-  input: SessionListInput,
-): HarnessListCursor | null {
-  if (merged.next !== null) return merged.next
-  const last = merged.items.at(-1)
-  const sourcesHaveMore = input.nativePages.some(({page}) => page.next !== null)
-  return sourcesHaveMore && last !== undefined ? last.cursor : null
+function sourcesFrontier(pages: NativePage[]): HarnessListCursor | null {
+  const nexts = pages.flatMap(({page}) => (page.next === null ? [] : [page.next]))
+  return nexts.reduce<HarnessListCursor | null>(
+    (newest, next) => (newest === null || olderThan(newest, next) ? next : newest),
+    null,
+  )
+}
+
+function olderThan(cursor: HarnessListCursor, other: HarnessListCursor): boolean {
+  if (cursor.updatedAt !== other.updatedAt) return cursor.updatedAt < other.updatedAt
+  return cursor.id < other.id
 }
 
 async function currentOwners(input: SessionListInput, natives: NativeSession[]): Promise<Map<string, SessionRecord>> {

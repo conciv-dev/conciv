@@ -2571,7 +2571,7 @@ describe('rpc wire', () => {
           utimesSync(path, stamp / 1000, stamp / 1000)
         }
 
-        function writeCodexTurn(nativeId: string, ask: string, answer: string): void {
+        function writeCodexTurn(nativeId: string, ask: string, answer: string): string {
           const cwd = searched.cwd
           const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
           mkdirSync(dirname(rollout), {recursive: true})
@@ -2607,6 +2607,7 @@ describe('rpc wire', () => {
           } finally {
             db.close()
           }
+          return rollout
         }
 
         async function found(search: string): Promise<string[]> {
@@ -2645,6 +2646,12 @@ describe('rpc wire', () => {
         async function listedNativeIds(): Promise<string[]> {
           const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
           return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+        }
+
+        async function pagedNativeIds(cursor: HarnessListCursor | null): Promise<string[]> {
+          const {sessions: listed, next} = await searchKit().rpc.sessions.list({cursor, limit: 2})
+          const ids = listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+          return next === null ? ids : [...ids, ...(await pagedNativeIds(next))]
         }
 
         it('indexes nothing before the first list, then builds in the background and says so when done', async () => {
@@ -2715,7 +2722,7 @@ describe('rpc wire', () => {
           await foundOnceIndexed('guillemot', [puffin])
         })
 
-        it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched', async () => {
+        it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched, and gone codex rollouts hide no session behind them', async () => {
           const outside = join(searched.cwd, 'elsewhere', 'linked.jsonl')
           mkdirSync(dirname(outside), {recursive: true})
           writeFileSync(outside, JSON.stringify({type: 'user', message: {content: 'a linked pelican'}}) + '\n')
@@ -2724,6 +2731,15 @@ describe('rpc wire', () => {
 
           expect(await listedNativeIds()).not.toContain(claudeId('claude-linked'))
           await foundOnceIndexed('pelican', [claudeId('claude-local')])
+
+          writeCodexTurn('codex-quokka', 'a quokka', 'hopping')
+          const gone = ['codex-gone-1', 'codex-gone-2'].map((nativeId) =>
+            writeCodexTurn(nativeId, 'a quokka', 'hopping'),
+          )
+          gone.forEach((rollout) => rmSync(rollout))
+          const paged = await pagedNativeIds(null)
+          expect(paged).toEqual(expect.arrayContaining(['codex-quokka', claudeId('claude-local')]))
+          expect(paged).not.toContain('codex-gone-1')
         })
 
         it('indexes a truncated transcript by what it holds, hides the ones Claude cannot title, and the rest stay findable', async () => {
