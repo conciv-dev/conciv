@@ -1,5 +1,5 @@
 diff --git a/dist/esm/durability.js b/dist/esm/durability.js
-index 8faa1fd76caa87c242db6fdc7488e279e2e874c3..0976fcc69dcf369638c3d0ed1838d98baf6e190a 100644
+index 8faa1fd..0976fcc 100644
 --- a/dist/esm/durability.js
 +++ b/dist/esm/durability.js
 @@ -137,10 +137,8 @@ function journalOptionsFor(durability, runId) {
@@ -15,36 +15,11 @@ index 8faa1fd76caa87c242db6fdc7488e279e2e874c3..0976fcc69dcf369638c3d0ed1838d98b
  	};
  }
  /**
-diff --git a/dist/esm/middleware.d.ts b/dist/esm/middleware.d.ts
-index 329cb4ef0d37dbabcc6942b4da907089dd539f72..21308e8c93847ed1566ead6eb8d63dd164321918 100644
---- a/dist/esm/middleware.d.ts
-+++ b/dist/esm/middleware.d.ts
-@@ -1,5 +1,4 @@
- import { SandboxCapability } from './capabilities.js';
--import { ProjectionCapability } from './projection.js';
- import { SandboxSnapshotPolicy } from './snapshots.js';
- import { SandboxCheckpointStore } from './checkpoint-store.js';
- import { LockStore } from '@tanstack/ai/locks';
-@@ -82,4 +81,4 @@ export interface SandboxMiddlewareOptions<TOffset extends string = string> {
-      */
-     durability?: SandboxDurabilityOptions<TOffset>;
- }
--export declare function withSandbox<TOffset extends string = string>(definition: SandboxDefinition, options?: SandboxMiddlewareOptions<TOffset>): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SandboxCapability, typeof ProjectionCapability]>;
-+export declare function withSandbox<TOffset extends string = string>(definition: SandboxDefinition, options?: SandboxMiddlewareOptions<TOffset>): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SandboxCapability]>;
 diff --git a/dist/esm/middleware.js b/dist/esm/middleware.js
-index 15ee8157d3a3e4bef1567ffcbbe577d884c86c95..68fd7ed6f002d471c49c47c31b34cede1babb6f0 100644
+index 4fe5869..bce271a 100644
 --- a/dist/esm/middleware.js
 +++ b/dist/esm/middleware.js
-@@ -214,7 +214,7 @@ async function dispatchDefinitionHooks(hooks, event, logger) {
- function withSandbox(definition, options) {
- 	return defineChatMiddleware({
- 		name: "sandbox",
--		provides: [SandboxCapability, ProjectionCapability],
-+		provides: [SandboxCapability],
- 		optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
- 		async setup(ctx) {
- 			const ensureCtx = buildEnsureCtx(ctx, options);
-@@ -368,7 +368,7 @@ function withSandbox(definition, options) {
+@@ -370,7 +370,7 @@ function withSandbox(definition, options) {
  				const workspace = definition.workspace;
  				if (workspace !== void 0) {
  					const virtualRoot = workspace.root ?? "/workspace";
@@ -54,7 +29,7 @@ index 15ee8157d3a3e4bef1567ffcbbe577d884c86c95..68fd7ed6f002d471c49c47c31b34cede
  					const secrets = workspace.secrets;
  					provideWorkspaceProjection(ctx, {
 diff --git a/dist/esm/tool-history.js b/dist/esm/tool-history.js
-index e662004ab478c6469900f6185a529d63e0f407ec..4fa89639160dafd9b5105ea96bf67e6b599fa4de 100644
+index e662004..4fa8963 100644
 --- a/dist/esm/tool-history.js
 +++ b/dist/esm/tool-history.js
 @@ -1,4 +1,4 @@

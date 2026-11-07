@@ -24,7 +24,7 @@ import {
   runLifecycleEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
+import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
@@ -461,6 +461,12 @@ describe('usage', () => {
     it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
       expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
     })
+
+    it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
+      expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
+        totalCostUsd: 0.25,
+      })
+    })
   })
 })
 
@@ -527,8 +533,9 @@ describe('dist externals', () => {
       const code = chunks.map((chunk) => chunk.code).join('\n')
       expect(code).toContain('toolCallId: callId')
       expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
-      expect(code).toContain('provides: [SandboxCapability],')
-      expect(code).not.toContain('provides: [SandboxCapability, ProjectionCapability]')
+      expect(code).toMatch(
+        /const root = workspace\.root \?\? "\/workspace";\s+const workspaceHash = computeWorkspaceHash\(workspace\)/,
+      )
     })
 
     it('externalizes @tanstack/ai', () => {

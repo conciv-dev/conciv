@@ -30,7 +30,7 @@
   <a href="https://www.npmjs.com/package/@conciv/it"><img alt="npm" src="https://img.shields.io/npm/v/%40conciv%2Fit?style=flat-square&color=cb3837&label=npm"></a>
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/conciv-dev/conciv/ci.yml?branch=main&label=CI&style=flat-square">
   <img alt="License" src="https://img.shields.io/github/license/conciv-dev/conciv?color=3b82f6&style=flat-square">
-  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a?style=flat-square">
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2026-3c873a?style=flat-square">
   <img alt="Status" src="https://img.shields.io/badge/status-beta-e8552d?style=flat-square">
 </p>
 
@@ -184,7 +184,7 @@ Every package, app and source directory carries a `README.md` with its interface
 
 ### Global Invariants
 
-- Everything is ESM, Node >= 22 (`node:sqlite` needs >= 22.13), one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
+- Everything is ESM, Node >= 26, one pnpm workspace with catalog-pinned dependencies and turbo as the task graph.
 - Code shared between the browser and Node lives in a contract package (`protocol`, `contract`, `extension`, `grab`) or an extension's `shared/` directory; the browser never imports a server entry.
 - Extensions are declared once with `defineExtension` and split at build time by `extension-compiler` into a browser half and a Node half. The public package set is `PUBLIC_PACKAGES` in `packages/publish`, and every other `@conciv/*` package is internal to `@conciv/it`.
 - The engine binds loopback only; cross-origin access is gated by the Host/Origin middleware in `packages/core/src/lib`.

@@ -1904,11 +1904,13 @@ describe('rpc wire', () => {
       it('sessions run independently and each keeps its own usage', async () => {
         const [slow, quick] = [await newSession(), await newSession()]
         cli.usage.push(usage(11), usage(22))
-        script().scriptTurn({toolCalls: [], text: 'slow reply', textPace: {chunk: 1, everyMs: 50}})
+        script().holdResults()
+        script().scriptTurn({toolCalls: [{name: 'slow_tool', input: {}}], text: 'slow reply'})
         const slowTurn = await send(slow, 'slow')
-        await slowTurn.waitForRunStart()
+        await slowTurn.waitForToolCall('slow_tool')
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
+        script().releaseResults()
         await slowTurn.done(GUARD)
         expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
         expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})

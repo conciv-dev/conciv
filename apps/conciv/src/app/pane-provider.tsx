@@ -1,7 +1,15 @@
 import type {JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {useRouter} from '@tanstack/solid-router'
-import {useAnnounce, useAppData, useAppQueryClient, useGrabProvider, useChatDeps, usePaneChat} from './context.js'
+import {
+  useAnnounce,
+  useAppData,
+  useAppQueryClient,
+  useGrabProvider,
+  useChatDeps,
+  useLiveSessions,
+  usePaneChat,
+} from './context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from './pane-context.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
@@ -31,6 +39,7 @@ export function PaneProvider(props: {
   const chat = usePaneChat(() => props.sessionId)
   const coordinator = makeRefreshCoordinator({
     chat,
+    liveSessions: useLiveSessions(),
     sessionId: () => props.sessionId,
     appData,
     queryClient,

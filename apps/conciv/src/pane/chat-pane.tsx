@@ -11,6 +11,7 @@ import {
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
+import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {
   activeToolCall,
@@ -38,7 +39,7 @@ import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
 import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
-import {useAnnounce, useAppData, useConnected, useInstances, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
@@ -78,6 +79,8 @@ const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
   'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
+const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
+const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
   return (event: AnimationEvent) => {
@@ -160,7 +163,23 @@ function turnHarnessNames(chat: ChatSession, current: () => string | undefined):
   }
 }
 
+type OpenedChat = {chat: ChatSession; reopened: boolean}
+
 export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Element {
+  const pane = usePane()
+  const opened = createMemo<OpenedChat | undefined>(
+    (previous) => ({chat: pane.chat(), reopened: previous !== undefined}),
+    undefined,
+    {equals: (previous, next) => previous?.chat === next?.chat},
+  )
+  return (
+    <Show when={opened()} keyed>
+      {(current) => <OpenedChatPane opened={current} sessionId={props.sessionId} viewTab={props.viewTab} />}
+    </Show>
+  )
+}
+
+function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
   const announce = useAnnounce()
@@ -176,7 +195,6 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
   const narrating = () => working() || chat.sessionRunning()
-  const hydrated = chat.hydrated
 
   const panelFocus = usePanelComposerFocus()
   const [inputHandle, setInputHandle] = createSignal<ComposerInputHandle>()
@@ -350,13 +368,18 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                 <Thread>
                   <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
-                      <Show when={hydrated()} fallback={<ConversationSkeleton />}>
-                        <Thread.Welcome>
-                          <EmptyStateSlot
-                            onStarter={(starter) => void chat.sendMessage(starter)}
-                            instances={instances}
-                          />
-                        </Thread.Welcome>
+                      <Show
+                        when={!chat.isHydrating()}
+                        fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
+                      >
+                        <Show when={!chat.loadFailed()}>
+                          <Thread.Welcome>
+                            <EmptyStateSlot
+                              onStarter={(starter) => void chat.sendMessage(starter)}
+                              instances={instances}
+                            />
+                          </Thread.Welcome>
+                        </Show>
                         <Thread.Messages
                           tools={tools()}
                           attachmentCards={attachments().cards}
@@ -367,7 +390,9 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={lastTurnStopped()}>
                           <Divider kind="stopped" />
                         </Show>
-                        <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        <Show when={!chat.loadFailed()}>
+                          <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        </Show>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>
@@ -381,12 +406,17 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         </Show>
                         <Show when={messaging.visibleError()}>
                           {(error) => (
-                            <RunErrorRow
-                              error={error()}
-                              compacting={compacting()}
-                              onRetry={() => void chat.reload()}
-                              onCompact={() => messaging.compact.mutate()}
-                            />
+                            <Show
+                              when={!chat.loadFailed()}
+                              fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
+                            >
+                              <RunErrorRow
+                                error={error()}
+                                compacting={compacting()}
+                                onRetry={() => void chat.reload()}
+                                onCompact={() => messaging.compact.mutate()}
+                              />
+                            </Show>
                           )}
                         </Show>
                       </Show>
@@ -437,5 +467,36 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
         </ToolProvider>
       </ChatProvider>
     </HostApiProvider>
+  )
+}
+
+function ConversationLoading(props: {reopened: boolean; sessionId: string}): JSX.Element {
+  return (
+    <Show when={props.reopened} fallback={<ConversationSkeleton />}>
+      <LoadFailedAlert busy sessionId={props.sessionId} />
+    </Show>
+  )
+}
+
+function LoadFailedAlert(props: {busy: boolean; sessionId: string}): JSX.Element {
+  const liveSessions = useLiveSessions()
+  return <PaneAlert message={LOAD_FAILED} busy={props.busy} onRetry={() => liveSessions.reopen(props.sessionId)} />
+}
+
+function PaneAlert(props: {message: string; busy: boolean; onRetry: () => void}): JSX.Element {
+  return (
+    <div class={ERROR} role="alert">
+      <span class="flex-1">{props.message}</span>
+      <Button
+        variant="outline-danger"
+        size="sm"
+        class="shrink-0 min-h-8 font-semibold"
+        disabled={props.busy}
+        aria-busy={props.busy}
+        onClick={() => props.onRetry()}
+      >
+        {props.busy ? 'Retrying…' : 'Retry'}
+      </Button>
+    </div>
   )
 }
