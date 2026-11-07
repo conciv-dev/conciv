@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {asc, eq} from 'drizzle-orm'
+import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
@@ -10,7 +10,7 @@ import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
-import {harnessMetaOf, sessionsRouter} from './sessions.js'
+import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
@@ -86,6 +86,7 @@ export function makeRpcRouter(deps: RpcDeps) {
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
   return os.router({
+    auth: deps.auth,
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
     drafts: {
@@ -101,7 +102,11 @@ export function makeRpcRouter(deps: RpcDeps) {
     },
     markers: {
       list: os.markers.list.handler(({input}) =>
-        db.select().from(markers).where(eq(markers.sessionId, input.sessionId)).orderBy(asc(markers.afterTurn)),
+        db
+          .select()
+          .from(markers)
+          .where(eq(markers.sessionId, input.sessionId))
+          .orderBy(asc(sql`rowid`)),
       ),
     },
     navigation: {
@@ -183,14 +188,19 @@ export function makeRpcRouter(deps: RpcDeps) {
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
-      models: os.meta.models.handler(async () => {
-        const models = await resolveHarnessModels(chat.harness)
+      models: os.meta.models.handler(async ({input}) => {
+        const harness = chat.harnessFor(input.sessionId)
+        const models = await resolveHarnessModels(harness)
         return {
           models,
-          defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null,
-          harness: harnessMetaOf(deps),
+          defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
+          harness: harnessMetaOf(harness),
         }
       }),
+      harnesses: os.meta.harnesses.handler(async () => ({
+        harnesses: await Promise.all(chat.harnesses.map(harnessMenuEntryOf)),
+        defaultHarness: chat.defaultHarness.id,
+      })),
       commands: os.meta.commands.handler(({input, context}) =>
         listCommands(chat, {sessionId: input.sessionId, origin: context.origin}),
       ),

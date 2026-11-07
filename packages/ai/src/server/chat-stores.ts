@@ -1,7 +1,9 @@
-import {and, asc, desc, eq, isNotNull, lte} from 'drizzle-orm'
+import {and, asc, desc, eq, gte, isNotNull, lt, lte, max, sql} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
+import type {MessagePage} from '@tanstack/ai-persistence'
+import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatStores} from './chat-server.js'
-import {chatMetadata, chatRuns, chatThreads} from './chat-tables.js'
+import {chatMessages, chatMetadata, chatRuns} from './chat-tables.js'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 
@@ -45,31 +47,93 @@ function durableColumns(patch: RunPatch): RunColumns {
   }
 }
 
+type ThreadWindow = {limit?: number; before?: string}
+
 const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
-export function drizzleChatStores(db: NodeSQLiteDatabase): ChatStores {
+export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (threadId: string) => string}): ChatStores {
   const get = async (runId: string): Promise<RunRecord | null> => {
     const rows = await db.select().from(chatRuns).where(eq(chatRuns.runId, runId)).limit(1)
     const row = rows[0]
     return row === undefined ? null : mapRun(row)
   }
+  async function wholeThread(threadId: string): Promise<ModelMessage[]> {
+    const rows = await db
+      .select({messageJson: chatMessages.messageJson})
+      .from(chatMessages)
+      .where(eq(chatMessages.threadId, threadId))
+      .orderBy(asc(chatMessages.position))
+    return rows.map((row) => row.messageJson)
+  }
+  async function windowEnd(threadId: string, before: string | undefined): Promise<number | null> {
+    if (before === undefined) {
+      const newest = await db
+        .select({position: max(chatMessages.position)})
+        .from(chatMessages)
+        .where(eq(chatMessages.threadId, threadId))
+      return (newest[0]?.position ?? -1) + 1
+    }
+    const rows = await db
+      .select({position: chatMessages.position})
+      .from(chatMessages)
+      .where(and(eq(chatMessages.threadId, threadId), eq(chatMessages.messageId, before)))
+      .limit(1)
+    return rows[0]?.position ?? null
+  }
+  async function turnStartAtOrBefore(threadId: string, from: number) {
+    const rows = await db
+      .select({position: chatMessages.position, messageId: chatMessages.messageId})
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.threadId, threadId),
+          eq(chatMessages.role, 'user'),
+          isNotNull(chatMessages.messageId),
+          lte(chatMessages.position, from),
+        ),
+      )
+      .orderBy(desc(chatMessages.position))
+      .limit(1)
+    return rows[0] ?? {position: 0, messageId: null}
+  }
+  async function threadWindow(threadId: string, limit: number, before?: string): Promise<MessagePage> {
+    const end = await windowEnd(threadId, before)
+    if (end === null) return {messages: [], truncated: false}
+    const start = await turnStartAtOrBefore(threadId, Math.max(end - limit, 0))
+    const rows = await db
+      .select({messageJson: chatMessages.messageJson})
+      .from(chatMessages)
+      .where(
+        and(
+          eq(chatMessages.threadId, threadId),
+          gte(chatMessages.position, start.position),
+          lt(chatMessages.position, end),
+        ),
+      )
+      .orderBy(asc(chatMessages.position))
+    const messages = rows.map((row) => row.messageJson)
+    if (start.position === 0 || start.messageId === null) return {messages, truncated: false}
+    return {messages, truncated: true, cursor: start.messageId}
+  }
+  function loadThread(threadId: string): Promise<ModelMessage[]>
+  function loadThread(threadId: string, window: ThreadWindow): Promise<ModelMessage[] | MessagePage>
+  function loadThread(threadId: string, window?: ThreadWindow): Promise<ModelMessage[] | MessagePage> {
+    if (window?.limit === undefined) return wholeThread(threadId)
+    return threadWindow(threadId, window.limit, window.before)
+  }
   return {
     messages: {
-      loadThread: async (threadId: string) => {
-        const rows = await db
-          .select({messagesJson: chatThreads.messagesJson})
-          .from(chatThreads)
-          .where(eq(chatThreads.threadId, threadId))
-          .limit(1)
-        return rows[0]?.messagesJson ?? []
-      },
+      loadThread,
       saveThread: async (threadId, messages) => {
-        const updatedAt = Date.now()
-        await db
-          .insert(chatThreads)
-          .values({threadId, messagesJson: messages, updatedAt})
-          .onConflictDoUpdate({target: chatThreads.threadId, set: {messagesJson: messages, updatedAt}})
+        db.transaction((tx) => {
+          tx.delete(chatMessages)
+            .where(and(eq(chatMessages.threadId, threadId), gte(chatMessages.position, messages.length)))
+            .run()
+          tx.run(
+            sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json`,
+          )
+        })
       },
     },
     runs: {
@@ -77,7 +141,7 @@ export function drizzleChatStores(db: NodeSQLiteDatabase): ChatStores {
       createOrResume: async ({runId, threadId, startedAt, status}) => {
         await db
           .insert(chatRuns)
-          .values({runId, threadId, status: status ?? 'running', startedAt})
+          .values({runId, threadId, harnessId: opts.harnessOf(threadId), status: status ?? 'running', startedAt})
           .onConflictDoNothing({target: chatRuns.runId})
         const stored = await get(runId)
         if (stored === null) throw new Error(`run ${runId} was not stored`)

@@ -21,10 +21,14 @@ const PersistedDraftSchema = z.object({
 
 type PersistedDraft = z.infer<typeof PersistedDraftSchema>
 
+type DraftRow = NonNullable<Awaited<ReturnType<RpcClient['drafts']['get']>>>
+
+export type ServerDraft = {snapshot: WebStorage; selection: SelectionOffsets}
+
 export type PaneDraftStorage = {
   storage: WebStorage
   noteSelection: (offsets: SelectionOffsets) => void
-  restoredSelection: SelectionOffsets | undefined
+  restore: (apply: (restored: ServerDraft, edited: boolean) => void, signal: AbortSignal) => Promise<void>
 }
 
 function parseDraft(raw: string): PersistedDraft | null {
@@ -45,6 +49,14 @@ function clampSelection(offsets: SelectionOffsets | null, text: string): Selecti
   return {start: Math.min(offsets.start, text.length), end: Math.min(offsets.end, text.length)}
 }
 
+function serverDraft(row: DraftRow): ServerDraft {
+  const serialized = JSON.stringify({text: row.text, quote: null, attachments: row.attachments})
+  return {
+    snapshot: {getItem: () => serialized, setItem: () => {}},
+    selection: clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text),
+  }
+}
+
 export async function appendDraft(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
   const row = await rpc.drafts.get({sessionId})
   const nextText = row?.text ? `${row.text}\n${text}` : text
@@ -57,9 +69,8 @@ export async function appendDraft(rpc: RpcClient, sessionId: string, text: strin
   })
 }
 
-export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promise<PaneDraftStorage> {
-  const row = await rpc.drafts.get({sessionId}).catch(() => null)
-  let cache = row ? JSON.stringify({text: row.text, quote: null, attachments: row.attachments}) : null
+export function makeDraftStorage(rpc: RpcClient, sessionId: string): PaneDraftStorage {
+  let cache: string | null = null
   let selection: SelectionOffsets | null = null
   const persist = (draft: PersistedDraft) => {
     const offsets = clampSelection(selection, draft.text)
@@ -71,14 +82,17 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
         selectionEnd: offsets.end,
         attachments: draft.attachments,
       })
-      .catch(() => {})
+      .catch((error: unknown) => {
+        console.error('[conciv] could not save the draft', error)
+      })
   }
-  const write = new Debouncer(persist, {wait: WRITE_DELAY_MS})
+  const write = new Debouncer(persist, {wait: WRITE_DELAY_MS, enabled: false})
+  const cached = () => (cache === null ? null : parseDraft(cache))
   return {
     storage: {
       getItem: () => cache,
       setItem: (_key, value) => {
-        const stored = cache === null ? null : parseDraft(cache)
+        const stored = cached()
         cache = value
         const parsed = parseDraft(value)
         if (!parsed) return
@@ -87,12 +101,29 @@ export async function makeDraftStorage(rpc: RpcClient, sessionId: string): Promi
           return
         }
         write.cancel()
-        if (stored && !isCleared(stored)) persist(parsed)
+        if (stored && isCleared(stored)) return
+        write.maybeExecute(parsed)
+        write.flush()
       },
     },
     noteSelection: (offsets) => {
       selection = offsets
     },
-    restoredSelection: row ? clampSelection({start: row.selectionStart, end: row.selectionEnd}, row.text) : undefined,
+    restore: async (apply, signal) => {
+      const row = await rpc.drafts.get({sessionId}, {signal}).catch((error: unknown) => {
+        if (!signal.aborted) console.error('[conciv] could not read the saved draft', error)
+        return null
+      })
+      if (signal.aborted) return
+      const typed = cached()
+      const cleared = typed !== null && isCleared(typed)
+      try {
+        if (row && !cleared) apply(serverDraft(row), typed !== null)
+      } finally {
+        write.setOptions({enabled: true})
+        if (typed && (row || !cleared)) write.maybeExecute(typed)
+        if (cleared) write.flush()
+      }
+    },
   }
 }

@@ -12,6 +12,7 @@ export type ConcivInit = {
   settings?: ConcivSettingsInit
   apiBase?: string
   grabProvider?: GrabProvider
+  engineToken?: () => Promise<string>
 }
 
 export type ConcivHandle = {

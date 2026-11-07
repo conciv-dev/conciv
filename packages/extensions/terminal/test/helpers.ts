@@ -1,3 +1,4 @@
+import {upgradeWebSocket} from '@hono/node-server'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import type {AnyRouter} from '@orpc/server'
@@ -97,7 +98,7 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
 
 export async function startTerminalServer(
   harness: ServerHarness = bashHarness,
-  opts: {basePath?: string; stateDir?: string} = {},
+  opts: {basePath?: string; stateDir?: string; harnessOf?: ServerApi<Record<never, never>>['harness']} = {},
 ): Promise<TerminalTestServer> {
   const stateDir = opts.stateDir ?? concivStateDir(process.cwd())
   const app = new Hono()
@@ -109,10 +110,11 @@ export async function startTerminalServer(
     basePath: opts.basePath ?? '',
     stateDir,
     sessions,
-    harness,
+    harness: opts.harnessOf ?? (() => harness),
     symbolicate: async () => null,
     nativeUrl: () => undefined,
     page: {ask: ({name}) => Promise.reject(new Error(`${name}: the terminal test server has no page`))},
+    upgradeWebSocket,
   }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')

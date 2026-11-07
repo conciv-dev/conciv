@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {expect, screen, within, userEvent, waitFor} from 'storybook/test'
 import {ZoomableImage} from './zoomable-image.js'
 
 const meta: Meta = {title: 'ui-kit-system/ZoomableImage'}
@@ -18,7 +18,7 @@ export const Default: Story = {
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', {name: 'Open Page screenshot'}))
-    await waitFor(() => expect(canvas.getByRole('dialog', {name: 'Page screenshot'})).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('dialog', {name: 'Page screenshot'})).toBeVisible())
     await userEvent.keyboard('{Escape}')
   },
 }

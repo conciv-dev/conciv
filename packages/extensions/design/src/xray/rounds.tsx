@@ -1,4 +1,4 @@
-import {makeRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import {createResource, createSignal, For, Match, Show, Switch, type JSX} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
@@ -10,7 +10,7 @@ export function Rounds(props: RoundsProps): JSX.Element {
   const [data, {refetch}] = createResource(
     () => ({apiBase: props.apiBase, session: props.session}),
     async (input) => {
-      const session = input.session ?? (await makeRpcClient(input.apiBase).sessions.resolve({})).sessionId
+      const session = input.session ?? (await makeBrowserRpcClient(input.apiBase).rpc.sessions.resolve({})).sessionId
       const client = makeExtRpcClient<XrayRouter>(input.apiBase, DESIGN_EXTENSION_NAME)
       const target = await client.xray.current({session})
       return target === null ? null : client.xray.rounds({id: target.id})

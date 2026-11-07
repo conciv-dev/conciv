@@ -8,6 +8,7 @@ export type SelectionOffsets = {start: number; end: number}
 export type ComposerInputHandle = {
   focus: () => void
   append: (text: string) => void
+  select: (offsets: SelectionOffsets) => void
 }
 
 export type ComposerTriggerSources = {
@@ -23,7 +24,6 @@ export type ComposerInputAdapterProps = {
   triggers?: ComposerTriggerSources
   onReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
 }
 
 export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Element {
@@ -49,6 +49,14 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
     void Promise.allSettled(files.map((file) => context.addAttachment(file)))
     return true
   }
+  const removeLastAttachment = (): boolean => {
+    const last = context.attachments().at(-1)
+    if (!last) return false
+    context.removeAttachment(last.id).catch((error: unknown) => {
+      console.error('[conciv] could not remove the attachment', error)
+    })
+    return true
+  }
   const bind = (element: HTMLDivElement) => {
     wrapper = element
     makeEventListener(element, 'keydown', cancelOnEscape)
@@ -60,17 +68,18 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
         onValueChange={composer.setText}
         onSubmit={submit}
         onSelectionChange={props.onSelectionChange}
-        initialSelection={props.initialSelection}
         placeholder={props.placeholder}
         label={props.inputLabel}
         editableClass={props.editableClass}
         onPaste={consumeFilePaste}
+        onBackspaceAtStart={removeLastAttachment}
         slashTrigger={props.triggers?.slash}
         mentionTrigger={props.triggers?.mention}
         onReady={(handle) => {
           props.onReady?.({
             focus: () => handle.focus(),
             append: (text) => handle.appendText(composer.text() === '' ? text : `\n${text}`),
+            select: (offsets) => handle.select(offsets),
           })
         }}
       />

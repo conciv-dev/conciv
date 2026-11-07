@@ -2,23 +2,24 @@
 
 ## Overview
 
-Composer toolbar: element grab, new session, compact and terminal launch actions, a per-session model selector, a session combobox, and a typed rpc client for the terminal extension.
+Composer toolbar: element grab, new session, compact and terminal launch actions, the composer prompt's model menu (which also switches the harness), a session combobox, and a typed rpc client for the terminal extension.
 
 ## Interface
 
-- `ComposerActions` (`actions.tsx`): grab element, new session, compact, `LaunchMenu`, `SessionModelSelector`
+- `ComposerActions` (`actions.tsx`): grab element, new session, compact, `LaunchMenu`
 - `LaunchMenu` (`launch-menu.tsx`): `Open in <harness>`, `Copy command`, or a retry item when failed
-- `ModelSelectorView` (`model-selector.tsx`): presentational model picker with groups, search and effort
-- `SessionModelSelector` (`model-selector.tsx`): switches a session's model through `rpc.sessions.model`
+- `useModelMenu(onClose)` → `ModelMenu` (`{popover, state, search, expand, confirm, ask, settle}`), `SessionModelPrompt({sessionId, menu, running})` (`model-selector.tsx`): the model menu, owned by the pane so `/model` can open it (`popover().setOpen(true)`): a ui-kit-system `usePopover` machine plus one store of its search text, unfolded `Older versions` sections and pending harness-switch confirm; `onClose` runs whenever the popover closes (unless the confirm is open) and when the confirm settles. The composer prompt is a mono trigger (lowercase model name sliding in on change, the harness in parentheses when more than one harness is available, then signal bars for the effort that fill and drain one bar at a time) followed by a separate `❯` caret; it renders the picker through `Popover.RootProvider` (`lazyMount`, `unmountOnExit`), a `Model` dialog holding one ui-kit `Listbox` built from `meta.harnesses` with a `Search models` field (`Listbox.Input`, `autoHighlight`): one option group per harness, the session's own first (labelled with its name, visible only when more than one harness is available); each group lists its first model group (name and description, check on the selected one), capped at 4 rows when longer (the default, the selected one and the newest others) with a `N more models, type to search` line, since a harness like OpenCode lists hundreds and rendering them all stalls every model switch and each later group as a `Collapsible` section (`Older versions`, folded unless it holds the current model); a search lists every model of every harness, folded sections included, whose name, id or harness name contains it (`useFilter` `contains`, case and accent insensitive); a harness that listed no models says `<harness> has no usable models`; below a separator an `Effort` section: a `SegmentGroup` of the current model's `efforts` in order (`xhigh` reads `High+`) and a fixed-height note for the chosen level
 - `SessionSelector` (`session-selector.tsx`): session combobox (`pill` | `bar`) with Today/Yesterday/Earlier groups, search, rename, new session
-- `terminalRpc`, `TerminalRpc` (`terminal-rpc.ts`): `makeExtRpcClient<TerminalRouter>(resolveApiBase(), 'terminal')`
+- `terminalRpc`, `TerminalRpc` (`terminal-rpc.ts`): `makeExtRpcClient<TerminalRouter>(apiBase, 'terminal')` for the api base the widget is bound to (read from the host api by the caller)
 
 ## Invariants
 
 - `actions.tsx:ComposerActions`: `LaunchMenu` renders only while meta is loading or `meta.data.harness.canLaunch` is true; the grab button is disabled when `grab.grabbable()` is false
 - `actions.tsx:openExternal`: tries `terminal.launch`; on `ok: false` falls back to `terminal.connectCommand` and copies the command
 - `actions.tsx:launchFailure`: error code `NO_CONNECT` maps to `<harness> can’t be opened in a terminal.`
-- `model-selector.tsx:SessionModelSelector`: selecting a disabled model does nothing; shown value falls back session model, then `meta.defaultModel`, then null
+- `model-selector.tsx:SessionModelPrompt`: the current harness is the session row's `harnessKind`, else `defaultHarness`; shown model falls back session model, then that harness's `defaultModel`, then null; a current harness with no models still shows the prompt, labelled with the harness name, so the menu opens and another harness can be picked; rows and the prompt name the harness in parentheses (`Opus 5.5 (Claude)`) only when more than one harness is available; the trigger shows effort bars only when the session effort is one the current model lists; the Effort section is hidden when the current model has no `efforts`; picking an effort keeps the popover open, picking a model (click or Enter, even the current one) closes it; a null effort leaves no segment checked and the note reads the model default; the popover opens on the search field, arrows move from the current model (or, while searching, from the first match), Enter picks; Escape clears a non-empty search and otherwise closes; closing clears the search and refolds the sections; every close returns focus to the composer; nothing matching shows `No models match “<search>”`
+- `model-selector.tsx:SessionModelPrompt`: picking another harness's model switches the harness with that model (`sessions.switchHarness` with `model`); those rows are disabled while a run is in progress or a switch is pending; an empty chat switches at once, a chat with messages first confirms with the history size estimated from the messages' text length / 4 (never the session's context usage, which counts the old harness's system prompt and tools); picking it closes the popover first and the confirm mounts only once the popover finished exiting (`onExitComplete`), so the two never overlap; the popover never restores focus itself (`restoreFocus: false`), the composer gets it once the confirm is cancelled or confirmed; another harness whose model list failed shows a retry button; a failed catalog shows `Couldn’t load the other harnesses: Retry loading models` and keeps the session's own models; a current harness whose list failed names the prompt `Couldn’t load models` and offers `Couldn’t load models: Retry loading models`; the composer never waits on another harness's model list
+- `session-selector.tsx:SessionSelector`: rows name their harness only when more than one harness is available
 - `session-selector.tsx:commitRename`: no rename when the trimmed draft is empty or unchanged
 - `session-selector.tsx:select`: selecting the active id or an empty id does nothing
 
@@ -26,7 +27,8 @@ Composer toolbar: element grab, new session, compact and terminal launch actions
 
 - `actions.tsx:openExternal`, `copyConnect`: terminal extension rpc `launch` and `connectCommand`
 - `actions.tsx:copyCommand`: writes the clipboard through `writeClipboardText`
-- `model-selector.tsx:SessionModelSelector`: `rpc.sessions.model` mutation, invalidates sessions, announces the change
+- `model-selector.tsx:SessionModelPrompt`: `rpc.sessions.model` and `rpc.sessions.effort` mutations, each invalidates sessions and announces a failure
+- `model-selector.tsx:SessionModelPrompt`: `rpc.sessions.switchHarness` mutation, refetches the session's `meta.models`, `meta.commands` and `sessions.list`, re-hydrates the chat, announces `Switched to <model> (<harness>).`, failures go to the notice surface
 - `session-selector.tsx:SessionSelector`: `rpc.sessions.rename` mutation, `sessions.list` query, module-level `instanceSeq` counter
 
 ## Verification

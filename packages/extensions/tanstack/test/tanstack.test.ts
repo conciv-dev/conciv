@@ -11,7 +11,7 @@ import {createServer, type ViteDevServer} from 'vite'
 import ts from 'typescript'
 import {z} from 'zod'
 import {test as browserTest} from '@conciv/browser-fixture'
-import {start, type Engine} from '@conciv/core/start'
+import {start, type Engine, type StartOpts} from '@conciv/core/start'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {serveDir, type ServedHost} from '@conciv/extension-testkit'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
@@ -29,6 +29,11 @@ import {
   waitForAboutQuery,
   waitForWidget,
 } from './helpers.js'
+
+async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
+  const engine = await start(opts)
+  return {engine, apiBase: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`}
+}
 
 describe('boot', () => {
   const get = useTanstackTestApi()
@@ -141,13 +146,12 @@ describe('folder install', () => {
     const extensions = await loadServerExtensions(root, [])
     expect(extensions.map((extension) => extension.name)).toContain('tanstack')
 
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: root, systemPrompt: false},
       root,
       launchEditor: () => {},
       extensions,
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const callTool = makeCallTool(apiBase, await resolveSession(apiBase))
     const routes = await callTool('tanstack_route_manifest', {})
     expect(Array.isArray(routes)).toBe(true)
@@ -323,11 +327,15 @@ describe('resolution matrix', () => {
   function writeFixtureManifest(dir: string, packed: PackedPackage[]): void {
     const root = packed.find((entry) => entry.name === rootPackage)
     if (!root) throw new Error('root package missing from closure')
+    const {packageManager} = z
+      .object({packageManager: z.string()})
+      .parse(JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8')))
     const manifest = {
       name: 'conciv-resolution-matrix-fixture',
       version: '0.0.0',
       private: true,
       type: 'module',
+      packageManager,
       dependencies: {
         [rootPackage]: `file:${root.tarball}`,
         '@tanstack/react-router': '^1.170.0',
@@ -630,14 +638,13 @@ describe('server tools', () => {
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
       bridge,
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }
@@ -758,14 +765,13 @@ describe('serverfn trace', () => {
   }
 
   async function bootEngine(root: string, bridge?: BundlerBridge): Promise<{engine: Engine; callTool: CallTool}> {
-    const engine = await start({
+    const {engine, apiBase} = await startTrusted({
       options: {stateRoot: await makeStateRoot(), systemPrompt: false},
       root,
       bridge,
       launchEditor: () => {},
       extensions: [tanstackExtension],
     })
-    const apiBase = `http://127.0.0.1:${engine.port}`
     const session = await resolveSession(apiBase)
     return {engine, callTool: makeCallTool(apiBase, session)}
   }

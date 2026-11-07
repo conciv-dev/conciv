@@ -1,4 +1,5 @@
 import {mkdtempSync} from 'node:fs'
+import {mkdtemp, readdir, readFile, rm, watch} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -51,7 +52,7 @@ describe('extension', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, engine}
   }
 
   function callViaSandbox(base: string, name: string, input: unknown): Promise<unknown> {
@@ -106,7 +107,7 @@ describe('extension', () => {
     it('skips a misconfigured runner (runner=jest stub) without aborting boot', async () => {
       const {base, engine} = await boot({extensions: {'test-runner': {runner: 'jest'}}})
       try {
-        await expect(runnerClient(base).status(undefined)).rejects.toThrow()
+        await expect(runnerClient(base).status(undefined)).rejects.toMatchObject({status: 404})
       } finally {
         await engine.stop()
       }
@@ -135,7 +136,7 @@ describe('extension', () => {
         launchEditor: () => {},
         extensions,
       })
-      const base = `http://127.0.0.1:${engine.port}`
+      const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
       try {
         await expect(runnerClient(base).run({})).rejects.toMatchObject({
           code: 'UNAVAILABLE',
@@ -186,14 +187,20 @@ describe('playwright', () => {
       const mgr = makeChildManager(playwrightSpec, fixture, {spawnRunner: tsxSpawnFor(childTs)})
       state.mgr = mgr
       const {files} = await mgr.list()
-      expect(files.map((f) => f.relPath).toSorted()).toEqual(['browser.spec.ts', 'fail.spec.ts', 'pass.spec.ts'])
+      expect(files.map((f) => f.relPath).toSorted()).toEqual([
+        'blocked.spec.ts',
+        'browser.spec.ts',
+        'fail.spec.ts',
+        'pass.spec.ts',
+      ])
     })
 
     it('runs all tests (real browser + nested describe) and returns the one real failure', async () => {
       const result = await requireMgr().run({})
-      expect(result.summary.passed).toBe(3)
+      expect(result.summary.passed).toBe(4)
       expect(result.summary.failed).toBe(1)
       expect(result.tests.map((t) => t.name).toSorted()).toEqual([
+        'blocks until the run is stopped',
         'one plus one',
         'renders content in a real browser',
         'this fails on purpose',
@@ -237,6 +244,30 @@ describe('playwright', () => {
       expect((runErr as Error).message).toContain('exit code 7')
       expect((runErr as Error).message).toContain('signal null')
     })
+
+    it('stops the Playwright CLI and removes its report directory when the run is stopped mid-test', async () => {
+      const reportPrefix = 'conciv-playwright-report-'
+      const scratch = await mkdtemp(join(tmpdir(), 'conciv-playwright-stop-'))
+      const startedFile = join(scratch, 'blocked-test-started')
+      try {
+        const mgr = makeChildManager(playwrightSpec, fixture, {
+          spawnRunner: tsxSpawnFor(childTs, {TMPDIR: scratch, CONCIV_FIXTURE_BLOCKED_FILE: startedFile}),
+        })
+        const watcher = watch(scratch)
+        const blockedTestStarted = (async () => {
+          for await (const change of watcher) if (change.filename === 'blocked-test-started') return
+        })()
+        const stopped = captureRunError(mgr, {patterns: ['blocked']})
+        await blockedTestStarted
+        const cliPid = Number(await readFile(startedFile, 'utf8'))
+        await mgr.stop()
+        await stopped
+        expect((await readdir(scratch)).filter((name) => name.startsWith(reportPrefix))).toEqual([])
+        expect(() => process.kill(cliPid, 0)).toThrow(expect.objectContaining({code: 'ESRCH'}))
+      } finally {
+        await rm(scratch, {recursive: true, force: true})
+      }
+    }, 30_000)
 
     it('names the signal when the child is killed with no output', async () => {
       const mgr = makeChildManager(playwrightSpec, fixture, {spawnRunner: killedSpawnRunner('SIGKILL')})
@@ -296,7 +327,7 @@ describe('tool catalog', () => {
       launchEditor: () => {},
       extensions,
     })
-    return {base: `http://127.0.0.1:${engine.port}`, engine}
+    return {base: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`, engine}
   }
 
   function runSandbox(base: string, typescriptCode: string): Promise<unknown> {

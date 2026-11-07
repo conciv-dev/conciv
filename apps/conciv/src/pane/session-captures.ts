@@ -5,7 +5,6 @@ import {useAppData} from '../app/context.js'
 
 export type SessionCapturesView = {
   lookup: (toolCallId: string) => ToolCaptureView | undefined
-  refresh: () => void
 }
 
 export function useSessionCaptures(sessionId: string): SessionCapturesView {
@@ -19,5 +18,5 @@ export function useSessionCaptures(sessionId: string): SessionCapturesView {
     const data = captures.data
     return data === undefined ? {} : toolCaptureViews(data)
   })
-  return {lookup: (toolCallId) => views()[toolCallId], refresh: () => void captures.refetch()}
+  return {lookup: (toolCallId) => views()[toolCallId]}
 }

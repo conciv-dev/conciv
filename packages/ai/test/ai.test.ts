@@ -1,12 +1,23 @@
 import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
+import {sql} from 'drizzle-orm'
 import {defineAIPersistence} from '@tanstack/ai-persistence'
 import {runPersistenceConformance} from '@tanstack/ai-persistence/testkit'
-import {createChatServer, drizzleChatStores, makeTextAdapter, type TurnHooks} from '../src/server.js'
+import {
+  chatRuns,
+  claudeCode,
+  createChatServer,
+  drizzleChatStores,
+  makeTextAdapter,
+  toolApprovalId,
+  type TurnHooks,
+} from '../src/server.js'
+import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
+  type RunLifecycle,
   approvalRequestedEvent,
   ChatEventType,
   defineChatEvent,
@@ -14,9 +25,10 @@ import {
   runLifecycleEvent,
   type ChatEvent,
 } from '@conciv/protocol/chat-event-types'
-import {UsageSnapshotSchema, contextUsedTokens} from '@conciv/protocol/usage-types'
-import {createTextChunks, storyConnection} from '../src/testkit.js'
-import {mkdtempSync, readdirSync, readFileSync, statSync} from 'node:fs'
+import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
+import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
+import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
+import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -26,6 +38,7 @@ describe('chat stores', () => {
   const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
 	\`run_id\` text PRIMARY KEY,
 	\`thread_id\` text NOT NULL,
+	\`harness_id\` text NOT NULL,
 	\`status\` text NOT NULL,
 	\`started_at\` integer NOT NULL,
 	\`finished_at\` integer,
@@ -45,11 +58,15 @@ CREATE TABLE \`chat_metadata\` (
 	\`value_json\` text NOT NULL,
 	CONSTRAINT \`chat_metadata_pk\` PRIMARY KEY(\`namespace\`, \`key\`)
 );
-CREATE TABLE \`chat_threads\` (
-	\`thread_id\` text PRIMARY KEY,
-	\`messages_json\` text NOT NULL,
-	\`updated_at\` integer NOT NULL
-);`
+CREATE TABLE \`chat_messages\` (
+	\`thread_id\` text NOT NULL,
+	\`position\` integer NOT NULL,
+	\`message_id\` text,
+	\`role\` text NOT NULL,
+	\`message_json\` text NOT NULL,
+	CONSTRAINT \`chat_messages_pk\` PRIMARY KEY(\`thread_id\`, \`position\`)
+);
+CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\`,\`message_id\`);`
 
   function chatDb() {
     const client = new DatabaseSync(':memory:')
@@ -57,14 +74,110 @@ CREATE TABLE \`chat_threads\` (
     return drizzle({client})
   }
 
+  it('a run row records the harness of its thread when it is created', async () => {
+    const db = chatDb()
+    const stores = drizzleChatStores(db, {harnessOf: (threadId) => `harness-of-${threadId}`})
+    await stores.runs.createOrResume({runId: 'r1', threadId: 't1', startedAt: 1})
+    expect(db.select({runId: chatRuns.runId, harnessId: chatRuns.harnessId}).from(chatRuns).all()).toEqual([
+      {runId: 'r1', harnessId: 'harness-of-t1'},
+    ])
+  })
+
+  describe('a paged thread read', () => {
+    const THREAD = [
+      {id: 'u0', role: 'user' as const, content: 'first question'},
+      {id: 'a0', role: 'assistant' as const, content: 'first answer'},
+      {id: 'u1', role: 'user' as const, content: 'run a tool'},
+      {
+        id: 'a1',
+        role: 'assistant' as const,
+        content: null,
+        toolCalls: [{id: 'call-1', type: 'function' as const, function: {name: 'look', arguments: '{}'}}],
+      },
+      {role: 'tool' as const, toolCallId: 'call-1', content: 'looked'},
+      {id: 'a1b', role: 'assistant' as const, content: 'tool done'},
+      {id: 'u2', role: 'user' as const, content: 'last question'},
+      {id: 'a2', role: 'assistant' as const, content: 'last answer'},
+    ]
+
+    async function savedThread() {
+      const stores = drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      return stores
+    }
+
+    it('returns the newest window as a page that starts on a user message, so no turn is split', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+    })
+
+    it('walks to the window before a cursor and marks the first window complete', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'u1'})).toEqual({
+        messages: THREAD.slice(0, 2),
+        truncated: false,
+      })
+    })
+
+    it('a cursor the thread does not hold yields an empty, complete page', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged', {limit: 4, before: 'gone'})).toEqual({
+        messages: [],
+        truncated: false,
+      })
+    })
+
+    it('a page read leaves the messages outside its window unread', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`UPDATE chat_messages SET message_json = 'not json' WHERE thread_id = 'paged' AND position < 2`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(2),
+        truncated: true,
+        cursor: 'u1',
+      })
+      await expect(stores.messages.loadThread('paged')).rejects.toThrow()
+    })
+
+    it('the newest page ends on the last stored message even when a position in between is missing', async () => {
+      const db = chatDb()
+      const stores = drizzleChatStores(db, {harnessOf: () => 'test-harness'})
+      await stores.messages.saveThread('paged', THREAD)
+      db.run(sql`DELETE FROM chat_messages WHERE thread_id = 'paged' AND position = 1`)
+
+      expect(await stores.messages.loadThread('paged', {limit: 2})).toEqual({
+        messages: THREAD.slice(6),
+        truncated: true,
+        cursor: 'u2',
+      })
+    })
+
+    it('saving a shorter thread drops the messages past its end', async () => {
+      const stores = await savedThread()
+      await stores.messages.saveThread('paged', THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD.slice(0, 2))
+      expect(await stores.messages.loadThread('paged', {limit: 4})).toEqual({
+        messages: THREAD.slice(0, 2),
+        truncated: false,
+      })
+    })
+
+    it('a read without a window still returns the whole transcript', async () => {
+      const stores = await savedThread()
+      expect(await stores.messages.loadThread('paged')).toEqual(THREAD)
+    })
+  })
+
   it('ending a run settles it and logs the failure when the end hook throws', {timeout: 15_000}, async () => {
     const logged: string[] = []
     const started = Promise.withResolvers<void>()
-    const stalled = makeTextAdapter('stalled', async function* () {
-      yield {type: ChatEventType.RUN_STARTED, runId: 'run', threadId: 'thread', timestamp: Date.now()}
-      started.resolve()
-      await new Promise(() => undefined)
-    })
+    const stalled = stalledModel(() => started.resolve())
     const hooks: TurnHooks = {
       plan: () => ({
         adapter: stalled,
@@ -97,11 +210,9 @@ CREATE TABLE \`chat_threads\` (
     const secondLaunched = Promise.withResolvers<void>()
     const hooks: TurnHooks = {
       plan: (turn) => ({
-        adapter: makeTextAdapter('recorded', async function* () {
+        adapter: stalledModel(() => {
           launched.push(turn.runId)
-          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: 'thread', timestamp: Date.now()}
           secondLaunched.resolve()
-          await new Promise(() => undefined)
         }),
         systemPrompts: [],
         codeMode: [],
@@ -133,10 +244,178 @@ CREATE TABLE \`chat_threads\` (
     expect(launched).toEqual(['second'])
   })
 
-  async function chatServer(hooks: TurnHooks, log: (message: string) => void) {
+  it(
+    'a failed cancel write still ends every live run and endAllRuns settles them before it rejects',
+    {timeout: 15_000},
+    async () => {
+      const db = chatDb()
+      db.$client.exec(`CREATE TRIGGER cancel_write_fails BEFORE UPDATE OF cancel_requested ON chat_runs
+      WHEN NEW.cancel_requested = 1 AND OLD.cancel_requested IS NOT 1
+      BEGIN SELECT RAISE(ABORT, 'cancel write failed'); END`)
+      const started = new Map(['one', 'two'].map((threadId) => [threadId, Promise.withResolvers<void>()]))
+      const hooks: TurnHooks = {
+        plan: (turn) => ({
+          adapter: stalledModel(() => started.get(turn.threadId)?.resolve()),
+          systemPrompts: [],
+          codeMode: [],
+          asking: [],
+          setup: async () => new Map(),
+          expand: async (messages) => messages,
+          providerMessages: async (messages) => messages,
+          chunk: async (chunk) => [chunk],
+        }),
+        usage: async () => undefined,
+        started: () => undefined,
+        end: async () => undefined,
+      }
+      const server = await chatServer(hooks, () => undefined, db)
+      const driven = [...started.keys()].map((threadId) =>
+        server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [{role: 'user', content: 'hi'}]),
+      )
+      await Promise.all([...started.values()].map((gate) => gate.promise))
+      const outcome = await server.endAllRuns().then(
+        () => 'resolved',
+        (error: unknown) => (error instanceof AggregateError ? 'aggregate' : String(error)),
+      )
+      const runs = db.$client.prepare('SELECT thread_id, status FROM chat_runs ORDER BY thread_id').all()
+      expect.soft(runs).toEqual([
+        {thread_id: 'one', status: 'aborted'},
+        {thread_id: 'two', status: 'aborted'},
+      ])
+      expect.soft(outcome).toBe('aggregate')
+      await Promise.all(driven)
+    },
+  )
+
+  it(
+    'a CLI silent past the journal default but inside the first-output budget still reports its exit',
+    {timeout: 25_000},
+    async () => {
+      const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
+      writeFileSync(bin, '#!/bin/sh\nsleep 11\nexit 1\n')
+      chmodSync(bin, 0o755)
+      const ended = Promise.withResolvers<RunLifecycle>()
+      const hooks: TurnHooks = {
+        plan: () => ({
+          adapter: claudeCode('opus', {claudeExecutable: bin}),
+          systemPrompts: [],
+          codeMode: [],
+          asking: [],
+          setup: async () => new Map(),
+          expand: async (messages) => messages,
+          providerMessages: async (messages) => messages,
+          chunk: async (chunk) => [chunk],
+        }),
+        usage: async () => undefined,
+        started: () => undefined,
+        end: async (_turn, run) => ended.resolve(run),
+      }
+      const server = await chatServer(hooks, () => undefined)
+      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+      const run = await ended.promise
+      expect(run.error).toBe('Agent process exited with code 1')
+    },
+  )
+
+  it('endAllRuns interrupts a run blocked in a tool call and records it aborted', {timeout: 15_000}, async () => {
+    const db = chatDb()
+    const toolRunning = Promise.withResolvers<void>()
+    const blocking = defineTool({
+      name: 'blocking',
+      description: 'Waits until the run is stopped.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+    }).server(async (_args, context) => {
+      toolRunning.resolve()
+      const signal = context?.abortSignal
+      await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
+      return 'stopped'
+    })
+    const hooks: TurnHooks = {
+      plan: () => ({
+        adapter: scriptedModel([{toolCalls: [{name: 'blocking', input: {}}]}]),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [blocking],
+        setup: async () => new Map([[toolApprovalId('blocking'), true]]),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async () => undefined,
+    }
+    const server = await chatServer(hooks, () => undefined, db)
+    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    await toolRunning.promise
+    const outcome = await Promise.race([
+      server.endAllRuns().then(() => 'ended'),
+      new Promise((resolve) => setTimeout(resolve, 3_000, 'still waiting on the tool')),
+    ])
+    expect(outcome).toBe('ended')
+    expect(db.$client.prepare('SELECT status FROM chat_runs').all()).toEqual([{status: 'aborted'}])
+    await driven
+  })
+
+  it('a provider wait before any output is retried and the run completes', {timeout: 15_000}, async () => {
+    const seen = {calls: 0}
+    const ended = Promise.withResolvers<RunLifecycle>()
+    const hooks: TurnHooks = {
+      plan: (turn) => ({
+        adapter: makeTextAdapter('rate-limited-once', async function* () {
+          seen.calls += 1
+          yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
+          if (seen.calls === 1) {
+            yield {type: ChatEventType.RUN_ERROR, message: 'rate limited', retryAfterMs: 1, timestamp: Date.now()}
+            return
+          }
+          yield* createTextChunks('answered after the wait')
+          yield {
+            type: ChatEventType.RUN_FINISHED,
+            runId: turn.runId,
+            threadId: turn.threadId,
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          }
+        }),
+        systemPrompts: [],
+        codeMode: [],
+        asking: [],
+        setup: async () => new Map(),
+        expand: async (messages) => messages,
+        providerMessages: async (messages) => messages,
+        chunk: async (chunk) => [chunk],
+      }),
+      usage: async () => undefined,
+      started: () => undefined,
+      end: async (_turn, run) => ended.resolve(run),
+    }
+    const server = await chatServer(hooks, () => undefined)
+    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    const run = await ended.promise
+    expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
+  })
+
+  function scriptedModel(responses: FakeResponseStep[]) {
+    const model = fakeText()
+    model.setResponses(responses)
+    return model
+  }
+
+  function stalledModel(called: () => void) {
+    return scriptedModel([
+      () => {
+        called()
+        return new Promise<FakeResponse>(() => undefined)
+      },
+    ])
+  }
+
+  async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     return createChatServer({
-      stores: drizzleChatStores(chatDb()),
+      stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
       codeModeResult: (value) => value,
@@ -147,7 +426,7 @@ CREATE TABLE \`chat_threads\` (
 
   runPersistenceConformance(
     'conciv drizzle chat stores',
-    () => defineAIPersistence({stores: drizzleChatStores(chatDb())}),
+    () => defineAIPersistence({stores: drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'})}),
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],
@@ -278,6 +557,12 @@ describe('usage', () => {
     it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
       expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
     })
+
+    it('takes the cost from usage.cost when providerUsageDetails carries none', () => {
+      expect(tokenUsageToSnapshot({promptTokens: 10, completionTokens: 2, totalTokens: 12, cost: 0.25})).toMatchObject({
+        totalCostUsd: 0.25,
+      })
+    })
   })
 })
 
@@ -344,8 +629,9 @@ describe('dist externals', () => {
       const code = chunks.map((chunk) => chunk.code).join('\n')
       expect(code).toContain('toolCallId: callId')
       expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
-      expect(code).toContain('provides: [SandboxCapability],')
-      expect(code).not.toContain('provides: [SandboxCapability, ProjectionCapability]')
+      expect(code).toMatch(
+        /const root = workspace\.root \?\? "\/workspace";\s+const workspaceHash = computeWorkspaceHash\(workspace\)/,
+      )
     })
 
     it('externalizes @tanstack/ai', () => {

@@ -31,7 +31,9 @@ addresses.
 - `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
 - `conciv tools open` - open a file in the user's editor
 
-These commands need the dev server running.
+These commands need the dev server running. Every command prints one JSON document on stdout
+(`{"ok":true,"data":...}` or `{"ok":false,"error":...}`); `--help` prints usage instead and
+`conciv --version` (or `-v`) prints the CLI version.
 
 Docs: [conciv.dev](https://conciv.dev/docs/quick-start). Part of
 [conciv](https://github.com/conciv-dev/conciv).
@@ -46,6 +48,7 @@ Package root of @conciv/cli, the `conciv` binary, built by tsdown from src/bin.t
 - `exports['./bin']` (`package.json`): ./dist/bin.js is the only export
 - `scripts` (`package.json`): build (`tsdown && chmod +x dist/bin.js`), typecheck, lint, test, publint, attw
 - `tsdown.config.ts`: entry src/bin.ts, esm, dts false
+- `tsconfig.json`: declaration off, matching `dts: false` (the router's inferred route types are not nameable in a .d.ts)
 - `vitest.config.ts`: `ciTest()` from @conciv/vitest-config
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - commands, argument validation, JSON envelopes and engine RPC

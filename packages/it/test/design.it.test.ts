@@ -10,7 +10,7 @@ import {chromium, type Browser, type Page} from 'playwright'
 import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
-import {createServer} from 'vite'
+import {createLogger, createServer} from 'vite'
 import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
@@ -19,6 +19,7 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {magicLink} from '@conciv/harness-testkit/login'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
 import type {XrayRouter} from '@conciv/extension-design/server'
@@ -125,10 +126,16 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
 async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
+  const printed: string[] = []
   const server = await createServer({
     root: HOST_ROOT,
     configFile: false,
-    logLevel: 'silent',
+    customLogger: {
+      ...createLogger('silent'),
+      info: (message) => {
+        printed.push(message)
+      },
+    },
     server: {host: '127.0.0.1', port: 0},
     plugins: [
       react(),
@@ -157,12 +164,12 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
       await page.goto(new URL(to.startsWith('/') ? to : `/?variant=${to}`, origin).href, {
         waitUntil: 'domcontentloaded',
       })
-      await injectWidget(page, apiBase)
+      await injectWidget(page, new URL(apiBase).origin)
       await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {
         timeout: PAGE_DRIVER_TIMEOUT_MS,
       })
     })
-  await goto('/')
+  await goto(await magicLink(new URL(apiBase).origin, () => printed.join('\n'), '/'))
   return {
     rpc,
     browser,

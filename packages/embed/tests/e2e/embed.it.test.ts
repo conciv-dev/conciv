@@ -28,6 +28,9 @@ import {
   openHostWithHandle,
   rebindHandle,
   chatLog,
+  browserBase,
+  openLoggedIn,
+  logInFromPanelNotice,
 } from '../helpers.js'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
@@ -65,6 +68,11 @@ test.describe('embed boot', () => {
   })
 
   async function openPage(page: Page): Promise<Page> {
+    await openLoggedIn(page, kit, host.base)
+    return page
+  }
+
+  async function reopenPage(page: Page): Promise<Page> {
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     return page
   }
@@ -78,7 +86,7 @@ test.describe('embed boot', () => {
       await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
       expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
       await first.close()
-      const second = await openPage(await context.newPage())
+      const second = await reopenPage(await context.newPage())
       await expect(second.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(second.getByRole('tab', {name: 'Terminal'})).toHaveAttribute('aria-selected', 'true', {
         timeout: 30_000,
@@ -95,7 +103,7 @@ test.describe('embed boot', () => {
       await until(async () => !(await currentHref(kit)).includes('open=true'), {hangGuardMs: 30_000, intervalMs: 100})
       expect(await currentHref(kit)).not.toContain('open=true')
       await first.close()
-      const second = await openPage(await context.newPage())
+      const second = await reopenPage(await context.newPage())
       await expect(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
       expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
     })
@@ -113,7 +121,7 @@ test.describe('embed boot', () => {
 
     test('opens as a full-screen sheet with the launcher hidden and the composer reachable', async ({page}) => {
       test.setTimeout(240_000)
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, kit, host.base)
       await openPanel(page)
       await expect(page.getByRole('button', {name: 'Open conciv chat'})).toHaveCount(0, {timeout: 30_000})
       await sendMessage(page, 'hi there', ASSISTANT_TEXT)
@@ -126,7 +134,7 @@ test.describe('embed boot', () => {
   test.describe('embed settings', () => {
     test('modal disabled renders no fab', async ({page}) => {
       const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
-      await page.goto(disabledHost.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, kit, disabledHost.base)
       await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
       expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
       await disabledHost.close()
@@ -315,7 +323,7 @@ test.describe('composer trigger menu', () => {
   const commandMenu = (page: Page) => page.getByRole('listbox', {name: 'Commands'})
 
   async function openComposer(page: Page): Promise<void> {
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, suite.kit(), suite.host().base)
     await openPanel(page)
     const input = composer(page)
     await input.click()
@@ -390,7 +398,9 @@ test.describe('dead engine boot', () => {
     }) => {
       test.setTimeout(90_000)
       const dead = await reserveDeadPort()
-      const host = await serveHost(() => hostPage({apiBase: dead.base, widget: '{"quickTerminal":false}'}))
+      const host = await serveHost(() =>
+        hostPage({apiBase: `${dead.base}${new URL(kit.base).pathname}`, widget: '{"quickTerminal":false}'}),
+      )
       let proxy: ProxyCore | null = null
       try {
         await page.goto(host.base, {waitUntil: 'domcontentloaded'})
@@ -403,6 +413,7 @@ test.describe('dead engine boot', () => {
         proxy = await proxyTo(kit.base, {port: dead.port})
 
         await errorScreen.getByRole('button', {name: 'Retry'}).click()
+        await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
 
         const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
         await expect(composer).toBeVisible({timeout: MOUNT_TIMEOUT_MS})
@@ -472,7 +483,7 @@ test.describe('element capture', () => {
     await kit.cleanup()
   })
 
-  const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, host.base)
+  const openHostPage = (page: Page): Promise<Page> => openPagePlaneHost(page, kit, host.base)
 
   function rowIdentities(stored: SessionCaptures): string[] {
     return stored.captures.map((row) => `${row.toolCallId}:${row.kind}:${JSON.stringify(row.capture)}`).toSorted()
@@ -559,7 +570,7 @@ test.describe('forced drop', () => {
       const pageErrors: string[] = []
       page.on('pageerror', (error) => pageErrors.push(String(error)))
       const wire = watchChatWire(page)
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await page.getByRole('button', {name: 'Open conciv chat'}).click()
       await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({
         timeout: MOUNT_TIMEOUT_MS,
@@ -664,7 +675,7 @@ test.describe('idle fetch heartbeat', () => {
       test.setTimeout(120_000)
       const wire = watchRpcWire(page)
       const hold = await holdRpcCalls(page)
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await openChatPanel(page)
       await wire.sessionsBootTraffic()
 
@@ -703,7 +714,7 @@ test.describe('mid session outage', () => {
     }) => {
       test.setTimeout(90_000)
       const hold = await holdRpcCalls(page)
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, kit, host.base)
       await openChatPanel(page)
 
       const composer = chatBox(page)
@@ -736,23 +747,24 @@ test.describe('model selector', () => {
   test.describe('model selector error path', () => {
     test.use({viewport: {width: 900, height: 760}})
 
-    test('offers a retry when meta.models fails and recovers on retry', async ({page}) => {
+    test('offers a retry when the model menu fails to load and recovers on retry', async ({page}) => {
       test.setTimeout(180_000)
       const models = await failRpcCalls(page, {path: ['meta', 'models']})
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await openPanel(page)
 
-      const moreActions = page.getByRole('button', {name: 'More composer actions'})
-      await moreActions.click()
-      const retry = page.getByRole('menuitem', {name: /Retry loading models/})
+      await page.getByRole('button', {name: 'Couldn’t load models', exact: true}).click()
+      const retry = page.getByRole('button', {name: 'Couldn’t load models: Retry loading models'})
       await expect(retry).toBeVisible({timeout: 30_000})
-      await expect(page.getByText('Couldn’t load models').first()).toBeVisible({timeout: 30_000})
 
       models.repair()
       await retry.click()
-      await moreActions.click()
-      await expect(page.getByRole('menuitem', {name: /^Model: Claude Sonnet 4\.5/})).toBeVisible({timeout: 30_000})
+      await expect(page.getByRole('option', {name: /^Claude Sonnet 4\.5/, selected: true})).toBeVisible({
+        timeout: 30_000,
+      })
+      await expect(page.getByRole('textbox', {name: 'Search models'})).toBeVisible()
       await page.keyboard.press('Escape')
+      await expect(page.getByRole('button', {name: 'Model: Claude Sonnet 4.5'})).toBeVisible({timeout: 30_000})
     })
   })
 })
@@ -772,7 +784,7 @@ test.describe('mount ready', () => {
   })
 
   async function openPage(page: Page): Promise<Page> {
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, kit, host.base)
     return page
   }
 
@@ -789,7 +801,7 @@ test.describe('mount ready', () => {
             detail: {type: 'panel:open', payload: undefined, pluginId: 'panel'},
           }),
         )
-      }, kit.base)
+      }, browserBase(kit.base))
       await expect(chatBox(page)).toBeVisible({timeout: 10_000})
     })
   })
@@ -966,7 +978,7 @@ test.describe('page dispatch parity', () => {
       kit = await bootEmbedKit()
       host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
       page = await browser.newPage()
-      await openPagePlaneHost(page, host.base)
+      await openPagePlaneHost(page, kit, host.base)
     })
 
     test.afterAll(async () => {
@@ -1072,7 +1084,7 @@ test.describe('panel focus', () => {
       }),
     )
     dedicatedHosts.push(host)
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, suite.kit(), host.base)
     await ensurePanelClosed(page)
     const hostButton = page.getByRole('button', {name: 'Host action'})
     await hostButton.click()
@@ -1091,7 +1103,7 @@ test.describe('panel focus', () => {
   test.describe('panel open focuses the composer', () => {
     test('focuses the composer input when the panel opens', async ({page}) => {
       test.setTimeout(90_000)
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await openPanel(page)
       await expect(composer(page)).toBeFocused({timeout: 10_000})
       await page.keyboard.type('typed without clicking')
@@ -1105,7 +1117,7 @@ test.describe('panel focus', () => {
       )
       dedicatedHosts.push(host)
       const sessionListGate = await gateRpcCalls(page, {path: SESSIONS_LIST})
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), host.base)
       try {
         await sessionListGate.awaitCaptured(1)
         await expect(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 15_000})
@@ -1135,7 +1147,7 @@ test.describe('panel focus', () => {
       page,
     }) => {
       test.setTimeout(120_000)
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await ensurePanelClosed(page)
       await page.getByRole('button', {name: 'Open conciv chat'}).click()
       await expect(composer(page)).toBeVisible({timeout: 30_000})
@@ -1155,7 +1167,7 @@ test.describe('panel focus', () => {
         }),
       )
       dedicatedHosts.push(host)
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), host.base)
       await openPanel(page)
       await until(async () => (await currentHref(suite.kit())).includes('open=true'), {
         hangGuardMs: 30_000,
@@ -1216,13 +1228,13 @@ test.describe('rebind', () => {
       test.setTimeout(480_000)
       const pageErrors: string[] = []
       page.on('pageerror', (error) => pageErrors.push(String(error)))
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, kit, host.base)
 
       await mountHandle(page, proxyA.base)
       await openChatPanel(page)
 
       const apiBaseProbe = page.getByRole('status', {name: 'host api base probe'})
-      await expect(apiBaseProbe).toHaveText(proxyA.base, {timeout: 30_000})
+      await expect(apiBaseProbe).toHaveText(browserBase(proxyA.base), {timeout: 30_000})
 
       await until(async () => (await panelSession()) !== null, {hangGuardMs: 30_000, intervalMs: 100})
       const sessionBefore = await panelSession()
@@ -1234,11 +1246,12 @@ test.describe('rebind', () => {
       const beforeB = proxyB.trafficCount()
       await rebindHandle(page, proxyB.base)
       await proxyA.close()
+      await logInFromPanelNotice(page, kit, 'Log in to use conciv on this page.')
 
       await expect(page.getByRole('dialog', {name: 'conciv chat agent'})).toBeVisible({timeout: 30_000})
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
-      await expect(apiBaseProbe).toHaveText(proxyB.base, {timeout: 30_000})
+      await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -1286,7 +1299,7 @@ test.describe('recording attachment', () => {
   test.describe('recording attachment end to end in the real widget', () => {
     test('composes the card chip, sends log text to the model, renders the durable transcript card', async ({page}) => {
       test.setTimeout(480_000)
-      await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, kit, host.base)
 
       await openPanel(page)
       const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
@@ -1442,7 +1455,7 @@ test.describe('remount', () => {
   test.describe('handle unmount and remount keeps delivering turns', () => {
     test('renders the second assistant reply after a full unmount and remount', async ({page}) => {
       test.setTimeout(240_000)
-      const pageErrors = await openHostWithHandle(page, host.base, kit.base)
+      const pageErrors = await openHostWithHandle(page, host.base, kit)
       await openChatPanel(page)
 
       await sendChatMessage(page, USER_TEXT)
@@ -1499,7 +1512,7 @@ test.describe('selection containment', () => {
 
   async function openWithReply(page: Page): Promise<void> {
     await page.setViewportSize({width: 1400, height: 900})
-    await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, kit, host.base)
     await openPanel(page)
     await sendMessage(page, 'say something selectable', ASSISTANT_REPLY)
   }
@@ -1579,7 +1592,7 @@ test.describe('unknown view restore', () => {
   test.describe('restoring a persisted panel route whose extension view is no longer mounted', () => {
     test('lands on the chat view instead of an empty pane', async ({page}) => {
       test.setTimeout(240_000)
-      await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+      await openLoggedIn(page, suite.kit(), suite.host().base)
       await openPanel(page)
 
       await page.getByRole('tab', {name: 'Recorder'}).click()
@@ -1647,7 +1660,7 @@ test.describe('virtualize threshold cliff', () => {
     await suite.kit().rpc.sessions.rename({sessionId, title})
     await seedExchanges(sessionId, exchanges)
 
-    await page.goto(suite.host().base, {waitUntil: 'domcontentloaded'})
+    await openLoggedIn(page, suite.kit(), suite.host().base)
     await openPanel(page)
     await switchToSessionByTitle(page, title)
     await expect(page.getByText(`question number ${exchanges - 1}`).first()).toBeVisible({timeout: 30_000})

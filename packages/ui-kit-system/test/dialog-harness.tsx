@@ -11,12 +11,12 @@ export function mountStyled(view: () => JSX.Element): HTMLElement {
   return render(view).container
 }
 
-export function mountInShadow(view: (root: ShadowRoot) => JSX.Element): ShadowRoot {
-  const host = document.createElement('div')
-  document.body.appendChild(host)
+export function mountInShadow(view: (root: ShadowRoot) => JSX.Element, owner: Document = document): ShadowRoot {
+  const host = owner.createElement('div')
+  owner.body.appendChild(host)
   shadowHosts.push(host)
   const root = host.attachShadow({mode: 'open'})
-  const style = document.createElement('style')
+  const style = owner.createElement('style')
   style.textContent = LAYERING
   root.appendChild(style)
   shadowDisposers.push(renderInShadow(() => view(root), root))

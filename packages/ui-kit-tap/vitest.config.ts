@@ -27,7 +27,7 @@ export default defineConfig({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({launchOptions: {channel: 'chrome'}}),
+            provider: playwright({launchOptions: {channel: 'chromium'}}),
             instances: [{browser: 'chromium'}],
           },
         },

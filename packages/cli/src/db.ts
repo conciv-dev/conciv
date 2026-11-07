@@ -1,59 +1,77 @@
-import {defineCommand} from 'citty'
+import {z} from 'zod'
+import {command, description, name, option, schema} from '@bomb.sh/router'
+import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {localOutcome} from './local-outcome.js'
 import type {LocalDb} from './local-project.js'
+import {handler} from './router/handler.js'
 
-export function sourceCommands(scope: {extension?: string; label: string}) {
+const QueryModelSchema = z.object({
+  from: z.string().optional(),
+  where: z.string().optional(),
+  select: z.string().optional(),
+  order: z.string().optional(),
+  limit: z.int().optional(),
+})
+
+const WriteModelSchema = z.object({into: z.string(), values: z.string()})
+
+export function sourceCommands(scope: {extension?: string; label: string; prefix?: string}) {
   const {extension, label} = scope
   const scoped = extension === undefined ? {} : {extension}
-  return {
-    query: defineCommand({
-      meta: {name: 'query', description: `read ${label} sources; with no --from, list every source and its fields`},
-      args: {
-        from: {type: 'string', description: 'the source to read'},
-        where: {
-          type: 'string',
-          description: 'a CEL predicate over the source fields, e.g. round == 3 && kind in ["text"]',
-        },
-        select: {type: 'string', description: 'comma-separated field names'},
-        order: {type: 'string', description: 'comma-separated fields to sort by, -field for descending'},
-        limit: {type: 'string', description: 'the most rows to return'},
-      },
-      run: ({args}) => {
-        const from = args.from
-        if (from === undefined) return localOutcome({code: 'QUERY_FAILED', work: (db) => listed({db, extension})})
-        const limit = args.limit === undefined ? undefined : Number(args.limit)
-        if (limit !== undefined && !Number.isInteger(limit))
-          throw userFailure(`--limit takes a whole number, not ${args.limit}`)
-        return localOutcome({
-          code: 'QUERY_FAILED',
-          work: (db) =>
-            db.sources.read({
-              ...scoped,
-              from,
-              ...(args.where === undefined ? {} : {where: args.where}),
-              ...(args.select === undefined ? {} : {select: args.select.split(',').map((field) => field.trim())}),
-              ...(args.order === undefined ? {} : {order: orderOf(args.order)}),
-              ...(limit === undefined ? {} : {limit}),
-            }),
-        })
-      },
-    }),
-    write: defineCommand({
-      meta: {name: 'write', description: `insert one row into a writable ${label} source`},
-      args: {
-        into: {type: 'string', required: true, description: 'the writable source'},
-        values: {type: 'string', required: true, description: 'the row as a JSON object of field to value'},
-      },
-      run: ({args}) => {
-        const values = valuesOf(args.values)
-        return localOutcome({
-          code: 'QUERY_FAILED',
-          work: (db) => db.sources.write({...scoped, into: args.into, values}),
-        })
-      },
-    }),
-  }
+  const prefix = scope.prefix ?? ''
+  return [
+    command(
+      name(`${prefix}query`),
+      description(`read ${label} sources; with no --from, list every source and its fields`),
+      option(name('from'), description('the source to read'), schema(z.string().optional())),
+      option(
+        name('where'),
+        description('a CEL predicate over the source fields, e.g. round == 3 && kind in ["text"]'),
+        schema(z.string().optional()),
+      ),
+      option(name('select'), description('comma-separated field names'), schema(z.string().optional())),
+      option(
+        name('order'),
+        description('comma-separated fields to sort by, -field for descending'),
+        schema(z.string().optional()),
+      ),
+      option(name('limit'), description('the most rows to return'), schema(z.int().optional())),
+      envelopeFlag,
+      handler((model) => query({...QueryModelSchema.parse(model), scoped, extension})),
+    ),
+    command(
+      name(`${prefix}write`),
+      description(`write a row into a writable source of ${label}`),
+      option(name('into'), description('the writable source'), schema(z.string())),
+      option(name('values'), description('the row as a JSON object of field to value'), schema(z.string())),
+      envelopeFlag,
+      handler((model) => {
+        const {into, values} = WriteModelSchema.parse(model)
+        const row = valuesOf(values)
+        return localOutcome({code: 'QUERY_FAILED', work: (db) => db.sources.write({...scoped, into, values: row})})
+      }),
+    ),
+  ]
+}
+
+function query(
+  input: z.infer<typeof QueryModelSchema> & {scoped: {extension?: string}; extension: string | undefined},
+): Promise<CliOutcome> {
+  const {from, scoped, extension} = input
+  if (from === undefined) return localOutcome({code: 'QUERY_FAILED', work: (db) => listed({db, extension})})
+  return localOutcome({
+    code: 'QUERY_FAILED',
+    work: (db) =>
+      db.sources.read({
+        ...scoped,
+        from,
+        ...(input.where === undefined ? {} : {where: input.where}),
+        ...(input.select === undefined ? {} : {select: input.select.split(',').map((field) => field.trim())}),
+        ...(input.order === undefined ? {} : {order: orderOf(input.order)}),
+        ...(input.limit === undefined ? {} : {limit: input.limit}),
+      }),
+  })
 }
 
 function listed(input: {db: LocalDb; extension: string | undefined}) {

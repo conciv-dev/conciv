@@ -1,19 +1,20 @@
 import {randomUUID} from 'node:crypto'
+import {eq} from 'drizzle-orm'
 import {join} from 'node:path'
 import {Hono} from 'hono'
-import type {UpgradeWebSocket} from 'hono/ws'
+import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
-import type {ChatHydration} from '@conciv/contract'
-import {markers, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, type SessionId} from '@conciv/protocol/chat-types'
+import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
+import {chatRuns, markers, type ConcivDb} from '@conciv/db'
+import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {createApprovalStore, createUiChannel, type ApprovalDecision, type ApprovalScope} from './approvals.js'
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, runningThreadIds} from './stores.js'
-import {createTranscriptImporter, normalizedMessages, toolNameNormalizer} from './transcript.js'
+import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {turnHooks, type TurnDeps} from './turn.js'
 
 export {
@@ -44,7 +45,7 @@ export type CodeTool = {
 }
 
 export type CodeRunner = {
-  systemPrompt: string
+  capabilities: {name: string; description: string}[]
   run: (code: string, parentToolCallId: string) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
   asking: CodeTool[]
@@ -53,12 +54,14 @@ export type CodeRunner = {
 
 export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
-  hydrate: (sessionId: SessionId) => Promise<ChatHydration>
+  hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
   history: (sessionId: SessionId) => Promise<ChatMessage[]>
   stop: (sessionId: SessionId, runIds?: readonly string[]) => Promise<{ok: true}>
   compact: (sessionId: SessionId) => Promise<void>
   clear: (sessionId: SessionId) => Promise<void>
+  endAllRuns: () => Promise<void>
   live: (sessionId: SessionId) => Promise<boolean>
+  driving: (sessionId: SessionId) => boolean
   running: () => Promise<ReadonlySet<string>>
   decide: (
     sessionId: SessionId,
@@ -78,18 +81,20 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const stores = drizzleChatStores(deps.db)
+  const stores = drizzleChatStores(deps.db, {harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id})
   const approvals = createApprovalStore(stores.metadata)
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
-    harness: deps.harness,
+    harnessFor: deps.harnessFor,
     stores,
     claudeHome: deps.claudeHome,
     toolNames: deps.toolNames,
     log: deps.log,
     native: (sessionId) => {
       const row = deps.sessions.row(sessionId)
-      return row === null || row.nativeId === null ? null : {nativeId: row.nativeId, cwd: row.cwd}
+      return row === null || row.nativeId === null
+        ? null
+        : {nativeId: row.nativeId, cwd: row.cwd, harnessKind: row.harnessKind}
     },
   })
   const server = await createChatServer({
@@ -111,18 +116,25 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     return approvalNeeded(toolName).message
   }
 
-  const hydrate = async (sessionId: SessionId): Promise<ChatHydration> => {
+  const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
     if ((await stores.runs.findActiveRun(sessionId)) === null) {
       await server.settled(sessionId)
-      await transcripts.sync(sessionId)
+      if (window?.before === undefined) await transcripts.sync(sessionId)
     }
-    const thread = await server.hydrate(sessionId)
+    const thread = await server.hydrate(sessionId, window)
+    const messages = normalizedMessages(thread.messages, normalize)
+    const runs = await deps.db
+      .select({runId: chatRuns.runId, harnessId: chatRuns.harnessId})
+      .from(chatRuns)
+      .where(eq(chatRuns.threadId, sessionId))
     return {
-      messages: normalizedMessages(thread.messages, normalize),
+      messages,
+      messageHarness: messageHarnesses(messages, Object.fromEntries(runs.map((run) => [run.runId, run.harnessId]))),
       activeRun: thread.activeRun,
       lastRun: thread.lastRun,
       pendingApprovals: await approvals.pending(sessionId),
       interrupts: null,
+      page: thread.page,
     }
   }
 
@@ -153,14 +165,17 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     compact: async (sessionId) => {
       await server.stop(sessionId)
       const {messages} = await hydrate(sessionId)
-      await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterTurn: messages.length, kind: 'compact'})
+      const afterMessageId = messages.at(-1)?.id ?? null
+      await deps.db.insert(markers).values({id: randomUUID(), sessionId, afterMessageId, kind: 'compact'})
       await server.drive({threadId: sessionId, runId: randomUUID(), kind: 'compact'}, [])
     },
     clear: async (sessionId) => {
       await server.endRuns(sessionId)
       clearThread(deps.db, sessionId)
     },
+    endAllRuns: () => server.endAllRuns(),
     live: async (sessionId) => (await stores.runs.findActiveRun(sessionId)) !== null,
+    driving: (sessionId) => server.driving(sessionId),
     running: () => runningThreadIds(deps.db),
     decide: (sessionId, approvalId, approved, scope) => approvals.decide(sessionId, approvalId, approved, scope),
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
@@ -199,7 +214,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         ]
       })
       return {
-        systemPrompt: runner.systemPrompt,
+        capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
         run: (code, parentToolCallId) => runner.run(code, emitter(parentToolCallId)),
         discover: runner.discover,
         asking,

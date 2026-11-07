@@ -1,9 +1,9 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
-import {upgradeWebSocket} from '@hono/node-server'
 import {os} from '@orpc/server'
 import {z} from 'zod'
-import {defineExtension, type ServerApi} from '@conciv/extension'
+import {defineExtension, type ServerApi, type ServerHarness} from '@conciv/extension'
+import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {HarnessConnectContext, HarnessConnectPlan, TerminalOpener} from '@conciv/protocol/harness-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
@@ -50,9 +50,21 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
   return false
 }
 
-function resumable({server}: TerminalRuntime, harnessSessionId: HarnessSessionId | null): boolean {
+function resumable(harness: ServerHarness, harnessSessionId: HarnessSessionId | null): boolean {
   if (!harnessSessionId) return false
-  return server.harness.transcriptExists?.(harnessSessionId) ?? true
+  return harness.transcriptExists?.(harnessSessionId) ?? true
+}
+
+function ttyOwner(harnessId: string, harnessSessionId: HarnessSessionId | null): string {
+  return `${harnessId}:${harnessSessionId ?? ''}`
+}
+
+async function liveTty({server, tty}: TerminalRuntime, sessionId: SessionId): Promise<TtySession | undefined> {
+  const owner = ttyOwner(server.harness(sessionId).id, await server.sessions.resumeToken(sessionId))
+  const alive = tty.get(sessionId)
+  if (alive === undefined || alive.owner === owner) return alive
+  tty.close(sessionId)
+  return undefined
 }
 
 function apiBase(runtime: TerminalRuntime, context: RpcContext): string {
@@ -72,7 +84,7 @@ async function connectContext(
     stateDir: server.stateDir,
     concivSessionId: sessionId,
     harnessSessionId,
-    resume: resumable(runtime, harnessSessionId),
+    resume: resumable(server.harness(sessionId), harnessSessionId),
     owned: true,
     model: model ?? (await server.sessions.model(sessionId)),
     mcpUrl: `${base}/api/mcp`,
@@ -94,7 +106,7 @@ async function connectPlanFor(
   model: string | null,
   base: string,
 ): Promise<HarnessConnectPlan | null> {
-  const plan = runtime.server.harness.connectPlan
+  const plan = runtime.server.harness(sessionId).connectPlan
   if (!plan) return null
   const harnessSessionId = await runtime.server.sessions.resumeToken(sessionId)
   return plan(await connectContext(runtime, sessionId, harnessSessionId, model, base))
@@ -107,12 +119,13 @@ async function openTtySession(
   base: string,
 ): Promise<void> {
   const {server, tty} = runtime
-  const ttyCommand = server.harness.ttyCommand
-  if (!ttyCommand) throw new Error(`harness "${server.harness.id}" has no terminal mode`)
+  const harness = server.harness(sessionId)
+  const ttyCommand = harness.ttyCommand
+  if (!ttyCommand) throw new Error(`harness "${harness.id}" has no terminal mode`)
   const harnessSessionId = await mintHarnessSession(runtime, sessionId)
   const ctx = await connectContext(runtime, sessionId, harnessSessionId, size.model ?? null, base)
-  server.harness.release?.(sessionId)
-  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd)
+  harness.release?.(sessionId)
+  const session = tty.open(sessionId, ttyCommand(ctx), server.cwd, ttyOwner(harness.id, harnessSessionId))
   if (size.cols && size.rows) session.resize(size.cols, size.rows)
   if (ctx.resume) session.inject('\u001b[2m\u2500 conciv: resumed session \u2500\u001b[0m')
 }
@@ -134,10 +147,9 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .input(TerminalOpenRequestSchema.extend(SessionInputSchema.shape))
       .output(z.object({alive: z.boolean()}))
       .handler(async ({input, context, errors}) => {
-        const {server, tty} = runtime
         const {sessionId, ...size} = input
-        if (!server.harness.ttyCommand) throw errors.NO_TTY()
-        if (reuseAlive(tty.get(sessionId), size)) return {alive: true}
+        if (!runtime.server.harness(sessionId).ttyCommand) throw errors.NO_TTY()
+        if (reuseAlive(await liveTty(runtime, sessionId), size)) return {alive: true}
         await openTtySession(runtime, sessionId, size, apiBase(runtime, context))
         return {alive: true}
       }),
@@ -145,17 +157,16 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       .errors(busy)
       .input(SessionInputSchema)
       .output(z.object({alive: z.boolean()}))
-      .handler(({input, errors}) => {
-        const {tty} = runtime
-        if (tty.get(input.sessionId)?.busy()) throw errors.BUSY()
-        tty.close(input.sessionId)
+      .handler(async ({input, errors}) => {
+        if ((await liveTty(runtime, input.sessionId))?.busy()) throw errors.BUSY()
+        runtime.tty.close(input.sessionId)
         return {alive: false}
       }),
     state: terminalOs
       .input(SessionInputSchema)
       .output(TerminalStateSchema)
-      .handler(({input}) => {
-        const session = runtime.tty.get(input.sessionId)
+      .handler(async ({input}) => {
+        const session = await liveTty(runtime, input.sessionId)
         const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
         return payload
       }),
@@ -189,52 +200,54 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
 
 export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
-const app = new Hono<TerminalEnv>().get(
-  '/tty',
-  async (c, next) => {
-    const parsed = SessionId.safeParse(c.req.query('session'))
-    if (!parsed.success) return c.text('invalid or missing session', 400)
-    await next()
-  },
-  upgradeWebSocket((c) => {
-    const {tty} = c.var.terminal
-    const url = new URL(c.req.url)
-    const sessionOf = () => {
-      const parsed = SessionId.safeParse(url.searchParams.get('session'))
-      return parsed.success ? tty.get(parsed.data) : undefined
-    }
-    let detach: (() => void) | null = null
-    return {
-      onOpen(_event, ws) {
-        const session = sessionOf()
-        if (!session) {
-          ws.close(4404, 'no terminal for session')
-          return
-        }
-        const cols = Number(url.searchParams.get('cols'))
-        const rows = Number(url.searchParams.get('rows'))
-        if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
-        const sink: TtySink = {
-          data: (chunk) => ws.send(Buffer.from(chunk)),
-          control: (frame) => ws.send(JSON.stringify(frame)),
-        }
-        detach = session.attach(sink)
-      },
-      onMessage(event) {
-        const session = sessionOf()
-        if (!session) return
-        const text = typeof event.data === 'string' ? event.data : ''
-        if (text && !applyControl(session, parseControl(text), text)) session.write(text)
-      },
-      onClose() {
-        detach?.()
-        detach = null
-      },
-    }
-  }),
-)
+function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
+  return new Hono<TerminalEnv>().get(
+    '/tty',
+    async (c, next) => {
+      const parsed = SessionId.safeParse(c.req.query('session'))
+      if (!parsed.success) return c.text('invalid or missing session', 400)
+      await next()
+    },
+    upgradeWebSocket((c) => {
+      const {tty} = c.var.terminal
+      const url = new URL(c.req.url)
+      const sessionOf = () => {
+        const parsed = SessionId.safeParse(url.searchParams.get('session'))
+        return parsed.success ? tty.get(parsed.data) : undefined
+      }
+      let detach: (() => void) | null = null
+      return {
+        onOpen(_event, ws) {
+          const session = sessionOf()
+          if (!session) {
+            ws.close(4404, 'no terminal for session')
+            return
+          }
+          const cols = Number(url.searchParams.get('cols'))
+          const rows = Number(url.searchParams.get('rows'))
+          if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 1 && rows > 1) session.resize(cols, rows)
+          const sink: TtySink = {
+            data: (chunk) => ws.send(Buffer.from(chunk)),
+            control: (frame) => ws.send(JSON.stringify(frame)),
+          }
+          detach = session.attach(sink)
+        },
+        onMessage(event) {
+          const session = sessionOf()
+          if (!session) return
+          const text = typeof event.data === 'string' ? event.data : ''
+          if (text && !applyControl(session, parseControl(text), text)) session.write(text)
+        },
+        onClose() {
+          detach?.()
+          detach = null
+        },
+      }
+    }),
+  )
+}
 
-export type TerminalAppType = typeof app
+export type TerminalAppType = ReturnType<typeof ttyApp>
 
 export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = {}) {
   return defineExtension({name: TERMINAL_NAME}).server((server) => {
@@ -248,7 +261,7 @@ export function createTerminalExtension(opts: {openTerminal?: TerminalOpener} = 
           c.set('terminal', runtime)
           await next()
         })
-        .route('/', app),
+        .route('/', ttyApp(server.upgradeWebSocket)),
       dispose: () => tty.shutdown(),
     }
   })

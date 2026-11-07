@@ -8,6 +8,7 @@ export const chatRuns = sqliteTable(
   {
     runId: text('run_id').primaryKey(),
     threadId: text('thread_id').notNull(),
+    harnessId: text('harness_id').notNull(),
     status: text('status').$type<RunStatus>().notNull(),
     startedAt: integer('started_at').notNull(),
     finishedAt: integer('finished_at'),
@@ -25,11 +26,20 @@ export const chatRuns = sqliteTable(
   ],
 )
 
-export const chatThreads = sqliteTable('chat_threads', {
-  threadId: text('thread_id').primaryKey(),
-  messagesJson: text('messages_json', {mode: 'json'}).$type<ModelMessage[]>().notNull(),
-  updatedAt: integer('updated_at').notNull(),
-})
+export const chatMessages = sqliteTable(
+  'chat_messages',
+  {
+    threadId: text('thread_id').notNull(),
+    position: integer('position').notNull(),
+    messageId: text('message_id'),
+    role: text('role').$type<ModelMessage['role']>().notNull(),
+    messageJson: text('message_json', {mode: 'json'}).$type<ModelMessage>().notNull(),
+  },
+  (table) => [
+    primaryKey({columns: [table.threadId, table.position]}),
+    index('chat_messages_thread_message').on(table.threadId, table.messageId),
+  ],
+)
 
 export const chatMetadata = sqliteTable(
   'chat_metadata',

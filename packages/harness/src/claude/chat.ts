@@ -72,7 +72,7 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 }
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
-  adapter: claudeCode(deps.model ?? 'sonnet', {
+  adapter: claudeCode(deps.model ?? 'opus', {
     addDirs: [deps.cwd],
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR, claudeAskSettingsFile()),
     systemPromptMode: 'append',

@@ -163,10 +163,20 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     )
   }
 
+  function anySubscriber(): boolean {
+    return [...bySession.values()].some(live)
+  }
+
   async function ask(sessionId: SessionId, request: PageAsk): Promise<PageAnswer> {
     const {timeout, ...query} = request
     const page = bySession.get(sessionId)
     if (page === undefined || page.subscribers.size === 0) {
+      if (anySubscriber()) {
+        throw pageFailure(
+          'no-widget',
+          'the page is showing another session; switch back to this session to use page tools',
+        )
+      }
       throw pageFailure('no-widget', `no widget connected to session "${sessionId}"`)
     }
     const declared = timeout ?? query.input['timeout']
@@ -188,7 +198,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   return {
     ask,
     connected: (sessionId) => live(bySession.get(sessionId)),
-    anySubscriber: () => [...bySession.values()].some(live),
+    anySubscriber,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
   }

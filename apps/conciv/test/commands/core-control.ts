@@ -1,11 +1,14 @@
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
-import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
+import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
 
 export type BootCoreInput = {
@@ -17,20 +20,33 @@ export type BootCoreInput = {
   terminal?: boolean
   history?: HarnessSessionMeta[]
   commands?: HarnessCommand[]
+  models?: HarnessModel[]
+  alternates?: AlternateHarness[]
   allowedOrigins?: string[]
 }
 
-export type BootCoreResult = {base: string; wsBase: string; bootMs: number}
+export type BootCoreResult = {base: string; wsBase: string; origin: string; bootMs: number}
+
+export type PointerMove = {deltaX: number; deltaY: number; steps?: number}
+
+export type PointerDrag = {name: string; moves: PointerMove[]; escape?: boolean; settleMs?: number}
+
+export type PointerHover = {name: string; moves: PointerMove[]; settleMs: number}
 
 export type FaultSpec =
   | {kind: 'fail'; path: string[]; status?: number}
   | {kind: 'abort'; path?: string[]}
   | {kind: 'gate'; path?: string[]}
   | {kind: 'chat-refused'; status?: number}
+  | {kind: 'offline'}
+  | {kind: 'detached-sockets'}
+  | {kind: 'chat-gate'}
+  | {kind: 'pre-version-engine'}
 
 type Fault = {
   pending: () => number
   awaitCaptured: (count: number) => Promise<void>
+  answered: () => Promise<void>
   release: () => Promise<void>
   dispose: () => Promise<void>
 }
@@ -45,7 +61,6 @@ type FileState = {
   faults: Map<string, Fault>
   handles: {count: number}
   terminal: TerminalState
-  calls: RpcCallCursor | null
   push: PushWireWatch | null
 }
 
@@ -76,7 +91,6 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     faults: new Map(),
     handles: {count: 0},
     terminal: {launches: 0, succeeds: true},
-    calls: null,
     push: null,
   }
   files.set(key, created)
@@ -95,12 +109,6 @@ function pushOf(ctx: BrowserCommandContext): PushWireWatch {
   return push
 }
 
-function callsOf(ctx: BrowserCommandContext): RpcCallCursor {
-  const calls = stateOf(ctx).calls
-  if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
-  return calls
-}
-
 function faultOf(ctx: BrowserCommandContext, handle: string): Fault {
   const fault = stateOf(ctx).faults.get(handle)
   if (!fault) throw new Error(`no fault is installed under the handle "${handle}"`)
@@ -115,7 +123,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     state.terminal.launches += 1
     return Promise.resolve(state.terminal.succeeds)
   }
-  const {bootCoreKit, createTerminalExtension, rpcCallCursor, watchPushWire} = await testkitOf(ctx)
+  const {bootCoreKit, createTerminalExtension, watchPushWire} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -123,6 +131,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     displayName: input.displayName,
     history: input.history,
     commands: input.commands,
+    models: input.models,
+    alternates: input.alternates,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
     ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),
@@ -139,9 +149,8 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
       : {}),
   })
   state.kit = kit
-  state.calls = rpcCallCursor(ctx.page)
   state.push = watchPushWire(ctx.page)
-  return {base: kit.base, wsBase: kit.wsBase, bootMs: Date.now() - startedAt}
+  return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
 }
 
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
@@ -151,7 +160,6 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.staleness.value = FRESH
   state.terminal.launches = 0
   state.terminal.succeeds = true
-  state.calls = null
   state.push = null
   const kit = state.kit
   state.kit = null
@@ -161,6 +169,27 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
 }
 
 const pushSocketsOpened: BrowserCommand<[]> = (ctx): number => pushOf(ctx).opened()
+
+const pushSocketsLive: BrowserCommand<[]> = (ctx): number => pushOf(ctx).liveSockets()
+
+const printedCode: BrowserCommand<[]> = (ctx): string => {
+  const code = [
+    ...kitOf(ctx)
+      .terminal()
+      .matchAll(/#conciv_otp=(\d{6})/g),
+  ].at(-1)?.[1]
+  if (code === undefined) throw new Error('the engine printed no login code')
+  return code
+}
+
+const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
+  const kit = kitOf(ctx)
+  const {requestPrintedCode} = await testkitOf(ctx)
+  return requestPrintedCode(kit.origin, kit.terminal)
+}
+
+const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
+  revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
 const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
   const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -200,6 +229,10 @@ const releaseResults: BrowserCommand<[PacedRelease?]> = (ctx, paced): void => {
 
 const scriptTurn: BrowserCommand<[ScriptedTurn]> = (ctx, turn): string[] => kitOf(ctx).harness.script.scriptTurn(turn)
 
+const scriptError: BrowserCommand<[string]> = (ctx, message): void => {
+  kitOf(ctx).harness.script.scriptError(message)
+}
+
 const clearScript: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.clearScript()
 }
@@ -214,7 +247,7 @@ const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
 
 const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => callsOf(ctx).completedSince(path)
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => kitOf(ctx).rpcServed(path)
 
 type Injector = {repair: () => void; dispose: () => Promise<void>}
 
@@ -223,6 +256,8 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
     pending: () => 0,
     awaitCaptured: () =>
       Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which never captures pending requests`)),
+    answered: () =>
+      Promise.reject(new Error(`the fault "${handle}" is a ${kind} fault, which has no single call to await`)),
     release: () => {
       injector.repair()
       return Promise.resolve()
@@ -231,30 +266,134 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
   }
 }
 
+async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> {
+  const origin = kitOf(ctx).origin
+  const offline = {value: true}
+  const matcher = (url: URL): boolean => url.origin === origin
+  await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
+  return {
+    repair: () => {
+      offline.value = false
+    },
+    dispose: () => ctx.page.unroute(matcher),
+  }
+}
+
+async function preVersionEngine(ctx: BrowserCommandContext): Promise<Injector> {
+  const origin = kitOf(ctx).origin
+  const matcher = (url: URL): boolean => url.origin === origin
+  const handler = async (route: Route): Promise<void> => {
+    if ((await route.request().headerValue(CONCIV_VERSION_HEADER)) !== null) return route.abort('failed')
+    if (new URL(route.request().url()).pathname.endsWith(CHAT_SSE_PATH)) return route.continue()
+    const response = await route.fetch()
+    const headers = Object.fromEntries(
+      Object.entries(response.headers()).filter(([name]) => name !== CONCIV_VERSION_HEADER),
+    )
+    return route.fulfill({response, headers})
+  }
+  await ctx.page.route(matcher, handler)
+  return {repair: () => {}, dispose: () => ctx.page.unroute(matcher, handler)}
+}
+
+async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector> {
+  const host = new URL(kitOf(ctx).origin).host
+  const detached = {value: true}
+  await ctx.page.routeWebSocket(
+    (url) => url.host === host,
+    (socket) => {
+      if (!detached.value) socket.connectToServer()
+    },
+  )
+  return {
+    repair: () => {
+      detached.value = false
+    },
+    dispose: () => {
+      detached.value = false
+      return Promise.resolve()
+    },
+  }
+}
+
+type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
+
+async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+  const held: {open: boolean; routes: Route[]; waiters: {count: number; deliver: () => void}[]} = {
+    open: false,
+    routes: [],
+    waiters: [],
+  }
+  const matcher = (url: URL): boolean => url.pathname.endsWith(CHAT_SSE_PATH)
+  const handler = async (route: Route): Promise<void> => {
+    if (held.open || route.request().method() !== 'POST') return route.continue()
+    held.routes.push(route)
+    for (const waiter of held.waiters.filter((entry) => held.routes.length >= entry.count)) waiter.deliver()
+  }
+  await ctx.page.route(matcher, handler)
+  const open = async (): Promise<void> => {
+    held.open = true
+    await Promise.all(held.routes.splice(0).map((route) => route.continue().catch(() => {})))
+  }
+  return {
+    pending: () => held.routes.length,
+    awaitCaptured: (count) =>
+      held.routes.length >= count
+        ? Promise.resolve()
+        : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
+    answered: () =>
+      Promise.reject(new Error('a chat-gate fault streams its answer, so it has no single call to await')),
+    release: open,
+    dispose: async () => {
+      await open()
+      await ctx.page.unroute(matcher, handler)
+    },
+  }
+}
+
+function pathOptions(path: string[] | undefined): {path?: string[]} {
+  return path ? {path} : {}
+}
+
+function statusOptions(status: number | undefined): {status?: number} {
+  return status ? {status} : {}
+}
+
+function brokenRpcCalls(
+  testkit: CoreTestkit,
+  ctx: BrowserCommandContext,
+  spec: Extract<FaultSpec, {kind: 'abort' | 'fail'}>,
+): ReturnType<CoreTestkit['abortRpcCalls']> {
+  if (spec.kind === 'abort') return testkit.abortRpcCalls(ctx.page, pathOptions(spec.path))
+  return testkit.failRpcCalls(ctx.page, {path: spec.path, ...statusOptions(spec.status)})
+}
+
+async function createFault(ctx: BrowserCommandContext, handle: string, spec: FaultSpec): Promise<Fault> {
+  const testkit = await testkitOf(ctx)
+  if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
+  if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
+  if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
+  if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
+  if (spec.kind === 'chat-refused') {
+    return trackedFault(handle, spec.kind, await testkit.failChatTurns(ctx.page, statusOptions(spec.status)))
+  }
+  return trackedFault(handle, spec.kind, await brokenRpcCalls(testkit, ctx, spec))
+}
+
 const installFault: BrowserCommand<[FaultSpec]> = async (ctx, spec): Promise<string> => {
   const state = stateOf(ctx)
-  const {abortRpcCalls, failChatTurns, failRpcCalls, gateRpcCalls} = await testkitOf(ctx)
   state.handles.count += 1
   const handle = `fault-${state.handles.count}`
-  if (spec.kind === 'gate') {
-    state.faults.set(handle, await gateRpcCalls(ctx.page, spec.path ? {path: spec.path} : {}))
-    return handle
-  }
-  if (spec.kind === 'chat-refused') {
-    const injected = await failChatTurns(ctx.page, spec.status ? {status: spec.status} : {})
-    state.faults.set(handle, trackedFault(handle, spec.kind, injected))
-    return handle
-  }
-  const injector =
-    spec.kind === 'abort'
-      ? await abortRpcCalls(ctx.page, spec.path ? {path: spec.path} : {})
-      : await failRpcCalls(ctx.page, {path: spec.path, ...(spec.status ? {status: spec.status} : {})})
-  state.faults.set(handle, trackedFault(handle, spec.kind, injector))
+  state.faults.set(handle, await createFault(ctx, handle, spec))
   return handle
 }
 
 const releaseFault: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
   await faultOf(ctx, handle).release()
+}
+
+const awaitFaultAnswered: BrowserCommand<[string]> = async (ctx, handle): Promise<void> => {
+  await faultOf(ctx, handle).answered()
 }
 
 const faultPending: BrowserCommand<[string]> = (ctx, handle): number => faultOf(ctx, handle).pending()
@@ -279,10 +418,50 @@ const awaitFaultPending: BrowserCommand<[string, number]> = async (ctx, handle, 
   }
 }
 
+const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
+  const box = await ctx.iframe.getByRole('button', {name, exact: true}).boundingBox()
+  if (!box) throw new Error(`no button named ${name} to point at`)
+  return box
+}
+
+const walkPointer = (ctx: BrowserCommandContext, start: {x: number; y: number}, moves: PointerMove[]) =>
+  moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
+    const at = await previous
+    const next = {x: at.x + move.deltaX, y: at.y + move.deltaY}
+    await ctx.page.mouse.move(next.x, next.y, {steps: move.steps ?? 1})
+    return next
+  }, Promise.resolve(start))
+
+const dragButton: BrowserCommand<[drag: PointerDrag]> = async (ctx, drag) => {
+  const box = await buttonBox(ctx, drag.name)
+  const start = {x: box.x + box.width / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.mouse.down()
+  await walkPointer(ctx, start, drag.moves)
+  if (drag.escape) await ctx.page.keyboard.press('Escape')
+  if (drag.settleMs) await ctx.page.waitForTimeout(drag.settleMs)
+  await ctx.page.mouse.up()
+}
+
+const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) => {
+  const box = await buttonBox(ctx, hover.name)
+  const start = {x: box.x + box.height / 2, y: box.y + box.height / 2}
+  await ctx.page.mouse.move(start.x, start.y)
+  await ctx.page.waitForTimeout(hover.settleMs)
+  await walkPointer(ctx, start, hover.moves)
+  await ctx.page.waitForTimeout(hover.settleMs)
+}
+
 export const coreCommands = {
+  dragButton,
+  hoverButton,
   bootCore,
   closeCore,
   pushSocketsOpened,
+  pushSocketsLive,
+  printedCode,
+  requestCode,
+  revokeBrowsers,
   outsideReload,
   setStaleness,
   holdTurn,
@@ -292,6 +471,7 @@ export const coreCommands = {
   releaseResults,
   releaseTurn,
   scriptTurn,
+  scriptError,
   clearScript,
   scriptCustomEvent,
   setTerminalLaunch,
@@ -301,4 +481,5 @@ export const coreCommands = {
   releaseFault,
   faultPending,
   awaitFaultPending,
+  awaitFaultAnswered,
 }

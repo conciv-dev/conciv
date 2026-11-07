@@ -12,6 +12,7 @@ import type {MigrationMeta} from 'drizzle-orm/migrator'
 import type {Source, SourceListing, SourceRead, SourceWrite} from '@conciv/db'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import type {AnySQLiteTable, SQLiteTableFn} from 'drizzle-orm/sqlite-core'
+import type {UpgradeWebSocket} from './rpc-mount.js'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -135,11 +136,12 @@ export type ServerApi<Config, Tables extends ExtensionTables = Record<never, nev
   basePath: string
   stateDir: string
   sessions: ServerSessions
-  harness: ServerHarness
+  harness: (sessionId: SessionId) => ServerHarness
   symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
   bundler?: BundlerBridge
   nativeUrl: () => string | undefined
   page: {ask: (request: PageAskRequest) => Promise<unknown>}
+  upgradeWebSocket: UpgradeWebSocket
 }
 
 export type ServerResult<Context> = {

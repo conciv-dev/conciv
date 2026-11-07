@@ -2,11 +2,13 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 
 export type ThreadScroller = {
   atEnd: Accessor<boolean>
+  nearStart: Accessor<boolean>
   landOnEnd: () => void
 }
 
 export type ViewportContextValue = {
   isAtBottom: Accessor<boolean>
+  isNearTop: Accessor<boolean>
   scrollToBottom: () => void
   sendFromUser: <TResult>(deliver: () => TResult) => TResult
   setScroller: (scroller: ThreadScroller | undefined) => void

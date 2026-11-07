@@ -26,7 +26,7 @@ export default defineConfig({
             headless: true,
             provider: playwright({
               launchOptions: {
-                channel: 'chrome',
+                channel: 'chromium',
                 args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096'],
               },
               contextOptions: {reducedMotion: 'reduce'},

@@ -27,7 +27,7 @@ function anchorLabel(part: ToolCallPart, result: ToolResultPart | undefined): st
 }
 
 function anchorValue(part: ToolCallPart, result: ToolResultPart | undefined): string {
-  if (toolStatus(part, result) === 'error') return resultText(result)
+  if (result?.state === 'error') return result.error ?? resultText(result)
   return anchorLabel(part, result)
 }
 

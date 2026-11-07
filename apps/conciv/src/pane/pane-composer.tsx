@@ -27,11 +27,11 @@ export type PaneComposerProps = {
   placeholder: string
   inputLabel: string
   children?: JSX.Element
+  prompt?: JSX.Element
   busy?: JSX.Element
   triggers?: ComposerTriggerSources
   onInputReady?: (handle: ComposerInputHandle) => void
   onSelectionChange?: (offsets: SelectionOffsets) => void
-  initialSelection?: SelectionOffsets
   attachmentAdapter?: AttachmentAdapter
   AttachmentComponent?: Component<{removable?: boolean}>
 }
@@ -124,9 +124,16 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
         />
       </div>
       <div class="flex items-center gap-[10px] min-h-9 pe-2 ps-5">
-        <span class={GUTTER} aria-hidden="true">
-          ❯
-        </span>
+        <Show
+          when={props.prompt}
+          fallback={
+            <span class={GUTTER} aria-hidden="true">
+              ❯
+            </span>
+          }
+        >
+          {(prompt) => prompt()}
+        </Show>
         <ComposerInputAdapter
           placeholder={placeholder()}
           editableClass={`${INPUT} flex-1`}
@@ -135,7 +142,6 @@ export function PaneComposer(props: PaneComposerProps): JSX.Element {
           triggers={props.triggers}
           onReady={receiveInputHandle}
           onSelectionChange={props.onSelectionChange}
-          initialSelection={props.initialSelection}
         />
         <ComposerActionsHost maxInlineAuto={MAX_INLINE_AUTO_ACTIONS} onOverflowDismissed={() => inputHandle?.focus()}>
           <ComposerActions.Trigger>

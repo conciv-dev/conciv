@@ -15,7 +15,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 - `harness-available.ts:harnessAvailable` - true when `command -v <binName>` succeeds.
 - `call-tool.ts:makeCallTool` / `makeRunTypescript` / `makeDiscoverTools` - call tools through `<apiBase>/api/mcp` (`execute_typescript`, `discover_tools`).
 - `call-tool.ts:autoApprove` / `withAutoApproval` / `approvePending` / `makeApprovingCallTool` / `makeApprovingRegistryCall` - approve pending tool calls during a run.
-- `mcp-client.ts:connectMcpClient` - MCP client with `tools()` and `close()`.
+- `mcp-client.ts:connectMcpClient` - MCP client with `tools()`, `serverVersion()` and `close()`.
 - `run-stream.ts:makeRunStream` - `RunStream` with `waitFor`, `waitForToolCall`, `done`; `run-events.ts:makeRunEvents`, `collectToolCalls`, `approvalIds`.
 - `session.ts:makeRpcClient` / `resolveSession` / `makeSessionBoundRpcClient` - oRPC client against `<apiBase>/rpc`.
 - `serve-app.ts:serveApp` - serves a fetch handler with `serveHono` and returns `base`, `wsBase`, `port`, `close`.
@@ -31,7 +31,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 - `call-tool.ts:makeRunTypescript` - rejects after `deadlineMs` (default 60000) and throws when `execute_typescript` is not listed on `/api/mcp`.
 - `mcp-client.ts:connectMcpClient` - a tool result with `isError: true` throws its text.
 - `harness-modes.ts:harnessModes` - the `real` mode runs only when `CI` is unset and the harness binary is on `PATH`.
-- `create-testkit.ts:cleanup` - stops running sessions within 3000 ms (`pTimeout`), then disposes the app and closes the server.
+- `create-testkit.ts:cleanup` - closes the server first, then disposes the app (which ends live runs before closing the database); every step runs even when an earlier one fails, and the failures are rethrown as one `AggregateError`.
 
 ## Side Effects
 

@@ -11,18 +11,21 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 - `DevEndpointSchema` / `DevEndpoint` (`dev-endpoint.ts`): {apiBase, token: string|null, pid}
 - `defaultDevEndpointDir` / `writePrivateFile` / `writeDevEndpoint` / `readDevEndpoint` / `removeDevEndpoint` (`dev-endpoint.ts`): `<dir>/dev-endpoint.json`, default dir ~/.conciv
 - `makeStalenessProbe` / `loadedModules` / `engineStaleness` / `TrackedModule` (`engine-stamp.ts`): {stale, changed, tracked, bootedAt, fingerprint}
+- `runInOrder` / `ShutdownStep` (`shutdown.ts`): runs steps one after another, keeps going past failures, rethrows them as one `AggregateError`
 - `writeText` (`fs.ts`): mkdir -p then write
 - `readPersistedPort` / `writePersistedPort` / `isAddressInUse` (`server-port.ts`)
+- `withSavedModels(adapter, stateDir)` (`saved-models.ts`): wraps a harness whose `models` is a function so it answers from `<stateDir>/<harness id>-models.json` at once and refreshes the live list once per process in the background; with nothing saved it waits for the live list
 - `statePaths` / `StatePaths` (`state-paths.ts`): {dir, systemPrompt: chat-system-prompt.txt, server: server.json} under `concivStateDir(stateRoot)`
 
 ## Invariants
 
-- `corsMiddleware` (`cors.ts`): a Host that is not a bare loopback authority gets 403 'forbidden host'; an Origin that is not loopback or in `allowedOrigins` gets 403 'forbidden origin'; no Origin is allowed
+- `corsMiddleware` (`cors.ts`): a Host that is not a bare loopback authority gets 403 'forbidden host'; an Origin that is not loopback or in `allowedOrigins` gets 403 'forbidden origin'; no Origin is allowed. Every response it handles carries `x-conciv-version` (the core package.json version), exposed to CORS callers; the header is also an allowed request header
 - `writeDevEndpoint` (`dev-endpoint.ts`): validates with `DevEndpointSchema.parse`
 - `readDevEndpoint` (`dev-endpoint.ts`): null on a missing file, bad JSON or schema failure
 - `removeDevEndpoint` (`dev-endpoint.ts`): deletes only when the file is absent or invalid or its pid matches the caller
 - `writePrivateFile` (`dev-endpoint.ts`): mode 0600, temp file plus rename; removes the temp file on failure
 - `readPersistedPort` (`server-port.ts`): an integer 1-65535 or undefined
+- `withSavedModels` (`saved-models.ts`): a saved file is used only when it parses as a model list; every successful live list overwrites it, an empty one included (a harness with nothing usable, such as OpenCode with no credentials, stops offering models), while a failed probe never replaces a good list; a static `models` array passes through untouched
 - `makeStalenessProbe` (`engine-stamp.ts`): the fingerprint is the first 12 hex chars of sha256 over current digests
 
 ## Side Effects

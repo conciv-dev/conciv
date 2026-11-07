@@ -1,8 +1,9 @@
-import {opencode as opencodeAdapter, opencodeModels} from '@conciv/ai/server'
+import {opencode as opencodeAdapter} from '@conciv/ai/server'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {opencodeHistory} from './history.js'
+import {opencodeModels} from './models.js'
 
 function opencodeMcpEnv(mcpUrl: string, concivSessionId: string): Record<string, string> {
   return {
@@ -41,7 +42,7 @@ export const opencode = defineHarness({
     init: 'none',
   },
   chatConfig: opencodeChatConfig,
-  models: opencodeModels.map((id) => ({id, name: id, group: 'OpenCode'})),
+  models: opencodeModels,
   defaultModel: 'opencode/claude-sonnet-4-5',
   history: opencodeHistory,
   connect: {

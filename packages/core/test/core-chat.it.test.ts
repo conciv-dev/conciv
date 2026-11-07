@@ -317,15 +317,15 @@ describe('start dev endpoint', () => {
       )
     })
 
-    it('serves /native and writes a tokenless endpoint with no ios config (the zero-config widget path)', async () => {
+    it('serves /native open and writes the generated agent token into the endpoint when no access token is given', async () => {
       await withStartedEngine({serveNativePage: true}, async (engine, endpointDir) => {
         const page = await fetch(`http://127.0.0.1:${engine.port}/native`)
         expect(page.status).toBe(200)
         expect(await page.text()).toContain('data-conciv-native-root')
 
         expect(readDevEndpoint(endpointDir)).toEqual({
-          apiBase: `http://127.0.0.1:${engine.port}`,
-          token: null,
+          apiBase: `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`,
+          token: engine.agentToken,
           pid: process.pid,
         })
         await engine.stop()

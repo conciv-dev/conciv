@@ -1,8 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {z} from 'zod'
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
-import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
+import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {generateMessageId, isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {EngineStaleness} from '@conciv/contract'
@@ -17,6 +16,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
+import corePackage from '../../package.json' with {type: 'json'}
 import {
   cappedText,
   cappedValue,
@@ -26,7 +26,7 @@ import {
   type CodeRunner,
   type CodeTool,
 } from '@conciv/chat'
-import {imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
+import {createMCPServer, imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
@@ -66,22 +66,88 @@ const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 const EXECUTE_DESCRIPTION =
   'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function; call discover_tools first for their typed signatures. Return a value to pass results back; console.log output is captured.'
 
-function stalenessNotice(staleness: EngineStaleness): string {
-  if (!staleness.stale) return ''
-  return `WARNING: this engine is running outdated code. The server code on disk is newer than the running engine (rebuilt since it booted: ${staleness.changed.join(', ')}). Restart the dev server; until then the capabilities listed here can differ from the project's current code.
+const STALE_PREFIX =
+  'WARNING: this engine is running outdated code. The server code on disk is newer than the running engine (rebuilt since it booted: '
 
-`
+const STALE_SUFFIX =
+  "). Restart the dev server; until then the capabilities listed here can differ from the project's current code.\n\n"
+
+function stalenessNotice(staleness: EngineStaleness, room: number): string {
+  if (!staleness.stale) return ''
+  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length, '')
+  return `${STALE_PREFIX}${changed}${STALE_SUFFIX}`
 }
 
-export function serverInstructions(capabilities: string, staleness: EngineStaleness): string {
-  return `${stalenessNotice(staleness)}This server exposes ${EXECUTE_TOOL_NAME}, which runs TypeScript in a sandbox where every project capability is an async external_* function, and ${DISCOVER_TOOL_NAME}, which returns their full typed signatures.
-
-${capabilities}
-
-Rules of the sandbox:
+const SANDBOX_RULES = `Rules of the sandbox:
 - A capability's declared error code arrives as a "CODE: message" prefix on the thrown error's message (typed error objects do not survive the isolate boundary).
 - Each execution is isolated: no state, imports, network, or file system carry over between calls.
 - Oversized results are truncated to an envelope carrying the reason and a head sample; return less data instead of retrying.`
+
+const DESCRIPTION_BUDGET_CHARS = 4096
+
+const NAMES_ONLY_HEADER = '\n\nMore capabilities, by name only: '
+
+const NAME_SEPARATOR = ', '
+
+const LIST_ALL_HINT =
+  ' (list every name from inside execute_typescript: return Object.keys(globalThis).filter((key) => key.startsWith("external_")))'
+
+type RunnerCapability = CodeRunner['capabilities'][number]
+
+function executeDescription(input: {runner: CodeRunner; staleness: EngineStaleness; sessionLines: string}): string {
+  const {runner, staleness, sessionLines} = input
+  const session = sessionLines === '' ? '' : `${sessionLines}\n\n`
+  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${session}${capabilitiesIntro(runner)}`
+  const names = runner.capabilities.map(sandboxName)
+  const namesReserve =
+    names.length === 0 ? 0 : NAMES_ONLY_HEADER.length + overflowTail(0, names.length, LIST_ALL_HINT).length
+  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - namesReserve)}${rest}`
+  const lines = runner.capabilities.map(capabilityLine)
+  const allNamesOnly = `${NAMES_ONLY_HEADER}${names.join(NAME_SEPARATOR)}`
+  const room = DESCRIPTION_BUDGET_CHARS - head.length
+  const described = lines.join('').length <= room ? lines.length : fittingCount(lines, room - allNamesOnly.length)
+  const body = `${head}${lines.slice(0, described).join('')}`
+  return `${body}${namesOnly(names.slice(described), DESCRIPTION_BUDGET_CHARS - body.length)}`
+}
+
+function capabilitiesIntro(runner: CodeRunner): string {
+  if (runner.discover === null) return 'Capabilities:'
+  return 'Capabilities (call discover_tools with their names for typed signatures; it is a separate tool call, not available inside the sandbox):'
+}
+
+function sandboxName(capability: RunnerCapability): string {
+  return `external_${capability.name}`
+}
+
+function capabilityLine(capability: RunnerCapability): string {
+  return `\n- ${sandboxName(capability)}: ${capability.description.split('\n')[0] ?? ''}`
+}
+
+function namesOnly(names: string[], room: number): string {
+  if (names.length === 0) return ''
+  return `${NAMES_ONLY_HEADER}${fittedList(names, room - NAMES_ONLY_HEADER.length, LIST_ALL_HINT)}`
+}
+
+function fittedList(items: readonly string[], room: number, hint: string): string {
+  const pieces = items.map((item, index) => (index === 0 ? item : `${NAME_SEPARATOR}${item}`))
+  const all = pieces.join('')
+  if (all.length <= room) return all
+  const listed = fittingCount(pieces, room - overflowTail(1, items.length, hint).length)
+  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed, hint)}`
+}
+
+function overflowTail(listed: number, hidden: number, hint: string): string {
+  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more${hint}`
+}
+
+function fittingCount(pieces: string[], room: number): number {
+  return pieces.reduce(
+    (fit, piece) =>
+      fit.full || fit.length + piece.length > room
+        ? {...fit, full: true}
+        : {length: fit.length + piece.length, count: fit.count + 1, full: false},
+    {length: 0, count: 0, full: false},
+  ).count
 }
 
 function decodeDeclaredCode(message: string, declaredCodes: ReadonlySet<string>): string | undefined {
@@ -210,62 +276,58 @@ type McpDeps = {
 
 export type McpVars = {mcp: McpDeps}
 
-async function buildServer(deps: McpDeps, scope: SessionScope): Promise<McpServer> {
+async function sessionTools(deps: McpDeps, scope: SessionScope) {
   const runner = await deps.codeRunner(scope.id)
   const sessionLines = await deps.sessionPrompt(scope.id)
-  const capabilities = [runner?.systemPrompt ?? '', sessionLines].filter(Boolean).join('\n\n')
-  const server = new McpServer(
-    {name: 'conciv', version: '0.0.0'},
-    {instructions: serverInstructions(capabilities, deps.staleness())},
-  )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
-    return server
+    return []
   }
   const publish: PublishChunks = (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk))
-  if (runner.discover !== null) {
-    server.registerTool(
-      DISCOVER_TOOL_NAME,
-      {description: runner.discover.description, inputSchema: DiscoverInputSchema.shape},
-      (args) => runDiscover(runner, args.toolNames),
-    )
-  }
-  for (const tool of runner.asking) {
-    server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, (args) =>
+  const discover = runner.discover
+  const discoverTools =
+    discover === null
+      ? []
+      : [
+          defineTool({
+            name: DISCOVER_TOOL_NAME,
+            description: discover.description,
+            inputSchema: DiscoverInputSchema,
+          }).server((args) => runDiscover(runner, args.toolNames)),
+        ]
+  const askingTools = runner.asking.map((tool) =>
+    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server((args) =>
       runDirect(tool, args, publish),
-    )
-  }
-  server.registerTool(
-    EXECUTE_TOOL_NAME,
-    {description: EXECUTE_DESCRIPTION, inputSchema: ExecuteInputSchema.shape},
-    async (args) => {
-      try {
-        return await runExecute(runner, args.typescriptCode, publish)
-      } catch (error) {
-        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-        throw error
-      }
-    },
+    ),
   )
-  return server
+  const executeTool = defineTool({
+    name: EXECUTE_TOOL_NAME,
+    description: executeDescription({runner, staleness: deps.staleness(), sessionLines}),
+    inputSchema: ExecuteInputSchema,
+  }).server(async (args) => {
+    try {
+      return await runExecute(runner, args.typescriptCode, publish)
+    } catch (error) {
+      logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+      throw error
+    }
+  })
+  return [...discoverTools, ...askingTools, executeTool]
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
-  const allowedHosts = loopbackHostAllowlist(c.req.header('host') ?? null)
-  if (allowedHosts.length === 0) return c.text('forbidden host', 403)
+  if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
   const scope = await c.var.mcp.resolveSession(
     sessionIdFromHeaders(c.req.raw.headers),
     nativeIdFromHeaders(c.req.raw.headers),
   )
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true,
-    enableDnsRebindingProtection: true,
-    allowedHosts,
+  const server = createMCPServer({
+    name: 'conciv',
+    version: corePackage.version,
+    tools: await sessionTools(c.var.mcp, scope),
+    onerror: (error) => logError(`[mcp] ${error.message}`),
   })
-  const server = await buildServer(c.var.mcp, scope)
-  await server.connect(transport)
-  return transport.handleRequest(c.req.raw)
+  return server.handle(c.req.raw)
 })
 
 export default app

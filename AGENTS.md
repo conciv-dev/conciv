@@ -18,7 +18,7 @@ README.md; this file is the non-obvious operational rules.
 
 ## Toolchain
 
-- pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 22. Monorepo orchestrated by turbo.
+- pnpm (exact version pinned in root `package.json` `packageManager`), Node >= 26. Monorepo orchestrated by turbo.
 - `intent list` needs `pnpm install` to have run in the tree you invoke it from. Intent discovers skills by
   resolving each workspace package's dependencies; in a git worktree with no `node_modules` of its own, Node
   resolution escapes upward into the MAIN checkout's `node_modules` and finds only what is hoisted there

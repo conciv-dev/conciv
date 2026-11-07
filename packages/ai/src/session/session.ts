@@ -11,6 +11,7 @@ import {
 import type {QueuedMessage} from '@tanstack/ai-client'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {chatBusy} from '@conciv/protocol/chat-busy'
+import {CHAT_HISTORY_PAGE_SIZE} from '@conciv/protocol/chat-types'
 
 export type Chat = UseChatReturn
 
@@ -20,12 +21,14 @@ export type ChatApprovalScope = 'once' | 'session'
 
 export type ChatSessionHydration = {
   messages: ChatMessage[]
+  messageHarness: Record<string, string>
   lastRun: RunLifecycle | null
   pendingApprovals: readonly ApprovalAsk[]
+  page?: {truncated: false} | {truncated: true; cursor: string}
 }
 
 export type ChatSessionConnection = SubscribeConnectionAdapter & {
-  refresh: () => Promise<ChatSessionHydration>
+  refresh: (before?: string) => Promise<ChatSessionHydration>
   close: () => void
 }
 
@@ -55,8 +58,9 @@ export type ChatSession = Omit<Chat, 'stop'> & {
   runError: Accessor<string | null>
   sessionRunning: Accessor<boolean>
   runInProgress: Accessor<boolean>
-  hydrated: Accessor<boolean>
+  loadFailed: Accessor<boolean>
   pendingApprovals: Accessor<ApprovalAsk[]>
+  harnessOf: (messageId: string) => string | undefined
   decide: (approvalId: string, approved: boolean, scope: ChatApprovalScope) => Promise<void>
 }
 
@@ -97,11 +101,14 @@ function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   }
 }
 
-function withRenderedIds(rendered: readonly ChatMessage[], stored: readonly ChatMessage[]): ChatMessage[] {
-  return stored.map((message, index) => {
-    const shown = rendered[index]
-    return shown?.role === message.role ? {...message, id: shown.id} : message
-  })
+function stitched(rendered: readonly ChatMessage[], window: readonly ChatMessage[]): ChatMessage[] {
+  const cut = rendered.findIndex((message) => message.id === window[0]?.id)
+  return cut === -1 ? [...window] : [...rendered.slice(0, cut), ...window]
+}
+
+function overlaps(rendered: readonly ChatMessage[], hydration: ChatSessionHydration): boolean {
+  const start = hydration.messages[0]
+  return start === undefined || rendered.some((message) => message.id === start.id)
 }
 
 function asError(value: unknown): Error {
@@ -123,20 +130,22 @@ export function createChat(options: CreateChatOptions): Chat {
 
 export function createChatSession(options: CreateChatSessionOptions): ChatSession {
   const [runSource, setRunSource] = createSignal<RunClockSource | null>(null)
-  const [hydrated, setHydrated] = createSignal(false)
-  const [asks, setAsks] = createStore<{pending: ApprovalAsk[]}>({pending: []})
+  const [served, setServed] = createStore<{pending: ApprovalAsk[]; harnesses: Record<string, string>}>({
+    pending: [],
+    harnesses: {},
+  })
   const connection = options.connect({
     onLifecycle: (lifecycle) => setRunSource({lifecycle, receivedAt: Date.now()}),
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
-      setAsks('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
-      setHydrated(true)
+      setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
+      setServed('harnesses', hydration.messageHarness)
     },
     onRunError: () => {
       void refresh().catch((error: unknown) => options.onError?.(asError(error)))
     },
     onApprovalAsk: (ask) => {
-      setAsks('pending', (pending) =>
+      setServed('pending', (pending) =>
         pending.some((waiting) => waiting.approvalId === ask.approvalId) ? pending : [...pending, ask],
       )
     },
@@ -146,22 +155,31 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
         return false
       }),
   })
+  const reaching = async (hydration: ChatSessionHydration): Promise<ChatMessage[]> => {
+    if (overlaps(chat.messages(), hydration) || hydration.page?.truncated !== true) return hydration.messages
+    const older = await connection.refresh(hydration.page.cursor)
+    return [...(await reaching(older)), ...hydration.messages]
+  }
+  const latestWindow = async (): Promise<ChatMessage[]> => reaching(await connection.refresh())
+  const showWindow = (window: readonly ChatMessage[]): void => {
+    chat.setMessages(stitched(chat.messages(), window))
+  }
   const refresh = async (): Promise<void> => {
-    const hydration = await connection.refresh()
-    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+    showWindow(await latestWindow())
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
   const joinedRun = async (runId: string): Promise<boolean> => {
     if (ownsRun(runId)) return false
-    const hydration = await connection.refresh()
+    const window = await latestWindow()
     if (ownsRun(runId)) return false
-    chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
+    showWindow(window)
     return true
   }
   const chat = useChat({
     threadId: options.sessionId,
     connection,
     persistence: true,
+    history: {pageSize: CHAT_HISTORY_PAGE_SIZE},
     live: true,
     queue: 'queue',
     onError: options.onError,
@@ -178,6 +196,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
+  const loadFailed = createMemo(() => chat.messages().length === 0 && chat.error() !== undefined)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []
@@ -201,9 +220,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return stopRequest
   }
   const decide = async (approvalId: string, approved: boolean, scope: ChatApprovalScope): Promise<void> => {
-    const ask = asks.pending.find((waiting) => waiting.approvalId === approvalId)
+    const ask = served.pending.find((waiting) => waiting.approvalId === approvalId)
     const decision = await options.decide(approvalId, approved, scope)
-    setAsks('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
+    setServed('pending', (pending) => pending.filter((waiting) => waiting.approvalId !== approvalId))
     if (!decision.startsTurn || ask === undefined) return
     await chat.sendMessage(decisionText(ask.toolName, approved, scope))
   }
@@ -241,8 +260,9 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     runError,
     sessionRunning,
     runInProgress,
-    hydrated,
-    pendingApprovals: () => asks.pending,
+    loadFailed,
+    pendingApprovals: () => served.pending,
+    harnessOf: (messageId) => served.harnesses[messageId],
     decide,
   }
 }

@@ -8,6 +8,7 @@ import {
   readFileSync,
   readdirSync,
 } from 'node:fs'
+import {randomUUID} from 'node:crypto'
 import {writeFile} from 'node:fs/promises'
 import {request as httpRequest} from 'node:http'
 import {tmpdir} from 'node:os'
@@ -28,8 +29,11 @@ import {
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
+import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE} from '@conciv/db'
+import {asc, eq} from 'drizzle-orm'
 import {
   createFakeHarness,
+  type FakeHarness,
   serveApp,
   type ServedApp,
   makeRpcClient,
@@ -47,6 +51,7 @@ import {
   type McpTool,
 } from '@conciv/harness-testkit'
 import {claude} from '@conciv/harness/claude'
+import {codex as codexHarness} from '@conciv/harness/codex'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -57,9 +62,10 @@ import {
   CONCIV_SESSION_HEADER,
   CHAT_WS_PATH,
   CONCIV_CLAUDE_SESSION_HEADER,
+  type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessModel, type HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -68,14 +74,16 @@ import {os} from '@orpc/server'
 import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
-import {HealthSchema, makeApp, type MadeApp} from '../src/app.js'
+import {makeApp, type MadeApp} from '../src/app.js'
 import {resolveConfig, type ResolvedConcivConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
 import {start, type Engine} from '../src/start.js'
 import {sampleServerExtension, sampleState} from './fixtures/sample-server-extension.js'
+import corePackage from '../package.json' with {type: 'json'}
 import {
   bootKit,
+  bootMadeApp,
   requireClaude,
   bootCoreApp,
   requireTranscriptPath,
@@ -83,6 +91,7 @@ import {
   chunkWithInlineMap,
   cleanupChunks,
   hydratedSnapshot,
+  runTurn,
   userTexts,
   type FakeWidget,
 } from './helpers.js'
@@ -119,36 +128,13 @@ describe('api connect gate', () => {
   })
 
   describe('token-gated core', () => {
-    it('serves health under the token prefix', async () => {
-      const res = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
-      expect(res.status).toBe(200)
-      const raw = z.record(z.string(), z.unknown()).parse(await res.json())
-      expect(Object.keys(raw).toSorted()).toEqual(['engine', 'harness', 'ok'])
-      expect(Object.keys(z.record(z.string(), z.unknown()).parse(raw.engine)).toSorted()).toEqual([
-        'bootedAt',
-        'changed',
-        'fingerprint',
-        'stale',
-        'tracked',
-      ])
-      expect(HealthSchema.parse(raw)).toEqual({
-        ok: true,
-        harness: 'fake-gate',
-        engine: {
-          stale: false,
-          changed: [],
-          tracked: expect.arrayContaining(['@conciv/core']),
-          bootedAt: expect.any(Number),
-          fingerprint: expect.any(String),
-        },
-      })
-    })
-
-    it('404s the wrong token and the bare path', async () => {
-      const wrong = await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)
+    it('serves only liveness and the stale flag on health, with or without the token', async () => {
+      const expected = {ok: true, harness: 'fake-gate', engine: {stale: false}}
+      const prefixed = await fetch(`http://127.0.0.1:${engine.port}/t/7c9e6679-7425-40de-944b-e07fc1f90ae7/health`)
       const bare = await fetch(`http://127.0.0.1:${engine.port}/health`)
-      expect(wrong.status).toBe(404)
-      expect(bare.status).toBe(404)
+      expect([prefixed.status, bare.status]).toEqual([200, 200])
+      expect([await prefixed.json(), await bare.json()]).toEqual([expected, expected])
+      expect((await fetch(`http://127.0.0.1:${engine.port}/t/nope/health`)).status).toBe(401)
     })
 
     it('serves rpc under the prefix', async () => {
@@ -220,13 +206,6 @@ describe('api engine staleness di', () => {
     fingerprint: 'injected1234',
   }
 
-  const INITIALIZE = JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'staleness-di-test', version: '0'}},
-  })
-
   afterEach(async () => {
     await state.served?.close()
     await state.dispose?.()
@@ -238,34 +217,111 @@ describe('api engine staleness di', () => {
   async function serveWithProbe(staleness: () => EngineStaleness): Promise<ServedApp> {
     const root = mkdtempSync(join(tmpdir(), 'conciv-staleness-di-'))
     dirs.push(root)
-    const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}, staleness})
+    const {fetch, dispose, agentToken} = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      staleness,
+    })
     state.dispose = dispose
-    const served = await serveApp(app.fetch)
+    const served = await serveApp(fetch)
     state.served = served
-    return served
+    return {...served, base: `${served.base}/t/${agentToken}`}
   }
 
   describe('engine staleness dependency injection (IT, real http)', () => {
-    it('reports the injected probe consistently on /health, rpc meta.engine and the mcp instructions', async () => {
+    async function executeTool(
+      base: string,
+    ): Promise<{description: string; discoverDescription: string; sandboxNames: string[]}> {
+      const mcp = await connectMcpClient(`${base}/api/mcp`)
+      try {
+        const tools = await mcp.tools()
+        const tool = tools.find((entry) => entry.name === 'execute_typescript')
+        const discover = tools.find((entry) => entry.name === 'discover_tools')
+        if (!discover) throw new Error('discover_tools not on /api/mcp')
+        if (!tool) throw new Error('execute_typescript not on /api/mcp')
+        const listed = await tool.execute({
+          typescriptCode: 'return Object.keys(globalThis).filter((key) => key.startsWith("external_"))',
+        })
+        const sandboxNames = z.object({result: z.array(z.string())}).parse(JSON.parse(String(listed))).result
+        return {description: tool.description, discoverDescription: discover.description, sandboxNames}
+      } finally {
+        await mcp.close()
+      }
+    }
+
+    async function executeDescription(base: string): Promise<string> {
+      return (await executeTool(base)).description
+    }
+
+    it('reports the injected probe consistently on /health, rpc meta.engine and the execute tool description', async () => {
       const calls = {count: 0}
       const served = await serveWithProbe(() => {
         calls.count += 1
         return INJECTED
       })
 
-      const health = HealthSchema.parse(await (await fetch(`${served.base}/health`)).json())
+      const health: unknown = await (await fetch(`${served.base}/health`)).json()
       const engine = await makeRpcClient(served.base).meta.engine()
-      const mcp = await fetch(`${served.base}/api/mcp`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json', accept: 'application/json, text/event-stream'},
-        body: INITIALIZE,
-      })
-      const instructions = await mcp.text()
+      const {description, discoverDescription, sandboxNames} = await executeTool(served.base)
 
-      expect(health.engine).toEqual(INJECTED)
+      expect(health).toEqual({ok: true, harness: expect.any(String), engine: {stale: INJECTED.stale}})
       expect(engine).toEqual(INJECTED)
-      expect(instructions).toContain('@conciv/injected-probe')
+      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description).toContain('@conciv/injected-probe')
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toContain('call discover_tools with their names')
+      expect(description).toContain('More capabilities, by name only: ')
+      expect(description).toContain('external_page_insert')
+      expect(sandboxNames.length).toBeGreaterThan(0)
+      expect(sandboxNames.filter((name) => !description.includes(name))).toEqual([])
+      expect(discoverDescription.length).toBeLessThanOrEqual(4096)
+      expect(discoverDescription).not.toContain('external_page_insert')
       expect(calls.count).toBeGreaterThanOrEqual(3)
+    }, 20_000)
+
+    it('reports the core package version as the MCP server version', async () => {
+      const served = await serveWithProbe(() => INJECTED)
+      const mcp = await connectMcpClient(`${served.base}/api/mcp`)
+      try {
+        expect(mcp.serverVersion()).toBe(corePackage.version)
+      } finally {
+        await mcp.close()
+      }
+    }, 20_000)
+
+    it('names the sandbox enumeration when capability names alone overflow the description budget', async () => {
+      const changed = Array.from({length: 90}, (_, index) => `@conciv/changed-package-${index}`)
+      const served = await serveWithProbe(() => ({...INJECTED, changed}))
+      const {description, sandboxNames} = await executeTool(served.base)
+      const hidden = sandboxNames.filter((name) => !description.includes(name))
+
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toMatch(/, and \d+ more/)
+      expect(hidden.length).toBeGreaterThan(0)
+      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
+    }, 20_000)
+
+    it('bounds the staleness notice so a huge changed list keeps the description within budget', async () => {
+      const changed = Array.from({length: 2000}, (_, index) => `@conciv/changed-package-${index}`)
+      const served = await serveWithProbe(() => ({...INJECTED, changed}))
+      const {description} = await executeTool(served.base)
+
+      expect(description.length).toBeLessThanOrEqual(4096)
+      expect(description).toMatch(/^WARNING: this engine is running outdated code/)
+      expect(description).toContain('@conciv/changed-package-0')
+      expect(description).toMatch(/, and \d+ more\)\. Restart the dev server/)
+      expect(description).toContain('Run TypeScript in a secure sandbox wired to this project.')
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description).toContain('return Object.keys(globalThis).filter((key) => key.startsWith("external_"))')
+    }, 20_000)
+
+    it('the execute tool description says nothing about staleness while the engine matches the code on disk', async () => {
+      const served = await serveWithProbe(() => ({...INJECTED, stale: false, changed: []}))
+      const description = await executeDescription(served.base)
+      expect(description).toContain('Rules of the sandbox:')
+      expect(description).not.toMatch(/outdated|restart the dev server/i)
     }, 20_000)
   })
 })
@@ -445,7 +501,7 @@ describe('api extension router', () => {
     const client = makeExtRpcClient<ProbeRouter>(kit().base, 'router-probe')
     const result = await client.ping({value: 'hello'})
     expect(result.pong).toBe('hello')
-    expect(result.origin).toBe(kit().base)
+    expect(result.origin).toBe(kit().origin)
   })
 
   test('a non-loopback Origin is rejected on the extension rpc mount', async () => {
@@ -494,13 +550,14 @@ describe('api extension server surfaces', () => {
         interval: 25,
       })
 
-      expect(server.basePath).toBe('')
-      expect(server.harness.id).toBe('claude')
-      expect(typeof server.harness.ttyCommand).toBe('function')
+      expect(server.basePath).toMatch(/^\/t\/[0-9a-f-]{36}$/)
+      const surface = server.harness(sessionId)
+      expect(surface.id).toBe('claude')
+      expect(typeof surface.ttyCommand).toBe('function')
       const noSuchToken = HarnessSessionId.parse('no-such-token')
-      expect(await server.harness.transcriptExists?.(noSuchToken)).toBe(false)
+      expect(await surface.transcriptExists?.(noSuchToken)).toBe(false)
 
-      expect(await server.harness.transcriptMessages?.(noSuchToken)).toEqual([])
+      expect(await surface.transcriptMessages?.(noSuchToken)).toEqual([])
       const token = HarnessSessionId.parse(`surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`)
       const transcript = requireTranscriptPath(claude)(server.cwd, token)
       mkdirSync(dirname(transcript), {recursive: true})
@@ -512,7 +569,7 @@ describe('api extension server surfaces', () => {
         ].join('\n') + '\n',
       )
       try {
-        const messages = await server.harness.transcriptMessages?.(token)
+        const messages = await surface.transcriptMessages?.(token)
         if (!messages) throw new Error('no transcript messages')
         expect(messages.map((message) => message.role)).toEqual(['user', 'assistant'])
       } finally {
@@ -522,6 +579,448 @@ describe('api extension server surfaces', () => {
       await kit.cleanup()
     }
   }, 30_000)
+})
+
+describe('api installed harnesses', () => {
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+
+  afterEach(() => {
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
+  })
+
+  it('offers a harness for switching only when its binary is on PATH, not for a config directory alone', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-installed-harnesses-'))
+    const bin = join(root, 'bin')
+    const home = join(root, 'home')
+    mkdirSync(bin)
+    mkdirSync(join(home, '.gemini'), {recursive: true})
+    writeFileSync(join(bin, 'codex'), '', {mode: 0o755})
+    process.env.PATH = bin
+    process.env.HOME = home
+    const {app, dispose} = await makeApp({cfg: resolveConfig({}, root), cwd: root, openInEditor: () => {}})
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
+    const served = await serveApp(app.fetch)
+    try {
+      const {harnesses} = await makeRpcClient(served.base).meta.harnesses()
+      expect(harnesses.map((harness) => harness.id)).toEqual(['claude', 'codex'])
+    } finally {
+      await served.close()
+      await dispose()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+})
+
+describe('api codex turns', () => {
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+  const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
+  const bin = join(root, 'bin')
+  const fakeCodex = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'echo "$@" > "$(dirname "$0")/args"',
+    'count_file="$(dirname "$0")/count"',
+    'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
+    'echo "$count" > "$count_file"',
+    `echo '{"type":"thread.started","thread_id":"codex-thread-'"$count"'"}'`,
+    `echo '{"type":"item.started","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"","status":"in_progress"}}'`,
+    `echo '{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"ls","aggregated_output":"listed","exit_code":0,"status":"completed"}}'`,
+    `echo '{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"answer '"$count"'"}}'`,
+    `echo '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1}}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home', '.codex'), {recursive: true})
+    writeFileSync(
+      join(root, 'home', '.codex', 'models_cache.json'),
+      JSON.stringify({
+        models: [
+          {
+            slug: 'gpt-fake',
+            display_name: 'GPT Fake',
+            visibility: 'list',
+            priority: 1,
+            supported_reasoning_levels: [{effort: 'medium'}, {effort: 'xhigh'}],
+          },
+        ],
+      }),
+    )
+    writeFileSync(join(bin, 'codex'), fakeCodex, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+  })
+  const kit = sharedKit(() => createTestkit(codexHarness, bootCoreApp()).setup())
+
+  afterAll(() => {
+    process.env.PATH = saved.PATH
+    process.env.HOME = saved.HOME
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  it('keeps every codex reply under its own question although codex numbers its items from item_0 each turn', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    for (const question of ['first question', 'second question', 'third question']) {
+      await runTurn(kit(), question, sessionId)
+    }
+    const snapshot = await hydratedSnapshot(kit(), sessionId)
+    const shown = snapshot.messages.map((message) => ({
+      role: message.role,
+      text: message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join(' '),
+      toolCalls: message.parts.filter((part) => part.type === 'tool-call').length,
+    }))
+    expect(shown).toEqual([
+      {role: 'user', text: 'first question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 1', toolCalls: 1},
+      {role: 'user', text: 'second question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 2', toolCalls: 1},
+      {role: 'user', text: 'third question', toolCalls: 0},
+      {role: 'assistant', text: 'answer 3', toolCalls: 1},
+    ])
+  }, 30_000)
+
+  it('runs codex at the effort picked for the session', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await kit().rpc.sessions.model({sessionId, model: 'gpt-fake'})
+    await kit().rpc.sessions.effort({sessionId, effort: 'xhigh'})
+    await runTurn(kit(), 'think hard', sessionId)
+    expect(readFileSync(join(bin, 'args'), 'utf8')).toContain('model_reasoning_effort="xhigh"')
+    await kit().rpc.sessions.effort({sessionId, effort: null})
+    await runTurn(kit(), 'think normally', sessionId)
+    expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
+  }, 30_000)
+})
+
+describe('api harness switching', () => {
+  type SeenTurn = {harness: string; resumeSessionId: HarnessSessionId | null; model: string | undefined; sent: string}
+  const seen: SeenTurn[] = []
+  const NATIVE_BETA = HarnessSessionId.parse('beta-native-1')
+
+  function recorded(base: FakeHarness): FakeHarness {
+    return {
+      ...base,
+      chatConfig: (deps: HarnessChatDeps) => ({
+        adapter: makeTextAdapter(base.id, async function* (options) {
+          seen.push({
+            harness: base.id,
+            resumeSessionId: deps.resumeSessionId,
+            model: deps.model,
+            sent: JSON.stringify(options.messages),
+          })
+          yield* base.script.chatStream(deps, options)
+        }),
+      }),
+    }
+  }
+
+  const alpha = recorded(
+    createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
+  )
+  const betaTranscripts: HarnessSessionMeta[] = [
+    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, messageCount: 2},
+  ]
+  const beta = recorded(
+    createFakeHarness({
+      id: 'beta',
+      displayName: 'Beta',
+      resume: true,
+      models: [{id: 'b-model', name: 'B'}],
+      commands: [{name: 'beta-command', description: 'only beta has it'}],
+      history: betaTranscripts,
+    }),
+  )
+  const gamma: FakeHarness = {
+    ...createFakeHarness({id: 'gamma', displayName: 'Gamma'}),
+    models: () => Promise.reject(new Error('the gamma model probe failed')),
+  }
+  const made: {app: MadeApp | null} = {app: null}
+  const kit = sharedKit(() =>
+    createTestkit(alpha, async (env) => {
+      const app = await bootMadeApp(env, {harnesses: [beta, gamma]})
+      made.app = app
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+    }).setup(),
+  )
+
+  function db() {
+    if (made.app === null) throw new Error('the app did not boot')
+    return made.app.chat.db
+  }
+
+  function row(sessionId: string) {
+    return db().select().from(sessions).where(eq(sessions.id, sessionId)).get()
+  }
+
+  async function turn(sessionId: string, text: string): Promise<SeenTurn> {
+    await (await kit().turn(text, {session: sessionId})).done()
+    const last = seen.at(-1)
+    if (last === undefined) throw new Error('no turn reached a harness')
+    return last
+  }
+
+  it('lists every available harness with its models in one answer, a failed model list marked, the boot harness the default', async () => {
+    expect(await kit().rpc.meta.harnesses(undefined)).toEqual({
+      harnesses: [
+        {
+          id: 'alpha',
+          name: 'Alpha',
+          canLaunch: false,
+          imageInput: false,
+          models: [{id: 'a-model', name: 'A'}],
+          defaultModel: 'a-model',
+          modelsFailed: false,
+        },
+        {
+          id: 'beta',
+          name: 'Beta',
+          canLaunch: false,
+          imageInput: false,
+          models: [{id: 'b-model', name: 'B'}],
+          defaultModel: 'b-model',
+          modelsFailed: false,
+        },
+        {
+          id: 'gamma',
+          name: 'Gamma',
+          canLaunch: false,
+          imageInput: false,
+          models: [],
+          defaultModel: null,
+          modelsFailed: true,
+        },
+      ],
+      defaultHarness: 'alpha',
+    })
+  })
+
+  it('a switch that names a model leaves the session on that model and clears the effort, the next turn runs it', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'first question')
+    db().update(sessions).set({effort: 'high'}).where(eq(sessions.id, sessionId)).run()
+
+    expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'b-model'})).toEqual({
+      harnessId: 'beta',
+    })
+
+    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: 'b-model', effort: null})
+    expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'beta', model: 'b-model'})
+  })
+
+  it('rejects a switch naming a model the target harness does not list, and changes nothing', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay on alpha')
+    const before = row(sessionId)
+
+    await expect(
+      kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta', model: 'a-model'}),
+    ).rejects.toMatchObject({code: 'UNKNOWN_MODEL'})
+
+    expect(row(sessionId)).toEqual(before)
+  })
+
+  it('a switch resets the session, the next turn replays the whole chat, and each reply keeps its harness', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await kit().rpc.sessions.model({sessionId, model: 'a-model'})
+    expect(await turn(sessionId, 'first question')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    const native = row(sessionId)?.harnessSessionId
+    expect(native).toBeTruthy()
+    expect(await turn(sessionId, 'second question')).toMatchObject({harness: 'alpha', resumeSessionId: native})
+    db()
+      .insert(chatMetadata)
+      .values({namespace: TRANSCRIPT_NAMESPACE, key: anchorKey(sessionId), valueJson: {nativeId: 'alpha-tail'}})
+      .run()
+
+    expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).toEqual({harnessId: 'beta'})
+
+    expect(row(sessionId)).toMatchObject({harnessKind: 'beta', harnessSessionId: null, model: null})
+    expect(
+      db()
+        .select()
+        .from(chatMetadata)
+        .where(eq(chatMetadata.key, anchorKey(sessionId)))
+        .all(),
+    ).toEqual([])
+    const models = await kit().rpc.meta.models({sessionId})
+    expect(models.harness.id).toBe('beta')
+    expect(models.models.map((model) => model.id)).toEqual(['b-model'])
+    expect((await kit().rpc.meta.commands({sessionId})).commands.map((command) => command.name)).toEqual([
+      'beta-command',
+    ])
+    const listed = (await kit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
+    expect(listed?.harnessKind).toBe('beta')
+
+    const replayed = await turn(sessionId, 'third question')
+    expect(replayed).toMatchObject({harness: 'beta', resumeSessionId: null, model: undefined})
+    expect(replayed.sent).toContain('first question')
+    expect(replayed.sent).toContain('second question')
+    expect(await turn(sessionId, 'fourth question')).toMatchObject({
+      harness: 'beta',
+      resumeSessionId: row(sessionId)?.harnessSessionId,
+    })
+
+    const hydration = await kit().hydrate(sessionId)
+    const assistants = hydration.messages.filter((message) => message.role === 'assistant')
+    expect(assistants.map((message) => hydration.messageHarness[message.id])).toEqual([
+      'alpha',
+      'alpha',
+      'beta',
+      'beta',
+    ])
+    const runs = db()
+      .select({harnessId: chatRuns.harnessId})
+      .from(chatRuns)
+      .where(eq(chatRuns.threadId, sessionId))
+      .orderBy(asc(chatRuns.startedAt))
+      .all()
+    expect(runs.map((run) => run.harnessId)).toEqual(['alpha', 'alpha', 'beta', 'beta'])
+  })
+
+  it('a turn never resumes a native session that belongs to another harness', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'remember this')
+    expect(row(sessionId)?.harnessSessionId).toBeTruthy()
+    db().update(sessions).set({harnessKind: 'uninstalled'}).where(eq(sessions.id, sessionId)).run()
+    const next = await turn(sessionId, 'and now?')
+    expect(next).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    expect(next.sent).toContain('remember this')
+  })
+
+  it('rejects a switch to an unavailable harness, for an unknown session, and while a run is in progress', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'nope'})).rejects.toMatchObject({
+      code: 'UNKNOWN_HARNESS',
+    })
+    await expect(
+      kit().rpc.sessions.switchHarness({sessionId: SessionId.parse('conciv_no_such_session'), harnessId: 'beta'}),
+    ).rejects.toMatchObject({code: 'NOT_FOUND'})
+    alpha.script.hold()
+    const running = await kit().turn('hold on', {session: sessionId})
+    try {
+      await running.waitForRunStart()
+      await expect(kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})).rejects.toMatchObject({
+        code: 'SESSION_RUNNING',
+      })
+      expect(row(sessionId)?.harnessKind).toBe('alpha')
+    } finally {
+      alpha.script.release()
+      await running.done()
+    }
+  })
+
+  it('switching to the current harness changes nothing', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await turn(sessionId, 'stay')
+    const before = row(sessionId)
+    expect(await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})).toEqual({harnessId: 'alpha'})
+    expect(row(sessionId)).toEqual(before)
+  })
+
+  it('a native transcript a session owned before a switch never lists as a separate session, and never resumes', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+    await turn(sessionId, 'written into a beta transcript')
+    const owned = row(sessionId)?.harnessSessionId
+    if (!owned) throw new Error('the beta turn recorded no native session')
+    betaTranscripts.push({
+      id: HarnessSessionId.parse(owned),
+      derivedTitle: 'the owned transcript',
+      updatedAt: 6,
+      messageCount: 2,
+    })
+    const listings = async (includeHidden: boolean) => {
+      const listed = await kit().rpc.sessions.list({includeHidden})
+      return {
+        owner: listed.filter((meta) => meta.id === sessionId).length,
+        phantoms: listed.filter((meta) => meta.id !== sessionId && meta.native?.nativeId === owned).length,
+      }
+    }
+
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+    const returned = await turn(sessionId, 'back on beta')
+    expect(returned).toMatchObject({harness: 'beta', resumeSessionId: null})
+    expect(returned.sent).toContain('written into a beta transcript')
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+
+    await kit().rpc.sessions.delete({sessionId})
+    expect(await listings(true)).toEqual({owner: 1, phantoms: 0})
+    expect(row(sessionId)?.deletedAt).not.toBeNull()
+    expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect(row(sessionId)?.deletedAt).toBeNull()
+  })
+
+  it('lists the native sessions of every available harness, labelled by harness', async () => {
+    const listed = await kit().rpc.sessions.list(undefined)
+    const imported = listed.find((meta) => meta.native?.nativeId === NATIVE_BETA)
+    expect(imported).toMatchObject({harnessKind: 'beta', native: {harnessKind: 'beta', nativeId: NATIVE_BETA}})
+  })
+
+  function racedApp() {
+    const pendingListings: Array<() => void> = []
+    const slow: FakeHarness = {
+      ...createFakeHarness({id: 'slow', displayName: 'Slow'}),
+      models: () => {
+        const listing = Promise.withResolvers<HarnessModel[]>()
+        pendingListings.push(() => listing.resolve([{id: 'slow-model', name: 'Slow', efforts: ['high']}]))
+        return listing.promise
+      },
+    }
+    const quick = createFakeHarness({id: 'quick', displayName: 'Quick', models: [{id: 'quick-model', name: 'Q'}]})
+    const raced: {app: MadeApp | null} = {app: null}
+    const racedKit = sharedKit(() =>
+      createTestkit(slow, async (env) => {
+        const app = await bootMadeApp(env, {harnesses: [quick]})
+        raced.app = app
+        return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+      }).setup(),
+    )
+    return {
+      kit: racedKit,
+      row: (sessionId: string) => {
+        if (raced.app === null) throw new Error('the app did not boot')
+        return raced.app.chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+      },
+      whileListingSlowModels: async (change: Promise<unknown>, sessionId: SessionId) => {
+        const settled = change.then(
+          (value) => ({status: 'fulfilled', value}),
+          (reason: unknown) => ({status: 'rejected', reason}),
+        )
+        await vi.waitFor(() => expect(pendingListings.length).toBe(1), {timeout: 2000, interval: 5})
+        await racedKit().rpc.sessions.switchHarness({sessionId, harnessId: 'quick'})
+        pendingListings.splice(0).forEach((release) => release())
+        return settled
+      },
+    }
+  }
+
+  describe('a model change racing a harness switch', () => {
+    const raced = racedApp()
+    it('a model validated against the old harness never lands on the new one', async () => {
+      const sessionId = (await raced.kit().rpc.sessions.create()).sessionId
+      const outcome = await raced.whileListingSlowModels(
+        raced.kit().rpc.sessions.model({sessionId, model: 'slow-model'}),
+        sessionId,
+      )
+      expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNKNOWN_MODEL'}})
+      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+    })
+  })
+
+  describe('an effort change racing a harness switch', () => {
+    const raced = racedApp()
+    it('an effort validated against the old harness never lands on the new one', async () => {
+      const sessionId = (await raced.kit().rpc.sessions.create()).sessionId
+      const outcome = await raced.whileListingSlowModels(
+        raced.kit().rpc.sessions.effort({sessionId, effort: 'high'}),
+        sessionId,
+      )
+      expect(outcome).toMatchObject({status: 'rejected', reason: {code: 'UNSUPPORTED_EFFORT'}})
+      expect(raced.row(sessionId)).toMatchObject({harnessKind: 'quick', model: null, effort: null})
+    })
+  })
 })
 
 describe('api extension server', () => {
@@ -556,11 +1055,11 @@ describe('api mcp loopback host', () => {
 
   type Reply = {status: number; body: string}
 
-  function postMcpOverHttp(port: number, host: string): Promise<Reply> {
+  function postMcpOverHttp(port: number, host: string, prefix = ''): Promise<Reply> {
     const headers = {...MCP_HEADERS, host, 'content-length': String(Buffer.byteLength(INITIALIZE))}
     return new Promise<Reply>((resolve, reject) => {
       const req = httpRequest(
-        {hostname: '127.0.0.1', port, path: '/api/mcp', method: 'POST', setHost: false, headers},
+        {hostname: '127.0.0.1', port, path: `${prefix}/api/mcp`, method: 'POST', setHost: false, headers},
         (res) => {
           const chunks: Buffer[] = []
           res.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -580,7 +1079,7 @@ describe('api mcp loopback host', () => {
     }
 
     it('accepts the loopback authority the server is bound to', async () => {
-      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`)
+      const reply = await postMcpOverHttp(port(), `127.0.0.1:${port()}`, new URL(kit().base).pathname)
       expect(reply.status).toBe(200)
       expect(reply.body).toContain('conciv')
     })
@@ -590,6 +1089,23 @@ describe('api mcp loopback host', () => {
       expect(reply.status).toBe(403)
       expect(reply.body).toBe('forbidden host')
       expect(reply.body).not.toContain('origin')
+    })
+  })
+
+  describe('/api/mcp engine gate (IT, real http)', () => {
+    const kit = sharedKit(() => bootKit())
+
+    it('an MCP client without the agent token is refused with 401', async () => {
+      await expect(connectMcpClient(`${new URL(kit().base).origin}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
+
+    it('an MCP client on the token-scoped path lists the tools', async () => {
+      const mcp = await connectMcpClient(`${kit().base}/api/mcp`)
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
     })
   })
 })
@@ -717,7 +1233,7 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and 404s unprefixed', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed as an open page', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
@@ -750,7 +1266,7 @@ describe('api native page', () => {
         expect(script.headers.get('content-type')).toContain('javascript')
 
         const unprefixed = await fetch(`${origin}/native`)
-        expect(unprefixed.status).toBe(404)
+        expect(unprefixed.status).toBe(200)
       } finally {
         await engine.stop()
         rmSync(root, {recursive: true, force: true})
@@ -1432,6 +1948,39 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
+      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+        const sessionId = await newSession()
+        const {models} = await chatKit().rpc.meta.models({sessionId})
+        const plain = models.find((model) => model.efforts === undefined)
+        if (plain === undefined) throw new Error('the chat harness lists no model without effort')
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
+        script().scriptTurn({toolCalls: [], text: 'thought hard'})
+        await finished(sessionId, 'think about it')
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: null})
+        script().scriptTurn({toolCalls: [], text: 'default effort'})
+        await finished(sessionId, 'again')
+        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+
+        await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
+        await chatKit().rpc.sessions.model({sessionId, model: plain.id})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: plain.id, effort: null})
+        await expect(chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).rejects.toMatchObject({
+          code: 'UNSUPPORTED_EFFORT',
+        })
+      })
+
+      it('a session that has not run a turn yet takes a model and an effort', async () => {
+        const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
+        expect(await chatKit().rpc.sessions.effort({sessionId, effort: 'high'})).toEqual({effort: 'high'})
+        expect(
+          await chatKit().rpc.sessions.model({sessionId: SessionId.parse(`conciv_${randomUUID()}`), model: 'sonnet'}),
+        ).toEqual({model: 'sonnet'})
+        expect(await sessionMeta(sessionId)).toMatchObject({model: null, effort: 'high'})
+      })
+
       it('an empty message is answered with a visible "empty" error', async () => {
         const events = await finished(await newSession(), '')
         expect(events.errors().join(' ')).toMatch(/empty/i)
@@ -1472,14 +2021,16 @@ describe('rpc wire', () => {
       it('sessions run independently and each keeps its own usage', async () => {
         const [slow, quick] = [await newSession(), await newSession()]
         cli.usage.push(usage(11), usage(22))
-        script().scriptTurn({toolCalls: [], text: 'slow reply', textPace: {chunk: 1, everyMs: 50}})
+        script().holdResults()
+        script().scriptTurn({toolCalls: [{name: 'slow_tool', input: {}}], text: 'slow reply'})
         const slowTurn = await send(slow, 'slow')
-        await slowTurn.waitForRunStart()
+        await slowTurn.waitForToolCall('slow_tool')
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
+        script().releaseResults()
         await slowTurn.done(GUARD)
-        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 200_000})
-        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 200_000})
+        expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
+        expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
       })
     })
 
@@ -1543,10 +2094,38 @@ describe('rpc wire', () => {
       })
     })
 
+    describe('history paging', () => {
+      it('hydrate serves the newest page and walks back page by page to the first message', async () => {
+        const sessionId = await newSession()
+        for (const text of ['one', 'two', 'three']) await finished(sessionId, text)
+        const full = (await chatKit().rpc.chat.hydrate({sessionId})).messages.map((message) => message.id)
+        expect(full).toHaveLength(6)
+
+        const newest = await chatKit().rpc.chat.hydrate({sessionId, limit: 4})
+        expect(newest.messages.map((message) => message.id)).toEqual(full.slice(2))
+        expect(newest.page).toEqual({truncated: true, cursor: full[2]})
+        expect(Object.keys(newest.messageHarness).every((id) => full.slice(2).includes(id))).toBe(true)
+        expect(newest.lastRun).toMatchObject({phase: 'completed'})
+
+        const older = await chatKit().rpc.chat.hydrate({sessionId, limit: 4, before: full[2]})
+        expect(older.messages.map((message) => message.id)).toEqual(full.slice(0, 2))
+        expect(older.page).toEqual({truncated: false})
+        expect(older.lastRun).toEqual({...newest.lastRun, serverNow: expect.any(Number)})
+      })
+
+      it('hydrate refuses a page size that is not a positive integer', async () => {
+        const sessionId = await newSession()
+        for (const limit of [0, -1, 1.5]) {
+          await expect(chatKit().rpc.chat.hydrate({sessionId, limit})).rejects.toMatchObject({code: 'BAD_REQUEST'})
+        }
+      })
+    })
+
     describe('resume after reload', () => {
       it('an idle session reloads to the exact empty shape', async () => {
         expect(await chatKit().hydrate(await newSession())).toEqual({
           messages: [],
+          messageHarness: {},
           activeRun: null,
           lastRun: null,
           pendingApprovals: [],
@@ -1710,7 +2289,7 @@ describe('rpc wire', () => {
         await expect((await mcpTool('fixture_ask')).execute({target: 'agent'})).rejects.toThrow(/needs the user/)
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(callerWithout().registry.call({name: 'fixture_read', input: {}})).rejects.toMatchObject({
-          code: 'UNAUTHORIZED',
+          code: 'BAD_REQUEST',
         })
         await expect(
           callerWith('not a session').registry.call({name: 'fixture_read', input: {}}),
@@ -1759,9 +2338,9 @@ describe('rpc wire', () => {
         expect(tools.map((tool) => tool.name)).toEqual(expect.arrayContaining(FIXTURE_TOOLS))
         expect(tools.every((tool) => tool.description.length > 0)).toBe(true)
         expect(tools.find((tool) => tool.name === 'fixture_echo')?.description).toBe(ECHO_DESCRIPTION)
-        const models = await chatKit().rpc.meta.models(undefined)
+        const models = await chatKit().rpc.meta.models({sessionId: await newSession()})
         expect(models.models.map((model) => model.id)).toEqual(expect.arrayContaining(['opus', 'sonnet', 'haiku']))
-        expect(models.defaultModel).toBe('sonnet')
+        expect(models.defaultModel).toBe('opus')
       })
     })
 
@@ -1799,6 +2378,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
+        const boundary = (await thread(sessionId)).at(-1)?.id
         const sessionStream = await chatKit().events(sessionId)
         script().hold()
         const compacts = Promise.all([
@@ -1813,7 +2393,8 @@ describe('rpc wire', () => {
         expect(lastRunOf(sessionId).kind).toBe('compact')
         expect(lastRunOf(sessionId).messages).toContain('/compact')
         expect(overlapping(runsOf(sessionId))).toBe(false)
-        expect(await compactMarkers(sessionId)).toEqual([4, 4])
+        expect(boundary).toBeDefined()
+        expect(await compactMarkers(sessionId)).toEqual([boundary, boundary])
         expect(await threadUserTexts(sessionId)).toEqual(['one', 'two'])
       })
 
@@ -1833,6 +2414,12 @@ describe('rpc wire', () => {
         const {sessionId} = await chatKit().rpc.sessions.resolve({id: TERMINAL_ID})
         expect(await threadUserTexts(sessionId)).toEqual(['terminal one', 'terminal two'])
         expect((await sessionMeta(sessionId)).origin).toBe('external')
+        const imported = await chatKit().hydrate(sessionId)
+        const importedReplies = imported.messages.filter((message) => message.role === 'assistant')
+        expect(importedReplies.length).toBeGreaterThan(0)
+        expect(importedReplies.map((message) => imported.messageHarness[message.id])).toEqual(
+          importedReplies.map(() => 'claude'),
+        )
         rmSync(transcript)
         expect(await threadUserTexts(sessionId)).toEqual(['terminal one', 'terminal two'])
         writeTranscript(TERMINAL_ID, terminalTurns(['terminal one', 'terminal two', 'terminal three']))
@@ -1932,7 +2519,9 @@ describe('rpc wire', () => {
 
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
         const [kept, removed] = [await newSession(), await newSession()]
-        expect((await chatKit().rpc.markers.list({sessionId: kept})).map((marker) => marker.kind)).toEqual(['new'])
+        expect(await chatKit().rpc.markers.list({sessionId: kept})).toEqual([
+          expect.objectContaining({kind: 'new', afterMessageId: null}),
+        ])
         await finished(kept, 'title from me')
         await finished(removed, 'clear me')
         expect(await sessionMeta(kept)).toMatchObject({origin: 'conciv', title: 'title from me'})
@@ -1962,7 +2551,7 @@ describe('rpc wire', () => {
         }
         const description = offered.find((tool) => tool.name === 'execute_typescript')?.description ?? ''
         expect(description).toContain('discover_tools')
-        expect(description).not.toContain('fixture_echo')
+        expect(description).toContain('external_fixture_echo')
       })
 
       it('code reaches every capability by name, returns values and logs, and keeps each run isolated', async () => {
@@ -1980,14 +2569,51 @@ describe('rpc wire', () => {
         ).toContain('fixture_echo')
       })
 
-      it('discover_tools shows a tool output shape and declared error codes, the catalog only its summary', async () => {
+      it('a program awaiting tools one after another and in a loop gets every result back in order', async () => {
+        const sequential = Array.from(
+          {length: 20},
+          (_, index) => `seen.push((await external_fixture_echo({text: 's${index}'})).echoed)`,
+        ).join('\n')
+        const program = `const seen = []
+${sequential}
+for (let index = 0; index < 30; index++) seen.push((await external_fixture_echo({text: 'l' + index})).echoed)
+return seen`
+        expect(await executeResult(program)).toEqual([
+          ...Array.from({length: 20}, (_, index) => `s${index}`),
+          ...Array.from({length: 30}, (_, index) => `l${index}`),
+        ])
+      })
+
+      it('a tool that returns nothing resolves to undefined and the program goes on', async () => {
+        expect(
+          await executeResult('const quiet = await external_fixture_quiet({}); return [typeof quiet, "after"]'),
+        ).toEqual(['undefined', 'after'])
+      })
+
+      it('a program that never ends leaves the server answering, and stopping its turn ends the program', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_echo({text: "spinning"}); while (true) {}')
+        const turn = await send(sessionId, 'spin', {runId: 'spin-run'})
+        await turn.waitFor((chunk) => isResultFor(chunk, 'spinning'), GUARD)
+        const asked = performance.now()
+        await chatKit().rpc.sessions.list(undefined)
+        expect(performance.now() - asked).toBeLessThan(1_000)
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['spin-run']})
+        await ended
+      })
+
+      it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
         expect(found).toContain('Returns JSON matching')
         expect(found).toContain('PROBE_BROKE: the probe broke')
         expect(JSON.stringify(await discover.execute({toolNames: ['fixture_echo']}))).toContain('echoed')
-        expect(discover.description).toContain('fail with a declared error.')
-        expect(discover.description).not.toContain('PROBE_BROKE')
+        const execute = await mcpTool('execute_typescript')
+        expect(execute.description).toContain('external_fixture_fail')
+        expect(execute.description).not.toContain('PROBE_BROKE')
+        expect(discover.description).toContain('toolNames')
+        expect(discover.description).not.toContain('external_fixture_fail')
       })
 
       it('errors keep their declared code, other failures stay plain errors, and huge results are capped', async () => {
@@ -2179,6 +2805,7 @@ describe('rpc wire', () => {
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
+    reasoning: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -2189,6 +2816,14 @@ describe('rpc wire', () => {
   }
 
   type TurnInput = string | Record<string, unknown>
+
+  const ALL_EFFORTS: ReasoningEffort[] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const CHAT_MODELS: HarnessModel[] = [
+    {id: 'opus', name: 'Opus 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'sonnet', name: 'Sonnet 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'haiku', name: 'Haiku 5.5', group: 'Claude', efforts: ALL_EFFORTS},
+    {id: 'claude-haiku-4-5', name: 'Haiku 4.5', group: 'Older versions'},
+  ]
 
   type SharedApp = {
     kit: Kit | null
@@ -2221,7 +2856,7 @@ describe('rpc wire', () => {
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -2249,6 +2884,16 @@ describe('rpc wire', () => {
       outputSchema: z.object({value: z.number()}),
       meta: {summary: 'read a fixture value', category: 'fixture', mutating: false},
     }).server(() => ({value: 7}))
+  }
+
+  function quietTool() {
+    return defineTool({
+      name: 'fixture_quiet',
+      description: 'Do nothing and return nothing.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'return nothing', category: 'fixture', mutating: false},
+    }).server(() => undefined)
   }
 
   function askTool() {
@@ -2331,6 +2976,7 @@ describe('rpc wire', () => {
   function recordingHarness(base: TestHarness): TestHarness {
     return {
       ...base,
+      models: CHAT_MODELS,
       chatConfig: (deps: HarnessChatDeps) => {
         const failure = cli.launchFailures.shift()
         if (failure !== undefined) throw new Error(failure)
@@ -2340,6 +2986,7 @@ describe('rpc wire', () => {
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
+              reasoning: options.reasoning?.level,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),
@@ -2369,7 +3016,12 @@ describe('rpc wire', () => {
   }
 
   function usage(promptTokens: number): TokenUsage {
-    return {promptTokens, completionTokens: 1, totalTokens: promptTokens + 1}
+    return {
+      promptTokens,
+      completionTokens: 1,
+      totalTokens: promptTokens + 1,
+      providerUsageDetails: {contextWindow: 1_000_000},
+    }
   }
 
   function chatKit(): Kit {
@@ -2457,9 +3109,9 @@ describe('rpc wire', () => {
     return meta
   }
 
-  async function compactMarkers(sessionId: string): Promise<number[]> {
+  async function compactMarkers(sessionId: string): Promise<(string | null)[]> {
     const markers = await chatKit().rpc.markers.list({sessionId})
-    return markers.filter((marker) => marker.kind === 'compact').map((marker) => marker.afterTurn)
+    return markers.filter((marker) => marker.kind === 'compact').map((marker) => marker.afterMessageId)
   }
 
   async function thread(sessionId: string): Promise<ChatMessage[]> {

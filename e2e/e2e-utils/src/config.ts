@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdirSync, mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
@@ -9,9 +9,13 @@ function reporters(): ReporterDescription[] {
   return [['line'], ['json', {outputFile: 'test-results.json'}]]
 }
 
+export function e2eServerLog(port: number): string {
+  return join(tmpdir(), `conciv-e2e-server-${port}.log`)
+}
+
 function serverEntry(command: string, port: number, env: Record<string, string> = {}) {
   return {
-    command,
+    command: `(${command}) 2>&1 | tee ${e2eServerLog(port)}`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
@@ -22,7 +26,7 @@ function serverEntry(command: string, port: number, env: Record<string, string> 
 
 export function e2eConfig(
   app: E2EApp,
-  opts: {command: (port: number) => string; timeout?: number},
+  opts: {command: (port: number) => string; timeout?: number; reuseExistingServer?: boolean},
 ): ReturnType<typeof defineConfig> {
   const port = E2E_PORTS[app]
   const timeout = opts.timeout ?? 90_000
@@ -33,7 +37,10 @@ export function e2eConfig(
     expect: {timeout},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
-    webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
+    webServer: {
+      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
+      ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
+    },
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   })
 }
@@ -54,22 +61,24 @@ function selectedHarnesses(): [HarnessApp, number][] {
   return entries.filter(([harness]) => harness === filter)
 }
 
+function isolatedHome(harness: HarnessApp): Record<string, string> {
+  const home = mkdtempSync(join(tmpdir(), `conciv-e2e-${harness}-home-`))
+  const codexHome = join(home, '.codex')
+  mkdirSync(codexHome)
+  return {HOME: home, CODEX_HOME: codexHome}
+}
+
 export function harnessMatrixConfig(opts: {
   command: (harness: HarnessApp, port: number) => string
 }): ReturnType<typeof defineConfig> {
   const entries = selectedHarnesses()
-  const codexHome = mkdtempSync(join(tmpdir(), 'conciv-e2e-codex-'))
   return defineConfig({
     testDir: './tests',
     workers: 1,
     timeout: 150_000,
     reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
-      serverEntry(
-        `rm -rf .conciv-${harness} && ${opts.command(harness, port)}`,
-        port,
-        harness === 'codex' ? {CODEX_HOME: codexHome} : {},
-      ),
+      serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port, isolatedHome(harness)),
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,

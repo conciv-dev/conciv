@@ -82,6 +82,7 @@
     "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/culori": "catalog:",

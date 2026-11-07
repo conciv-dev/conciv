@@ -17,6 +17,7 @@
     "packages/extensions/tanstack/test/fixtures/build-errors-app/**",
     "packages/cli/test/fixtures/**",
     "packages/it/test/fixtures/design/host/src/**",
-    "e2e/nextjs/packed/fixture-lock.yaml"
+    "e2e/nextjs/packed/fixture-lock.yaml",
+    "e2e/vite-react-packed/fixture-lock.yaml"
   ]
 }

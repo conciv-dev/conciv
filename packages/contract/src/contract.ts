@@ -3,12 +3,14 @@ import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
   ChatCommandsSchema,
+  ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
+  ReasoningEffortSchema,
   SessionId,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
@@ -42,12 +44,23 @@ const ChatPendingApprovalSchema = z.object({
   runId: z.string().nullable(),
 })
 export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
+const ChatHistoryWindowSchema = z.object({
+  limit: z.number().int().positive().optional(),
+  before: z.string().min(1).optional(),
+})
+export type ChatHistoryWindow = z.infer<typeof ChatHistoryWindowSchema>
+const ChatHistoryPageSchema = z.discriminatedUnion('truncated', [
+  z.object({truncated: z.literal(false)}),
+  z.object({truncated: z.literal(true), cursor: z.string()}),
+])
 export const ChatHydrationSchema = z.object({
   messages: ChatHistorySchema,
+  messageHarness: z.record(z.string(), z.string()),
   activeRun: z.object({runId: z.string()}).nullable(),
   lastRun: RunLifecycleSchema.nullable(),
   pendingApprovals: z.array(ChatPendingApprovalSchema),
   interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
+  page: ChatHistoryPageSchema.optional(),
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
@@ -103,7 +116,38 @@ export const EngineStalenessSchema = z.object({
 
 export type EngineStaleness = z.infer<typeof EngineStalenessSchema>
 
+export const LOGIN_CODE_PATTERN = /^\d{6}$/
+
+export const ExchangeRefusalSchema = z.enum(['mismatch', 'expired'])
+
+export type ExchangeRefusal = z.infer<typeof ExchangeRefusalSchema>
+
+export const ExchangeResultSchema = z.union([
+  z.object({token: z.string().min(1)}),
+  z.object({refused: ExchangeRefusalSchema}),
+])
+
+export type ExchangeResult = z.infer<typeof ExchangeResultSchema>
+
+export const ENGINE_TOKEN_MAX_LENGTH = 512
+
+export const SOCKET_TRUST_FRAME = 'conciv:trust'
+
+export const SocketTrustFrameSchema = z.object({
+  type: z.literal(SOCKET_TRUST_FRAME),
+  token: z.string().max(ENGINE_TOKEN_MAX_LENGTH),
+})
+
+export type SocketTrustFrame = z.infer<typeof SocketTrustFrameSchema>
+
 export const contract = {
+  auth: {
+    trust: oc
+      .input(z.object({token: z.string().max(ENGINE_TOKEN_MAX_LENGTH)}))
+      .output(z.object({trusted: z.boolean()})),
+    exchange: oc.input(z.object({code: z.string().regex(LOGIN_CODE_PATTERN)})).output(ExchangeResultSchema),
+    requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
+  },
   sessions: {
     list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
     create: oc.output(SessionIdInput),
@@ -119,7 +163,20 @@ export const contract = {
       .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
+    effort: oc
+      .errors({...notFound, UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'}})
+      .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
+      .output(z.object({effort: ReasoningEffortSchema.nullable()})),
     compact: oc.input(SessionIdInput).output(Ok),
+    switchHarness: oc
+      .errors({
+        ...notFound,
+        UNKNOWN_HARNESS: {message: 'that harness is not available'},
+        UNKNOWN_MODEL: {message: 'the target harness does not offer that model'},
+        SESSION_RUNNING: {message: 'the session has a run in progress'},
+      })
+      .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
+      .output(z.object({harnessId: z.string()})),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
@@ -134,7 +191,7 @@ export const contract = {
   },
   chat: {
     events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
+    hydrate: oc.input(SessionIdInput.extend(ChatHistoryWindowSchema.shape)).output(ChatHydrationSchema),
     stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
@@ -242,7 +299,8 @@ export const contract = {
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
-    models: oc.output(ChatModelsSchema),
+    models: oc.input(SessionIdInput).output(ChatModelsSchema),
+    harnesses: oc.output(ChatHarnessesSchema),
     commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),

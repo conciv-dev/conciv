@@ -1,4 +1,6 @@
-import {existsSync} from 'node:fs'
+import {randomUUID} from 'node:crypto'
+import {accessSync, constants, existsSync} from 'node:fs'
+import {delimiter, join} from 'node:path'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {EngineStalenessSchema, type EngineStaleness} from '@conciv/contract'
@@ -21,7 +23,8 @@ import {
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
-import {getHarness, transcriptPathWithin} from '@conciv/harness'
+import {getHarness, listHarnesses, transcriptPathWithin} from '@conciv/harness'
+import {withSavedModels} from './lib/saved-models.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -58,18 +61,37 @@ import type {CoreRuntime, ScopedToolCall} from './runtime/scope-types.js'
 import {openSourceFromFrames} from './editor/open-source.js'
 import {symbolicateFrames, type RawFrame as SymbolicableFrame} from './editor/symbolicate.js'
 import {makeRpcRouter} from './api/rpc/router.js'
-import {makeCompositeRpcRouter, RPC_PREFIX, rpcFetchMiddleware} from '@conciv/extension/rpc-mount'
+import {
+  makeCompositeRpcRouter,
+  RPC_PREFIX,
+  rpcFetchMiddleware,
+  type UpgradeWebSocket,
+} from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
 import pageServerExtension from '@conciv/extension-page/server'
 import {assertToolName} from '@conciv/extension/tool'
 import {logError} from './lib/debug.js'
+import {runInOrder} from './lib/shutdown.js'
 import {engineStaleness} from './lib/engine-stamp.js'
+import {
+  agentPath,
+  makeAuthRouter,
+  makeCodeStore,
+  makeConnectionTrust,
+  makeEngineGate,
+  trustingUpgrade,
+  watchTrustedBrowsers,
+  type GatedFetch,
+  type TrustedBrowsers,
+} from './engine-login.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
   cfg: ResolvedConcivConfig
   cwd: string
-  basePath?: string
+  agentToken?: string
+  print?: (text: string) => void
+  onTrusted?: () => void
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
@@ -88,6 +110,8 @@ export type MakeAppOpts = {
   allowedOrigins?: string[]
 
   harness?: HarnessAdapter
+
+  harnesses?: readonly HarnessAdapter[]
 
   onShutdown?: () => void
 
@@ -125,6 +149,31 @@ function requireHarness(id: string): HarnessAdapter {
   const found = getHarness(id) ?? getHarness('claude')
   if (!found) throw new Error('no harness registered (built-in claude missing)')
   return found
+}
+
+function executable(file: string): boolean {
+  try {
+    accessSync(file, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function onPath(bin: string): boolean {
+  const directories = (process.env.PATH ?? '').split(delimiter).filter((entry) => entry.length > 0)
+  return directories.some((directory) => executable(join(directory, bin)))
+}
+
+function detectedHarnesses(): HarnessAdapter[] {
+  return listHarnesses().filter((adapter) => onPath(adapter.binName))
+}
+
+function availableHarnesses(boot: HarnessAdapter, opts: MakeAppOpts, stateDir: string): HarnessAdapter[] {
+  const others = (opts.harnesses ?? (opts.harness ? [] : detectedHarnesses())).map((adapter) =>
+    withSavedModels(adapter, stateDir),
+  )
+  return [boot, ...others.filter((adapter) => adapter.id !== boot.id)]
 }
 
 function symbolicable(frame: {
@@ -189,10 +238,18 @@ function sessionPort(
   return {
     row: (sessionId) => {
       const row = currentRow(db, sessionId)
-      return row === null ? null : {model: row.model, nativeId: row.harnessSessionId, cwd: row.cwd}
+      return row === null
+        ? null
+        : {
+            model: row.model,
+            effort: row.effort,
+            nativeId: row.harnessSessionId,
+            cwd: row.cwd,
+            harnessKind: row.harnessKind,
+          }
     },
     ensure: (sessionId) => ensureRow(db, sessionId, rows.harnessKind, rows.cwd),
-    recordNativeId: (sessionId, nativeId) => recordNativeId(db, sessionId, nativeId),
+    recordNativeId: (sessionId, harnessId, nativeId) => recordNativeId(db, sessionId, harnessId, nativeId),
     recordUsage: (sessionId, usage) => recordSessionUsage(db, sessionId, usage),
     recordContextTokens: async (sessionId, contextTokens) => {
       const usage = currentRow(db, sessionId)?.usage
@@ -241,10 +298,10 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
-export const HealthSchema = z.object({
+const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
-  engine: EngineStalenessSchema,
+  engine: EngineStalenessSchema.pick({stale: true}),
 })
 
 export type CoreVars = CorsVars & {harnessId: string} & McpVars
@@ -252,7 +309,13 @@ export type CoreVars = CorsVars & {harnessId: string} & McpVars
 function composeRoutes(
   vars: CoreVars,
   rpc: CompositeRpcRouter,
-  deps: {staleness: () => EngineStaleness; onShutdown?: () => void; push: PushDeps; plane: ChatPlane},
+  deps: {
+    staleness: () => EngineStaleness
+    onShutdown?: () => void
+    push: PushDeps
+    plane: ChatPlane
+    upgrade: UpgradeWebSocket
+  },
 ) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
@@ -273,16 +336,21 @@ function composeRoutes(
       setTimeout(deps.onShutdown, 50)
       return c.json({ok: true})
     })
-    .route('/', deps.plane.routes(upgradeWebSocket))
-    .route('/', pushRoutes(deps.push, upgradeWebSocket))
+    .route('/', deps.plane.routes(deps.upgrade))
+    .route('/', pushRoutes(deps.push, deps.upgrade))
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
 
+export type EngineFetch = GatedFetch<unknown>
+
 export type MadeApp = {
   app: AppType
+  fetch: EngineFetch
+  agentToken: string
+  trustBrowser: TrustedBrowsers['grant']
   chat: ChatContext
   plane: ChatPlane
   dispose: () => Promise<void>
@@ -325,7 +393,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   assertUniqueExtensionSlugs(extensions)
 
-  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+  const stateDir = concivStateDir(opts.cfg.stateRoot)
+  const harness = withSavedModels(opts.harness ?? requireHarness(opts.cfg.harness), stateDir)
+  const agentToken = opts.agentToken ?? randomUUID()
+  const basePath = agentPath(agentToken)
+  const browsers = watchTrustedBrowsers(stateDir)
+  const trust = makeConnectionTrust(agentToken, browsers)
+  const socketUpgrade = trustingUpgrade(upgradeWebSocket, trust)
+  const harnesses = availableHarnesses(harness, opts, stateDir)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
   const {scoped: extensionDbs, sources: sourcesApi, commands: extensionCommands} = extensionDb({orm: db, extensions})
@@ -342,6 +417,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const {registry, stream} = primitives
   const rows = {db, harnessKind: harness.id, cwd: opts.cwd}
+  const harnessFor = (sessionId: SessionId): HarnessAdapter => {
+    const kind = currentRow(db, sessionId)?.harnessKind
+    return harnesses.find((adapter) => adapter.id === kind) ?? harness
+  }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
     runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
 
@@ -349,13 +428,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
     recordToken: async (sessionId, token) => {
       await ensureRow(db, sessionId, harness.id, opts.cwd)
-      await recordNativeId(db, sessionId, token)
+      await recordNativeId(db, sessionId, harnessFor(sessionId).id, token)
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => modelOf(db, sessionId),
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
-  const serverHarness = makeServerHarness(harness, opts.cwd, opts.claudeHome)
+  const serverHarness = (sessionId: SessionId): ServerHarness =>
+    makeServerHarness(harnessFor(sessionId), opts.cwd, opts.claudeHome)
   const nativeUrl = opts.nativeUrl ?? ((): string | undefined => undefined)
 
   function assembleMounted(extension: AnyExtension, result: ServerResult<unknown> | undefined) {
@@ -380,17 +460,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   async function mountExtension(extension: AnyExtension): Promise<ReturnType<typeof assembleMounted> | null> {
     try {
       const result = await extension.__server?.({
-        stateDir: concivStateDir(opts.cfg.stateRoot),
+        stateDir,
         db: extensionDbs.get(extension.name),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
-        basePath: opts.basePath ?? '',
+        basePath,
         sessions: serverSessions,
         harness: serverHarness,
         symbolicate: (frames) => symbolicateFrames(frames.filter(symbolicable), opts.cwd),
         bundler: opts.bridge,
         nativeUrl,
         page: {ask: primitives.askPage},
+        upgradeWebSocket: socketUpgrade,
       })
       return assembleMounted(extension, result)
     } catch (error) {
@@ -463,7 +544,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
-    harness,
+    harnessFor,
     harnessEnv: opts.harnessEnv,
     claudeHome: opts.claudeHome,
     systemPrompt: {
@@ -487,9 +568,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   planeRef.current = plane
   const chatDeps: ChatContext = {
-    harness,
+    defaultHarness: harness,
+    harnesses,
+    harnessFor,
     cwd: opts.cwd,
-    basePath: opts.basePath ?? '',
+    basePath,
     claudeHome: opts.claudeHome,
     db,
     plane,
@@ -520,6 +603,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     staleness,
     commands: extensionCommands,
     sources: sourcesApi,
+    auth: makeAuthRouter({
+      codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
+      trust,
+      browsers,
+      now: Date.now,
+    }),
   })
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -545,6 +634,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       staleness,
       onShutdown: opts.onShutdown,
       plane,
+      upgrade: socketUpgrade,
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
@@ -558,10 +648,28 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
   })
 
-  const dispose = async (): Promise<void> => {
-    for (const disposer of disposers) await Promise.resolve(disposer()).catch(() => {})
-    db.$client.close()
-  }
+  const dispose = (): Promise<void> =>
+    runInOrder(
+      [() => plane.endAllRuns(), ...disposers, () => browsers.close(), () => db.$client.close()],
+      'conciv: disposing the engine failed',
+    )
 
-  return {app, chat: chatDeps, plane, dispose, extensionContexts, runtime}
+  const fetch = makeEngineGate<unknown>({
+    fetch: (request, env) => app.fetch(request, env),
+    trusts: trust.trusts,
+    allowedOrigins: opts.allowedOrigins ?? [],
+    onTrusted: opts.onTrusted,
+  })
+
+  return {
+    app,
+    fetch,
+    agentToken,
+    trustBrowser: browsers.grant,
+    chat: chatDeps,
+    plane,
+    dispose,
+    extensionContexts,
+    runtime,
+  }
 }

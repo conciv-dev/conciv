@@ -27,6 +27,7 @@ export type RichTextFieldHandle = {
   clear: () => void
   insertText: (text: string) => void
   appendText: (text: string) => void
+  select: (selection: RichTextFieldSelection) => void
 }
 
 const VIEWPORT = 'w-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -131,6 +132,19 @@ function openingSelectionCommand(selection: RichTextFieldSelection | undefined) 
   }
 }
 
+function caretAtStart(state: EditorState): boolean {
+  const {selection, doc} = state
+  return selection.empty && selection.from === Selection.atStart(doc).from
+}
+
+function backspaceAtStartAction(view: EditorView, event: KeyboardEvent, handler: (() => boolean) | undefined): boolean {
+  if (!handler || event.key !== 'Backspace') return false
+  if (!caretAtStart(view.state)) return false
+  if (!handler()) return false
+  event.preventDefault()
+  return true
+}
+
 function enterAction(editor: Editor, event: KeyboardEvent, submit: () => void): boolean {
   if (event.key !== 'Enter') return false
   if (event.shiftKey) return editor.commands.splitBlock()
@@ -171,6 +185,7 @@ export function RichTextField(props: {
   viewportClass?: string
   editableClass?: string
   onPaste?: (event: ClipboardEvent) => boolean
+  onBackspaceAtStart?: () => boolean
   onReady?: (handle: RichTextFieldHandle) => void
   slashTrigger?: RichTextFieldTriggerSource
   mentionTrigger?: RichTextFieldTriggerSource
@@ -207,6 +222,7 @@ export function RichTextField(props: {
           if (history) return applyHistory(editor, history)
           if (insideComposition(editorState, event)) return false
           if (triggerMenuKeyDown(menu.access, event, {dismiss: dismissMenu, tabCommits: false})) return true
+          if (backspaceAtStartAction(editorState, event, props.onBackspaceAtStart)) return true
           return enterAction(editor, event, submitDraft)
         },
         handlePaste: (_view, event) => {
@@ -255,16 +271,24 @@ export function RichTextField(props: {
 
     props.onReady?.({
       focus: (focusOptions) => {
+        if (editor.isDestroyed) return
         editor.commands.focus(focusOptions?.end ? 'end' : editor.state.selection.from)
       },
       clear: () => {
+        if (editor.isDestroyed) return
         editor.commands.clearContent(true)
       },
       insertText: (text) => {
+        if (editor.isDestroyed) return
         editor.chain().focus().command(replaceSelectionCommand(text)).run()
       },
       appendText: (text) => {
+        if (editor.isDestroyed) return
         editor.chain().command(appendCommand(text)).run()
+      },
+      select: (selection) => {
+        if (editor.isDestroyed) return
+        editor.chain().command(openingSelectionCommand(selection)).run()
       },
     })
   })

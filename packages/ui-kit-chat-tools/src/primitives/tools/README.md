@@ -18,7 +18,7 @@ Headless per-tool primitives. Each file defines a Solid context, a `Root` provid
 
 - `useApplyPatch`, `useBash`, `useFileEdit`, `useFileRead`, `useSearch`, `useTodo`: throw when used outside their `X.Root`
 - `bash.tsx`, `apply-patch.tsx`, `inline-tool.tsx`: malformed JSON arguments give ''/null instead of throwing
-- `Bash.Root` (`bash.tsx`): `isError` for a non-zero exitCode or status 'error'
+- `Bash.Root` (`bash.tsx`): `isError` for a non-zero exitCode or status 'error' when the result has no `outcome`; `outcome` and `stoppedReason` for a denied or cancelled result
 - `fileContents` (`file-read.tsx`): strips line-number prefixes and caps at `MAX_LINES` = 200
 - `parseClaudePatchBlocks` (`apply-patch.tsx`): only Update, Add and Delete headers are recognized
 

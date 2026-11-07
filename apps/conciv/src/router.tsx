@@ -2,21 +2,21 @@ import {createRouter} from '@tanstack/solid-router'
 import type {RouterHistory} from '@tanstack/solid-router'
 import {QueryClient} from '@tanstack/solid-query'
 import {createEffect, createRoot, onCleanup, type JSX} from 'solid-js'
-import type {RpcClient} from '@conciv/contract'
+import {browserRpcConnection, type RpcClient} from '@conciv/contract'
 import type {GrabProvider} from '@conciv/grab'
 import type {AnyExtension} from '@conciv/extension'
 import {setupEngineReachability} from '@conciv/client'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
-import {createHarnessMeta, HarnessMetaContext} from './data/harness-meta.js'
 import type {ConcivSettings} from './data/settings.js'
 import type {ExtensionInstance} from './extension/extension-slots.js'
 import {createInstances} from './extension/create-instances.js'
 import highlight from './extensions/highlight.js'
 import {PendingPane} from './shell/pending.js'
 import {defaultErrorComponent} from './shell/default-error-component.js'
+import {engineLocked, type EngineLogin} from './app/engine-login.js'
 
-export type ConcivEnvironment = {rootNode: Node; document: Document}
+export type ConcivEnvironment = {rootNode: ShadowRoot | Document; document: Document}
 
 export type ConcivRouterContext = {
   rpc: RpcClient
@@ -36,6 +36,7 @@ export type ConcivRouterContext = {
   bindActiveSession?: (read: () => string | null) => void
   disposeInstances: () => void
   notifyInteractive: () => void
+  login?: EngineLogin
 }
 
 export type ConcivRouterConfig = {
@@ -53,6 +54,7 @@ export type ConcivRouterConfig = {
   connectionGeneration?: () => number
   bindActiveSession?: (read: () => string | null) => void
   notifyInteractive?: () => void
+  login?: EngineLogin
 }
 
 function disposeExtensionInstances(instances: ExtensionInstance[]): void {
@@ -75,18 +77,29 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
   }
 }
 
-function wireEngineReachability(apiBase: () => string): {dispose: () => void} {
+function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
+  const stopReachability = setupEngineReachability(apiBase)
+  const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+    if (status === 'trusted' && engineLocked(previous)) rerunRefused()
+  })
+  return () => {
+    stopReachability()
+    stopTrust()
+  }
+}
+
+function wireEngine(apiBase: () => string, rerunRefused: () => void): {dispose: () => void} {
   return createRoot((dispose) => {
     let wiredApiBase = apiBase()
-    let cleanupReachability = setupEngineReachability(wiredApiBase)
+    let stopWatching = watchEngine(wiredApiBase, rerunRefused)
     createEffect(() => {
       const nextApiBase = apiBase()
       if (nextApiBase === wiredApiBase) return
-      cleanupReachability()
+      stopWatching()
       wiredApiBase = nextApiBase
-      cleanupReachability = setupEngineReachability(nextApiBase)
+      stopWatching = watchEngine(nextApiBase, rerunRefused)
     })
-    onCleanup(() => cleanupReachability())
+    onCleanup(() => stopWatching())
     return {dispose}
   })
 }
@@ -98,12 +111,13 @@ export function createConcivRouter(config: ConcivRouterConfig) {
   const instances = createInstances(extensions)
   const apiBase = config.apiBase ?? (() => '')
   const connected = config.connected ?? (() => true)
-  const reachability = wireEngineReachability(apiBase)
-  const disposeInstances = makeGuardedDisposer(instances, reachability.dispose)
+  const engine = wireEngine(apiBase, () => {
+    void queryClient.invalidateQueries({predicate: (query) => query.state.status === 'error'})
+  })
+  const disposeInstances = makeGuardedDisposer(instances, engine.dispose)
   function ConcivRouterWrap(props: {children: JSX.Element}): JSX.Element {
     onCleanup(disposeInstances)
-    const harness = createHarnessMeta(data, connected, queryClient)
-    return <HarnessMetaContext.Provider value={harness}>{props.children}</HarnessMetaContext.Provider>
+    return <>{props.children}</>
   }
   return createRouter({
     routeTree,
@@ -132,6 +146,7 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       bindActiveSession: config.bindActiveSession,
       disposeInstances,
       notifyInteractive: config.notifyInteractive ?? (() => {}),
+      login: config.login,
     },
   })
 }

@@ -1,5 +1,5 @@
 import {index, integer, primaryKey, sqliteTable, text, uniqueIndex} from 'drizzle-orm/sqlite-core'
-import type {NavigationEntry} from '@conciv/protocol/chat-types'
+import type {NavigationEntry, ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 
@@ -12,6 +12,7 @@ export const sessions = sqliteTable(
     origin: text('origin', {enum: ['chat', 'agent', 'external']}).notNull(),
     title: text('title'),
     model: text('model'),
+    effort: text('effort').$type<ReasoningEffort>(),
     usage: text('usage', {mode: 'json'}).$type<UsageSnapshot>(),
     cwd: text('cwd').notNull(),
     transcriptCwd: text('transcript_cwd'),
@@ -67,7 +68,7 @@ export const cssBundles = sqliteTable('css_bundles', {
 export const markers = sqliteTable('markers', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull(),
-  afterTurn: integer('after_turn').notNull(),
+  afterMessageId: text('after_message_id'),
   kind: text('kind', {enum: ['new', 'compact']}).notNull(),
 })
 

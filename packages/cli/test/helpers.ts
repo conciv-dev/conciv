@@ -8,6 +8,7 @@ import {appendFileSync, chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync,
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {CLAUDE_CONNECT_PLUGIN_VERSION} from '@conciv/harness-init/claude/files'
 import type {LedgerEntry, StepNote} from '../src/init/ledger.js'
 import type {InitContext, InitResult, InitRuntime, RunSettings} from '../src/init/pipeline.js'
 import type {InitOutput, PlanPrompts} from '../src/init/wizard.js'
@@ -32,7 +33,8 @@ function bootCliApp(extras: BootExtras): BootApp {
       systemPrompt: '',
       extensions: undefined,
     }
-    const {app, dispose} = await makeApp({
+    const {fetch, dispose, agentToken} = await makeApp({
+      print: env.print,
       cfg,
       cwd: env.cwd,
       openInEditor: extras.openInEditor ?? (() => {}),
@@ -40,7 +42,7 @@ function bootCliApp(extras: BootExtras): BootApp {
       bridge: extras.bridge,
       extensions: extras.extensions,
     })
-    return {fetch: app.fetch, dispose}
+    return {fetch, dispose, agentToken}
   }
 }
 
@@ -48,9 +50,11 @@ export async function bootCli(cleanups: (() => Promise<void>)[], extras: BootExt
   const kit = await createTestkit(createFakeHarness(), bootCliApp(extras)).setup()
   cleanups.push(() => {
     delete process.env.CONCIV_SESSION_ID
+    delete process.env.CONCIV_TOKEN
     return kit.cleanup()
   })
   process.env.CONCIV_PORT = new URL(kit.base).port
+  process.env.CONCIV_TOKEN = kit.token
   process.env.CONCIV_SESSION_ID = await kit.session()
   return kit
 }
@@ -176,7 +180,7 @@ function claudePluginsDir(home: string): string {
 }
 
 function claudeCacheDir(home: string): string {
-  return join(claudePluginsDir(home), 'cache', 'conciv', 'conciv-connect', '0.0.0')
+  return join(claudePluginsDir(home), 'cache', 'conciv', 'conciv-connect', CLAUDE_CONNECT_PLUGIN_VERSION)
 }
 
 function copyPluginIntoCache(home: string, marketplaceRoot: string): void {
@@ -205,7 +209,12 @@ function recordClaudePluginState(opts: {home: string; cwd: string; args: string[
       version: 2,
       plugins: {
         'conciv-connect@conciv': [
-          {scope: 'local', version: '0.0.0', installPath: claudeCacheDir(opts.home), projectPath: opts.cwd},
+          {
+            scope: 'local',
+            version: CLAUDE_CONNECT_PLUGIN_VERSION,
+            installPath: claudeCacheDir(opts.home),
+            projectPath: opts.cwd,
+          },
         ],
       },
     }),

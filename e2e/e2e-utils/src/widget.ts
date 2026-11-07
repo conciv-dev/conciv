@@ -1,4 +1,7 @@
+import {readFileSync} from 'node:fs'
 import {expect, type ConsoleMessage, type Page} from '@playwright/test'
+import {magicLink} from '@conciv/harness-testkit/login'
+import {e2eServerLog} from './config.js'
 
 export type PageFailures = {
   pageErrors: string[]
@@ -9,6 +12,7 @@ export type PageFailures = {
 
 const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 const OUTDATED_OPTIMIZE_DEP = 'Outdated Optimize Dep'
+const DUPLICATE_SOLID = 'You appear to have multiple instances of Solid'
 
 function redactUrl(url: string): string {
   const parsed = URL.parse(url)
@@ -33,7 +37,9 @@ export function collectFailures(page: Page): PageFailures {
   const failures: PageFailures = {pageErrors: [], consoleErrors: [], requestFailures: [], thirdPartyRequests: []}
   page.on('pageerror', (error) => failures.pageErrors.push(String(error)))
   page.on('console', (message) => {
-    if (message.type() === 'error') failures.consoleErrors.push(describeConsoleMessage(message))
+    if (message.type() === 'error' || message.text().includes(DUPLICATE_SOLID)) {
+      failures.consoleErrors.push(describeConsoleMessage(message))
+    }
   })
   page.on('request', (request) => {
     if (isThirdPartyRequest(request.url())) failures.thirdPartyRequests.push(redactUrl(request.url()))
@@ -81,4 +87,40 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     failures.consoleErrors.filter((entry) => !transientOptimizerReload.test(entry)),
     detail,
   ).toEqual([])
+}
+
+const TRUST_CHECK_PATH = '/rpc/auth/trust'
+
+async function engineOrigin(page: Page, path: string): Promise<string> {
+  const trustCheck = page.waitForRequest((request) => new URL(request.url()).pathname === TRUST_CHECK_PATH)
+  await page.goto(path, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  return new URL((await trustCheck).url()).origin
+}
+
+export async function loginWidget(page: Page, path = '/', serverLog?: string): Promise<void> {
+  const origin = await engineOrigin(page, path)
+  const pageUrl = page.url()
+  const logPath = serverLog ?? e2eServerLog(Number(new URL(pageUrl).port))
+  const link = await magicLink(origin, () => readFileSync(logPath, 'utf8'), pageUrl)
+  await page.goto('about:blank')
+  await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
+  await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
+}
+
+const PRINTED_CODE = /#conciv_otp=(\d{6})/g
+
+function printedCodes(logPath: string): string[] {
+  return [...readFileSync(logPath, 'utf8').matchAll(PRINTED_CODE)].flatMap((match) =>
+    match[1] === undefined ? [] : [match[1]],
+  )
+}
+
+export async function openLoginFromLockedLauncher(page: Page, path = '/'): Promise<string> {
+  await engineOrigin(page, path)
+  const logPath = e2eServerLog(Number(new URL(page.url()).port))
+  const seen = printedCodes(logPath).length
+  await page.getByRole('button', {name: 'Unauthorized. Authorize conciv'}).click()
+  await expect(page.getByRole('dialog', {name: 'Authorize conciv'})).toBeVisible()
+  await expect.poll(() => printedCodes(logPath).length).toBeGreaterThan(seen)
+  return printedCodes(logPath).at(-1) ?? ''
 }

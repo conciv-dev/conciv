@@ -7,7 +7,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 ## Interface
 
 - `index.tsx` (export `.`): re-exports every public symbol below.
-- Ark wrappers: `Avatar` (`avatar.tsx`), `Collapsible` (`lazyMount` default, animated Content; `collapsible.tsx`), `Combobox` (`combobox.tsx`), `EnvironmentProvider` (`environment.tsx`), `FocusTrap` / `FocusTrapProps` (`focus-trap.tsx`), `Menu` (`menu.tsx`), `Popover` / `PopoverApi` (`popover.tsx`), `Presence` (`presence.tsx`), `Progress` (`progress.tsx`), `ScrollArea` (`scroll-area.tsx`), `SegmentGroup` (`segment-group.tsx`), `Select`, `createListCollection` (`select.tsx`), `Slider` (`slider.tsx`), `Splitter` (`splitter.tsx`), `Swap` (`swap.tsx`), `Switch` (draggable spring thumb; `switch.tsx`), `Tabs`, `TabsPrimitive` (`tabs.tsx`), `Toast`, `ToastGroup`, `createToaster`, `ToasterInstance` (`toast.tsx`).
+- Ark wrappers: `Avatar` (`avatar.tsx`), `Collapsible` (`lazyMount` default, animated Content; `collapsible.tsx`), `Combobox` (`combobox.tsx`), `EnvironmentProvider` (`environment.tsx`), `FocusTrap` / `FocusTrapProps` (`focus-trap.tsx`), `Menu` (`menu.tsx`), `Listbox` (`listbox.tsx`), `Popover` / `PopoverApi`, `usePopover` / `PopoverMachine` (a popover machine for `Popover.RootProvider`, same positioning defaults as `Popover.Root`; `popover.tsx`), `Presence` (`presence.tsx`), `Progress` (`progress.tsx`), `ScrollArea` (`scroll-area.tsx`), `SegmentGroup` (`segment-group.tsx`), `Select`, `createListCollection` (`select.tsx`), `Slider` (`slider.tsx`), `Splitter` (`splitter.tsx`), `Swap` (`swap.tsx`), `Switch` (draggable spring thumb; `switch.tsx`), `Tabs`, `TabsPrimitive` (`tabs.tsx`), `Toast`, `ToastGroup`, `createToaster`, `ToasterInstance` (`toast.tsx`).
 - `Button`, `ButtonVariant` (solid, ghost, outline, danger, accent-soft, outline-danger, panel, link, plain), `ButtonSize` (sm, md, icon, bare, none) (`button.tsx`).
 - `HoverCard` (`openDelay` 0, `closeDelay` 120, `sideOffset` 6; `hover-card.tsx`).
 - `Dialog`, `DialogApi` (`dialog.tsx`): props `title` or `label`, `open`, `onOpenChange`, `footer`, `role`, `initialFocus`, `restoreFocus` (true), `dismissable` (false), `size` (md/lg/xl), `layer`, `children`.
@@ -25,7 +25,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 
 ## Invariants
 
-- `Dialog` takes exactly one of `title` or `label` (`DialogName` union), is always `modal`, and closes on Escape or outside click only when `dismissable`. The `layer` prop is declared but not read (`dialog.tsx`).
+- `Dialog` takes exactly one of `title` or `label` (`DialogName` union), is always `modal`, and closes on Escape or outside click only when `dismissable`. Its backdrop and positioner portal into the environment's shadow root (or the document body), so a dialog opened inside a transformed or clipped ancestor such as a virtualized thread row still covers the viewport. The `layer` prop is declared but not read (`dialog.tsx`).
 - `Button` defaults `type` to `'button'` (`button.tsx`).
 - `AnchoredListbox`: option ids are `${listboxId}-option-${value}`; `commitHighlighted` returns false with nothing highlighted; `handleKeyDown` returns false when the hidden input is not mounted and forwards a cloned event otherwise; the first item is highlighted when `collection` changes; Escape calls `onDismiss`; `onReady` gets the handle on mount and null on cleanup.
 - `createClipboardCopy` returns to `'idle'` after `resetMs` (default `RESET_MS` 2000); its status signal uses `equals: false`, and synchronous throws from `writeText` become `'failed'` (`clipboard.ts`).
@@ -52,7 +52,7 @@ Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` prim
 - Web Animations API calls for tooltip pop, swap, glide, arrow and fuse; inline `rotate` writes for lean (`tooltip-motion.ts`, `tooltip-group.tsx`).
 - While a group label is shown: capture-phase `keydown`, `focusout`, `pointerdown`, `scroll` and `resize` on window, `visibilitychange` on document, and `scroll` on the trigger's ShadowRoot; pointer and touch listeners on each grouped trigger (`tooltip-group.tsx`, `tooltip.tsx`).
 - Fixed overlays at z-index 2147483647 (tooltip label, fuse bar, probe span, popover content).
-- `ZoomableImage` may portal its Dialog into `portal`; `VirtualJsonTree` scrolls through `virtualizer.scrollToIndex`.
+- `ZoomableImage` opens its viewer in the shared `Dialog`, which portals itself; `VirtualJsonTree` scrolls through `virtualizer.scrollToIndex`.
 
 ## Verification
 

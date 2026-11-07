@@ -18,6 +18,7 @@ export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error'
 
 export type TerminalModelOpts = {
   url: (terminal: Xterm) => string
+  socket?: typeof WebSocket
   beforeConnect?: (terminal: Xterm) => Promise<void> | void
   theme?: () => TerminalTheme
   fontSize?: number
@@ -109,7 +110,8 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
 
   const openSocket = (): WebSocket | null => {
     try {
-      return new WebSocket(opts.url(terminal))
+      const Socket = opts.socket ?? WebSocket
+      return new Socket(opts.url(terminal))
     } catch {
       giveUp(COULD_NOT_REACH)
       return null

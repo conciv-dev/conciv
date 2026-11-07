@@ -9,7 +9,7 @@ import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig, ConcivSettingsInit} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
+import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
@@ -141,6 +141,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
@@ -182,12 +183,15 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
   '@conciv/solid-streamdown > unified',
   '@conciv/solid-diffs > @pierre/diffs',
   '@conciv/solid-diffs > @pierre/diffs/worker',
+  '@conciv/solid-diffs > @tanstack/solid-pacer',
   '@conciv/mascot > gsap',
   '@conciv/mascot > gsap/MotionPathPlugin',
   'bippy',
   'bippy/source',
   'react-grab',
 ].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
+
+const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
 
 const RECORDER_LATE_DISCOVERED_DEPENDENCIES = ['rrweb', 'rrweb-player', '@rrweb/rrweb-plugin-console-record'].map(
   (dependency) => `@conciv/it > @conciv/extension-recorder > ${dependency}`,
@@ -217,6 +221,9 @@ type DevToolsContext = {
       renderer: {importFrom: string; importName: string}
     }) => void
   }
+  rpc: {
+    register: (definition: {name: string; type: 'action'; handler: () => string}) => void
+  }
 }
 
 type DevToolsPlugin = Plugin & {devtools: {setup: (context: DevToolsContext) => void}}
@@ -234,6 +241,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let deferToTsd = false
   let managedExcludes: string[] = []
   let docked = false
+  let devServer: ViteDevServer | undefined
   return {
     name: 'conciv',
     apply: 'serve',
@@ -246,7 +254,18 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           title: 'conciv',
           icon: CONCIV_MARK_URI,
           type: 'custom-render',
-          renderer: {importFrom: EXTENSIONS_ROUTE, importName: 'default'},
+          renderer: {importFrom: EXTENSIONS_DOCK_ROUTE, importName: 'default'},
+        })
+        context.rpc.register({
+          name: 'conciv:engine-token',
+          type: 'action',
+          handler: () => {
+            if (!engine || !devServer) throw new Error('the conciv engine has not started yet')
+            return engine.trustBrowser(
+              {browser: 'via Vite DevTools', origin: devOrigins(devServer)[0] ?? 'Vite DevTools'},
+              Date.now(),
+            )
+          },
         })
       },
     },
@@ -265,6 +284,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
           ...base.optimizeDeps,
           include: [
             ...base.optimizeDeps.include,
+            ...EMBED_SOLID_RUNTIME.filter((id) => !base.optimizeDeps.exclude.includes(id)).map(
+              (id) => `@conciv/it > @conciv/embed > ${id}`,
+            ),
             ...EMBED_LATE_DISCOVERED_DEPENDENCIES,
             ...RECORDER_LATE_DISCOVERED_DEPENDENCIES,
           ],
@@ -286,14 +308,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return resolveExtensionsModule(id)
     },
     load(id) {
-      return loadExtensionsModule(
-        id,
-        builtins.clientEntries,
-        apiBase,
-        builtins.embedEntry,
-        builtins.dedupeEntry,
-        docked ? 'dock' : 'page',
-      )
+      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -304,7 +319,10 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {widget: widgetSettings(options.widget, docked)})
+        return htmlTags(engine.port, {
+          widget: widgetSettings(options.widget, docked),
+          entry: docked ? EXTENSIONS_DOCK_ROUTE : EXTENSIONS_ROUTE,
+        })
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -320,7 +338,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       )
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
-      mountWidget(server, apiBase, widgetSettings(options.widget, docked))
+      devServer = server
+      mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

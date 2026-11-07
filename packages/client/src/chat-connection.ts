@@ -14,8 +14,14 @@ import {
   approvalAskOf,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
-import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
-import type {ChatHydration, RpcClient} from '@conciv/contract'
+import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
+import {
+  engineHeaders,
+  engineWebSocket,
+  type ChatHistoryWindow,
+  type ChatHydration,
+  type RpcClient,
+} from '@conciv/contract'
 import {acquirePushChannel} from './push-channel.js'
 import {readingValues, relayedValues} from './stream-relay.js'
 
@@ -36,9 +42,9 @@ export type ChatConnectionOptions = {
 
 export type ChatConnection = SubscribeConnectionAdapter & {
   joinRun: (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
-  hydrate: (threadId: string) => Promise<ChatHydration>
+  hydrate: (threadId: string, window?: ChatHistoryWindow) => Promise<ChatHydration>
   transport: () => ChatTransport | null
-  refresh: () => Promise<ChatHydration>
+  refresh: (before?: string) => Promise<ChatHydration>
   close: () => void
 }
 
@@ -85,8 +91,8 @@ export function socketOpens(url: string, timeoutMs: number): Promise<boolean> {
 type Selected = {transport: ChatTransport; adapter: SubscribeConnectionAdapter; joinRun: JoinRun}
 type JoinRun = (runId: string, abortSignal?: AbortSignal) => AsyncIterable<ChatEvent>
 
-function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
-  return new Proxy(WebSocket, {
+function trackingWebSocketImpl(apiBase: string, live: Set<WebSocket>): typeof WebSocket {
+  return new Proxy(engineWebSocket(apiBase), {
     construct: (target, args) => {
       const socket: WebSocket = Reflect.construct(target, args)
       live.add(socket)
@@ -97,7 +103,7 @@ function trackingWebSocketImpl(live: Set<WebSocket>): typeof WebSocket {
 }
 
 function overSocket(apiBase: string, live: Set<WebSocket>): Selected {
-  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(live)})
+  const adapter = webSocket(chatSocketUrl(apiBase), {WebSocketImpl: trackingWebSocketImpl(apiBase, live)})
   return {transport: 'websocket', adapter, joinRun: (runId, signal) => adapter.joinRun(runId, signal)}
 }
 
@@ -118,7 +124,7 @@ function subscribeOver(adapter: ResumableConnectConnectionAdapter): SubscribeCon
 }
 
 function overEvents(apiBase: string): Selected {
-  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase))
+  const adapter = fetchServerSentEvents(chatEventsUrl(apiBase), () => ({headers: engineHeaders(apiBase)}))
   return {
     transport: 'fetch',
     adapter: subscribeOver(adapter),
@@ -159,6 +165,7 @@ function merged<T>(sources: readonly Source<T>[], abortSignal: AbortSignal | und
       }
       controller.close()
     },
+    cancel: () => scope.abort(),
   })
   return readingValues(readable)
 }
@@ -242,8 +249,8 @@ export function chatConnection(
     options.onTransport?.(choice.transport)
     return choice
   })
-  const hydrate = async (threadId: string): Promise<ChatHydration> => {
-    const hydration = await rpc.chat.hydrate({sessionId: threadId})
+  const hydrate = async (threadId: string, window: ChatHistoryWindow = {}): Promise<ChatHydration> => {
+    const hydration = await rpc.chat.hydrate({...window, sessionId: threadId})
     options.onHydrated?.(hydration)
     return hydration
   }
@@ -260,7 +267,11 @@ export function chatConnection(
     joinRun: (runId, abortSignal) => noticing(joining(selected, runId, abortSignal), options),
     hydrate,
     transport: () => chosen.transport,
-    refresh: () => hydrate(sessionId),
+    refresh: (before) =>
+      hydrate(
+        sessionId,
+        before === undefined ? {limit: CHAT_HISTORY_PAGE_SIZE} : {limit: CHAT_HISTORY_PAGE_SIZE, before},
+      ),
     close: () => {
       for (const socket of live) socket.close()
       live.clear()

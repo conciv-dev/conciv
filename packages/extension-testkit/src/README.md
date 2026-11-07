@@ -6,9 +6,9 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 
 ## Interface
 
-- `getExtensionTestApi` (`get-extension-test-api.ts`): boots the server, resolves a session, starts the host, launches the browser and returns `ExtensionTestApi` {page, callTool, callToolApproved, runTypescript, discoverTools, session, apiBase, serverContext, secondClient, dispose}; also re-exports `serveDir`, `ServedHost`, `fixtureHost`; types `HostEngine`, `HostHandle`, `ExtensionUnderTest`, `SecondClient`, `ExtensionTestApi`
-- `bootExtensionServer` / `BootedServer` (`boot-server.ts`): runs `@conciv/core/start` with one extension on a temp stateRoot and returns {apiBase, extensionContexts, stop}
-- `bootCoreKit` / `CoreKit` (`core-kit.ts`): builds a fake harness plus `makeApp` through `@conciv/harness-testkit` `createTestkit`, returning Kit & {harness, forSession}
+- `getExtensionTestApi` (`get-extension-test-api.ts`): boots the server, resolves a session, starts the host on the plain engine origin, launches the browser on a `#conciv_otp` magic link and returns `ExtensionTestApi` {page, callTool, callToolApproved, runTypescript, discoverTools, session, apiBase, serverContext, secondClient, dispose}; also re-exports `serveDir`, `ServedHost`, `fixtureHost`; types `HostEngine`, `HostHandle`, `ExtensionUnderTest`, `SecondClient`, `ExtensionTestApi`
+- `bootExtensionServer` / `BootedServer` (`boot-server.ts`): runs `@conciv/core/start` with one extension on a temp stateRoot and returns {apiBase (the agent `/t/<agentToken>` base), origin, terminal, extensionContexts, stop}
+- `bootCoreKit` / `CoreKit` (`core-kit.ts`): builds a fake harness plus `makeApp` through `@conciv/harness-testkit` `createTestkit`, returning Kit & {harness, forSession, rpcServed}; `rpcServed(path)` counts HTTP RPC calls to that procedure (CORS preflights excluded) whose response the server has produced, so it is ordered before the page sees the reply
 - `fixtureHost` (`fixture-host.ts`): returns a host factory that serves a prebuilt host dist directory through `serveDir`
 - `serveDir` / `ServedHost` (`serve.ts`): static server for a dir; in .html files it replaces `__CONCIV_API_BASE__` and `__CONCIV_SESSION__`
 - `serveHost` (`serve-host.ts`): HTTP server that answers every request with html(url)
@@ -17,7 +17,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `settleTeardown` / `TeardownStep` (`settle-teardown.ts`): runs teardown steps concurrently, each with its own timeout
 - `mountToolCard` (`card-harness.tsx`): renders a Solid `ToolCardProps` component with a synthetic tool-call part (id 't1') and an optional tool-result
 - `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then calls RPC `registry.call` with page_text
-- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once the push socket on PUSH_WS_PATH sends a 'ready' frame
+- `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once any push socket on PUSH_WS_PATH sends a 'ready' frame (sent when the socket starts serving page queries)
 - `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
 - `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
 - `watchRpcWire` / `RpcWireWatch` (`rpc-wire.ts`): waits for sessions.list and sessions.resolve traffic
@@ -26,7 +26,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
 - `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames
 - `holdSilentSubscriber` (`push-wire.ts`): opens a raw push socket for a session, resolves on its 'ready' frame and never answers a page query; `close` drops it
-- `procedurePathOf` / `rpcPayload` (`rpc-payload.ts`): splits a URL path into decoded segments and deserializes an oRPC StandardRPC body
+- `procedurePathOf` / `samePath` / `rpcPayload` (`rpc-payload.ts`): reads the decoded procedure path from an `/rpc/` URL (null otherwise), compares two paths, and deserializes an oRPC StandardRPC body
 - `makeFakeFrameworkAdapter` / `FrameworkAdapterOverrides` (`framework-fake.ts`): `defineFrameworkAdapter` with canned tanstack-start client, server, queryCache and serverFunctions data, deep-merged with overrides
 - `currentHref` (`navigation-state.ts`): reads the persisted navigation entry href through kit.rpc.navigation.get, '' if none
 - `testHostConfig` / `TestHostConfigOptions` (`test-host-config.ts`): Vite UserConfig for the test host (default root ./host) wiring the conciv build plugin with NO_BUILTINS, a `virtual:conciv-extension-under-test` module, UnoCSS presetConciv, solid and a 'shiki' chunk group
@@ -40,7 +40,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `bootCoreKit` (`core-kit.ts`): throws if makeApp did not capture a runtime
 - `settleTeardown` (`settle-teardown.ts`): every step runs even if another fails; each step times out after 20s by default; the first rejection is rethrown after all steps settle
 - `getExtensionTestApi` (`get-extension-test-api.ts`): dispose tears down browser, host and server through settleTeardown; serverContext is keyed by extension.server.name
-- `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if the socket never sent a 'ready' frame; the journal keeps at most 200 entries
+- `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if no push socket sent a 'ready' frame; the journal keeps at most 200 entries
 - `rpcObserverFor` (`rpc-observer.ts`): one observer per Page (WeakMap); only URLs containing '/rpc/' are recorded; completed() checks buffered calls first and rejects after 30s by default; dispose rejects pending waiters
 - `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): OPTIONS preflights always pass through; the gate's answered waits for status 200 within 15s
 - `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): only POST requests are faulted; the request's origin is echoed in CORS headers

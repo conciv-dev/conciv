@@ -104,7 +104,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     },
     history: {
       messages: () => deps.plane.history(id),
-      hydrate: () => deps.plane.hydrate(id),
+      hydrate: (window) => deps.plane.hydrate(id, window),
     },
     run: {
       stop: (runIds) => deps.plane.stop(id, runIds),

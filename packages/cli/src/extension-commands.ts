@@ -1,49 +1,60 @@
-import {defineCommand, type ArgsDef, type SubCommandsDef} from 'citty'
+import {z} from 'zod'
+import {argument, command, description, dynamic, extend, name, schema} from '@bomb.sh/router'
 import {sourceCommands} from './db.js'
+import {envelopeFlag} from './envelope.js'
 import {localOutcome} from './local-outcome.js'
+import {handler} from './router/handler.js'
 
-export async function extensionCommands(): Promise<SubCommandsDef> {
-  const [asked] = process.argv.slice(2).filter((token) => !token.startsWith('-'))
-  if (asked !== undefined && !asked.includes(':')) return {}
+const ExtensionCatalogSchema = z.object({
+  owners: z.array(z.string()),
+  commands: z.array(z.object({name: z.string(), description: z.string(), positionals: z.array(z.string())})),
+})
+
+export type ExtensionCatalog = z.infer<typeof ExtensionCatalogSchema>
+
+export const extensionCommands = dynamic(ExtensionCatalogSchema, (catalog) =>
+  extend(
+    ...catalog.owners.flatMap((owner) =>
+      sourceCommands({extension: owner, label: `the ${owner}`, prefix: `${owner}:`}),
+    ),
+    ...catalog.commands.map((entry) =>
+      command(
+        name(entry.name),
+        description(entry.description),
+        ...entry.positionals.map((positional) =>
+          argument(name(positional), description(positional), schema(z.string().optional())),
+        ),
+        envelopeFlag,
+        handler((model) =>
+          localOutcome({
+            code: 'COMMAND_FAILED',
+            work: (db) =>
+              db.commands
+                .find((found) => found.name === entry.name)
+                ?.run(
+                  entry.positionals.flatMap((positional) => {
+                    const value: unknown = model[positional]
+                    return typeof value === 'string' ? [value] : []
+                  }),
+                ),
+          }),
+        ),
+      ),
+    ),
+  ),
+)
+
+export async function extensionCatalog(): Promise<ExtensionCatalog> {
   const {localProject} = await import('./local-project.js')
   const {extensions} = await localProject()
-  const scoped = extensions
-    .filter((extension) => extension.sources !== undefined)
-    .flatMap(({name: owner}) =>
-      Object.entries(sourceCommands({extension: owner, label: `the ${owner}`})).map(
-        ([verb, command]) => [`${owner}:${verb}`, command] as const,
-      ),
-    )
-  const commands = extensions.flatMap((extension) =>
-    Object.entries(extension.commands ?? {}).map(([verb, command]) => {
-      const name = `${extension.name}:${verb}`
-      return [
-        name,
-        defineCommand({
-          meta: {name, description: command.description},
-          args: positionalArgs(command.positionals),
-          run: ({args}) =>
-            localOutcome({
-              code: 'COMMAND_FAILED',
-              work: (db) =>
-                db.commands
-                  .find((entry) => entry.name === name)
-                  ?.run(
-                    command.positionals.flatMap((positional) => {
-                      const value: unknown = args[positional]
-                      return typeof value === 'string' ? [value] : []
-                    }),
-                  ),
-            }),
-        }),
-      ] as const
-    }),
-  )
-  return Object.fromEntries([...scoped, ...commands])
-}
-
-function positionalArgs(names: readonly string[]): ArgsDef {
-  return Object.fromEntries(
-    names.map((name) => [name, {type: 'positional', required: false, description: name}] as const),
-  )
+  return {
+    owners: extensions.filter((extension) => extension.sources !== undefined).map((extension) => extension.name),
+    commands: extensions.flatMap((extension) =>
+      Object.entries(extension.commands ?? {}).map(([verb, entry]) => ({
+        name: `${extension.name}:${verb}`,
+        description: entry.description,
+        positionals: [...entry.positionals],
+      })),
+    ),
+  }
 }

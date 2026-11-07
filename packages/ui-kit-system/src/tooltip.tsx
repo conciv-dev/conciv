@@ -20,7 +20,7 @@ import {popIn, sideFromPlacement} from './tooltip-motion.js'
 import {isDocument, isHTMLElement, isShadowRoot} from './realm.js'
 
 const CONTENT =
-  'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] max-w-60 focus-visible:outline-none'
+  'hidden data-[state=open]:block z-[2147483647] rounded-chat-surface-sm bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg py-1 px-2 text-[0.6875rem] font-chat max-w-60 focus-visible:outline-none'
 
 const LONG_PRESS = 500
 const HOLD_SLOP = 10

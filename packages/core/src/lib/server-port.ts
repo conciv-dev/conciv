@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs'
 import {z} from 'zod'
-import {writeText} from './fs.js'
+import {writePrivateFile} from './dev-endpoint.js'
 
 const serverStateSchema = z.object({port: z.number().int().min(1).max(65535)})
 
@@ -13,8 +13,8 @@ export function readPersistedPort(file: string): number | undefined {
   }
 }
 
-export function writePersistedPort(file: string, port: number): void {
-  writeText(file, `${JSON.stringify({port}, null, 2)}\n`)
+export function writePersistedPort(file: string, state: {port: number; token: string}): void {
+  writePrivateFile(file, `${JSON.stringify(state, null, 2)}\n`)
 }
 
 export function isAddressInUse(error: unknown): boolean {

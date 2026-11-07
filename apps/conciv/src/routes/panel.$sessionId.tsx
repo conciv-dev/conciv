@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useBlocker, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -27,10 +27,11 @@ import {
   useDisconnect,
   useGrabProvider,
   useInstances,
+  useLiveSessions,
+  usePaneChat,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
-import {usePaneChat} from '../app/use-pane-chat.js'
 import {makeGrabStaging} from '../pane/grab-staging.js'
 import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -39,7 +40,7 @@ import {ContextSummary} from '../pane/context-tracker.js'
 import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
-import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
+import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
 import {useNotices} from '../shell/notice-context.js'
@@ -138,10 +139,12 @@ function PanelSession(): JSX.Element {
     ),
   )
 
+  const chat = usePaneChat(() => params().sessionId)
   const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
+  const row = () =>
+    sessions.isPending ? undefined : sessions.data?.find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
-  const running = () => row()?.running ?? false
+  const running = () => row()?.running ?? chat().runInProgress()
 
   const views = createMemo(() => collectViews(instances))
   const activeView = () => {
@@ -151,7 +154,6 @@ function PanelSession(): JSX.Element {
   const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
-  const leaveGuard = () => running() || viewLocked()
 
   const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
@@ -184,14 +186,9 @@ function PanelSession(): JSX.Element {
     ground: (grab) => resolveGrabSource(grab, (input) => rpc.page.symbolicate(input)),
   })
 
-  useBlocker({
-    shouldBlockFn: ({current, next}) =>
-      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
-  })
-
-  const chat = usePaneChat(() => params().sessionId)
   const coordinator = makeRefreshCoordinator({
     chat,
+    liveSessions: useLiveSessions(),
     sessionId: () => params().sessionId,
     appData,
     queryClient,
@@ -259,9 +256,7 @@ function PanelSession(): JSX.Element {
             </span>
             <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
           </span>
-          <Suspense fallback={<SessionTitlePending />}>
-            <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
-          </Suspense>
+          <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
         </div>
         <Popover.Root positioning={{placement: 'bottom-end'}}>
           <TooltipIconButtonSlot tooltip={sessionMenuLabel()}>
@@ -336,17 +331,15 @@ function PanelSession(): JSX.Element {
         <QueueStrip queue={queue()} />
       </ChatProvider>
       <Outlet />
-      <Suspense fallback={<ViewTabsPending />}>
-        <StatusBar
-          status={sessionStatus()}
-          elapsedLabel={elapsedLabel()}
-          diff={diff()}
-          views={statusBarViews()}
-          activeView={activeView()}
-          onSelectView={switchView}
-          disabled={leaveGuard()}
-        />
-      </Suspense>
+      <StatusBar
+        status={sessionStatus()}
+        elapsedLabel={elapsedLabel()}
+        diff={diff()}
+        views={statusBarViews()}
+        activeView={activeView()}
+        onSelectView={switchView}
+        disabled={viewLocked()}
+      />
     </PaneContext.Provider>
   )
 }

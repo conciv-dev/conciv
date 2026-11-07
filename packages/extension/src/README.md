@@ -25,6 +25,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `createToolRegistry` / `ToolRegistry` / `TOOL_TRANSPORT_ERRORS` / `toInlineJsonSchema` (`tool-registry.ts`)
 - `walkRegistryProcedures` (`registry-walk.ts`)
 - `makeCompositeRpcRouter` / `rpcFetchMiddleware` / `rpcWebsocketRoute` / `RPC_PREFIX` ('/rpc') / `RPC_WS_PATH` ('/rpc-ws') (`rpc-mount.ts`)
+- `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` and the shared contract types
 
 ## Invariants
@@ -40,6 +41,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `pageFailure` (`tool-registry.ts`): no-widget, timeout, unknown-verb, invalid-args, handler-error map to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
 - `catalogEntries` (`tool-registry.ts`): client tools are reachable only while a page is connected
 - `makeCompositeRpcRouter` (`rpc-mount.ts`): throws on an extension slug collision
+- `rpcHandlerOptions` (`rpc-mount.ts`): copies the request headers onto the context and sets `clientVersion` from `x-conciv-version` when it is a semver string (zod; anything else leaves it unset), for the HTTP and the websocket handler alike
 - `use` (`host-context.ts`): a hook used without its host wiring throws
 - `collect-client.ts`: first registration wins by tool name or MIME; `captureModeOf` defaults mutating tools to 'after'
 - `validateSource` (`catalog.ts`): error without `export default defineExtension(`
@@ -48,7 +50,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 
 - `ensureEffectsSurface` (`client-host.ts`): appends a fixed div with an open shadow root and a style element to document.body
 - `openSource` (`client-host.ts`): calls rpc.editor.open / rpc.editor.openFromFrames
-- `makeExtRpcClient` (`ext-rpc.ts`): HTTP RPC with the session header; reads global `location`
+- `makeExtRpcClient` (`ext-rpc.ts`): HTTP RPC with the session header; the node path (no global `location`) also sends `x-conciv-version` (the extension package.json version), the browser path goes through `dynamicBrowserRpcLink` and sends no version header
 - `collectClientEffects` (`collect-client.ts`): console.warn on duplicate effect names
 - `rpcWebsocketRoute` (`rpc-mount.ts`): closes the socket with 1011 on a rejected frame
 - `forwardToolToPage` (`tool-registry.ts`): forwards client-tool calls to the connected page

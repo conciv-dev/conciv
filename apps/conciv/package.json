@@ -9,6 +9,7 @@
     "./settings": "./src/data/settings.ts",
     "./shadow": "./src/lib/shadow.ts",
     "./api-base": "./src/lib/api-base.ts",
+    "./engine-login": "./src/app/engine-login.tsx",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
@@ -40,12 +41,15 @@
     "@conciv/ui-kit-tap": "workspace:^",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/mutation-observer": "^1.2.4",
+    "@solid-primitives/resize-observer": "catalog:",
     "@tanstack/hotkeys": "^0.18.0",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-hotkeys": "^0.17.0",
     "@tanstack/solid-query": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
+    "semver": "catalog:",
     "solid-js": "catalog:",
     "zod": "catalog:"
   },
@@ -62,6 +66,7 @@
     "@tanstack/router-cli": "catalog:",
     "@tanstack/router-plugin": "catalog:",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "@unocss/postcss": "catalog:",
     "@unocss/reset": "catalog:",
     "@vitest/browser-playwright": "catalog:",

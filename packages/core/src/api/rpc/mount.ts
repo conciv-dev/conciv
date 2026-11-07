@@ -12,9 +12,12 @@ import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
+import type {AuthRouter} from '../../engine-login.js'
 
 export type ChatContext = {
-  harness: HarnessAdapter
+  defaultHarness: HarnessAdapter
+  harnesses: readonly HarnessAdapter[]
+  harnessFor: (sessionId: SessionId) => HarnessAdapter
   cwd: string
   basePath: string
   claudeHome?: string
@@ -35,6 +38,7 @@ export type RpcDeps = {
     write: (query: SourceWrite & {extension?: string}) => Promise<Record<string, unknown>[]>
   }
   commands: {name: string; description: string; positionals: readonly string[]; run: (args: string[]) => unknown}[]
+  auth: AuthRouter
 }
 
 export const os = implement(contract).$context<RpcContext>()
@@ -53,7 +57,7 @@ function headerSessionId(context: RpcContext): SessionId | null {
 export function callerScope(deps: RpcDeps, context: RpcContext): SessionScope {
   const sessionId = headerSessionId(context)
   if (sessionId === null) {
-    throw new ORPCError('UNAUTHORIZED', {
+    throw new ORPCError('BAD_REQUEST', {
       message: `this procedure acts on behalf of one session and the caller sent no ${CONCIV_SESSION_HEADER} header; resolve a session with sessions.resolve and send it on every call`,
     })
   }

@@ -1,15 +1,27 @@
-import {defineCommand} from 'citty'
+import {description, name, route, version} from '@bomb.sh/router'
+import cliManifest from '../package.json' with {type: 'json'}
+import {authRoute} from './auth.js'
+import {envelopeFlag} from './envelope.js'
 import {initCommand} from './init.js'
-import {toolsCommand} from './tools.js'
+import {toolsRoute} from './tools.js'
 import {extensionCommands} from './extension-commands.js'
 import {sourceCommands} from './db.js'
 
-const dbCommand = defineCommand({
-  meta: {name: 'db', description: 'read and write the conciv database through the sources extensions declare'},
-  subCommands: sourceCommands({label: 'every extension'}),
-})
+const dbRoute = route(
+  name('db'),
+  description('read and write the conciv database through the sources extensions declare'),
+  envelopeFlag,
+  ...sourceCommands({label: 'every extension'}),
+)
 
-export const main = defineCommand({
-  meta: {name: 'conciv', description: 'The conciv dev-agent CLI.'},
-  subCommands: async () => ({tools: toolsCommand, init: initCommand, db: dbCommand, ...(await extensionCommands())}),
-})
+export const main = route(
+  name('conciv'),
+  description('The conciv dev-agent CLI.'),
+  version(cliManifest.version),
+  envelopeFlag,
+  toolsRoute,
+  initCommand,
+  authRoute,
+  dbRoute,
+  extensionCommands,
+)

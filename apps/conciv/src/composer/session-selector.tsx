@@ -9,6 +9,7 @@ import SquarePen from 'lucide-solid/icons/square-pen'
 import Plus from 'lucide-solid/icons/plus'
 import type {SessionMeta} from '@conciv/contract'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
+import {useHarnesses} from '../data/harness-meta.js'
 
 let instanceSeq = 0
 
@@ -67,6 +68,9 @@ export function SessionSelector(props: {
   const idPrefix = `conciv-session-${++instanceSeq}`
 
   const list = useQuery(() => appData.utils.sessions.list.queryOptions())
+  const harnesses = useHarnesses()
+  const harnessSuffix = (s: SessionMeta): string =>
+    harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
   const rows = (): SessionMeta[] => list.data ?? []
   const activeId = () => props.activeId()
 
@@ -270,7 +274,7 @@ export function SessionSelector(props: {
                       <Combobox.Item
                         item={s}
                         class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
-                        aria-label={`${s.title}, ${metaLabel(s, now())}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
+                        aria-label={`${s.title}, ${metaLabel(s, now())}${harnessSuffix(s)}${s.running ? `, ${RUNNING_LABEL}` : ''}`}
                       >
                         <div class="flex flex-1 flex-col gap-px min-w-0">
                           <TruncatedText text={s.title}>
@@ -278,6 +282,7 @@ export function SessionSelector(props: {
                           </TruncatedText>
                           <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
+                            {harnessSuffix(s)}
                           </span>
                         </div>
                         <Show when={s.origin === 'conciv'}>

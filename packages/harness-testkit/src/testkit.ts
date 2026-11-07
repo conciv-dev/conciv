@@ -1,4 +1,5 @@
 export {until, type UntilOpts} from './until.js'
+export {exchangePrintedCode, loginThroughTerminal, requestPrintedCode, type TerminalReader} from './login.js'
 export {serveApp, type ServedApp} from './serve-app.js'
 export {
   createTestkit,

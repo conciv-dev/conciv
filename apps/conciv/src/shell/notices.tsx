@@ -38,6 +38,23 @@ function toneClass(type: string | undefined): string {
   return TONE_INFO
 }
 
+export function StandingNotice(props: {message: string; action?: NoticeAction}): JSX.Element {
+  return (
+    <div class="p-2.5">
+      <div class={`${NOTICE} ${TONE_DANGER}`} role="alert">
+        <p class="flex-1 min-w-0 m-0">{props.message}</p>
+        <Show when={props.action}>
+          {(action) => (
+            <Button variant="link" size="bare" class={ACTION} onClick={() => action().run()}>
+              {action().label}
+            </Button>
+          )}
+        </Show>
+      </div>
+    </div>
+  )
+}
+
 export function createNoticeStore(): NoticeStore {
   const toaster = createToaster({placement: 'bottom', gap: 8, max: STANDING_LIMIT})
 
