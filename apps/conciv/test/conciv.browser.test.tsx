@@ -3170,6 +3170,7 @@ describe('session selector', () => {
     ],
   })
   const keep = keptPane()
+  const faults = trackedFaults()
 
   afterEach(async () => {
     await coreControl.releaseTurn()
@@ -3243,8 +3244,14 @@ describe('session selector', () => {
     await expect.element(search).not.toHaveFocus()
     await userEvent.click(search)
     await expect.element(search).toHaveFocus()
+    await faults.install({kind: 'gate', path: ['sessions', 'search']})
     await typeKeyByKey(search, 'p', '')
+    await expect.element(page.getByRole('listbox')).toHaveAttribute('aria-busy', 'true')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).toBeVisible()
+    await faults.releaseAll()
     await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await expect.element(page.getByRole('listbox')).not.toHaveAttribute('aria-busy', 'true')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).not.toBeInTheDocument()
     await expect.element(option('older session 0')).not.toBeInTheDocument()
     await typeKeyByKey(search, 'u', 'p')
     await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
@@ -3256,11 +3263,13 @@ describe('session selector', () => {
     await expect.element(option('a seabird survey')).toBeVisible()
     await expect.element(search).toHaveFocus()
 
-    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}')
-    await expect.element(search).toHaveFocus()
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(search).toHaveValue('')
+    await expect.element(search).toHaveFocus()
+    await expect.element(page.getByRole('button', {name: 'Clear search'})).not.toBeInTheDocument()
     await expect.element(option('older session 0')).toBeVisible()
     await expect.element(option('the puffin notes')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the active session,/, selected: true})).toBeVisible()
 
     await userEvent.wheel(option('older session 0'), {delta: {y: 1_000_000}})
     await expect.element(option('older session 28')).toBeInTheDocument()

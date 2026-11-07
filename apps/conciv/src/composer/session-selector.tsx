@@ -4,6 +4,8 @@ import {
   ByteSize,
   Combobox,
   createListCollection,
+  Loader,
+  Presence,
   RelativeTime,
   TooltipIconButton,
   TruncatedText,
@@ -18,6 +20,7 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import Plus from 'lucide-solid/icons/plus'
+import X from 'lucide-solid/icons/x'
 import type {SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData, useRpc} from '../app/context.js'
@@ -27,6 +30,8 @@ const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
 
 const RUNNING_LABEL = 'running'
+
+const SEARCHING_LABEL = 'Searching sessions'
 
 const PAGE_SIZE = 30
 
@@ -119,6 +124,7 @@ export function SessionSelector(props: {
   const sessionsLoaded = createMemo((): SessionMeta[] =>
     uniqBy(list.data?.pages.flatMap((page) => page.sessions) ?? [], (session) => session.id),
   )
+  const searching = () => list.isFetchingNextPage || (list.isFetching && (list.isPlaceholderData || list.isPending))
   const loadMore = () => {
     if (!list.hasNextPage || list.isFetchingNextPage || list.isFetchNextPageError) return undefined
     return list.fetchNextPage()
@@ -197,6 +203,8 @@ export function SessionSelector(props: {
     <Combobox.Root
       class={isPill() ? 'inline-flex min-w-0 max-w-full' : 'flex min-w-0 max-w-full'}
       collection={collection()}
+      loading={searching()}
+      translations={{loading: SEARCHING_LABEL}}
       value={valueArr()}
       scrollToIndexFn={(details) => scrollToItem(details.index)}
       onValueChange={(d) => {
@@ -269,6 +277,32 @@ export function SessionSelector(props: {
                 ref={(el) => (searchEl = el)}
                 onPointerDown={(event) => event.stopPropagation()}
               />
+              <Presence
+                present={searching()}
+                lazyMount
+                unmountOnExit
+                class="flex shrink-0 size-7 items-center justify-center"
+              >
+                <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
+                  <Loader.Indicator class="size-4 text-chat-text-3" />
+                </Loader.Root>
+              </Presence>
+              <Combobox.Context>
+                {(api) => (
+                  <Presence present={api().inputValue !== ''} lazyMount unmountOnExit class="flex shrink-0">
+                    <TooltipIconButton
+                      tooltip="Clear search"
+                      class={ACT}
+                      onClick={() => {
+                        api().setInputValue('')
+                        api().focus()
+                      }}
+                    >
+                      <X class="size-5 block" aria-hidden="true" />
+                    </TooltipIconButton>
+                  </Presence>
+                )}
+              </Combobox.Context>
               <TooltipIconButton
                 tooltip="Rename current session"
                 class={ACT}
