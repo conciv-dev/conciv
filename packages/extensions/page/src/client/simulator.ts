@@ -253,11 +253,27 @@ function ripple(agent: string): void {
   pressCursor({id: agent})
 }
 
-function isInView(element: Element): boolean {
+function centerOf(element: Element): Point {
+  const rect = element.getBoundingClientRect()
+  return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+}
+
+function hitAt(options: {element: Element; point: Point}): Element | null {
+  const {element, point} = options
+  const layer = sim.run?.layer
+  if (layer) layer.style.pointerEvents = 'none'
+  const hit = element.ownerDocument.elementFromPoint(point.x, point.y)
+  if (layer) layer.style.pointerEvents = ''
+  return hit
+}
+
+function isReachable(element: Element): boolean {
   const view = element.ownerDocument.defaultView
   if (!view) return true
-  const rect = element.getBoundingClientRect()
-  return rect.top >= 0 && rect.left >= 0 && rect.bottom <= view.innerHeight && rect.right <= view.innerWidth
+  const point = centerOf(element)
+  if (point.x < 0 || point.y < 0 || point.x > view.innerWidth || point.y > view.innerHeight) return false
+  const hit = hitAt({element, point})
+  return hit !== null && element.contains(hit)
 }
 
 function scrollEnded(doc: Document): Promise<void> {
@@ -273,7 +289,7 @@ function scrollEnded(doc: Document): Promise<void> {
 }
 
 async function scrollIntoViewIfNeeded(element: Element): Promise<void> {
-  if (isInView(element)) return
+  if (isReachable(element)) return
   if (reducedMotion()) return element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
   const ended = scrollEnded(element.ownerDocument)
   element.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'})
@@ -285,19 +301,15 @@ async function moveTo(options: {element: Element; agent: string}): Promise<Point
   await scrollIntoViewIfNeeded(element)
   const frame = element.ownerDocument.defaultView?.frameElement
   if (frame) await scrollIntoViewIfNeeded(frame)
-  const rect = element.getBoundingClientRect()
-  const point = {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2}
+  const point = centerOf(element)
   void aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})
   await wait(MOVE_MS)
   return point
 }
 
 function hitTarget(options: {element: Element; point: Point}): Element {
-  const {element, point} = options
-  const layer = sim.run?.layer
-  if (layer) layer.style.pointerEvents = 'none'
-  const hit = element.ownerDocument.elementFromPoint(point.x, point.y)
-  if (layer) layer.style.pointerEvents = ''
+  const {element} = options
+  const hit = hitAt(options)
   return hit && isHtml(hit) && element.contains(hit) ? hit : element
 }
 
