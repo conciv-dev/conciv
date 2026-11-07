@@ -190,3 +190,26 @@ The "declared" source was a mistake and is withdrawn. No rule sentence, prompt o
 - Every row carries the element's `source` (file, line, column) from the live tree, so the agent is told where to
   edit.
 - The sentences "desktop first at 1440" and "never at 1440" become "at the design width".
+
+### The mapping record is a selector (2026-11-07, same day)
+
+A conciv key names a JSX site, not a rendered element: a `.map` renders one site many times, and a component's inner
+elements carry one key for every use of the component. So the stored record is not `{node, key}` but
+`{node, selector}`, where the selector is built from keys the compiler minted and persisted in the source
+(`extension-compiler` `inject-source.ts`: `data-conciv-key` written into the file, `data-conciv-source` as
+`relpath:line:col`), in the form the DOM answers:
+
+```
+[data-conciv-key=card] [data-conciv-key=row]:nth-of-type(2) [data-conciv-key=name]
+```
+
+- Descendant combinators only, so an added wrapper does not break a record. `nth-of-type` carries the instance.
+- Resolution each round is `querySelectorAll` in the measurer, nothing else: one match is the element, zero is
+  "not rendered", more than one is "ambiguous" and the node is re-voted.
+- The vote proposes the selector once, from the pairer's element: its own key, the keys of its ancestors that have
+  one, and its index among same-key siblings at every level that has more than one. Stored after; a selector that
+  keeps matching one element is never re-voted.
+- Many nodes may hold the same selector. A row names the node, the selector, and `data-conciv-source` of the
+  matched element as `file:line:column`.
+- Because the compiler persists keys into the file and re-stamps on HMR, an edit never changes a key; the mapping
+  survives edits without a re-vote.
