@@ -621,7 +621,7 @@ describe('query utils', () => {
   describe('makeQueryUtils', () => {
     it('queryOptions fetch through the real wire', async () => {
       const {sessionId, utils, queryClient} = await bootQueryFixture()
-      const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
+      const {sessions} = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
       expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
       const models = await queryClient.fetchQuery(utils.meta.models.queryOptions({input: {sessionId}}))
       expect(models.harness.id).toBe('fake-client')
@@ -638,7 +638,7 @@ describe('query utils', () => {
       const {sessionId, rpc, utils, queryClient} = await bootQueryFixture()
       await rpc.sessions.rename({sessionId, title: 'refetch-renamed'})
       await queryClient.invalidateQueries()
-      const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
+      const {sessions} = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
       expect(sessions.map((meta: SessionMeta) => meta.title)).toContain('refetch-renamed')
     })
   })

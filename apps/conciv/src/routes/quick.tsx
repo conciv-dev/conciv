@@ -96,6 +96,12 @@ export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => vo
   )
 }
 
+function PaneUsage(props: {sessionId: string}): JSX.Element {
+  const appData = useAppData()
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
+  return <ContextTracker usage={session.data?.usage ?? null} />
+}
+
 function QuickLayer(): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
@@ -105,9 +111,6 @@ function QuickLayer(): JSX.Element {
   const search = Route.useSearch()
   const paneIds = () => quickPaneIds(search())
   const focusedIndex = () => Math.min(search().focus, Math.max(0, paneIds().length - 1))
-
-  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const usageOf = (id: string) => (sessions.data ?? []).find((session) => session.id === id)?.usage ?? null
 
   let rowEl: HTMLDivElement | undefined
 
@@ -281,7 +284,7 @@ function QuickLayer(): JSX.Element {
                           />
                         </Suspense>
                         <Suspense fallback={<UsagePending />}>
-                          <ContextTracker usage={usageOf(id)} />
+                          <PaneUsage sessionId={id} />
                         </Suspense>
                         <span class="flex-1" />
                         <RefreshButton class={PANE_ACTION} />
