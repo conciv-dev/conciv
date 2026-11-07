@@ -13,13 +13,21 @@ type HubOrigin = {client: string | null}
 
 type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
 
+type CallRun = {threadId: string; live: boolean}
+
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
   const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client}}
   return {
     hub,
-    start: (callId: string, toolName: string, input: unknown) => startChunks(callId, toolName, input, marker),
-    result: (callId: string, text: string, failed: boolean) => resultChunk(callId, text, failed, marker),
+    start: (run: CallRun, callId: string, toolName: string, input: unknown): ChatEvent[] => [
+      ...(run.live ? [] : [runStarted(run.threadId, callId)]),
+      ...startChunks(callId, toolName, input, marker),
+    ],
+    result: (run: CallRun, callId: string, text: string, failed: boolean): ChatEvent[] => [
+      resultChunk(callId, text, failed, marker),
+      ...(run.live ? [] : [runFinished(run.threadId, callId)]),
+    ],
   }
 }
 
@@ -30,6 +38,18 @@ function hubOrigin(header: (name: string) => string | null): HubOrigin | null {
   })
   if (parsed.origin === undefined) return null
   return {client: parsed.client ?? null}
+}
+
+function runStarted(threadId: string, callId: string): ChatEvent {
+  return {type: ChatEventType.RUN_STARTED, runId: mirrorRunId(callId), threadId}
+}
+
+function runFinished(threadId: string, callId: string): ChatEvent {
+  return {type: ChatEventType.RUN_FINISHED, runId: mirrorRunId(callId), threadId, finishReason: 'stop'}
+}
+
+function mirrorRunId(callId: string): string {
+  return `mirror-${callId}`
 }
 
 function startChunks(callId: string, toolName: string, input: unknown, marker: CallMarker): ChatEvent[] {

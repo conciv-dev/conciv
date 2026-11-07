@@ -2441,7 +2441,7 @@ describe('session options outside agents', () => {
 
   test('allow outside agents lifts a deny and leaves the menu', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
-    await coreControl.hubListTools(sessionId)
+    await coreControl.hubExecute(sessionId, 'return 1')
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(strip().getByText('Allow codex to use this tab'), {timeout: 8000}).toBeVisible()
     await page.getByRole('button', {name: 'Deny'}).click()
@@ -2449,8 +2449,22 @@ describe('session options outside agents', () => {
     await page.getByRole('button', {name: 'Session options'}).click()
     await allowRow().click()
     await expect.element(allowRow()).not.toBeInTheDocument()
-    await coreControl.hubListTools(sessionId)
+    await coreControl.hubExecute(sessionId, 'return 1')
     await expect.element(strip(), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+
+  test('an allowed outside call shows in the chat and the pane settles instead of staying busy', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.hubExecute(sessionId, 'return 1')
+    await strip()
+      .getByRole('button', {name: /Approve/})
+      .click()
+    await expect.element(strip()).not.toBeInTheDocument()
+    expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+    await expect.element(page.getByText('return 40 + 2'), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Responding…')).not.toBeInTheDocument()
   }, 30_000)
 })
 

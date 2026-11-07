@@ -215,19 +215,19 @@ type PublishChunks = (chunks: ChatEvent[]) => void
 
 type CallTrace = ReturnType<typeof callTrace>
 
-type CallPublisher = {publish: PublishChunks; trace: CallTrace}
+type CallPublisher = {publish: PublishChunks; trace: CallTrace; run: {threadId: string; live: boolean}}
 
 function replyText(reply: ExecuteReply): string {
   return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
 function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): void {
-  calls.publish([calls.trace.result(callId, replyText(reply), reply.isError === true)])
+  calls.publish(calls.trace.result(calls.run, callId, replyText(reply), reply.isError === true))
 }
 
 async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
   const executionId = randomUUID()
-  calls.publish(calls.trace.start(executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
+  calls.publish(calls.trace.start(calls.run, executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, executionId)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
@@ -242,7 +242,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
   const callId = randomUUID()
-  calls.publish(calls.trace.start(callId, tool.name, input))
+  calls.publish(calls.trace.start(calls.run, callId, tool.name, input))
   const reply: ExecuteReply = await tool.run(input, callId).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
@@ -291,6 +291,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   const calls: CallPublisher = {
     publish: (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk)),
     trace: caller.trace,
+    run: {threadId: scope.id, live: await scope.run.live()},
   }
   const discover = runner.discover
   const discoverTools =

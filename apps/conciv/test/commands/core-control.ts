@@ -196,12 +196,17 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
-const hubListTools: BrowserCommand<[string]> = async (ctx, sessionId): Promise<void> => {
+const hubExecute: BrowserCommand<[string, string]> = async (ctx, sessionId, typescriptCode): Promise<string> => {
   const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
   const {connectMcpClient} = await testkitOf(ctx)
   const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
-  await client.tools()
-  await client.close()
+  try {
+    const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+    if (execute === undefined) throw new Error('the engine served no execute_typescript tool')
+    return JSON.stringify(await execute.execute({typescriptCode}).catch((error: unknown) => String(error)))
+  } finally {
+    await client.close()
+  }
 }
 
 const setStaleness: BrowserCommand<[EngineStaleness]> = (ctx, value): void => {
@@ -467,7 +472,7 @@ export const coreCommands = {
   printedCode,
   requestCode,
   revokeBrowsers,
-  hubListTools,
+  hubExecute,
   setStaleness,
   holdTurn,
   holdTools,
