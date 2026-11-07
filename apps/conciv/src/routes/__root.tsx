@@ -115,14 +115,16 @@ function RootComponent() {
   })
   const rootNode = app.environment.rootNode
   if (rootNode instanceof ShadowRoot) {
-    mountSimulator({
-      root: rootNode,
-      session: activeSession,
-      onStop: (sessionId) => {
-        liveSessions.stop(sessionId)
-        endTask()
-      },
-    })
+    onCleanup(
+      mountSimulator({
+        root: rootNode,
+        session: activeSession,
+        onStop: (sessionId) => {
+          liveSessions.stop(sessionId)
+          endTask()
+        },
+      }),
+    )
   }
   const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
   const colorScheme = () => theme().scheme

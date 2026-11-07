@@ -606,6 +606,7 @@ describe('the agent acts on the page like a person', () => {
   function AgentPage() {
     const [name, setName] = createSignal('')
     const [count, setCount] = createSignal(0)
+    const [frozen, setFrozen] = createSignal(false)
     return (
       <div>
         <Menu.Root>
@@ -631,6 +632,18 @@ describe('the agent acts on the page like a person', () => {
         <button id="disabled" disabled>
           Disabled
         </button>
+        <label>
+          <input id="locked" type="checkbox" disabled />
+          Locked
+        </label>
+        <div
+          id="frozen"
+          role="checkbox"
+          aria-label="Frozen"
+          aria-checked={frozen()}
+          aria-disabled="true"
+          onClick={() => setFrozen((value) => !value)}
+        />
       </div>
     )
   }
@@ -647,7 +660,7 @@ describe('the agent acts on the page like a person', () => {
     host.setAttribute('data-conciv-root', '')
     document.body.append(host)
     onTestFinished(() => host.remove())
-    mountSimulator({
+    const unmountSimulator = mountSimulator({
       root: host.attachShadow({mode: 'open'}),
       session: () => AGENT,
       onStop: (sessionId) => {
@@ -685,5 +698,26 @@ describe('the agent acts on the page like a person', () => {
       ok: false,
       error: {code: 'invalid-args', message: 'That element is disabled.'},
     })
+    expect(await act('check', {selector: '#locked'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is disabled.'},
+    })
+    expect(await act('check', {selector: '#frozen'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is disabled.'},
+    })
+    await expect.element(page.getByRole('checkbox', {name: 'Frozen'})).not.toBeChecked()
+
+    unmountSimulator()
+    host.remove()
+    const remounted = document.createElement('div')
+    remounted.setAttribute('data-conciv-root', '')
+    document.body.append(remounted)
+    onTestFinished(() => remounted.remove())
+    onTestFinished(
+      mountSimulator({root: remounted.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}),
+    )
+    expect(await act('fill', {selector: '#name', value: 'Grace'})).toMatchObject({ok: true})
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeVisible()
   })
 })

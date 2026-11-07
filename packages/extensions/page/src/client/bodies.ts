@@ -137,7 +137,9 @@ function fieldValue(el: Element): string {
 }
 
 async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
-  return outcomeOf(await setChecked({element: ctx.target(input), checked, agent: ctx.agentId}))
+  const element = ctx.target(input)
+  if (isDisabled(element)) badArgs('That element is disabled.')
+  return outcomeOf(await setChecked({element, checked, agent: ctx.agentId}))
 }
 
 const INSERT_POS: Record<string, InsertPosition> = {

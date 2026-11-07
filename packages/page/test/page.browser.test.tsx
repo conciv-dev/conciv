@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it, beforeEach, vi, beforeAll, test, afterAll} from 'vitest'
+import {afterEach, describe, expect, it, beforeEach, vi, beforeAll, test, afterAll, onTestFinished} from 'vitest'
 import {captureElement} from '../src/react-grab/capture-element.js'
 import {z} from 'zod'
 import {collectClientTools, defineExtension, defineTool, toolError, type ClientEffect} from '@conciv/extension'
@@ -980,6 +980,18 @@ describe('page dispatcher', () => {
     meta: {summary: 'add a ref through the dispatcher', category: 'read'},
   }).client((input, ctx) => ({ref: ctx.addRef(ctx.target(input))}))
 
+  const widgetRefMaker = defineTool({
+    name: 'probe_mark_widget',
+    description: 'adds a ref for a control inside the widget shadow root',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ref: z.string()}),
+    meta: {summary: 'add a ref to a widget control', category: 'read'},
+  }).client((_input, ctx) => {
+    const control = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('button')
+    if (!control) throw new Error('widget control missing')
+    return {ref: ctx.addRef(control)}
+  })
+
   const raiser = defineTool({
     name: 'probe_raise',
     description: 'throws a typed tool error',
@@ -1009,7 +1021,7 @@ describe('page dispatcher', () => {
 
   const probes = defineExtension({
     name: 'probes',
-    tools: [readText, dispatchedClick, refMaker, raiser, misbehaved, undefinedLeaker],
+    tools: [readText, dispatchedClick, refMaker, widgetRefMaker, raiser, misbehaved, undefinedLeaker],
   }).client(() => ({value: {}}))
 
   let host: HTMLElement
@@ -1071,6 +1083,21 @@ describe('page dispatcher', () => {
       expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
         ok: true,
         result: {text: 'clicked'},
+      })
+    })
+
+    it('never resolves a ref to a control inside the widget shadow root', async () => {
+      const widget = document.createElement('div')
+      widget.setAttribute('data-conciv-root', '')
+      widget.attachShadow({mode: 'open'}).innerHTML = '<button>Send</button>'
+      document.body.append(widget)
+      onTestFinished(() => widget.remove())
+      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark_widget', input: {}})
+      if (!marked.ok) throw new Error('mark failed')
+      const ref = String(marked.result.ref)
+      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
+        ok: false,
+        error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
       })
     })
 

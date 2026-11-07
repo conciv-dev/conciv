@@ -21,7 +21,9 @@ export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
 const OURS = '[data-conciv-root]'
 
 function isOurs(el: Element): boolean {
-  return el.closest(OURS) !== null
+  if (el.closest(OURS) !== null) return true
+  const root = el.getRootNode()
+  return root instanceof ShadowRoot && isOurs(root.host)
 }
 
 function notOurs(el: Element | null | undefined): Element | null {

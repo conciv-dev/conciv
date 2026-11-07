@@ -147,10 +147,17 @@ export function mountSimulator(options: {
   root: ShadowRoot
   session: () => string | null
   onStop: (sessionId: string) => void
-}): void {
+}): () => void {
+  unmountSimulator()
+  Object.assign(sim, {root: options.root, session: options.session, onStop: options.onStop})
+  return unmountSimulator
+}
+
+function unmountSimulator(): void {
   clearTimeout(sim.timeout)
   disarm()
-  Object.assign(sim, {root: options.root, session: options.session, onStop: options.onStop, shown: false})
+  if (sim.run) unmountRun(sim.run)
+  Object.assign(sim, {root: null, run: null, shown: false, taskSession: null, session: () => null, onStop: ignore})
 }
 
 function mountRun(root: ShadowRoot): Run {
