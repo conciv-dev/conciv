@@ -214,17 +214,19 @@ elements carry one key for every use of the component. So the stored record is n
 - Because the compiler persists keys into the file and re-stamps on HMR, an edit never changes a key; the mapping
   survives edits without a re-vote.
 
-### Instances are named by the app's React key, not by position (2026-11-07, same day)
+### Instances are named by the app's list key, not by position (2026-11-07, same day)
 
-`:nth-of-type` goes. A site rendered many times gets its instance name from the React key chain the app passes
-(`key={customer.id}`), read from the fiber at measure time (the live tree's `instance`), and the widget stamps it on
-the element as `data-conciv-instance="<key>/<react key>"` for every ancestor level that repeats. The selector then
-reads:
+`:nth-of-type` goes. A site rendered many times gets its instance name from the list key the app passes
+(`key={customer.id}` in React or Preact, the vnode key in Vue, the item index in Solid's `<For>` unless the app
+exposes an id), read through the framework adapter the measurer already has (the one that fills `instance` and
+`owner`; `owner` is null when the framework is unknown). The widget stamps it on the element as
+`data-conciv-instance="<conciv key>/<list key>"` for every ancestor level that repeats. The selector then reads:
 
 ```
 [data-conciv-key=card] [data-conciv-instance="row/cust-2"] [data-conciv-key=name]
 ```
 
-A record survives reorder, insert and delete while the app keeps its key. When the app passes no key, or the
-index, the fiber key is the index and the record is positional, which is then the truth. The vote decides once
-which design instance is which app key; the record holds the key after.
+A record survives reorder, insert and delete while the app keeps its key. When the framework is unknown, or the
+app passes no key or the index, the instance is the index and the record is positional, which is then the truth.
+The vote decides once which design instance is which list key; the record holds the key after. Nothing in the
+record or the resolver is framework-specific; only the adapter that reads the key is.
