@@ -8,10 +8,12 @@ import {
   Show,
   Suspense,
   untrack,
+  type Accessor,
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {z} from 'zod'
+import {range} from 'es-toolkit'
 import {
   activeToolCall,
   AttachmentByMime,
@@ -60,6 +62,7 @@ import {makeToolViewCtx} from './tool-view-ctx.js'
 import {PendingApprovals} from './pending-approvals.js'
 import type {ComposerInputHandle} from './composer-input-adapter.js'
 import {PaneComposer} from './pane-composer.js'
+import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
 
@@ -153,12 +156,36 @@ function turnHarnessNames(chat: ChatSession, current: () => string | undefined):
     if (harnessId === undefined) return false
     return chat
       .messages()
-      .some((message, index) => message.role === 'assistant' && (chat.harnessAt(index) ?? harnessId) !== harnessId)
+      .some((message) => message.role === 'assistant' && (chat.harnessOf(message.id) ?? harnessId) !== harnessId)
   })
   return (turn) => {
     if (!mixed() || turn.role !== 'assistant') return undefined
-    const harnessId = chat.harnessAt(turn.start) ?? current()
+    const harnessId = chat.harnessOf(turn.key) ?? current()
     return harnessId === undefined ? undefined : harnesses.nameOf(harnessId)
+  }
+}
+
+type ThreadDividers = {
+  before: (turn: Turn) => MarkerRow[]
+  trailing: () => MarkerRow[]
+  stoppedBefore: (turn: Turn) => boolean
+}
+
+function threadDividers(chat: ChatSession, rows: () => MarkerRow[]): ThreadDividers {
+  const after = (message: ChatMessage | undefined): MarkerRow[] => {
+    const messageId = message?.id ?? null
+    return rows().filter((row) => row.afterMessageId === messageId)
+  }
+  const preceding = (turn: Turn): (ChatMessage | undefined)[] => {
+    const messages = chat.messages()
+    return range(turn.start, turn.end + 1).map((index) => messages[index - 1])
+  }
+  const loadedAfter = (message: ChatMessage | undefined): MarkerRow[] =>
+    message === undefined && chat.hasOlderMessages() ? [] : after(message)
+  return {
+    before: (turn) => preceding(turn).flatMap(loadedAfter),
+    trailing: () => loadedAfter(chat.messages().at(-1)),
+    stoppedBefore: (turn) => isStoppedTurn(preceding(turn)[0]),
   }
 }
 
@@ -305,21 +332,17 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
   const hasHistory = () => chat.messages().length > 0
   const composerPlaceholder = () => (hasHistory() ? 'Add an instruction…' : 'Ask a question…')
 
-  const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
-  const dividersInRange = (start: number, end: number): MarkerRow[] =>
-    (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
-
+  const dividers = threadDividers(chat, () => markers.data ?? [])
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
-  const stoppedBefore = (index: number): boolean => isStoppedTurn(chat.messages()[index - 1])
-  const lastTurnStopped = () => !narrating() && (chat.stopped() || stoppedBefore(chat.messages().length))
+  const lastTurnStopped = () => !narrating() && (chat.stopped() || isStoppedTurn(chat.messages().at(-1)))
   const turnHarnessName = turnHarnessNames(chat, () => harness()?.id)
-  const renderTurnPrefix = (turn: Turn): JSX.Element => (
+  const renderTurnPrefix = (turn: Accessor<Turn>): JSX.Element => (
     <>
-      <Show when={stoppedBefore(turn.start)}>
+      <Show when={dividers.stoppedBefore(turn())}>
         <Divider kind="stopped" />
       </Show>
-      <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
-      <Show when={turnHarnessName(turn)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
+      <For each={dividers.before(turn())}>{renderDivider}</For>
+      <Show when={turnHarnessName(turn())}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
     </>
   )
 
@@ -353,6 +376,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                   <Thread.Viewport>
                     <Suspense fallback={<ConversationSkeleton />}>
                       <Show when={hydrated()} fallback={<ConversationSkeleton />}>
+                        <OlderMessages sessionId={sessionId} chat={chat} />
                         <Thread.Welcome>
                           <EmptyStateSlot
                             onStarter={(starter) => void chat.sendMessage(starter)}
@@ -369,7 +393,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                         <Show when={lastTurnStopped()}>
                           <Divider kind="stopped" />
                         </Show>
-                        <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                        <For each={dividers.trailing()}>{renderDivider}</For>
                         <Show when={compacting()}>
                           <Divider kind="compact" pending />
                         </Show>

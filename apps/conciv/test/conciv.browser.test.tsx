@@ -1,5 +1,5 @@
 import '../src/styles.css'
-import {expect, test, vi, it, afterEach, describe} from 'vitest'
+import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -1078,6 +1078,222 @@ describe('grab staging', () => {
     await expect.element(removeGrab()).not.toBeInTheDocument()
     expect(api.staged()).toHaveLength(0)
   })
+})
+
+describe('chat history paging', () => {
+  const HYDRATE_PATH = ['chat', 'hydrate']
+  const SEEDED_EXCHANGES = 100
+  const core = bootedCore('history-paging', {
+    displayName: 'Alpha',
+    alternates: [{id: 'beta', displayName: 'Beta', text: 'Hello from beta'}],
+  })
+  const keep = keptPane()
+  const faults = trackedFaults()
+  const long: {sessionId: string} = {sessionId: ''}
+
+  afterEach(() => coreControl.releaseTurn())
+
+  const exchange = (index: number) => page.getByText(`seeded exchange ${index}`, {exact: true})
+  const thread = () => page.getByRole('log').filter({hasText: 'seeded exchange'})
+  const loadingOlder = () => page.getByRole('status', {name: 'Loading earlier messages'})
+  const newSessionLine = () => page.getByRole('separator', {name: 'New session'})
+  const input = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const hydrates = (): Promise<number> => coreControl.rpcCallCount(HYDRATE_PATH)
+  const between = (from: string, marker: string, to: string): RegExp =>
+    new RegExp(`${from}(?:(?!seeded exchange).)*${marker}(?:(?!seeded exchange).)*${to}`)
+  const scrollToTop = () => userEvent.wheel(thread(), {delta: {y: -1_000_000}})
+  const scrollToEnd = () => userEvent.wheel(thread(), {delta: {y: 1_000_000}})
+
+  async function stoppedExchange(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
+    await coreControl.holdTurn()
+    const turn = await sendTurn(core(), sessionId, text)
+    const active = (await rpc.chat.hydrate({sessionId})).activeRun
+    await rpc.chat.stop({sessionId, runIds: active === null ? [] : [active.runId]})
+    await turn.awaitTurnEnd()
+    await coreControl.releaseTurn()
+  }
+
+  async function seedLongChat(): Promise<string> {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (let index = 0; index < SEEDED_EXCHANGES; index += 1) {
+      if (index === 97) await rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
+      if (index === 95) await stoppedExchange(rpc, sessionId, `seeded exchange ${index}`)
+      if (index !== 95) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+      if (index === 93) await rpc.sessions.compact({sessionId})
+    }
+    return sessionId
+  }
+
+  beforeAll(async () => {
+    long.sessionId = await seedLongChat()
+  }, 120_000)
+
+  function mountPagedChat(sessionId: string): void {
+    keep(
+      mountPane({base: core(), sessionId, width: 460}, () => (
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
+          <ChatPane sessionId={sessionId} />
+        </div>
+      )),
+    )
+  }
+
+  async function openChat(sessionId: string): Promise<number> {
+    mountPagedChat(sessionId)
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
+    return await hydrates()
+  }
+
+  const threadShowing = (from: string, marker: string, to: string) =>
+    thread().filter({hasText: between(from, marker, to)})
+
+  async function expectMarkersInPlace(): Promise<void> {
+    await expect.element(threadShowing('seeded exchange 93', 'Context compacted', 'seeded exchange 94')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 95', 'Stopped', 'seeded exchange 96')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 96', 'Alpha', 'Hello from conciv')).toBeVisible()
+    await expect.element(threadShowing('seeded exchange 98', 'Beta', 'Hello from beta')).toBeVisible()
+  }
+
+  test('opening a long chat loads only the newest page, and the page before it lands without moving the message in view', async () => {
+    const opened = await openChat(long.sessionId)
+    await expectMarkersInPlace()
+    await expect.element(newSessionLine()).not.toBeInTheDocument()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await scrollToTop()
+
+    await expect.element(loadingOlder()).toBeVisible()
+    await expect.element(exchange(76)).toBeInViewport()
+    await expect.element(exchange(74)).not.toBeInTheDocument()
+    await faults.releaseAll()
+
+    await expect.element(exchange(75)).toBeInTheDocument()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expect.element(exchange(76)).toBeInViewport()
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
+  test('scrolling up page after page reaches the first message, then stops asking, and every marker stays on its message', async () => {
+    const opened = await openChat(long.sessionId)
+    for (const boundary of [74, 49, 24, 0]) {
+      await scrollToTop()
+      await expect.element(exchange(boundary)).toBeInTheDocument()
+    }
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened + 4)
+
+    await scrollToEnd()
+
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
+    await expectMarkersInPlace()
+  })
+
+  test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {
+    const sessionId = await seedExchanges()
+    await openChat(sessionId)
+    await scrollToTop()
+    await expect.element(exchange(74)).toBeInTheDocument()
+
+    const elsewhere = await sendTurn(core(), sessionId, 'run from elsewhere')
+    await elsewhere.awaitTurnEnd()
+
+    await scrollToEnd()
+    await expect.element(page.getByText('run from elsewhere', {exact: true})).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(50)).toBeInViewport()
+  })
+
+  test('sending in a paged chat works and the server keeps the whole history', async () => {
+    const sessionId = await seedExchanges()
+    await openChat(sessionId)
+
+    await userEvent.click(input())
+    await userEvent.keyboard('sent from a paged chat{Enter}')
+
+    await expect.element(page.getByText('sent from a paged chat', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    const stored = (await coreRpc(core()).chat.hydrate({sessionId})).messages
+    expect(stored).toHaveLength(SEEDED_EXCHANGES * 2 + 2)
+    expect(JSON.stringify(stored[0])).toContain('seeded exchange 0')
+  })
+
+  test('a short chat loads whole, starts with its New session line and never asks for more', async () => {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (const index of [0, 1]) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    mountPagedChat(sessionId)
+    await expect.element(exchange(1)).toBeVisible()
+    const opened = await hydrates()
+
+    await scrollToTop()
+
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(exchange(0)).toBeVisible()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    expect(await hydrates()).toBe(opened)
+  })
+
+  test('a long chat whose newest page fits the viewport loads older pages without any scroll', async () => {
+    keep(
+      mountPane({base: core(), sessionId: long.sessionId, width: 460}, () => (
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '9000px'}}>
+          <ChatPane sessionId={long.sessionId} />
+        </div>
+      )),
+    )
+
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInTheDocument()
+    await expect.element(exchange(74)).toBeInTheDocument()
+  })
+
+  test('a reply sent in the pane and then compacted keeps the compact line under it without reopening', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    mountPagedChat(sessionId)
+
+    await userEvent.click(input())
+    await userEvent.keyboard('compact after this reply{Enter}')
+    await expect.element(page.getByText('Hello from conciv')).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    await userEvent.click(page.getByRole('button', {name: 'More composer actions'}))
+    await userEvent.click(page.getByRole('menuitem', {name: 'Compress the conversation'}))
+
+    const compactedUnderReply = page
+      .getByRole('log')
+      .filter({hasText: /compact after this reply.*Hello from conciv.*Context compacted/})
+    await expect.element(compactedUnderReply).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(page.getByRole('status', {name: 'Compacting context…'})).not.toBeInTheDocument()
+    await expect.element(compactedUnderReply).toBeVisible()
+  })
+
+  test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
+    const sessionId = await seedExchanges(30)
+    mountPagedChat(sessionId)
+    await expect.element(exchange(29)).toBeVisible()
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    for (let index = 30; index < 56; index += 1) await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    await faults.releaseAll()
+
+    await expect.element(exchange(55)).toBeVisible()
+    await scrollToTop()
+    await expect.element(exchange(5)).toBeInTheDocument()
+    await scrollToTop()
+    await expect.element(newSessionLine()).toBeVisible()
+    await expect.element(exchange(0)).toBeVisible()
+  }, 120_000)
+
+  async function seedExchanges(count = SEEDED_EXCHANGES): Promise<string> {
+    const rpc = coreRpc(core())
+    const sessionId = await createSession(rpc)
+    for (let index = 0; index < count; index += 1) {
+      await runTurn(core(), sessionId, `seeded exchange ${index}`)
+    }
+    return sessionId
+  }
 })
 
 describe('harness switching', () => {

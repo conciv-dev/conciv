@@ -46,6 +46,7 @@ function Root(props: DivProps): JSX.Element {
     <ViewportProvider
       value={{
         isAtBottom: () => scroller()?.atEnd() ?? true,
+        isNearTop: () => scroller()?.nearStart() ?? false,
         scrollToBottom: landOnEnd,
         sendFromUser: (deliver) => {
           landOnEnd()
@@ -184,7 +185,11 @@ function VirtualMessages(props: {
     overscan: () => (turns().length < VIRTUALIZE_THRESHOLD ? turns().length : EVICTING_OVERSCAN),
   })
   onMount(() => {
-    props.viewport.setScroller({atEnd: virtualizer.atEnd, landOnEnd: virtualizer.landOnEnd})
+    props.viewport.setScroller({
+      atEnd: virtualizer.atEnd,
+      nearStart: virtualizer.nearStart,
+      landOnEnd: virtualizer.landOnEnd,
+    })
     onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
     onCleanup(() => {
