@@ -145,7 +145,9 @@ describe('rows', () => {
     })
 
     it('rejects an unknown marker kind', () => {
-      expect(() => MarkerRowSchema.parse({id: 'm1', sessionId: 'conciv_1', afterTurn: 2, kind: 'weird'})).toThrow()
+      expect(() =>
+        MarkerRowSchema.parse({id: 'm1', sessionId: 'conciv_1', afterMessageId: 'msg-1', kind: 'weird'}),
+      ).toThrow()
     })
 
     it('drafts are explicit about selection and default their attachments', () => {

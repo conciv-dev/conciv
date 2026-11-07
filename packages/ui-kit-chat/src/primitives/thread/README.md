@@ -18,7 +18,7 @@ Headless `Thread` compound: viewport with virtualized turns, messages, scroll-to
 
 ## Side Effects
 
-- `thread.tsx` schedules `requestAnimationFrame` refreshes, waits on `document.fonts.ready`, and observes viewport width with `createResizeObserver`; scrolling is driven by `createThreadVirtualizer` (behaviors).
+- `thread.tsx` schedules `requestAnimationFrame` refreshes, waits on `document.fonts.ready`, observes viewport width with `createResizeObserver`, and re-measures the scroll margin whenever the viewport's own children change (a `MutationObserver`, `childList` only), so the rows' offset follows content above them such as the empty-state welcome leaving; scrolling is driven by `createThreadVirtualizer` (behaviors).
 
 ## Verification
 

@@ -44,6 +44,15 @@ const ChatPendingApprovalSchema = z.object({
   runId: z.string().nullable(),
 })
 export type ChatPendingApproval = z.infer<typeof ChatPendingApprovalSchema>
+const ChatHistoryWindowSchema = z.object({
+  limit: z.number().int().positive().optional(),
+  before: z.string().min(1).optional(),
+})
+export type ChatHistoryWindow = z.infer<typeof ChatHistoryWindowSchema>
+const ChatHistoryPageSchema = z.discriminatedUnion('truncated', [
+  z.object({truncated: z.literal(false)}),
+  z.object({truncated: z.literal(true), cursor: z.string()}),
+])
 export const ChatHydrationSchema = z.object({
   messages: ChatHistorySchema,
   messageHarness: z.record(z.string(), z.string()),
@@ -51,6 +60,7 @@ export const ChatHydrationSchema = z.object({
   lastRun: RunLifecycleSchema.nullable(),
   pendingApprovals: z.array(ChatPendingApprovalSchema),
   interrupts: z.object({runId: z.string(), pending: z.array(ChatPendingInterruptSchema)}).nullable(),
+  page: ChatHistoryPageSchema.optional(),
 })
 export type ChatHydration = z.infer<typeof ChatHydrationSchema>
 const Ok = z.object({ok: z.literal(true)})
@@ -180,7 +190,7 @@ export const contract = {
   },
   chat: {
     events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    hydrate: oc.input(SessionIdInput).output(ChatHydrationSchema),
+    hydrate: oc.input(SessionIdInput.extend(ChatHistoryWindowSchema.shape)).output(ChatHydrationSchema),
     stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
     permissionDecision: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})

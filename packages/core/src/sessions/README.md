@@ -26,7 +26,7 @@ Session persistence and plumbing: an in-memory per-session pub/sub bus for chat 
 
 ## Side Effects
 
-- `session-rows.ts`: SQLite reads and writes on `sessions`; reads `chatThreads` message counts
+- `session-rows.ts`: SQLite reads and writes on `sessions`; reads `chatMessages` row counts per thread
 - `listSessionMetas` (`session-rows.ts`): inserts or undeletes rows while listing; `logError` for invalid rows
 - `listCommands` (`commands.ts`): calls the harness adapter's `commands`
 
