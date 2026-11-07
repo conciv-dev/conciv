@@ -54,6 +54,7 @@ const design = defineExtension({
     comparator: config.comparator,
   }
   const differ = createDiffer({
+    hide: config.hide,
     runtime,
     runner: createRunner(runtime),
     page: server.page,

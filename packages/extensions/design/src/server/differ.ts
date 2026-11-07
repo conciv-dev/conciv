@@ -1,5 +1,6 @@
 import {isAbsolute, relative} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
+import {omit} from 'es-toolkit'
 import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -14,8 +15,11 @@ export function createDiffer(input: {
   runner: Runner
   page: DesignPage
   bundler: BundlerBridge | undefined
+  hide: readonly string[]
 }): Differ {
   const {runtime, runner, page} = input
+  const shown = <Reply extends {progress?: unknown}>(reply: Reply) =>
+    input.hide.includes('progress') ? omit(reply, ['progress']) : reply
   const {store} = runtime
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
@@ -37,12 +41,12 @@ export function createDiffer(input: {
         design: await store.design(record.id),
         rounds: await store.rounds(record.id),
       })
-      const checked = {...measured, verdict, reasons}
+      const checked = shown({...measured, verdict, reasons})
       return nodes === undefined ? checked : only({checked, nodes})
     },
     status: async ({session}) => {
       const record = await currentTarget({runtime, session})
-      return verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
+      return shown(verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}))
     },
     dispose: edits.dispose,
   }

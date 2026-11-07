@@ -13,6 +13,10 @@ export const designConfig = Object.assign(
     segmenter: z.enum(['threshold']).default('threshold'),
     roles: z.enum(['rules']).default('rules'),
     blind: z.boolean().default(false),
+    hide: z
+      .array(z.enum(['progress']))
+      .default([])
+      .describe('trial only: reply fields computed and stored but not sent'),
   }),
   {
     tolerances: {

@@ -39,7 +39,12 @@ type Options = {
   agent: boolean
   blind: boolean
   noDesign: boolean
+  hide: Hidden
 }
+
+type Hidden = z.output<typeof HIDDEN>
+
+const HIDDEN = z.array(z.enum(['progress']))
 
 type Trial = {rpc: RpcClient; page: Page; id: string; session: SessionId}
 
@@ -79,10 +84,17 @@ async function main(): Promise<void> {
       agent: {type: 'boolean', default: false},
       blind: {type: 'boolean', default: false},
       'no-design': {type: 'boolean', default: false},
+      hide: {type: 'string', multiple: true, default: []},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
-  const options = {...values, noDesign: values['no-design'], width: Number(values.width), port: Number(values.port)}
+  const options = {
+    ...values,
+    noDesign: values['no-design'],
+    hide: HIDDEN.parse(values.hide),
+    width: Number(values.width),
+    port: Number(values.port),
+  }
   return serve({options, commands: positionals})
 }
 
@@ -149,6 +161,7 @@ async function hostServer(input: {
   agent: boolean
   blind: boolean
   noDesign: boolean
+  hide: Hidden
   printed: string[]
 }): Promise<ViteDevServer> {
   const server = await createServer({
@@ -167,7 +180,7 @@ async function hostServer(input: {
         stateRoot: input.stateRoot,
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
-        extensions: {design: {blind: input.blind}},
+        extensions: {design: {blind: input.blind, hide: input.hide}},
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
           `${DESIGN_TOOL_PREFIX}query`,

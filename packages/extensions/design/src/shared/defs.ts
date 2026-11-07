@@ -361,6 +361,7 @@ const MeasuredSchema = RoundSchema.pick({
   progress: true,
 }).extend({
   unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
+  progress: ProgressSchema.nullable().optional(),
   ...UnsettledSchema.partial().shape,
 })
 
