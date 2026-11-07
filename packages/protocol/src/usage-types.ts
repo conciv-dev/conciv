@@ -42,7 +42,7 @@ export function tokenUsageToSnapshot(usage: TokenUsage): UsageSnapshot {
     cacheReadTokens: usage.promptTokensDetails?.cachedTokens,
     cacheWriteTokens: usage.promptTokensDetails?.cacheWriteTokens,
     reasoningTokens: usage.completionTokensDetails?.reasoningTokens,
-    totalCostUsd: provider.totalCostUsd,
+    totalCostUsd: usage.cost ?? provider.totalCostUsd,
     numTurns: provider.numTurns,
   }
 }

@@ -125,9 +125,7 @@ function CostFooter(props: {totalCostUsd?: number; numTurns?: number}): JSX.Elem
 }
 
 function billingTokens(usage: UsageSnapshot): number {
-  return (
-    (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
-  )
+  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
 }
 
 function deriveContext(usage: UsageSnapshot | null) {

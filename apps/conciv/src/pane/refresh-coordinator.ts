@@ -2,6 +2,7 @@ import {createSignal, type Accessor} from 'solid-js'
 import type {QueryClient, QueryKey} from '@tanstack/solid-query'
 import type {ChatSession} from '@conciv/client'
 import type {AppData} from '../data/app-data.js'
+import type {LiveSessions} from '../app/live-sessions.js'
 
 export type RefreshCoordinator = {
   refresh: () => void
@@ -10,6 +11,7 @@ export type RefreshCoordinator = {
 
 export type RefreshCoordinatorDeps = {
   chat: Accessor<ChatSession>
+  liveSessions: LiveSessions
   sessionId: Accessor<string>
   appData: AppData
   queryClient: QueryClient
@@ -46,7 +48,9 @@ export function makeRefreshCoordinator(deps: RefreshCoordinatorDeps): RefreshCoo
   return {
     refresh: () => {
       if (phase() === 'running') return
-      void run()
+      if (!deps.chat().loadFailed()) return void run()
+      deps.announce('Refreshing the conversation…')
+      deps.liveSessions.reopen(deps.sessionId())
     },
     isRefreshing: () => phase() === 'running',
   }

@@ -1,4 +1,4 @@
-import {createMemo, createRoot, onCleanup, untrack, type Accessor} from 'solid-js'
+import {createMemo, createRoot, on, onCleanup, untrack, type Accessor} from 'solid-js'
 import {difference, partition, uniq} from 'es-toolkit'
 import type {QueryClient} from '@tanstack/solid-query'
 import {createStore} from 'solid-js/store'
@@ -13,6 +13,7 @@ export type PaneActivity = 'unmounted' | 'idle' | 'running'
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
+  reopen: (sessionId: string) => void
 }
 
 export type LiveSessionsDeps = {
@@ -38,9 +39,14 @@ function clientWorking(chat: ChatSession): boolean {
 }
 
 export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
-  const [state, setState] = createStore<{openers: Accessor<string>[]; runs: Record<string, RunWatch>}>({
+  const [state, setState] = createStore<{
+    openers: Accessor<string>[]
+    runs: Record<string, RunWatch>
+    retired: Record<string, ChatSession>
+  }>({
     openers: [],
     runs: {},
+    retired: {},
   })
   const opened = createMemo(() => state.openers.map((sessionId) => sessionId()))
   const watched = createMemo(() =>
@@ -73,37 +79,50 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   }
 
   const liveChat = (sessionId: string, dispose: () => void): LiveChat => {
-    const chat = createMemo((): ChatSession => {
-      deps.generation()
-      const apiBase = deps.apiBase()
-      const session = useChatSession({
-        rpc: deps.rpc,
-        apiBase,
-        sessionId,
-        connection: {
-          transport: deps.transport(),
-          onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
-          onLifecycle: (lifecycle) =>
-            isRunPhaseTerminal(lifecycle.phase)
-              ? finish(
-                  sessionId,
-                  lifecycle,
-                  untrack(() => clientWorking(session)),
-                )
-              : start(sessionId, lifecycle),
-        },
-      })
-      const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
-        if (status === 'trusted' && engineLocked(previous))
-          session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
-      })
-      onCleanup(() => {
-        stopTrust()
-        if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
-      })
-      return session
-    })
+    const chat = createMemo(
+      on(
+        [deps.generation, deps.apiBase, deps.transport, () => state.retired[sessionId]],
+        ([, apiBase, transport, retired]) => openChat(sessionId, apiBase, transport, retired !== undefined),
+      ),
+    )
     return {sessionId, chat, dispose}
+  }
+
+  const openChat = (
+    sessionId: string,
+    apiBase: string,
+    transport: ChatTransportPreference | undefined,
+    reopened: boolean,
+  ): ChatSession => {
+    const session = useChatSession({
+      rpc: deps.rpc,
+      apiBase,
+      sessionId,
+      onError: () => {
+        if (reopened && session.loadFailed()) deps.announce('conciv could not load this conversation. Try again.')
+      },
+      connection: {
+        transport,
+        onHydrated: (hydration) => hydrated(sessionId, hydration.lastRun),
+        onLifecycle: (lifecycle) =>
+          isRunPhaseTerminal(lifecycle.phase)
+            ? finish(
+                sessionId,
+                lifecycle,
+                untrack(() => clientWorking(session)),
+              )
+            : start(sessionId, lifecycle),
+      },
+    })
+    const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+      if (status === 'trusted' && engineLocked(previous))
+        session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
+    })
+    onCleanup(() => {
+      stopTrust()
+      if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
+    })
+    return session
   }
 
   const chats = createMemo<LiveChat[]>((previous) => {
@@ -135,6 +154,10 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
         if (!entry) throw new Error(`no live chat for session ${sessionId()}`)
         return entry.chat()
       }
+    },
+    reopen(sessionId) {
+      const entry = chatOf(sessionId)
+      if (entry) setState('retired', {[sessionId]: entry.chat()})
     },
   }
 }
