@@ -67,6 +67,7 @@ const pickerDef = toolDefinition({
 const pickerRenderer = defineTool(pickerDef).render({render: () => null, hasEmbeddedBody: () => true})
 
 const demo = defineExtension({
+  hosts: ['web', 'ios'],
   name: 'demo',
   configSchema: cfgSchema,
   tools: [doubler, trebler, locator, guard, pickerRenderer],
@@ -154,10 +155,10 @@ const trailingForbidden = defineTool({
   meta: {summary: 'a tool whose name ends with a hostile path segment'},
 }).client(() => ({ok: true}))
 
-const prefixed = defineExtension({name: 'prefixed', tools: [page, pageFill]})
-const twin = defineExtension({name: 'twin', tools: [doublerTwin]})
-const hollow = defineExtension({name: 'hollow', tools: [emptySegment]})
-const hostile = defineExtension({name: 'hostile', tools: [trailingForbidden]})
+const prefixed = defineExtension({hosts: ['web', 'ios'], name: 'prefixed', tools: [page, pageFill]})
+const twin = defineExtension({hosts: ['web', 'ios'], name: 'twin', tools: [doublerTwin]})
+const hollow = defineExtension({hosts: ['web', 'ios'], name: 'hollow', tools: [emptySegment]})
+const hostile = defineExtension({hosts: ['web', 'ios'], name: 'hostile', tools: [trailingForbidden]})
 
 type PrefixedRegistry = RegisterExtension<typeof prefixed>
 type TwinRegistry = RegisterExtension<typeof demo> & RegisterExtension<typeof twin>
@@ -304,28 +305,29 @@ test('the declared failure union still admits a plain thrown Error', () => {
 })
 
 test('register only accepts the context its tool declared', () => {
-  registry.register(scaler, {owner: 'a test registrant', context: {factor: 2}})
+  registry.register(scaler, {hosts: ['web', 'ios'], owner: 'a test registrant', context: {factor: 2}})
   // @ts-expect-error the tool's handler declares ctx: {factor: number}
-  registry.register(scaler, {owner: 'a test registrant', context: {}})
+  registry.register(scaler, {hosts: ['web', 'ios'], owner: 'a test registrant', context: {}})
 })
 
 test('a tool whose handler declares a context cannot be registered without one', () => {
   // @ts-expect-error the tool's handler declares ctx: {factor: number}, so a context is required
-  registry.register(scaler, {owner: 'a test registrant'})
+  registry.register(scaler, {hosts: ['web', 'ios'], owner: 'a test registrant'})
 })
 
 test('every registration names its registrant', () => {
   // @ts-expect-error a registration must name its owner so a collision can name both
-  registry.register(doubler, {})
+  registry.register(doubler, {hosts: ['web', 'ios']})
 })
 
 test('a context-free tool still registers with just an owner', () => {
-  registry.register(doubler, {owner: 'a test registrant'})
+  registry.register(doubler, {hosts: ['web', 'ios'], owner: 'a test registrant'})
 })
 
 test('a heterogeneous registration loop still type-checks', () => {
   const tools: AnyToolBuilder[] = [scaler, doubler]
-  for (const tool of tools) registry.register(tool, {owner: 'a test registrant', context: {factor: 2}})
+  for (const tool of tools)
+    registry.register(tool, {hosts: ['web', 'ios'], owner: 'a test registrant', context: {factor: 2}})
 })
 
 test('extension context must satisfy the intersection of its tools Ctx', () => {
@@ -333,6 +335,6 @@ test('extension context must satisfy the intersection of its tools Ctx', () => {
     (_input, ctx: {factor: number}) => ctx.factor,
   )
   // @ts-expect-error the returned context is missing `factor`, which the tool's Ctx requires
-  defineExtension({name: 'k', tools: [tool]}).server(() => ({context: {}}))
-  defineExtension({name: 'k', tools: [tool]}).server(() => ({context: {factor: 1}}))
+  defineExtension({hosts: ['web', 'ios'], name: 'k', tools: [tool]}).server(() => ({context: {}}))
+  defineExtension({hosts: ['web', 'ios'], name: 'k', tools: [tool]}).server(() => ({context: {factor: 1}}))
 })

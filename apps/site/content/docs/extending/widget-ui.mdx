@@ -21,7 +21,7 @@ import {Show} from 'solid-js'
 import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
-const deploy = defineExtension({name: 'deploy', tools: [deployRun]})
+const deploy = defineExtension({name: 'deploy', hosts: ['web', 'ios'], tools: [deployRun]})
 
 function DeployButton() {
   const slot = deploy.useSlot()
@@ -121,7 +121,7 @@ Extension-specific client state lives in a `.client(...)` factory. Its return va
 what `useContext()` returns, fully typed:
 
 ```tsx
-const deploy = defineExtension({name: 'deploy', tools: [deployRun]}).client(() => {
+const deploy = defineExtension({name: 'deploy', hosts: ['web', 'ios'], tools: [deployRun]}).client(() => {
   const [lastUrl, setLastUrl] = createSignal<string | null>(null)
   return {value: {lastUrl, setLastUrl}}
 })

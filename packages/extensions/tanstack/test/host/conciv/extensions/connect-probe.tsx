@@ -19,6 +19,7 @@ function ConnectPane(): JSX.Element {
 }
 
 const connectProbe = defineExtension({
+  hosts: ['web', 'ios'],
   name: CONNECT_PROBE_NAME,
   connectGate: {preflight: async () => null},
   Component: () => (

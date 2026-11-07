@@ -30,7 +30,7 @@ test('catalog metadata requires a summary', () => {
 })
 
 test('oRPC pin: a declared error narrows through isDefinedError at the call site', async () => {
-  const base = os.$meta<RegistryToolMeta>({name: '', binding: 'server', summary: ''})
+  const base = os.$meta<RegistryToolMeta>({name: '', binding: 'server', hosts: [], summary: ''})
   const locate = base
     .errors({ELEMENT_NOT_FOUND: {message: 'no element matched the target', data: z.object({target: z.string()})}})
     .input(z.object({target: z.string()}))

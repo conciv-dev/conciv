@@ -95,6 +95,7 @@ const logsTool = defineTool({
 }).server((input, ctx: IosToolContext) => runLogs(ctx, input))
 
 export default defineExtension({
+  hosts: ['ios'],
   name: IOS_NAME,
   configSchema: IosConfigSchema,
   tools: [buildTool, runTool, screenshotTool, logsTool],

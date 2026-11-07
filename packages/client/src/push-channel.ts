@@ -6,6 +6,7 @@ import {
   PushFrameSchema,
   type PageServingFrame,
   type PushFrame,
+  type WidgetHost,
 } from '@conciv/protocol/push-types'
 import {engineWebSocket} from '@conciv/contract'
 import {relayedValues} from './stream-relay.js'
@@ -13,7 +14,7 @@ import {relayedValues} from './stream-relay.js'
 export type PageQueryFrame = {requestId: string; query: unknown}
 
 export type PushChannel = {
-  queries: (abortSignal?: AbortSignal) => AsyncGenerator<PageQueryFrame>
+  queries: (host: WidgetHost, abortSignal?: AbortSignal) => AsyncGenerator<PageQueryFrame>
   events: (abortSignal?: AbortSignal) => AsyncGenerator<ChatEvent>
   dispose: () => void
 }
@@ -67,17 +68,17 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
       sinks.delete(sink)
     }
   }
-  const pageServers = new Set<(frame: PushFrame) => void>()
+  const pageServers = new Map<(frame: PushFrame) => void, WidgetHost>()
   const announceServing = (): void => {
     if (socket.readyState !== socket.OPEN) return
-    const frame: PageServingFrame = {channel: 'page-serving', serving: pageServers.size > 0}
+    const frame: PageServingFrame = {channel: 'page-serving', host: [...pageServers.values()].at(-1) ?? null}
     socket.send(JSON.stringify(frame))
   }
   socket.addEventListener('open', () => {
     if (pageServers.size > 0) announceServing()
   })
-  const servePage = (sink: (frame: PushFrame) => void): (() => void) => {
-    pageServers.add(sink)
+  const servePage = (sink: (frame: PushFrame) => void, host: WidgetHost): (() => void) => {
+    pageServers.set(sink, host)
     const unsubscribe = subscribe(sink)
     announceServing()
     return () => {
@@ -87,12 +88,12 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
     }
   }
   return {
-    queries: (abortSignal) =>
+    queries: (host, abortSignal) =>
       relayedValues<PageQueryFrame>(
         (emit) =>
           servePage((frame) => {
             if (frame.channel === 'page') emit({requestId: frame.requestId, query: frame.query})
-          }),
+          }, host),
         abortSignal,
       ),
     events: (abortSignal) =>
@@ -129,7 +130,7 @@ export function acquirePushChannel(options: PushChannelOptions): PushChannel {
   entry.refs += 1
   shared.set(key, entry)
   return {
-    queries: (abortSignal) => entry.channel.queries(abortSignal),
+    queries: (host, abortSignal) => entry.channel.queries(host, abortSignal),
     events: (abortSignal) => entry.channel.events(abortSignal),
     dispose: () => releasePushChannel(key),
   }

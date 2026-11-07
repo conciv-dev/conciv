@@ -170,10 +170,7 @@ function IosBridgeSurface(): JSX.Element {
   )
 }
 
-export const ios = defineExtension({
-  name: IOS_NAME,
-  Surface: IosBridgeSurface,
-}).client(() => {
+export const ios = defineExtension({hosts: ['ios'], name: IOS_NAME, Surface: IosBridgeSurface}).client(() => {
   ensureBridge()
   return {value: {}}
 })

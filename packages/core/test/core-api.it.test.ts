@@ -338,11 +338,13 @@ describe('api extension lifecycle', () => {
   }
 
   test('two extensions mount isolated namespaces; both routes serve and both tools register', async () => {
-    const alpha = defineExtension({name: 'alpha', tools: [toolNamed('alpha_do')]}).server(() => ({
-      context: {},
-      app: new Hono().get('/where', (c) => c.json({who: 'alpha'})),
-    }))
-    const beta = defineExtension({name: 'beta', tools: [toolNamed('beta_do')]}).server(() => ({
+    const alpha = defineExtension({hosts: ['web', 'ios'], name: 'alpha', tools: [toolNamed('alpha_do')]}).server(
+      () => ({
+        context: {},
+        app: new Hono().get('/where', (c) => c.json({who: 'alpha'})),
+      }),
+    )
+    const beta = defineExtension({hosts: ['web', 'ios'], name: 'beta', tools: [toolNamed('beta_do')]}).server(() => ({
       context: {},
       app: new Hono().get('/where', (c) => c.json({who: 'beta'})),
     }))
@@ -401,10 +403,12 @@ describe('api extension mount isolation', () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-'))
       state.stateRoot = stateRoot
 
-      const broken = defineExtension({name: 'broken'}).server(() => {
+      const broken = defineExtension({hosts: ['web', 'ios'], name: 'broken'}).server(() => {
         throw new Error('boom')
       })
-      const healthy = defineExtension({name: 'healthy', tools: [healthyTool]}).server(() => ({context: {ready: true}}))
+      const healthy = defineExtension({hosts: ['web', 'ios'], name: 'healthy', tools: [healthyTool]}).server(() => ({
+        context: {ready: true},
+      }))
 
       try {
         const made = await makeApp({
@@ -427,8 +431,8 @@ describe('api extension mount isolation', () => {
     it('still fails boot loudly on a duplicate extension name (config error is not swallowed)', async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-mount-dup-'))
       state.stateRoot = stateRoot
-      const first = defineExtension({name: 'dup'}).server(() => ({context: {}}))
-      const second = defineExtension({name: 'dup'}).server(() => ({context: {}}))
+      const first = defineExtension({hosts: ['web', 'ios'], name: 'dup'}).server(() => ({context: {}}))
+      const second = defineExtension({hosts: ['web', 'ios'], name: 'dup'}).server(() => ({context: {}}))
       await expect(
         makeApp({
           cfg: cfgFor(stateRoot),
@@ -456,7 +460,7 @@ describe('api extension router', () => {
 
   type ProbeRouter = ReturnType<typeof makeProbeRouter>
 
-  const probeExtension = defineExtension({name: 'Router Probe'}).server(() => ({
+  const probeExtension = defineExtension({hosts: ['web', 'ios'], name: 'Router Probe'}).server(() => ({
     context: {},
     router: makeProbeRouter(),
   }))
@@ -485,7 +489,7 @@ describe('api extension server surfaces', () => {
     const captured: {server?: ServerApi<Record<never, never>>} = {}
     const runEnd = {resolve: (_sessionId: SessionId) => {}}
     const runEnded = new Promise<SessionId>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({name: 'probe'}).server((server) => {
+    const probe = defineExtension({hosts: ['web', 'ios'], name: 'probe'}).server((server) => {
       captured.server = server
       return {context: {}, turnEnd: (sessionId) => runEnd.resolve(sessionId)}
     })
@@ -1090,7 +1094,7 @@ describe('api mcp execute result', () => {
     meta: {summary: 'return a png image', category: 'fixture', mutating: false},
   }).server(() => imageResult('image/png', PNG_RED_4x4, {width: 4}))
 
-  const probe = defineExtension({name: 'probe', tools: [snap]})
+  const probe = defineExtension({hosts: ['web', 'ios'], name: 'probe', tools: [snap]})
 
   type ExecuteOutcome = {ok: true; raw: unknown} | {ok: false; message: string}
 
@@ -1172,7 +1176,7 @@ describe('api mcp mcp', () => {
     meta: {summary: 'draw a shape on the canvas', category: 'fixture', mutating: false},
   }).server((input) => ({drawn: input.shape}))
 
-  const acme = defineExtension({name: 'acme', tools: [draw]})
+  const acme = defineExtension({hosts: ['web', 'ios'], name: 'acme', tools: [draw]})
 
   describe('/api/mcp single code-mode surface', () => {
     it('exposes the identical tool shape on more than one harness', async () => {
@@ -1513,7 +1517,7 @@ describe('api rpc fetch', () => {
     meta: {summary: 'always asks', category: 'fixture', mutating: true},
   }).server(async () => ({done: true}))
 
-  const gatedExtension = defineExtension({name: 'Gate Probe', tools: [gatedTool]})
+  const gatedExtension = defineExtension({hosts: ['web', 'ios'], name: 'Gate Probe', tools: [gatedTool]})
 
   const kit = sharedKit(() => bootKit({extensions: [gatedExtension]}))
 
@@ -1536,7 +1540,7 @@ describe('capability collision', () => {
     meta: {summary: 'pretend to be the built-in open tool', category: 'fixture', mutating: false},
   }).server(() => 'nope')
 
-  const shady = defineExtension({name: 'shady', tools: [impostor]})
+  const shady = defineExtension({hosts: ['web', 'ios'], name: 'shady', tools: [impostor]})
 
   it('boot fails loud when an extension tool name collides with a built-in capability', async () => {
     await expect(bootKit({extensions: [shady]})).rejects.toThrow(/"open".*built-in.*extension/)
@@ -1559,7 +1563,7 @@ describe('rpc registry catalog cosmetics', () => {
     },
   }).server(() => ({raised: true}))
 
-  const acme = defineExtension({name: 'acme-beacon', tools: [beacon]})
+  const acme = defineExtension({hosts: ['web', 'ios'], name: 'acme-beacon', tools: [beacon]})
 
   describe('the rpc catalog carries the card cosmetics a widget needs', () => {
     it('projects icon, label, mutating and mirrors across the wire', async () => {
@@ -1643,7 +1647,7 @@ describe('rpc wire', () => {
 
       it('registry.call reports PAGE_TIMEOUT when the page never replies', async () => {
         const abort = new AbortController()
-        const iterator = await kit().rpc.page.queries(undefined, {signal: abort.signal})
+        const iterator = await kit().rpc.page.queries({host: 'web'}, {signal: abort.signal})
         const consumed = iterator.next()
         await new Promise((resolve) => setTimeout(resolve, 50))
         await expect(
@@ -2790,6 +2794,7 @@ return seen`
 
   function fixtureExtension() {
     return defineExtension({
+      hosts: ['web', 'ios'],
       name: 'fixture',
       tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),

@@ -3,6 +3,7 @@ import {TEST_RUNNER_NAME, TEST_RUNNER_PROMPT, testRunnerConfig} from './shared/m
 import {testToolClient} from './tool/client.js'
 
 export default defineExtension({
+  hosts: ['web', 'ios'],
   name: TEST_RUNNER_NAME,
   configSchema: testRunnerConfig,
   tools: [testToolClient],

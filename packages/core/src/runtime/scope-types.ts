@@ -11,6 +11,7 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ToolRequest} from '@conciv/extension'
 import type {ChangeEntry} from '../page-bus.js'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
+import type {WidgetHost} from '@conciv/protocol/push-types'
 
 export type ToolCatalog = ToolRegistry['catalog']
 
@@ -24,7 +25,7 @@ export type SessionTools = {
 
 export type SessionPage = {
   ask: (name: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>
-  queries: (signal: AbortSignal) => AsyncGenerator<{requestId: string; query: unknown}>
+  queries: (host: WidgetHost, signal: AbortSignal) => AsyncGenerator<{requestId: string; query: unknown}>
   reply: (requestId: string, outcome: PageOutcome) => boolean
   connected: () => boolean
   changes: () => Promise<ChangeEntry[]>

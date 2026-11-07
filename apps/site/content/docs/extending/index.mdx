@@ -18,7 +18,7 @@ const deployRun = defineTool({
   inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
 }).server(async ({env}) => ({url: `https://${env}.example.com`}))
 
-export default defineExtension({name: 'deploy', tools: [deployRun]})
+export default defineExtension({name: 'deploy', hosts: ['web', 'ios'], tools: [deployRun]})
 ```
 
 Restart your dev server and ask the agent to deploy. It now has a `deploy_run` tool: typed input

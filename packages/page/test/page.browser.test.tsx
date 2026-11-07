@@ -48,7 +48,9 @@ describe('a tool that outlasts the preview library load', () => {
     return {ok: true}
   })
 
-  const probes = defineExtension({name: 'probe-late-library', tools: [editAfterLoad]}).client(() => ({value: {}}))
+  const probes = defineExtension({hosts: ['web', 'ios'], name: 'probe-late-library', tools: [editAfterLoad]}).client(
+    () => ({value: {}}),
+  )
 
   afterEach(() => {
     document.body.innerHTML = ''
@@ -232,6 +234,7 @@ describe('element capture', () => {
   })
 
   const probes = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'capture-probes',
     tools: [readValue, actFill, editText, editRemove, editStyled, actMark],
   }).client(() => ({value: {}}))
@@ -992,6 +995,7 @@ describe('page dispatcher', () => {
   }).client((input) => (input.where === 'object' ? {value: undefined} : {values: ['kept', undefined]}))
 
   const probes = defineExtension({
+    hosts: ['web', 'ios'],
     name: 'probes',
     tools: [readText, mirroredClick, refMaker, raiser, misbehaved, undefinedLeaker],
   }).client(() => ({value: {}}))

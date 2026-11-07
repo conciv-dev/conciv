@@ -19,6 +19,7 @@ const handle = createConciv({
   settings: {launcher: readLauncher(window.location.search)},
   ...engineAddress(nativePageBase(window.location)),
   grabProvider: makeNativeGrabProvider(),
+  host: 'ios',
 })
 
 window.__concivRebind = handle.rebind

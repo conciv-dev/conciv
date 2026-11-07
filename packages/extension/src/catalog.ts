@@ -15,7 +15,7 @@ const SLOTS = [
 
 const CLIENT_SURFACES = [
   {
-    method: 'defineExtension({name, Component})',
+    method: 'defineExtension({name, hosts, Component})',
     description: 'Mount a SolidJS Component into the panel; it renders once per slot.',
   },
   {
@@ -46,8 +46,9 @@ const SERVER_SURFACES = [
     description: 'Define a tool once; .server runs it in node, receiving validated input + the injected ctx.',
   },
   {
-    method: 'defineExtension({name, configSchema, tools: […]})',
-    description: 'Declare tools + a zod configSchema; execute auto-wires server-side, renderer client-side.',
+    method: 'defineExtension({name, hosts, configSchema, tools: […]})',
+    description:
+      "Declare tools + a zod configSchema; execute auto-wires server-side, renderer client-side. hosts lists where the widget runs that this extension serves ('web', 'ios'): a session served by another host never sees its tools or prompt.",
   },
   {
     method: '.server((server) => ({context, dispose?}))',
@@ -76,7 +77,7 @@ export function buildCatalog(): Catalog {
     conventions: {
       location: 'conciv/extensions/*.{ts,tsx}',
       entry:
-        'export default defineExtension({name, configSchema, tools}).client((client) => ({value})).server((server) => ({context, dispose}))',
+        'export default defineExtension({name, hosts, configSchema, tools}).client((client) => ({value})).server((server) => ({context, dispose}))',
     },
     tokens: Object.entries(TOKENS).map(([name, def]) => ({
       name,
@@ -96,7 +97,7 @@ const TEMPLATES: Record<ScaffoldKind, (name: string) => string> = {
   'composer-action': (name) => `import {defineExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 
-const extension = defineExtension({name: '${name}', Component})
+const extension = defineExtension({name: '${name}', hosts: ['web', 'ios'], Component})
 
 export default extension
 
@@ -129,7 +130,7 @@ const ${name}Do = defineTool({
   inputSchema: z.object({input: z.string()}),
 }).server((input) => ({result: input.input}))
 
-export default defineExtension({name: '${name}', tools: [${name}Do]})
+export default defineExtension({name: '${name}', hosts: ['web', 'ios'], tools: [${name}Do]})
 `,
   'tool-renderer': (name) => `import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
@@ -142,11 +143,11 @@ const ${name}Do = defineTool({
   .server((input) => ({result: input.input}))
   .render({render: (props) => <div>Custom render for {props.part.name}</div>, hasEmbeddedBody: () => true})
 
-export default defineExtension({name: '${name}', tools: [${name}Do]})
+export default defineExtension({name: '${name}', hosts: ['web', 'ios'], tools: [${name}Do]})
 `,
   component: (name) => `import {defineExtension} from '@conciv/extension'
 
-const extension = defineExtension({name: '${name}', Component})
+const extension = defineExtension({name: '${name}', hosts: ['web', 'ios'], Component})
 
 export default extension
 
@@ -169,7 +170,7 @@ const ${name}Do = defineTool({
   .server((input) => ({result: input.input}))
   .render({render: (props) => <div>${name}: {props.part.name}</div>, hasEmbeddedBody: () => true})
 
-const extension = defineExtension({name: '${name}', Component, tools: [${name}Do]})
+const extension = defineExtension({name: '${name}', hosts: ['web', 'ios'], Component, tools: [${name}Do]})
   .client((client) => ({value: {ready: true}}))
   .server((server) => {
     server.app.get('/status', () => ({ok: true}))

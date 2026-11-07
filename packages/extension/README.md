@@ -11,6 +11,7 @@ import {defineExtension} from '@conciv/extension'
 
 export default defineExtension({
   name: 'my-extension',
+  hosts: ['web', 'ios'],
   // tools, slots, context…
 })
 ```
@@ -49,13 +50,15 @@ export const routerStateDef = defineTool({
 import {defineExtension} from '@conciv/extension'
 import {routerStateDef} from './shared/defs.js'
 
-export default defineExtension({name: 'demo', tools: [routerStateDef.client()]}).server((server) => {
-  async function currentPath() {
-    const state = await server.tools.call('demo.routerState', {})
-    return state
-  }
-  return {context: {currentPath}}
-})
+export default defineExtension({name: 'demo', hosts: ['web', 'ios'], tools: [routerStateDef.client()]}).server(
+  (server) => {
+    async function currentPath() {
+      const state = await server.tools.call('demo.routerState', {})
+      return state
+    }
+    return {context: {currentPath}}
+  },
+)
 ```
 
 ```ts
@@ -65,6 +68,7 @@ import {routerStateDef} from './shared/defs.js'
 
 export default defineExtension({
   name: 'demo',
+  hosts: ['web', 'ios'],
   tools: [routerStateDef.client(() => ({path: location.pathname}))],
 }).client(() => ({value: {}}))
 ```

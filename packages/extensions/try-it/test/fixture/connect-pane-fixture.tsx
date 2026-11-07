@@ -6,6 +6,10 @@ function ConnectPaneFixture(): JSX.Element {
   return <ConnectPane token="lna-fixture-token" connect={{origin: window.location.origin, found: () => {}}} />
 }
 
-export default defineExtension({name: 'try-it-connect-fixture', Component: ConnectPaneFixture}).client(() => ({
+export default defineExtension({
+  hosts: ['web', 'ios'],
+  name: 'try-it-connect-fixture',
+  Component: ConnectPaneFixture,
+}).client(() => ({
   value: {},
 }))

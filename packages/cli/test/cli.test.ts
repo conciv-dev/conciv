@@ -311,7 +311,7 @@ describe('cli', () => {
       },
     }).client()
 
-    const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
+    const beaconExtension = defineExtension({hosts: ['web', 'ios'], name: 'acme-beacon', tools: [beacon]})
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -1019,7 +1019,7 @@ describe('cli', () => {
         const call = async () => (await fetch(`${origin}/t/${token}/rpc/meta/engine`, {method: 'POST'})).status
         expect(await call()).not.toBe(401)
         const {sessionId} = await makeRpcClient(`${origin}/t/${token}`).sessions.create(undefined)
-        const serving: PageServingFrame = {channel: 'page-serving', serving: true}
+        const serving: PageServingFrame = {channel: 'page-serving', host: 'web'}
         const pushSocket = (prefix: string, frames: unknown[]) => {
           const socket = new WebSocket(
             `ws://127.0.0.1:${engine.port}${prefix}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`,
