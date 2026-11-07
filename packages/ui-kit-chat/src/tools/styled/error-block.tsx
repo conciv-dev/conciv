@@ -1,6 +1,6 @@
-import {splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {DANGER_TEXT_CLASS, OUTCOME_LABEL} from '../primitives/tool-presentation.js'
+import {DANGER_TEXT_CLASS, OUTCOME_LABEL, OUTCOME_TONE} from '../primitives/tool-presentation.js'
 
 const LABEL_CLASS =
   'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] m-0'
@@ -16,12 +16,13 @@ export function ErrorBlock(props: {
 }): JSX.Element {
   const [local] = splitProps(props, ['message', 'label', 'outcome', 'class'])
   const wrapperClass = (): string => `${WRAPPER_CLASS} ${local.class ?? ''}`
-  const labelClass = (): string =>
-    `${LABEL_CLASS} ${local.outcome === undefined ? 'text-chat-danger' : 'text-chat-warn'}`
+  const labelClass = (): string => `${LABEL_CLASS} ${OUTCOME_TONE[local.outcome ?? 'error']}`
   return (
     <div class={wrapperClass()}>
       <p class={labelClass()}>{local.label ?? OUTCOME_LABEL[local.outcome ?? 'error']}</p>
-      <p class={local.outcome === undefined ? DANGER_TEXT_CLASS : OUTCOME_TEXT_CLASS}>{local.message}</p>
+      <Show when={local.message}>
+        <p class={local.outcome === undefined ? DANGER_TEXT_CLASS : OUTCOME_TEXT_CLASS}>{local.message}</p>
+      </Show>
     </div>
   )
 }

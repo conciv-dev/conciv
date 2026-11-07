@@ -3255,6 +3255,8 @@ describe('run errors', () => {
 })
 
 describe('tool outcomes', () => {
+  const STOPPED_REASON = {denied: 'User declined tool execution', cancelled: 'Tool execution cancelled'} as const
+
   function stoppedTool(
     outcome: 'denied' | 'cancelled',
     name = 'Bash',
@@ -3271,10 +3273,10 @@ describe('tool outcomes', () => {
     const result: ToolResultPart = {
       type: 'tool-result',
       toolCallId: 'stopped-1',
-      content: '',
+      content: JSON.stringify({error: STOPPED_REASON[outcome]}),
       state: 'error',
       outcome,
-      error: `The tool call was ${outcome}.`,
+      error: STOPPED_REASON[outcome],
     }
     return <ToolTraceRow part={part} result={result} ctx={INERT_TOOL_CTX} tools={() => builtinToolCards} />
   }
@@ -3306,6 +3308,8 @@ describe('tool outcomes', () => {
       await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
       await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
       await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
+      await expect.element(page.getByText(STOPPED_REASON[outcome])).toBeVisible()
+      await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
     })
   }
 })

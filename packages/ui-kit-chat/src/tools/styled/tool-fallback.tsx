@@ -7,7 +7,7 @@ import {fallbackErrorText, ToolFallback as ToolFallbackPrimitive, useToolFallbac
 import {Permission, usePermission} from '../primitives/permission.js'
 import {StatusVisual} from '../primitives/status-visual.js'
 import {formatDuration, resultText} from '../primitives/tool-util.js'
-import {OUTCOME_LABEL, QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
+import {OUTCOME_LABEL, OUTCOME_TONE, QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
 import {TRACE_MICROLABEL} from '../../styled/trace/trace-row.js'
@@ -135,7 +135,7 @@ function ToolError(): JSX.Element {
     <Show when={tool.error()}>
       {(message) => (
         <div class={SECTION}>
-          <p class={`${SECTION_LABEL}  ${tool.result()?.outcome === undefined ? 'text-chat-danger' : 'text-chat-warn'}`}>
+          <p class={`${SECTION_LABEL}  ${OUTCOME_TONE[tool.result()?.outcome ?? 'error']}`}>
             {OUTCOME_LABEL[tool.result()?.outcome ?? 'error']}
           </p>
           <p class="text-chat-text-2 m-0 [overflow-wrap:anywhere]">{message()}</p>

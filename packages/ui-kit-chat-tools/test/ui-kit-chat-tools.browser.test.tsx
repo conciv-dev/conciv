@@ -575,6 +575,34 @@ describe('tool row projections', () => {
     await expect.element(page.getByText('1 test failed')).toBeVisible()
   })
 
+  const STOPPED = {
+    denied: {label: 'Denied', error: 'User declined tool execution'},
+    cancelled: {label: 'Cancelled', error: 'Tool execution cancelled'},
+  } as const
+
+  function stopped(outcome: 'denied' | 'cancelled'): ToolResultPart {
+    const {error} = STOPPED[outcome]
+    return {type: 'tool-result', toolCallId: 'f1', content: JSON.stringify({error}), state: 'error', outcome, error}
+  }
+
+  for (const [name, input, outcome, failureText] of [
+    ['Grep', {pattern: 'TODO'}, 'denied', 'the search failed'],
+    ['Glob', {pattern: '**/*.ts'}, 'cancelled', 'the search failed'],
+    ['Bash', {command: 'rm -rf build'}, 'denied', 'no output'],
+    ['Bash', {command: 'rm -rf build'}, 'cancelled', 'no output'],
+  ] as const) {
+    it(`a ${outcome} ${name} card body says ${outcome} with its reason, not a failure`, async () => {
+      mountView(() => row(call(name, input), stopped(outcome)))
+
+      await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
+      await page.screenshot({path: `__screenshots__/tool-outcomes/body-${name}-${outcome}.png`})
+      await expect.element(page.getByText(STOPPED[outcome].label, {exact: true})).toBeVisible()
+      await expect.element(page.getByText(STOPPED[outcome].error)).toBeVisible()
+      await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
+      await expect.element(page.getByText(failureText)).not.toBeInTheDocument()
+    })
+  }
+
   it('projects an apply_patch call as an edit row with its added and removed counts', async () => {
     mountView(() => row(call('apply_patch', {patchText: PATCH}), result('applied')))
 

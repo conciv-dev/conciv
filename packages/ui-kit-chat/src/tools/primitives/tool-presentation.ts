@@ -15,6 +15,12 @@ export const OUTCOME_LABEL: Record<NonNullable<ToolResultPart['outcome']> | 'err
   cancelled: 'Cancelled',
 }
 
+export const OUTCOME_TONE: Record<NonNullable<ToolResultPart['outcome']> | 'error', string> = {
+  error: 'text-chat-danger',
+  denied: 'text-chat-warn',
+  cancelled: 'text-chat-dim',
+}
+
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] whitespace-pre-wrap [overflow-wrap:anywhere] [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'
 

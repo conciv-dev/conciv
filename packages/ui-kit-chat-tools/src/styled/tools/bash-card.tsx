@@ -2,7 +2,7 @@ import {Show, type JSX} from 'solid-js'
 import Terminal from 'lucide-solid/icons/terminal'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {CodeBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
+import {CodeBlock, ErrorBlock, ToolCard, TraceOutputBlock} from '@conciv/ui-kit-chat/tools'
 
 const ANSI_INTRODUCER = '['
 
@@ -24,32 +24,48 @@ function exitMeta(settled: boolean, exitCode: number | undefined): string | unde
   return `exit ${exitCode}`
 }
 
+function StoppedBody(): JSX.Element {
+  const bash = useBash()
+  return (
+    <div class="flex flex-col gap-2">
+      <Show when={bash.command()}>
+        {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+      </Show>
+      <ErrorBlock message={bash.stoppedReason()} outcome={bash.outcome()} />
+    </div>
+  )
+}
+
 function Body(): JSX.Element {
   const bash = useBash()
   const text = () => outputText(bash.output().stdout, bash.output().stderr)
   return (
-    <Show
-      when={bash.hasOutput()}
-      fallback={
-        <span class="text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)]">no output</span>
-      }
-    >
-      <div class="flex flex-col gap-2">
-        <Show when={bash.command()}>
-          {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
-        </Show>
-        <Show when={text()}>
-          {(value) => (
-            <TraceOutputBlock tone={bash.isError() ? 'error' : 'normal'} text={value()}>
-              <CodeBlock
-                size="xs"
-                maxHeight="none"
-                file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
-              />
-            </TraceOutputBlock>
-          )}
-        </Show>
-      </div>
+    <Show when={bash.outcome() === undefined} fallback={<StoppedBody />}>
+      <Show
+        when={bash.hasOutput()}
+        fallback={
+          <span class="text-[length:var(--chat-text-xs)] text-chat-text-3 [font-family:var(--chat-mono)]">
+            no output
+          </span>
+        }
+      >
+        <div class="flex flex-col gap-2">
+          <Show when={bash.command()}>
+            {(command) => <CodeBlock size="xs" file={{name: 'command.sh', lang: 'shellscript', contents: command()}} />}
+          </Show>
+          <Show when={text()}>
+            {(value) => (
+              <TraceOutputBlock tone={bash.isError() ? 'error' : 'normal'} text={value()}>
+                <CodeBlock
+                  size="xs"
+                  maxHeight="none"
+                  file={{name: 'output.log', lang: outputLanguage(value()), contents: value()}}
+                />
+              </TraceOutputBlock>
+            )}
+          </Show>
+        </div>
+      </Show>
     </Show>
   )
 }
