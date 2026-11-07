@@ -12,11 +12,13 @@ export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
+  waitingIn: (sessionId: string | null) => boolean
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
 }
 
 export type LiveSessionsDeps = {
+  active: Accessor<string | null>
   rpc: RpcClient
   apiBase: Accessor<string>
   generation: Accessor<number>
@@ -52,7 +54,10 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const watched = createMemo(() =>
     Object.entries(state.runs).flatMap(([sessionId, run]) => (run.live === null ? [] : [sessionId])),
   )
-  const wanted = createMemo(() => uniq([...opened(), ...watched()]))
+  const wanted = createMemo(() => {
+    const active = deps.active()
+    return uniq([...opened(), ...watched(), ...(active === null ? [] : [active])])
+  })
 
   const runOf = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
 
@@ -145,6 +150,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       const entry = chatOf(sessionId)
       if (!entry) return 'unmounted'
       return entry.chat().runInProgress() ? 'running' : 'idle'
+    },
+    waitingIn(sessionId) {
+      return (chatOf(sessionId)?.chat().pendingApprovals().length ?? 0) > 0
     },
     open(sessionId) {
       setState('openers', (list) => [...list, sessionId])

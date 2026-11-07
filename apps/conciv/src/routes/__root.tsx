@@ -103,6 +103,7 @@ function RootComponent() {
   )
   app.bindActiveSession?.(() => activeSession())
   const liveSessions = makeLiveSessions({
+    active: activeSession,
     rpc: app.rpc,
     apiBase: app.apiBase,
     generation: app.connectionGeneration,
@@ -409,6 +410,7 @@ function RootChrome(props: {
           suppressed={suppressed}
           fab={props.fab}
           locked={() => locked() && !panelOpen()}
+          waiting={() => liveSessions.waitingIn(props.activeSession()) && !panelOpen()}
           onToggle={togglePanel}
         />
       </Show>

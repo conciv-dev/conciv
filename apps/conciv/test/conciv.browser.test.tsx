@@ -2478,6 +2478,23 @@ describe('session options outside agents', () => {
     await expect.element(inPageRow).not.toMatchTextContent(/from/)
   }, 30_000)
 
+  test('a closed panel badges the launcher while an outside agent waits, and the answer clears it', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}`)
+    const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+    const waiting = () => page.getByRole('button', {name: 'Waiting for your Allow. Open conciv chat'})
+    await expect.element(launcher()).toBeVisible()
+    await coreControl.hubExecute(sessionId, 'return 1')
+    await expect.element(waiting(), {timeout: 8000}).toBeVisible()
+    await waiting().click()
+    await expect.element(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
+    await approve()
+    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(waiting()).not.toBeInTheDocument()
+  }, 30_000)
+
   test('a call forwarded from another engine shows only its tool row, never the forwarding execute', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)

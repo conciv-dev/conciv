@@ -192,6 +192,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const data = makeAppData(rpc, queryClient)
   const connected = () => true
   const liveSessions = makeLiveSessions({
+    active: () => null,
     rpc,
     apiBase: () => options.base,
     generation: () => 0,
