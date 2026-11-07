@@ -280,3 +280,9 @@ queried after the fact to find patterns and fix the tools:
 
 Images (live, diff, design) stay files under `.conciv`, referenced by path. The schema lives in `@conciv/db` beside the
 others and migrates with them. Nothing the agent can call reads these tables; they are for people and for the x-ray.
+
+Two things taken from swamp's data catalog (`.swamp/data/_catalog.db`): every row above carries provenance, the
+target, the harness run id when there is one, the round and `at`, so a question can be scoped to one run or compared
+across runs; and the database is queryable from the command line, read only: `conciv db query "<sql>" --json` over
+`.conciv/conciv.db`, so a person or a learning agent asks SQL and gets rows, without opening the file by hand. The
+page-building agent does not get this command in its tool list.
