@@ -43,7 +43,7 @@ jobs:
   # from the ci-test-timings artifact (published by the last main push; unknown
   # packages get a small default), and LPT-bin-packs into as many shards as the
   # total time warrants. New packages are picked up automatically; the split
-  # re-balances itself as timings drift. Node 24 strips types natively, so the
+  # re-balances itself as timings drift. Node 26 strips types natively, so the
   # planner runs from source with no install. First run ever (no timings
   # artifact yet) packs everything into two default-weight shards — one slow
   # bootstrap run on main, then it self-heals.
@@ -440,9 +440,9 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
-          key: turbo-e2e-node24-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
+          key: turbo-e2e-node26-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: |
-            turbo-e2e-node24-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+            turbo-e2e-node26-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
             turbo-node26-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
