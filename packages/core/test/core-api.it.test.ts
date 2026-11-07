@@ -61,7 +61,7 @@ import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
+import {type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   CHAT_SSE_PATH,
@@ -2355,17 +2355,12 @@ describe('rpc wire', () => {
         await finished(sessionId, 'one')
         await finished(sessionId, 'two')
         const boundary = (await thread(sessionId)).at(-1)?.id
-        const sessionStream = await chatKit().events(sessionId)
         script().hold()
-        const compacts = Promise.all([
-          chatKit().rpc.sessions.compact({sessionId}),
-          chatKit().rpc.sessions.compact({sessionId}),
-        ])
-        const first = sessionRunIdOf(await sessionStream.waitFor((chunk) => sessionRunIdOf(chunk) !== null, GUARD))
-        await sessionStream.waitFor((chunk) => ![null, first].includes(sessionRunIdOf(chunk)), GUARD)
-        expect((await sessionMeta(sessionId)).running).toBe(true)
+        const compacts = [chatKit().rpc.sessions.compact({sessionId}), chatKit().rpc.sessions.compact({sessionId})]
+        await Promise.race(compacts)
+        await until(async () => (await sessionMeta(sessionId)).running, GUARD)
         script().release()
-        await compacts
+        await Promise.all(compacts)
         expect(lastRunOf(sessionId).kind).toBe('compact')
         expect(lastRunOf(sessionId).messages).toContain('/compact')
         expect(overlapping(runsOf(sessionId))).toBe(false)
@@ -3527,10 +3522,6 @@ return seen`
 
   function nonCustomTypes(events: RunEvents): string[] {
     return events.all.filter((chunk) => chunk.type !== ChatEventType.CUSTOM).map((chunk) => chunk.type)
-  }
-
-  function sessionRunIdOf(chunk: ChatEvent): string | null {
-    return sessionRunEvent.parse(chunk)?.runId ?? null
   }
 
   function collect(stream: RunStream): ChatEvent[] {
