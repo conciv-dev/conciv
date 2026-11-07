@@ -2,25 +2,21 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {HoverCard} from './hover-card.js'
 
-const meta: Meta = {title: 'ui-kit-system/HoverCard'}
+const meta: Meta<typeof HoverCard> = {title: 'ui-kit-system/HoverCard', component: HoverCard}
 export default meta
-type Story = StoryObj
+type Story = StoryObj<typeof HoverCard>
 
 export const Default: Story = {
   render: () => (
-    <HoverCard.Root openDelay={0} closeDelay={120}>
-      <HoverCard.Trigger class="text-chat-accent-link underline cursor-pointer" aria-label="Context usage">
-        Hover me
-      </HoverCard.Trigger>
-      <HoverCard.Positioner>
-        <HoverCard.Content class="text-[0.75rem] w-60">
-          <div class="p-3">
-            <div class="text-chat-text-hi font-medium">Context usage</div>
-            <div class="text-chat-text-2 mt-1">42% of the window used this turn.</div>
-          </div>
-        </HoverCard.Content>
-      </HoverCard.Positioner>
-    </HoverCard.Root>
+    <HoverCard
+      label="Context usage"
+      trigger={<span class="text-chat-accent-link underline cursor-pointer">Hover me</span>}
+    >
+      <div class="p-3">
+        <div class="text-chat-text-hi font-medium">Context usage</div>
+        <div class="text-chat-text-2 mt-1">42% of the window used this turn.</div>
+      </div>
+    </HoverCard>
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)

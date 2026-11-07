@@ -1,18 +1,31 @@
-import {splitProps, type ComponentProps} from 'solid-js'
+import type {JSX} from 'solid-js'
 import {HoverCard as Ark} from '@ark-ui/solid/hover-card'
 
 const CONTENT =
-  'hidden data-[state=open]:block data-[state=open]:anim-combo z-[2147483647] rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg font-chat focus-visible:outline-none'
-const POSITIONING = {strategy: 'fixed', placement: 'bottom-start', gutter: 6} as const
+  'hidden data-[state=open]:block data-[state=open]:anim-combo z-[2147483647] w-60 rounded-chat-surface-md overflow-hidden bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg text-[0.75rem] font-chat focus-visible:outline-none'
 
-function Root(props: ComponentProps<typeof Ark.Root>) {
-  const [local, rest] = splitProps(props, ['positioning'])
-  return <Ark.Root positioning={{...POSITIONING, ...local.positioning}} {...rest} />
+export function HoverCard(props: {
+  trigger: JSX.Element
+  triggerClass?: string
+  children: JSX.Element
+  openDelay?: number
+  closeDelay?: number
+  sideOffset?: number
+  class?: string
+  label?: string
+}): JSX.Element {
+  return (
+    <Ark.Root
+      openDelay={props.openDelay ?? 0}
+      closeDelay={props.closeDelay ?? 120}
+      positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: props.sideOffset ?? 6}}
+    >
+      <Ark.Trigger class={props.triggerClass} aria-label={props.label}>
+        {props.trigger}
+      </Ark.Trigger>
+      <Ark.Positioner>
+        <Ark.Content class={`${CONTENT}  ${props.class ?? ''}`}>{props.children}</Ark.Content>
+      </Ark.Positioner>
+    </Ark.Root>
+  )
 }
-
-function Content(props: ComponentProps<typeof Ark.Content>) {
-  const [local, rest] = splitProps(props, ['class'])
-  return <Ark.Content {...rest} class={`${CONTENT}  ${local.class ?? ''}`} />
-}
-
-export const HoverCard = Object.assign({}, Ark, {Root, Content})

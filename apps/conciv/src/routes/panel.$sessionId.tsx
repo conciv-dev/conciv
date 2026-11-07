@@ -1,6 +1,6 @@
 import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
-import {Editable, HoverCard, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
+import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   ChatProvider,
   coalesceTurns,
@@ -56,7 +56,7 @@ const RAIL_TITLE_ROW =
   'group flex items-center gap-1 min-w-0 min-h-7 [font-family:var(--chat-font-display)] text-[14.5px] leading-[1.25] font-semibold tracking-[-0.012em] [color:var(--chat-text-hi)]'
 const RAIL_TITLE = 'min-w-0 truncate'
 const RAIL_TITLE_TRIGGER =
-  'flex items-center gap-1.5 min-w-0 p-0 bg-transparent [border:none] text-start cursor-pointer rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
+  '!justify-start gap-1.5 min-w-0 p-0 text-start [font:inherit] [letter-spacing:inherit] [color:inherit] rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
 const RAIL_TITLE_RENAME =
   'size-7 shrink-0 [&[hidden]]:hidden opacity-0 [transition:opacity_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'
 const GHOST =
@@ -71,7 +71,7 @@ const RAIL_MENU_LABEL =
   '[font-family:var(--chat-mono)] text-[9.5px] uppercase tracking-[0.1em] [color:var(--chat-microlabel)] px-1 pt-1'
 const RAIL_MENU_SEPARATOR = 'w-full border-0 [border-block-start:1px_solid_var(--chat-line-soft)] my-0.5'
 const RAIL_MENU_ROW =
-  'flex items-center gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] bg-transparent [border:none] cursor-pointer w-full text-start [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
+  '!justify-start gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] w-full text-start focus-ring [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
 
 const POP_OUT_LOST_KEY = 'pop-out-lost'
 
@@ -88,6 +88,77 @@ export const Route = createFileRoute('/panel/$sessionId')({
   },
   component: PanelSession,
 })
+
+function SessionTitle(props: {sessionId: string; savedTitle: string | undefined; refreshing: boolean}): JSX.Element {
+  const appData = useAppData()
+  const {rpc} = useChatDeps()
+  const announce = useAnnounce()
+  const rename = useMutation(() => ({
+    mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
+    onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
+    onError: () => announce('Rename failed', true),
+    onSettled: () => appData.invalidateSessions(),
+  }))
+  const title = () =>
+    rename.isPending && rename.variables ? rename.variables.title : props.savedTitle || 'New session'
+  const label = () => `${title()}, ${props.refreshing ? 'refreshing the conversation' : 'session options'}`
+  const commit = (value: string) => {
+    const next = value.trim()
+    if (!next || next === title()) return
+    rename.mutate({sessionId: props.sessionId, title: next})
+  }
+  return (
+    <Editable.Root
+      class={RAIL_TITLE_ROW}
+      activationMode="none"
+      translations={{edit: 'Rename session', input: 'Session title'}}
+      onValueCommit={(details) => commit(details.value)}
+    >
+      <Editable.Context>
+        {(titleEditor) => (
+          <>
+            <Editable.Area class={titleEditor().editing ? 'flex-1' : undefined}>
+              <Editable.Input />
+              <Show when={!titleEditor().editing}>
+                <Popover.Trigger
+                  asChild={(triggerProps) => (
+                    <Button
+                      {...triggerProps()}
+                      variant="plain"
+                      size="none"
+                      class={RAIL_TITLE_TRIGGER}
+                      aria-label={label()}
+                      aria-busy={props.refreshing || rename.isPending}
+                    >
+                      <TruncatedText class={RAIL_TITLE} text={title()} side="bottom" />
+                      <Show when={props.refreshing}>
+                        <RefreshCw
+                          class="size-3.5 block shrink-0 [color:var(--chat-text-2)] [transform-origin:center] anim-tool-spin"
+                          aria-hidden="true"
+                        />
+                      </Show>
+                    </Button>
+                  )}
+                />
+              </Show>
+            </Editable.Area>
+            <TooltipIconButtonSlot tooltip="Rename session" class={RAIL_TITLE_RENAME} side="bottom">
+              {(buttonProps) => (
+                <Editable.EditTrigger
+                  asChild={(triggerProps) => (
+                    <button {...buttonProps()} {...triggerProps({onClick: () => titleEditor().setValue(title())})}>
+                      <Pencil class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                  )}
+                />
+              )}
+            </TooltipIconButtonSlot>
+          </>
+        )}
+      </Editable.Context>
+    </Editable.Root>
+  )
+}
 
 function CloseChatButton(): JSX.Element {
   const panelChrome = usePanelChrome()
@@ -223,28 +294,6 @@ function PanelSession(): JSX.Element {
   }
   const lastTask = () => sessionStatus().kind === 'done' || sessionStatus().kind === 'stopped'
   const taskContext = () => (lastTask() ? 'LAST TASK' : 'ACTIVE TASK')
-  const rename = useMutation(() => ({
-    mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
-    onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
-    onError: () => announce('Rename failed', true),
-    onSettled: () => appData.invalidateSessions(),
-  }))
-  const taskTitle = () =>
-    rename.isPending && rename.variables ? rename.variables.title : row()?.title || 'New session'
-  const commitTitle = (value: string) => {
-    const title = value.trim()
-    if (!title || title === taskTitle()) return
-    rename.mutate({sessionId: params().sessionId, title})
-  }
-  const [menuOpen, setMenuOpen] = createSignal(false)
-  let menuContent: HTMLDivElement | undefined
-  let menuTrigger: HTMLButtonElement | undefined
-  const changeMenu = (open: boolean) => {
-    if (!open && menuContent?.matches(':focus-within')) menuTrigger?.focus()
-    setMenuOpen(open)
-  }
-  const titleMenuLabel = () =>
-    `${taskTitle()}, ${coordinator.isRefreshing() ? 'refreshing the conversation' : 'session options'}`
   const statusBarViews = createMemo<StatusBarView[]>(() => [
     {id: 'chat', label: 'Chat'},
     ...views().map((view) => ({
@@ -273,7 +322,7 @@ function PanelSession(): JSX.Element {
   return (
     <PaneContext.Provider value={paneValue}>
       <header class={RAIL}>
-        <HoverCard.Root open={menuOpen()} onOpenChange={(details) => changeMenu(details.open)}>
+        <Popover.Root positioning={{placement: 'bottom-start'}}>
           <div class={RAIL_LEFT}>
             <span class={RAIL_MICROLABEL}>
               <span class="chat-rail-context-full">
@@ -281,152 +330,58 @@ function PanelSession(): JSX.Element {
               </span>
               <span class="chat-rail-context-narrow">{lastTask() ? 'LAST' : 'ACTIVE'}</span>
             </span>
-            <Editable.Root
-              class={RAIL_TITLE_ROW}
-              activationMode="none"
-              translations={{edit: 'Rename session', input: 'Session title'}}
-              onValueCommit={(details) => commitTitle(details.value)}
-            >
-              <Editable.Context>
-                {(titleEditor) => (
-                  <>
-                    <Editable.Area class={titleEditor().editing ? 'flex-1' : undefined}>
-                      <Editable.Input />
-                      <Show when={!titleEditor().editing}>
-                        <HoverCard.Trigger
-                          asChild={(triggerProps) => (
-                            <button
-                              {...triggerProps()}
-                              ref={(element) => (menuTrigger = element)}
-                              type="button"
-                              class={RAIL_TITLE_TRIGGER}
-                              aria-label={titleMenuLabel()}
-                              aria-haspopup="dialog"
-                              aria-expanded={menuOpen()}
-                              aria-busy={coordinator.isRefreshing() || rename.isPending}
-                              onFocusIn={undefined}
-                              onClick={() => changeMenu(true)}
-                              onPointerLeave={(event) => {
-                                const leave = triggerProps().onPointerLeave
-                                if (menuEngaged(menuContent) || typeof leave !== 'function') return
-                                leave(event)
-                              }}
-                              onFocusOut={(event) => {
-                                const focusOut = triggerProps().onFocusOut
-                                if (holds(menuContent, event.relatedTarget) || typeof focusOut !== 'function') return
-                                focusOut(event)
-                              }}
-                            >
-                              <TruncatedText class={RAIL_TITLE} text={taskTitle()} side="bottom" />
-                              <Show when={coordinator.isRefreshing()}>
-                                <RefreshCw
-                                  class="size-3.5 block shrink-0 [color:var(--chat-text-2)] [transform-origin:center] anim-tool-spin"
-                                  aria-hidden="true"
-                                />
-                              </Show>
-                            </button>
-                          )}
-                        />
-                      </Show>
-                    </Editable.Area>
-                    <TooltipIconButtonSlot tooltip="Rename session" class={RAIL_TITLE_RENAME} side="bottom">
-                      {(buttonProps) => (
-                        <Editable.EditTrigger
-                          asChild={(triggerProps) => (
-                            <button
-                              {...buttonProps()}
-                              {...triggerProps({onClick: () => titleEditor().setValue(taskTitle())})}
-                            >
-                              <Pencil class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
-                            </button>
-                          )}
-                        />
-                      )}
-                    </TooltipIconButtonSlot>
-                  </>
-                )}
-              </Editable.Context>
-            </Editable.Root>
+            <SessionTitle
+              sessionId={params().sessionId}
+              savedTitle={row()?.title}
+              refreshing={coordinator.isRefreshing()}
+            />
           </div>
-          <HoverCard.Context>
-            {(hoverCard) => {
-              const cardOpen = createMemo(() => hoverCard().open)
-              createEffect(
-                on(cardOpen, (open) => {
-                  if (open && menuTrigger?.matches(':focus'))
-                    menuContent?.querySelector<HTMLElement>('button:enabled')?.focus({preventScroll: true})
-                }),
-              )
-              return (
-                <HoverCard.Positioner>
-                  <HoverCard.Content
-                    asChild={(contentProps) => (
-                      <div
-                        {...contentProps()}
-                        ref={(element) => (menuContent = element)}
-                        role="dialog"
-                        aria-label="Session options"
-                        class={`${contentProps().class ?? ''} ${RAIL_MENU_CONTENT}`}
-                        style={RAIL_MENU_CONTENT_STYLE}
-                        onPointerLeave={(event) => {
-                          const leave = contentProps().onPointerLeave
-                          if (menuEngaged(menuContent) || typeof leave !== 'function') return
-                          leave(event)
-                        }}
-                        onFocusOut={(event) => {
-                          if (holds(menuContent, event.relatedTarget) || holds(menuTrigger, event.relatedTarget)) return
-                          if (menuContent?.matches(':hover')) return
-                          changeMenu(false)
-                        }}
-                      >
-                        <span class={RAIL_MENU_LABEL}>Session</span>
-                        <Suspense fallback={<SessionPillPending variant="bar" />}>
-                          <SessionSelector
-                            variant="bar"
-                            activeId={() => params().sessionId}
-                            onActivate={activate}
-                            onNewSession={() => void newSession()}
-                          />
-                        </Suspense>
-                        <hr class={RAIL_MENU_SEPARATOR} />
-                        <span class={RAIL_MENU_LABEL}>Context</span>
-                        <Suspense fallback={<UsagePending />}>
-                          <ContextSummary usage={usage()} />
-                        </Suspense>
-                        <hr class={RAIL_MENU_SEPARATOR} />
-                        <Show when={activeView() === 'chat'}>
-                          <button
-                            type="button"
-                            class={RAIL_MENU_ROW}
-                            aria-label="Refresh the conversation"
-                            disabled={chat().runInProgress() || coordinator.isRefreshing()}
-                            onClick={() => {
-                              changeMenu(false)
-                              coordinator.refresh()
-                            }}
-                          >
-                            <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
-                            Refresh the conversation
-                          </button>
-                        </Show>
-                        <button type="button" class={RAIL_MENU_ROW} onClick={popOut}>
-                          <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
-                          Pop out to a window
-                        </button>
-                        <Show when={connectMode && disconnect}>
-                          <button type="button" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
-                            <Unplug class="size-4 block shrink-0" aria-hidden="true" />
-                            Disconnect this machine
-                          </button>
-                        </Show>
-                      </div>
-                    )}
-                  />
-                </HoverCard.Positioner>
-              )
-            }}
-          </HoverCard.Context>
-        </HoverCard.Root>
+          <Popover.Positioner>
+            <Popover.Content aria-label="Session options" class={RAIL_MENU_CONTENT} style={RAIL_MENU_CONTENT_STYLE}>
+              <span class={RAIL_MENU_LABEL}>Session</span>
+              <Suspense fallback={<SessionPillPending variant="bar" />}>
+                <SessionSelector
+                  variant="bar"
+                  activeId={() => params().sessionId}
+                  onActivate={activate}
+                  onNewSession={() => void newSession()}
+                />
+              </Suspense>
+              <hr class={RAIL_MENU_SEPARATOR} />
+              <span class={RAIL_MENU_LABEL}>Context</span>
+              <Suspense fallback={<UsagePending />}>
+                <ContextSummary usage={usage()} />
+              </Suspense>
+              <hr class={RAIL_MENU_SEPARATOR} />
+              <Show when={activeView() === 'chat'}>
+                <Popover.CloseTrigger
+                  asChild={(closeProps) => (
+                    <Button
+                      {...closeProps({'aria-label': 'Refresh the conversation', onClick: () => coordinator.refresh()})}
+                      variant="plain"
+                      size="none"
+                      class={RAIL_MENU_ROW}
+                      disabled={chat().runInProgress() || coordinator.isRefreshing()}
+                    >
+                      <RefreshCw class="size-4 block shrink-0" aria-hidden="true" />
+                      Refresh the conversation
+                    </Button>
+                  )}
+                />
+              </Show>
+              <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
+                <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
+                Pop out to a window
+              </Button>
+              <Show when={connectMode && disconnect}>
+                <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
+                  <Unplug class="size-4 block shrink-0" aria-hidden="true" />
+                  Disconnect this machine
+                </Button>
+              </Show>
+            </Popover.Content>
+          </Popover.Positioner>
+        </Popover.Root>
         <CloseChatButton />
       </header>
       <ChatProvider chat={chat()}>
@@ -444,13 +399,4 @@ function PanelSession(): JSX.Element {
       />
     </PaneContext.Provider>
   )
-}
-
-function menuEngaged(content: HTMLElement | undefined): boolean {
-  if (!content) return false
-  return content.matches(':focus-within') || content.querySelector('[aria-expanded="true"]') !== null
-}
-
-function holds(container: HTMLElement | undefined, target: EventTarget | null): boolean {
-  return container !== undefined && target instanceof Node && container.contains(target)
 }
