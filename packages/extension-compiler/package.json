@@ -43,10 +43,6 @@
     "./dedupe": {
       "types": "./dist/dedupe-extensions.d.ts",
       "import": "./dist/dedupe-extensions.js"
-    },
-    "./builtin-server-extensions": {
-      "types": "./dist/builtin-server-extensions.d.ts",
-      "import": "./dist/builtin-server-extensions.js"
     }
   },
   "publishConfig": {
@@ -64,12 +60,6 @@
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/extension": "workspace:^",
-    "@conciv/extension-design": "workspace:^",
-    "@conciv/extension-ios": "workspace:^",
-    "@conciv/extension-recorder": "workspace:^",
-    "@conciv/extension-terminal": "workspace:^",
-    "@conciv/extension-test-runner": "workspace:^",
-    "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "babel-dead-code-elimination": "^2.0.0",
     "babel-preset-solid": "^1.9.16",

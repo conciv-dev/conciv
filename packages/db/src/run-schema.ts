@@ -1,7 +1,7 @@
 import {index, integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
 import type {RunPhase} from '@conciv/protocol/chat-event-types'
 
-export {chatMessages, chatMetadata, chatRuns} from '@conciv/ai/server'
+export {chatMessages, chatMetadata, chatRuns} from './chat-schema.js'
 
 export const RUN_PHASES: readonly [RunPhase, ...RunPhase[]] = ['running', 'stopping', 'completed', 'failed', 'aborted']
 

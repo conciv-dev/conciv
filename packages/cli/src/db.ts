@@ -2,8 +2,7 @@ import {z} from 'zod'
 import {command, description, name, option, schema} from '@bomb.sh/router'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
-import {localOutcome} from './local-outcome.js'
-import type {LocalDb} from './local-project.js'
+import {localCatalog, type LocalCatalog} from './local-catalog.js'
 import {handler} from './router/handler.js'
 
 const QueryModelSchema = z.object({
@@ -49,7 +48,7 @@ export function sourceCommands(scope: {extension?: string; label: string; prefix
       handler((model) => {
         const {into, values} = WriteModelSchema.parse(model)
         const row = valuesOf(values)
-        return localOutcome({code: 'QUERY_FAILED', work: (db) => db.sources.write({...scoped, into, values: row})})
+        return catalogOutcome({code: 'QUERY_FAILED', work: (sources) => sources.write({...scoped, into, values: row})})
       }),
     ),
   ]
@@ -59,11 +58,11 @@ function query(
   input: z.infer<typeof QueryModelSchema> & {scoped: {extension?: string}; extension: string | undefined},
 ): Promise<CliOutcome> {
   const {from, scoped, extension} = input
-  if (from === undefined) return localOutcome({code: 'QUERY_FAILED', work: (db) => listed({db, extension})})
-  return localOutcome({
+  if (from === undefined) return catalogOutcome({code: 'QUERY_FAILED', work: (sources) => sources.list(extension)})
+  return catalogOutcome({
     code: 'QUERY_FAILED',
-    work: (db) =>
-      db.sources.read({
+    work: (sources) =>
+      sources.read({
         ...scoped,
         from,
         ...(input.where === undefined ? {} : {where: input.where}),
@@ -74,12 +73,16 @@ function query(
   })
 }
 
-function listed(input: {db: LocalDb; extension: string | undefined}) {
-  const sources = input.db.sources.list()
-  if (input.extension === undefined) return sources
-  return sources
-    .filter((source) => source.extension === input.extension)
-    .map((source) => ({...source, name: source.source}))
+async function catalogOutcome(input: {
+  code: string
+  work: (sources: LocalCatalog['sources']) => unknown
+}): Promise<CliOutcome> {
+  const {sources} = localCatalog()
+  try {
+    return {report: 'json', data: await input.work(sources)}
+  } catch (error) {
+    throw userFailure(error instanceof Error ? error.message : String(error), {code: input.code})
+  }
 }
 
 function orderOf(raw: string): {field: string; dir: 'asc' | 'desc'}[] {

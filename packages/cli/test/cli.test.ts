@@ -1069,6 +1069,7 @@ describe('cli', () => {
     const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
     const BANNED = [
+      '@conciv/ai',
       '@conciv/harness',
       '@conciv/claude-connect',
       '@anthropic-ai/claude-agent-sdk',
@@ -1116,7 +1117,7 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never the harness package or an agent sdk', () => {
+    test('the CLI production closure carries harness-init but never @conciv/ai, the harness package or an agent sdk', () => {
       const manifests = prodClosureDirs().map(manifestOf)
       const names = manifests.map((manifest) => manifest.name)
       expect(names).toContain('@conciv/harness-init')

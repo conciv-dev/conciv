@@ -2,7 +2,7 @@ import {parse, printHelp, printVersion} from '@bomb.sh/router'
 import {z} from 'zod'
 import {routeFailure} from './arguments.js'
 import {writeFailure, writeOutcome} from './envelope.js'
-import {failureOf} from './failure.js'
+import {failureOf, type EnvelopeError} from './failure.js'
 import {extensionCatalog} from './extension-commands.js'
 import {handlerOf} from './router/handler.js'
 import type {main} from './main.js'
@@ -18,12 +18,12 @@ type Extended = ReturnType<Paused<Parsed>['resume']>
 
 type Final = Exclude<Parsed | Extended, {resume: unknown}> | ReturnType<Paused<Extended>['resume']>
 
-type Settled = {result: Final; offline: string[]}
+type Settled = {result: Final; offline: string[]; unreadable: EnvelopeError | null}
 
 export async function runCli(app: typeof main, argv: string[]): Promise<number> {
   try {
-    const {result, offline} = await settle(parse(app, {argv}))
-    if (!result.ok) return writeFailure(routeFailure(result))
+    const {result, offline, unreadable} = await settle(parse(app, {argv}))
+    if (!result.ok) return writeFailure(rootUnreadable({result, unreadable}) ?? routeFailure(result))
     if (result.method === 'help') return printHelpOf(result, offline)
     if (result.method === 'version') {
       console.log(printVersion(result))
@@ -39,12 +39,20 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
 }
 
 async function settle(parsed: Parsed): Promise<Settled> {
-  if (!('resume' in parsed)) return {result: parsed, offline: []}
-  const extended = parsed.resume(await extensionCatalog())
-  if (!('resume' in extended)) return {result: extended, offline: []}
-  const catalog: LiveCatalog = await liveCatalog()
+  if (!('resume' in parsed)) return {result: parsed, offline: [], unreadable: null}
+  const {unreadable, ...catalog} = extensionCatalog()
+  const extended = parsed.resume(catalog)
+  if (!('resume' in extended)) return {result: extended, offline: [], unreadable}
+  const live: LiveCatalog = await liveCatalog()
   const noun = extended.route.split('/').at(-1) ?? extended.route
-  return {result: extended.resume(catalog), offline: catalog === null ? [noun] : []}
+  return {result: extended.resume(live), offline: live === null ? [noun] : [], unreadable}
+}
+
+function rootUnreadable(input: {
+  result: {path: readonly unknown[]}
+  unreadable: EnvelopeError | null
+}): EnvelopeError | null {
+  return input.result.path.length === 0 ? input.unreadable : null
 }
 
 function printHelpOf(result: Parameters<typeof printHelp>[0], offline: string[]): number {

@@ -113,9 +113,7 @@ export function designTables(table: SQLiteTableFn) {
         verdict: text({enum: DESIGN_VERDICTS}).notNull(),
         by: text().notNull(),
         note: text(),
-        at: integer()
-          .notNull()
-          .$defaultFn(() => Date.now()),
+        at: integer().notNull().default(NOW_MS),
       },
       (self) => [check('verdict', sql`${self.verdict} in ('right', 'wrong')`)],
     ),
@@ -125,9 +123,9 @@ export function designTables(table: SQLiteTableFn) {
       run_id: integer(),
       round: integer(),
       text: text().notNull(),
-      at: integer()
-        .notNull()
-        .$defaultFn(() => Date.now()),
+      at: integer().notNull().default(NOW_MS),
     }),
   }
 }
+
+const NOW_MS = sql`(cast(unixepoch('subsec') * 1000 as integer))`

@@ -8,12 +8,14 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 
 - `db.ts:openDb(stateRoot)` - returns `ConcivDb` (`db.ts:ConcivDb = ReturnType<typeof drizzle>`).
 - `schema.ts` tables: `sessions` (`sessions`), `drafts` (`drafts`), `navigation` (`navigation`), `toolCaptures` (`tool_captures`), `cssBundles` (`css_bundles`), `markers` (`markers`), `pageChanges` (`page_changes`).
-- `run-schema.ts` tables: `runs` (`runs`), `runMessages` (`run_messages`), `sessionHistory` (`image_history`); `RUN_PHASES`; re-exports `chatMessages`, `chatMetadata`, `chatRuns` from `@conciv/ai/server`.
+- `run-schema.ts` tables: `runs` (`runs`), `runMessages` (`run_messages`), `sessionHistory` (`image_history`); `RUN_PHASES`; and, from `chat-schema.ts`, `chatMessages`, `chatMetadata`, `chatRuns`.
 - `capture-queries.ts:writeToolCapture`, `capture-queries.ts:sessionCaptures`, `capture-queries.ts:deleteSessionCaptures`.
 - `page-change-queries.ts:appendPageChange`, `page-change-queries.ts:pageChangesFor`, `page-change-queries.ts:clearPageChanges`, type `PageChangeEntry`.
 - `run-queries.ts:modelOf`, `run-queries.ts:runMessagesFor`.
 - `run-migrations.ts:importLegacyRuns`, `run-migrations.ts:markRunningRunsDetached`.
 - `chat-thread-import.ts:importLegacyThreads`, `chat-thread-import.ts:TRANSCRIPT_NAMESPACE` (`conciv.transcript`), `chat-thread-import.ts:anchorKey`, `chat-thread-import.ts:pendingFromKey`.
+- Source catalog: `catalog-schema.ts:sources` (`sources`: one row per extension source, its table, fields as JSON with column, JSON path and drizzle data type, declaration `order`, `writable`) and `command-schema.ts:commands` (`commands`: one row per extension CLI command). `source-catalog.ts:sourceCatalog` turns an extension's drizzle sources into rows, `write-catalog.ts:writeCatalog` replaces the rows of the loaded extensions (engine boot), `read-catalog.ts:readCatalog` reads them, `catalog-sources.ts:catalogSources` answers `list`, `read` (CEL `where` compiled to parameterized SQL over raw table and column names) and `write` from rows alone.
+- `existing-db.ts:existingDb({stateRoot})` opens an existing `conciv.db` without migrating; it refuses a file with no catalog yet, or one migrated by a core migration this build does not know.
 - `index.ts` - `export *` of the modules above and `export {migrations} from './migrations.gen.js'` (generated, not committed source).
 
 ## Invariants

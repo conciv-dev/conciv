@@ -17,3 +17,23 @@ export type SourceRead = {
 export type SourceWrite = {into: string; values: Record<string, unknown>}
 
 export type SourceListing = {name: string; fields: string[]; writable: boolean}
+
+export type CatalogField = {name: string; column: string; path: string | null; type: string}
+
+export type CatalogSource = {
+  name: string
+  extension: string
+  source: string
+  table: string
+  fields: CatalogField[]
+  order: number
+  writable: boolean
+}
+
+export type CatalogCommand = {
+  name: string
+  extension: string
+  command: string
+  description: string
+  positionals: string[]
+}

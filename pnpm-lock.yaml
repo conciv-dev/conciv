@@ -1748,6 +1748,9 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ~1.8.0
         version: 1.8.0(zod@4.6.7)
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1999,12 +2002,6 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension':
-        specifier: workspace:^
-        version: link:../extension
-      '@conciv/extension-compiler':
-        specifier: workspace:^
-        version: link:../extension-compiler
       '@conciv/extension-design':
         specifier: workspace:^
         version: link:../extensions/design
@@ -2042,6 +2039,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2285,9 +2285,6 @@ importers:
 
   packages/db:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2531,24 +2528,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/extension-design':
-        specifier: workspace:^
-        version: link:../extensions/design
-      '@conciv/extension-ios':
-        specifier: workspace:^
-        version: link:../extensions/ios
-      '@conciv/extension-recorder':
-        specifier: workspace:^
-        version: link:../extensions/recorder
-      '@conciv/extension-terminal':
-        specifier: workspace:^
-        version: link:../extensions/terminal
-      '@conciv/extension-test-runner':
-        specifier: workspace:^
-        version: link:../extensions/test-runner
-      '@conciv/extension-whiteboard':
-        specifier: workspace:^
-        version: link:../extensions/whiteboard
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
