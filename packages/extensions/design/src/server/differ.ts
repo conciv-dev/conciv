@@ -4,7 +4,7 @@ import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {DesignRuntime, Differ, Got, Runner, TargetRecord, Watched} from '../shared/defs.js'
+import type {Checked, DesignRuntime, Differ, Got, RoundReply, Runner, TargetRecord} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
 import {verdictOf} from './verdict.js'
@@ -28,13 +28,19 @@ export function createDiffer(input: {
       const record = await registered({runtime, query, session, page: access})
       return stored({runtime, record})
     },
-    watch: async ({nodes, session}) => {
+    check: async ({nodes, session}) => {
       await edits.quiet()
       const record = await currentTarget({runtime, session})
-      const watched = await runner({record, page: tab(session)})
-      return nodes === undefined || 'unsettled' in watched ? watched : only({watched, nodes})
+      const measured = await runner({record, page: tab(session)})
+      if ('unsettled' in measured) return {...measured, verdict: 'unsettled', reasons: [unsettledReason(measured)]}
+      const {verdict, reasons} = verdictOf({
+        design: await store.design(record.id),
+        rounds: await store.rounds(record.id),
+      })
+      const checked = {...measured, verdict, reasons}
+      return nodes === undefined ? checked : only({checked, nodes})
     },
-    validate: async ({session}) => {
+    status: async ({session}) => {
       const record = await currentTarget({runtime, session})
       return verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
     },
@@ -144,9 +150,14 @@ async function currentTarget(input: {runtime: DesignRuntime; session: string}): 
   throw toolError('no-target', {message: 'no design is registered; call design_get with the Figma link'})
 }
 
-function only(input: {watched: Extract<Watched, {round: number}>; nodes: string[]}): Watched {
+function only(input: {checked: Extract<Checked, {round: number}>; nodes: string[]}): Checked {
   const wanted = new Set(input.nodes)
-  return {...input.watched, rows: input.watched.rows.filter((row) => wanted.has(row.node))}
+  return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
+}
+
+function unsettledReason(measured: Extract<RoundReply, {unsettled: true}>): string {
+  if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
+  return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written.`
 }
 
 function watchEdits(bundler: BundlerBridge | undefined): {quiet: () => Promise<void>; dispose: () => void} {

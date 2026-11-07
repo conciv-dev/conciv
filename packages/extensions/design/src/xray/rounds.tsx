@@ -49,7 +49,7 @@ export function Rounds(props: RoundsProps): JSX.Element {
                 )}
               </For>
             </div>
-            <Show when={round()} fallback={<p class={NOTE}>No round yet. Call design_watch.</p>}>
+            <Show when={round()} fallback={<p class={NOTE}>No round yet. Call design_check.</p>}>
               {(shown) => <RoundView round={shown()} id={latest().target.id} image={image} />}
             </Show>
           </div>

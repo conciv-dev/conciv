@@ -339,25 +339,23 @@ const GetResultSchema = z.object({
   nodes: z.array(TaggedNodeSchema),
 })
 
-const WatchInputSchema = z.object({
-  nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only'),
+const MeasuredSchema = RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
+  unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
 })
 
-const WatchResultSchema = z.union([
-  RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
-    unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
-  }),
-  z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()}),
+const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
+
+const JUDGED = {verdict: z.enum(['done', 'not yet', 'stalled']), reasons: z.array(z.string())}
+
+const CheckResultSchema = z.union([
+  MeasuredSchema.extend(JUDGED),
+  UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
 ])
 
-const VerdictSchema = z.object({
-  verdict: z.enum(['done', 'not yet', 'stalled']),
-  reasons: z.array(z.string()),
+const StatusSchema = MeasuredSchema.pick({round: true, rows: true}).extend({
+  ...JUDGED,
   counts: CountsSchema.nullable(),
   coverage: CoverageSchema.nullable(),
-  reflow: ReflowsSchema,
-  pixels: PixelsSchema.nullable(),
-  rounds: z.number(),
 })
 
 const MeasureResultSchema = z.object({
@@ -451,26 +449,26 @@ const getDef = designTool({
   keywords: ['design', 'figma', 'frame', 'nodes', 'build'],
 })
 
-const watchDef = designTool({
-  verb: 'watch',
+const checkDef = designTool({
+  verb: 'check',
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, and which nodes are rendered, missing or rendered twice. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
-  running: 'Measuring the page against the design',
-  done: 'Measured the page against the design',
-  input: WatchInputSchema,
-  output: WatchResultSchema,
-  keywords: ['design', 'measure', 'rows', 'reflow', 'mapping'],
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
+  running: 'Checking the page against the design',
+  done: 'Checked the page against the design',
+  input: z.object({nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only')}),
+  output: CheckResultSchema,
+  keywords: ['design', 'measure', 'rows', 'reflow', 'verdict'],
 })
 
-const validateDef = designTool({
-  verb: 'validate',
+const statusDef = designTool({
+  verb: 'status',
   summary:
-    'Says whether the page is done against the design, judged on the last measure: done, not yet with the reasons, or stalled when the large differences stopped falling.',
-  running: 'Validating the page',
-  done: 'Validated the page',
+    'Says where the page stands without measuring it: the verdict, counts, coverage and rows of the last design_check, or that there is none yet.',
+  running: 'Reading the design status',
+  done: 'Read the design status',
   input: z.object({}),
-  output: VerdictSchema,
-  keywords: ['design', 'done', 'verdict'],
+  output: StatusSchema,
+  keywords: ['design', 'status', 'verdict'],
 })
 
 const measureDef = designTool({
@@ -484,7 +482,7 @@ const measureDef = designTool({
   catalog: false,
 })
 
-export const DESIGN_TOOLS = [getDef, watchDef, validateDef, measureDef] as const
+export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef] as const
 
 type Rgb = [number, number, number]
 type MeasureSource = z.output<typeof MeasureSourceSchema>
@@ -505,9 +503,10 @@ export type GateRow = z.output<typeof GateRowSchema>
 export type Reflow = z.output<typeof ReflowSchema>
 export type Coverage = z.output<typeof CoverageSchema>
 export type Counts = z.output<typeof CountsSchema>
-export type Verdict = z.output<typeof VerdictSchema>
+export type Status = z.output<typeof StatusSchema>
 export type Got = z.output<typeof GetResultSchema>
-export type Watched = z.output<typeof WatchResultSchema>
+export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema>
+export type Checked = z.output<typeof CheckResultSchema>
 export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
 type Layer = 'dom' | 'src' | 'cssom' | 'total'
 type ToolCall = {tool: string; input: unknown; replyBytes: number | null; durationMs: number; error: string | null}
@@ -578,12 +577,12 @@ export type Pairer = (input: {
   budget: number
 }) => Promise<{root: Match; partial: boolean; votes: Ballot[]}>
 
-export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<Watched>
+export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<RoundReply>
 
 export type Differ = {
   get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<Got>
-  watch(input: {nodes: string[] | undefined; session: string}): Promise<Watched>
-  validate(input: {session: string}): Promise<Verdict>
+  check(input: {nodes: string[] | undefined; session: string}): Promise<Checked>
+  status(input: {session: string}): Promise<Status>
   dispose(): void
 }
 

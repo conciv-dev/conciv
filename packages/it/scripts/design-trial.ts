@@ -25,7 +25,7 @@ const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait impor
 
 const RUNS_COMMAND = 'design:runs'
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
-const [getDef, watchDef, validateDef] = DESIGN_TOOLS
+const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
 type Options = {
   route: string
@@ -50,8 +50,8 @@ type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
 
 const COMMANDS: Record<string, Command> = {
   get: ({trial, args: [file]}) => called({trial, name: getDef.name, schema: getDef.outputSchema, file}),
-  watch: ({trial, args: [file]}) => called({trial, name: watchDef.name, schema: watchDef.outputSchema, file}),
-  validate: ({trial, args: [file]}) => called({trial, name: validateDef.name, schema: validateDef.outputSchema, file}),
+  check: ({trial, args: [file]}) => called({trial, name: checkDef.name, schema: checkDef.outputSchema, file}),
+  status: ({trial, args: [file]}) => called({trial, name: statusDef.name, schema: statusDef.outputSchema, file}),
   run: async ({trial, args}) => print(JSON.stringify(await trial.rpc.extensions.run({name: RUNS_COMMAND, args}))),
   screenshot: async ({trial, args: [file = 'trial.png']}) => {
     await trial.page.screenshot({path: resolve(file), fullPage: true})
@@ -168,8 +168,9 @@ async function hostServer(input: {
         extensions: {design: {blind: input.blind}},
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
+          `${DESIGN_TOOL_PREFIX}query`,
           `${DESIGN_TOOL_PREFIX}write`,
-          ...(input.noDesign ? [getDef, watchDef, validateDef].map((tool) => tool.name) : []),
+          ...(input.noDesign ? [getDef, checkDef, statusDef].map((tool) => tool.name) : []),
         ],
       }),
     ],

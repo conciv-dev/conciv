@@ -62,18 +62,18 @@ const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 
-const [getDef, watchDef, validateDef] = DESIGN_TOOLS
+const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
 type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
 type Got = ToolOutput<typeof getDef>
-type Watched = ToolOutput<typeof watchDef>
-type Verdict = ToolOutput<typeof validateDef>
+type Checked = ToolOutput<typeof checkDef>
+type Status = ToolOutput<typeof statusDef>
 
 type Call = {
   (name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
-  (name: 'design_watch', input: z.input<typeof watchDef.inputSchema>): Promise<Watched>
-  (name: 'design_validate', input: z.input<typeof validateDef.inputSchema>): Promise<Verdict>
+  (name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
+  (name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
 }
 
 type Kit = {
@@ -92,10 +92,10 @@ type Kit = {
 
 function makeCall(rpc: RpcClient): Call {
   function call(name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
-  function call(name: 'design_watch', input: z.input<typeof watchDef.inputSchema>): Promise<Watched>
-  function call(name: 'design_validate', input: z.input<typeof validateDef.inputSchema>): Promise<Verdict>
+  function call(name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
+  function call(name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
   async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
-    const def = [getDef, watchDef, validateDef].find((candidate) => candidate.name === name)
+    const def = [getDef, checkDef, statusDef].find((candidate) => candidate.name === name)
     if (def?.outputSchema === undefined) throw new Error(`no design tool named ${name}`)
     return def.outputSchema.parse(await rpc.registry.call({name, input}))
   }
@@ -310,9 +310,9 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', {figma: FIGMA_LINK, image, document: CARDS_DOCUMENT})
 }
 
-function roundOf(watched: Watched): Exclude<Watched, {unsettled: true}> {
-  if ('unsettled' in watched) throw new Error(`the page did not settle: ${JSON.stringify(watched)}`)
-  return watched
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true}> {
+  if ('unsettled' in checked) throw new Error(`the page did not settle: ${JSON.stringify(checked)}`)
+  return checked
 }
 
 function withInk(input: {ink: Box | null}): Raster {
@@ -523,16 +523,16 @@ describe('design_get', () => {
   })
 })
 
-describe('design_watch', () => {
+describe('design_check', () => {
   it('measures the page into a round with rows, coverage and reflow at the widths the design names, and an unchanged page is the same round', async () => {
     await goto('target')
     await cardsTarget()
-    const first = roundOf(await call('design_watch', {}))
+    const first = roundOf(await call('design_check', {}))
     expect(first.coverage.nodes).toBeGreaterThan(0)
     expect(first.reflow.widths.map((entry) => entry.width)).toContain(1200)
     expect(first.reflow.widths.every((entry) => entry.from.length > 0)).toBe(true)
     expect(first.reflow.results[0]?.tags.map((tag) => tag.node)).toEqual(['1:2'])
-    const second = roundOf(await call('design_watch', {nodes: ['1:10']}))
+    const second = roundOf(await call('design_check', {nodes: ['1:10']}))
     expect(second.round).toBe(first.round)
     expect(second.rows.every((row) => row.node === '1:10')).toBe(true)
     const listed = await xrayRpc.xray.rounds({id: (await cardsTarget()).target})
@@ -540,14 +540,25 @@ describe('design_watch', () => {
   })
 })
 
-describe('design_validate', () => {
+describe('design_check verdict', () => {
   it('says not yet on a page that renders none of the design, naming the missing nodes', async () => {
     await goto('target')
     await cardsTarget()
-    await call('design_watch', {})
-    const verdict = await call('design_validate', {})
-    expect(verdict.verdict).not.toBe('done')
-    expect(verdict.reasons.some((reason) => reason.includes('not rendered'))).toBe(true)
-    expect(verdict.rounds).toBeGreaterThan(0)
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.verdict).not.toBe('done')
+    expect(checked.reasons.some((reason) => reason.includes('not rendered'))).toBe(true)
+  })
+})
+
+describe('design_status', () => {
+  it('returns the verdict, counts and rows of the last check without measuring again', async () => {
+    await goto('target')
+    await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    const status = await call('design_status', {})
+    expect(status.round).toBe(checked.round)
+    expect(status.verdict).toBe(checked.verdict)
+    expect(status.counts).toEqual(checked.counts)
+    expect(status.rows).toEqual(checked.rows)
   })
 })

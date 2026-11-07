@@ -3,10 +3,10 @@ import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
 import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
 
-const [getDef, watchDef, validateDef] = DESIGN_TOOLS
+const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
 const SOURCES =
-  'Sources, each row with target and at: targets (the registered design: link, width, height, image), rounds (one per design_watch: much, noticeably, slightly, pins, reflow, rows_count, rendered, missing, pixel_share, counts, coverage, reflow_detail, tree), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, confidence, margin), fom (the stored mapping per id and Figma node: source, confidence, margin, round, revoted_round, reason), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note) and notes (run, round, text).'
+  'Sources, each row with target and at: targets (the registered design: link, width, height, image), rounds (one per design_check: much, noticeably, slightly, pins, reflow, rows_count, rendered, missing, pixel_share, counts, coverage, reflow_detail, tree), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, confidence, margin), fom (the stored mapping per id and Figma node: source, confidence, margin, round, revoted_round, reason), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note) and notes (run, round, text).'
 
 const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select the fields to return, order the fields to sort by (seq is the order rows were written), limit the most rows; ask only for what you need. ${SOURCES}`
 
@@ -70,22 +70,22 @@ export const SERVER_STEPS = [
       call: () => ctx.differ.get({input, session: request.sessionId, page}),
     }),
   ),
-  watchDef.server((input, ctx: DesignContext, request) =>
+  checkDef.server((input, ctx: DesignContext, request) =>
     recorded({
       ctx,
-      tool: watchDef.name,
+      tool: checkDef.name,
       input,
       session: request.sessionId,
-      call: () => ctx.differ.watch({nodes: input.nodes, session: request.sessionId}),
+      call: () => ctx.differ.check({nodes: input.nodes, session: request.sessionId}),
     }),
   ),
-  validateDef.server((input, ctx: DesignContext, request) =>
+  statusDef.server((input, ctx: DesignContext, request) =>
     recorded({
       ctx,
-      tool: validateDef.name,
+      tool: statusDef.name,
       input,
       session: request.sessionId,
-      call: () => ctx.differ.validate({session: request.sessionId}),
+      call: () => ctx.differ.status({session: request.sessionId}),
     }),
   ),
   queryDef.server((input, ctx: DesignContext) => ctx.db.read(input)),

@@ -1,5 +1,5 @@
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, Raster, Round, Runner, Watched} from '../shared/defs.js'
+import type {DesignRuntime, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
 import {readIds} from '../shared/id-tree.js'
 import {createRaster} from './raster.js'
 import {idTreeOf} from './id-tree.js'
@@ -84,7 +84,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
 
 const REFLOW_HEIGHT = 900
 
-function shown(last: Round): Watched {
+function shown(last: Round): RoundReply {
   return {round: last.round, rows: last.rows, reflow: last.reflow, coverage: last.coverage, counts: last.counts}
 }
 

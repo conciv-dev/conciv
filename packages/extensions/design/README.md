@@ -6,8 +6,8 @@ a stored mapping, and says when the page is done.
 
 ## Overview
 
-Three tools: `design_get` returns the design, `design_watch` measures the page and lists what to fix, and
-`design_validate` judges the last measure. Everything they say is said by mapping: a row names a design node and the
+Three tools for the page builder: `design_get` returns the design, `design_check` measures the page and lists what to
+fix with the verdict, and `design_status` reads the last check without measuring. Everything they say is said by mapping: a row names a design node and the
 conciv key of the element that renders it. The root exports pick a browser condition (dist/client.js) or an import
 condition (dist/server.js), with subpaths ./client, ./server and ./defs. The `build` script runs tsdown, vite build
 (client), vite build with vite.xray.config.ts (the x-ray page into dist/xray), then tsc declaration emit.
@@ -28,10 +28,10 @@ src/
     box.ts             box geometry
   server/
     store.ts           the target store on unstorage: record, design, image, mapping, rounds, live and diff images
-    differ.ts          the three tool bodies: register or return the design, quiet then run, judge
+    differ.ts          the three tool bodies: register or return the design, quiet then run and judge, last round
     tools.ts           the server tool bindings
     document.ts        the design tree as tagged nodes plus rules
-    runner.ts          one watch: measure, map, gate, reflow at 1024 and 768, pixels, write the round
+    runner.ts          one check: measure, map, gate, reflow at 1024 and 768, pixels, write the round
     mapping.ts         declared, stored and voted mapping entries
     renderers.ts       the elements that render a node: data-figma first, else the mapped keys
     gate.ts            the gate rows and their magnitude words, coverage and counts
@@ -64,19 +64,21 @@ src/
   sizing, layoutAlign, constraints, clips, image, crop, absolute`), `implied: true` on a group the layout implies,
   `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
   implied nodes out. `rules` are the sentences the page must follow.
-- `design_watch({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
-  mapping, and returns `{round, rows, reflow, coverage, counts}`. A row is `{node, key, kind, name, text, magnitude}`;
+- `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
+  mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
-  of the round before, answers `{unsettled: true, rendered}` and writes nothing.
-- `design_validate()` reads the last round: `done` when `much + noticeably + pins = 0`, every required node renders
+  of the round before, answers `{unsettled: true, rendered, verdict: 'unsettled', reasons}` and writes nothing. The
+  verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
   (decorations and zero-size nodes are not required), nothing sticks out, nothing scrolls sideways and every reflow
   tag holds at 1024 and 768; `stalled` when `much` is above 0 and has not fallen for two rounds; else `not yet`. The
   reasons say which condition failed with the numbers. Pixels are reported, never judged.
+- `design_status()` measures nothing: it returns `{verdict, reasons, round, counts, coverage, rows}` of the last stored
+  round, or `not yet` with round 0 when no check has run.
 
 ## Mapping
 
-Stored per target as `{figma: {fileKey, nodeId}, conciv, source: declared | voted, round}[]`. Each watch: an element
+Stored per target as `{figma: {fileKey, nodeId}, conciv, source: declared | voted, round}[]`. Each check: an element
 with `data-figma="<id>"` and a conciv key declares its node and replaces what was stored for it; a stored entry stays
 otherwise, and a node whose element left the page reads as not rendered; only nodes nobody mapped go to the voter.
 
@@ -110,7 +112,7 @@ Each delta names the source that measured it, and each report lists the sources 
 Run from `packages/it` with `pnpm trial --route '/?variant=<name>' --width <px> (--figma <link> [--image <png>
 --document <json>] | --image <png>) [--agent] [--blind] [--state <dir>]`. The trial registers the design through
 `design_get` and prints `target <id> <w>x<h> nodes <count> tab <width>`, then reads commands from its arguments or
-stdin: `get [file]`, `watch [file]`, `validate [file]` (each prints the tool's JSON, or writes it to the file),
+stdin: `get [file]`, `check [file]`, `status [file]` (each prints the tool's JSON, or writes it to the file),
 `screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the fixture's design images.
 
 ## OCR engine

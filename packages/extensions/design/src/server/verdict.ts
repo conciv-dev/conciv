@@ -1,28 +1,21 @@
-import type {Design, DesignNode, Round, Verdict} from '../shared/defs.js'
+import type {Design, DesignNode, Round, Status} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 
-export function verdictOf(input: {design: Design; rounds: Round[]}): Verdict {
+export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
   const {rounds} = input
   const last = rounds.at(-1)
   if (last === undefined) {
     return {
       verdict: 'not yet',
-      reasons: ['No measure yet: call design_watch first.'],
+      reasons: ['No round yet: call design_check first.'],
+      round: 0,
+      rows: [],
       counts: null,
       coverage: null,
-      reflow: {widths: [], results: []},
-      pixels: null,
-      rounds: 0,
     }
   }
   const reasons = reasonsOf({round: last, required: requiredOf(input.design.root)})
-  const shown = {
-    counts: last.counts,
-    coverage: last.coverage,
-    reflow: last.reflow,
-    pixels: last.pixels,
-    rounds: rounds.length,
-  }
+  const shown = {round: last.round, rows: last.rows, counts: last.counts, coverage: last.coverage}
   if (reasons.length === 0) return {verdict: 'done', reasons, ...shown}
   return {verdict: stalled(rounds) ? 'stalled' : 'not yet', reasons, ...shown}
 }

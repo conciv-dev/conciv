@@ -34,7 +34,7 @@ const RULES = [
   'Every image div gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
   'A node not marked image is a box: when it has a solid fill, that fill is its background, whether it is an icon, a logo, a dot or a drawing.',
   'A row whose auto-layout says wrap: WRAP keeps all its children on one line at the design width, exactly as the Figma frame shows them; it may wrap only when the viewport is narrower than the row is in the design, never at the design width.',
-  'design_watch returns the rows to fix: a row without a width is about the page at the design width; a row with a width is about the page measured at that width, mostly narrower: it did not reflow as tagged, sticks out, overlaps a sibling or scrolls sideways.',
+  'design_check returns the rows to fix and the verdict: a row without a width is about the page at the design width; a row with a width is about the page measured at that width, mostly narrower: it did not reflow as tagged, sticks out, overlaps a sibling or scrolls sideways.',
 ]
 
 const IMPLIED_FIELDS =
