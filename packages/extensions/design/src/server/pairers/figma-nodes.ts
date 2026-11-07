@@ -305,6 +305,7 @@ function layoutOf(input: {node: DesignNode; element: Element}): number {
   const laidOut = cssom.display.includes(FLEX) || cssom.display.includes(GRID)
   const mode = node.figma?.mode ?? null
   if (mode !== null && FLOWS.has(mode)) {
+    if (node.children.some((child) => child.implied === true)) return 0
     const flex = cssom.display.includes(FLEX)
     if (!flex && (cssom.columns ?? 0) < 2) return 0
     const row = flex ? cssom.flexDirection.startsWith(ROW) : true
