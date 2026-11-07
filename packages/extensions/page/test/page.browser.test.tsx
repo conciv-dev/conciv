@@ -590,17 +590,24 @@ describe('page tools', () => {
       expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
     }, 10_000)
 
-    it('leaves the conciv widget host and effects surface out of the capture', async () => {
+    it('leaves the conciv widget host, effects surface and grab toast out of the capture', async () => {
       const plain = coverViewport()
       const covered = centrePixel(await decoded((await screenshotOf()).image))
       plain.remove()
       const widget = coverViewport('data-conciv-root')
       const widgetExcluded = centrePixel(await decoded((await screenshotOf()).image))
       widget.remove()
-      coverViewport('data-conciv-effects')
+      const effects = coverViewport('data-conciv-effects')
       const effectsExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      effects.remove()
+      coverViewport('data-conciv-toast')
+      const toastExcluded = centrePixel(await decoded((await screenshotOf()).image))
       expect(isRed(covered)).toBe(true)
-      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded)}).toEqual({widget: false, effects: false})
+      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded), toast: isRed(toastExcluded)}).toEqual({
+        widget: false,
+        effects: false,
+        toast: false,
+      })
     }, 10_000)
 
     it('keeps link text that sits on one line on one line in the capture', async () => {

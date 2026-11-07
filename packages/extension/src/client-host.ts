@@ -4,7 +4,7 @@ import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
 
-export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [data-conciv-fonts], [data-conciv-properties]`
+export const CONCIV_UI_SELECTOR = `[data-conciv-root], [${EFFECTS_SURFACE_ATTR}], [data-conciv-fonts], [data-conciv-properties], [data-conciv-toast]`
 
 function createEffectsHost(): HTMLElement {
   const host = document.createElement('div')
