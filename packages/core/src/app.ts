@@ -299,6 +299,8 @@ function assertUniqueCapabilityNames(sources: [string, string[]][]): void {
   }
 }
 
+const OUTSIDE_DECISION_WAIT_MS = 50_000
+
 const HealthSchema = z.object({
   ok: z.literal(true),
   harness: z.string(),
@@ -589,15 +591,19 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
-  const admitOutside = async (scope: SessionScope, client: string | null): Promise<string | null> => {
+  const admitOutside = async (
+    scope: SessionScope,
+    client: string | null,
+    signal: AbortSignal,
+  ): Promise<string | null> => {
     if (opts.cfg.hubAccess === 'open') return null
-    const refusal = await plane.admitCall(
-      scope.id,
-      OUTSIDE_SESSION_TARGET,
-      {client},
-      scope.stream.publish,
-      outsideTitle(client),
-    )
+    const refusal = await plane.admitCall(scope.id, {
+      toolName: OUTSIDE_SESSION_TARGET,
+      input: {client},
+      publish: scope.stream.publish,
+      title: outsideTitle(client),
+      until: AbortSignal.any([signal, AbortSignal.timeout(OUTSIDE_DECISION_WAIT_MS)]),
+    })
     if (refusal === null) return null
     return refusal.reason === 'missing' ? refusal.message : outsideRefusal(scope, client, refusal.reason)
   }

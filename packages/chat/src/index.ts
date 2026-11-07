@@ -11,7 +11,13 @@ import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
-import {createApprovalStore, createUiChannel, type ApprovalDecision, type ApprovalScope} from './approvals.js'
+import {
+  createApprovalStore,
+  createUiChannel,
+  type Admission,
+  type ApprovalDecision,
+  type ApprovalScope,
+} from './approvals.js'
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
@@ -55,6 +61,16 @@ export type CodeRunner = {
   declaredCodes: ReadonlySet<string>
 }
 
+type AdmittedCall = {
+  toolName: string
+  input: unknown
+  publish: (chunk: ChatEvent) => void
+  title?: string
+  until?: AbortSignal
+}
+
+type CallRefusal = {reason: 'asked' | 'denied' | 'missing'; message: string}
+
 export type ChatPlane = {
   routes: (upgrade: UpgradeWebSocket) => Hono
   hydrate: (sessionId: SessionId, window?: ChatHistoryWindow) => Promise<ChatHydration>
@@ -80,13 +96,7 @@ export type ChatPlane = {
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
-  admitCall: (
-    sessionId: SessionId,
-    toolName: string,
-    input: unknown,
-    publish: (chunk: ChatEvent) => void,
-    title?: string,
-  ) => Promise<{reason: 'asked' | 'denied' | 'missing'; message: string} | null>
+  admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
 }
@@ -117,17 +127,28 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   })
   const normalize = toolNameNormalizer(deps.toolNames)
 
-  const admitCall: ChatPlane['admitCall'] = async (sessionId, toolName, input, publish, title = toolName) => {
+  const admitCall: ChatPlane['admitCall'] = async (sessionId, call) => {
     if (deps.sessions.row(sessionId) === null) {
       return {reason: 'missing', message: `session "${sessionId}" does not exist`}
     }
-    const approvalId = toolApprovalId(toolName)
-    const admission = await approvals.admit(sessionId, approvalId)
-    if (admission === 'allowed') return null
-    if (admission === 'denied') return {reason: 'denied', message: OUTSIDE_DENIED}
-    await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title, input, runId: null})
-    publish({...approvalRequestedEvent.create({approvalId, title, input}), timestamp: Date.now()})
-    return {reason: 'asked', message: approvalNeeded(toolName).message}
+    const approvalId = toolApprovalId(call.toolName)
+    const settled = new AbortController()
+    const decided = approvals.decided(
+      sessionId,
+      approvalId,
+      AbortSignal.any([call.until ?? AbortSignal.abort(), settled.signal]),
+    )
+    try {
+      const admission = await approvals.admit(sessionId, approvalId)
+      if (admission !== 'ask') return refusalOf(admission, call.toolName)
+      const title = call.title ?? call.toolName
+      await approvals.asked(sessionId, {approvalId, toolCallId: approvalId, title, input: call.input, runId: null})
+      call.publish({...approvalRequestedEvent.create({approvalId, title, input: call.input}), timestamp: Date.now()})
+      await decided
+      return refusalOf(await approvals.admit(sessionId, approvalId), call.toolName)
+    } finally {
+      settled.abort()
+    }
   }
 
   const hydrate = async (sessionId: SessionId, window?: ChatHistoryWindow): Promise<ChatHydration> => {
@@ -223,7 +244,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             description: tool.description,
             inputSchema: capability.inputSchema,
             run: async (input, parentToolCallId) => {
-              const refusal = await admitCall(sessionId, tool.name, input, publish)
+              const refusal = await admitCall(sessionId, {toolName: tool.name, input, publish})
               if (refusal !== null) throw new Error(refusal.message)
               return execute(input, {emitCustomEvent: emitter(parentToolCallId)})
             },
@@ -239,4 +260,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       }
     },
   }
+}
+
+function refusalOf(admission: Admission, toolName: string): CallRefusal | null {
+  if (admission === 'allowed') return null
+  if (admission === 'denied') return {reason: 'denied', message: OUTSIDE_DENIED}
+  return {reason: 'asked', message: approvalNeeded(toolName).message}
 }

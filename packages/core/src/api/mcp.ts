@@ -274,22 +274,26 @@ type McpDeps = {
   ) => Promise<CodeRunner | null>
   outsideCapabilities: (sessionId: SessionId, client: string | null) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
-  admitOutside: (scope: SessionScope, client: string | null) => Promise<string | null>
+  admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   staleness: () => EngineStaleness
 }
 
 export type McpVars = {mcp: McpDeps}
 
-function gated<Args>(refusal: string | null, run: (args: Args) => Promise<ExecuteReply>) {
-  if (refusal === null) return run
-  return async (): Promise<ExecuteReply> => ({content: [{type: 'text', text: refusal}], isError: true})
+function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => Promise<ExecuteReply>) {
+  return async (args: Args): Promise<ExecuteReply> => {
+    const refusal = await admit()
+    if (refusal === null) return run(args)
+    return {content: [{type: 'text', text: refusal}], isError: true}
+  }
 }
 
-type McpCaller = {trace: CallTrace; outside: boolean}
+type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
   const origin = caller.trace.hub
-  const refusal = origin === null || caller.outside ? null : await deps.admitOutside(scope, origin.client)
+  const admit = (): Promise<string | null> =>
+    origin === null || caller.outside ? Promise.resolve(null) : deps.admitOutside(scope, origin.client, caller.signal)
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
   const runner = await deps.codeRunner(
@@ -311,11 +315,11 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server(gated(refusal, (args) => runDiscover(runner, args.toolNames))),
+          }).server(gated(admit, (args) => runDiscover(runner, args.toolNames))),
         ]
   const askingTools = runner.asking.map((tool) =>
     defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
-      gated(refusal, (args) => runDirect(tool, args, calls)),
+      gated(admit, (args) => runDirect(tool, args, calls)),
     ),
   )
   const executeTool = defineTool({
@@ -323,7 +327,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
     description: executeDescription(runner, deps.staleness()),
     inputSchema: ExecuteInputSchema,
   }).server(
-    gated(refusal, async (args) => {
+    gated(admit, async (args) => {
       try {
         return await runExecute(runner, args.typescriptCode, calls)
       } catch (error) {
@@ -341,7 +345,7 @@ const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   const nativeId = nativeIdFromHeaders(c.req.raw.headers)
   const trace = callTrace((name) => c.req.raw.headers.get(name))
   const scope = await c.var.mcp.resolveSession(header, nativeId)
-  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null}
+  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null, signal: c.req.raw.signal}
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,

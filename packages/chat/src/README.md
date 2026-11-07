@@ -19,9 +19,10 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Invariants
 
-- `index.ts:admitCall` - returns null when the call may run, else `{reason, message}`: `missing` (`session "<id>" does not exist`, when `deps.sessions.row` is null), `denied`, or `asked` (the ask was just published).
+- `index.ts:admitCall` - returns null when the call may run, else `{reason, message}`: `missing` (`session "<id>" does not exist`, when `deps.sessions.row` is null), `denied`, or `asked` (the ask was just published). Given `until`, an ask holds the call until the user decides it (allowed: null, denied: `denied`) or `until` aborts (`asked`, the ask stays pending); every call waiting on the same approval resolves from one decision.
 - `index.ts:FIRST_OUTPUT_TIMEOUT_MS` - a turn with no first output for 30000 ms (or `firstOutputTimeoutMs`) is treated as silent by the chat server.
 - `approvals.ts:createApprovalStore.asked` - a pending approval with the same `approvalId` is not added twice.
+- `approvals.ts:createApprovalStore.decided` - resolves when `decide` records a decision for that approval (keyed by the grant holder, so under `hubAccess: 'project'` an outside allow in any session wakes every session) or when the signal aborts.
 - `approvals.ts:createApprovalStore.forRun` - `once` and `denied` grants are cleared when a run reads them; `session` grants persist for the thread.
 - `transcript.ts:createTranscriptImporter.sync` - messages already stored (by id) are skipped, and import resumes after the stored anchor `nativeId`; it reads only when the row's `harnessKind` is the session's harness, and stamps each imported assistant message with `metadata.conciv.harnessId`.
 - `turn.ts:turnHooks` - every hook resolves the adapter with `deps.harnessFor(sessionId)`; a native id is resumed only when the row's `harnessKind` is that adapter, otherwise the full history is replayed.

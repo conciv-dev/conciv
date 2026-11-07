@@ -33,7 +33,7 @@ export type RpcDeps = {
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
   auth: AuthRouter
-  admitOutside: (scope: SessionScope, client: string | null) => Promise<string | null>
+  admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   search: ReturnType<typeof createSessionSearch>
 }
 

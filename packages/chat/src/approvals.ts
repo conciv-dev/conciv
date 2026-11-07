@@ -1,3 +1,4 @@
+import {EventEmitter, once} from 'node:events'
 import {z} from 'zod'
 import {toolApprovalId, type Approvals, type ChatStores} from '@conciv/ai/server'
 import {OUTSIDE_SESSION_TARGET, type HubAccess} from '@conciv/protocol/chat-types'
@@ -46,7 +47,7 @@ export type ApprovalAsked = {
 
 export type ApprovalDecision = {startsTurn: boolean}
 
-type Admission = 'allowed' | 'ask' | 'denied'
+export type Admission = 'allowed' | 'ask' | 'denied'
 
 export type ApprovalStore = {
   asked: (threadId: string, ask: ApprovalAsked) => Promise<void>
@@ -59,6 +60,7 @@ export type ApprovalStore = {
   ) => Promise<ApprovalDecision | null>
   forRun: (threadId: string) => Promise<Approvals>
   admit: (threadId: string, approvalId: string) => Promise<Admission>
+  decided: (threadId: string, approvalId: string, signal: AbortSignal) => Promise<void>
   outsideDenied: (threadId: string) => Promise<boolean>
   allowOutside: (threadId: string) => Promise<void>
 }
@@ -82,6 +84,11 @@ const grantsKey = (threadId: string): string => `${threadId}:grants`
 
 export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess: HubAccess): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
+  const holderOf = (threadId: string, approvalId: string): string =>
+    approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
+  const decisionKey = (threadId: string, approvalId: string): string =>
+    `${holderOf(threadId, approvalId)}:${approvalId}`
+  const decisions = new EventEmitter().setMaxListeners(0)
   const pendingOf = async (threadId: string) =>
     PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, pendingKey(threadId))) ?? [])
   const grantsOf = async (threadId: string): Promise<Grants> =>
@@ -103,6 +110,32 @@ export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess:
     await writeGrants(holder, {...grants, [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])]})
     return {startsTurn: false}
   }
+  const record = async (
+    threadId: string,
+    approvalId: string,
+    approved: boolean,
+    scope: ApprovalScope,
+  ): Promise<ApprovalDecision | null> => {
+    const pending = await pendingOf(threadId)
+    const decided = pending.find((entry) => entry.approvalId === approvalId)
+    if (decided === undefined) return null
+    await metadata.set(
+      APPROVALS_NAMESPACE,
+      pendingKey(threadId),
+      pending.filter((entry) => entry.approvalId !== approvalId),
+    )
+    if (approvalId === OUTSIDE_APPROVAL_ID) return decideOutside(threadId, approved)
+    const grants = await grantsOf(threadId)
+    const inTurn = decided.runId !== null
+    if (!approved) {
+      if (inTurn) await writeGrants(threadId, {...grants, denied: [...new Set([...grants.denied, approvalId])]})
+      return {startsTurn: inTurn}
+    }
+    const oneTime = inTurn ? 'once' : 'outside'
+    const bucket = scope === 'session' && sessionGrantable(approvalId) ? 'session' : oneTime
+    await writeGrants(threadId, {...grants, [bucket]: [...new Set([...grants[bucket], approvalId])]})
+    return {startsTurn: inTurn}
+  }
   const outsideDenied = async (threadId: string): Promise<boolean> =>
     (await grantsOf(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
   return {
@@ -120,26 +153,15 @@ export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess:
         runId: entry.runId,
       })),
     decide: async (threadId, approvalId, approved, scope) => {
-      const pending = await pendingOf(threadId)
-      const decided = pending.find((entry) => entry.approvalId === approvalId)
-      if (decided === undefined) return null
-      await metadata.set(
-        APPROVALS_NAMESPACE,
-        pendingKey(threadId),
-        pending.filter((entry) => entry.approvalId !== approvalId),
-      )
-      if (approvalId === OUTSIDE_APPROVAL_ID) return decideOutside(threadId, approved)
-      const grants = await grantsOf(threadId)
-      const inTurn = decided.runId !== null
-      if (!approved) {
-        if (inTurn) await writeGrants(threadId, {...grants, denied: [...new Set([...grants.denied, approvalId])]})
-        return {startsTurn: inTurn}
-      }
-      const oneTime = inTurn ? 'once' : 'outside'
-      const bucket = scope === 'session' && sessionGrantable(approvalId) ? 'session' : oneTime
-      await writeGrants(threadId, {...grants, [bucket]: [...new Set([...grants[bucket], approvalId])]})
-      return {startsTurn: inTurn}
+      const decision = await record(threadId, approvalId, approved, scope)
+      if (decision !== null) decisions.emit(decisionKey(threadId, approvalId))
+      return decision
     },
+    decided: (threadId, approvalId, signal) =>
+      once(decisions, decisionKey(threadId, approvalId), {signal}).then(
+        () => undefined,
+        () => undefined,
+      ),
     forRun: async (threadId) => {
       const grants = await grantsOf(threadId)
       if (grants.once.length > 0 || grants.denied.length > 0)
@@ -150,7 +172,7 @@ export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess:
       ])
     },
     admit: async (threadId, approvalId) => {
-      const holder = approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
+      const holder = holderOf(threadId, approvalId)
       const grants = await grantsOf(holder)
       if (grants.session.includes(approvalId)) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'

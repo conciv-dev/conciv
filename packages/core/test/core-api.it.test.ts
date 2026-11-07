@@ -3651,7 +3651,6 @@ describe('outside sessions', () => {
 
 describe('outside agent consent', () => {
   const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
-  const ASKS = /codex is waiting for the user to allow it in the conciv tab.*; retry after they click Approve\./
   const RAN = /"result":1/
   const DENIED = 'The user denied codex access to the conciv tab'
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
@@ -3696,41 +3695,49 @@ describe('outside agent consent', () => {
   const pendingOf = async (base: string, sessionId: string) =>
     (await rpcOf(base, sessionId).chat.hydrate({sessionId})).pendingApprovals
 
-  async function toolStarts(base: string, sessionId: string): Promise<() => Promise<unknown>> {
+  async function toolStarts(base: string, sessionId: string, count = 1): Promise<() => Promise<unknown[]>> {
     const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: pages.signal})
     return async () => {
-      for await (const chunk of events) if (chunk.type === ChatEventType.TOOL_CALL_START) return chunk
-      return null
+      const seen: unknown[] = []
+      for await (const chunk of events) {
+        if (chunk.type === ChatEventType.TOOL_CALL_START) seen.push(chunk)
+        if (seen.length === count) return seen
+      }
+      return seen
     }
   }
 
   async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
     const [ask] = await pendingOf(base, sessionId)
     expect(ask).toMatchObject({toolName: 'Allow codex to use this tab', input: {client: 'codex'}, runId: null})
     const decision = await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved})
     expect(decision.startsTurn).toBe(false)
   }
 
-  it('session policy asks on the first hub request, an allow covers only its session, and a deny sticks until allowed', async () => {
+  it('session policy holds hub calls until the user answers: one allow releases every waiting call of its session only, a deny fails them and sticks until allowed', async () => {
     const base = await boot()
     const [first, second] = [await newSession(base), await newSession(base)]
     const lister = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: first, ...HUB})
     await lister.tools()
     await lister.close()
-    expect(await pendingOf(base, first)).toHaveLength(1)
-    expect(await hubCall(base, first)).toMatch(ASKS)
+    expect(await pendingOf(base, first)).toEqual([])
+    const waiting = [hubCall(base, first), hubCall(base, first)]
     await decideOutside(base, first, true)
+    expect(await Promise.all(waiting)).toEqual([expect.stringMatching(RAN), expect.stringMatching(RAN)])
     expect(await hubCall(base, first)).toMatch(RAN)
-    expect(await hubCall(base, second)).toMatch(ASKS)
+    const refused = hubCall(base, second)
     await decideOutside(base, second, false)
-    expect(await hubCall(base, second)).toContain(DENIED)
+    expect(await refused).toContain(DENIED)
     expect(await hubCall(base, second)).toContain(DENIED)
     expect(await pendingOf(base, second)).toEqual([])
     const rpc = rpcOf(base, second)
     expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: true})
     await rpc.chat.allowOutside({sessionId: second})
     expect(await rpc.chat.outsideAccess({sessionId: second})).toEqual({denied: false})
-    expect(await hubCall(base, second)).toMatch(ASKS)
+    const allowed = hubCall(base, second)
+    await decideOutside(base, second, true)
+    expect(await allowed).toMatch(RAN)
   })
 
   it('an outside run lists every tab, picks one per block and forwards to its owner after allow', async () => {
@@ -3752,8 +3759,9 @@ describe('outside agent consent', () => {
     const picked = await outside(runner, `${pick} return picked`)
     expect(picked.length).toBeLessThan(RESULT_CAP_CHARS)
     expect(picked).toContain(JSON.stringify({instructions: answer.instructions, tools: summaries}))
-    expect(await outside(runner, `${pick} return await external_page_route({})`)).toMatch(ASKS)
+    const forwarded = outside(runner, `${pick} return await external_page_route({})`)
     await decideOutside(owner, theirs, true)
+    expect(await forwarded).toContain(ROUTE.href)
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
@@ -3776,24 +3784,28 @@ describe('outside agent consent', () => {
     expect(await outside(runner, 'return await external_tabs({})')).toContain(home)
   })
 
-  it('a hub-origin rpc tool call asks first and runs marked, a plain rpc call never asks, project policy allows every session', async () => {
+  it('a hub-origin rpc tool call waits for the allow and runs marked, a caller that leaves stops waiting, a plain rpc call never asks, project policy allows every session', async () => {
     const base = await boot('project')
     const sessionId = await openTab(base)
     const route = {name: 'page_route', input: {}}
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     expect(await rpcOf(base, sessionId).registry.call(route)).toMatchObject({href: ROUTE.href})
     expect(await pendingOf(base, sessionId)).toEqual([])
-    await expect(hubRpc.registry.call(route)).rejects.toMatchObject({
-      code: 'APPROVAL_DENIED',
-      message: 'codex is waiting for the user to allow it in the conciv tab "A"; retry after they click Approve.',
-    })
+    const leaving = new AbortController()
+    const left = hubRpc.registry.call(route, {signal: leaving.signal})
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    leaving.abort()
+    await expect(left).rejects.toThrow()
+    expect(await pendingOf(base, sessionId)).toHaveLength(1)
+    const starts = await toolStarts(base, sessionId, 2)
+    const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
-    const starts = await toolStarts(base, sessionId)
-    expect(await hubRpc.registry.call(route)).toMatchObject({href: ROUTE.href})
-    expect(await starts()).toMatchObject({
-      toolCallName: 'page_route',
-      metadata: {conciv: {origin: 'hub', client: 'codex'}},
-    })
+    expect(await waiting).toMatchObject({href: ROUTE.href})
+    await hubRpc.server.urls().catch(() => null)
+    expect(await starts()).toEqual([
+      expect.objectContaining({toolCallName: 'page_route', metadata: {conciv: {origin: 'hub', client: 'codex'}}}),
+      expect.objectContaining({toolCallName: 'server_urls'}),
+    ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
@@ -3802,7 +3814,7 @@ describe('outside agent consent', () => {
     const sessionId = await newSession(base)
     const starts = await toolStarts(base, sessionId)
     expect(await hubCall(base, sessionId)).toMatch(RAN)
-    expect(await starts()).toMatchObject({metadata: {conciv: {origin: 'hub', client: 'codex'}}})
+    expect(await starts()).toMatchObject([{metadata: {conciv: {origin: 'hub', client: 'codex'}}}])
     expect(await pendingOf(base, sessionId)).toEqual([])
   })
 })

@@ -160,7 +160,7 @@ describe('approval replay', () => {
 
   test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
     const sessionId = await newSession()
-    await coreControl.hubExecute(sessionId, 'return 1')
+    const waiting = coreControl.hubExecute(sessionId, 'return 1')
 
     const pane = await attachedPane(sessionId)
     keep(pane)
@@ -180,6 +180,7 @@ describe('approval replay', () => {
 
     await approveButton().click()
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await waiting).toContain('{\\"result\\":1')
     expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
   }, 120_000)
 })
@@ -2456,25 +2457,27 @@ describe('session options outside agents', () => {
 
   test('allow outside agents lifts a deny and leaves the menu', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
-    await coreControl.hubExecute(sessionId, 'return 1')
+    const denied = coreControl.hubExecute(sessionId, 'return 1')
     harness.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(strip().getByText('Allow codex to use this tab'), {timeout: 8000}).toBeVisible()
     await page.getByRole('button', {name: 'Deny'}).click()
     await expect.element(strip()).not.toBeInTheDocument()
+    expect(await denied).toContain('The user denied codex access')
     await page.getByRole('button', {name: 'Session options'}).click()
     await allowRow().click()
     await expect.element(allowRow()).not.toBeInTheDocument()
-    await coreControl.hubExecute(sessionId, 'return 1')
-    await expect.element(strip(), {timeout: 8000}).toBeVisible()
+    const allowed = coreControl.hubExecute(sessionId, 'return 1')
+    await approve()
+    expect(await allowed).toContain('{\\"result\\":1')
   }, 30_000)
 
   test('an allowed outside call shows tagged with its agent and the pane settles, an in-page call has no tag', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
-    await coreControl.hubExecute(sessionId, 'return 1')
+    const waiting = coreControl.hubExecute(sessionId, 'return 40 + 2')
     await approve()
     await expect.element(strip()).not.toBeInTheDocument()
-    expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+    expect(await waiting).toContain('42')
     expect(await coreControl.hubExecute(sessionId, 'return 7 * 6', 'in-page')).toContain('42')
     const outsideRow = page.getByRole('button', {name: /exec return 40 \+ 2/})
     const inPageRow = page.getByRole('button', {name: /exec return 7 \* 6/})
@@ -2496,7 +2499,7 @@ describe('session options outside agents', () => {
     const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
     const waiting = () => page.getByRole('button', {name: 'Waiting for your Allow. Open conciv chat'})
     await expect.element(launcher()).toBeVisible()
-    await coreControl.hubExecute(sessionId, 'return 1')
+    const call = coreControl.hubExecute(sessionId, 'return 1')
     await expect.element(waiting(), {timeout: 8000}).toBeVisible()
     await waiting().click()
     await expect.element(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
@@ -2504,13 +2507,15 @@ describe('session options outside agents', () => {
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect.element(launcher()).toBeVisible()
     await expect.element(waiting()).not.toBeInTheDocument()
+    expect(await call).toContain('{\\"result\\":1')
   }, 30_000)
 
   test('a call forwarded from another engine shows only its tool row, never the forwarding execute', async () => {
     const sessionId = await createSession(coreRpc(coreBase()))
     harness.mountShell(`/panel/${sessionId}?open=true`)
-    await coreControl.hubExecute(sessionId, 'return 1')
+    const waiting = coreControl.hubExecute(sessionId, 'return 1')
     await approve()
+    expect(await waiting).toContain('{\\"result\\":1')
     const forwarded = 'return await external_page_route({})'
     expect(await coreControl.hubExecute(sessionId, forwarded, 'hub-forward')).toContain('page_route')
     await expect.element(page.getByRole('button', {name: /^failed route/}), {timeout: 8000}).toBeVisible()
