@@ -1009,6 +1009,7 @@ describe('codex history', () => {
   const OTHER = '/workspace/other'
   const SESSION = HarnessSessionId.parse('019fb331-4da4-7960-8197-c43d6205c10b')
   const STRAY = HarnessSessionId.parse('019fb328-153e-7da1-8d38-36286c97d0ab')
+  const DELETED = HarnessSessionId.parse('019fb320-0000-7000-8000-00000000de1e')
 
   const ROLLOUT_LINES = [
     {
@@ -1123,6 +1124,7 @@ describe('codex history', () => {
     seedThreads([
       {id: SESSION, path: main, cwd: PROJECT, updated: 1785417797467},
       {id: STRAY, path: stray, cwd: OTHER, updated: 1785417209607},
+      {id: DELETED, path: join(sessionsRoot(), 'deleted.jsonl'), cwd: PROJECT, updated: 1785417000000},
     ])
   })
 
@@ -1212,6 +1214,7 @@ describe('codex history', () => {
       const {sessions} = await history().list(PROJECT, FIRST_PAGE)
       expect(await history().meta(PROJECT, SESSION)).toEqual(sessions[0])
       expect(await history().meta(PROJECT, STRAY)).toBeNull()
+      expect(await history().meta(PROJECT, DELETED)).toBeNull()
     })
 
     it('pages newest first, breaks updatedAt ties by id, and reads only the rollouts on the page', async () => {

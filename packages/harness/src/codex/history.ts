@@ -353,16 +353,18 @@ async function listSessions(cwd: string, page: HarnessListPage): Promise<Harness
     page.limit + 1,
   ])
   const paged = pageAfter(rows, page, (row) => ({updatedAt: millis(row.updated_at_ms, row.updated_at), id: row.id}))
-  return {sessions: await Promise.all(paged.items.map(threadMeta)), next: paged.next}
+  const metas = await Promise.all(paged.items.map(threadMeta))
+  return {sessions: metas.filter((meta) => meta !== null), next: paged.next}
 }
 
-async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta> {
+async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta | null> {
   const info = await stat(row.rollout_path).catch(whenMissing(null))
+  if (info === null) return null
   return {
     id: row.id,
     derivedTitle: firstText(row),
     updatedAt: millis(row.updated_at_ms, row.updated_at),
-    sizeBytes: info?.size,
+    sizeBytes: info.size,
     model: row.model ?? null,
     totalTokens: row.tokens_used ?? 0,
     lastMessage: condense(row.preview, MAX_PREVIEW) || null,
