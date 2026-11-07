@@ -23,10 +23,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./read-only-query": {
-      "types": "./dist/read-only-query.d.ts",
-      "import": "./dist/read-only-query.js"
     }
   },
   "publishConfig": {

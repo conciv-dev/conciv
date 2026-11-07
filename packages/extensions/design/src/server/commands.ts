@@ -3,11 +3,6 @@ import {createRuns} from './runs.js'
 import type {designTables} from './tables.js'
 
 export const DESIGN_COMMANDS: ExtensionCommands<ReturnType<typeof designTables>> = {
-  query: {
-    description: 'run one read-only SELECT over the design tables, as design_query does',
-    positionals: ['sql'],
-    run: ({args: [sql = ''], db}) => db.query(sql),
-  },
   runs: {
     description: 'record a harness run: runs start <model> <prompt head file> | runs end <verdict> <cost>',
     positionals: ['action', 'first', 'second'],

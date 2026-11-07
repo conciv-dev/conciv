@@ -63,7 +63,7 @@ const design = defineExtension({
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
   return {
-    context: {design: runtime, differ, query: db.query},
+    context: {design: runtime, differ},
     router: xray.router,
     app: xray.app,
     dispose: async () => {

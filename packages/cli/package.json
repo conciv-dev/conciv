@@ -40,7 +40,6 @@
     "@ast-grep/napi": "^0.51.0",
     "@clack/prompts": "catalog:",
     "@conciv/contract": "workspace:^",
-    "@conciv/db": "workspace:^",
     "@conciv/extension-design": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/harness-init": "workspace:^",
