@@ -59,11 +59,17 @@ src/
 - `design_get({figma})`, or `{figma, document, image}` with the pasted REST nodes document and the PNG, or `{image}`
   for a PNG design. The first call registers the design as the session's target (id from the file key, node id and
   document version); a later call with the same link, or with no link, returns the stored design. It returns
-  `{target, root, count, viewport, rules, nodes}`. `nodes` walk the tree in order, each with `id, type, name, within,
-  depth, box` (exact, frame-relative) and the Figma fields it has (`fills, strokes, radius, text, font, layout,
-  sizing, layoutAlign, constraints, clips, image, crop, absolute`), `implied: true` on a group the layout implies,
-  `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
-  implied nodes out. `rules` are the sentences the page must follow.
+  `{target, viewport, count, bytes, rules, document}`: `document` is the design as one markup document (built and
+  serialized with `linkedom`), a `design` root with `viewport` and `count`, then one element per node in tree order,
+  the node type lowered as the tag (`frame`, `text`, `group`, ...) and the fields it has as attributes: `id, name,
+  box` (`x y w h`, exact, frame-relative), `layout` (`row|column|grid gap-N pad-T-R-B-L main-* cross-* main-size-*
+  cross-size-* wrap`), `fill` (`color` on text), `stroke, stroke-weight, radius, font` (`family weight size/line`),
+  `font-style, tracking, text-align, text-case, decoration, sizing, limits, align-self, constraints, grow, rotation,
+  opacity, reflow` (`kind minChildWidth`), the flags `clips, image, crop, absolute, implied`, and `key` once the
+  mapping holds the node. Text is the element's text. `count` leaves implied nodes out; `bytes` is the document's
+  length. `rules` are the sentences the page must follow. With `selector` it runs `querySelectorAll` over the
+  document and returns `{target, matches}`, each match `{path, document}`: its ancestors by id and name and its
+  `outerHTML`; a selector that matches nothing or does not parse is a tool error.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
@@ -112,8 +118,8 @@ Each delta names the source that measured it, and each report lists the sources 
 Run from `packages/it` with `pnpm trial --route '/?variant=<name>' --width <px> (--figma <link> [--image <png>
 --document <json>] | --image <png>) [--agent] [--blind] [--state <dir>]`. The trial registers the design through
 `design_get` and prints `target <id> <w>x<h> nodes <count> tab <width>`, then reads commands from its arguments or
-stdin: `get [file]`, `check [file]`, `status [file]` (each prints the tool's JSON, or writes it to the file),
-`screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the fixture's design images.
+stdin: `get [file] [selector]` (the selector is the rest of the line), `check [file]`, `status [file]` (each
+prints the tool's JSON, or writes it to the file), `screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the fixture's design images.
 
 ## OCR engine
 

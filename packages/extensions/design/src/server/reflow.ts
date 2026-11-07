@@ -136,7 +136,7 @@ function twoWay(input: {
   const wide = Math.round(element.bounds.w)
   const kind = node.gate?.kind ?? node.kind
   const name = node.figma?.name ?? ''
-  const head = `${kind} ${name} [${node.id}] at ${width} wide`
+  const head = `${kind} ${name} [id="${node.id}"] at ${width} wide`
   const row = (text: string): GateRow[] => [{node: node.id, ...named, kind, name, text, magnitude: 'much'}]
   if (wide >= breakpoint)
     return oneLine
@@ -167,7 +167,7 @@ function failuresOf(input: {root: DesignNode; reads: Input['reads']; reflow: Ref
       ...(reflow.sticksOut.includes(node.id) ? ['sticks out of the page; keep it inside the page width'] : []),
       ...(node === root && reflow.overflowX ? ['the page scrolls sideways; nothing may be wider than the page'] : []),
       ...reflow.overlaps.flatMap(([a, b]) =>
-        a === node.id && !drawn(a, b) ? [`covers its sibling [${b}], which the design does not`] : [],
+        a === node.id && !drawn(a, b) ? [`covers its sibling [id="${b}"], which the design does not`] : [],
       ),
       ...reflow.tags
         .filter((tag) => tag.node === node.id && tag.ok === false && !twoWayNodes.has(tag.node))
@@ -180,7 +180,7 @@ function failuresOf(input: {root: DesignNode; reads: Input['reads']; reflow: Ref
       ...reads.named(node.id),
       kind,
       name,
-      text: `${kind} ${name} [${node.id}] at ${width} wide: ${said}`,
+      text: `${kind} ${name} [id="${node.id}"] at ${width} wide: ${said}`,
       magnitude: 'reflow',
       width,
     }))

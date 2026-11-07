@@ -24,9 +24,11 @@ export function createDiffer(input: {
   return {
     get: async ({input: query, session, page: access}) => {
       const known = await store.current(session)
-      if (known !== null && sameRef({record: known, query, cwd: runtime.cwd})) return stored({runtime, record: known})
+      const {selector} = query
+      if (known !== null && sameRef({record: known, query, cwd: runtime.cwd}))
+        return stored({runtime, record: known, selector})
       const record = await registered({runtime, query, session, page: access})
-      return stored({runtime, record})
+      return stored({runtime, record, selector})
     },
     check: async ({nodes, session}) => {
       await edits.quiet()
@@ -60,10 +62,19 @@ const TOLERANCES = designConfig.tolerances
 
 const SETTLE_WAIT_MS = 5000
 
-async function stored(input: {runtime: DesignRuntime; record: TargetRecord}): Promise<Got> {
+async function stored(input: {
+  runtime: DesignRuntime
+  record: TargetRecord
+  selector: string | undefined
+}): Promise<Got> {
   const {runtime, record} = input
   const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids(record.id)])
-  return documentOf({target: record.id, design, ids})
+  return documentOf({
+    target: record.id,
+    design,
+    ids,
+    ...(input.selector === undefined ? {} : {selector: input.selector}),
+  })
 }
 
 function sameRef(input: {record: TargetRecord; query: GetQuery; cwd: string}): boolean {

@@ -310,6 +310,16 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', {figma: FIGMA_LINK, image, document: CARDS_DOCUMENT})
 }
 
+function wholeOf(got: Got): Extract<Got, {document: string}> {
+  if ('matches' in got) throw new Error('design_get returned matches to a call without a selector')
+  return got
+}
+
+function matchesOf(got: Got): Extract<Got, {matches: unknown}>['matches'] {
+  if (!('matches' in got)) throw new Error('design_get returned the whole design to a call with a selector')
+  return got.matches
+}
+
 function roundOf(checked: Checked): Exclude<Checked, {unsettled: true}> {
   if ('unsettled' in checked) throw new Error(`the page did not settle: ${JSON.stringify(checked)}`)
   return checked
@@ -503,22 +513,30 @@ describe('voter', () => {
 
 describe('design_get', () => {
   it('a Figma frame of three same-width cards in a row returns them tagged to wrap, with the rules', async () => {
-    const got = await cardsTarget()
-    expect([got.root, got.count, got.viewport]).toEqual(['1:2', 4, {width: 1200, height: 400}])
-    const root = got.nodes.find((node) => node.id === '1:2')
-    expect(root?.reflow).toEqual({kind: 'wrap', minChildWidth: 269})
-    expect(got.nodes.filter((node) => node.within === '1:2').map((node) => node.id)).toEqual(['1:10', '1:11', '1:12'])
+    const got = wholeOf(await cardsTarget())
+    expect([got.count, got.viewport]).toEqual([4, {width: 1200, height: 400}])
+    expect(got.bytes).toBe(new TextEncoder().encode(got.document).length)
+    expect(got.document).toContain('<frame id="1:2"')
+    expect(got.document).toContain('reflow="wrap 269"')
     expect(got.rules.some((rule) => rule.includes('data-figma'))).toBe(false)
     expect(got.rules.some((rule) => rule.startsWith('reflow on a node'))).toBe(true)
+    const cards = matchesOf(await call('design_get', {figma: FIGMA_LINK, selector: '[id="1:2"] > frame'}))
+    expect(cards.map(({path}) => path.map(({id}) => id))).toEqual([['1:2'], ['1:2'], ['1:2']])
+    expect(cards.map(({document}) => document.startsWith('<frame id="1:1'))).toEqual([true, true, true])
     const again = await call('design_get', {figma: FIGMA_LINK})
     expect(again.target).toBe(got.target)
   })
 
+  it('a selector that matches nothing is an error that quotes it', async () => {
+    await cardsTarget()
+    await expect(call('design_get', {figma: FIGMA_LINK, selector: 'video'})).rejects.toThrow('video')
+  })
+
   it('an image design returns the OCR tree with no reflow tag and no reflow rule', async () => {
     await goto('target')
-    const got = await call('design_get', {image: target('u1-1280')})
+    const got = wholeOf(await call('design_get', {image: target('u1-1280')}))
     expect(got.count).toBeGreaterThan(1)
-    expect(got.nodes.filter((node) => node.reflow !== undefined)).toEqual([])
+    expect(got.document).not.toContain('reflow=')
     expect(got.rules.some((rule) => rule.startsWith('reflow on a node'))).toBe(false)
   })
 })

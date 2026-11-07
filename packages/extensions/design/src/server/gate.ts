@@ -165,7 +165,7 @@ function rowsOf(input: {
   kidsOf: (id: string) => Placed[]
 }): Row[] {
   const {record: r, element: d, parent, parentElement: pd, kidsOf} = input
-  const label = `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
+  const label = `${r.kind} ${r.name} [id="${r.id}"] ${d.tag}.${d.hints[0] ?? ''}`
   const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
   const pinsWidth = d.styles.sizing.width === 'fixed'
   const pinsHeight = d.styles.sizing.height === 'fixed'
@@ -231,7 +231,7 @@ function contentWord(input: {r: Record; d: LiveComponent; kids: Placed[]; axis: 
     .toSorted((a, b) => Math.abs(b.by) - Math.abs(a.by))
     .slice(0, NAMED)
   if (named.length === 0) return null
-  const list = named.map(({kid}) => `${kid.record.name} [${kid.record.id}]`).join(', ')
+  const list = named.map(({kid}) => `${kid.record.name} [id="${kid.record.id}"]`).join(', ')
   return `its content is ${less ? words.less : words.more} than the design: ${list}`
 }
 
@@ -260,7 +260,7 @@ function placedBy(input: {
     .find(({by}) => Math.abs(by - off) <= SAME_PX)
   if (found === undefined) return ''
   const {record} = found.kid
-  return `, placed by ${record.name} [${record.id}] which is ${found.by > 0 ? words.more : words.less} than the design`
+  return `, placed by ${record.name} [id="${record.id}"] which is ${found.by > 0 ? words.more : words.less} than the design`
 }
 
 function positionRows(input: {

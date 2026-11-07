@@ -50,9 +50,18 @@ type GetInput = z.input<typeof getDef.inputSchema>
 type Command = (input: {trial: Trial; args: string[]}) => Promise<void>
 
 const COMMANDS: Record<string, Command> = {
-  get: ({trial, args: [file]}) => called({trial, name: getDef.name, schema: getDef.outputSchema, file}),
-  check: ({trial, args: [file]}) => called({trial, name: checkDef.name, schema: checkDef.outputSchema, file}),
-  status: ({trial, args: [file]}) => called({trial, name: statusDef.name, schema: statusDef.outputSchema, file}),
+  get: ({trial, args: [file, ...selector]}) =>
+    called({
+      trial,
+      name: getDef.name,
+      schema: getDef.outputSchema,
+      file,
+      input: selector.length === 0 ? {} : {selector: selector.join(' ')},
+    }),
+  check: ({trial, args: [file]}) =>
+    called({trial, name: checkDef.name, schema: checkDef.outputSchema, file, input: {}}),
+  status: ({trial, args: [file]}) =>
+    called({trial, name: statusDef.name, schema: statusDef.outputSchema, file, input: {}}),
   run: async ({trial, args}) => print(JSON.stringify(await trial.rpc.extensions.run({name: RUNS_COMMAND, args}))),
   screenshot: async ({trial, args: [file = 'trial.png']}) => {
     await trial.page.screenshot({path: resolve(file), fullPage: true})
@@ -207,6 +216,7 @@ async function open(input: {
     schema: getDef.outputSchema,
     raw: await rpc.registry.call({name: getDef.name, input: input.target}),
   })
+  if (!('document' in registered)) throw new Error('design_get returned matches to a call without a selector')
   print(
     `target ${registered.target} ${registered.viewport.width}x${registered.viewport.height}` +
       ` nodes ${registered.count} tab ${input.options.width}`,
@@ -241,10 +251,11 @@ async function called<Schema extends z.ZodType>(input: {
   name: string
   schema: Schema | undefined
   file: string | undefined
+  input: {selector?: string}
 }): Promise<void> {
   const output = outputOf({
     schema: input.schema,
-    raw: await input.trial.rpc.registry.call({name: input.name, input: {}}),
+    raw: await input.trial.rpc.registry.call({name: input.name, input: input.input}),
   })
   const text = JSON.stringify(output)
   if (input.file === undefined) return print(text)

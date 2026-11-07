@@ -102,6 +102,7 @@ catalog:
   get-port: '^7.2.0'
   gsap: '^3.15.0'
   hono: '^4.13.14'
+  linkedom: '^0.18.15'
   lucide-react: '^1.64.0'
   lucide-solid: '~1.66.0'
   marked: '^18.1.2'

@@ -306,38 +306,34 @@ export const RoundSchema = z.object({
   tree: z.string().default('').describe('sha256 of the measured keys, boxes and styles and the page stylesheets'),
 })
 
-const TaggedNodeSchema = z
-  .object({
-    id: z.string(),
-    type: z.string(),
-    name: z.string(),
-    within: z.string().nullable(),
-    depth: z.number(),
-    box: BoxSchema,
-    implied: z.boolean().optional(),
-    reflow: ReflowTagSchema.optional(),
-    selector: z.string().optional(),
-  })
-  .loose()
-
 const GetInputSchema = z
   .object({
     figma: z.url().optional().describe('the Figma frame link, with its node-id'),
     document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
     image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
+    selector: z
+      .string()
+      .optional()
+      .describe('a CSS selector over the design markup: returns only the matching elements'),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
   })
 
-const GetResultSchema = z.object({
-  target: z.string(),
-  root: z.string(),
-  count: z.number(),
-  viewport: z.object({width: z.number(), height: z.number()}),
-  rules: z.array(z.string()),
-  nodes: z.array(TaggedNodeSchema),
-})
+const GetResultSchema = z.union([
+  z.object({
+    target: z.string(),
+    viewport: z.object({width: z.number(), height: z.number()}),
+    count: z.number(),
+    bytes: z.number(),
+    rules: z.array(z.string()),
+    document: z.string().describe('the design as markup: one element per node, the node type as the tag'),
+  }),
+  z.object({
+    target: z.string(),
+    matches: z.array(z.object({path: z.array(z.object({id: z.string(), name: z.string()})), document: z.string()})),
+  }),
+])
 
 const MeasuredSchema = RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
   unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
@@ -396,6 +392,7 @@ const DESIGN_ERRORS = {
       'no way to read the Figma frame: set FIGMA_API_KEY for the engine, or fetch the frame with your Figma MCP and pass it as document together with its image',
   },
   'figma-request': {message: 'Figma did not answer the request'},
+  selector: {message: 'the selector does not parse or matches nothing in the design'},
 } satisfies ToolErrors
 
 type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
@@ -441,7 +438,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 const getDef = designTool({
   verb: 'get',
   summary:
-    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design.',
+    'Returns the design to build from a Figma frame link as one markup document: an element per node with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. Called with a CSS selector it returns only the matching elements, each with its subtree and the path of its ancestors. The first call registers the frame as the design of the page; later calls return the stored design.',
   running: 'Reading the design',
   done: 'Read the design',
   input: GetInputSchema,
