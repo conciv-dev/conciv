@@ -30,6 +30,7 @@
     "@modelcontextprotocol/sdk": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "es-toolkit": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },

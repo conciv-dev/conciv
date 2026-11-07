@@ -25,6 +25,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 
 - `mount-impl.tsx:mountImpl` - sets `window.__CONCIV_REACT_BRIDGE__`, `window.__CONCIV_PAGE_DRIVER__` and `window.__TSR_ROUTER__`, and restores or clears them on teardown.
 - `mount-impl.tsx:mountImpl` - listens for the `conciv:rebind` window event.
+- `mount-impl.tsx:bootNormal` - a rebind resets every cached query (`queryClient.resetQueries()`): cached data is dropped and every mounted query refetches through the re-pointed rpc client, so a component that stays mounted across the rebind reads the new engine.
 - `mount-impl.tsx:makeDisconnect` - `POST <apiBase>/api/shutdown`, then reloads the page after 150 ms.
 - `mount-impl.tsx:metaContent` - reads the `conciv-widget` meta tag when no `settings` are passed.
 - `mount.ts:panelCommands` - opens an event-bus client (`PANEL_PLUGIN_ID`, reconnect every 500 ms, 60 retries) for `open`/`close`/`toggle`.

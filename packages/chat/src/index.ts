@@ -87,7 +87,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const transcripts = createTranscriptImporter({
     harnessFor: deps.harnessFor,
     stores,
-    claudeHome: deps.claudeHome,
     toolNames: deps.toolNames,
     log: deps.log,
     native: (sessionId) => {

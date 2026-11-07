@@ -7,7 +7,7 @@ import {
   useRouter,
   useSearch,
 } from '@tanstack/solid-router'
-import {QueryClientProvider} from '@tanstack/solid-query'
+import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
@@ -36,6 +36,8 @@ import {
   useSettings,
   useSuppressed,
   useWarmSession,
+  useAppData,
+  useAppQueryClient,
   type AppContextValue,
 } from '../app/context.js'
 import {makeLiveSessions} from '../app/live-sessions.js'
@@ -236,7 +238,7 @@ function RootChrome(props: {
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
 
   const warm = useWarmSession()
-  const activeRowRunning = () => warm.rows().find((session) => session.id === props.activeSession())?.running ?? false
+  const activeRowRunning = createStoredRunning(() => props.activeSession(), connected)
   const working = () => {
     const activity = liveSessions.activityIn(props.activeSession())
     if (activity === 'unmounted') return activeRowRunning()
@@ -437,4 +439,20 @@ function RootChrome(props: {
       </div>
     </div>
   )
+}
+
+function createStoredRunning(activeSession: () => string | null, connected: () => boolean): () => boolean {
+  const appData = useAppData()
+  const queryClient = useAppQueryClient()
+  const activeRow = useQuery(
+    () => {
+      const sessionId = activeSession()
+      return {
+        ...appData.utils.sessions.get.queryOptions({input: {sessionId: sessionId ?? ''}}),
+        enabled: sessionId !== null && connected(),
+      }
+    },
+    () => queryClient,
+  )
+  return () => (activeRow.isSuccess ? activeRow.data.running : false)
 }

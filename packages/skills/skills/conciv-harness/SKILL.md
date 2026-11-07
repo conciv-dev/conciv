@@ -287,14 +287,14 @@ refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
-  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
-  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
+  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
+  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
   nameFromTranscript?(raw: string): string | null
   contextTokens?(raw: string): number | undefined
-  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
-  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
+  list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
+  meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
+  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }
 ```
 
@@ -304,7 +304,7 @@ for streaming updates into an open chat pane, and enumerate past sessions for a 
 (`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and
 rejects a transcript that escapes the root (`transcriptPathWithin`,
-`packages/harness/src/_shared/contained-path.ts:30-40`, reached for resume liveness by
+`packages/harness/src/_shared/contained-path.ts:30-35`, reached for resume liveness by
 `resumableToken` in `packages/chat/src/turn.ts:72-80`). Build `observe()` with the shared
 `makeJsonlHandle()` helper if your CLI's transcript is JSONL-per-line (both `claude`
 and `codex` do this: `packages/harness/src/codex/history.ts:347-360`). See

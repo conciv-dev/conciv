@@ -25,9 +25,8 @@ export function PaneProvider(props: {
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const router = useRouter()
-  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
-  const running = () => row()?.running ?? false
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
+  const running = () => session.data?.running ?? false
   const grabProvider = useGrabProvider()
 
   const openNewSession = async () => {

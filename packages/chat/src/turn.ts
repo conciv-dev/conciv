@@ -38,7 +38,6 @@ export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) 
 
 export type TurnDeps = {
   cwd: string
-  claudeHome?: string
   harnessFor: (sessionId: SessionId) => HarnessAdapter
   harnessEnv?: (sessionId?: SessionId) => NodeJS.ProcessEnv
   systemPrompt: SystemPromptSources
@@ -82,9 +81,9 @@ function livingToken(deps: TurnDeps, harness: HarnessAdapter, token: HarnessSess
   if (token === null || !harness.capabilities.resume) return null
   const history = harness.history
   if (history === undefined) return token
-  if (history.withinProject && !history.withinProject(deps.cwd, token, deps.claudeHome)) return null
+  if (history.withinProject && !history.withinProject(deps.cwd, token)) return null
   if (history.transcriptPath === undefined) return token
-  const path = transcriptPathWithin(history, deps.cwd, token, deps.claudeHome)
+  const path = transcriptPathWithin(history, deps.cwd, token)
   return path !== null && existsSync(path) ? token : null
 }
 
@@ -165,7 +164,7 @@ async function contextTokensOf(deps: TurnDeps, sessionId: SessionId): Promise<nu
   const row = deps.sessions.row(sessionId)
   const nativeId = row?.harnessKind === harness.id ? row.nativeId : null
   if (!history?.contextTokens || !history.transcriptPath || nativeId === null) return undefined
-  const path = transcriptPathWithin(history, deps.cwd, nativeId, deps.claudeHome)
+  const path = transcriptPathWithin(history, deps.cwd, nativeId)
   if (path === null || !existsSync(path)) return undefined
   return history.contextTokens(await readFile(path, 'utf8'))
 }
