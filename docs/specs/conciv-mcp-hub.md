@@ -75,8 +75,8 @@ agent CLI (any cwd) ──stdio──>   conciv mcp (hub, @conciv/cli)
   (`envPaths('conciv', {suffix: ''}).data`): `~/Library/Application Support/conciv` on macOS,
   `$XDG_DATA_HOME/conciv` (default `~/.local/share/conciv`) on Linux, `%LOCALAPPDATA%\conciv\Data` on Windows. This
   is the pattern `conf` uses for Next.js, Astro, Wrangler and others. `env-paths@3.0.0` is already in the lockfile
-  as a transitive dependency; adding it as a direct dependency of `@conciv/db` needs Omri's yes (given 2026-11-07:
-  "use well known patterns"). The folder is created with mode `0700`. `~/.conciv/dev-endpoint.json` (Swift) is
+  as a transitive dependency; it becomes a direct dependency of `@conciv/db` (approved by Omri 2026-11-07), via
+  the pnpm catalog. The folder is created with mode `0700`. `~/.conciv/dev-endpoint.json` (Swift) is
   not moved. `@conciv/db` opens `<conciv home>/conciv.db` with the existing migrations, so no second
   migration set; `openDb` gains a way to open a db at a given folder rather than under `<root>/.conciv`. Nothing is
   written at install time, only by a running engine or hub. The hub and the engine both call it. Before opening, the conciv home folder is created (or chmodded)
