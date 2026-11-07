@@ -32,7 +32,11 @@ import type {LedgerEntry} from '../src/init/ledger.js'
 import {emitOutro} from '../src/init/outro.js'
 import {type InitContext, type InitStep, runInit, type RunSettings, runSteps} from '../src/init/pipeline.js'
 import {preflight} from '../src/init/preflight.js'
-import {claudeConnectDir, claudeConnectPluginFiles} from '@conciv/harness-init/claude/files'
+import {
+  CLAUDE_CONNECT_PLUGIN_VERSION,
+  claudeConnectDir,
+  claudeConnectPluginFiles,
+} from '@conciv/harness-init/claude/files'
 import {writeConsent} from '../src/init/steps/harness/consent.js'
 import {dlxCommand} from 'nypm'
 import {docsPackStep} from '../src/init/steps/docs-pack.js'
@@ -1917,6 +1921,7 @@ describe('init', () => {
         expect(run.spawned).toEqual([
           `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
           'claude plugin install conciv-connect@conciv --scope local',
+          'claude plugin update conciv-connect@conciv --scope local',
         ])
         expect(run.events).toContain('intro:conciv init')
         expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
@@ -2063,7 +2068,7 @@ describe('init', () => {
           expect(statusById(second)[id], id).toBe('already')
         }
         expect(run.added).toEqual(['@conciv/it'])
-        expect(run.spawned).toHaveLength(2)
+        expect(run.spawned).toHaveLength(3)
         const plans = plansOf(run.events)
         expect(plans[1]).toContain('already wired')
         expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
@@ -3626,17 +3631,20 @@ export default defineConfig({plugins: [conciv()]})`)
           'printf \'%s\\n\' "$*" >> "$CONCIV_CLAUDE_RECORD"',
           '[ "$CONCIV_CLAUDE_EXIT" = "0" ] || exit "$CONCIV_CLAUDE_EXIT"',
           'PLUGINS="$HOME/.claude/plugins"',
-          'CACHE="$PLUGINS/cache/conciv/conciv-connect/0.0.0"',
+          `CACHE="$PLUGINS/cache/conciv/conciv-connect/${CLAUDE_CONNECT_PLUGIN_VERSION}"`,
           'if [ "$1" = "plugin" ] && [ "$2" = "marketplace" ] && [ "$3" = "add" ]; then',
           '  mkdir -p "$PLUGINS"',
           '  printf \'%s\' "$4" > "$PLUGINS/conciv-source"',
           '  printf \'{"conciv":{"installLocation":"%s"}}\' "$4" > "$PLUGINS/known_marketplaces.json"',
           'fi',
-          'if [ "$1" = "plugin" ] && [ "$2" = "install" ]; then',
+          'if [ "$1" = "plugin" ] && [ "$2" = "install" ] && grep -qs "$(basename "$PWD")" "$PLUGINS/installed_plugins.json"; then',
+          '  exit 0',
+          'fi',
+          'if [ "$1" = "plugin" ] && { [ "$2" = "install" ] || [ "$2" = "update" ]; }; then',
           '  ROOT=$(cat "$PLUGINS/conciv-source")',
           '  mkdir -p "$CACHE"',
           '  cp -R "$ROOT/conciv-connect/." "$CACHE/"',
-          '  printf \'{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"0.0.0","installPath":"%s","projectPath":"%s"}]}}\' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"',
+          `  printf '{"version":2,"plugins":{"conciv-connect@conciv":[{"scope":"local","version":"${CLAUDE_CONNECT_PLUGIN_VERSION}","installPath":"%s","projectPath":"%s"}]}}' "$CACHE" "$PWD" > "$PLUGINS/installed_plugins.json"`,
           'fi',
           'exit 0',
           '',
@@ -3682,8 +3690,8 @@ export default defineConfig({plugins: [conciv()]})`)
         return {...source, cwd, harness: stepContext(cwd)}
       }
 
-      function pluginCacheDir(home: string): string {
-        return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', '0.0.0')
+      function pluginCacheDir(home: string, version = CLAUDE_CONNECT_PLUGIN_VERSION): string {
+        return join(home, '.claude', 'plugins', 'cache', 'conciv', 'conciv-connect', version)
       }
 
       function connectFiles(stateDir: string): HarnessConnectFile[] {
@@ -3697,12 +3705,13 @@ export default defineConfig({plugins: [conciv()]})`)
         }
       }
 
-      function seedInstalled(opts: {home: string; cwd: string; marketplaceRoot?: string}): void {
+      function seedInstalled(opts: {home: string; cwd: string; marketplaceRoot?: string; version?: string}): void {
         const stateDir = join(opts.cwd, '.conciv')
         writeTree(stateDir)
         const marketplaceRoot = opts.marketplaceRoot ?? claudeConnectDir(stateDir)
         const pluginRoot = join(claudeConnectDir(stateDir), 'conciv-connect')
-        const cache = pluginCacheDir(opts.home)
+        const version = opts.version ?? CLAUDE_CONNECT_PLUGIN_VERSION
+        const cache = pluginCacheDir(opts.home, version)
         for (const file of connectFiles(stateDir)) {
           const step = relative(pluginRoot, file.path)
           if (step.startsWith('..')) continue
@@ -3717,7 +3726,7 @@ export default defineConfig({plugins: [conciv()]})`)
           JSON.stringify({
             version: 2,
             plugins: {
-              'conciv-connect@conciv': [{scope: 'local', version: '0.0.0', installPath: cache, projectPath: opts.cwd}],
+              'conciv-connect@conciv': [{scope: 'local', version, installPath: cache, projectPath: opts.cwd}],
             },
           }),
         )
@@ -3745,6 +3754,7 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(recordedArgv(recordFile)).toEqual([
             `plugin marketplace add ${claudeConnectDir(stateDir)}`,
             'plugin install conciv-connect@conciv --scope local',
+            'plugin update conciv-connect@conciv --scope local',
           ])
           for (const file of connectFiles(stateDir)) {
             expect(readFileSync(file.path, 'utf8')).toBe(file.contents)
@@ -3802,6 +3812,23 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(existsSync(project.recordFile)).toBe(false)
         })
 
+        it('moves an install recorded at a previous release onto this release and leaves the old cache in place', async () => {
+          const project = fixture({exitCode: 0})
+          const previous = '0.0.0-previous'
+          seedInstalled({home: project.home, cwd: project.cwd, version: previous})
+          const ledger = await runSteps(
+            [harnessInitStep(claudeInit, () => claudeConsent, project.io)],
+            project.harness.settings,
+            project.harness.output,
+          )
+          expect(ledger.map((entry) => [entry.status, entry.detail])).toEqual([['done', undefined]])
+          const records = JSON.parse(
+            readFileSync(join(project.home, '.claude', 'plugins', 'installed_plugins.json'), 'utf8'),
+          )
+          expect(records.plugins['conciv-connect@conciv'][0].installPath).toBe(pluginCacheDir(project.home))
+          expect(existsSync(pluginCacheDir(project.home, previous))).toBe(true)
+        })
+
         it('stays already after a second project registers the marketplace from its own copy', async () => {
           const project = fixture({exitCode: 0})
           const other = siblingProject(project)
@@ -3841,8 +3868,10 @@ export default defineConfig({plugins: [conciv()]})`)
           expect(recordedArgv(first.recordFile)).toEqual([
             `plugin marketplace add ${claudeConnectDir(join(first.cwd, '.conciv'))}`,
             'plugin install conciv-connect@conciv --scope local',
+            'plugin update conciv-connect@conciv --scope local',
             `plugin marketplace add ${claudeConnectDir(join(second.cwd, '.conciv'))}`,
             'plugin install conciv-connect@conciv --scope local',
+            'plugin update conciv-connect@conciv --scope local',
           ])
         })
 

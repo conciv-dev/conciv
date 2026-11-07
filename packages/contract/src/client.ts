@@ -1,7 +1,9 @@
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
 import type {ContractRouterClient} from '@orpc/contract'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import {contract} from './contract.js'
+import contractManifest from '../package.json' with {type: 'json'}
 import {
   closeBrowserRpcConnection,
   dynamicBrowserRpcLink,
@@ -26,7 +28,7 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
   const link = new RPCLink<RpcClientContext>({
     url: `${apiBase}/rpc`,
     fetch: abortableFetch,
-    ...(options.headers ? {headers: options.headers} : {}),
+    headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
   })
   return createORPCClient(link)
 }

@@ -2,7 +2,8 @@ import '../src/styles.css'
 import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
-import {makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
+import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
@@ -67,7 +68,7 @@ import {RunErrorRow} from '../src/pane/run-error-row.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {ContextTracker} from '../src/pane/context-tracker.js'
 import '@conciv/ui-kit-system/tokens.css'
-import {EngineStaleNotice} from '../src/shell/engine-notice.js'
+import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notice.js'
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
@@ -1166,6 +1167,23 @@ describe('engine staleness', () => {
     await pane.refetch()
 
     await expect.element(page.getByRole('alert')).toBeVisible()
+  })
+})
+
+describe('engine version', () => {
+  const core = bootedCore('engine-version')
+  const keep = keptPane()
+
+  test('an engine from before release versions still answers the widget, and the widget asks to update it', async () => {
+    await coreControl.installFault({kind: 'pre-version-engine'})
+    const sessionId = await createSession(makeBrowserRpcClient(core()).rpc)
+    keep(mountPane({base: core(), sessionId}, () => <EngineOutdatedNotice />))
+
+    await expect
+      .element(page.getByRole('alert'))
+      .toHaveTextContent(
+        `This widget is version ${appManifest.version} but the conciv engine is older. Update your @conciv packages to ${appManifest.version}, then restart your dev server.`,
+      )
   })
 })
 

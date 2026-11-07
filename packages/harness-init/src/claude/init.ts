@@ -3,6 +3,7 @@ import {claudeConfigDir, claudeConnectServesProject} from './install-state.js'
 import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from './plugin-files.js'
 
 const INSTALL_ARGS = ['plugin', 'install', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local']
+const UPDATE_ARGS = ['plugin', 'update', CLAUDE_CONNECT_INSTALL_TARGET, '--scope', 'local']
 
 function shellQuoted(value: string): string {
   return `'${value.split("'").join(`'\\''`)}'`
@@ -12,6 +13,7 @@ function installCommands(root: string): HarnessInitCommand[] {
   return [
     {bin: 'claude', args: ['plugin', 'marketplace', 'add', root]},
     {bin: 'claude', args: INSTALL_ARGS},
+    {bin: 'claude', args: UPDATE_ARGS},
   ]
 }
 
@@ -24,7 +26,11 @@ function installCard(root: string): HarnessInitCard {
   return {
     title: 'Install the conciv claude plugin',
     body: 'Register the generated conciv marketplace and install the connect plugin with the claude CLI. Full steps: https://conciv.dev/docs/quick-start/agents',
-    snippet: [`claude plugin marketplace add ${shellQuoted(root)}`, `claude ${INSTALL_ARGS.join(' ')}`].join('\n'),
+    snippet: [
+      `claude plugin marketplace add ${shellQuoted(root)}`,
+      `claude ${INSTALL_ARGS.join(' ')}`,
+      `claude ${UPDATE_ARGS.join(' ')}`,
+    ].join('\n'),
   }
 }
 

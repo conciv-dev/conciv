@@ -10,6 +10,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 - `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeTone` (`notices.tsx`): toaster with `notify`, `remove`, `Toaster`
 - `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`)
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability
+- `EngineOutdatedNotice` (`engine-notice.tsx`, mounted in the panel): fetches `${apiBase}/health` once and shows a standing notice naming the widget version and asking to update the @conciv packages to it when the `x-conciv-version` response header is missing or semver-older than the `@conciv/app` version; a newer engine shows nothing
 - `openPipWindow(opts)`, `openPipTarget()`, `PipWindow` (`pip.ts`): popup window `conciv-pip` with a shadow root and the app styles
 - `makeLayerStack()`, `LayerStack` (`dialogs.ts`): tracks open dialogs and whether any hides the page
 - `EffectsSurface({instances})` (`effects-surface.tsx`): portals extension effects into a fixed shadow host on `document.body`
