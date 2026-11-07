@@ -265,7 +265,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   createEffect(() => {
     const element = config.scrollElement()
-    createResizeObserver(element, update)
+    createResizeObserver(element, syncAtEnd)
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
