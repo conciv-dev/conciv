@@ -12,7 +12,7 @@ import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
-import {DESIGN_TOOLS} from '@conciv/extension-design/defs'
+import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS} from '@conciv/extension-design/defs'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
 
@@ -160,6 +160,7 @@ async function hostServer(input: {
         extensions: {design: {blind: input.blind}},
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
+          `${DESIGN_TOOL_PREFIX}write`,
           ...(input.noDesign ? [getDef, watchDef, validateDef].map((tool) => tool.name) : []),
         ],
       }),

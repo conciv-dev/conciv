@@ -1,4 +1,5 @@
-import {integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
+import {sql} from 'drizzle-orm'
+import {check, integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
 import type {Counts, Coverage, Design, IdTree, Round} from '../shared/defs.js'
 
 export function designTables(table: SQLiteTableFn) {
@@ -99,5 +100,33 @@ export function designTables(table: SQLiteTableFn) {
       cost: real(),
       verdict: text(),
     }),
+    labels: table(
+      'labels',
+      {
+        seq: integer().primaryKey({autoIncrement: true}),
+        target_id: text().notNull(),
+        round: integer(),
+        node: text().notNull(),
+        id: text(),
+        verdict: text({enum: VERDICTS}).notNull(),
+        by: text().notNull(),
+        note: text(),
+        at: integer()
+          .notNull()
+          .$defaultFn(() => Date.now()),
+      },
+      (self) => [check('verdict', sql`${self.verdict} in ('right', 'wrong')`)],
+    ),
+    notes: table('notes', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      round: integer(),
+      text: text().notNull(),
+      at: integer()
+        .notNull()
+        .$defaultFn(() => Date.now()),
+    }),
   }
 }
+
+const VERDICTS = ['right', 'wrong'] as const

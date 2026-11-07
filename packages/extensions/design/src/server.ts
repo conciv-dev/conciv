@@ -17,6 +17,7 @@ import {createDiffer} from './server/differ.js'
 import {createXrayRoutes} from './server/xray-routes.js'
 import {SERVER_STEPS} from './server/tools.js'
 import {designTables} from './server/tables.js'
+import {designSources} from './server/sources.js'
 import {migrations} from './server/migrations.gen.js'
 import {createRuns} from './server/runs.js'
 import {DESIGN_COMMANDS} from './server/commands.js'
@@ -32,6 +33,7 @@ const design = defineExtension({
   configSchema: designConfig,
   tools: SERVER_STEPS,
   tables: designTables,
+  sources: designSources,
   migrations,
   commands: DESIGN_COMMANDS,
 }).server((server) => {
@@ -63,7 +65,7 @@ const design = defineExtension({
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
   return {
-    context: {design: runtime, differ},
+    context: {design: runtime, differ, db},
     router: xray.router,
     app: xray.app,
     dispose: async () => {
