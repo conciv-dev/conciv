@@ -4,6 +4,7 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 
 export type RunGuard = {
   ended: AbortSignal
+  stopped: AbortSignal
   firstOutputMs: number
   onSilence: () => void
   stop: () => void
@@ -16,6 +17,12 @@ function isHarnessOutput(chunk: ChatEvent): boolean {
 
 function endingOf(ended: AbortSignal): Promise<ChatEvent> {
   return new Promise((resolve) => ended.addEventListener('abort', () => resolve(ended.reason), {once: true}))
+}
+
+function finishedOn(signal: AbortSignal): Promise<IteratorReturnResult<undefined>> {
+  return new Promise((resolve) =>
+    signal.addEventListener('abort', () => resolve({done: true, value: undefined}), {once: true}),
+  )
 }
 
 async function* stopped(ending: ChatEvent, guard: RunGuard): AsyncIterable<ChatEvent> {
@@ -31,13 +38,15 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
     yield* stopped(guard.ended.reason, guard)
     return
   }
+  if (guard.stopped.aborted) return
   const iterator = start()[Symbol.asyncIterator]()
   const ending = endingOf(guard.ended)
+  const finished = finishedOn(guard.stopped)
   const silence = AbortSignal.timeout(guard.firstOutputMs)
   silence.addEventListener('abort', guard.onSilence, {once: true})
   try {
     for (;;) {
-      const next = await Promise.race([iterator.next(), ending])
+      const next = await Promise.race([iterator.next(), ending, finished])
       if ('type' in next) {
         yield* stopped(next, guard)
         return

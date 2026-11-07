@@ -374,8 +374,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
           yield* createTextChunks('partial')
           streamed.resolve()
           await stopped.promise
-          const signal = options.request?.signal
-          if (!signal?.aborted) await new Promise((resolve) => signal?.addEventListener('abort', resolve, {once: true}))
+          await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
         }),
         systemPrompts: [],
         codeMode: [],
@@ -415,6 +414,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       launched,
       runs: db.$client.prepare('SELECT run_id, status FROM chat_runs ORDER BY started_at').all(),
       replayEnds: [await replayEnd(server, 'in-setup'), await replayEnd(server, 'streaming')],
+      stoppedTurns: (await server.hydrate('thread')).messages.flatMap((message) =>
+        StoppedTurnSchema.safeParse(message.metadata).success ? message.parts : [],
+      ),
     }).toEqual({
       announced: ['streaming'],
       launched: ['streaming'],
@@ -423,8 +425,11 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         {run_id: 'streaming', status: 'aborted'},
       ],
       replayEnds: ['aborted', 'aborted'],
+      stoppedTurns: [{type: 'text', content: 'partial'}],
     })
   })
+
+  const StoppedTurnSchema = z.object({tanstack: z.looseObject({stopReason: z.literal('aborted')})})
 
   const ReplayedChunkSchema = z.looseObject({
     type: z.string(),
