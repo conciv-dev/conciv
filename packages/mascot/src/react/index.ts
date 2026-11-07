@@ -12,6 +12,7 @@ export type {MascotBinaryProps, MascotFollowPartProps, MascotLayerProps, MascotP
 export type {
   ActivityChannels,
   CurveStyle,
+  EmitterRect,
   FollowChannels,
   MascotActivity,
   MascotConfig,
