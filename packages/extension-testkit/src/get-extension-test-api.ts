@@ -14,6 +14,7 @@ import {
 } from '@conciv/harness-testkit'
 import {magicLink} from '@conciv/harness-testkit/login'
 import {launch, openObservedPage} from './launch.js'
+import {rpcObserverFor} from './rpc-observer.js'
 import {settleTeardown} from './settle-teardown.js'
 
 export type HostEngine = {apiBase: string; session: string}
@@ -51,7 +52,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
   const session = await resolveSession(apiBase)
   const {origin, close} = await extension.host({apiBase: engine.origin, session})
   const {page, context, close: closeBrowser} = await launch(await magicLink(engine.origin, engine.terminal, origin))
-  await hostMounted(page)
+  await rpcObserverFor(page).completed({path: ['auth', 'exchange'], status: 200})
   return {
     page,
     callTool: makeCallTool(apiBase, session),
@@ -63,7 +64,6 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     serverContext: extensionContexts[extension.server.name],
     secondClient: async () => {
       const second = await openObservedPage(context, origin)
-      await hostMounted(second)
       return {page: second, close: () => second.close()}
     },
     dispose: async () => {
@@ -74,8 +74,4 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       ])
     },
   }
-}
-
-async function hostMounted(page: Page): Promise<void> {
-  await page.getByRole('button', {name: 'Attach fixture file'}).waitFor({state: 'attached', timeout: 30_000})
 }
