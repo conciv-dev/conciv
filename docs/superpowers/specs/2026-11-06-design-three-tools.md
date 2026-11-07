@@ -262,3 +262,21 @@ A pin is re-voted when the evidence under its id changes: the element's box move
 the gate's `slightly`, the SRC site changed element name or class, or a sibling id now scores above the pinned id by
 more than the margin. A pin is not re-voted because the agent edited an unrelated file. Pins are stable against
 edits, not against evidence.
+
+### Every run writes to the `.conciv` database (2026-11-07, same day)
+
+The design store moves from unstorage into `@conciv/db` (drizzle on `node:sqlite`, `.conciv/conciv.db`, the same
+database that holds tool captures, page changes and runs). Everything the tools see or decide is a row, so a run can be
+queried after the fact to find patterns and fix the tools:
+
+- `design_targets`: the registered design, its link, design width and height, image path, registered at.
+- `design_rounds`: target, round, counts, coverage counts, pixel share, tree hash, at.
+- `design_rows`: target, round, id, Figma node, source file line column, selector, kind, magnitude, width, text.
+- `design_fom`: target, id, Figma node, confidence, margin, round voted, round re-voted, the reason it was re-voted.
+- `design_votes`: target, round, Figma node, candidate id, score per layer (dom, src, cssom), total, won. The data the
+  calibration of 2026-11-07 was computed from by hand.
+- `design_tool_calls`: target, tool name, input, reply bytes, duration, at.
+- `design_runs`: the harness run, written by the trial script: model, prompt head, started, ended, cost, verdict.
+
+Images (live, diff, design) stay files under `.conciv`, referenced by path. The schema lives in `@conciv/db` beside the
+others and migrates with them. Nothing the agent can call reads these tables; they are for people and for the x-ray.
