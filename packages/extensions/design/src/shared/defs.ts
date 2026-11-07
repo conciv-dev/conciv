@@ -8,9 +8,7 @@ const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 const DESIGN_EXTENSION_NAME = 'design'
 const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
-
 export const DESIGN_TOOL_PREFIX = 'design_'
-
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
@@ -325,6 +323,7 @@ const GetInputSchema = z
     figma: z.url().optional().describe('the Figma frame link, with its node-id'),
     document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
     image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
+    node: z.string().optional().describe('a node id from the outline: returns that node and everything inside it'),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
@@ -336,6 +335,10 @@ const GetResultSchema = z.object({
   count: z.number(),
   viewport: z.object({width: z.number(), height: z.number()}),
   rules: z.array(z.string()),
+  path: z
+    .array(z.object({id: z.string(), name: z.string()}))
+    .optional()
+    .describe('the ancestors, root first'),
   nodes: z.array(TaggedNodeSchema),
 })
 
@@ -441,7 +444,7 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 const getDef = designTool({
   verb: 'get',
   summary:
-    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design.',
+    'Returns the design to build from a Figma frame link as an outline: the frame and its top two levels, each with its id, box, auto layout, reflow and how many nodes it holds, plus the rules the page must follow. Called with a node id it returns that section in full: every node with its box, paint, text, auto layout and the groups its layout implies, and the path of ancestors. The first call registers the frame; later calls return the stored design.',
   running: 'Reading the design',
   done: 'Read the design',
   input: GetInputSchema,

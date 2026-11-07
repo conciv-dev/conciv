@@ -514,6 +514,14 @@ describe('design_get', () => {
     expect(again.target).toBe(got.target)
   })
 
+  it('a node id returns that node and everything inside it, with its ancestors', async () => {
+    const outline = await cardsTarget()
+    expect(outline.nodes.find((node) => node.id === '1:2')?.descendants).toBeGreaterThanOrEqual(3)
+    const got = await call('design_get', {figma: FIGMA_LINK, node: '1:10'})
+    expect(got.path).toEqual([{id: '1:2', name: expect.any(String)}])
+    expect(got.nodes[0]?.id).toBe('1:10')
+  })
+
   it('an image design returns the OCR tree with no reflow tag and no reflow rule', async () => {
     await goto('target')
     const got = await call('design_get', {image: target('u1-1280')})

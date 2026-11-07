@@ -1,8 +1,9 @@
+import {toolError} from '@conciv/extension'
 import type {DesignNode, Design, Got, IdTree} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 import {readIds} from '../shared/id-tree.js'
 
-export function documentOf(input: {target: string; design: Design; ids: IdTree | null}): Got {
+export function documentOf(input: {target: string; design: Design; ids: IdTree | null; node?: string}): Got {
   const {design} = input
   const reads = input.ids === null ? null : readIds({root: input.ids.root, live: null})
   const keys = new Map(
@@ -11,18 +12,42 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
       return selector === null ? [] : [[node.id, selector] as const]
     }),
   )
-  const nodes = [...walk(design.root)].map(({node, parent, depth}) => tagged({node, parent, depth, keys}))
-  return {
+  const steps = [...walk(design.root)]
+  const head = {
     target: input.target,
     root: design.root.id,
-    count: nodes.filter((node) => node.implied !== true).length,
+    count: steps.filter(({node}) => node.implied !== true).length,
     viewport: design.viewport,
-    rules: rulesFor({design, implied: nodes.some((node) => node.implied === true)}),
-    nodes,
+    rules: rulesFor({design, implied: steps.some(({node}) => node.implied === true)}),
+  }
+  if (input.node === undefined)
+    return {
+      ...head,
+      nodes: steps
+        .filter(({depth}) => depth <= OUTLINE_DEPTH)
+        .map(({node, parent, depth}) => outlined({tagged: tagged({node, parent, depth, keys}), node})),
+    }
+  const found = steps.find(({node}) => node.id === input.node)
+  if (found === undefined)
+    throw toolError('no-target', {message: `the design has no node ${input.node}; read the ids from the outline`})
+  const parents = new Map(steps.map(({node, parent}) => [node.id, parent]))
+  return {
+    ...head,
+    path: ancestorsOf({id: found.node.id, parents}),
+    nodes: [...walk(found.node)].map(({node, parent, depth}) =>
+      tagged({node, parent: parent ?? found.parent, depth: depth + found.depth, keys}),
+    ),
   }
 }
 
 type Tagged = Got['nodes'][number]
+
+const OUTLINE_DEPTH = 2
+
+const OUTLINE_KEYS = ['id', 'type', 'name', 'within', 'depth', 'box', 'layout', 'implied', 'reflow', 'selector']
+
+const OUTLINE =
+  'design_get gives the outline; read each section with design_get and its node id before you build it; no call returns the whole design.'
 
 const NODE_FIELDS =
   'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields.'
@@ -47,6 +72,7 @@ function rulesFor(input: {design: Design; implied: boolean}): string[] {
   const {design} = input
   return [
     `Build the page from the nodes, desktop first at ${design.viewport.width} wide.`,
+    OUTLINE,
     NODE_FIELDS,
     ...RULES,
     ...(input.implied ? [IMPLIED_FIELDS] : []),
@@ -81,4 +107,16 @@ function tagged(input: {
 
 function shownReflow(reflow: NonNullable<DesignNode['reflow']>): NonNullable<Tagged['reflow']> {
   return {kind: reflow.kind, ...(reflow.minChildWidth === undefined ? {} : {minChildWidth: reflow.minChildWidth})}
+}
+
+function outlined(input: {tagged: Tagged; node: DesignNode}): Tagged {
+  const kept = Object.fromEntries(Object.entries(input.tagged).filter(([key]) => OUTLINE_KEYS.includes(key)))
+  const {id, type, name, within, depth, box} = input.tagged
+  return {...kept, id, type, name, within, depth, box, descendants: [...walk(input.node)].length - 1}
+}
+
+function ancestorsOf(input: {id: string; parents: Map<string, DesignNode | null>}): {id: string; name: string}[] {
+  const parent = input.parents.get(input.id) ?? null
+  if (parent === null) return []
+  return [...ancestorsOf({...input, id: parent.id}), {id: parent.id, name: parent.figma?.name ?? ''}]
 }
