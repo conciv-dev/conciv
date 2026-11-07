@@ -24,7 +24,6 @@ import {
   tombstoneRow,
   type NativePage,
 } from '../../sessions/session-rows.js'
-import {createSessionSearch} from '../../sessions/session-search.js'
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
@@ -117,7 +116,7 @@ export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
-  const search = createSessionSearch({db, cwd: chat.cwd, harnesses: chat.harnesses})
+  const search = deps.search
   const ensuredRow = async (sessionId: SessionId) => {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)

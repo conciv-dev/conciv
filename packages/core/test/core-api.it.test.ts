@@ -2535,6 +2535,14 @@ describe('rpc wire', () => {
           return foundOnceIndexed(search, expected)
         }
 
+        async function stampedOnceIndexed(search: string, expected: {nativeId: string; updatedAt: number}[]) {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+          const stamped = listed.map((meta) => ({nativeId: meta.native?.nativeId, updatedAt: meta.updatedAt}))
+          if (isEqual(stamped, expected)) return
+          await indexedChange()
+          return stampedOnceIndexed(search, expected)
+        }
+
         async function listedNativeIds(): Promise<string[]> {
           const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
           return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
@@ -2648,10 +2656,8 @@ describe('rpc wire', () => {
           await foundOnceIndexed('wren', [claudeId('claude-live')])
 
           const stamp = writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel and merlin', 'the osprey arrived')
-          await foundOnceIndexed('merlin', [claudeId('claude-live')])
+          await stampedOnceIndexed('merlin', [{nativeId: claudeId('claude-live'), updatedAt: stamp}])
           expect(await found('osprey')).toEqual([])
-          const {sessions: titled} = await searchKit().rpc.sessions.search({term: 'merlin', limit: 10})
-          expect(titled).toMatchObject([{native: {nativeId: claudeId('claude-live')}, updatedAt: stamp}])
 
           await later(LIVE_REINDEX_MS, () => foundOnceIndexed('osprey', [claudeId('claude-live')]))
         })
