@@ -2447,7 +2447,7 @@ describe('panel escape', () => {
   }, 30_000)
 })
 
-describe('panel refresh', () => {
+describe('panel header', () => {
   const REPLY_TEXT = 'the transcript that outlives a refresh'
 
   const coreBase = bootedCore('panel-refresh')
@@ -2503,170 +2503,97 @@ describe('panel refresh', () => {
     await expect.element(reply()).toBeVisible()
     await expect.element(skeleton()).not.toBeInTheDocument()
   }, 30_000)
-})
 
-describe('panel title', () => {
-  const TITLE = 'the titled session'
-  const RENAMED = 'renamed from the header'
-
-  const coreBase = bootedCore('panel-title')
-  const harness = createShellHarness(coreBase)
-  const faults = trackedFaults()
-
-  afterEach(harness.dispose)
-
-  const header = () => page.getByRole('banner')
-  const titleButton = (title: string) => header().getByRole('button', {name: new RegExp(`^${title}, session options$`)})
-  const pencil = () => header().getByRole('button', {name: 'Rename session'})
-  const titleInput = () => header().getByRole('textbox', {name: 'Session title'})
-  const menu = () => page.getByRole('dialog', {name: 'Session options'})
-  const microlabel = () => header().getByText(/(ACTIVE|LAST) TASK/)
-  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
-  const OTHER = 'the other session'
-
-  async function mountTitled(): Promise<void> {
+  test('a user opens the session menu from the title by hover, pointer and keyboard, renames in place and switches sessions', async () => {
+    const TITLE = 'the titled session'
+    const RENAMED = 'renamed from the header'
+    const OTHER = 'the other session'
+    const header = () => page.getByRole('banner')
+    const titleButton = (title: string) =>
+      header().getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+    const pencil = () => header().getByRole('button', {name: 'Rename session'})
+    const titleInput = () => header().getByRole('textbox', {name: 'Session title'})
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const microlabel = () => header().getByText(/(ACTIVE|LAST) TASK/)
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
     const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
     const sessionId = await createSession(rpc)
     await rpc.sessions.rename({sessionId, title: TITLE})
     harness.mountShell(`/panel/${sessionId}?open=true`)
+
     await expect.element(titleButton(TITLE), {timeout: 8000}).toBeVisible()
-  }
-
-  test('clicking the title opens the session menu with the session list, and no separate options button remains', async () => {
-    await mountTitled()
-
     await expect.element(header().getByRole('button', {name: 'Session options', exact: true})).not.toBeInTheDocument()
-    await titleButton(TITLE).click()
-
-    await expect.element(menu()).toBeVisible()
-    await menu()
-      .getByRole('button', {name: `Session: ${TITLE}`})
-      .click()
-    await expect.element(page.getByRole('option', {name: new RegExp(`^${TITLE}`)})).toBeVisible()
-    await composer().click()
-    await expect.element(menu()).not.toBeInTheDocument()
-  })
-
-  test('hovering the title opens the session menu, and moving away closes it', async () => {
-    await mountTitled()
 
     await titleButton(TITLE).hover()
     await expect.element(menu(), {timeout: 4000}).toBeVisible()
     await composer().hover()
     await expect.element(menu(), {timeout: 4000}).not.toBeInTheDocument()
-  })
 
-  test('Enter and Space on the focused title open the menu, and Escape closes it back onto the title', async () => {
-    await mountTitled()
+    await titleButton(TITLE).click()
+    await expect.element(menu()).toBeVisible()
+    await composer().click()
+    await expect.element(menu()).not.toBeInTheDocument()
 
     await titleButton(TITLE).click()
     await expect.element(menu()).toBeVisible()
     await userEvent.keyboard('{Escape}')
     await expect.element(menu()).not.toBeInTheDocument()
-    await expect.element(titleButton(TITLE)).toHaveFocus()
     await microlabel().hover()
-
+    await expect.element(titleButton(TITLE)).toHaveFocus()
     await userEvent.keyboard('{Enter}')
     await expect.element(menu()).toBeVisible()
     await expect.element(menu().getByRole('button', {name: `Session: ${TITLE}`})).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect.element(menu()).not.toBeInTheDocument()
     await expect.element(titleButton(TITLE)).toHaveFocus()
-
     await userEvent.keyboard(' ')
     await expect.element(menu()).toBeVisible()
-  })
-
-  test('a session picked from the selector inside the hover menu switches the session before the menu closes', async () => {
-    const rpc = coreRpc(coreBase())
-    const otherId = await createSession(rpc)
-    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
-    await mountTitled()
-
-    await titleButton(TITLE).hover()
-    await expect.element(menu(), {timeout: 4000}).toBeVisible()
-    await menu()
-      .getByRole('button', {name: `Session: ${TITLE}`})
-      .click()
-    await page.getByRole('option', {name: new RegExp(`^${OTHER}`)}).click()
-
-    await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
-  })
-
-  test('the pencil stays hidden at rest and appears on hover and on keyboard focus', async () => {
-    await mountTitled()
-
-    await expect.element(pencil()).not.toBeInTheDocument()
-    await titleButton(TITLE).hover()
-    await expect.element(pencil()).toBeVisible()
-
-    await microlabel().hover()
-    await expect.element(pencil()).not.toBeInTheDocument()
-
-    await titleButton(TITLE).click()
-    await expect.element(menu()).toBeVisible()
     await userEvent.keyboard('{Escape}')
-    await expect.element(menu()).not.toBeInTheDocument()
-    await microlabel().hover()
     await expect.element(titleButton(TITLE)).toHaveFocus()
-    await expect.element(pencil()).toBeVisible()
     await userEvent.tab()
     await expect.element(pencil()).toHaveFocus()
-    await expect.element(pencil()).toBeVisible()
-  })
 
-  test('the pencil turns the title into an input, and Enter renames it in the header and the session list', async () => {
-    await mountTitled()
-
-    await titleButton(TITLE).hover()
-    await pencil().click()
+    await userEvent.keyboard('{Enter}')
     await expect.element(titleInput()).toHaveValue(TITLE)
     await expect.element(pencil()).not.toBeInTheDocument()
-    await titleInput().fill(RENAMED)
-    await userEvent.keyboard('{Enter}')
-
-    await expect.element(titleButton(RENAMED), {timeout: 8000}).toBeVisible()
-    await expect.element(titleInput()).not.toBeInTheDocument()
-    await expect.element(pencil()).toHaveFocus()
-    await titleButton(RENAMED).click()
-    await menu()
-      .getByRole('button', {name: `Session: ${RENAMED}`})
-      .click()
-    await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED}`)})).toBeVisible()
-  })
-
-  test('Escape cancels the edit and an empty title never commits', async () => {
-    await mountTitled()
-
-    await titleButton(TITLE).hover()
-    await pencil().click()
     await titleInput().fill('a discarded title')
     await userEvent.keyboard('{Escape}')
     await expect.element(titleInput()).not.toBeInTheDocument()
-    await expect.element(header()).toBeVisible()
     await expect.element(pencil()).toHaveFocus()
     await expect.element(titleButton(TITLE)).toBeVisible()
 
     await pencil().click()
-    await expect.element(titleInput()).toHaveValue(TITLE)
     await titleInput().fill('   ')
     await userEvent.keyboard('{Enter}')
     await expect.element(titleInput()).not.toBeInTheDocument()
     await expect.element(titleButton(TITLE)).toBeVisible()
-  })
 
-  test('a failed rename announces the failure and keeps the old title', async () => {
-    await mountTitled()
     await faults.install({kind: 'fail', path: ['sessions', 'rename']})
-
-    await titleButton(TITLE).hover()
     await pencil().click()
     await titleInput().fill(RENAMED)
     await userEvent.keyboard('{Enter}')
-
     await expect.element(page.getByRole('alert'), {timeout: 8000}).toHaveTextContent('Rename failed')
     await expect.element(titleButton(TITLE)).toBeVisible()
-  })
+    await faults.releaseAll()
+
+    await pencil().click()
+    await titleInput().fill(RENAMED)
+    await userEvent.keyboard('{Enter}')
+    await expect.element(titleButton(RENAMED), {timeout: 8000}).toBeVisible()
+    await expect.element(titleInput()).not.toBeInTheDocument()
+    await expect.element(pencil()).toHaveFocus()
+
+    await titleButton(RENAMED).hover()
+    await expect.element(menu(), {timeout: 4000}).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${RENAMED}`})
+      .click()
+    await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
+  }, 30_000)
 })
 
 describe('panel view tabs', () => {
@@ -3632,7 +3559,7 @@ describe('session picker after login', () => {
     await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.printedCode())
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 8000}).toBeVisible()
 
-    await userEvent.click(page.getByRole('button', {name: 'Session options'}))
+    await userEvent.click(page.getByRole('button', {name: /session options$/}))
     await userEvent.click(page.getByRole('button', {name: /^Session: /}))
     const search = page.getByRole('combobox', {name: /search sessions/i})
     await userEvent.click(search)

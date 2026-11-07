@@ -2,14 +2,15 @@
 
 ## Overview
 
-Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` primitives with UnoCSS `chat-*` classes and default positioning; a few are custom (`Button` with cva, `TooltipGroup`, `Switch` motion, `AnchoredListbox`, `VirtualJsonTree`, `VirtualList`, `ZoomableImage`). It also holds the skin system and tokens, and helpers for clipboard, textarea autosize, spring motion, DOM realms, localStorage and resizing. `index.tsx` is the public barrel; `autosize.ts`, `motion.ts`, `realm.ts` and `tooltip-motion.ts` are internal. 24 `*.stories.tsx` files are Storybook demos.
+Source of the conciv SolidJS design system. Most files wrap `@ark-ui/solid` primitives with UnoCSS `chat-*` classes and default positioning; a few are custom (`Button` with cva, `TooltipGroup`, `Switch` motion, `AnchoredListbox`, `VirtualJsonTree`, `VirtualList`, `ZoomableImage`). It also holds the skin system and tokens, and helpers for clipboard, textarea autosize, spring motion, DOM realms, localStorage and resizing. `index.tsx` is the public barrel; `autosize.ts`, `motion.ts`, `realm.ts` and `tooltip-motion.ts` are internal. 25 `*.stories.tsx` files are Storybook demos.
 
 ## Interface
 
 - `index.tsx` (export `.`): re-exports every public symbol below.
 - Ark wrappers: `Avatar` (`avatar.tsx`), `Collapsible` (`lazyMount` default, animated Content; `collapsible.tsx`), `Combobox` (`combobox.tsx`), `EnvironmentProvider` (`environment.tsx`), `FocusTrap` / `FocusTrapProps` (`focus-trap.tsx`), `Menu` (`menu.tsx`), `Listbox` (`listbox.tsx`), `Popover` / `PopoverApi`, `usePopover` / `PopoverMachine` (a popover machine for `Popover.RootProvider`, same positioning defaults as `Popover.Root`; `popover.tsx`), `Presence` (`presence.tsx`), `Progress` (`progress.tsx`), `ScrollArea` (`scroll-area.tsx`), `SegmentGroup` (`segment-group.tsx`), `Select`, `createListCollection` (`select.tsx`), `Slider` (`slider.tsx`), `Splitter` (`splitter.tsx`), `Swap` (`swap.tsx`), `Switch` (draggable spring thumb; `switch.tsx`), `Tabs`, `TabsPrimitive` (`tabs.tsx`), `Toast`, `ToastGroup`, `createToaster`, `ToasterInstance` (`toast.tsx`).
 - `Button`, `ButtonVariant` (solid, ghost, outline, danger, accent-soft, outline-danger, panel, link, plain), `ButtonSize` (sm, md, icon, bare, none) (`button.tsx`).
-- `HoverCard` (`openDelay` 0, `closeDelay` 120, `sideOffset` 6; `hover-card.tsx`).
+- `HoverCard` (`hover-card.tsx`): the Ark HoverCard parts; `Root` defaults positioning to fixed, `bottom-start`, gutter 6, `Content` carries the panel surface classes.
+- `Editable` (`editable.tsx`): the Ark Editable parts; `Area` lays out inline, `Input` inherits the surrounding font and stops Escape from reaching outer dismiss handlers.
 - `Dialog`, `DialogApi` (`dialog.tsx`): props `title` or `label`, `open`, `onOpenChange`, `footer`, `role`, `initialFocus`, `restoreFocus` (true), `dismissable` (false), `size` (md/lg/xl), `layer`, `children`.
 - `Loader`, `LoaderSize` (`loader.tsx`): indeterminate Ark Progress.
 - `AnchoredListbox`, `AnchoredListboxHandle` `{listboxId, activeOptionId(), commitHighlighted(), handleKeyDown(event)}`, `AnchoredListboxRect` (`anchored-listbox.tsx`): listbox at a fixed rect that an external input can drive.

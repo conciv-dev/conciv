@@ -58,7 +58,7 @@ const RAIL_TITLE = 'min-w-0 truncate'
 const RAIL_TITLE_TRIGGER =
   'flex items-center gap-1.5 min-w-0 p-0 bg-transparent [border:none] text-start cursor-pointer rounded-[var(--chat-radius-sm)] focus-ring aria-busy:cursor-progress'
 const RAIL_TITLE_RENAME =
-  'size-7 shrink-0 [&[hidden]]:hidden invisible opacity-0 [transition:opacity_120ms_var(--chat-ease),visibility_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100'
+  'size-7 shrink-0 [&[hidden]]:hidden opacity-0 [transition:opacity_120ms_var(--chat-ease)] motion-reduce:[transition:none] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100'
 const GHOST =
   'bg-transparent border border-transparent text-chat-text-2 cursor-pointer inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [transition:background-color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[border-color:var(--chat-line-soft)] hover:text-chat-text'
 const RAIL_MENU_CONTENT = 'p-2 flex flex-col gap-1 w-72'
