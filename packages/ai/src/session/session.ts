@@ -155,7 +155,6 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   })
   const refresh = async (): Promise<void> => {
     const hydration = await connection.refresh()
-    if (loadFailed()) chat.clear()
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId

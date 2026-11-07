@@ -542,6 +542,10 @@ describe('chat pane', () => {
     const loadError = () => page.getByRole('alert')
     const retry = () => loadError().getByRole('button', {name: /^Retry/})
 
+    afterEach(async () => {
+      await coreControl.releaseTools()
+    })
+
     async function sessionWithHistory(): Promise<string> {
       const {sessionId} = await newSession()
       await runTurn(core(), sessionId, 'a question from before')
@@ -581,7 +585,7 @@ describe('chat pane', () => {
 
       await expect
         .element(page.getByRole('log', {name: 'Announcements'}))
-        .toMatchTextContent(/conciv could not refresh the conversation\. Try again\./)
+        .toMatchTextContent(/conciv could not load this conversation\. Try again\./)
       await expect.element(loadError().getByText('Couldn’t load this conversation')).toBeVisible()
       await expect.element(retry()).toBeEnabled()
       await expect.element(page.getByText('How can I help you today?')).not.toBeInTheDocument()
@@ -600,6 +604,31 @@ describe('chat pane', () => {
       await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
       await expect.element(loadError()).not.toBeInTheDocument()
       await expect.element(skeleton()).not.toBeInTheDocument()
+    })
+
+    test('Retry after a failed load joins the run already in flight, so the rest of the reply arrives and the pane settles', async () => {
+      const {sessionId} = await newSession()
+      await coreControl.scriptTurn({toolCalls: [], text: 'the rest of the reply'})
+      await coreControl.holdTools()
+      const turn = await sendTurn(core(), sessionId, 'a prompt sent before the pane opened')
+      const broken = await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
+      mountChatPane(sessionId)
+
+      await expect.element(retry()).toBeEnabled()
+      await coreControl.releaseFault(broken)
+      await retry().click()
+
+      await expect.element(page.getByText('a prompt sent before the pane opened')).toBeVisible()
+      await expect.element(narration()).toBeVisible()
+      await expect.element(page.getByText('the rest of the reply')).not.toBeInTheDocument()
+
+      await coreControl.releaseTools()
+
+      await expect.element(page.getByText('the rest of the reply')).toBeVisible()
+      await expect.element(narration()).not.toBeInTheDocument()
+      await expect.element(loadError()).not.toBeInTheDocument()
+      await turn.awaitTurnEnd()
+      turn.close()
     })
   })
 })
