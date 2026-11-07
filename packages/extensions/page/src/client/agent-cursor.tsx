@@ -302,29 +302,38 @@ function settle(entry: Placed): void {
 
 function write(options: {entry: Placed; point: Point | null}): void {
   const {entry, point} = options
-  const {element} = entry
-  const visible = point !== null
-  if (visible !== entry.shown) {
-    entry.shown = visible
-    element.style.visibility = visible ? '' : 'hidden'
-  }
+  showWhen(entry, point !== null)
   if (!point) return
   const previous = entry.last
   if (previous && previous.x === point.x && previous.y === point.y) return settle(entry)
   entry.last = point
-  element.style.transform = `translate(${point.x}px, ${point.y}px)`
+  entry.element.style.transform = `translate(${point.x}px, ${point.y}px)`
   if (!previous) return
-  const degrees = Math.atan2(previous.y - point.y, previous.x - point.x) * DEGREES_PER_RADIAN + QUARTER_TURN
+  pointTrail({entry, from: previous, to: point})
+  markMoving(entry)
+}
+
+function showWhen(entry: Placed, visible: boolean): void {
+  if (visible === entry.shown) return
+  entry.shown = visible
+  entry.element.style.visibility = visible ? '' : 'hidden'
+}
+
+function pointTrail(options: {entry: Placed; from: Point; to: Point}): void {
+  const {entry, from, to} = options
+  const degrees = Math.atan2(from.y - to.y, from.x - to.x) * DEGREES_PER_RADIAN + QUARTER_TURN
   const angle = `${Math.round((degrees + FULL_TURN) % FULL_TURN)}deg`
-  if (angle !== entry.angle) {
-    entry.angle = angle
-    entry.glow?.style.setProperty('--cursor-angle', angle)
-  }
+  if (angle === entry.angle) return
+  entry.angle = angle
+  entry.glow?.style.setProperty('--cursor-angle', angle)
+}
+
+function markMoving(entry: Placed): void {
   entry.still?.cancel()
   entry.settling = false
   if (entry.moving) return
   entry.moving = true
-  element.dataset.moving = ''
+  entry.element.dataset.moving = ''
 }
 
 function placeCursors(): void {
