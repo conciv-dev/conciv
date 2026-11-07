@@ -65,7 +65,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       ? [{harness, history: harness.history}]
       : [],
   )
-  const state: {running: Running | null; version: number} = {running: null, version: 0}
+  const state: {running: Running | null; version: number} = {running: null, version: Date.now()}
   const publisher = new EventPublisher<{indexed: SessionsChange}>()
 
   const indexedChanged = (): void => {

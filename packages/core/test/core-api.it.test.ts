@@ -2418,10 +2418,11 @@ describe('rpc wire', () => {
 
       describe('search', () => {
         const LIVE_REINDEX_MS = 30_000
-        const searched: {kit: Kit | null; cwd: string; changes: AsyncIterator<unknown> | null} = {
+        const searched: {kit: Kit | null; cwd: string; changes: AsyncIterator<unknown> | null; bootedAt: number} = {
           kit: null,
           cwd: '',
           changes: null,
+          bootedAt: 0,
         }
         const clock = {at: Date.now() + 3_600_000}
         const searchKit = () => {
@@ -2434,6 +2435,7 @@ describe('rpc wire', () => {
         }
 
         beforeAll(async () => {
+          searched.bootedAt = Date.now()
           searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
           writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
           searched.kit = await bootKit(
@@ -2564,7 +2566,7 @@ describe('rpc wire', () => {
           try {
             const current = await late.next()
             const currentVersion = z.object({version: z.number()}).parse(current.value).version
-            expect(currentVersion).toBeGreaterThan(0)
+            expect(currentVersion).toBeGreaterThan(searched.bootedAt)
 
             writeClaudeTurn(claudeId('claude-kestrel'), 'a kestrel note', 'the kestrel hovered')
             expect(await listedNativeIds()).toContain(claudeId('claude-kestrel'))
