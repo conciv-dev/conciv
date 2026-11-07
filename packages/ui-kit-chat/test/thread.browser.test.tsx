@@ -1534,3 +1534,60 @@ describe('virtual thread', () => {
     await expect.element(thread.transcript).not.toHaveAttribute('data-at-bottom')
   })
 })
+
+describe('same-count turn replacement', () => {
+  const exchangeCount = VIRTUALIZE_THRESHOLD
+  const closingQuestion: ChatMessage = {
+    id: 'closing',
+    role: 'user',
+    parts: [{type: 'text', content: 'closing question'}],
+  }
+
+  function exchanges(prefix: string, idPrefix: string, answer: string): ChatMessage[] {
+    return Array.from({length: exchangeCount}, (_, index): ChatMessage[] => [
+      {id: `${idPrefix}u${index}`, role: 'user', parts: [{type: 'text', content: `${prefix} question ${index}`}]},
+      {
+        id: `${idPrefix}a${index}`,
+        role: 'assistant',
+        parts: [{type: 'text', content: `${prefix} answer ${index} ${answer}`}],
+      },
+    ])
+      .flat()
+      .concat(closingQuestion)
+  }
+
+  function mountReplaceable(): Chat {
+    let chat: Chat | undefined
+    function ReplaceableThread(): JSX.Element {
+      const value = createChat({threadId: 'same-count-replacement', connection: storyConnection()})
+      onMount(() => {
+        chat = value
+        value.setMessages(exchanges('stale', '', 'and a long winded aside. '.repeat(60)))
+      })
+      return (
+        <ChatProvider chat={value}>
+          <div style={{height: '360px', width: '520px'}}>
+            <Thread>
+              <Thread.Viewport>
+                <Thread.Messages />
+              </Thread.Viewport>
+            </Thread>
+          </div>
+        </ChatProvider>
+      )
+    }
+    mountView(() => <ReplaceableThread />)
+    if (!chat) throw new Error('chat not mounted')
+    return chat
+  }
+
+  it('repacks the rows when every turn is replaced by new turns of the same count', async () => {
+    const chat = mountReplaceable()
+    await expect.element(page.getByText('closing question')).toBeInViewport()
+    await expect.element(page.getByText(`stale answer ${exchangeCount - 1}`, {exact: false})).toBeInViewport()
+    chat.setMessages(exchanges('fresh', 'fresh-', 'in brief.'))
+    await expect.element(page.getByText(`fresh answer ${exchangeCount - 1}`, {exact: false})).toBeInTheDocument()
+    await expect.element(page.getByText('closing question')).toBeInViewport()
+    await expect.element(page.getByText(`fresh question ${exchangeCount - 2}`)).toBeInViewport()
+  })
+})

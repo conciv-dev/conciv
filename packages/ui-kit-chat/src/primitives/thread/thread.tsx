@@ -155,7 +155,8 @@ function VirtualMessages(props: {
 }): JSX.Element {
   const thread = useThread()
   const turns = () => thread.turns
-  const turnCount = createMemo(() => turns().length)
+  const layoutTurns = createMemo(() => turns(), [], {equals: sameSettledTurns})
+  const turnCount = () => layoutTurns().length
   const estimator = useTurnEstimator()
   const [spacer, setSpacer] = createSignal<HTMLDivElement>()
   const [metrics, setMetrics] = createStore({gap: 0, scrollMargin: 0})
@@ -271,6 +272,14 @@ function VirtualMessages(props: {
         )}
       </For>
     </div>
+  )
+}
+
+function sameSettledTurns(previous: readonly Turn[], next: readonly Turn[]): boolean {
+  const lastIndex = next.length - 1
+  return (
+    previous.length === next.length &&
+    next.every((turn, index) => (index === lastIndex ? turn.key === previous[index]?.key : turn === previous[index]))
   )
 }
 
