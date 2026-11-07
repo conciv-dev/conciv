@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {command, description, name, toggle} from '@bomb.sh/router'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
-import {handler} from './handler.js'
+import {handler} from './router/handler.js'
 import type {InitOptions, InitResult, InitRuntime} from './init/pipeline.js'
 
 export type InitCommandOptions = InitOptions & {json: boolean}

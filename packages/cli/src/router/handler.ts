@@ -1,5 +1,5 @@
 import type {AnyRoute} from '@bomb.sh/router'
-import type {CliOutcome} from './envelope.js'
+import type {CliOutcome} from '../envelope.js'
 
 export type Handler = (model: Record<string, unknown>) => Promise<CliOutcome> | CliOutcome
 

@@ -6,7 +6,7 @@ import {argument, cli, command, description, multiple, name, option, schema, tog
 import type {ToolMeta} from '@conciv/extension/tool'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
-import {handler} from './handler.js'
+import {handler} from './router/handler.js'
 
 export type ToolDeclaration = {
   name: string

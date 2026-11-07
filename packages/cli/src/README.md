@@ -20,7 +20,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `envelopeFlag` (`envelope.ts`): the --json toggle accepted on every route that does not declare its own `json`
 - `runCli(app, argv)` (`run.ts`): parses, resumes catalog checkpoints, prints help/version or runs the handler, returns an exit code
 - `routeFailure` (`arguments.ts`): turns the router's method-not-allowed / unprocessable-content result into a user error envelope
-- `handler` / `handlerOf` (`handler.ts`): attach a run function to a route definition and read it back from the parsed intent
+- `handler` / `handlerOf` (`router/handler.ts`): attach a run function to a route definition and read it back from the parsed intent
 - `toolCommand` / `wireToolCommand` (`tool-command.ts`): turn a zod or wire JSON schema into a router command (positional `argument`, boolean `toggle`, array `multiple()` option, every other field an `option` with a Standard Schema)
 - `toolGroupRoute` / `liveCatalog` (`tool-group.ts`): noun route whose verbs come from the live registry catalog through `dynamic()`
 - `runRpc` / `runRpcWhenServing` (`request.ts`): oRPC call with the session header; the second returns null when offline

@@ -1,7 +1,7 @@
 import {command, description, name, toggle} from '@bomb.sh/router'
 import {PAGE_TOOL_DEFS, PAGE_TOOL_PREFIX} from '@conciv/extension-page/defs'
 import {envelopeFlag} from './envelope.js'
-import {handler} from './handler.js'
+import {handler} from './router/handler.js'
 import {runRpc} from './request.js'
 import {toolGroupRoute} from './tool-group.js'
 

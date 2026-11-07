@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {routeFailure} from './arguments.js'
 import {writeFailure, writeOutcome} from './envelope.js'
 import {failureOf} from './failure.js'
-import {handlerOf} from './handler.js'
+import {handlerOf} from './router/handler.js'
 import type {main} from './main.js'
 import {liveCatalog, type LiveCatalog} from './tool-group.js'
 

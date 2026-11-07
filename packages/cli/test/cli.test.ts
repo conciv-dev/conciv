@@ -183,20 +183,6 @@ describe('cli', () => {
         expect(written).toEqual([])
         expect(logged.join('\n')).toContain('--ref')
       })
-
-      it('prints the cli version for --version and -v without touching the rpc', async () => {
-        const manifest = z
-          .object({version: z.string()})
-          .parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')))
-        const logged: string[] = []
-        vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
-          logged.push(String(line))
-        })
-        expect(await runCli(cliMain, ['--version'])).toBe(0)
-        expect(await runCli(cliMain, ['-v'])).toBe(0)
-        expect(written).toEqual([])
-        expect(logged).toEqual([`conciv ${manifest.version}`, `conciv ${manifest.version}`])
-      })
     })
   })
 
@@ -245,6 +231,20 @@ describe('cli', () => {
         expect(help.status).toBe(0)
         expect(help.stdout).toContain('tools')
         expect(help.stdout).not.toContain(ESCAPE)
+      })
+
+      it('prints the cli version for --version and -v without touching the rpc', () => {
+        const manifest = z
+          .object({version: z.string()})
+          .parse(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')))
+        expect(conciv(['--version'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
+        expect(conciv(['-v'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
+      })
+
+      it('registers init under the root command', () => {
+        const help = conciv(['--help'])
+        expect(help.status).toBe(0)
+        expect(help.stdout).toMatch(/^\s+init\s/m)
       })
 
       it('lists the built-in page verbs offline and says so on the last line', () => {
@@ -1152,16 +1152,6 @@ describe('init', () => {
         expect(defaults.code).toBe(1)
         expect(JSON.stringify(defaults.document)).toContain('--yes')
         expect(existsSync(join(defaults.cwd, '.conciv'))).toBe(false)
-      })
-
-      it('registers under the root command', async () => {
-        const logged: string[] = []
-        vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
-          logged.push(String(line))
-        })
-        expect(await runCli(cliMain, ['--help'])).toBe(0)
-        vi.restoreAllMocks()
-        expect(logged.join('\n')).toMatch(/^\s+init\s/m)
       })
     })
   })

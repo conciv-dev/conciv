@@ -4,7 +4,7 @@ import {readTrustedBrowsers, revokeBrowsers} from '@conciv/protocol/engine-trust
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {discoveredEngine} from './engine-origin.js'
 import {userFailure} from './failure.js'
-import {handler} from './handler.js'
+import {handler} from './router/handler.js'
 
 export type RevokeOptions = {id?: string; all: boolean; cwd: string}
 
