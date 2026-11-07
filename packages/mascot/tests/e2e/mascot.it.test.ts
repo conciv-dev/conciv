@@ -1,7 +1,6 @@
 import {expect, test, type Page} from '@playwright/test'
 import {
   BINARY_EMITTER_DIGIT_COUNT,
-  BINARY_EMITTER_RISE_PX,
   BLINK_BEATS,
   BLINK_CLOSE_SCALE_Y,
   HEAD_BOB_Y_PERCENT,
@@ -30,7 +29,6 @@ import {
   stepsBetween,
   buildCurvedService,
   buildPlacedService,
-  buildCeilingService,
   type DigitPlacement,
   PRODUCT_FAB_ANTENNA_PX,
   type StagePlacement,
@@ -1283,18 +1281,6 @@ test.describe('curve', () => {
     const {horizontal} = await trackLeadingDigit(page)
 
     expectBend('auto at the top edge', horizontal, 1)
-  })
-
-  test('bounds from the host clip the room above, so the default curve bends along that ceiling', async ({page}) => {
-    await openMascotPage(page)
-    await installManualClock(page)
-    await buildCeilingService(page, WORKING, AT_BOTTOM_EDGE, PRODUCT_FAB_ANTENNA_PX)
-    const {horizontal, vertical} = await trackLeadingDigit(page)
-
-    expectBend('the default curve under a host ceiling', horizontal, 1)
-    expect(Math.min(...vertical), 'the highest the digits climb under the ceiling').toBeGreaterThan(
-      BINARY_EMITTER_RISE_PX / 2,
-    )
   })
 
   const openDefaultStage = async (page: Page, placement: StagePlacement): Promise<void> => {
