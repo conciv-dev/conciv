@@ -48,6 +48,9 @@ catalogs:
     '@shikijs/langs-precompiled':
       specifier: 4.5.0
       version: 4.5.0
+    '@solid-primitives/date':
+      specifier: ^2.1.8
+      version: 2.1.8
     '@solid-primitives/event-listener':
       specifier: ^2.4.6
       version: 2.4.6
@@ -533,6 +536,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@solid-primitives/date':
+        specifier: 'catalog:'
+        version: 2.1.8(solid-js@1.9.17)
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
@@ -10085,6 +10091,11 @@ packages:
     peerDependencies:
       solid-js: ^1.6.12
 
+  '@solid-primitives/date@2.1.8':
+    resolution: {integrity: sha512-MD2B6b7XlnZPiOlp7x02TsAbYOoUAI2/Yz+grHBjUFNM8sNkZPQ2yMkq5cFLZCaEdyoqVUla056o5olrh2ZlwQ==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
   '@solid-primitives/event-listener@2.4.6':
     resolution: {integrity: sha512-5I0YJcTVYIWoMmgBSROBZGcz+ymhew/pGTg2dHW74BUjFKsV8Li4bOZYl0YAGP4mHw5o4UBd9/BEesqBci3wxw==}
     peerDependencies:
@@ -10110,6 +10121,11 @@ packages:
     peerDependencies:
       solid-js: ^1.6.12
 
+  '@solid-primitives/memo@1.5.1':
+    resolution: {integrity: sha512-VDPrkl9epp0tbby9MvsqphGFCYCtDRC5J8FKzTqHbQiG5hhR8n6xv4MfjhTW231IaBxxPHLxS43EE8c5Q23mSQ==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
   '@solid-primitives/mutation-observer@1.2.4':
     resolution: {integrity: sha512-CVKOLDj09ZLoN9Hq+o5BTNVBCVM1vKcpRhaZnvpSuXguQBaAz75R8nkaEhkIdMcpENueLivPIJbUqAA1BAaOGw==}
     peerDependencies:
@@ -10127,6 +10143,11 @@ packages:
 
   '@solid-primitives/rootless@1.5.4':
     resolution: {integrity: sha512-TOIZa1VUfVJ+9nkCcRajw3U4t9vBOP1HxX1WHNTbXq32mXwlqTvUnC4CRIilohcryBkT9u2ZkhUDSHRTaGp55g==}
+    peerDependencies:
+      solid-js: ^1.6.12
+
+  '@solid-primitives/scheduled@1.5.3':
+    resolution: {integrity: sha512-oNwLE6E6lxJAWrc8QXuwM0k2oU1BnANnkChwMw82aK1j3+mWGJkG1IFe5gCwbV+afYmjI76t9JJV3md/8tLw+g==}
     peerDependencies:
       solid-js: ^1.6.12
 
@@ -22755,6 +22776,13 @@ snapshots:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17
 
+  '@solid-primitives/date@2.1.8(solid-js@1.9.17)':
+    dependencies:
+      '@solid-primitives/memo': 1.5.1(solid-js@1.9.17)
+      '@solid-primitives/timer': 1.4.4(solid-js@1.9.17)
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
   '@solid-primitives/event-listener@2.4.6(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
@@ -22784,6 +22812,12 @@ snapshots:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
       solid-js: 1.9.17
 
+  '@solid-primitives/memo@1.5.1(solid-js@1.9.17)':
+    dependencies:
+      '@solid-primitives/scheduled': 1.5.3(solid-js@1.9.17)
+      '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
   '@solid-primitives/mutation-observer@1.2.4(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
@@ -22805,6 +22839,10 @@ snapshots:
   '@solid-primitives/rootless@1.5.4(solid-js@1.9.17)':
     dependencies:
       '@solid-primitives/utils': 6.4.1(solid-js@1.9.17)
+      solid-js: 1.9.17
+
+  '@solid-primitives/scheduled@1.5.3(solid-js@1.9.17)':
+    dependencies:
       solid-js: 1.9.17
 
   '@solid-primitives/static-store@0.1.4(solid-js@1.9.17)':

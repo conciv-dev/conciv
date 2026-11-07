@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import {HarnessSessionId, type ReasoningEffort, type SessionId} from './chat-types.js'
+import {HarnessSessionId, type ReasoningEffort, SessionId} from './chat-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -120,7 +120,7 @@ export type HarnessSessionMeta = {
 
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
-export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: HarnessSessionId})
+export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: z.union([HarnessSessionId, SessionId])})
 
 export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
 

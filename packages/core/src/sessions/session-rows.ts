@@ -352,7 +352,7 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
   return rowsInCwd(rows, input.cwd).map((row) => ({
     kind: 'row',
     row,
-    cursor: {updatedAt: row.updatedAt, id: HarnessSessionIdSchema.parse(row.id)},
+    cursor: {updatedAt: row.updatedAt, id: row.id},
   }))
 }
 

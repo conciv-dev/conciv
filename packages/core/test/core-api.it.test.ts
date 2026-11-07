@@ -3095,7 +3095,7 @@ return seen`
   const PLAIN_COMMAND = 'claude-code:command:git status'
   const HIDDEN_COMMAND = 'claude-code:command:grep "$(cat x)"'
   const TERMINAL_ID = 'sess-terminal-born'
-  const UNKNOWN_SESSION = 'conciv_unknown-but-valid'
+  const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']

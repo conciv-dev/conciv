@@ -8,6 +8,7 @@ import {
   TruncatedText,
   VirtualList,
 } from '@conciv/ui-kit-system'
+import {createDateNow} from '@solid-primitives/date'
 import {createDebouncedSignal} from '@tanstack/solid-pacer'
 import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
 import {groupBy, uniqBy} from 'es-toolkit'
@@ -31,6 +32,7 @@ const PAGE_SIZE = 30
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
 const SEARCH_WAIT_MS = 250
+const CLOCK_TICK_MS = 60_000
 
 const HEADER_ROW_SIZE = 26
 
@@ -137,7 +139,8 @@ export function SessionSelector(props: {
     const id = activeId()
     return id ? [id] : []
   }
-  const now = () => list.dataUpdatedAt
+  const [clock] = createDateNow(CLOCK_TICK_MS)
+  const now = () => clock().getTime()
   const collection = createMemo(() =>
     createListCollection<SessionMeta>({
       items: sessionsLoaded(),
