@@ -44,6 +44,7 @@ catalog:
   '@clack/prompts': '^1.8.1'
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
+  '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0

@@ -80,7 +80,7 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@hono/node-server": "catalog:",
     "@jridgewell/trace-mapping": "0.3.31",
-    "@orama/orama": "3.1.18",
+    "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
