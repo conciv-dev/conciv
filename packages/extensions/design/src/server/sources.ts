@@ -134,6 +134,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
       fields: {
         seq: labels.seq,
         target: labels.target_id,
+        run: labels.run_id,
         round: labels.round,
         node: labels.node,
         id: labels.id,
@@ -146,7 +147,14 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     notes: {
       table: notes,
       writable: true,
-      fields: {seq: notes.seq, target: notes.target_id, round: notes.round, text: notes.text, at: notes.at},
+      fields: {
+        seq: notes.seq,
+        target: notes.target_id,
+        run: notes.run_id,
+        round: notes.round,
+        text: notes.text,
+        at: notes.at,
+      },
     },
   }
 }

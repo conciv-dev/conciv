@@ -1,12 +1,12 @@
 import {z} from 'zod'
 import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
-import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, type DesignRuntime, type Differ} from '../shared/defs.js'
+import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
 
 const [getDef, watchDef, validateDef] = DESIGN_TOOLS
 
 const SOURCES =
-  'Sources, each row with target and at: targets (the registered design: link, width, height, image), rounds (one per design_watch: much, noticeably, slightly, pins, reflow, rows_count, rendered, missing, pixel_share, counts, coverage, reflow_detail, tree), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, confidence, margin), fom (the stored mapping per id and Figma node: confidence, margin, round, revoted_round, reason), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: round, node, id, verdict, by, note) and notes (round, text).'
+  'Sources, each row with target and at: targets (the registered design: link, width, height, image), rounds (one per design_watch: much, noticeably, slightly, pins, reflow, rows_count, rendered, missing, pixel_share, counts, coverage, reflow_detail, tree), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, confidence, margin), fom (the stored mapping per id and Figma node: confidence, margin, round, revoted_round, reason), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note) and notes (run, round, text).'
 
 const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select the fields to return, order the fields to sort by (seq is the order rows were written), limit the most rows; ask only for what you need. ${SOURCES}`
 
@@ -31,6 +31,24 @@ const queryDef = designDataTool({
   }),
 })
 
+const LabelValues = z.strictObject({
+  target: z.string().min(1),
+  run: z.number().int().optional(),
+  round: z.number().int().optional(),
+  node: z.string().min(1),
+  id: z.string().min(1).optional(),
+  verdict: z.enum(DESIGN_VERDICTS),
+  by: z.string().min(1),
+  note: z.string().optional(),
+})
+
+const NoteValues = z.strictObject({
+  target: z.string().min(1),
+  run: z.number().int().optional(),
+  round: z.number().int().optional(),
+  text: z.string().min(1),
+})
+
 const writeDef = designDataTool({
   verb: 'write',
   summary: WRITE_SUMMARY,
@@ -38,7 +56,7 @@ const writeDef = designDataTool({
   done: 'Wrote the design data',
   input: z.object({
     into: z.enum(['labels', 'notes']).describe('the writable source'),
-    values: z.record(z.string(), z.unknown()).describe('field to value for one row'),
+    values: z.union([LabelValues, NoteValues]).describe('the row: a label into labels, a note into notes'),
   }),
 })
 

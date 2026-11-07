@@ -11,6 +11,8 @@ const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
+export const DESIGN_VERDICTS = ['right', 'wrong'] as const
+
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
