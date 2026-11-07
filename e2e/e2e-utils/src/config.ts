@@ -1,4 +1,4 @@
-import {mkdirSync, mkdtempSync} from 'node:fs'
+import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
@@ -13,14 +13,14 @@ export function e2eServerLog(port: number): string {
   return join(tmpdir(), `conciv-e2e-server-${port}.log`)
 }
 
-function serverEntry(command: string, port: number, env: Record<string, string> = {}) {
+function serverEntry(command: string, port: number, env: {CONCIV_HOME: string} & Record<string, string>) {
   return {
     command: `(${command}) 2>&1 | tee ${e2eServerLog(port)}`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
     timeout: 180_000,
-    env: {...isolatedConcivHome(), ...env},
+    env,
   }
 }
 
@@ -44,7 +44,7 @@ export function e2eConfig(
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: {
-      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
+      ...serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port, isolatedConcivHome()),
       ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
     },
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
@@ -67,11 +67,13 @@ function selectedHarnesses(): [HarnessApp, number][] {
   return entries.filter(([harness]) => harness === filter)
 }
 
-function isolatedHome(harness: HarnessApp): Record<string, string> {
-  const home = mkdtempSync(join(tmpdir(), `conciv-e2e-${harness}-home-`))
-  const codexHome = join(home, '.codex')
-  mkdirSync(codexHome)
-  return {HOME: home, CODEX_HOME: codexHome}
+export function harnessHome(harness: HarnessApp): string {
+  return join(tmpdir(), `conciv-e2e-${harness}-home`)
+}
+
+function isolatedHome(harness: HarnessApp): {CONCIV_HOME: string} & Record<string, string> {
+  const home = harnessHome(harness)
+  return {HOME: home, CODEX_HOME: join(home, '.codex'), CONCIV_HOME: join(home, '.conciv-home')}
 }
 
 export function harnessMatrixConfig(opts: {
@@ -84,7 +86,11 @@ export function harnessMatrixConfig(opts: {
     timeout: 150_000,
     reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
-      serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port, isolatedHome(harness)),
+      serverEntry(
+        `rm -rf .conciv-${harness} '${harnessHome(harness)}' && mkdir -p '${join(harnessHome(harness), '.codex')}' && ${opts.command(harness, port)}`,
+        port,
+        isolatedHome(harness),
+      ),
     ),
     projects: entries.map(([harness, port]) => ({
       name: harness,

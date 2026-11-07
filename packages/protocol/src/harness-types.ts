@@ -71,10 +71,15 @@ export type HarnessInitProject = {cwd: string; stateDir: string}
 
 export type HarnessInitPlan = {root: string; files: HarnessConnectFile[]; commands: HarnessInitCommand[]}
 
+export const INIT_HARNESS_IDS = ['claude', 'codex', 'gemini-cli', 'opencode', 'pi'] as const
+
+export type InitHarnessId = (typeof INIT_HARNESS_IDS)[number]
+
 type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
+  hub?: {add: (command: string[]) => string[]}
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {

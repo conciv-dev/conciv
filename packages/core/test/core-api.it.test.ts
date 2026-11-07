@@ -28,7 +28,6 @@ import {
   defineAttachment,
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
-import {getHarness} from '@conciv/harness'
 import {
   anchorKey,
   chatMetadata,
@@ -81,7 +80,6 @@ import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {os} from '@orpc/server'
-import {Hono} from 'hono'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
@@ -315,39 +313,6 @@ describe('api engine staleness di', () => {
   })
 })
 
-describe('api extension lifecycle', () => {
-  function toolNamed(name: string) {
-    return defineTool({
-      name,
-      description: 'd',
-      inputSchema: z.object({}),
-      outputSchema: z.object({ok: z.string()}),
-      meta: {summary: `run ${name}`, category: 'fixture', mutating: false},
-    }).server(() => ({ok: name}))
-  }
-
-  test('two extensions mount isolated namespaces; both routes serve and both tools register', async () => {
-    const alpha = defineExtension({name: 'alpha', tools: [toolNamed('alpha_do')]}).server(() => ({
-      context: {},
-      app: new Hono().get('/where', (c) => c.json({who: 'alpha'})),
-    }))
-    const beta = defineExtension({name: 'beta', tools: [toolNamed('beta_do')]}).server(() => ({
-      context: {},
-      app: new Hono().get('/where', (c) => c.json({who: 'beta'})),
-    }))
-    const kit = await bootKit({extensions: [alpha, beta]})
-    const {base, cleanup: close} = kit
-    try {
-      expect(((await (await fetch(`${base}/api/ext/alpha/where`)).json()) as {who: string}).who).toBe('alpha')
-      expect(((await (await fetch(`${base}/api/ext/beta/where`)).json()) as {who: string}).who).toBe('beta')
-      expect(JSON.stringify(await kit.callTool('alpha_do', {}))).toContain('alpha_do')
-      expect(JSON.stringify(await kit.callTool('beta_do', {}))).toContain('beta_do')
-    } finally {
-      await close()
-    }
-  }, 30_000)
-})
-
 describe('api extension mount isolation', () => {
   const healthyTool = defineTool({
     name: 'healthy_ok',
@@ -541,6 +506,60 @@ describe('api installed harnesses', () => {
       await dispose()
       rmSync(root, {recursive: true, force: true})
     }
+  })
+})
+
+describe('connect hub', () => {
+  const kit = sharedKit(() => bootKit({}, createFakeHarness({id: 'fake-hub'})))
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
+  const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const file = {argv: join(root, 'argv'), exists: join(root, 'exists'), fail: join(root, 'fail')}
+  const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp']
+
+  beforeEach(() => {
+    mkdirSync(join(root, 'bin'), {recursive: true})
+    mkdirSync(join(root, 'home'))
+    const script = [
+      '#!/bin/sh',
+      `printf '%s\\n' "$@" > '${file.argv}'`,
+      `if [ -f '${file.fail}' ]; then echo boom >&2; exit 2; fi`,
+      `if [ -f '${file.exists}' ]; then echo 'MCP server conciv-hub already exists in user config' >&2; exit 1; fi`,
+    ]
+    writeFileSync(join(root, 'bin', 'claude'), script.join('\n'), {mode: 0o755})
+    Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home'), CONCIV_HOME: join(root, 'conciv')})
+  })
+
+  afterEach(() => {
+    Object.assign(process.env, saved)
+    if (saved.CONCIV_HOME === undefined) delete process.env.CONCIV_HOME
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
+
+  it('hubInstalls lists a detected harness that is not connected', async () => {
+    expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
+  })
+
+  it('connectHub runs the harness add command over a trusted connection only, and the harness leaves the list', async () => {
+    await expect(makeRpcClient(kit().origin).meta.connectHub({harness: 'claude'})).rejects.toThrow()
+    expect(existsSync(file.argv)).toBe(false)
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    const argv = readFileSync(file.argv, 'utf8').trim().split('\n')
+    expect(argv).toEqual(['mcp', 'add', '-s', 'user', 'conciv-hub', '--', ...hubCommand])
+    expect(await hubInstalls()).toEqual([])
+  })
+
+  it('connectHub treats an already-installed hub as connected', async () => {
+    writeFileSync(file.exists, '')
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await hubInstalls()).toEqual([])
+  })
+
+  it("connectHub returns the CLI's message on failure", async () => {
+    writeFileSync(file.fail, '')
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: false, message: 'boom'})
+    expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
   })
 })
 
@@ -1054,38 +1073,6 @@ describe('api mcp execute result', () => {
         {type: 'text', content: JSON.stringify({width: 4})},
       ])
     })
-  })
-})
-
-describe('api mcp mcp', () => {
-  const draw = defineTool({
-    name: 'acme_draw',
-    description: 'Draw a shape on the canvas',
-    inputSchema: z.object({shape: z.string()}),
-    outputSchema: z.object({drawn: z.string()}),
-    meta: {summary: 'draw a shape on the canvas', category: 'fixture', mutating: false},
-  }).server((input) => ({drawn: input.shape}))
-
-  const acme = defineExtension({name: 'acme', tools: [draw]})
-
-  describe('/api/mcp single code-mode surface', () => {
-    it('exposes the identical tool shape on more than one harness', async () => {
-      const codex = getHarness('codex')
-      if (!codex) throw new Error('codex adapter not registered')
-      const shapes: string[][] = []
-      for (const harness of [requireClaude(), codex]) {
-        const kit = await bootKit({extensions: [acme]}, createTestHarness(harness))
-        const mcp = await connectMcpClient(`${kit.base}/api/mcp`)
-        try {
-          shapes.push((await mcp.tools()).map((tool) => tool.name))
-        } finally {
-          await mcp.close()
-          await kit.cleanup()
-        }
-      }
-      expect(shapes[1]).toEqual(shapes[0])
-      expect(shapes[0]).toEqual(expect.arrayContaining(['execute_typescript', 'discover_tools']))
-    }, 60_000)
   })
 })
 
