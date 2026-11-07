@@ -4,6 +4,7 @@ import {
   ByteSize,
   Combobox,
   createListCollection,
+  RelativeTime,
   TooltipIconButton,
   TruncatedText,
   VirtualList,
@@ -52,17 +53,6 @@ function bucketOf(updatedAt: number, now: number): Bucket {
   if (updatedAt >= new Date(now).setHours(0, 0, 0, 0)) return 'Today'
   if (updatedAt >= new Date(now).setHours(-24, 0, 0, 0)) return 'Yesterday'
   return 'Earlier'
-}
-
-function relativeTime(updatedAt: number, now: number): string {
-  const s = Math.max(0, Math.round((now - updatedAt) / 1000))
-  if (s < 60) return 'just now'
-  const m = Math.round(s / 60)
-  if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`
-  const h = Math.round(m / 60)
-  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
-  const d = Math.round(h / 24)
-  return `${d} day${d === 1 ? '' : 's'} ago`
 }
 
 function pickerRows(list: SessionMeta[], now: number): PickerRow[] {
@@ -364,7 +354,7 @@ export function SessionSelector(props: {
                   </div>
                 }
               >
-                {(session) => <SessionOption session={session()} now={now()} suffix={harnessSuffix(session())} />}
+                {(session) => <SessionOption session={session()} suffix={harnessSuffix(session())} />}
               </Show>
             )}
           </VirtualList>
@@ -387,7 +377,7 @@ function SessionSize(props: {sizeBytes: number | undefined}): JSX.Element {
   )
 }
 
-function SessionOption(props: {session: SessionMeta; now: number; suffix: string}): JSX.Element {
+function SessionOption(props: {session: SessionMeta; suffix: string}): JSX.Element {
   const labelId = createUniqueId()
   return (
     <Combobox.Item
@@ -396,7 +386,7 @@ function SessionOption(props: {session: SessionMeta; now: number; suffix: string
       aria-labelledby={labelId}
     >
       <span id={labelId} class="sr-only">
-        {props.session.title}, Edited {relativeTime(props.session.updatedAt, props.now)}
+        {props.session.title}, Edited <RelativeTime value={new Date(props.session.updatedAt)} />
         <SessionSize sizeBytes={props.session.sizeBytes} />
         {props.session.origin === 'conciv' ? ' · started in conciv' : ' · started externally'}
         {props.suffix}
@@ -407,7 +397,7 @@ function SessionOption(props: {session: SessionMeta; now: number; suffix: string
           <Combobox.ItemText>{props.session.title}</Combobox.ItemText>
         </TruncatedText>
         <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
-          Edited {relativeTime(props.session.updatedAt, props.now)}
+          Edited <RelativeTime value={new Date(props.session.updatedAt)} />
           <SessionSize sizeBytes={props.session.sizeBytes} />
           {props.suffix}
         </span>
