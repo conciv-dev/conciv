@@ -353,3 +353,14 @@ and `design_write` stay ours and are never given to the page builder.
   resuming cold or checking before it edits.
 - Renames carry through `defs.ts`, the trial commands (`check`, `status`), the harness prompt heads, the IT file, the
   README and the stored `tool_calls.tool` values from the rename on; old rows keep the old name.
+
+### design_get never returns the whole design (2026-11-07, same day)
+
+On OrangeFarm the page builder called `design_get` six times at 77 KB a reply and sliced the tree in code. Omri: no call
+returns the whole tree.
+
+- `design_get(link)` returns the outline: the root and the top two levels, each node with id, name, box, layout words,
+  reflow tags and the count of descendants it holds; plus the rules.
+- `design_get(link, node)` returns that node's subtree in full detail with the path of its ancestors.
+- The rules say: read each section with its node id before building it. Coverage in `design_check` reports the sections
+  never built.
