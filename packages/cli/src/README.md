@@ -47,7 +47,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 
 - `bin.ts`: sets NO_COLOR=1 when stdout is not a TTY and FORCE_COLOR is unset; runs only when invoked directly; sets process.exitCode
 - `writeOutcome` / `writeFailure` (`envelope.ts`): write JSON to stdout
-- `runCli` (`run.ts`): prints usage (headings styled with picocolors), the offline note, or the version with console.log
+- `runCli` (`run.ts`): prints usage (the router's plain `printHelp`), the offline note, or the version with console.log
 - `runRpc` / `runRpcWhenServing` (`request.ts`): network oRPC calls to the engine; read CONCIV_SESSION_ID and cache the resolved session id
 - `engineOrigin` (`engine-origin.ts`): reads CONCIV_PORT and .conciv/server.json walking up from cwd
 - `liveCatalog` (`tool-group.ts`): calls rpc.registry.catalog when argv reaches a tool group route

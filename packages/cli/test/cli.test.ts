@@ -247,10 +247,6 @@ describe('cli', () => {
         expect(help.stdout).not.toContain(ESCAPE)
       })
 
-      it('keeps colour when FORCE_COLOR asks for it', () => {
-        expect(conciv(['--help'], {FORCE_COLOR: '1'}).stdout).toContain(ESCAPE)
-      })
-
       it('lists the built-in page verbs offline and says so on the last line', () => {
         const help = conciv(['tools', 'page', '--help'])
         expect(help.status).toBe(0)
