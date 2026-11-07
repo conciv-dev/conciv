@@ -263,26 +263,28 @@ the gate's `slightly`, the SRC site changed element name or class, or a sibling 
 more than the margin. A pin is not re-voted because the agent edited an unrelated file. Pins are stable against
 edits, not against evidence.
 
-### Every run writes to the `.conciv` database (2026-11-07, same day)
+### Every run writes to the design database (2026-11-07, same day)
 
-The design store moves from unstorage into `@conciv/db` (drizzle on `node:sqlite`, `.conciv/conciv.db`, the same
-database that holds tool captures, page changes and runs). Everything the tools see or decide is a row, so a run can be
-queried after the fact to find patterns and fix the tools:
+The design extension owns its data. Core gives an extension `server.stateDir` and nothing else, so the design store
+moves from unstorage into the extension's own SQLite file, `.conciv/design/design.db`, opened with `node:sqlite` and
+drizzle inside the design package, with its own schema and migrations. Nothing is added to `@conciv/db` or to the core
+CLI. Everything the tools see or decide is a row, so a run can be queried after the fact to find patterns and fix the
+tools:
 
-- `design_targets`: the registered design, its link, design width and height, image path, registered at.
-- `design_rounds`: target, round, counts, coverage counts, pixel share, tree hash, at.
-- `design_rows`: target, round, id, Figma node, source file line column, selector, kind, magnitude, width, text.
-- `design_fom`: target, id, Figma node, confidence, margin, round voted, round re-voted, the reason it was re-voted.
-- `design_votes`: target, round, Figma node, candidate id, score per layer (dom, src, cssom), total, won. The data the
+- `targets`: the registered design, its link, design width and height, image path, registered at.
+- `rounds`: target, round, counts, coverage counts, pixel share, tree hash, at.
+- `rows`: target, round, id, Figma node, source file line column, selector, kind, magnitude, width, text.
+- `fom`: target, id, Figma node, confidence, margin, round voted, round re-voted, the reason it was re-voted.
+- `votes`: target, round, Figma node, candidate id, score per layer (dom, src, cssom), total, won. The data the
   calibration of 2026-11-07 was computed from by hand.
-- `design_tool_calls`: target, tool name, input, reply bytes, duration, at.
-- `design_runs`: the harness run, written by the trial script: model, prompt head, started, ended, cost, verdict.
+- `tool_calls`: target, tool name, input, reply bytes, duration, at.
+- `runs`: the harness run: model, prompt head, started, ended, cost, verdict. Written through the extension (the trial
+  calls it), never by opening the file from outside.
 
-Images (live, diff, design) stay files under `.conciv`, referenced by path. The schema lives in `@conciv/db` beside the
-others and migrates with them. Nothing the agent can call reads these tables; they are for people and for the x-ray.
+Images (live, diff, design) stay files under `.conciv/design`, referenced by path.
 
-Two things taken from swamp's data catalog (`.swamp/data/_catalog.db`): every row above carries provenance, the
-target, the harness run id when there is one, the round and `at`, so a question can be scoped to one run or compared
-across runs; and the database is queryable from the command line, read only: `conciv db query "<sql>" --json` over
-`.conciv/conciv.db`, so a person or a learning agent asks SQL and gets rows, without opening the file by hand. The
-page-building agent does not get this command in its tool list.
+Two things taken from swamp's data catalog (`.swamp/data/_catalog.db`): every row carries provenance, the target, the
+harness run id when there is one, the round and `at`, so a question can be scoped to one run or compared across runs;
+and the data is queryable by the model. A fourth design tool, `design_query`, takes read-only SQL over this file and
+returns rows as JSON, registered beside the other three and offered to every agent, the page builder included; it asks
+only what it needs, so nothing bloats its context. The trial's `query` command calls the same tool for a person.
