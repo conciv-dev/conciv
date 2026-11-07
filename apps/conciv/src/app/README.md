@@ -11,7 +11,7 @@ Solid contexts and hooks for app-wide and per-pane state: app context accessors,
 - `makeLiveSessions(deps)`, `LiveSessions`, `PaneActivity` (`live-sessions.ts`): owns one chat client per session (`useChatSession` keyed on session id and connection generation; each chat subscribes to its api base trust and re-hydrates in place when trust flips from untrusted or revoked to trusted); `open(sessionId)` hands a pane that client; `reopen(sessionId)` retires that client and builds a fresh one, so the library's mount load runs again and joins a run still in flight; `activityIn` returns `unmounted` | `idle` | `running`
 - `PaneContext`, `usePane`, `makePendingAttachmentQueue` (`pane-context.ts`): per-session pane context and a File queue
 - `PaneProvider` (`pane-provider.tsx`): builds the pane context for a `sessionId` (chat, refresh, grab staging, attachments, `newSession`)
-- `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle
+- `PanelChromeContext`, `usePanelChrome` (`panel-chrome.ts`): panel close handle and the `frame` ref the panel hands to the root, which measures it for the launcher robot
 - `makePanelComposerFocus`, `usePanelComposerFocus` (`panel-focus.ts`): tracks the active composer input
 - `EngineReachabilityContext`, `makeEngineReachability`, `useEngineReachability` (`reachability.ts`): `online` and `sustainedOffline` accessors
 - `createWarmSession`, `WarmSession` (`warm-session.ts`): resolves the most recently updated session

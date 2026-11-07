@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid` with run lifecycle tracking, hydration, stop, approval decisions and queue flushing, over a connection the caller supplies.
+The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid` with run lifecycle tracking, hydration, stop and approval decisions, over a connection the caller supplies.
 
 ## Interface
 
 - `session.ts:createChat` - returns `useChat(options)`.
-- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `interruptAndFlush`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `harnessOf(messageId)`.
+- `session.ts:createChatSession` - returns a `ChatSession` with `stop`, `refresh`, `decide` and accessors `stopping`, `stopped`, `runSource`, `runError`, `sessionRunning`, `runInProgress`, `loadFailed`, `pendingApprovals`, and `harnessOf(messageId)`.
 - `session.ts:CreateChatSessionOptions` - `sessionId`, `connect(callbacks)`, `stop(runIds)`, `decide(approvalId, approved, scope)`, optional `onError`.
 - `session.ts:ChatSessionConnection` - a `SubscribeConnectionAdapter` plus `refresh(before?)` (the newest page, or the page before a cursor) and `close()`.
 - `session.ts:ChatSessionCallbacks` - `onLifecycle`, `onHydrated`, `onRunError`, `onApprovalAsk`, `joinsRun`.
@@ -21,8 +21,7 @@ The Solid client-side chat session. It wraps `useChat` from `@tanstack/ai-solid`
 - `session.ts:onApprovalAsk` - pending approvals are deduplicated by `approvalId`.
 - `session.ts:joinedRun` - does not join a run the local chat owns (loading, or the same `runId`), nor a run this session already knew that is no longer running in its `runSource` (checked again after the window fetch, so a stop that lands while the fetch is pending also declines), so an announcement that lands after a stop cannot bring the run back as running; nor any run while the chat's history load has failed: that chat is reopened, never patched, so its load error and Retry stay. A run the session never saw (another client's, even one already finished) is still joined so its end refreshes the session list.
 - `session.ts` `onLifecycle`: an `aborted` lifecycle for the run the local chat is still loading (the same `runId`, as another client stopped it) calls `chat.stop()`, because a stopped run's stream carries no `RUN_FINISHED`; a lifecycle for any other run never touches the local turn.
-- `session.ts:stopRun` - always calls `chat.stop()` even if `options.stop` throws, then marks the run source `aborted` and refreshes.
-- `session.ts:interruptAndFlush` - a newer stop request cancels the flush; all-text queues are joined with a newline into one message.
+- `session.ts:stopRun` - marks the run source `stopping` as soon as Stop is pressed (so the composer blocks every submit until the stop lands), then always calls `chat.stop()` and marks it `aborted` even if `options.stop` throws, then refreshes.
 - `session.ts:decide` - sends a follow-up message (`Approved: ...`, `Approved for this session: ...` or `Denied: ...`) only when the server returns `startsTurn` and the ask was pending.
 - `session.ts:createChatSession` - `useChat` is configured with `persistence: true`, `history: {pageSize: CHAT_HISTORY_PAGE_SIZE}` (50), `live: true`, `queue: 'queue'`.
 - `session.ts:refresh` - stored message ids are the rendered ids, so a refresh stitches by id: messages shown before the refreshed page's first message stay in front of it. A page that starts past everything shown, an empty chat included, pulls the pages before it until it reaches a shown message (or the thread start), so loaded history is kept and the gap is filled.

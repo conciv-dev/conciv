@@ -6,9 +6,9 @@ import {useIsomorphicLayoutEffect} from './use-layout-effect.js'
 
 export type MascotEffectProps = MascotLayerProps & {mount: () => EffectMount}
 
-type EffectHostProps = MascotEffectProps & {fallback?: boolean}
+type EffectHostProps = MascotEffectProps & {fallback?: boolean; replanOn?: unknown}
 
-export function EffectHost({mount, fallback, style, ref, ...rest}: EffectHostProps): ReactElement {
+export function EffectHost({mount, fallback, replanOn, style, ref, ...rest}: EffectHostProps): ReactElement {
   const {service, effectHostProps, effectCount, claimEffect} = useMascotContext()
   const id = useId()
   const element = useRef<HTMLSpanElement | null>(null)
@@ -36,6 +36,10 @@ export function EffectHost({mount, fallback, style, ref, ...rest}: EffectHostPro
     if (standsDown()) return
     service.mountEffect(id, mount())
   }, [service, effectCount, fallback, id, mount])
+
+  useIsomorphicLayoutEffect(() => {
+    service.replanEffect(id)
+  }, [service, id, replanOn])
 
   return (
     <span

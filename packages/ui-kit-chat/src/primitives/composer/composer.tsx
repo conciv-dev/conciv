@@ -318,7 +318,8 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments)) return
+    if (!canSubmit(composer.canSend(), state.attachments.length, state.sendingAttachments || composer.isStopping()))
+      return
     await sendFromUser(deliverDraft)
   }
   return (
@@ -439,7 +440,10 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   return (
     <button
       disabled={
-        local.disabled || context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
+        local.disabled ||
+        context.sendingAttachments() ||
+        composer.isStopping() ||
+        (!composer.canSend() && context.attachments().length === 0)
       }
       {...rest}
       type="submit"
