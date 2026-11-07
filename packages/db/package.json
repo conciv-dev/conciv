@@ -40,6 +40,7 @@
   "dependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@marcbachmann/cel-js": "8.0.0",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {

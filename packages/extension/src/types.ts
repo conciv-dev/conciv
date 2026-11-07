@@ -10,7 +10,7 @@ import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import type {MigrationMeta} from 'drizzle-orm/migrator'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
-import type {AnySQLiteTable, SQLiteTableFn} from 'drizzle-orm/sqlite-core'
+import type {AnySQLiteColumn, AnySQLiteTable, SQLiteTableFn} from 'drizzle-orm/sqlite-core'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
 
@@ -42,9 +42,24 @@ export type ExtensionTablesFactory<Tables extends ExtensionTables> = (table: SQL
 
 export type ExtensionMigrations = readonly MigrationMeta[]
 
+export type ExtensionSource = {table: AnySQLiteTable; fields: Record<string, AnySQLiteColumn>; writable?: true}
+
+export type ExtensionSourcesFactory<Tables extends ExtensionTables> = (
+  tables: Tables,
+) => Record<string, ExtensionSource>
+
+export type SourceRead = {from: string; where?: string; select?: readonly string[]; limit?: number}
+
+export type SourceWrite = {into: string; values: Record<string, unknown>}
+
+export type SourceListing = {name: string; fields: string[]; writable: boolean}
+
 export type ExtensionDb<Tables extends ExtensionTables> = {
   orm: NodeSQLiteDatabase
   tables: Tables
+  sources(): SourceListing[]
+  read(query: SourceRead): Promise<Record<string, unknown>[]>
+  write(query: SourceWrite): Promise<Record<string, unknown>[]>
 }
 
 export type ExtensionCommand<Tables extends ExtensionTables = ExtensionTables> = {

@@ -47,7 +47,16 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import type {ChatContext} from './api/rpc/mount.js'
-import {drafts, extensionTable, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {
+  createSources,
+  drafts,
+  extensionTable,
+  modelOf,
+  openDb,
+  sessions,
+  writeToolCapture,
+  type ConcivDb,
+} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
@@ -327,13 +336,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
-  const declared = extensions.map((extension) => ({
-    extension,
-    scoped: {
-      orm: db,
-      tables: extension.tables?.(extensionTable(extension.name)) ?? {},
-    },
-  }))
+  const declared = extensions.map((extension) => {
+    const tables = extension.tables?.(extensionTable(extension.name)) ?? {}
+    const sources = extension.sources?.(tables) ?? {}
+    const own = createSources({orm: db, sources})
+    return {extension, sources, scoped: {orm: db, tables, sources: own.list, read: own.read, write: own.write}}
+  })
   const extensionDbs = new Map(declared.map(({extension, scoped}) => [extension.name, scoped]))
   const extensionCommands = declared.flatMap(({extension, scoped}) =>
     Object.entries(extension.commands ?? {}).map(([name, command]) => ({

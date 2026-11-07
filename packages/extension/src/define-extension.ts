@@ -8,6 +8,7 @@ import type {
   ConnectGate,
   ExtensionCommands,
   ExtensionMigrations,
+  ExtensionSourcesFactory,
   ExtensionTables,
   ExtensionTablesFactory,
   ExtensionView,
@@ -40,6 +41,7 @@ export type ExtensionMeta<
   tools?: Tools
   attachments?: Attachments
   tables?: ExtensionTablesFactory<Tables>
+  sources?(tables: Tables): ReturnType<ExtensionSourcesFactory<Tables>>
   migrations?: ExtensionMigrations
   commands?: ExtensionCommands<Tables>
   views?: readonly ExtensionView[]
@@ -66,6 +68,7 @@ export type ExtensionBuilder<
   tools?: Tools
   attachments?: Attachments
   tables?: ExtensionTablesFactory<Tables>
+  sources?(tables: Tables): ReturnType<ExtensionSourcesFactory<Tables>>
   migrations?: ExtensionMigrations
   commands?: ExtensionCommands<Tables>
   views?: readonly ExtensionView[]
@@ -137,7 +140,8 @@ function makeSystemPrompt<
   Schema extends z.ZodType,
   Tools extends readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[],
->(meta: ExtensionMeta<Name, Schema, Tools, Attachments>): SystemPromptResolver | undefined {
+  Tables extends ExtensionTables,
+>(meta: ExtensionMeta<Name, Schema, Tools, Attachments, Tables>): SystemPromptResolver | undefined {
   const prompt = meta.systemPrompt
   if (prompt === undefined) return undefined
   return (raw, context) => {
@@ -170,6 +174,7 @@ export function defineExtension<
     tools: meta.tools,
     attachments: meta.attachments,
     tables: meta.tables,
+    sources: meta.sources,
     migrations: meta.migrations,
     commands: meta.commands,
     views: meta.views,

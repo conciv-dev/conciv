@@ -49,6 +49,8 @@ export type {
   ExtensionCommands,
   ExtensionDb,
   ExtensionMigrations,
+  ExtensionSource,
+  ExtensionSourcesFactory,
   ExtensionTables,
   ExtensionTablesFactory,
   ExtensionPromptContext,
@@ -68,6 +70,9 @@ export type {
   ToolCard,
   ToolRenderer,
   ToolRequest,
+  SourceListing,
+  SourceRead,
+  SourceWrite,
 } from './types.js'
 export {MountedExtension, MountedSurface, MountedView} from './mount-extension.js'
 export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'

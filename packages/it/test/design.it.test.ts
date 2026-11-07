@@ -392,7 +392,13 @@ describe('store', () => {
       stateRoot: await mkdtemp(join(tmpdir(), 'conciv-design-store-')),
       extensions: [{name: 'design', migrations}],
     })
-    const db = {orm, tables: designTables(extensionTable('design'))}
+    const db = {
+      orm,
+      tables: designTables(extensionTable('design')),
+      sources: () => [],
+      read: async () => [],
+      write: async () => [],
+    }
     const store = createStore({db, state: createStorage({driver: memoryDriver()}), run: async () => null})
     const design: Design = {
       id: 'store-1',
