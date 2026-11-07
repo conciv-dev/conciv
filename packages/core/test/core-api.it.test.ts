@@ -72,7 +72,12 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessModel, type HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {
+  type HarnessChatDeps,
+  type HarnessListCursor,
+  type HarnessModel,
+  type HarnessSessionMeta,
+} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -2697,6 +2702,17 @@ describe('rpc wire', () => {
           expect(first.sessions.map((meta) => meta.native?.nativeId)).toEqual(['codex-salsa'])
           const second = await searchKit().rpc.sessions.search({term: 'mango', cursor: first.next, limit: 1})
           expect(second).toMatchObject({sessions: [{native: {nativeId: claudeId('claude-orchard')}}], next: null})
+
+          const tie = nextStamp()
+          const tied = ['claude-papaya-1', 'claude-papaya-2', 'claude-papaya-3'].map(claudeId).toSorted().toReversed()
+          tied.forEach((id, rank) => writeClaudeTurn(id, 'a papaya at the same moment', 'ripe'.repeat(100 - rank), tie))
+          await foundOnceIndexed('papaya', tied)
+          const paged = async (cursor: HarnessListCursor | null): Promise<string[]> => {
+            const page = await searchKit().rpc.sessions.search({term: 'papaya', cursor, limit: 1})
+            const ids = page.sessions.map((meta) => meta.native?.nativeId ?? '')
+            return page.next === null ? ids : [...ids, ...(await paged(page.next))]
+          }
+          expect(await paged(null)).toEqual(tied)
         })
 
         it('tolerates typos only when every word has at least four characters', async () => {

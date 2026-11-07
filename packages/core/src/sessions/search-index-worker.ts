@@ -92,28 +92,23 @@ const router = {
   search: os
     .input(z.object({term: z.string(), tolerance: z.number(), after: CursorSchema.nullable(), limit: z.number()}))
     .handler(async ({input}) => {
-      const tied =
-        input.after === null
-          ? 0
-          : (
-              await search(index, {
-                term: input.term,
-                properties: ['title', 'body'],
-                tolerance: input.tolerance,
-                threshold: 0,
-                where: {updatedAt: {eq: input.after.updatedAt}},
-                limit: 0,
-              })
-            ).count
-      const found = await search(index, {
-        term: input.term,
-        properties: ['title', 'body'],
-        tolerance: input.tolerance,
-        threshold: 0,
-        where: input.after === null ? undefined : {updatedAt: {lte: input.after.updatedAt}},
-        sortBy: {property: 'updatedAt', order: 'DESC'},
-        limit: input.limit + 1 + tied,
-      })
+      const matches = (updatedAt: {eq: number} | {lte: number} | undefined, limit: number) =>
+        search(index, {
+          term: input.term,
+          properties: ['title', 'body'],
+          tolerance: input.tolerance,
+          threshold: 0,
+          where: updatedAt === undefined ? undefined : {updatedAt},
+          sortBy: {property: 'updatedAt', order: 'DESC'},
+          limit,
+        })
+      const tiesAt = async (updatedAt: number) => (await matches({eq: updatedAt}, 0)).count
+      const after = input.after
+      const range = after === null ? undefined : {lte: after.updatedAt}
+      const reach = input.limit + 1 + (after === null ? 0 : await tiesAt(after.updatedAt))
+      const window = await matches(range, reach)
+      const edge = window.hits.at(-1)?.document.updatedAt
+      const found = edge === undefined ? window : await matches(range, reach + (await tiesAt(edge)))
       return found.hits.map((hit) => {
         const document = IndexedSchema.parse({...hit.document, id: hit.id})
         return {
