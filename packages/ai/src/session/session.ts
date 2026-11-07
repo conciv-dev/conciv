@@ -90,6 +90,10 @@ function settledAhead(current: RunClockSource | null, last: RunLifecycle): boole
   return isRunPhaseTerminal(current.lifecycle.phase) && !isRunPhaseTerminal(last.phase)
 }
 
+function endedHere(source: RunClockSource | null, runId: string): boolean {
+  return source !== null && source.lifecycle.runId === runId && isRunPhaseTerminal(source.lifecycle.phase)
+}
+
 function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   if (current === null || isRunPhaseTerminal(current.lifecycle.phase)) return current
   const now = Date.now()
@@ -159,7 +163,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
   }
   const ownsRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId
   const joinedRun = async (runId: string): Promise<boolean> => {
-    if (ownsRun(runId)) return false
+    if (ownsRun(runId) || endedHere(runSource(), runId)) return false
     const hydration = await connection.refresh()
     if (ownsRun(runId)) return false
     chat.setMessages(withRenderedIds(chat.messages(), hydration.messages))

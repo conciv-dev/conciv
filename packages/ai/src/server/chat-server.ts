@@ -30,13 +30,19 @@ import {
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
-import {runLifecycleEvent, type ChatEvent, type RunLifecycle, type RunPhase} from '@conciv/protocol/chat-event-types'
+import {
+  isRunPhaseTerminal,
+  runLifecycleEvent,
+  type ChatEvent,
+  type RunLifecycle,
+  type RunPhase,
+} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
-import {createDelivery, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
+import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 
 export type ChatStores = {
@@ -272,6 +278,21 @@ function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   }
 }
 
+async function* endedWithItsRecord(
+  stream: AsyncIterable<ChatEvent>,
+  recorded: () => Promise<RunLifecycle | null>,
+): AsyncGenerator<ChatEvent> {
+  const seen = {ended: false}
+  for await (const chunk of stream) {
+    seen.ended ||= endsTheRun(chunk)
+    yield chunk
+  }
+  if (seen.ended) return
+  const lifecycle = await recorded()
+  if (lifecycle === null || !isRunPhaseTerminal(lifecycle.phase)) return
+  yield runLifecycleEvent.create(lifecycle)
+}
+
 function throwRejected(outcomes: readonly PromiseSettledResult<unknown>[], message: string): void {
   const failures = outcomes.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []))
   if (failures.length > 0) throw new AggregateError(failures, message)
@@ -406,7 +427,9 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         failure.message = error
         return [await terminalChunk(turn.runId, phase, error), ...shaped]
       },
-      onStart: () => hooks.started(turn),
+      onStart: () => {
+        if (!entry.controller.signal.aborted) hooks.started(turn)
+      },
       onUsage: (_ctx, usage) => hooks.usage(turn, usage),
       onFinish: () => settle(),
       onError: () => settle(),
@@ -448,7 +471,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
     const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
     const view: RunMessages = {full: []}
-    return chat({
+    const stream = chat({
       adapter: guardedAdapter(plan.adapter, {
         ended: entry.ending.signal,
         firstOutputMs: config.firstOutputTimeoutMs,
@@ -504,6 +527,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
         concivTurn(turn, plan, granted, view, entry),
       ],
     })
+    return endedWithItsRecord(stream, () => recordLifecycle(turn.runId))
   }
 
   return {

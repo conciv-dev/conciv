@@ -13,7 +13,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
-- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`.
+- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`; `endsTheRun` also counts a terminal run-lifecycle chunk.
 - `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`.
 - `chat-tables.ts:chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
 - `chat-tables.ts:chatThreads` / `chatMetadata` - tables `chat_threads` (PK `thread_id`) and `chat_metadata` (composite PK namespace + key).
@@ -31,6 +31,8 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
 - `chat-server.ts:terminalChunk` - a `completed` phase is reported as `aborted` when the record has `cancelRequested`.
+- `chat-server.ts` `onStart`: `hooks.started` (the run announcement) is skipped once the run's controller is aborted; `@tanstack/ai` calls `onStart` after setup even for a cancelled run.
+- `chat-server.ts:endedWithItsRecord` - a run stream that ends without a terminal chunk (a stopped run) is closed with its recorded terminal run-lifecycle chunk, so a replay or join of a stopped run reads its `aborted` end; no `RUN_FINISHED` is added, because the run's owner reads the same log and a late `RUN_FINISHED` would settle the owner's next turn.
 - `chat-server.ts:stop` - cancels only the thread's active run, and only if it is in `runIds` when given.
 - `chat-server.ts:hydrate` - waits for aborted live runs to settle before reconstructing, and validates the result with `ReconstructedSchema`.
 - `code-mode.ts:refusingSecrets` - throws when a tool parameter was flagged as a secret; `codeModeTools` returns null when there are no `__toolSide === 'server'` tools.

@@ -22,6 +22,7 @@ Source for @conciv/client: oRPC TanStack Query utils, a chat connection that pic
 - `socketOpens` (`chat-connection.ts`): false when `WebSocket` is undefined
 - `send` (`chat-connection.ts`): for ChatMessages sends only the last turn from the last user message
 - `announcedRuns` (`chat-connection.ts`): joins a pushed run only when `sessionRunEvent.parse` succeeds and `options.joinsRun(runId)` is true
+- `finishedOnItsLifecycle` (`chat-connection.ts`): a joined run (announced, or `joinRun`) that reports its own terminal run lifecycle without a `RUN_FINISHED`/`RUN_ERROR` (a stopped run) is closed with a `RUN_FINISHED` for that run, so a client that joined it stops generating
 - `merged` (`chat-connection.ts`): aborts all sources when any finishes
 - `decoded` (`push-channel.ts`): drops frames failing `PushFrameSchema.safeParse`
 - `acquirePushChannel` (`push-channel.ts`): ref-counted per apiBase and session; the socket closes when the last holder releases

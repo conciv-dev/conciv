@@ -12,6 +12,7 @@ import {
   sessionRunEvent,
   type RunLifecycle,
   approvalAskOf,
+  isRunPhaseTerminal,
   type ApprovalAsk,
 } from '@conciv/protocol/chat-event-types'
 import {CHAT_SSE_PATH, CHAT_WS_PATH} from '@conciv/protocol/chat-types'
@@ -169,11 +170,28 @@ async function* announcedRuns(
   channel: PushEvents,
   options: ChatConnectionOptions,
   scope: AbortSignal,
+  threadId: string,
 ): AsyncGenerator<ChatEvent> {
   for await (const chunk of channel.events(scope)) {
     const announced = sessionRunEvent.parse(chunk)
     if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
-    yield* chosen.joinRun(announced.runId, scope)
+    yield* finishedOnItsLifecycle(chosen.joinRun(announced.runId, scope), threadId, announced.runId)
+  }
+}
+
+async function* finishedOnItsLifecycle(
+  joined: AsyncIterable<ChatEvent>,
+  threadId: string,
+  runId: string,
+): AsyncGenerator<ChatEvent> {
+  const seen = {finished: false}
+  for await (const chunk of joined) {
+    seen.finished ||= chunk.type === ChatEventType.RUN_FINISHED || chunk.type === ChatEventType.RUN_ERROR
+    yield chunk
+    const lifecycle = runLifecycleEvent.parse(chunk)
+    if (seen.finished || lifecycle?.runId !== runId || !isRunPhaseTerminal(lifecycle.phase)) continue
+    yield {type: ChatEventType.RUN_FINISHED, threadId, runId, finishReason: 'stop', timestamp: Date.now()}
+    return
   }
 }
 
@@ -182,6 +200,7 @@ async function* watching(
   push: PushSource,
   options: ChatConnectionOptions,
   abortSignal: AbortSignal | undefined,
+  threadId: string,
 ): AsyncGenerator<ChatEvent> {
   const chosen = await selected
   const channel = push()
@@ -189,7 +208,7 @@ async function* watching(
     const sources: Source<ChatEvent>[] = [
       (scope) => chosen.adapter.subscribe(scope),
       (scope) => channel.events(scope),
-      (scope) => announcedRuns(chosen, channel, options, scope),
+      (scope) => announcedRuns(chosen, channel, options, scope, threadId),
     ]
     yield* noticing(merged(sources, abortSignal), options)
   } finally {
@@ -223,10 +242,11 @@ function lastTurn<Message extends {role: string}>(messages: Message[]): Message[
 
 async function* joining(
   selected: Promise<Selected>,
+  threadId: string,
   runId: string,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
-  yield* (await selected).joinRun(runId, abortSignal)
+  yield* finishedOnItsLifecycle((await selected).joinRun(runId, abortSignal), threadId, runId)
 }
 
 export function chatConnection(
@@ -249,7 +269,7 @@ export function chatConnection(
     return hydration
   }
   return {
-    subscribe: (abortSignal) => watching(selected, push, options, abortSignal),
+    subscribe: (abortSignal) => watching(selected, push, options, abortSignal, sessionId),
     send: async (messages: Array<ChatMessage> | Array<ModelMessage>, data, abortSignal, runContext) => {
       const {adapter} = await selected
       if (messages.every((message) => 'parts' in message)) {
@@ -258,7 +278,7 @@ export function chatConnection(
       }
       await adapter.send(messages, data, abortSignal, runContext)
     },
-    joinRun: (runId, abortSignal) => noticing(joining(selected, runId, abortSignal), options),
+    joinRun: (runId, abortSignal) => noticing(joining(selected, sessionId, runId, abortSignal), options),
     hydrate,
     transport: () => chosen.transport,
     refresh: () => hydrate(sessionId),
