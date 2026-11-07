@@ -3264,14 +3264,38 @@ describe('engine login', () => {
     await expect.element(dialog()).not.toBeInTheDocument()
   }, 30_000)
 
-  test('the magic link logs in on load and is removed from the URL', async () => {
-    const code = await coreControl.requestCode()
+  const openMagicLink = (code: string): void => {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#conciv_otp=${code}`)
+  }
+
+  test('a reload while the magic link is being exchanged still logs in, and the link leaves the URL once trusted', async () => {
+    openMagicLink(await coreControl.requestCode())
+    const exchange = await faults.install({kind: 'cut-on-release', path: ['auth', 'exchange']})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await expect.poll(() => localStorage.getItem(storageKey())).not.toBeNull()
-    await expect.element(opener()).toBeVisible()
+    await coreControl.awaitFaultPending(exchange, 1)
+    harness.dispose()
+    await coreControl.releaseFault(exchange)
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await opener().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    expect(localStorage.getItem(storageKey())).not.toBeNull()
     expect(window.location.hash).toBe('')
-  })
+  }, 30_000)
+
+  test('a magic link the engine already spent leaves the launcher locked, is dropped from the URL, and a fresh code still logs in', async () => {
+    const code = await coreControl.requestCode()
+    expect(await makeRpcClient(origin()).auth.exchange({code})).toHaveProperty('token')
+    openMagicLink(code)
+    const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await coreControl.awaitFaultPending(exchange, 1)
+    await coreControl.releaseFault(exchange)
+    await coreControl.awaitFaultAnswered(exchange)
+    await expect.element(locked()).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await unlock()
+    expect(window.location.hash).toBe('')
+  }, 30_000)
 
   test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
     harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
