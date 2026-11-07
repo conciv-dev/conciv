@@ -34,6 +34,7 @@ export const designConfig = Object.assign(
       limit: 12,
       runsKept: 20,
       captureFrameMs: 500,
+      freezeFrames: 2,
       measureTimeoutMs: 60_000,
       renderChunk: 24,
       typeSearchMin: 8,
