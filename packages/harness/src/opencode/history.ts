@@ -7,7 +7,9 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   HarnessHistory,
+  HarnessListPage,
   HarnessSessionMeta,
+  HarnessSessionPage,
   TranscriptChunk,
   TranscriptFailure,
   TranscriptHandle,
@@ -16,23 +18,22 @@ import type {
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {transcriptFailure} from '../_shared/jsonl-handle.js'
+import {pageAfter} from '../_shared/page.js'
 
-const MAX_SESSIONS = 50
 const MAX_TITLE = 80
 
-export function storagePath(home: string = homedir()): string {
-  return join(home, '.local', 'share', 'opencode', 'opencode.db')
+export function storagePath(): string {
+  return join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'opencode', 'opencode.db')
 }
 
-function withDatabase<T>(home: string, fallback: T, run: (db: DatabaseSync) => T): T {
-  let db: DatabaseSync | null = null
+function withDatabase<T>(absent: T, run: (db: DatabaseSync) => T): T {
+  const path = storagePath()
+  if (!existsSync(path)) return absent
+  const db = new DatabaseSync(path, {readOnly: true})
   try {
-    db = new DatabaseSync(storagePath(home), {readOnly: true})
     return run(db)
-  } catch {
-    return fallback
   } finally {
-    db?.close()
+    db.close()
   }
 }
 
@@ -51,7 +52,6 @@ const SessionRowSchema = z
 
 const DataRowSchema = z.object({id: z.string(), data: z.string()}).loose()
 const PartRowSchema = z.object({message_id: z.string(), data: z.string()}).loose()
-const CountRowSchema = z.object({session_id: z.string(), total: z.number()}).loose()
 const StatRowSchema = z.object({latest: z.number().nullish(), parts: z.number().nullish()}).loose()
 
 function rowsOf<T extends z.ZodType>(schema: T, rows: unknown[]): z.infer<T>[] {
@@ -107,7 +107,8 @@ function partsFrom(data: unknown): ChatPart[] {
 }
 
 const SESSION_BY_ID = 'select * from session where id = ? limit 1'
-const LIST_SESSIONS = `select * from session where directory = ? and time_archived is null order by time_updated desc limit ${MAX_SESSIONS}`
+const LIST_SESSIONS =
+  'select * from session where directory = ? and time_archived is null and (? is null or (coalesce(time_updated, 0), id) < (?, ?)) order by coalesce(time_updated, 0) desc, id desc limit ?'
 const MESSAGES_OF = 'select id, data from message where session_id = ? order by time_created asc, id asc'
 const PARTS_OF = 'select message_id, data from part where session_id = ? order by time_created asc, id asc'
 const STAT_OF =
@@ -139,8 +140,8 @@ export function buildMessages(
   })
 }
 
-async function transcriptMessages(cwd: string, sessionId: string, home: string = homedir()): Promise<ChatMessage[]> {
-  return withDatabase<ChatMessage[]>(home, [], (db) => {
+async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+  return withDatabase<ChatMessage[]>([], (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd)) return []
     const messageRows = rowsOf(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
@@ -149,35 +150,44 @@ async function transcriptMessages(cwd: string, sessionId: string, home: string =
   })
 }
 
-function messageCounts(db: DatabaseSync, ids: string[]): Map<string, number> {
-  if (ids.length === 0) return new Map()
-  const placeholders = ids.map(() => '?').join(',')
-  const rows = db
-    .prepare(
-      `select session_id, count(*) as total from message where session_id in (${placeholders}) group by session_id`,
+async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+  const after = page.after
+  return withDatabase<HarnessSessionPage>({sessions: [], next: null}, (db) => {
+    const rows = rowsOf(
+      SessionRowSchema,
+      db
+        .prepare(LIST_SESSIONS)
+        .all(
+          realpathOrSelf(cwd),
+          after?.updatedAt ?? null,
+          after?.updatedAt ?? null,
+          after?.id ?? null,
+          page.limit + 1,
+        ),
     )
-    .all(...ids)
-  return new Map(rowsOf(CountRowSchema, rows).map((row) => [row.session_id, row.total]))
+    const paged = pageAfter(rows, page, (row) => ({updatedAt: row.time_updated ?? 0, id: row.id}))
+    return {sessions: paged.items.map(sessionMeta), next: paged.next}
+  })
 }
 
-async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
-  return withDatabase<HarnessSessionMeta[]>(home, [], (db) => {
-    const sessions = rowsOf(SessionRowSchema, db.prepare(LIST_SESSIONS).all(realpathOrSelf(cwd)))
-    const counts = messageCounts(
-      db,
-      sessions.map((session) => session.id),
-    )
-    return sessions.map((session) => ({
-      id: session.id,
-      derivedTitle: condense(session.title, MAX_TITLE),
-      updatedAt: session.time_updated ?? 0,
-      messageCount: counts.get(session.id) ?? 0,
-      model: session.model ?? null,
-      totalTokens: (session.tokens_input ?? 0) + (session.tokens_output ?? 0),
-      lastMessage: null,
-      createdAt: session.time_created ?? undefined,
-    }))
+async function storedMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
+  return withDatabase<HarnessSessionMeta | null>(null, (db) => {
+    const row = sessionRow(db, sessionId)
+    if (!row || !sameCwd(row.directory, cwd)) return null
+    return sessionMeta(row)
   })
+}
+
+function sessionMeta(row: z.infer<typeof SessionRowSchema>): HarnessSessionMeta {
+  return {
+    id: row.id,
+    derivedTitle: condense(row.title, MAX_TITLE),
+    updatedAt: row.time_updated ?? 0,
+    model: row.model ?? null,
+    totalTokens: (row.tokens_input ?? 0) + (row.tokens_output ?? 0),
+    lastMessage: null,
+    createdAt: row.time_created ?? undefined,
+  }
 }
 
 type OpencodeSession = {db: DatabaseSync; statements: OpencodeStatements}
@@ -189,8 +199,8 @@ type OpencodeStatements = {
   parts: StatementSync
 }
 
-function openSession(cwd: string, sessionId: string, home: string): OpencodeSession | TranscriptFailure {
-  const path = storagePath(home)
+function openSession(cwd: string, sessionId: string): OpencodeSession | TranscriptFailure {
+  const path = storagePath()
   if (!existsSync(path)) return transcriptFailure('missing', `no opencode database at ${path}`)
   let db: DatabaseSync | null = null
   try {
@@ -223,13 +233,13 @@ function revisionOf(statements: OpencodeStatements, sessionId: string): Transcri
   }
 }
 
-function observeTranscript(cwd: string, sessionId: string, home: string = homedir()): TranscriptHandle {
+function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   const state: {open: OpencodeSession | null; closed: boolean} = {open: null, closed: false}
 
   const connect = (): OpencodeSession | TranscriptFailure => {
     if (state.closed) return transcriptFailure('unreadable', 'transcript handle closed')
     if (state.open) return state.open
-    const opened = openSession(cwd, sessionId, home)
+    const opened = openSession(cwd, sessionId)
     if ('ok' in opened) return opened
     state.open = opened
     return opened
@@ -266,4 +276,5 @@ export const opencodeHistory: HarnessHistory = {
   messages: transcriptMessages,
   observe: observeTranscript,
   list: listSessions,
+  meta: storedMeta,
 }

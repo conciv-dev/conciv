@@ -307,14 +307,26 @@ describe('create fake harness', () => {
           id: HarnessSessionId.parse('external-1'),
           derivedTitle: 'An external session',
           updatedAt: 1_700,
-          messageCount: 7,
+          sizeBytes: 7,
         },
-        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800, messageCount: 2},
+        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800},
       ]
       const harness = createFakeHarness({history: rows})
 
       expect(harness.capabilities.transcriptHistory).toBe(true)
-      expect(await harness.history?.list('/project')).toEqual(rows)
+      expect(await harness.history?.list('/project', {after: null, limit: 1})).toEqual({
+        sessions: [rows[1]],
+        next: {updatedAt: 1_800, id: 'external-2'},
+      })
+      expect(
+        await harness.history?.list('/project', {
+          after: {updatedAt: 1_800, id: HarnessSessionId.parse('external-2')},
+          limit: 1,
+        }),
+      ).toEqual({
+        sessions: [rows[0]],
+        next: null,
+      })
       expect(await harness.history?.messages('/project', HarnessSessionId.parse('external-1'))).toEqual([])
     })
   })

@@ -1,3 +1,4 @@
+import {until} from '@conciv/harness-testkit/until'
 import {
   mkdtempSync,
   rmSync,
@@ -7,10 +8,15 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  utimesSync,
+  symlinkSync,
+  renameSync,
 } from 'node:fs'
-import {randomUUID} from 'node:crypto'
-import {writeFile} from 'node:fs/promises'
+import {createHash, randomUUID} from 'node:crypto'
+import {open, writeFile} from 'node:fs/promises'
+import {execFileSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
+import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
@@ -31,6 +37,7 @@ import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
 import {anchorKey, chatMetadata, chatRuns, sessions, TRANSCRIPT_NAMESPACE} from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
+import {isEqual} from 'es-toolkit'
 import {
   createFakeHarness,
   type FakeHarness,
@@ -52,6 +59,7 @@ import {
 } from '@conciv/harness-testkit'
 import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
+import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -65,7 +73,12 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {type HarnessChatDeps, type HarnessModel, type HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {
+  type HarnessChatDeps,
+  type HarnessListCursor,
+  type HarnessModel,
+  type HarnessSessionMeta,
+} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -580,7 +593,7 @@ describe('api installed harnesses', () => {
 })
 
 describe('api codex turns', () => {
-  const saved = {PATH: process.env.PATH, HOME: process.env.HOME}
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CODEX_HOME: process.env.CODEX_HOME}
   const root = mkdtempSync(join(tmpdir(), 'conciv-codex-turns-'))
   const bin = join(root, 'bin')
   const fakeCodex = [
@@ -616,12 +629,14 @@ describe('api codex turns', () => {
     writeFileSync(join(bin, 'codex'), fakeCodex, {mode: 0o755})
     process.env.PATH = `${bin}:${saved.PATH ?? ''}`
     process.env.HOME = join(root, 'home')
+    process.env.CODEX_HOME = join(root, 'home', '.codex')
   })
   const kit = sharedKit(() => createTestkit(codexHarness, bootCoreApp()).setup())
 
   afterAll(() => {
     process.env.PATH = saved.PATH
     process.env.HOME = saved.HOME
+    process.env.CODEX_HOME = saved.CODEX_HOME
     rmSync(root, {recursive: true, force: true})
   })
 
@@ -684,7 +699,7 @@ describe('api harness switching', () => {
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
   const betaTranscripts: HarnessSessionMeta[] = [
-    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, messageCount: 2},
+    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
     createFakeHarness({
@@ -813,8 +828,7 @@ describe('api harness switching', () => {
     expect((await kit().rpc.meta.commands({sessionId})).commands.map((command) => command.name)).toEqual([
       'beta-command',
     ])
-    const listed = (await kit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
-    expect(listed?.harnessKind).toBe('beta')
+    expect((await kit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).harnessKind).toBe('beta')
 
     const replayed = await turn(sessionId, 'third question')
     expect(replayed).toMatchObject({harness: 'beta', resumeSessionId: null, model: undefined})
@@ -891,11 +905,10 @@ describe('api harness switching', () => {
     betaTranscripts.push({
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
-      updatedAt: 6,
-      messageCount: 2,
+      updatedAt: Date.now() + 3_600_000,
     })
     const listings = async (includeHidden: boolean) => {
-      const listed = await kit().rpc.sessions.list({includeHidden})
+      const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
       return {
         owner: listed.filter((meta) => meta.id === sessionId).length,
         phantoms: listed.filter((meta) => meta.id !== sessionId && meta.native?.nativeId === owned).length,
@@ -904,6 +917,12 @@ describe('api harness switching', () => {
 
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'alpha'})
     expect(await listings(false)).toEqual({owner: 1, phantoms: 0})
+    expect((await kit().rpc.sessions.list({limit: 1})).sessions).toHaveLength(1)
+    await until(
+      async () =>
+        (await kit().rpc.sessions.search({term: 'owned transcript'})).sessions.some((meta) => meta.id === sessionId),
+      {hangGuardMs: 5_000, intervalMs: 50},
+    )
     expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     const returned = await turn(sessionId, 'back on beta')
@@ -919,9 +938,13 @@ describe('api harness switching', () => {
   })
 
   it('lists the native sessions of every available harness, labelled by harness', async () => {
-    const listed = await kit().rpc.sessions.list(undefined)
+    const {sessions: listed} = await kit().rpc.sessions.list(undefined)
     const imported = listed.find((meta) => meta.native?.nativeId === NATIVE_BETA)
-    expect(imported).toMatchObject({harnessKind: 'beta', native: {harnessKind: 'beta', nativeId: NATIVE_BETA}})
+    expect(imported).toMatchObject({
+      harnessKind: 'beta',
+      sizeBytes: 2048,
+      native: {harnessKind: 'beta', nativeId: NATIVE_BETA},
+    })
   })
 
   function racedApp() {
@@ -1735,21 +1758,16 @@ describe('rpc wire', () => {
     })
 
     it('send rebuilds history from the transcript when the harness cannot resume (C3)', async () => {
-      const claudeHome = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-home-')))
       const harness = createTestHarness(requireClaude())
       const noResume: TestHarness = Object.assign({}, harness, {
         capabilities: Object.assign({}, harness.capabilities, {resume: false as const}),
       })
-      const kit = await bootKit({claudeHome}, noResume)
+      const kit = await bootKit({}, noResume)
       cleanups.push(() => kit.cleanup())
       const sessionId = await kit.session()
       const first = await kit.turn('first question', {session: sessionId, runId: 'wire-7'})
       await first.done({hangGuardMs: 10_000})
-      const transcript = requireTranscriptPath(noResume)(
-        kit.stateRoot,
-        HarnessSessionId.parse(`fake-${sessionId}`),
-        claudeHome,
-      )
+      const transcript = requireTranscriptPath(noResume)(kit.stateRoot, HarnessSessionId.parse(`fake-${sessionId}`))
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
         transcript,
@@ -1841,11 +1859,10 @@ describe('rpc wire', () => {
 
   describe('chat', () => {
     beforeAll(async () => {
-      app.claudeHome = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-chat-home-')))
       app.harness = recordingHarness(createTestHarness(requireClaude()))
       app.kit = await createTestkit(
         app.harness,
-        bootCoreApp({claudeHome: app.claudeHome, extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS}),
+        bootCoreApp({extensions: [fixtureExtension()], firstChunkTimeoutMs: SILENCE_MS}),
       ).setup()
       app.widget = await connectWidget(app.kit, answerFor)
       app.mcpSession = await newSession()
@@ -1856,7 +1873,6 @@ describe('rpc wire', () => {
       app.widget?.end()
       await app.mcp?.close()
       await app.kit?.cleanup()
-      rmSync(app.claudeHome, {recursive: true, force: true})
     })
 
     beforeEach(() => {
@@ -2056,7 +2072,10 @@ describe('rpc wire', () => {
         await chatKit().rpc.sessions.delete({sessionId})
         await ended
         expect((await chatKit().hydrate(sessionId)).activeRun).toBeNull()
-        expect((await chatKit().rpc.sessions.list(undefined)).some((meta) => meta.id === sessionId)).toBe(false)
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.some((meta) => meta.id === sessionId)).toBe(
+          false,
+        )
+        expect((await chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})).hidden).toBe(true)
       })
     })
 
@@ -2289,13 +2308,6 @@ describe('rpc wire', () => {
         expect(toolRuns.ask).toBe(ran + 1)
         await expect(call()).rejects.toMatchObject({code: 'APPROVAL_DENIED'})
       })
-
-      it('a session option counts its messages right after a turn', async () => {
-        const sessionId = await newSession()
-        await finished(sessionId, 'count me')
-        const row = (await chatKit().rpc.sessions.list(undefined)).find((meta) => meta.id === sessionId)
-        expect(row?.messageCount).toBe(2)
-      })
     })
 
     describe('tools and models list', () => {
@@ -2477,10 +2489,410 @@ describe('rpc wire', () => {
         const adoptedStream = await chatKit().events(adopted)
         await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'native-adopt-1'})
         await adoptedStream.waitFor((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT, GUARD)
-        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: 'agent-native-1'})
-        const listed = await chatKit().rpc.sessions.list({includeHidden: true})
-        expect(listed.filter((meta) => meta.native?.nativeId === 'agent-native-1')).toHaveLength(1)
+        const agentNative = claudeId('agent-native-1')
+        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: agentNative})
+        await headerMcpCall({[CONCIV_CLAUDE_SESSION_HEADER]: agentNative})
+        writeNativeAt(agentNative, 'the agent task', Date.now())
+        const {sessions: listed} = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(listed.filter((meta) => meta.native?.nativeId === agentNative)).toHaveLength(1)
+      })
+
+      it('pages native transcripts and conciv-only sessions together and materializes a native on its page', async () => {
+        const concivOnly = SessionId.parse(await newSession())
+        const createdAt = (await chatKit().rpc.sessions.get({sessionId: concivOnly})).updatedAt
+        const future = claudeId('paged-future')
+        const tied = '00000000-0000-4000-8000-000000000000'
+        writeNativeAt(future, 'the future task', createdAt + 60_000)
+        writeNativeAt(tied, 'the tied task', createdAt)
+
+        const first = await chatKit().rpc.sessions.list({limit: 2})
+        expect(first.sessions.map((meta) => meta.native?.nativeId ?? meta.id)).toEqual([future, concivOnly])
+        expect(first.next).toEqual({updatedAt: createdAt, id: concivOnly})
+
+        const second = await chatKit().rpc.sessions.list({cursor: first.next, limit: 1})
+        expect(second.sessions).toMatchObject([
+          {origin: 'external', title: 'the tied task', updatedAt: createdAt, native: {nativeId: tied}},
+        ])
+        expect(second.next).toEqual({updatedAt: createdAt, id: tied})
+        const materialized = second.sessions[0]
+        if (materialized === undefined) throw new Error('the tied native session was not listed')
+        expect(await chatKit().rpc.sessions.get({sessionId: materialized.id})).toEqual(materialized)
+        expect(await chatKit().rpc.sessions.get({sessionId: concivOnly})).toEqual(first.sessions[1])
+      })
+
+      it('a session whose native transcript is gone drops out of the list, and get still answers for it', async () => {
+        const gone = claudeId('gone-native')
+        writeNativeAt(gone, 'a task whose transcript goes away', Date.now() + 120_000)
+        const [listed] = (await chatKit().rpc.sessions.list({limit: 1})).sessions
+        expect(listed).toMatchObject({native: {nativeId: gone}})
+        if (listed === undefined) throw new Error('the native session was not listed')
+        rmSync(transcriptPathOf(gone))
+        const after = await chatKit().rpc.sessions.list({includeHidden: true})
+        expect(after.sessions.map((meta) => meta.id)).not.toContain(listed.id)
+        expect(await chatKit().rpc.sessions.get({sessionId: listed.id})).toMatchObject({id: listed.id})
+      })
+
+      it('a page leaves hidden conciv-only sessions out unless asked, and get still answers for them', async () => {
+        const hidden = SessionId.parse(await newSession())
+        await chatKit().rpc.sessions.delete({sessionId: hidden})
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(hidden)
+        const withHidden = await chatKit().rpc.sessions.list({includeHidden: true, limit: 5})
+        expect(withHidden.sessions.find((meta) => meta.id === hidden)).toMatchObject({hidden: true})
+        expect(await chatKit().rpc.sessions.get({sessionId: hidden})).toMatchObject({id: hidden, hidden: true})
+        await expect(chatKit().rpc.sessions.get({sessionId: NEVER_MADE})).rejects.toMatchObject({code: 'NOT_FOUND'})
+      })
+
+      describe('search', () => {
+        const LIVE_REINDEX_MS = 30_000
+        const searched: {kit: Kit | null; cwd: string; changes: AsyncIterator<unknown> | null; bootedAt: number} = {
+          kit: null,
+          cwd: '',
+          changes: null,
+          bootedAt: 0,
+        }
+        const clock = {at: Date.now() + 3_600_000}
+        const searchKit = () => {
+          if (searched.kit === null) throw new Error('the search kit did not boot')
+          return searched.kit
+        }
+        const nextStamp = () => {
+          clock.at += 60_000
+          return clock.at
+        }
+
+        beforeAll(async () => {
+          searched.bootedAt = Date.now()
+          searched.cwd = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-cwd-')))
+          writeClaudeTurn(claudeId('claude-early'), 'an early note', 'the dunlin flew')
+          searched.kit = await bootKit(
+            {cwd: searched.cwd, harnesses: [codexHarness, piHarness]},
+            createTestHarness(requireClaude()),
+          )
+          searched.changes = await searched.kit.rpc.sessions.changes()
+        }, 60_000)
+
+        afterAll(async () => {
+          await searched.changes?.return?.()
+          await searched.kit?.cleanup()
+          rmSync(searched.cwd, {recursive: true, force: true})
+        })
+
+        function claudeTranscriptPath(nativeId: string): string {
+          return requireTranscriptPath(requireClaude())(searched.cwd, HarnessSessionId.parse(nativeId))
+        }
+
+        function writeClaudeTurn(nativeId: string, ask: string, answer: string, stamp = nextStamp()): number {
+          writeClaudeLines(
+            nativeId,
+            [
+              JSON.stringify({type: 'user', message: {content: ask}}),
+              JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: answer}]}}),
+            ].join('\n') + '\n',
+            stamp,
+          )
+          return stamp
+        }
+
+        function writeClaudeLines(nativeId: string, raw: string, stamp: number): void {
+          const path = claudeTranscriptPath(nativeId)
+          mkdirSync(dirname(path), {recursive: true})
+          writeFileSync(path, raw)
+          utimesSync(path, stamp / 1000, stamp / 1000)
+        }
+
+        function writeCodexTurn(nativeId: string, ask: string, answer: string): string {
+          const cwd = searched.cwd
+          const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
+          mkdirSync(dirname(rollout), {recursive: true})
+          writeFileSync(
+            rollout,
+            [
+              {type: 'session_meta', payload: {session_id: nativeId, id: nativeId, cwd}},
+              {type: 'event_msg', payload: {type: 'user_message', message: ask}},
+              {type: 'event_msg', payload: {type: 'agent_message', message: answer}},
+            ]
+              .map((line) => JSON.stringify(line))
+              .join('\n') + '\n',
+          )
+          const updated = nextStamp()
+          const db = new DatabaseSync(join(codexHome(), 'state_5.sqlite'))
+          try {
+            db.exec(
+              `create table if not exists threads (id text primary key, rollout_path text not null, cwd text not null, title text not null default '', first_user_message text not null default '', preview text not null default '', model text, tokens_used integer not null default 0, archived integer not null default 0, created_at integer not null, updated_at integer not null, created_at_ms integer, updated_at_ms integer)`,
+            )
+            db.prepare(
+              'insert or replace into threads (id, rollout_path, cwd, title, first_user_message, created_at, updated_at, created_at_ms, updated_at_ms) values (?,?,?,?,?,?,?,?,?)',
+            ).run(
+              nativeId,
+              rollout,
+              cwd,
+              ask,
+              ask,
+              Math.round(updated / 1000),
+              Math.round(updated / 1000),
+              updated,
+              updated,
+            )
+          } finally {
+            db.close()
+          }
+          return rollout
+        }
+
+        async function found(search: string): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+          return listed.map((meta) => meta.native?.nativeId ?? meta.title)
+        }
+
+        async function later(elapsed: number, check: () => Promise<void>): Promise<void> {
+          vi.useFakeTimers({toFake: ['Date'], now: Date.now() + elapsed + 1})
+          try {
+            await check()
+          } finally {
+            vi.useRealTimers()
+          }
+        }
+
+        async function indexedChange(): Promise<void> {
+          if (searched.changes === null) throw new Error('the search kit is not watching session changes')
+          await searched.changes.next()
+        }
+
+        async function foundOnceIndexed(search: string, expected: string[]): Promise<void> {
+          if (isEqual(await found(search), expected)) return
+          await indexedChange()
+          return foundOnceIndexed(search, expected)
+        }
+
+        async function stampedOnceIndexed(search: string, expected: {nativeId: string; updatedAt: number}[]) {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+          const stamped = listed.map((meta) => ({nativeId: meta.native?.nativeId, updatedAt: meta.updatedAt}))
+          if (isEqual(stamped, expected)) return
+          await indexedChange()
+          return stampedOnceIndexed(search, expected)
+        }
+
+        async function listedNativeIds(): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          return listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+        }
+
+        async function pagedNativeIds(cursor: HarnessListCursor | null): Promise<string[]> {
+          const {sessions: listed, next} = await searchKit().rpc.sessions.list({cursor, limit: 2})
+          const ids = listed.flatMap((meta) => (meta.native ? [meta.native.nativeId] : []))
+          return next === null ? ids : [...ids, ...(await pagedNativeIds(next))]
+        }
+
+        it('indexes nothing before the first list, then builds in the background and says so when done', async () => {
+          expect(await found('dunlin')).toEqual([])
+          expect(await found('early')).toEqual([])
+
+          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
+
+          await foundOnceIndexed('dunlin', [claudeId('claude-early')])
+        })
+
+        it('a watcher that subscribes after a pass gets the current index version at once, and a later pass a higher one', async () => {
+          expect(await listedNativeIds()).toContain(claudeId('claude-early'))
+          await foundOnceIndexed('dunlin', [claudeId('claude-early')])
+          const late = await searchKit().rpc.sessions.changes()
+          try {
+            const current = await late.next()
+            const currentVersion = z.object({version: z.number()}).parse(current.value).version
+            expect(currentVersion).toBeGreaterThan(searched.bootedAt)
+
+            writeClaudeTurn(claudeId('claude-kestrel'), 'a kestrel note', 'the kestrel hovered')
+            expect(await listedNativeIds()).toContain(claudeId('claude-kestrel'))
+            await found('kestrel')
+            const next = await late.next()
+            expect(z.object({version: z.number()}).parse(next.value).version).toBeGreaterThan(currentVersion)
+          } finally {
+            await late.return?.()
+          }
+        }, 10_000)
+
+        it('answers a search during the build at once with title matches, and text matches follow the indexed event', async () => {
+          const puffin = HarnessSessionId.parse('pi-puffin')
+          const path = requireTranscriptPath(piHarness)(searched.cwd, puffin)
+          const head = [
+            {type: 'session', version: 3, id: puffin, timestamp: '2026-11-07T09:00:00.000Z', cwd: searched.cwd},
+            {
+              type: 'message',
+              id: 'u1',
+              parentId: null,
+              message: {role: 'user', content: [{type: 'text', text: 'a puffin colony'}]},
+            },
+          ]
+          const body = [
+            {
+              type: 'message',
+              id: 'a1',
+              parentId: 'u1',
+              message: {role: 'assistant', content: [{type: 'text', text: 'the guillemot dives'}]},
+            },
+          ]
+          const lines = (entries: unknown[]) => entries.map((entry) => `${JSON.stringify(entry)}\n`).join('')
+          mkdirSync(dirname(path), {recursive: true})
+          execFileSync('mkfifo', [path])
+          const titleReader = open(path, 'w')
+          expect(await found('puffin')).toEqual([])
+          const titleWriter = await titleReader
+          await titleWriter.write(lines(head))
+          await titleWriter.close()
+          await foundOnceIndexed('puffin', [puffin])
+
+          const textWriter = await open(path, 'w')
+          expect(await found('guillemot')).toEqual([])
+          await textWriter.write(lines([...head, ...body]))
+          rmSync(path)
+          writeFileSync(path, lines([...head, ...body]))
+          await textWriter.close()
+
+          await foundOnceIndexed('guillemot', [puffin])
+        })
+
+        it('lists only the transcripts it can read: one linked in from outside the project is neither listed nor searched, and gone codex rollouts hide no session behind them', async () => {
+          const outside = join(searched.cwd, 'elsewhere', 'linked.jsonl')
+          mkdirSync(dirname(outside), {recursive: true})
+          writeFileSync(outside, JSON.stringify({type: 'user', message: {content: 'a linked pelican'}}) + '\n')
+          symlinkSync(outside, claudeTranscriptPath(claudeId('claude-linked')))
+          writeClaudeTurn(claudeId('claude-local'), 'a local pelican', 'kept here')
+
+          expect(await listedNativeIds()).not.toContain(claudeId('claude-linked'))
+          await foundOnceIndexed('pelican', [claudeId('claude-local')])
+
+          writeCodexTurn('codex-quokka', 'a quokka', 'hopping')
+          const gone = ['codex-gone-1', 'codex-gone-2'].map((nativeId) =>
+            writeCodexTurn(nativeId, 'a quokka', 'hopping'),
+          )
+          gone.forEach((rollout) => rmSync(rollout))
+          const paged = await pagedNativeIds(null)
+          expect(paged).toEqual(expect.arrayContaining(['codex-quokka', claudeId('claude-local')]))
+          expect(paged).not.toContain('codex-gone-1')
+        })
+
+        it('indexes a truncated transcript by what it holds, hides the ones Claude cannot title, and the rest stay findable', async () => {
+          writeClaudeLines(
+            claudeId('claude-truncated'),
+            JSON.stringify({type: 'user', message: {content: 'a truncated cormorant'}}) +
+              '\n{"type":"assistant","message":{"content":[{"type":"te',
+            nextStamp(),
+          )
+          writeClaudeLines(
+            claudeId('claude-odd'),
+            [
+              {type: 'user'},
+              {type: 'user', message: {content: 42}},
+              {type: 'assistant', message: {content: 'odd plover'}},
+            ]
+              .map((line) => JSON.stringify(line))
+              .join('\n') + '\nnot json\n',
+            nextStamp(),
+          )
+          writeClaudeLines(claudeId('claude-garbage'), '\u0000 nothing readable\n', nextStamp())
+          writeClaudeTurn(claudeId('claude-plain'), 'a plain gull', 'fine')
+
+          const listed = await listedNativeIds()
+          expect(listed).toEqual(expect.arrayContaining([claudeId('claude-truncated'), claudeId('claude-plain')]))
+          expect(listed).not.toContain(claudeId('claude-odd'))
+          expect(listed).not.toContain(claudeId('claude-garbage'))
+          await foundOnceIndexed('cormorant', [claudeId('claude-truncated')])
+          await foundOnceIndexed('gull', [claudeId('claude-plain')])
+          expect(await found('plover')).toEqual([])
+        })
+
+        it('keeps searching the other harnesses while one cannot list its sessions', async () => {
+          writeCodexTurn('codex-tern', 'a codex tern', 'seen')
+          writeClaudeTurn(claudeId('claude-tern'), 'a claude tern', 'seen')
+          const stateDb = join(codexHome(), 'state_5.sqlite')
+          renameSync(stateDb, `${stateDb}.kept`)
+          writeFileSync(stateDb, 'not a database')
+          try {
+            await foundOnceIndexed('tern', [claudeId('claude-tern')])
+          } finally {
+            renameSync(`${stateDb}.kept`, stateDb)
+          }
+        })
+
+        it('reads a live session text at most every 30 seconds, while its title and time follow the list', async () => {
+          writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel', 'the first wren reply')
+          await foundOnceIndexed('wren', [claudeId('claude-live')])
+
+          const stamp = writeClaudeTurn(claudeId('claude-live'), 'a busy kestrel and merlin', 'the osprey arrived')
+          await stampedOnceIndexed('merlin', [{nativeId: claudeId('claude-live'), updatedAt: stamp}])
+          expect(await found('osprey')).toEqual([])
+
+          await later(LIVE_REINDEX_MS, () => foundOnceIndexed('osprey', [claudeId('claude-live')]))
+        })
+
+        it('matches message text of sessions from every harness, newest first and paged, and tolerates a typo', async () => {
+          writeClaudeTurn(claudeId('claude-orchard'), 'plan the kiwi orchard', 'the mango grove is planted')
+          writeCodexTurn('codex-salsa', 'write a salsa recipe', 'mango salsa needs lime')
+          writeClaudeTurn(claudeId('claude-chore'), 'an unrelated chore', 'done')
+
+          await foundOnceIndexed('mango', ['codex-salsa', claudeId('claude-orchard')])
+          expect(await found('kiwi orchard')).toEqual([claudeId('claude-orchard')])
+          expect(await found('lime')).toEqual(['codex-salsa'])
+          expect(await found('mangp')).toEqual(['codex-salsa', claudeId('claude-orchard')])
+
+          const first = await searchKit().rpc.sessions.search({term: 'mango', limit: 1})
+          expect(first.sessions.map((meta) => meta.native?.nativeId)).toEqual(['codex-salsa'])
+          const second = await searchKit().rpc.sessions.search({term: 'mango', cursor: first.next, limit: 1})
+          expect(second).toMatchObject({sessions: [{native: {nativeId: claudeId('claude-orchard')}}], next: null})
+
+          const tie = nextStamp()
+          const tied = ['claude-papaya-1', 'claude-papaya-2', 'claude-papaya-3'].map(claudeId).toSorted().toReversed()
+          tied.forEach((id, rank) => writeClaudeTurn(id, 'a papaya at the same moment', 'ripe'.repeat(100 - rank), tie))
+          await foundOnceIndexed('papaya', tied)
+          const paged = async (cursor: HarnessListCursor | null): Promise<string[]> => {
+            const page = await searchKit().rpc.sessions.search({term: 'papaya', cursor, limit: 1})
+            const ids = page.sessions.map((meta) => meta.native?.nativeId ?? '')
+            return page.next === null ? ids : [...ids, ...(await paged(page.next))]
+          }
+          expect(await paged(null)).toEqual(tied)
+        })
+
+        it('tolerates typos only when every word has at least four characters', async () => {
+          writeClaudeTurn(claudeId('claude-item-three'), 'review item 3', 'checked')
+          writeClaudeTurn(claudeId('claude-item-twenty-nine'), 'review item 29', 'checked')
+          writeClaudeTurn(claudeId('claude-item-thirty-nine'), 'review item 39', 'checked')
+
+          await foundOnceIndexed('39', [claudeId('claude-item-thirty-nine')])
+        })
+
+        it('matches a renamed native session by its new title', async () => {
+          writeCodexTurn('codex-walrus', 'the walrus task', 'walrus handled')
+          await foundOnceIndexed('walrus', ['codex-walrus'])
+          expect(await found('falcon')).toEqual([])
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const walrus = listed.find((meta) => meta.native?.nativeId === 'codex-walrus')
+          if (walrus === undefined) throw new Error('the codex session was not listed')
+
+          await searchKit().rpc.sessions.rename({sessionId: walrus.id, title: 'the renamed falcon'})
+
+          expect(await found('falcon')).toEqual(['codex-walrus'])
+        })
+
+        it('re-indexes a changed transcript and drops a removed one', async () => {
+          writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'drafted')
+          await foundOnceIndexed('drafted', [claudeId('claude-changing')])
+          expect(await found('heron')).toEqual([])
+
+          writeClaudeTurn(claudeId('claude-changing'), 'a first draft', 'the heron came back')
+          await later(LIVE_REINDEX_MS, () => foundOnceIndexed('heron', [claudeId('claude-changing')]))
+
+          rmSync(claudeTranscriptPath(claudeId('claude-changing')))
+          await foundOnceIndexed('heron', [])
+        })
+
+        it('matches a conciv-only session on its own title, literally', async () => {
+          const {sessionId} = await searchKit().rpc.sessions.create(undefined)
+          await searchKit().rpc.sessions.rename({sessionId, title: 'ostrich notes 100%'})
+
+          expect(await found('ostr')).toEqual(['ostrich notes 100%'])
+          expect(await found('100%')).toEqual(['ostrich notes 100%'])
+          expect(await found('1_0')).toEqual([])
+        })
       })
 
       it('the session list titles, renames, refuses bad input, and forgets deleted sessions', async () => {
@@ -2500,7 +2912,7 @@ describe('rpc wire', () => {
           code: 'UNKNOWN_MODEL',
         })
         await chatKit().rpc.sessions.delete({sessionId: removed})
-        expect((await chatKit().rpc.sessions.list(undefined)).map((meta) => meta.id)).not.toContain(removed)
+        expect((await chatKit().rpc.sessions.list(undefined)).sessions.map((meta) => meta.id)).not.toContain(removed)
         expect(await thread(removed)).toEqual([])
         expect(await threadUserTexts(kept)).toEqual(['title from me'])
       })
@@ -2730,7 +3142,7 @@ return seen`
   const PLAIN_COMMAND = 'claude-code:command:git status'
   const HIDDEN_COMMAND = 'claude-code:command:grep "$(cat x)"'
   const TERMINAL_ID = 'sess-terminal-born'
-  const UNKNOWN_SESSION = 'conciv_unknown-but-valid'
+  const UNKNOWN_SESSION = `conciv_unknown-but-valid-${'x'.repeat(110)}`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
@@ -2797,7 +3209,6 @@ return seen`
     widget: FakeWidget | null
     mcp: McpClient | null
     mcpSession: string
-    claudeHome: string
     mcpTools: () => Promise<McpTool[]>
   }
 
@@ -2807,7 +3218,6 @@ return seen`
     widget: null,
     mcp: null,
     mcpSession: '',
-    claudeHome: '',
     mcpTools: async () => {
       if (app.mcp === null) throw new Error('the MCP client is not connected')
       return app.mcp.tools()
@@ -3070,9 +3480,7 @@ return seen`
   }
 
   async function sessionMeta(sessionId: string) {
-    const meta = (await chatKit().rpc.sessions.list({includeHidden: true})).find((entry) => entry.id === sessionId)
-    if (meta === undefined) throw new Error(`session ${sessionId} is not listed`)
-    return meta
+    return chatKit().rpc.sessions.get({sessionId: SessionId.parse(sessionId)})
   }
 
   async function compactMarkers(sessionId: string): Promise<(string | null)[]> {
@@ -3271,7 +3679,7 @@ return seen`
     await closed.promise
   }
 
-  async function readSse(response: Response, until: string): Promise<string[]> {
+  async function readSse(response: Response, stopType: string): Promise<string[]> {
     const body = response.body
     if (body === null) throw new Error('the SSE response has no body')
     const reader = body.pipeThrough(new TextDecoderStream()).getReader()
@@ -3288,7 +3696,7 @@ return seen`
         .flatMap((line) => (line.startsWith('data: ') ? [SseChunkSchema.safeParse(JSON.parse(line.slice(6)))] : []))
         .flatMap((parsed) => (parsed.success ? [parsed.data.type] : []))
       seen.push(...types)
-      if (types.includes(until)) {
+      if (types.includes(stopType)) {
         await reader.cancel()
         return seen
       }
@@ -3300,7 +3708,12 @@ return seen`
   }
 
   function transcriptPathOf(nativeId: string): string {
-    return requireTranscriptPath(requireClaude())(chatKit().stateRoot, HarnessSessionId.parse(nativeId), app.claudeHome)
+    return requireTranscriptPath(requireClaude())(chatKit().stateRoot, HarnessSessionId.parse(nativeId))
+  }
+
+  function writeNativeAt(nativeId: string, task: string, updatedAt: number): void {
+    const path = writeTranscript(nativeId, [JSON.stringify({type: 'user', message: {content: task}})])
+    utimesSync(path, updatedAt / 1000, updatedAt / 1000)
   }
 
   function writeTranscript(nativeId: string, lines: string[]): string {
@@ -3418,3 +3831,14 @@ describe('token charset', () => {
     }
   })
 })
+
+function claudeId(name: string): string {
+  const hex = createHash('sha256').update(name).digest('hex')
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20, 32)].join('-')
+}
+
+function codexHome(): string {
+  const home = process.env.CODEX_HOME
+  if (home === undefined) throw new Error('the core test process sets CODEX_HOME')
+  return home
+}
