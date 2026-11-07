@@ -52,7 +52,6 @@ const fillMeta: ToolViewMeta = {
   icon: 'keyboard',
   label: {running: 'Typing', done: 'Typed'},
   mutating: true,
-  mirrors: true,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}, value: {type: 'string'}},

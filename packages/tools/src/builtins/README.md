@@ -22,7 +22,7 @@ Builtin tools for an agent working against a dev server: seven `server_*` tools 
 ## Invariants
 
 - Every server tool throws `toolError('NO_BUNDLER', {message: 'no dev server is attached to conciv'})` when `ctx.bundler()` is undefined (`requireBundler`).
-- Server tool names are `server_${operation}` with `meta.category: 'server'`, `mirrors: false`, `mutating` default false (`serverTool`).
+- Server tool names are `server_${operation}` with `meta.category: 'server'`, `mutating` default false (`serverTool`).
 - `server_reload` and `server_restart` are `mutating: true` with `approval: 'ask'`.
 - `waitForHotUpdate` maps a failed page call to `{applied: false, waitedMs: 0}` and validates answers with `HotUpdateWaitSchema.parse`.
 - The `open` output includes `line` only when the input has one.
