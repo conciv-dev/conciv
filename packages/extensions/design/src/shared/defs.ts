@@ -221,7 +221,6 @@ export const MappingSchema = z.array(
     confidence: z.number().describe('the winning score of the vote'),
     margin: z.number().optional().describe('the winning score minus the runner-up score'),
     round: z.number().describe('the round that wrote the entry'),
-    confirmed: z.boolean().optional().describe('a vote below the trusted line that won two rounds in a row'),
   }),
 )
 

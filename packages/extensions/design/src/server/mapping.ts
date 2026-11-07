@@ -11,24 +11,44 @@ export async function mappingOf(input: {
   pairer: Pairer
   target: Raster
 }): Promise<Mapped> {
-  const {record, design, measured, round} = input
-  const fileKey = record.ref.split('/')[0] ?? record.ref
+  const {measured} = input
   const matched = (selector: string): string[] => measured.matches.get(selector) ?? []
   const ambiguous = input.stored.filter((item) => matched(item.selector).length > 1)
   const resolved = input.stored.filter((item) => matched(item.selector).length === 1)
-  const stored = resolved.filter(trusted)
-  const provisional = new Map(
-    resolved.filter((item) => !trusted(item)).map((item) => [item.figma.nodeId, item] as const),
-  )
   const left = input.stored.filter((item) => matched(item.selector).length === 0).map((item) => item.figma.nodeId)
-  const nodes = new Set([...walk(design.root)].map(({node}) => node.id))
-  const mapped = new Set(stored.map((item) => item.figma.nodeId))
-  const unmapped = [...nodes].filter((node) => !mapped.has(node))
   const dupes = ambiguous.map((item) => item.figma.nodeId)
-  if (unmapped.length === 0)
-    return {mapping: stored, matches: measured.matches, dupes, candidates: [], notRendered: [], provisional: 0}
-  const pins = stored.flatMap((item) => {
-    const [path] = matched(item.selector)
+  const settled = await settle({
+    input,
+    kept: resolved.filter(trusted),
+    before: new Map(resolved.filter((item) => !trusted(item)).map((item) => [item.figma.nodeId, item] as const)),
+  })
+  return {
+    mapping: [...settled.kept, ...settled.written],
+    matches: settled.matches,
+    dupes,
+    candidates: settled.candidates,
+    notRendered: left.filter((node) => !settled.written.some((entry) => entry.figma.nodeId === node)),
+    provisional: settled.written.filter((entry) => !trusted(entry)).length,
+  }
+}
+
+function trusted(entry: Mapping[number]): boolean {
+  return entry.confidence >= designConfig.tolerances.figmaPair.trustedConfidence
+}
+
+async function settle(state: {
+  input: Parameters<typeof mappingOf>[0]
+  kept: Mapping
+  before: Map<string, Mapping[number]>
+}): Promise<Settled> {
+  const {input, kept, before} = state
+  const {record, design, measured, round} = input
+  const fileKey = record.ref.split('/')[0] ?? record.ref
+  const mapped = new Set(kept.map((item) => item.figma.nodeId))
+  const open = new Set([...walk(design.root)].map(({node}) => node.id).filter((node) => !mapped.has(node)))
+  if (open.size === 0) return {kept, written: [], matches: measured.matches, candidates: []}
+  const pins = kept.flatMap((item) => {
+    const [path] = measured.matches.get(item.selector) ?? []
     return path === undefined ? [] : [{node: item.figma.nodeId, path}]
   })
   const paired = await input.pairer({
@@ -39,13 +59,20 @@ export async function mappingOf(input: {
     budget: designConfig.tolerances.pairBudgetMs,
   })
   const tree = treeOf(measured.live)
-  const open = new Set(unmapped)
   const voted = [...walk(paired.root)].flatMap(({node}) => {
     if (!open.has(node.node.id) || node.live === null) return []
     const selector = selectorOf({tree, path: node.live.path})
     if (selector === null) return []
     return [{nodeId: node.node.id, selector, path: node.live.path, confidence: node.confidence, margin: node.margin}]
   })
+  const moved = new Set(
+    voted.flatMap((vote) => {
+      const previous = before.get(vote.nodeId)
+      return previous !== undefined && previous.selector !== vote.selector ? [vote.nodeId] : []
+    }),
+  )
+  const stale = staleOf({root: design.root, moved, mapped})
+  if (stale.size > 0) return settle({...state, kept: kept.filter((item) => !stale.has(item.figma.nodeId))})
   const candidates = [...walk(paired.root)].flatMap(({node}) => {
     const listed = (node.candidates ?? []).flatMap((candidate) => {
       const selector = selectorOf({tree, path: candidate.path})
@@ -57,30 +84,31 @@ export async function mappingOf(input: {
   })
   const matches = new Map(measured.matches)
   voted.forEach((vote) => matches.set(vote.selector, matches.get(vote.selector) ?? [vote.path]))
-  const written = voted.map((vote): Mapping[number] => {
-    const before = provisional.get(vote.nodeId)
-    if (before !== undefined && before.selector === vote.selector) return {...before, confirmed: true}
-    return {
-      figma: {fileKey, nodeId: vote.nodeId},
-      selector: vote.selector,
-      source: 'voted',
-      confidence: vote.confidence,
-      ...(vote.margin === undefined ? {} : {margin: vote.margin}),
-      round,
-    }
-  })
-  return {
-    mapping: [...stored, ...written],
-    matches,
-    dupes,
-    candidates,
-    notRendered: left.filter((node) => !voted.some((vote) => vote.nodeId === node)),
-    provisional: written.filter((entry) => !trusted(entry)).length,
-  }
+  const written = voted.map((vote): Mapping[number] => ({
+    figma: {fileKey, nodeId: vote.nodeId},
+    selector: vote.selector,
+    source: 'voted',
+    confidence: vote.confidence,
+    ...(vote.margin === undefined ? {} : {margin: vote.margin}),
+    round,
+  }))
+  return {kept, written, matches, candidates}
 }
 
-function trusted(entry: Mapping[number]): boolean {
-  return entry.confirmed === true || entry.confidence >= designConfig.tolerances.figmaPair.trustedConfidence
+function staleOf(input: {root: Design['root']; moved: Set<string>; mapped: Set<string>}): Set<string> {
+  const under = [...walk(input.root)].filter(({node}) => input.moved.has(node.id))
+  return new Set(
+    under.flatMap(({node}) =>
+      [...walk(node)].flatMap(({node: child, depth}) => (depth > 0 && input.mapped.has(child.id) ? [child.id] : [])),
+    ),
+  )
+}
+
+type Settled = {
+  kept: Mapping
+  written: Mapping
+  matches: Map<string, string[]>
+  candidates: Coverage['candidates']
 }
 
 type Mapped = {
