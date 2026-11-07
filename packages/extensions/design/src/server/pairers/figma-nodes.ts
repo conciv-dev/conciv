@@ -117,7 +117,8 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     const {pairs} = vote
     const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
     const scored = rivals({vote, entry})
-    const pick = picked(scored)
+    const voted = picked(scored)
+    const pick = voted !== null && sharesParent({vote, entry, path: voted.path}) ? null : voted
     if (pick !== null && pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath})) {
       const painted = paintedTwin({pick, scored, byPath, node: entry.node})
       const chosen = {...pick, path: painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted}
@@ -130,6 +131,17 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     if (parentPick !== undefined) paired({vote, node: entry.node.id, pick: {...parentPick, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false}
+}
+
+function sharesParent(input: {vote: Vote; entry: Node; path: string}): boolean {
+  const {vote, entry} = input
+  if (entry.node.kind === 'text' || entry.parent === null || !sameBox({a: entry.box, b: boxOf(entry.parent)}))
+    return false
+  const held = vote.pairs.get(entry.parent.id)?.path
+  const parent = held === undefined ? undefined : vote.byPath.get(held)
+  const own = vote.byPath.get(input.path)
+  if (parent === undefined || own === undefined) return false
+  return iou({a: entry.box, b: parent.box}) > iou({a: entry.box, b: own.box})
 }
 
 function holds(input: {vote: Vote; entry: Node; pin: Parameters<Pairer>[0]['pins'][number]}): boolean {
