@@ -172,3 +172,21 @@ returns the stored round with `round` unchanged and writes nothing.
   a solid fill of their own. The rule sentences in `document.ts` say so; paint and the rules never contradict.
 - A stack or wrap breakpoint is the sum of each child's own minimum width (its own `minChildWidth`, or its design
   width for a leaf), plus gaps and padding. No child inherits another child's minimum.
+
+## Ruling 2026-11-07: the pairer maps, the agent never writes ids
+
+The "declared" source was a mistake and is withdrawn. No rule sentence, prompt or tool asks the agent to write
+`data-figma` or any mapping attribute. The product reads none. The live tree's `figma` field goes.
+
+- Mapping sources are `stored` and `voted` only. The vote proposes a pair once, for nodes the mapping does not hold;
+  a stored pair is truth until its conciv key leaves the page.
+- For a Figma target the voter is the Figma-node pairer of `$S/pair-figma/pair.mjs` (parents first, box overlap,
+  text match for text nodes, parent's pair, image-ness, greedy one-to-one, threshold as in the script), ported as is.
+  The image pairer stays for image targets. Many-to-one is allowed: a design node whose box equals its parent's and
+  that has no element of its own maps to the parent's key.
+- The pairer is measured before it is used: on every finished page that carries `data-figma` (ground truth), the
+  attributes are stripped, the pairer runs, and the mapping is scored against the truth per depth. The score is a
+  file the reader can check, not a sentence in a report.
+- Every row carries the element's `source` (file, line, column) from the live tree, so the agent is told where to
+  edit.
+- The sentences "desktop first at 1440" and "never at 1440" become "at the design width".
