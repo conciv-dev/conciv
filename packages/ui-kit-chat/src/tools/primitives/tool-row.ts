@@ -196,6 +196,6 @@ export function headerRowProjection(header: EmbeddedCardHeader, source: ToolRowP
       (header.status === undefined ? rowMarkOf(source.part, source.result) : MARK_OF_STATUS[header.status]),
     label: shortToolLabel(source.part.name),
     target: namedArgument(source.part) ?? clipTarget(title),
-    meta: filled(header.meta) ?? source.result?.outcome,
+    meta: source.result?.outcome ?? filled(header.meta),
   }
 }

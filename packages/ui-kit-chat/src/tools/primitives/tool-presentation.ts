@@ -1,4 +1,5 @@
 import type {FileOptions} from '@conciv/solid-diffs'
+import type {ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {codeTheme} from '../../theme/code-theme.js'
 import type {ToolStatus} from './tool-status.js'
 
@@ -7,6 +8,12 @@ export type CardPhase = 'running' | 'done'
 export const MUTATING_BADGE = 'page edit'
 
 export const QUIET_TEXT_CLASS = 'text-[length:var(--chat-text-xs)] m-0 [color:var(--chat-text-3)]'
+
+export const OUTCOME_LABEL: Record<NonNullable<ToolResultPart['outcome']> | 'error', string> = {
+  error: 'Error',
+  denied: 'Denied',
+  cancelled: 'Cancelled',
+}
 
 export const DANGER_TEXT_CLASS =
   'text-[length:var(--chat-text-xs)] leading-[var(--chat-trace-gutter)] whitespace-pre-wrap [overflow-wrap:anywhere] [color:var(--chat-danger)] [font-family:var(--chat-mono)] m-0'

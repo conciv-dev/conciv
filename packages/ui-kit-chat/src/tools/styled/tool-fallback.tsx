@@ -7,7 +7,7 @@ import {fallbackErrorText, ToolFallback as ToolFallbackPrimitive, useToolFallbac
 import {Permission, usePermission} from '../primitives/permission.js'
 import {StatusVisual} from '../primitives/status-visual.js'
 import {formatDuration, resultText} from '../primitives/tool-util.js'
-import {QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
+import {OUTCOME_LABEL, QUIET_TEXT_CLASS} from '../primitives/tool-presentation.js'
 import {SHIMMER} from '../../styled/shimmer.js'
 import {FOCUS} from '../../styled/classes.js'
 import {TRACE_MICROLABEL} from '../../styled/trace/trace-row.js'
@@ -127,12 +127,6 @@ function Result(): JSX.Element {
       </div>
     </Show>
   )
-}
-
-const OUTCOME_LABEL: Record<NonNullable<ToolResultPart['outcome']> | 'error', string> = {
-  error: 'Error',
-  denied: 'Denied',
-  cancelled: 'Cancelled',
 }
 
 function ToolError(): JSX.Element {

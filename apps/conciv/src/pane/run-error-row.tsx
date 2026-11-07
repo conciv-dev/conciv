@@ -9,6 +9,7 @@ const CONTEXT_OVERFLOW_MESSAGE = 'This conversation is too long for the model. C
 
 type RunErrorRowProps = {
   error: Error
+  compacting: boolean
   onRetry: () => void
   onCompact: () => void
 }
@@ -31,6 +32,7 @@ export function RunErrorRow(props: RunErrorRowProps): JSX.Element {
           size="none"
           class={ACTION}
           aria-label="Compact conversation"
+          disabled={props.compacting}
           onClick={() => props.onCompact()}
         >
           Compact

@@ -3187,7 +3187,7 @@ describe('wire name coverage', () => {
 describe('run errors', () => {
   const OVERFLOW_TEXT = 'prompt is too long: 250000 tokens > 200000 maximum'
 
-  function FailedRun(props: {failure: ChatEvent; compacted: () => void}): JSX.Element {
+  function FailedRun(props: {failure: ChatEvent; compacted: () => void; compacting?: boolean}): JSX.Element {
     const chat = createChat({
       threadId: 'run-errors',
       connection: {
@@ -3200,7 +3200,14 @@ describe('run errors', () => {
     onMount(() => void chat.sendMessage('go'))
     return (
       <Show when={chat.error()}>
-        {(error) => <RunErrorRow error={error()} onRetry={() => void chat.reload()} onCompact={props.compacted} />}
+        {(error) => (
+          <RunErrorRow
+            error={error()}
+            compacting={props.compacting ?? false}
+            onRetry={() => void chat.reload()}
+            onCompact={props.compacted}
+          />
+        )}
       </Show>
     )
   }
@@ -3219,6 +3226,22 @@ describe('run errors', () => {
     await expect.element(alert.getByText(OVERFLOW_TEXT)).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', {name: 'Compact conversation'}))
     expect(compacted.count).toBe(1)
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow.png'})
+  })
+
+  it('the Compact action is disabled while a compaction is already running', async () => {
+    render(() => (
+      <FailedRun
+        failure={{type: ChatEventType.RUN_ERROR, message: OVERFLOW_TEXT, code: 'context_overflow'}}
+        compacted={() => {}}
+        compacting
+      />
+    ))
+
+    const compact = page.getByRole('button', {name: 'Compact conversation'})
+    await expect.element(compact).toBeVisible()
+    await page.screenshot({path: '__screenshots__/run-errors/context-overflow-compacting.png'})
+    await expect.element(compact).toBeDisabled()
   })
 
   it('any other provider error keeps its own text and a retry', async () => {
@@ -3232,13 +3255,17 @@ describe('run errors', () => {
 })
 
 describe('tool outcomes', () => {
-  function stoppedTool(outcome: 'denied' | 'cancelled'): JSX.Element {
+  function stoppedTool(
+    outcome: 'denied' | 'cancelled',
+    name = 'Bash',
+    input: Record<string, unknown> = {command: 'rm -rf build'},
+  ): JSX.Element {
     const part: ToolCallPart = {
       type: 'tool-call',
       id: 'stopped-1',
-      name: 'Bash',
-      arguments: JSON.stringify({command: 'rm -rf build'}),
-      input: {command: 'rm -rf build'},
+      name,
+      arguments: JSON.stringify(input),
+      input,
       state: 'input-complete',
     }
     const result: ToolResultPart = {
@@ -3257,6 +3284,7 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'denied'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-denied.png'})
   })
 
   it('a cancelled tool reads as cancelled, not as a failure', async () => {
@@ -3264,5 +3292,20 @@ describe('tool outcomes', () => {
 
     await expect.element(page.getByRole('img', {name: 'cancelled'})).toBeVisible()
     await expect.element(page.getByRole('img', {name: 'failed'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/tool-outcomes/Bash-cancelled.png'})
   })
+
+  for (const [outcome, name] of [
+    ['denied', 'Grep'],
+    ['cancelled', 'Glob'],
+  ] as const) {
+    it(`a ${outcome} ${name} search names the outcome on the row, never failed`, async () => {
+      render(() => stoppedTool(outcome, name, {pattern: 'TODO'}))
+
+      await expect.element(page.getByRole('img', {name: outcome})).toBeVisible()
+      await page.screenshot({path: `__screenshots__/tool-outcomes/${name}-${outcome}.png`})
+      await expect.element(page.getByText(outcome, {exact: true})).toBeVisible()
+      await expect.element(page.getByText('failed', {exact: true})).not.toBeInTheDocument()
+    })
+  }
 })

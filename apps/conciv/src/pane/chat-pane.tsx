@@ -383,6 +383,7 @@ export function ChatPane(props: {sessionId: string; viewTab?: string}): JSX.Elem
                           {(error) => (
                             <RunErrorRow
                               error={error()}
+                              compacting={compacting()}
                               onRetry={() => void chat.reload()}
                               onCompact={() => messaging.compact.mutate()}
                             />
