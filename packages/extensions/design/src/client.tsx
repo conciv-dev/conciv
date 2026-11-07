@@ -280,11 +280,12 @@ function matching(input: {doc: Document; selector: string}): Element[] {
 
 function elementPath(input: {doc: Document; el: Element}): string {
   const {doc, el} = input
-  if (el === doc.documentElement) return ''
+  const view = doc.defaultView
+  if (el === doc.documentElement || view === null) return ''
   const parent = el.parentNode
-  if (parent instanceof ShadowRoot)
+  if (parent instanceof view.ShadowRoot)
     return `${elementPath({doc, el: parent.host})}/s/${[...parent.children].indexOf(el) + 1}`
-  if (!(parent instanceof Element)) return ''
+  if (!(parent instanceof view.Element)) return ''
   return `${elementPath({doc, el: parent})}/${[...parent.children].indexOf(el) + 1}`
 }
 
