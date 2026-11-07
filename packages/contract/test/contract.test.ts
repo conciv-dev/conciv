@@ -3,7 +3,9 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js
 import type {SessionMeta} from '../src/rows.js'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '../src/client.js'
 import {createServer, type Server} from 'node:http'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_DELIVERY_HEADERS, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import contractManifest from '../package.json' with {type: 'json'}
 import {
   closeBrowserRpcConnection,
   dynamicBrowserRpcLink,
@@ -164,6 +166,8 @@ describe('rows', () => {
 
 describe('session header scoping', () => {
   const seen: (string | null)[] = []
+  const versions: (string | null)[] = []
+  const headerNames: string[][] = []
 
   let server: Server
   let base = ''
@@ -181,6 +185,9 @@ describe('session header scoping', () => {
     server = createServer((request, response) => {
       const header = request.headers[CONCIV_SESSION_HEADER]
       seen.push(typeof header === 'string' ? header : null)
+      const version = request.headers[CONCIV_VERSION_HEADER]
+      versions.push(typeof version === 'string' ? version : null)
+      headerNames.push(Object.keys(request.headers))
       request.resume()
       request.on('end', () => {
         response.writeHead(200, {'content-type': 'application/json'})
@@ -213,6 +220,26 @@ describe('session header scoping', () => {
     await first.call(['probe'], {}, {context: {}})
 
     expect(seen).toEqual(['conciv_first', 'conciv_second', null, 'conciv_first'])
+  }, 15_000)
+
+  it('the node rpc client tells the engine the contract release version', async () => {
+    versions.length = 0
+    await makeRpcClient(base).sessions.list(undefined)
+
+    expect(versions).toEqual([contractManifest.version])
+  }, 15_000)
+
+  it('the browser rpc link sends only the headers an engine from before release versions lets through cors', async () => {
+    headerNames.length = 0
+    const preVersionEngineAllowed = ['content-type', 'authorization', CONCIV_SESSION_HEADER, ...CHAT_DELIVERY_HEADERS]
+    await dynamicBrowserRpcLink(
+      () => base,
+      () => 'conciv_first',
+    ).call(['probe'], {}, {context: {}})
+
+    const custom = (headerNames[0] ?? []).filter((name) => name.startsWith('x-') || name.startsWith('conciv-'))
+    expect(custom.filter((name) => !preVersionEngineAllowed.includes(name))).toEqual([])
+    expect(custom).toContain(CONCIV_SESSION_HEADER)
   }, 15_000)
 })
 

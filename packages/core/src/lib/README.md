@@ -19,7 +19,7 @@ Server helpers for the core engine: loopback-only Host/Origin CORS middleware, t
 
 ## Invariants
 
-- `corsMiddleware` (`cors.ts`): a Host that is not a bare loopback authority gets 403 'forbidden host'; an Origin that is not loopback or in `allowedOrigins` gets 403 'forbidden origin'; no Origin is allowed
+- `corsMiddleware` (`cors.ts`): a Host that is not a bare loopback authority gets 403 'forbidden host'; an Origin that is not loopback or in `allowedOrigins` gets 403 'forbidden origin'; no Origin is allowed. Every response it handles carries `x-conciv-version` (the core package.json version), exposed to CORS callers; the header is also an allowed request header
 - `writeDevEndpoint` (`dev-endpoint.ts`): validates with `DevEndpointSchema.parse`
 - `readDevEndpoint` (`dev-endpoint.ts`): null on a missing file, bad JSON or schema failure
 - `removeDevEndpoint` (`dev-endpoint.ts`): deletes only when the file is absent or invalid or its pid matches the caller
