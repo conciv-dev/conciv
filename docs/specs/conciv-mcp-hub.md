@@ -236,8 +236,8 @@ the agent to warn the user when it is above 1.
   outside call (the `outside-session` target, and any approval tool called through the hub) must not post that
   message. If the session code cannot skip it based on the pending approval's own data, stop and ask Omri.
 - Marker: hub-origin `TOOL_CALL_START` / `TOOL_CALL_END` / `TOOL_CALL_RESULT` chunks carry
-  `metadata.conciv = {origin: 'hub', client}` (built in `packages/core/src/api/mcp.ts` `callStartChunks`,
-  `executeResultChunk`; `TOOL_CALL_RESULT` already sets `metadata.tanstack`). The widget tool row shows
+  `metadata.conciv = {origin: 'hub', client}` (built by `callTrace` in `packages/core/src/api/call-trace.ts`, shared by `/api/mcp` and the RPC router;
+  `TOOL_CALL_RESULT` already sets `metadata.tanstack`). The widget tool row shows
   "from <client>" using an existing slot; if the row has no slot that can show it, stop and ask Omri.
 
 ### Tool: `tabs` (registry, every surface)
