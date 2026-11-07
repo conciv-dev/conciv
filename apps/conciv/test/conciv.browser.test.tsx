@@ -1225,6 +1225,7 @@ describe('chat history paging', () => {
   async function stoppedExchange(rpc: RpcClient, sessionId: string, text: string): Promise<void> {
     await coreControl.holdTurn()
     const turn = await sendTurn(core(), sessionId, text)
+    await turn.awaitReply()
     const active = (await rpc.chat.hydrate({sessionId})).activeRun
     await rpc.chat.stop({sessionId, runIds: active === null ? [] : [active.runId]})
     await turn.awaitTurnEnd()
