@@ -58,6 +58,7 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   const elements = elementsOf(input.measured.live)
   const byPath = new Map(elements.map((element) => [element.path, element]))
   const nodes = [...walk(input.design.root)].map(({node, parent, depth}) => ({node, parent, depth, box: boxOf(node)}))
+  const parents = new Map(nodes.map(({node, parent}) => [node.id, parent]))
   const order = nodes
     .filter(({box}) => box.w > 0 && box.h > 0)
     .toSorted((a, b) => a.depth - b.depth || b.box.w * b.box.h - a.box.w * a.box.h)
@@ -70,10 +71,16 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   order.forEach((entry) => {
     if (pinned.has(entry.node.id)) return
     const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
+    const shift = shiftOf({node: entry.parent, parents, pairs, byPath})
     const scored = elements.flatMap((element) =>
       taken.has(element.path) || element.box.w === 0 || element.box.h === 0
         ? []
-        : scoreOf({entry, element, parentPath}),
+        : scoreOf({
+            entry,
+            element,
+            parentPath,
+            box: {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y},
+          }),
     )
     const pick = picked(scored)
     if (pick !== null && pick.score >= PAIR.threshold && !tiedApart({pick, scored, byPath})) {
@@ -122,12 +129,33 @@ function allText(live: LiveComponent): string {
   return [live.text, ...live.children.map(allText)].filter(Boolean).join(' ')
 }
 
-function scoreOf(input: {entry: Node; element: Element; parentPath: string | null}): {path: string; score: number}[] {
+function shiftOf(input: {
+  node: DesignNode | null
+  parents: Map<string, DesignNode | null>
+  pairs: Map<string, Pick>
+  byPath: Map<string, Element>
+}): {x: number; y: number} {
+  const {node, parents, pairs, byPath} = input
+  if (node === null) return {x: 0, y: 0}
+  const path = pairs.get(node.id)?.path
+  const element = path === undefined ? undefined : byPath.get(path)
+  if (node.implied === true) return shiftOf({...input, node: parents.get(node.id) ?? null})
+  if (element === undefined) return {x: 0, y: 0}
+  const design = boxOf(node)
+  return {x: design.x - element.box.x, y: design.y - element.box.y}
+}
+
+function scoreOf(input: {
+  entry: Node
+  element: Element
+  parentPath: string | null
+  box: Box
+}): {path: string; score: number}[] {
   const {entry, element, parentPath} = input
   const {node, box} = entry
-  const geo = iou({a: box, b: element.box})
-  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: element.box}) > PAIR.nearCenterPx) return []
-  if (node.implied === true && !holdsChildren({node, box: element.box})) return []
+  const geo = iou({a: box, b: input.box})
+  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: input.box}) > PAIR.nearCenterPx) return []
+  if (node.implied === true && !holdsChildren({node, box: input.box})) return []
   const typed = node.figma?.type ?? ''
   const text = node.kind === 'text' ? normalized(node.text) : ''
   const shown = normalized(element.text)
