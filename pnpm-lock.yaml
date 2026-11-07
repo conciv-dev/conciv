@@ -247,8 +247,8 @@ catalogs:
       specifier: ^1.64.0
       version: 1.64.0
     lucide-solid:
-      specifier: ^1.64.0
-      version: 1.64.0
+      specifier: ~1.66.0
+      version: 1.66.0
     marked:
       specifier: ^18.1.2
       version: 18.1.2
@@ -553,7 +553,7 @@ importers:
         version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -1035,7 +1035,7 @@ importers:
         version: 1.47.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       marked:
         specifier: 'catalog:'
         version: 18.1.2
@@ -2175,7 +2175,7 @@ importers:
         version: 4.13.14
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2798,7 +2798,7 @@ importers:
         version: 2.0.3
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2898,7 +2898,7 @@ importers:
         version: 5.105.0(patch_hash=15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde)(solid-js@1.9.17)
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       playwright-core:
         specifier: ^1.64.1
         version: 1.64.1
@@ -2992,7 +2992,7 @@ importers:
         version: link:../../ui-kit-system
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3122,7 +3122,7 @@ importers:
         version: 4.13.14
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3216,7 +3216,7 @@ importers:
         version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -3298,7 +3298,7 @@ importers:
         version: 1.4.4(solid-js@1.9.17)
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
     devDependencies:
       '@conciv/extension-testkit':
         specifier: workspace:^
@@ -3413,7 +3413,7 @@ importers:
         version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       oxc-parser:
         specifier: 'catalog:'
         version: 0.156.0
@@ -3801,7 +3801,7 @@ importers:
         version: 26.6.6
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       oxlint:
         specifier: 'catalog:'
         version: 1.90.0
@@ -4382,7 +4382,7 @@ importers:
         version: link:../ui-kit-system
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4537,7 +4537,7 @@ importers:
         version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       mermaid:
         specifier: 'catalog:'
         version: 12.2.0
@@ -4628,7 +4628,7 @@ importers:
         version: 1.53.0
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4719,7 +4719,7 @@ importers:
         version: 0.7.1
       lucide-solid:
         specifier: 'catalog:'
-        version: 1.64.0(solid-js@1.9.17)
+        version: 1.66.0(solid-js@1.9.17)
     devDependencies:
       '@conciv/uno-preset':
         specifier: workspace:*
@@ -15373,8 +15373,8 @@ packages:
       '@types/react':
         optional: true
 
-  lucide-solid@1.64.0:
-    resolution: {integrity: sha512-xmSV5fzajjaL2woeMp3YRjzcTNxRl+rLf5eYbYX07epTCUhxiov6k3Ky70bOQSia3iTIMvs8uk2YFlbqmPLA2Q==}
+  lucide-solid@1.66.0:
+    resolution: {integrity: sha512-4XTuWxPFdUz2ADXgkqxI0qOm6LdNQimEax6vwkwWMaBlIR5DYnUcYZkaTieedSpnzsFGPn5nEma1KQfd7/hMlQ==}
     peerDependencies:
       solid-js: ^1.4.7
 
@@ -19080,7 +19080,7 @@ snapshots:
       '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
       hono: 4.13.14
-      lucide-solid: 1.64.0(solid-js@1.9.17)
+      lucide-solid: 1.66.0(solid-js@1.9.17)
       solid-js: 1.9.17
       zod: 4.6.7
     transitivePeerDependencies:
@@ -28775,7 +28775,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.3.0
 
-  lucide-solid@1.64.0(solid-js@1.9.17):
+  lucide-solid@1.66.0(solid-js@1.9.17):
     dependencies:
       solid-js: 1.9.17
 
