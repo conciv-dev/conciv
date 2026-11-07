@@ -157,6 +157,31 @@ describe('approval replay', () => {
     await expect.element(page.getByText('Denied: Bash: git push --force', {exact: true})).toBeVisible()
     await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
   }, 120_000)
+
+  test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
+    const sessionId = await newSession()
+    await coreControl.hubExecute(sessionId, 'return 1')
+
+    const pane = await attachedPane(sessionId)
+    keep(pane)
+    const requests = page.getByRole('list', {name: 'Permission requests'})
+    const cardFits = async () => {
+      await expect.element(permissionRequest()).toBeInViewport({ratio: 1})
+      await expect.element(approveButton()).toBeInViewport({ratio: 1})
+      await expect.element(page.getByRole('button', {name: 'Deny'})).toBeInViewport({ratio: 1})
+    }
+    await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await expect.element(requests.getByRole('listitem').nth(1)).not.toBeInTheDocument()
+    await cardFits()
+
+    await page.viewport(1000, 900)
+    pane.setWidth(960)
+    await cardFits()
+
+    await approveButton().click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
+  }, 120_000)
 })
 
 describe('attachment widget', () => {

@@ -62,6 +62,9 @@ These resolve under every skin. Colour tokens follow the active colour scheme on
 | `--chat-radius-surface-lg` | Floating surface radius, largest step. |
 | `--chat-ease` | Default easing curve for state changes. |
 | `--chat-ease-expo` | Decisive easing curve for entrances and exits. |
+| `--chat-ease-in-out` | Symmetric easing curve for a motion that goes and comes back. |
+| `--chat-duration-normal` | Default duration for a state change. |
+| `--chat-duration-slow` | Longer duration for a feedback effect that should stay readable. |
 | `--chat-space` | Spacing base unit of the conversation surfaces (thread and composer). Stay within roughly 8% of 0.25rem; text sizes ride the font scale and do not shrink with it. |
 
 ### derived
@@ -76,6 +79,7 @@ These resolve under every skin. Colour tokens follow the active colour scheme on
 | `--chat-panel-sunk` | deepest field bg |
 | `--chat-agent` | fixed agent hue (teal), darkened toward the ink anchor on light |
 | `--chat-danger-line` | error border |
+| `--chat-duration-fast` | quick feedback duration for hover and press, three fifths of the normal duration |
 | `--chat-shadow` | elevation |
 | `--chat-shadow-hover` | elevation hover |
 

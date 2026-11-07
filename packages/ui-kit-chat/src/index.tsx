@@ -190,5 +190,6 @@ export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attach
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {NowLine} from './styled/now-line.js'
+export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'
 export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'

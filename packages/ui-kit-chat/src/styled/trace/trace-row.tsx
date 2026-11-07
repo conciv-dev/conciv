@@ -7,28 +7,28 @@ import {OUTCOME_TONE} from '../../tools/primitives/tool-presentation.js'
 import {Chip} from '../../tools/styled/chip.js'
 
 export const TRACE_MICROLABEL =
-  'uppercase text-[length:var(--chat-text-micro)] leading-none tracking-[0.13em] [font-family:var(--chat-mono)] flex-none'
-export const TRACE_LINE = 'relative flex items-center gap-[9px] min-w-0 h-[var(--chat-trace-gutter)]'
+  'uppercase text-chat-micro leading-none tracking-widest [font-family:var(--chat-mono)] flex-none'
+export const TRACE_LINE = 'relative flex items-center gap-2 min-w-0 h-[var(--chat-trace-gutter)]'
 export const TRACE_INDENT = 'ps-[var(--chat-trace-gutter)]'
-export const TRACE_HOVER_INDENT = '-mx-2 px-2 ps-[calc(var(--chat-trace-gutter)+0.5rem)]'
+export const TRACE_HOVER_INDENT = 'ps-[var(--chat-trace-gutter)] pe-2'
 
 const ROW = `${TRACE_LINE} ${TRACE_HOVER_INDENT}`
-const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] [transition:background-color_120ms_var(--chat-ease)] motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
-const MARK = 'select-none flex-none w-[9px] text-center text-[11px] leading-none [font-family:var(--chat-mono)]'
-const LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-microlabel`
-const RUN_LABEL = `${TRACE_MICROLABEL} min-w-[38px] text-chat-accent`
-const TARGET = 'flex-1 min-w-0 truncate text-[12px] leading-none [font-family:var(--chat-mono)] text-chat-target'
-const RUN_TEXT = 'flex-1 min-w-0 truncate text-[12.5px] leading-none [font-family:var(--chat-font)] text-chat-text-2'
-const META = 'flex-none min-w-0 max-w-[50%] truncate text-[11px] leading-none [font-family:var(--chat-mono)]'
-const BLOCK = `flex flex-col gap-1 min-w-0 pt-[3px] pb-[5px] ${TRACE_INDENT}`
-const ROW_ITEM = 'relative list-none min-w-0 pb-px'
+const FOLD_ROW = `group/row w-full text-start cursor-pointer rounded-[var(--chat-radius-sm)] [background:transparent] trans-bg motion-reduce:[transition:none] hover:[background:var(--chat-fill)] disabled:cursor-default disabled:hover:[background:transparent] ${FOCUS_INSET}`
+const MARK = 'select-none flex-none w-chat-mark text-center text-chat-xs leading-none [font-family:var(--chat-mono)]'
+const LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-microlabel`
+const RUN_LABEL = `${TRACE_MICROLABEL} min-w-10 text-chat-accent`
+const TARGET = 'flex-1 min-w-0 truncate text-chat-sm leading-none [font-family:var(--chat-mono)] text-chat-target'
+const RUN_TEXT = 'flex-1 min-w-0 truncate text-chat-md leading-none [font-family:var(--chat-font)] text-chat-text-2'
+const META = 'flex-none min-w-0 max-w-1/2 truncate text-chat-xs leading-none [font-family:var(--chat-mono)]'
+const BLOCK = `flex flex-col gap-1 min-w-0 py-1 ${TRACE_INDENT}`
+const ROW_ITEM = 'relative list-none min-w-0'
 const FOLD_SLOT = 'flex-none inline-flex w-3 justify-center'
-const FOLD = `${FOLD_SLOT} text-chat-affordance opacity-0 group-hover/row:opacity-70 group-focus-visible/row:opacity-100 data-[state=closed]:opacity-70 data-[state=closed]:-rotate-90 [transition:opacity_110ms_var(--chat-ease),rotate_150ms_var(--chat-ease)] motion-reduce:[transition:none]`
+const FOLD = `${FOLD_SLOT} text-chat-affordance opacity-0 group-hover/row:opacity-70 group-focus-visible/row:opacity-100 data-[state=closed]:opacity-70 data-[state=closed]:-rotate-90 trans-op-rotate motion-reduce:[transition:none]`
 
 const RING =
-  'relative flex-none inline-flex items-center justify-center size-[9px] rounded-full [border:1.5px_solid_var(--chat-accent)]'
+  'relative flex-none inline-flex items-center justify-center size-chat-mark rounded-full [border:1.5px_solid_var(--chat-accent)]'
 const RING_DOT =
-  'size-[3px] rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)] anim-run-ring'
+  'size-chat-mark-dot rounded-full [background:var(--chat-accent)] [box-shadow:0_0_4px_var(--chat-accent)] anim-run-ring'
 const NOTE_GLYPH = `${MARK} text-chat-dim`
 
 type MarkFace = {glyph: string; label: string; tone: string}
@@ -78,7 +78,7 @@ export function TraceRing(): JSX.Element {
 function FoldIndicator(): JSX.Element {
   return (
     <Collapsible.Indicator class={FOLD}>
-      <ChevronDown size={12} aria-hidden="true" />
+      <ChevronDown class="size-3" aria-hidden="true" />
     </Collapsible.Indicator>
   )
 }
