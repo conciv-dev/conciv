@@ -44,7 +44,8 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
-import {createDraggablePosition} from '../lib/draggable-position.js'
+import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
+import {createElementSize} from '@solid-primitives/resize-observer'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
@@ -220,6 +221,15 @@ function RootChrome(props: {
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
+  const [panelElement, setPanelElement] = createSignal<HTMLElement>()
+  const panelSize = createElementSize(panelElement)
+  const digitObstacle = createMemo((): PanelFrame | undefined => {
+    if (!panelOpen() || phone() || settings.surface === 'dock') return undefined
+    const width = panelSize.width
+    const height = panelSize.height
+    if (width === null || height === null || width === 0 || height === 0) return undefined
+    return props.fab.panelFrame({width, height})
+  })
 
   const warm = useWarmSession()
   const activeRowRunning = () => warm.rows().find((session) => session.id === props.activeSession())?.running ?? false
@@ -393,7 +403,7 @@ function RootChrome(props: {
 
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
-      <PanelChromeContext.Provider value={{close: closePanel}}>
+      <PanelChromeContext.Provider value={{close: closePanel, frame: setPanelElement}}>
         <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
@@ -406,6 +416,7 @@ function RootChrome(props: {
           }}
           open={panelOpen}
           working={working}
+          avoid={digitObstacle}
           suppressed={suppressed}
           fab={props.fab}
           locked={() => locked() && !panelOpen()}

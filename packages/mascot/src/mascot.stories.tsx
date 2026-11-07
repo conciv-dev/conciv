@@ -182,11 +182,12 @@ vertically, so the launch looks the same whichever style is running. The room is
 coordinates once per emitter start, not live on scroll or resize, and the whole curve scales with the same
 antenna factor as the rest of the emitter.
 
-**Bounds**: the room is the viewport by default. \`<Mascot.Binary bounds={getter}>\` hands the emitter an
-\`EmitterBounds\` getter in viewport pixels instead, read at every emitter start. The widget launcher passes the
-open chat panel's bottom edge as \`top\`, so the digits stay under the panel and bend along its edge rather
-than rising over it. A new getter re-measures a running emitter: the old trail drains into the tip while the new
-one grows out of it.
+**Avoid**: \`<Mascot.Binary avoid={rect}>\` names an \`EmitterRect\` in viewport pixels the digits must stay
+out of. The widget launcher passes the open chat panel. The digits rise until the nearest edge in their way (that
+rectangle or the top of the viewport), turn toward the nearer side with room on screen, round the corner and climb
+up along the outside of the rectangle; with no room beside it they run along the edge instead. A new value
+retargets the digits already in flight, at most once per animation frame, so dragging or resizing never restarts
+the stream.
 
 **Headroom**: a curve only bends when the room says it must, so with space above the robot every style
 degrades to the plain vertical rise. Drag \`headroomRatio\` down with \`working\` on to squeeze the emitter

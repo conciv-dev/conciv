@@ -1,7 +1,7 @@
 import {createMemo, onCleanup, type JSX} from 'solid-js'
 import {createStore, reconcile} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
-import {createElementSize} from '@solid-primitives/resize-observer'
+import {createElementSize, createWindowSize} from '@solid-primitives/resize-observer'
 import {Debouncer} from '@tanstack/pacer'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {readStorage, writeStorage} from '@conciv/ui-kit-system'
@@ -148,6 +148,8 @@ export type LauncherAnchor = {corner: TriggerCorner; left: string; right: string
 
 export type LauncherEdgeTab = {edge: TriggerEdge; along: string; preview: boolean}
 
+export type PanelFrame = {top: number; left: number; right: number; bottom: number}
+
 type Press = {
   element: HTMLElement
   pointerId: number
@@ -268,6 +270,7 @@ export type DraggablePosition = {
   hotCorner: () => TriggerCorner | null
   previewing: () => boolean
   growsTowardStart: (labelWidth: number) => boolean
+  panelFrame: (size: {width: number; height: number}) => PanelFrame
   docked: () => boolean
   edgeTab: () => LauncherEdgeTab | null
   onPointerDown: (event: PointerEvent) => void
@@ -455,6 +458,22 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     return left + measured.size + labelWidth > measured.viewport.width - measured.bounds.minX
   }
 
+  const windowSize = createWindowSize()
+  const launcherBox = createMemo((): {at: TriggerCoords; size: number} => {
+    const gesture = state.gesture
+    if (gesture.phase === 'dragging') return {at: gesture.at, size: gesture.measure.size}
+    const measured = measure({width: rootSize.width ?? windowSize.width, height: windowSize.height})
+    return {at: pixelsOf(state.placement, measured), size: measured.size}
+  })
+  const panelFrame = (size: {width: number; height: number}): PanelFrame => {
+    const box = launcherBox()
+    const corner = anchor().corner
+    const gap = PANEL_GAP_REM * rootFontSizePx()
+    const top = corner.startsWith('bottom') ? box.at.y - gap - size.height : box.at.y + box.size + gap
+    const left = corner.endsWith('left') ? box.at.x : box.at.x + box.size - size.width
+    return {top, left, right: left + size.width, bottom: top + size.height}
+  }
+
   const edgeTab = (): LauncherEdgeTab | null => {
     const gesture = state.gesture
     if (gesture.phase === 'dragging' && gesture.edge)
@@ -471,6 +490,7 @@ export function createDraggablePosition(options: {initial: TriggerPosition; stor
     hotCorner: () => (state.gesture.phase === 'dragging' ? state.gesture.hot : null),
     previewing: () => state.gesture.phase === 'dragging' && state.gesture.edge !== null,
     growsTowardStart,
+    panelFrame,
     docked: () => state.placement.kind === 'edge',
     edgeTab,
     onPointerDown,
