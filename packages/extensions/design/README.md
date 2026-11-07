@@ -79,8 +79,8 @@ src/
   reasons say which condition failed with the numbers. Pixels are reported, never judged. `progress` is null on round 1;
   after it, it compares with the round before: rows `closed`, `opened` and `kept` (with `repeat`), nodes `gained` and
   `lost`, pixel share `now` and `before`, and `changed`: the share of screenshot pixels that changed (anti-aliasing left
-  out) and the changed regions (tiles of 8 px joined across 2 empty tiles, under 4 px a side or 24 px² dropped, more than
-  12 become one box), each with the three ids whose boxes overlap it most. Captures are frozen first: animations paused
+  out) and the changed regions (tiles of 8 px joined across 2 empty tiles, under 4 px a side or 24 px² dropped, only the
+  12 largest are listed, `count` says how many changed), each with the three ids whose boxes overlap it most. Captures are frozen first: animations paused
   and rewound, transitions off. `note` says so when the edits changed no pixels and rows are kept.
 - `design_status()` measures nothing: it returns `{verdict, reasons, round, counts, coverage, rows, progress}` of the last stored
   round, or `not yet` with round 0 when no check has run.

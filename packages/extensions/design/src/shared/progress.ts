@@ -42,7 +42,7 @@ export const ProgressSchema = z
               .describe('the elements whose boxes overlap the region most'),
           }),
         ),
-        truncated: z.boolean().describe('too many regions: the one region is the box around all of them'),
+        truncated: z.boolean().describe('more regions changed than are listed: these are the largest'),
         count: z.number().describe('how many regions changed'),
       })
       .nullable()

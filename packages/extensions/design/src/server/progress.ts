@@ -65,7 +65,7 @@ function changedOf(input: Parameters<typeof progressOf>[0]): Changed | null {
     .crop({box: area})
     .compare({other: before.crop({box: area}), comparator: input.comparator})
   const found = regionsOf({mask, width: area.w, height: area.h, scale: now.width / width})
-  const shown = found.length > TOLERANCES.changedRegions ? [boxes.union(found)] : found
+  const shown = found.slice(0, TOLERANCES.changedRegions)
   const sites = [...walk(input.root)].map(({node}) => node)
   const names = new Map([...walk(input.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
   return {

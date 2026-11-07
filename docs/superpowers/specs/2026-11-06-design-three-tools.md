@@ -427,3 +427,10 @@ time `design_get` got smaller the agent built less. Omri: revert.
   answered `unsettled` eleven times. From the second consecutive `unsettled`, the reply carries the coverage (which nodes
   are gone, by name and id) and the rows the gate can still compute, and says "the page renders N of M nodes; the rest are
   listed in coverage.missing".
+
+### The twelve largest regions, not one box (2026-11-08)
+
+Past twelve changed regions, SnapEye replaces them with the one box around all of them. On a page that box is the page,
+and the ids it names are always the root containers (Dashboard, Body, Row on OrangeFarm), whatever the agent edited. A
+deviation from SnapEye: the reply lists the twelve largest regions with their ids, `count` says how many changed and
+`truncated` stays true.
