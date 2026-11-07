@@ -138,9 +138,8 @@ function PanelSession(): JSX.Element {
   )
 
   const chat = usePaneChat(() => params().sessionId)
-  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
-  const row = () =>
-    sessions.isPending ? undefined : sessions.data?.find((session) => session.id === params().sessionId)
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: params().sessionId}}))
+  const row = () => (session.isPending ? undefined : session.data)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? chat().runInProgress()
 

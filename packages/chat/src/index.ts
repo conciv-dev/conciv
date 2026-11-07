@@ -87,7 +87,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const transcripts = createTranscriptImporter({
     harnessFor: deps.harnessFor,
     stores,
-    claudeHome: deps.claudeHome,
     toolNames: deps.toolNames,
     log: deps.log,
     native: (sessionId) => {
@@ -184,7 +183,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     codeRunner: async (sessionId, publish) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, model})
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string) => (name: string, value: Record<string, unknown>) => {

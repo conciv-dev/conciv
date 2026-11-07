@@ -381,7 +381,8 @@ describe('chat plane', () => {
           read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
           close: () => undefined,
         }),
-        list: async () => [],
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
       },
       capabilities: {
         resume: false,
@@ -533,7 +534,6 @@ describe('chat plane', () => {
       binding: 'server',
       summary: 'Do the unit thing',
       mutating: false,
-      mirrors: false,
       reachable: true,
       inputSchema: {},
       outputSchema: {},
@@ -961,7 +961,7 @@ describe('page bus inflight teardown', () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
     const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
-    const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
+    const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}, agentId: SESSION})
     await Promise.resolve()
     unsubscribe()
     bus.subscribe(SESSION, () => {})
@@ -1038,7 +1038,11 @@ describe('runtime ambient session', () => {
       const {runtime, primitives} = await madeRuntime()
       const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
       const result = await runWithSession(runtime.forSession(SESSION_A), () =>
-        primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+        primitives.registry.call(
+          'fixture_click',
+          {ref: 'r1'},
+          {request: {sessionId: SESSION_B, agentId: SESSION_B, model: null}},
+        ),
       )
       expect(result).toEqual({clicked: 'a'})
       unsubscribe()
@@ -1048,7 +1052,11 @@ describe('runtime ambient session', () => {
       const {runtime, primitives} = await madeRuntime()
       const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
       await runWithSession(runtime.forSession(SESSION_A), () =>
-        primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+        primitives.registry.call(
+          'fixture_click',
+          {ref: 'r1'},
+          {request: {sessionId: SESSION_B, agentId: SESSION_B, model: null}},
+        ),
       )
       unsubscribe()
       expect(await runtime.forSession(SESSION_A).page.changes()).toHaveLength(1)

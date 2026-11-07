@@ -8,7 +8,7 @@ import {concivExtensionsToolDef} from '../src/extensions-tool.js'
 import {concivSandboxTools} from '../src/tools.js'
 
 describe('builtins', () => {
-  const testRequest = {sessionId: SessionId.parse('conciv_test'), model: null}
+  const testRequest = {sessionId: SessionId.parse('conciv_test'), agentId: 'conciv_test', model: null}
 
   function errorCode(error: unknown): string {
     if (typeof error !== 'object' || error === null || !('code' in error)) throw new Error('not a coded error')

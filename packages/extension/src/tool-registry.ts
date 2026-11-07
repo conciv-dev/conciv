@@ -136,7 +136,6 @@ export type ToolSignature = ToolCatalogEntry & {
   positional?: string
   approval?: 'ask'
   mutating: boolean
-  mirrors: boolean
   keywords: readonly string[]
   inputSchema: unknown
   outputSchema: unknown
@@ -457,7 +456,6 @@ const RegistryToolMetaSchema = z.object({
   approval: z.literal('ask').optional(),
   category: z.string().optional(),
   mutating: z.boolean().optional(),
-  mirrors: z.boolean().optional(),
   keywords: z.array(z.string()).optional(),
   positional: z.string().optional(),
   hint: z.string().optional(),
@@ -508,7 +506,6 @@ function signatureOf(entry: RegistryWalkEntry, listed: ToolCatalogEntry): ToolSi
     positional: meta.positional,
     approval: meta.approval,
     mutating: meta.mutating ?? false,
-    mirrors: meta.mirrors ?? false,
     keywords: meta.keywords ?? [],
     inputSchema: toInlineJsonSchema(entry.inputSchema, `tool "${listed.name}" input`, 'input'),
     outputSchema: toInlineJsonSchema(entry.outputSchema, `tool "${listed.name}" output`, 'output'),

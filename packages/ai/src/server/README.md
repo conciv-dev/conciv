@@ -13,7 +13,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
-- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`.
+- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`; `endsTheRun` also counts a terminal run-lifecycle chunk.
 - `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.saveThread` upserts one `chat_messages` row per message (rewriting only rows whose JSON changed) and deletes rows past the new end. `messages.loadThread` with a `limit` reads one page: the end position (the row count, or the `before` message's row through the `thread_id, message_id` index), the nearest user row at or before `end - limit`, then only the rows in that range, and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
 - `chat-tables.ts:chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
 - `chat-tables.ts:chatMessages` / `chatMetadata` - tables `chat_messages` (one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`) and `chat_metadata` (composite PK namespace + key).
@@ -31,6 +31,8 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
 - `chat-server.ts:terminalChunk` - a `completed` phase is reported as `aborted` when the record has `cancelRequested`.
+- `chat-server.ts` `onStart`: `hooks.started` (the run announcement) is skipped once the run's controller is aborted; `@tanstack/ai` calls `onStart` after setup even for a cancelled run.
+- `chat-server.ts:endedWithItsRecord` - a run stream that ends without a terminal chunk (a stopped run) is closed with its recorded terminal run-lifecycle chunk, so a replay or join of a stopped run reads its `aborted` end; no `RUN_FINISHED` is added, because the run's owner reads the same log and a late `RUN_FINISHED` would settle the owner's next turn.
 - `chat-server.ts:stop` - cancels only the thread's active run, and only if it is in `runIds` when given.
 - `chat-server.ts:hydrate` - waits for aborted live runs to settle before reconstructing, passes the optional `limit` and `before` to `reconstructChat` (one window of the thread plus `page`), and validates the result with `ReconstructedSchema`. `activeRun` and `lastRun` are never paged.
 - `code-mode.ts:refusingSecrets` - throws when a tool parameter was flagged as a secret; `codeModeTools` returns null when there are no `__toolSide === 'server'` tools.

@@ -8,12 +8,19 @@ import {
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
+import {omit} from 'es-toolkit'
+import {pageAfter} from '@conciv/harness/page'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
 
 export type FakeHarness = HarnessAdapter & {
   script: ScriptedRun
+  transcripts: TranscriptHold
 }
+
+type TranscriptHold = {hold: () => void; release: () => void; wait: () => Promise<void>}
+
+type FixtureSession = HarnessSessionMeta & {text?: string}
 
 const BASE_CAPABILITIES = {
   resume: false,
@@ -35,11 +42,23 @@ type SharedFields = {
   tty: {command(ctx: HarnessConnectContext): TtyCommand} | undefined
 }
 
-function fixtureHistory(rows: HarnessSessionMeta[]): HarnessHistory {
+function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): HarnessHistory {
+  const metaOf = (row: FixtureSession): HarnessSessionMeta => omit(row, ['text'])
   return {
-    list: () => Promise.resolve(rows),
-    messages: () => Promise.resolve([]),
-    meta: (_cwd, sessionId) => Promise.resolve(rows.find((row) => row.id === sessionId) ?? null),
+    list: (_cwd, page) => {
+      const paged = pageAfter(rows, page, (row) => ({updatedAt: row.updatedAt, id: row.id}))
+      return Promise.resolve({sessions: paged.items.map(metaOf), next: paged.next})
+    },
+    messages: async (_cwd, sessionId) => {
+      const text = rows.find((row) => row.id === sessionId)?.text
+      if (text === undefined) return []
+      await transcripts.wait()
+      return [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text}]}]
+    },
+    meta: (_cwd, sessionId) => {
+      const row = rows.find((candidate) => candidate.id === sessionId)
+      return Promise.resolve(row === undefined ? null : metaOf(row))
+    },
     observe: () => ({
       revision: () => Promise.resolve({ok: false as const, reason: 'missing' as const, detail: 'fixture history'}),
       read: () => Promise.resolve({ok: false as const, reason: 'missing' as const, detail: 'fixture history'}),
@@ -92,7 +111,7 @@ export function createFakeHarness(
     connect?: HarnessConnect
     models?: HarnessModel[]
     commands?: HarnessCommand[]
-    history?: HarnessSessionMeta[]
+    history?: FixtureSession[]
     tty?: {command(ctx: HarnessConnectContext): TtyCommand}
   } = {},
 ): FakeHarness {
@@ -108,11 +127,25 @@ export function createFakeHarness(
     tty: opts.tty,
   }
   const capabilities = {...BASE_CAPABILITIES, resume: opts.resume ?? false}
+  const transcripts = makeTranscriptHold()
   const adapter = buildAdapter(
     shared,
     capabilities,
-    opts.history ? fixtureHistory(opts.history) : undefined,
+    opts.history ? fixtureHistory(opts.history, transcripts) : undefined,
     opts.commands,
   )
-  return Object.assign(adapter, {script: scripted})
+  return Object.assign(adapter, {script: scripted, transcripts})
+}
+
+function makeTranscriptHold(): TranscriptHold {
+  const state = {held: Promise.resolve(), release: () => {}}
+  return {
+    hold: () => {
+      const {promise, resolve} = Promise.withResolvers<void>()
+      state.held = promise
+      state.release = resolve
+    },
+    release: () => state.release(),
+    wait: () => state.held,
+  }
 }

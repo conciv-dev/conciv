@@ -95,6 +95,10 @@ function stoppingRun(current: RunClockSource | null): RunClockSource | null {
   return {lifecycle: {...current.lifecycle, phase: 'stopping'}, receivedAt: Date.now()}
 }
 
+function runningHere(source: RunClockSource | null, runId: string): boolean {
+  return source !== null && source.lifecycle.runId === runId && !isRunPhaseTerminal(source.lifecycle.phase)
+}
+
 function stoppedRun(current: RunClockSource | null): RunClockSource | null {
   if (current === null || isRunPhaseTerminal(current.lifecycle.phase)) return current
   const now = Date.now()
@@ -129,7 +133,10 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     harnesses: {},
   })
   const connection = options.connect({
-    onLifecycle: (lifecycle) => setRunSource({lifecycle, receivedAt: Date.now()}),
+    onLifecycle: (lifecycle) => {
+      setRunSource({lifecycle, receivedAt: Date.now()})
+      if (lifecycle.phase === 'aborted' && lifecycle.runId === chat.runId() && chat.isLoading()) chat.stop()
+    },
     onHydrated: (hydration) => {
       setRunSource((current) => newerRun(current, hydration))
       setServed('pending', reconcile(hydration.pendingApprovals.map(askOf), {key: 'approvalId'}))
@@ -162,10 +169,13 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     showWindow(await latestWindow())
   }
   const declinesRun = (runId: string): boolean => chat.isLoading() || chat.runId() === runId || loadFailed()
+  const declinesKnownRun = (runId: string, known: boolean): boolean =>
+    declinesRun(runId) || (known && !runningHere(runSource(), runId))
   const joinedRun = async (runId: string): Promise<boolean> => {
-    if (declinesRun(runId)) return false
+    const known = runSource()?.lifecycle.runId === runId
+    if (declinesKnownRun(runId, known)) return false
     const window = await latestWindow()
-    if (declinesRun(runId)) return false
+    if (declinesKnownRun(runId, known)) return false
     showWindow(window)
     return true
   }
