@@ -41,34 +41,26 @@ function requiredOf(root: DesignNode): Set<string> {
 
 function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
   const {round, required} = input
-  const {much, noticeably, pins} = round.counts
+  const {much, noticeably, pins, other} = round.counts
   const missing = round.coverage.missing.filter((node) => required.has(node))
+  const reflow = round.rows.filter((row) => row.magnitude === 'reflow')
   return [
-    ...(much + noticeably + pins > 0
-      ? [`${much} rows differ much, ${noticeably} noticeably and ${pins} pin a px size; all three must be 0.`]
+    ...(much + noticeably + pins + other > 0
+      ? [
+          `${much} rows differ much, ${noticeably} noticeably, ${pins} pin a px size and ${other} differ otherwise; all four must be 0.`,
+        ]
       : []),
     ...(missing.length > 0
       ? [`${missing.length} required nodes are not rendered: ${missing.slice(0, MISSING_SHOWN).join(', ')}.`]
       : []),
-    ...round.reflow.results.flatMap((reflow) => [
-      ...(reflow.sticksOut.length > 0
-        ? [
-            `At ${reflow.width} wide ${reflow.sticksOut.length} nodes stick out of the page: ${reflow.sticksOut.slice(0, MISSING_SHOWN).join(', ')}.`,
-          ]
-        : []),
-      ...(reflow.overflowX ? [`At ${reflow.width} wide the page scrolls sideways.`] : []),
-      ...(reflow.rows.length > 0
-        ? [
-            `At ${reflow.width} wide ${reflow.rows.length} tagged rows do not reflow as tagged: ${reflow.rows
-              .slice(0, MISSING_SHOWN)
-              .map((row) => row.node)
-              .join(', ')}.`,
-          ]
-        : []),
-      ...reflow.tags
-        .filter((tag) => tag.ok !== true)
-        .map((tag) => `At ${reflow.width} wide the ${tag.kind} node ${tag.node} fails: ${tag.why}.`),
-    ]),
+    ...(reflow.length > 0
+      ? [
+          `${reflow.length} reflow rows are left: ${reflow
+            .slice(0, MISSING_SHOWN)
+            .map((row) => `${row.node} at ${row.width ?? 'the design width'} wide`)
+            .join(', ')}.`,
+        ]
+      : []),
   ]
 }
 
