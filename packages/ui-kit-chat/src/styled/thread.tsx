@@ -178,59 +178,54 @@ function AssistantTurn(props: {
     )
     const segmentRollup = createMemo(() => rollupOfParts(segmentParts()))
     const segmentActive = () => groupProps.node.indices.some(partLive) || segmentRollup().awaitingApproval
-    const items = keyArray(
-      // oxlint-disable-next-line solid/reactivity
-      () => segmentParts(),
-      traceItemKey,
-      (part, position): TraceItem => {
-        const call = createMemo(() => asToolCall(part()))
-        const result = createMemo(() => {
-          const current = call()
-          return current ? message.pairing().byCallId.get(current.id) : undefined
-        })
-        const live = createMemo(() => {
-          const current = call()
-          return current !== null && rowMarkOf(current, result()) === 'run'
-        })
-        return {
-          key: traceItemKey(part(), position()),
-          get live() {
-            return live()
-          },
-          render: (branch: TraceBranch): JSX.Element => (
-            <Switch>
-              <Match when={asThinking(part())}>
-                {(thinkingPart) => (
-                  <TraceRunRow
-                    label={PLAN_LABEL}
-                    text={firstLine(thinkingPart().content)}
-                    live={partLive(groupProps.node.indices[position()] ?? -1)}
+    const items = keyArray(segmentParts, traceItemKey, (part, position): TraceItem => {
+      const call = createMemo(() => asToolCall(part()))
+      const result = createMemo(() => {
+        const current = call()
+        return current ? message.pairing().byCallId.get(current.id) : undefined
+      })
+      const live = createMemo(() => {
+        const current = call()
+        return current !== null && rowMarkOf(current, result()) === 'run'
+      })
+      return {
+        key: traceItemKey(part(), position()),
+        get live() {
+          return live()
+        },
+        render: (branch: TraceBranch): JSX.Element => (
+          <Switch>
+            <Match when={asThinking(part())}>
+              {(thinkingPart) => (
+                <TraceRunRow
+                  label={PLAN_LABEL}
+                  text={firstLine(thinkingPart().content)}
+                  live={partLive(groupProps.node.indices[position()] ?? -1)}
+                  ring={branch.ring}
+                  body={planBody(thinkingPart)}
+                />
+              )}
+            </Match>
+            <Match when={call()}>
+              {(callPart) => {
+                const durationMs = createMemo(() => ctx.durationFor?.(callPart().id))
+                return (
+                  <ToolTraceRow
+                    part={callPart()}
+                    result={result()}
+                    ctx={ctx}
+                    durationMs={durationMs()}
+                    tools={() => props.entries}
+                    fallback={props.fallback}
                     ring={branch.ring}
-                    body={planBody(thinkingPart)}
                   />
-                )}
-              </Match>
-              <Match when={call()}>
-                {(callPart) => {
-                  const durationMs = createMemo(() => ctx.durationFor?.(callPart().id))
-                  return (
-                    <ToolTraceRow
-                      part={callPart()}
-                      result={result()}
-                      ctx={ctx}
-                      durationMs={durationMs()}
-                      tools={() => props.entries}
-                      fallback={props.fallback}
-                      ring={branch.ring}
-                    />
-                  )
-                }}
-              </Match>
-            </Switch>
-          ),
-        }
-      },
-    )
+                )
+              }}
+            </Match>
+          </Switch>
+        ),
+      }
+    })
     const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
     const activeCall = () =>
       activeCallInParts(segmentParts(), (toolCallId) => message.pairing().byCallId.get(toolCallId))

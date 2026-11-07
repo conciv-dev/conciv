@@ -92,6 +92,7 @@
       {
         "customReactiveFunctions": [
           "bindActiveSession",
+          "keyArray",
           "makeEventListener",
           "makeEventListenerStack",
           "makeTimer",
