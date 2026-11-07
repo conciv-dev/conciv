@@ -30,7 +30,7 @@ export async function bootCoreKit(opts: {
   extensions?: AnyExtension[]
   models?: HarnessModel[]
   commands?: HarnessCommand[]
-  history?: HarnessSessionMeta[]
+  history?: Array<HarnessSessionMeta & {text?: string}>
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness

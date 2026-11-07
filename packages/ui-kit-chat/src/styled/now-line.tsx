@@ -14,7 +14,7 @@ const STOP_LABEL = 'Stop generating'
 const ROOT = 'flex items-baseline gap-2 min-w-0 w-full ps-[var(--chat-trace-gutter)] anim-msg'
 const GLYPH = 'flex-none inline-block w-[1ch] text-[12px] leading-[1.5] [font-family:var(--chat-mono)] text-chat-accent'
 const LABEL = 'text-[12px] leading-[1.5] [font-family:var(--chat-mono)] text-chat-text-2'
-const STOP = `flex-none self-center px-1.5 py-1 -my-1 rounded-[var(--chat-radius-sm)] cursor-pointer [background:transparent] [border:none] [font-family:var(--chat-mono)] text-[9.5px] font-bold uppercase tracking-[0.12em] leading-none text-chat-text-3 hover:text-chat-danger trans-color-bg ${FOCUS}`
+const STOP = `flex-none self-stretch inline-flex items-center px-1.5 rounded-[var(--chat-radius-sm)] cursor-pointer [background:transparent] [border:none] [font-family:var(--chat-mono)] text-[9.5px] font-bold uppercase tracking-[0.12em] leading-none text-chat-text-3 hover:text-chat-danger trans-color-bg ${FOCUS}`
 
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {
   const [local] = splitProps(props, ['title', 'onStop'])

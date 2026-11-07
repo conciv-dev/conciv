@@ -19,7 +19,6 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 - `grab-fit.ts:fitImagePreview` - shrinks an image preview under a byte limit.
 - `effect-toast.ts:showToast(msg, tone)` - a temporary toast overlay.
 - `element-capture.ts:takeElementCapture` / `loadSnapshotLibrary`; `css-bundle.ts:collectPendingCss` / `toCssBundle` - element captures with their CSS.
-- `page-mirror.ts:mirrorPageAction` - shows a cursor and pulse ring over an element the agent acted on.
 - `page-failure.ts:fail` / `badArgs` / `unknownVerb` / `failRaised` - typed page errors.
 - Subdirectories: [react-grab](./react-grab/README.md).
 
@@ -37,7 +36,7 @@ The DOM side of the page plane. `startPagePlane` reads page queries from the eng
 - `console-buffer.ts:startConsoleBuffer` - replaces `console.log/info/warn/error` and adds `error` and `unhandledrejection` listeners on `window`; `dispose` restores them.
 - `page-driver.ts:dispose` - turns off enabled client effects and restores the console.
 - `render-tracker.ts:installTracker` - instruments React through `bippy` `instrument({onCommitFiberRoot})`.
-- `effect-toast.ts:showToast` / `page-mirror.ts:mirrorPageAction` - append overlay elements to the page.
+- `effect-toast.ts:showToast` - appends overlay elements to the page.
 - `element-capture.ts:loadSnapshotLibrary` - dynamically imports `rrweb-snapshot` and shows an error toast once if it fails.
 - `conciv-global.ts` - declares `window.__CONCIV__`.
 

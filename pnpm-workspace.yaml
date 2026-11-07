@@ -38,16 +38,18 @@ catalog:
   '@tanstack/ai-acp': 1.0.1
   '@tanstack/ai-mcp': 1.1.0
 
-  '@ark-ui/solid': '^5.39.3'
+  '@ark-ui/solid': '^5.40.0'
   '@blazediff/core': ^1.10.0
   '@bomb.sh/router': ^0.8.0
   '@bramus/specificity': ^2.4.3
   '@clack/prompts': '^1.8.1'
   '@hono/node-server': '^2.1.5'
   '@iconify-json/ph': '^1.2.2'
+  '@orama/orama': 3.1.18
   '@oxlint/plugins': 1.90.0
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
+  '@solid-primitives/date': '^2.1.8'
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/resize-observer': '^2.2.0'
   '@solid-primitives/timer': '^1.4.4'
@@ -65,6 +67,7 @@ catalog:
   '@tanstack/react-start': 1.169.4
   '@tanstack/router-cli': 1.167.46
   '@tanstack/router-plugin': 1.168.48
+  '@tanstack/solid-pacer': 0.24.0
   '@tanstack/solid-query': '^5.105.0'
   '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
@@ -89,6 +92,7 @@ catalog:
   '@vitest/browser-playwright': 5.0.5
   '@vitest/coverage-v8': '^5.0.5'
   '@zumer/snapdom': 3.3.3
+  ai-motion: 0.4.8
   # held at the version react-grab 0.2.0 uses, one copy; bippy 0.7's main entry imports react
   bippy: 0.6.1
   citty: '^0.2.2'

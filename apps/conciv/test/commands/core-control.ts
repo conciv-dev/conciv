@@ -18,7 +18,8 @@ export type BootCoreInput = {
   displayName?: string
   connect?: boolean
   terminal?: boolean
-  history?: HarnessSessionMeta[]
+  history?: Array<HarnessSessionMeta & {text?: string}>
+  holdTranscripts?: boolean
   commands?: HarnessCommand[]
   models?: HarnessModel[]
   alternates?: AlternateHarness[]
@@ -148,9 +149,14 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
         }
       : {}),
   })
+  holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
   state.push = watchPushWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
+}
+
+function holdTranscriptsWhen(kit: CoreKit, held: boolean | undefined): void {
+  if (held) kit.harness.transcripts.hold()
 }
 
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
@@ -165,6 +171,7 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.kit = null
   if (!kit) return
   kit.harness.script.release()
+  kit.harness.transcripts.release()
   await kit.cleanup()
 }
 
@@ -209,6 +216,10 @@ const holdTurn: BrowserCommand<[]> = (ctx): void => {
 
 const releaseTurn: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.release()
+}
+
+const releaseTranscripts: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.transcripts.release()
 }
 
 const holdTools: BrowserCommand<[]> = (ctx): void => {
@@ -470,6 +481,7 @@ export const coreCommands = {
   holdResults,
   releaseResults,
   releaseTurn,
+  releaseTranscripts,
   scriptTurn,
   scriptError,
   clearScript,

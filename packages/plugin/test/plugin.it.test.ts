@@ -619,6 +619,7 @@ describe('native page vite boot', () => {
       await expectLocator(chat.getByText('Recording is paused by your content blocker')).toBeVisible()
       const outcome = await blockedPage.evaluate(() =>
         Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
+          agentId: 'plugin-it',
           name: 'page_settext',
           input: {selector: '#probe', text: 'rewritten'},
         }),
@@ -638,7 +639,11 @@ describe('native page vite boot', () => {
       await slowPage.getByRole('button', {name: /conciv chat$/}).waitFor({timeout: 45_000})
       const outcome = await slowPage.evaluate(() =>
         Promise.race([
-          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({name: 'page_click', input: {selector: '#counter'}}),
+          Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
+            agentId: 'plugin-it',
+            name: 'page_click',
+            input: {selector: '#counter'},
+          }),
           new Promise((resolve) => setTimeout(() => resolve('still waiting'), 2_000)),
         ]),
       )
@@ -663,6 +668,7 @@ describe('native page vite boot', () => {
       const rewrite = () =>
         blockedPage.evaluate(() =>
           Reflect.get(window, '__CONCIV_PAGE_DRIVER__').execute({
+            agentId: 'plugin-it',
             name: 'page_settext',
             input: {selector: '#probe', text: 'rewritten'},
           }),

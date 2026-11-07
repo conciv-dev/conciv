@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@pierre/diffs": "1.6.2",
-    "@tanstack/solid-pacer": "0.24.0"
+    "@tanstack/solid-pacer": "catalog:"
   },
   "devDependencies": {
     "@conciv/vitest-config": "workspace:*",

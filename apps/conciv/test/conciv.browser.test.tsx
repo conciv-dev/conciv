@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
-import {page, userEvent, page as browserPage} from 'vitest/browser'
+import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
@@ -29,7 +29,7 @@ import {
   type ShellMountOptions,
 } from './helpers.browser.js'
 import {render} from '@solidjs/testing-library'
-import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show} from 'solid-js'
+import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
@@ -78,6 +78,7 @@ import {
   createChat,
   createChatSession,
   type ChatSession,
+  type ChatSessionCallbacks,
   type ChatSessionConnection,
   type ChatSessionHydration,
 } from '@conciv/ai/client'
@@ -85,7 +86,7 @@ import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import {ChatEventType, type ChatEvent, type RunClockSource} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -169,18 +170,32 @@ describe('approval replay', () => {
     await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
   }, 120_000)
 
-  test('a pane opened while the ask waits draws the card from hydrate', async () => {
+  test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
     const {rpc, sessionId} = await newSession()
     const first = await attachedPane(sessionId)
 
-    const askedId = await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
+    await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
     first.dispose()
 
-    keep(await attachedPane(sessionId))
+    const pane = await attachedPane(sessionId)
+    keep(pane)
+    const requests = page.getByRole('list', {name: 'Permission requests'})
+    const cardFits = async () => {
+      await expect.element(permissionRequest()).toBeInViewport({ratio: 1})
+      await expect.element(approveButton()).toBeInViewport({ratio: 1})
+      await expect.element(page.getByRole('button', {name: 'Deny'})).toBeInViewport({ratio: 1})
+    }
     await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await expect.element(requests.getByRole('listitem').nth(1)).not.toBeInTheDocument()
+    await cardFits()
 
-    await rpc.chat.permissionDecision({approvalId: askedId, approved: false})
-    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('APPROVAL_DENIED')
+    await page.viewport(1000, 900)
+    pane.setWidth(960)
+    await cardFits()
+
+    await approveButton().click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('NO_BUNDLER')
   }, 120_000)
 })
 
@@ -2457,7 +2472,7 @@ describe('panel refresh', () => {
     await coreControl.awaitFaultPending(gate, 1)
 
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByRole('banner').getByText('New session', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('banner').getByText('seed the transcript', {exact: true})).toBeVisible()
     await expect.element(page.getByRole('tab', {name: 'Chat', exact: true})).toBeVisible()
   })
 
@@ -2936,6 +2951,77 @@ describe('queue strip', () => {
     }
   }
 
+  describe('a run announced after it already ended', () => {
+    const ended = (runId: string, phase: RunLifecycle['phase'], startedAt = 1): RunLifecycle => ({
+      runId,
+      phase,
+      startedAt,
+      finishedAt: startedAt + 1,
+      serverNow: startedAt + 1,
+      error: null,
+    })
+
+    it('is not joined when this session saw it end, even mid-fetch, and still joined when the run is another client; a turn this session sent ends once another client stops it', async () => {
+      const announcements: ChatSessionCallbacks[] = []
+      const fetches: PromiseWithResolvers<void>[] = []
+      const hydration: ChatSessionHydration = {...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}
+      const connection: ChatSessionConnection = {
+        subscribe: async function* (signal) {
+          await abortOf(signal)
+          yield* []
+        },
+        send: async (_messages, _data, signal) => abortOf(signal),
+        refresh: async () => {
+          await fetches.shift()?.promise
+          announcements[0]?.onHydrated(hydration)
+          return hydration
+        },
+        close: () => undefined,
+      }
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'late-announcement',
+          connect: (callbacks) => {
+            announcements.push(callbacks)
+            return connection
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const callbacks = announcements[0]
+      callbacks?.onLifecycle(ended('stopped-here', 'aborted'))
+      const stoppedHere = await callbacks?.joinsRun('stopped-here')
+      const otherClient = await callbacks?.joinsRun('other-client-run')
+      const fetching = Promise.withResolvers<void>()
+      fetches.push(fetching)
+      callbacks?.onLifecycle({...ended('stopped-mid-fetch', 'running', 5), finishedAt: null})
+      const midFetch = callbacks?.joinsRun('stopped-mid-fetch')
+      callbacks?.onLifecycle(ended('stopped-mid-fetch', 'aborted', 5))
+      fetching.resolve()
+      const stoppedMidFetch = await midFetch
+      void session.sendMessage('mine')
+      const sent = await vi.waitUntil(() => session.runId())
+      callbacks?.onLifecycle(ended('an-older-run', 'aborted', 7))
+      const afterAnOlderRunStopped = session.isLoading()
+      callbacks?.onLifecycle(ended(sent, 'aborted', 9))
+      const settled = await vi
+        .waitUntil(() => !session.isLoading())
+        .then(
+          () => 'settled',
+          () => 'still loading',
+        )
+      expect({stoppedHere, otherClient, stoppedMidFetch, afterAnOlderRunStopped, settled}).toEqual({
+        stoppedHere: false,
+        otherClient: true,
+        stoppedMidFetch: false,
+        afterAnOlderRunStopped: true,
+        settled: 'settled',
+      })
+    })
+  })
+
   const draftOutput = () => page.getByRole('status', {name: 'Draft'})
 
   function DraftOutput(): JSX.Element {
@@ -2992,7 +3078,8 @@ describe('quick add pane', () => {
   const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
-  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> => (await rpc.sessions.list()).map((row) => row.id)
+  const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
+    (await rpc.sessions.list({limit: 100})).sessions.map((row) => row.id)
 
   const idsAddedBy = (before: string[], after: string[]): string[] => after.filter((id) => !before.includes(id))
 
@@ -3350,6 +3437,54 @@ describe('engine login', () => {
   }, 30_000)
 })
 
+describe('session picker after login', () => {
+  const DAY_MS = 86_400_000
+  const core = bootedCore('picker-after-login', {
+    resume: true,
+    holdTranscripts: true,
+    history: [
+      {id: HarnessSessionId.parse('gannet-notes'), derivedTitle: 'the gannet notes', updatedAt: Date.now() - DAY_MS},
+      {
+        id: HarnessSessionId.parse('cliff-survey'),
+        derivedTitle: 'a cliff survey',
+        updatedAt: Date.now() - 2 * DAY_MS,
+        text: 'a gannet colony nests on the stack',
+      },
+    ],
+  })
+  const harness = createShellHarness(core)
+  const origin = (): string => new URL(core()).origin
+
+  afterEach(() => {
+    harness.dispose()
+    localStorage.removeItem(`conciv:engine-token:${origin()}`)
+  })
+
+  test('a widget mounted while the engine refused it shows text matches indexed after the login, without reopening', async () => {
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    const locked = page.getByRole('button', {name: 'Unauthorized. Authorize conciv'})
+    await expect.element(locked).toBeVisible()
+    await userEvent.click(locked)
+    await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.printedCode())
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 8000}).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Session options'}))
+    await userEvent.click(page.getByRole('button', {name: /^Session: /}))
+    const search = page.getByRole('combobox', {name: /search sessions/i})
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    for (const key of 'gannet') await userEvent.keyboard(key)
+    await expect.element(search).toHaveValue('gannet')
+    await expect.element(page.getByRole('option', {name: /^a cliff survey,/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the gannet notes,/})).toBeVisible()
+
+    await coreControl.releaseTranscripts()
+
+    await expect.element(page.getByRole('option', {name: /^a cliff survey,/})).toBeVisible()
+    await expect.element(search).toHaveFocus()
+  }, 30_000)
+})
+
 describe('route boundary', () => {
   const core = bootedCore('route-boundary')
   const harness = createShellHarness(core)
@@ -3375,56 +3510,202 @@ describe('route boundary', () => {
 
 describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
+  const OLDER_SESSIONS = 40
+  const DAY_MS = 86_400_000
+
+  const localMidnight = new Date().setHours(0, 0, 0, 0)
+  const MINUTE_MS = 60_000
 
   const core = bootedCore('session-selector', {
     resume: true,
-    history: [{id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), messageCount: 3}],
+    holdTranscripts: true,
+    history: [
+      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
+      {
+        id: HarnessSessionId.parse('after-midnight'),
+        derivedTitle: 'a minute after midnight',
+        updatedAt: localMidnight + MINUTE_MS,
+      },
+      {
+        id: HarnessSessionId.parse('before-midnight'),
+        derivedTitle: 'a minute before midnight',
+        updatedAt: localMidnight - MINUTE_MS,
+      },
+      ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
+        id: HarnessSessionId.parse(`older-${index}`),
+        derivedTitle: `older session ${index}`,
+        updatedAt: Date.now() - (index + 1) * DAY_MS,
+        sizeBytes: 1536,
+      })),
+      {
+        id: HarnessSessionId.parse('kiwi-orchard'),
+        derivedTitle: 'the kiwi orchard plan',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('puffin-notes'),
+        derivedTitle: 'the puffin notes',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('seabird-survey'),
+        derivedTitle: 'a seabird survey',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
+        text: 'a puffin colony nests on the cliff',
+      },
+    ],
   })
   const keep = keptPane()
+  const faults = trackedFaults()
 
   afterEach(async () => {
     await coreControl.releaseTurn()
   })
 
-  async function adoptExternalSession(rpc: RpcClient): Promise<string> {
-    const listed = await rpc.sessions.list()
-    const external = listed.find((meta) => meta.native?.nativeId === EXTERNAL_ID)
-    if (!external?.native) throw new Error('the harness history fixture never reached the session list')
-    const {sessionId} = await rpc.sessions.open(external.native)
+  async function adoptNativeSession(rpc: RpcClient, nativeId: string): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const native = sessions.find((meta) => meta.native?.nativeId === nativeId)?.native
+    if (!native) throw new Error('the harness history fixture never reached the session list')
+    const {sessionId} = await rpc.sessions.open(native)
+    return sessionId
+  }
+
+  async function activeSessionId(rpc: RpcClient): Promise<string> {
+    const {sessions} = await rpc.sessions.list({limit: 100})
+    const existing = sessions.find((meta) => meta.title === 'the active session')
+    if (existing) return existing.id
+    const {sessionId} = await rpc.sessions.create()
+    await rpc.sessions.rename({sessionId, title: 'the active session'})
     return sessionId
   }
 
   async function mountSelector(): Promise<void> {
     const rpc = coreRpc(core())
-    const activeId = (await rpc.sessions.create()).sessionId
-    await rpc.sessions.rename({sessionId: activeId, title: 'the active session'})
-    const externalId = await adoptExternalSession(rpc)
+    const activeId = await activeSessionId(rpc)
+    const externalId = await adoptNativeSession(rpc, EXTERNAL_ID)
     await coreControl.holdTurn()
     await sendTurn(core(), externalId, 'keep this session busy')
     keep(
       mountPane({base: core(), sessionId: activeId}, () => (
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <Suspense>
+          <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        </Suspense>
       )),
     )
   }
 
-  test('a session with a live core run carries the running dot, an idle one does not', async () => {
+  async function typeKeyByKey(search: Locator, keys: string, typedBefore: string): Promise<void> {
+    for (const [index, key] of [...keys].entries()) {
+      await userEvent.keyboard(key)
+      await expect.element(search).toHaveFocus()
+      await expect.element(search).toHaveValue(`${typedBefore}${keys.slice(0, index + 1)}`)
+    }
+  }
+
+  test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
     await mountSelector()
+    const trigger = page.getByRole('button', {name: 'Session: the active session'})
+    const search = page.getByRole('combobox', {name: /search sessions/i})
+    const option = (title: string) => page.getByRole('option', {name: new RegExp(`^${title},`)})
 
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-
-    await expect.element(page.getByRole('option', {name: /a session mid-run.*running/})).toBeVisible()
-    await expect.element(page.getByRole('option', {name: /^the active session(?!.*running)/})).toBeVisible()
-  })
-
-  test('the selector keeps freshness, message count and origin in the row description', async () => {
-    await mountSelector()
-
-    await page.getByRole('button', {name: 'Session: the active session'}).click()
-
+    await userEvent.click(trigger)
+    await expect.element(option('older session 0')).toBeVisible()
     await expect
-      .element(page.getByRole('option', {name: /a session mid-run.*\d+ messages.*started externally/}))
+      .element(
+        page.getByRole('option', {name: /^a session mid-run, Edited [^·]+ · 2\.4\sMB · started externally, running$/}),
+      )
       .toBeVisible()
+    await expect
+      .element(
+        page.getByRole('option', {name: /^the active session, Edited [^·]+ · started in conciv$/, selected: true}),
+      )
+      .toBeVisible()
+    await expect
+      .element(page.getByRole('listbox'))
+      .toMatchTextContent(
+        /Today(?:(?!Yesterday).)*a minute after midnight(?:(?!Earlier).)*Yesterday(?:(?!Earlier).)*a minute before midnight/,
+      )
+
+    await userEvent.keyboard('{Tab}')
+    await expect.element(search).not.toHaveFocus()
+    await userEvent.click(search)
+    await expect.element(search).toHaveFocus()
+    await faults.install({kind: 'gate', path: ['sessions', 'search']})
+    await typeKeyByKey(search, 'p', '')
+    await expect.element(page.getByRole('listbox')).toHaveAttribute('aria-busy', 'true')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).toBeVisible()
+    await faults.releaseAll()
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await expect.element(page.getByRole('listbox')).not.toHaveAttribute('aria-busy', 'true')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).not.toBeInTheDocument()
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await typeKeyByKey(search, 'u', 'p')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await expect.element(option('the puffin notes')).toBeVisible()
+    await typeKeyByKey(search, 'ffin', 'pu')
+    await expect.element(option('the puffin notes')).toBeVisible()
+    expect(option('a seabird survey').elements()).toHaveLength(0)
+    await coreControl.releaseTranscripts()
+    await expect.element(option('a seabird survey')).toBeVisible()
+    await expect.element(search).toHaveFocus()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(search).toHaveValue('')
+    await expect.element(search).toHaveFocus()
+    await expect.element(page.getByRole('button', {name: 'Clear search'})).not.toBeInTheDocument()
+    await expect.element(option('older session 0')).toBeVisible()
+    await expect.element(option('the puffin notes')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('option', {name: /^the active session,/, selected: true})).toBeVisible()
+
+    await userEvent.wheel(option('older session 0'), {delta: {y: 1_000_000}})
+    await expect.element(option('older session 28')).toBeInTheDocument()
+    await userEvent.wheel(option('older session 20'), {delta: {y: 1_000_000}})
+    await expect.element(option('older session 39')).toBeVisible()
+    await expect.element(page.getByText('Loading more…')).not.toBeInTheDocument()
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.click(search)
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(option('older session 39')).not.toBeInTheDocument()
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(search).toHaveAttribute('aria-activedescendant')
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the kiwi orchard plan')
+    await expect.element(trigger).toHaveFocus()
+
+    await userEvent.click(trigger)
+    await expect.element(search).toHaveValue('')
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveFocus()
+
+    await userEvent.click(trigger)
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('{ArrowUp}')
+    await expect.element(search).toHaveAttribute('aria-activedescendant')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.click(search)
+    await typeKeyByKey(search, 'puffin', '')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await userEvent.click(option('the puffin notes'))
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toHaveTextContent('Switched to the kiwi orchard plan | Switched to the puffin notes')
+  }, 30_000)
+
+  test('a session past the first page shows its own title on the trigger', async () => {
+    const sessionId = await adoptNativeSession(coreRpc(core()), HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`))
+    keep(
+      mountPane({base: core(), sessionId}, () => (
+        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+      )),
+    )
+
+    await expect.element(page.getByRole('button', {name: 'Session: older session 39'})).toBeVisible()
   })
 })
 

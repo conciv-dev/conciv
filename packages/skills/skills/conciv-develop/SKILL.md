@@ -176,7 +176,7 @@ const tool = defineTool({
   promptSnippet: '…',            // optional line merged into the system prompt
   promptGuidelines: ['…'],       // optional bullet list of usage rules
   streamTitle: '…',              // optional label while the card streams
-  meta: {summary, category?, mutating?, mirrors?, keywords?, positional?, hint?, icon?, label?},
+  meta: {summary, category?, mutating?, keywords?, positional?, hint?, icon?, label?},
 })
   .server(async (input, ctx, request) => ({ /* small structured result the agent reads verbatim */ }))
   .render((props) => <Card {...props} />)

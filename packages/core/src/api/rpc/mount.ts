@@ -13,6 +13,7 @@ import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
 import {runWithSession} from '../../runtime/session-context.js'
 import type {makeRpcRouter} from './router.js'
 import type {AuthRouter} from '../../engine-login.js'
+import type {createSessionSearch} from '../../sessions/session-search.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
@@ -20,7 +21,6 @@ export type ChatContext = {
   harnessFor: (sessionId: SessionId) => HarnessAdapter
   cwd: string
   basePath: string
-  claudeHome?: string
   db: ConcivDb
   plane: ChatPlane
 }
@@ -33,6 +33,7 @@ export type RpcDeps = {
   allowedOrigins: ReadonlySet<string>
   staleness: () => EngineStaleness
   auth: AuthRouter
+  search: ReturnType<typeof createSessionSearch>
 }
 
 export const os = implement(contract).$context<RpcContext>()

@@ -212,7 +212,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
     rebindClient(nextApiBase)
     storage.dispose()
     setApiBase(nextApiBase)
-    router.options.context.queryClient.clear()
+    void router.options.context.queryClient.resetQueries()
     setConnectionGeneration((generation) => generation + 1)
     void login.requestTrust()
   }

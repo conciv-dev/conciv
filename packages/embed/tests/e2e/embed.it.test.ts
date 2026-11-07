@@ -39,6 +39,7 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
@@ -966,7 +967,7 @@ test.describe('page dispatch parity', () => {
     )
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes.map((entry) => entry.verb)).toContain('page_click')
-    await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
+    await expect(page.getByRole('img', {name: "Agent's cursor"})).toHaveCount(1, {timeout: 10_000})
   }
 
   test.describe('bootNormal: the widget embed serves page tools through the dispatcher', () => {
@@ -987,7 +988,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
   })
@@ -1017,7 +1018,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
 
@@ -1243,6 +1244,8 @@ test.describe('rebind', () => {
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
+      const renamed = `renamed before the drift ${String(sessionBefore).slice(-8)}`
+      await kit.rpc.sessions.rename({sessionId: SessionId.parse(sessionBefore), title: renamed})
       const beforeB = proxyB.trafficCount()
       await rebindHandle(page, proxyB.base)
       await proxyA.close()
@@ -1252,6 +1255,9 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await expect(page.getByRole('button', {name: `Session: ${renamed}`})).toBeVisible({timeout: 30_000})
+      await page.keyboard.press('Escape')
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -1345,7 +1351,7 @@ test.describe('recording attachment', () => {
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
-      const sessions = await kit.rpc.sessions.list()
+      const {sessions} = await kit.rpc.sessions.list()
       const chatSession = sessions[0]?.id
       if (!chatSession) throw new Error('widget session not found')
       const persisted = {messages: ''}

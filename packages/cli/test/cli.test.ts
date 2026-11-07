@@ -321,7 +321,6 @@ describe('cli', () => {
         icon: 'pointer',
         label: {running: 'Raising the beacon', done: 'Raised the beacon'},
         mutating: true,
-        mirrors: true,
       },
     }).client()
 

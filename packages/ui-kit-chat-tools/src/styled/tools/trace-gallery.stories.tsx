@@ -27,7 +27,6 @@ function catalogCtx(): ToolViewCtx {
         category: 'read',
         positional: 'location',
         mutating: false,
-        mirrors: false,
         outputSchema: {type: 'string'},
       }),
     },
