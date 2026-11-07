@@ -117,7 +117,19 @@ function toggleChecked(el: Element, desired: boolean, verb: 'check' | 'uncheck')
   if (el.checked === desired) return ok({checked: desired})
   if (el.type === 'radio' && !desired) badArgs('cannot uncheck a radio; check another radio in the same group instead')
   el.click()
-  return ok({checked: el.checked})
+  if (el.checked !== desired) {
+    fail(`${verb} did not take: the box is still ${desired ? 'unchecked' : 'checked'} (disabled or prevented)`)
+  }
+  return ok({checked: desired})
+}
+
+function optionFor(el: HTMLSelectElement, wanted: string): HTMLOptionElement {
+  const options = Array.from(el.options)
+  const match =
+    options.find((option) => option.value === wanted) ?? options.find((option) => option.label === wanted.trim())
+  if (match) return match
+  const listed = options.map((option) => `${option.value} "${option.label}"`).join(', ')
+  return badArgs(`no option with value or label "${wanted}"; options: ${listed}`)
 }
 
 const INSERT_POS: Record<string, InsertPosition> = {
@@ -353,7 +365,9 @@ const fillTool = fillDef
   .client((input, ctx) => {
     const el = ctx.target(input)
     if (!isField(el)) badArgs('fill target is not an input/textarea/select')
-    setNative(el, 'value', input.value)
+    const value = el instanceof HTMLSelectElement ? optionFor(el, input.value).value : input.value
+    setNative(el, 'value', value)
+    if (value !== '' && el.value === '') fail(`the field rejected "${input.value}" and stayed empty`)
     fireInput(el)
     return ok({value: isSensitiveField(el) ? MASKED_VALUE : el.value})
   })
@@ -363,7 +377,7 @@ const selectTool = selectDef
   .client((input, ctx) => {
     const el = ctx.target(input)
     if (!(el instanceof HTMLSelectElement)) badArgs('select target is not a <select>')
-    setNative(el, 'value', input.value)
+    setNative(el, 'value', optionFor(el, input.value).value)
     fireInput(el)
     return ok({value: el.value})
   })
