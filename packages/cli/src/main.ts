@@ -1,10 +1,16 @@
-import {defineCommand} from 'citty'
-import {authCommand} from './auth.js'
-import {initCommand} from './init.js'
-import {toolsCommand} from './tools.js'
+import {description, name, route, version} from '@bomb.sh/router'
 import cliManifest from '../package.json' with {type: 'json'}
+import {authRoute} from './auth.js'
+import {envelopeFlag} from './envelope.js'
+import {initCommand} from './init.js'
+import {toolsRoute} from './tools.js'
 
-export const main = defineCommand({
-  meta: {name: 'conciv', version: cliManifest.version, description: 'The conciv dev-agent CLI.'},
-  subCommands: {tools: toolsCommand, init: initCommand, auth: authCommand},
-})
+export const main = route(
+  name('conciv'),
+  description('The conciv dev-agent CLI.'),
+  version(cliManifest.version),
+  envelopeFlag,
+  toolsRoute,
+  initCommand,
+  authRoute,
+)
