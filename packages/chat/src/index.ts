@@ -49,7 +49,7 @@ export type CodeTool = {
 
 export type CodeRunner = {
   capabilities: {name: string; description: string}[]
-  run: (code: string, parentToolCallId: string) => Promise<unknown>
+  run: (code: string, parentToolCallId: string | null) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
   asking: CodeTool[]
   declaredCodes: ReadonlySet<string>
@@ -201,7 +201,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       const toolSet = chatToolSet(capabilities, {sessionId, model})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
-      const emitter = (parentToolCallId: string) => (name: string, value: Record<string, unknown>) => {
+      const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {
         const chunk: ChatEvent = {type: ChatEventType.CUSTOM, name, value, timestamp: Date.now()}
         for (const card of childCardChunks(chunk, parentToolCallId, cappedValue) ?? [chunk]) {
           if (card.type === ChatEventType.TOOL_CALL_START) {

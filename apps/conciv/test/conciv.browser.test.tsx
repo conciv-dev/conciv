@@ -2466,6 +2466,19 @@ describe('session options outside agents', () => {
     await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
     await expect.element(page.getByText('Responding…')).not.toBeInTheDocument()
   }, 30_000)
+
+  test('a call forwarded from another engine shows only its tool row, never the forwarding execute', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await coreControl.hubExecute(sessionId, 'return 1')
+    await strip()
+      .getByRole('button', {name: /Approve/})
+      .click()
+    const forwarded = 'return await external_page_route({})'
+    expect(await coreControl.hubExecute(sessionId, forwarded, 'hub-forward')).toContain('page_route')
+    await expect.element(page.getByRole('button', {name: /^failed route/}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /exec return await/})).not.toBeInTheDocument()
+  }, 30_000)
 })
 
 describe('panel view tabs', () => {

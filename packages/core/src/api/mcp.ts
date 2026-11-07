@@ -229,7 +229,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
   const executionId = randomUUID()
   calls.publish(calls.trace.start(calls.run, executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
-    .run(typescriptCode, executionId)
+    .run(typescriptCode, calls.trace.shown ? executionId : null)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
@@ -261,7 +261,11 @@ async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<Exe
 }
 
 type McpDeps = {
-  codeRunner: (sessionId: SessionId, capabilities?: readonly CodeCapability[]) => Promise<CodeRunner | null>
+  codeRunner: (
+    sessionId: SessionId,
+    publish: (chunk: ChatEvent) => void,
+    capabilities?: readonly CodeCapability[],
+  ) => Promise<CodeRunner | null>
   outsideCapabilities: (sessionId: SessionId, client: string | null) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null) => Promise<string | null>
@@ -282,6 +286,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   const refusal = origin === null || caller.outside ? null : await deps.admitOutside(scope, origin.client)
   const runner = await deps.codeRunner(
     scope.id,
+    (chunk) => scope.stream.publish(caller.trace.mark(chunk)),
     origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client) : undefined,
   )
   if (runner === null) {

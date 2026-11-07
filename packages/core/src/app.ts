@@ -626,8 +626,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
       mcp: {
-        codeRunner: (sessionId, capabilities) =>
-          plane.codeRunner(sessionId, (chunk) => stream.publish(sessionId, chunk), capabilities),
+        codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
         outsideCapabilities: (sessionId, client) =>
           outsideRunCapabilities({
             tabs: outsideTabs,

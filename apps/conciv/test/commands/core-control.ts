@@ -196,8 +196,13 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
-const hubExecute: BrowserCommand<[string, string]> = async (ctx, sessionId, typescriptCode): Promise<string> => {
-  const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+const hubExecute: BrowserCommand<[string, string, string?]> = async (
+  ctx,
+  sessionId,
+  typescriptCode,
+  origin = 'hub',
+): Promise<string> => {
+  const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: origin, [CONCIV_CLIENT_HEADER]: 'codex'}
   const {connectMcpClient} = await testkitOf(ctx)
   const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
   try {

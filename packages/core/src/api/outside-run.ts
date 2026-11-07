@@ -2,7 +2,13 @@ import {z} from 'zod'
 import {createMCPClient} from '@conciv/ai/server'
 import type {CodeCapability} from '@conciv/chat'
 import {toolError} from '@conciv/extension'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+  HUB_FORWARD_ORIGIN,
+  SessionId,
+} from '@conciv/protocol/chat-types'
 import {BUILTIN_TABS_TOOL, TABS_GUIDANCE} from '@conciv/tools/builtins'
 import {logError} from '../lib/debug.js'
 import type {createOutsideTabs} from './outside-tabs.js'
@@ -67,7 +73,7 @@ export function outsideRunCapabilities(deps: {
 async function forward(tab: PickedTab, client: string | null, name: string, input: unknown): Promise<unknown> {
   const headers = {
     [CONCIV_SESSION_HEADER]: tab.id,
-    [CONCIV_ORIGIN_HEADER]: 'hub',
+    [CONCIV_ORIGIN_HEADER]: HUB_FORWARD_ORIGIN,
     ...(client === null ? {} : {[CONCIV_CLIENT_HEADER]: client}),
   }
   const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`

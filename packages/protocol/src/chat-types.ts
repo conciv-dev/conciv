@@ -19,6 +19,8 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
+export const HUB_FORWARD_ORIGIN = 'hub-forward'
+
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 
 export type HubAccess = 'open' | 'session' | 'project'

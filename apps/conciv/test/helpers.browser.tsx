@@ -57,7 +57,7 @@ declare module 'vitest/internal/browser' {
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
-    hubExecute: (sessionId: string, typescriptCode: string) => Promise<string>
+    hubExecute: (sessionId: string, typescriptCode: string, origin?: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
