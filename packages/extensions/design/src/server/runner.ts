@@ -22,6 +22,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const selectors = stored.map((entry) => entry.selector)
     const measured = await measurer.measure({page, width: record.width, height: record.height, selectors})
     if (measured.pageError !== undefined) return {unsettled: true, rendered: 0, error: measured.pageError}
+    if (measured.live.children.length === 0) return {unsettled: true, rendered: 0}
     const previous = rounds.at(-1)
     const tree = treeOf(measured)
     if (previous !== undefined && previous.tree === tree) return {...shown(previous), unchanged: true}
@@ -46,7 +47,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       provisional,
       notRendered: [...gate.coverage.notRendered, ...notRendered],
     }
-    if (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2)
+    if (coverage.rendered === 0 || (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2))
       return {unsettled: true, rendered: gate.coverage.rendered}
     await store.writeMapping({id: record.id, mapping})
     const widths = widthsOf({design, styles: measured.queries})
