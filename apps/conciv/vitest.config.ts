@@ -43,7 +43,7 @@ export default defineConfig(({mode}) => ({
             enabled: true,
             headless: true,
             provider: playwright({}),
-            instances: [{browser: 'chromium'}],
+            instances: mode === PERF_MODE ? [{browser: 'chromium'}, {browser: 'firefox'}] : [{browser: 'chromium'}],
             commands: coreCommands,
           },
         },
