@@ -11,6 +11,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 
 export {ChatClient} from '@tanstack/ai-client'
+export {fakeText} from '@tanstack/ai/testing'
 
 export type StoryConnectionOptions = {
   chunks?: ChatEvent[]
