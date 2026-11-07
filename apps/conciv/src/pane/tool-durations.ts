@@ -1,3 +1,5 @@
+import {partition} from 'es-toolkit'
+
 export type ToolPartLike = {type: string; id?: string; state?: string; output?: unknown}
 
 type ToolCall = ToolPartLike & {id: string}
@@ -14,14 +16,14 @@ function trackStart(startedAt: Map<string, number>, id: string, now: () => numbe
   if (!startedAt.has(id)) startedAt.set(id, now())
 }
 
-function settleDuration(
-  next: Record<string, number>,
+function settledDuration(
+  prev: Record<string, number>,
   startedAt: Map<string, number>,
-  id: string,
+  part: ToolCall,
   now: () => number,
-): void {
-  const begun = startedAt.get(id)
-  if (begun !== undefined && next[id] === undefined) next[id] = now() - begun
+): [string, number][] {
+  const begun = startedAt.get(part.id)
+  return begun === undefined || prev[part.id] !== undefined ? [] : [[part.id, now() - begun]]
 }
 
 export function foldToolDurations(
@@ -30,10 +32,9 @@ export function foldToolDurations(
   now: () => number,
   prev: Record<string, number>,
 ): Record<string, number> {
-  const next = {...prev}
-  for (const part of toolCallsOf(messages)) {
-    if (isSettled(part)) settleDuration(next, startedAt, part.id, now)
-    else trackStart(startedAt, part.id, now)
-  }
-  return next
+  const [settled, running] = partition(toolCallsOf(messages), isSettled)
+  for (const part of running) trackStart(startedAt, part.id, now)
+  const finished = settled.flatMap((part) => settledDuration(prev, startedAt, part, now))
+  if (finished.length === 0) return prev
+  return {...prev, ...Object.fromEntries(finished)}
 }

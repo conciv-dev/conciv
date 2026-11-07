@@ -349,6 +349,28 @@ describe('tool durations', () => {
       expect(second).toEqual({a: 10})
     })
 
+    it('hands back the same record while no call settles, so readers of one duration stay quiet', () => {
+      const startedAt = new Map<string, number>()
+      const clock = makeClock(0)
+      const first = foldToolDurations(
+        [message({type: 'tool-call', id: 'a', state: 'pending'})],
+        startedAt,
+        clock.now,
+        {},
+      )
+      clock.advance(10)
+      const second = foldToolDurations(
+        [
+          message({type: 'tool-call', id: 'a', state: 'pending'}),
+          message({type: 'tool-call', id: 'b', state: 'pending'}),
+        ],
+        startedAt,
+        clock.now,
+        first,
+      )
+      expect(second).toBe(first)
+    })
+
     it('records nothing for a part that was already settled at first sight', () => {
       const startedAt = new Map<string, number>()
       const clock = makeClock(0)
