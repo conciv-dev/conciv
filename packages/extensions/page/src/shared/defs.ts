@@ -104,7 +104,13 @@ export const routeDef = pageTool({
   label: {running: 'Reading the route', done: 'Read the route'},
   keywords: ['url', 'location'],
   input: noInput,
-  output: z.object({pathname: z.string(), search: z.string(), href: z.string()}),
+  output: z.object({
+    pathname: z.string(),
+    search: z.string(),
+    href: z.string(),
+    title: z.string(),
+    state: z.enum(['visible', 'hidden']),
+  }),
 })
 
 export const domDef = pageTool({

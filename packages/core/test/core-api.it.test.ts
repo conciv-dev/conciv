@@ -1380,9 +1380,15 @@ describe('api page page', () => {
     it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
       state.widget = await connectWidget(kit(), () => ({
         ok: true,
-        result: {pathname: '/checkout', search: '', href: 'x'},
+        result: {pathname: '/checkout', search: '', href: 'x', title: 'Checkout', state: 'visible'},
       }))
-      expect(await callPage(kit(), 'page_route')).toEqual({pathname: '/checkout', search: '', href: 'x'})
+      expect(await callPage(kit(), 'page_route')).toEqual({
+        pathname: '/checkout',
+        search: '',
+        href: 'x',
+        title: 'Checkout',
+        state: 'visible',
+      })
     })
 
     it('round-trips a fill action and the journal records it', async () => {

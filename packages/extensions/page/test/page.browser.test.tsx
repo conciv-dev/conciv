@@ -282,6 +282,11 @@ describe('page tools', () => {
       expect(query.count).toBe(5)
     })
 
+    it('route reports the document title and visibility', async () => {
+      document.title = 'Settings'
+      expect(await resultOf('route')).toMatchObject({title: 'Settings', state: 'visible'})
+    })
+
     it('waits for visibility and times out with an explanation', async () => {
       expect(await resultOf('wait', {selector: '#prose', state: 'visible', timeout: 500})).toEqual({
         ok: true,
