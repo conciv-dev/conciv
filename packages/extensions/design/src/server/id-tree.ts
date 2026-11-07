@@ -3,7 +3,13 @@ import type {Box, IdNode, IdTree, LiveComponent, Mapping} from '../shared/defs.j
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 
-export function idTreeOf(input: {live: LiveComponent; sheets: string; mapping: Mapping; previous: IdTree | null}): {
+export function idTreeOf(input: {
+  live: LiveComponent
+  sheets: string
+  mapping: Mapping
+  previous: IdTree | null
+  revote?: boolean
+}): {
   root: IdNode
   changed: Set<string>
   hash: string
@@ -16,7 +22,8 @@ export function idTreeOf(input: {live: LiveComponent; sheets: string; mapping: M
     const old = before.get(draft.id)
     return old !== undefined && changedSince({draft, old})
   })
-  const changed = new Set(moved.flatMap((draft) => under({id: draft.id, drafts})))
+  const changed =
+    input.revote === true ? new Set(drafts.keys()) : new Set(moved.flatMap((draft) => under({id: draft.id, drafts})))
   const built = (id: string): IdNode => {
     const draft = drafts.get(id)
     const kids = draft?.kids ?? []

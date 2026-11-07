@@ -1,5 +1,5 @@
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
 import {walk} from '../shared/tree.js'
@@ -42,16 +42,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
-    const mapped = await mappingOf({design, measured, built, stored, round, pairer: runtime.pairer, target})
+    const voted = {design, measured, stored, round, pairer: runtime.pairer, target}
+    const first = await gatedOf({...voted, built})
+    const collapsed =
+      measured.pageError === undefined &&
+      settled !== undefined &&
+      first.coverage.rendered < settled.coverage.rendered / 2
+    const {mapped, gate, coverage} = collapsed ? await revotedOf({...voted, previous: ids}) : first
     const {mapping} = mapped
-    const gate = gateOf({root: design.root, reads: readIds({root: mapped.root, live: measured.live})})
-    const coverage = {
-      ...gate.coverage,
-      dupes: mapped.dupes,
-      candidates: mapped.candidates,
-      revoted: mapped.revoted.length,
-      notRendered: [...gate.coverage.notRendered, ...mapped.notRendered],
-    }
     const unsettled = unsettledReason({measured, rendered: coverage.rendered, settled})
     await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
     const {rendered} = coverage
@@ -121,6 +119,25 @@ export function createRunner(runtime: DesignRuntime): Runner {
 }
 
 const REFLOW_HEIGHT = 900
+
+async function revotedOf(input: Omit<Parameters<typeof mappingOf>[0], 'built'> & {previous: IdTree | null}) {
+  const {measured, stored, previous} = input
+  const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous, revote: true})
+  return gatedOf({...input, built, revote: true})
+}
+
+async function gatedOf(input: Parameters<typeof mappingOf>[0]) {
+  const mapped = await mappingOf(input)
+  const gate = gateOf({root: input.design.root, reads: readIds({root: mapped.root, live: input.measured.live})})
+  const coverage = {
+    ...gate.coverage,
+    dupes: mapped.dupes,
+    candidates: mapped.candidates,
+    revoted: mapped.revoted.length,
+    notRendered: [...gate.coverage.notRendered, ...mapped.notRendered],
+  }
+  return {mapped, gate, coverage}
+}
 
 const TOLERANCES = designConfig.tolerances
 

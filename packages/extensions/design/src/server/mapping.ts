@@ -23,6 +23,7 @@ export async function mappingOf(input: {
   round: number
   pairer: Pairer
   target: Raster
+  revote?: boolean
 }): Promise<Mapped> {
   const {design, measured, built, stored, round} = input
   const sites = [...walk(built.root)].map(({node}) => node)
@@ -82,7 +83,7 @@ export async function mappingOf(input: {
       ),
       ...Object.keys(stored)
         .filter((id) => built.changed.has(id) && (stored[id]?.nodes.length ?? 0) > 0)
-        .map((id) => [id, REASONS.evidence] as const),
+        .map((id) => [id, input.revote === true ? REASONS.collapse : REASONS.evidence] as const),
     ].filter(([id]) => id !== ''),
   )
   const root = attached({node: built.root, mapping})
@@ -117,6 +118,7 @@ const REASONS = {
   dupe: 'its id and list key match more than one element',
   rival: 'its element moved under a new parent or a rival outscored it by more than its margin',
   evidence: 'the evidence under its id changed: box, element or classes',
+  collapse: 'the page rendered under half the nodes of the last settled round, so every pin was voted again',
 }
 
 function candidatesOf(input: {
