@@ -14,10 +14,19 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
       coverage: null,
     }
   }
-  const reasons = reasonsOf({round: last, required: requiredOf(input.design.root)})
   const shown = {round: last.round, rows: last.rows, counts: last.counts, coverage: last.coverage}
+  if (last.unsettled !== null) {
+    const {rendered, nodes} = last.coverage
+    const told = `the page renders ${rendered} of ${nodes} nodes; the missing ones are listed in coverage.missing`
+    return {verdict: 'unsettled', reasons: [last.unsettled, told], ...shown}
+  }
+  const reasons = reasonsOf({round: last, required: requiredOf(input.design.root)})
   if (reasons.length === 0) return {verdict: 'done', reasons, ...shown}
-  return {verdict: stalled(rounds) ? 'stalled' : 'not yet', reasons, ...shown}
+  return {
+    verdict: stalled(rounds.filter((round) => round.unsettled === null)) ? 'stalled' : 'not yet',
+    reasons,
+    ...shown,
+  }
 }
 
 const STALL_ROUNDS = 2

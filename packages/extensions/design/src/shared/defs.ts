@@ -3,6 +3,7 @@ import type {Storage} from 'unstorage'
 import type {ToolBuilder, ToolErrors} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {defineTool} from '@conciv/extension/tool'
+import type {Store} from './store.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
@@ -12,6 +13,7 @@ const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
+const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled'] as const
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
@@ -280,6 +282,10 @@ const CoverageSchema = z.object({
   mapped: z.number().describe('of them, nodes the mapping holds'),
   rendered: z.number().describe('of them, nodes an element renders now'),
   missing: z.array(z.string()).describe('nodes no element renders'),
+  gone: z
+    .array(z.object({id: z.string(), name: z.string()}))
+    .optional()
+    .describe('on an unsettled round, missing by name'),
   notRendered: z.array(z.string()).describe('stored nodes whose element is not on the page'),
   dupes: z.array(z.string()).describe('nodes whose id and list key match more than one element'),
   revoted: z.number().default(0).describe('stored pins voted again: their evidence changed or a rival outscored them'),
@@ -304,6 +310,8 @@ export const RoundSchema = z.object({
   pixels: PixelsSchema.nullable(),
   at: z.number(),
   tree: z.string().default('').describe('sha256 of the measured keys, boxes and styles and the page stylesheets'),
+  verdict: z.enum(CHECK_VERDICTS).nullable().default(null),
+  unsettled: z.string().nullable().default(null).describe('why the round was measured but not judged'),
 })
 
 const TaggedNodeSchema = z
@@ -339,13 +347,14 @@ const GetResultSchema = z.object({
   nodes: z.array(TaggedNodeSchema),
 })
 
-const MeasuredSchema = RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
-  unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
-})
-
 const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
 
-const JUDGED = {verdict: z.enum(['done', 'not yet', 'stalled']), reasons: z.array(z.string())}
+const MeasuredSchema = RoundSchema.pick({round: true, rows: true, reflow: true, coverage: true, counts: true}).extend({
+  unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
+  ...UnsettledSchema.partial().shape,
+})
+
+const JUDGED = {verdict: z.enum(CHECK_VERDICTS), reasons: z.array(z.string())}
 
 const CheckResultSchema = z.union([
   MeasuredSchema.extend(JUDGED),
@@ -452,7 +461,7 @@ const getDef = designTool({
 const checkDef = designTool({
   verb: 'check',
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render or rendered under half the nodes of the last settled round; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
   running: 'Checking the page against the design',
   done: 'Checked the page against the design',
   input: z.object({nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only')}),
@@ -509,7 +518,6 @@ export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof Unset
 export type Checked = z.output<typeof CheckResultSchema>
 export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
 type Layer = 'dom' | 'src' | 'cssom' | 'total'
-type ToolCall = {tool: string; input: unknown; replyBytes: number | null; durationMs: number; error: string | null}
 export type Raster = {
   width: number
   height: number
@@ -538,23 +546,6 @@ export type TargetAdapter = {
     attachments: {document?: unknown; image?: Uint8Array}
   }): Promise<{design: Design; image: Uint8Array; warnings: string[]}>
   dispose?(): Promise<void>
-}
-
-export type Store = {
-  put(input: {design: Design; image: Uint8Array; session: string; route?: string}): Promise<TargetRecord>
-  design(id: string): Promise<Design>
-  image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
-  mapping(id: string): Promise<Mapping>
-  writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
-  writeToolCall(input: ToolCall & {session: string; round: number | null}): Promise<void>
-  ids(id: string): Promise<IdTree | null>
-  writeIds(input: {id: string; ids: IdTree; round: number; revoted: Record<string, string>}): Promise<void>
-  writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
-  round(input: {id: string; round: number}): Promise<Round | null>
-  rounds(id: string): Promise<Round[]>
-  clear(id: string): Promise<void>
-  current(session: string): Promise<TargetRecord | null>
-  list(): Promise<TargetRecord[]>
 }
 
 export type Measurer = {

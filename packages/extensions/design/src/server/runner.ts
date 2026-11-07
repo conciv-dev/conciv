@@ -1,30 +1,43 @@
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {DesignRuntime, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
+import {walk} from '../shared/tree.js'
 import {createRaster} from './raster.js'
 import {idTreeOf} from './id-tree.js'
 import {mappingOf} from './mapping.js'
 import {gateOf} from './gate.js'
 import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
+import {verdictOf} from './verdict.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
   return async ({record, page}) => {
-    const [design, stored, rounds, image, ids] = await Promise.all([
+    const [design, stored, rounds, image, ids, streak] = await Promise.all([
       store.design(record.id),
       store.mapping(record.id),
       store.rounds(record.id),
       store.image({id: record.id}),
       store.ids(record.id),
+      store.unsettledCount(record.id),
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
     const measured = await measurer.measure({page, width: record.width, height: record.height})
-    if (measured.pageError !== undefined) return {unsettled: true, rendered: 0, error: measured.pageError}
-    if (measured.live.children.length === 0) return {unsettled: true, rendered: 0}
+    const count = streak + 1
+    const error = measured.pageError === undefined ? {} : {error: measured.pageError}
+    const blank = measured.pageError !== undefined || measured.live.children.length === 0
+    if (blank && count < TOLERANCES.stallRounds) {
+      await store.writeUnsettledCount({id: record.id, count})
+      return {unsettled: true, rendered: 0, ...error}
+    }
     const previous = rounds.at(-1)
+    const settled = rounds.findLast((round) => round.unsettled === null)
     const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous: ids})
-    if (previous !== undefined && previous.tree === built.hash) return {...shown(previous), unchanged: true}
+    if (previous !== undefined && previous.tree === built.hash) {
+      await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
+      return {...shown(previous), unchanged: true}
+    }
     const round = (previous?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
@@ -38,15 +51,18 @@ export function createRunner(runtime: DesignRuntime): Runner {
       revoted: mapped.revoted.length,
       notRendered: [...gate.coverage.notRendered, ...mapped.notRendered],
     }
-    if (coverage.rendered === 0 || (previous !== undefined && coverage.rendered < previous.coverage.rendered / 2))
-      return {unsettled: true, rendered: gate.coverage.rendered}
+    const unsettled = unsettledReason({measured, rendered: coverage.rendered, settled})
+    await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
+    const {rendered} = coverage
+    if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
-    await store.writeIds({
-      id: record.id,
-      ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
-      round,
-      revoted: mapped.reasons,
-    })
+    if (unsettled === null)
+      await store.writeIds({
+        id: record.id,
+        ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
+        round,
+        revoted: mapped.reasons,
+      })
     const widths = widthsOf({design, styles: measured.queries})
     const results = []
     const failures = []
@@ -67,22 +83,42 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const rows = [...gate.rows, ...failures]
     const counts = {...gate.counts, reflow: failures.length, rows: gate.counts.rows + failures.length}
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
-    const written: Round = {
+    const names = new Map([...walk(design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
+    const gone = coverage.missing.map((id) => ({id, name: names.get(id) ?? ''}))
+    const judged = unsettled === null ? coverage : {...coverage, gone}
+    const measuredRound: Round = {
       round,
       rows,
       reflow,
-      coverage,
+      coverage: judged,
       counts,
       pixels: {share: pixels.share},
       at: Date.now(),
       tree: built.hash,
+      verdict: 'unsettled',
+      unsettled,
     }
+    const written =
+      unsettled === null
+        ? {...measuredRound, verdict: verdictOf({design, rounds: [...rounds, measuredRound]}).verdict}
+        : measuredRound
     await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
-    return {round, rows, reflow, coverage, counts}
+    const reply = {round, rows, reflow, coverage: judged, counts}
+    return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
   }
 }
 
 const REFLOW_HEIGHT = 900
+
+const TOLERANCES = designConfig.tolerances
+
+function unsettledReason(input: {measured: Measured; rendered: number; settled: Round | undefined}): string | null {
+  const {measured, rendered, settled} = input
+  if (measured.pageError !== undefined) return `The page shows an error: ${measured.pageError}`
+  if (rendered === 0) return 'The page rendered no design nodes.'
+  if (settled === undefined || rendered >= settled.coverage.rendered / 2) return null
+  return `The page rendered ${rendered} design nodes, under half the ${settled.coverage.rendered} of round ${settled.round}.`
+}
 
 function shown(last: Round): RoundReply {
   return {round: last.round, rows: last.rows, reflow: last.reflow, coverage: last.coverage, counts: last.counts}

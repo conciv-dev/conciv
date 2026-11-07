@@ -447,6 +447,8 @@ describe('store', () => {
       pixels: {share: 0},
       at: 1,
       tree: '',
+      verdict: null,
+      unsettled: null,
     }
     await store.writeRound({id: 'store-1', round, live: blankPng({width: 100, height: 50}), diff: new Uint8Array()})
     expect((await store.rounds('store-1')).map((entry) => entry.round)).toEqual([1])

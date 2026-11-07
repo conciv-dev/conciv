@@ -68,7 +68,10 @@ src/
   mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
-  of the round before, answers `{unsettled: true, rendered, verdict: 'unsettled', reasons}` and writes nothing. The
+  of the last settled round, answers `{unsettled: true, rendered, verdict: 'unsettled', reasons}` and writes nothing.
+  The target counts unsettled checks in a row; from the second, the reply also carries `round, rows, reflow, coverage,
+  counts` over what did render, a reason saying the page renders N of M nodes with the rest in `coverage.missing` (and by name in `coverage.gone`), and
+  a round is written with verdict `unsettled` (its mapping is not kept). A settled check resets the count. The
   verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
   (decorations and zero-size nodes are not required), nothing sticks out, nothing scrolls sideways and every reflow
   tag holds at 1024 and 768; `stalled` when `much` is above 0 and has not fallen for two rounds; else `not yet`. The

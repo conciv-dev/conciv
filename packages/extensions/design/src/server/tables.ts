@@ -16,6 +16,7 @@ export function designTables(table: SQLiteTableFn) {
       design: text({mode: 'json'}).$type<Design>().notNull(),
       ids: text({mode: 'json'}).$type<IdTree>(),
       image: text().notNull(),
+      unsettled: integer().notNull().default(0),
       at: integer().notNull(),
     }),
     rounds: table('rounds', {
@@ -28,6 +29,8 @@ export function designTables(table: SQLiteTableFn) {
       reflow: text({mode: 'json'}).$type<Round['reflow']>().notNull(),
       pixel_share: real(),
       tree: text().notNull(),
+      verdict: text(),
+      unsettled: text(),
       live: text(),
       diff: text(),
       at: integer().notNull(),

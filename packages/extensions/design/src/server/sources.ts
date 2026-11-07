@@ -39,6 +39,8 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         missing: {column: rounds.coverage, path: '$.missing'},
         pixel_share: rounds.pixel_share,
         tree: rounds.tree,
+        verdict: rounds.verdict,
+        unsettled: rounds.unsettled,
         live: rounds.live,
         diff: rounds.diff,
         at: rounds.at,

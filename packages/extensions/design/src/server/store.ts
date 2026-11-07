@@ -1,7 +1,8 @@
 import {and, asc, desc, eq, max} from 'drizzle-orm'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
-import {RoundSchema, type GateRow, type Mapping, type Round, type Store, type TargetRecord} from '../shared/defs.js'
+import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
+import type {Store} from '../shared/store.js'
 import {walk} from '../shared/tree.js'
 import {attached} from './attached.js'
 import type {designTables} from './tables.js'
@@ -39,6 +40,8 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         pixels: head.pixel_share === null ? null : {share: head.pixel_share},
         at: head.at,
         tree: head.tree,
+        verdict: head.verdict,
+        unsettled: head.unsettled,
       }),
     )
   }
@@ -97,6 +100,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         design,
         ids: null,
         image: path,
+        unsettled: 0,
         at: Date.now(),
       }
       await orm.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row})
@@ -189,6 +193,10 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         }
       })
     },
+    unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
+    writeUnsettledCount: async ({id, count}) => {
+      await orm.update(targets).set({unsettled: count}).where(eq(targets.target_id, id))
+    },
     writeRound: async ({id, round, live, diff}) => {
       const written = RoundSchema.parse(round)
       const livePath = live.length > 0 ? `${id}/live/${round.round}.png` : null
@@ -211,6 +219,8 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             reflow: written.reflow,
             pixel_share: written.pixels?.share ?? null,
             tree: written.tree,
+            verdict: written.verdict,
+            unsettled: written.unsettled,
             live: livePath,
             diff: diffPath,
           })

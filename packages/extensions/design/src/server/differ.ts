@@ -32,7 +32,7 @@ export function createDiffer(input: {
       await edits.quiet()
       const record = await currentTarget({runtime, session})
       const measured = await runner({record, page: tab(session)})
-      if ('unsettled' in measured) return {...measured, verdict: 'unsettled', reasons: [unsettledReason(measured)]}
+      if (!('round' in measured)) return {...measured, verdict: 'unsettled', reasons: [unsettledReason(measured)]}
       const {verdict, reasons} = verdictOf({
         design: await store.design(record.id),
         rounds: await store.rounds(record.id),
@@ -155,9 +155,9 @@ function only(input: {checked: Extract<Checked, {round: number}>; nodes: string[
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }
 
-function unsettledReason(measured: Extract<RoundReply, {unsettled: true}>): string {
+function unsettledReason(measured: Exclude<RoundReply, {round: number}>): string {
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
-  return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written.`
+  return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
 }
 
 function watchEdits(bundler: BundlerBridge | undefined): {quiet: () => Promise<void>; dispose: () => void} {
