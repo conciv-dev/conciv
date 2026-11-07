@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {createMemo, Show, type JSX} from 'solid-js'
 import {useIsFetching, useQuery} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
 import {useThreadViewport} from '@conciv/ui-kit-chat'
@@ -14,8 +14,9 @@ export function OlderMessages(props: {sessionId: string; chat: ChatSession}): JS
   const pagesKey = () => ['older-messages', props.sessionId]
   const loading = useIsFetching(() => ({queryKey: pagesKey()}))
   const wanted = () => viewport.isNearTop() && props.chat.hasOlderMessages() && loading() === 0
+  const oldestId = createMemo(() => props.chat.messages()[0]?.id ?? null)
   const older = useQuery(() => ({
-    queryKey: [...pagesKey(), props.chat.messages()[0]?.id ?? null],
+    queryKey: [...pagesKey(), oldestId()],
     queryFn: () => props.chat.loadOlderMessages().then(() => true),
     enabled: wanted() ? (query) => query.state.status !== 'error' : false,
     staleTime: Infinity,
