@@ -6,7 +6,7 @@
 
 **Architecture:** Each engine registers itself in a per-user SQLite home db. A stdio MCP server (`conciv mcp`, served as `conciv-hub`) reads that table, lists tabs through a new gated `GET /api/tabs`, and forwards `tools/list` / `tools/call` to the engine's existing `/api/mcp` with origin headers. The engine gates hub-origin calls through the existing deny-and-retry approvals, and marks their transcript chunks. The widget's launch menus are deleted and replaced by a "Connect agents" menu that runs each harness's `mcp add` on the engine.
 
-**Tech Stack:** TypeScript (strict, NodeNext), `node:sqlite` + drizzle (`@conciv/db`), `env-paths`, Hono, oRPC, `@tanstack/ai` 1.2.0 family, `@tanstack/ai-mcp` 1.1.0 (`createMCPServer`, `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio`, `createMCPClient({type: 'http', url, headers})` with `tools()` / `callTool`) through `@conciv/ai/server`, citty, Solid + Ark (`@conciv/ui-kit-system`), vitest (node + Playwright browser).
+**Tech Stack:** TypeScript (strict, NodeNext), `node:sqlite` + drizzle (`@conciv/db`), `env-paths`, Hono, oRPC, `@tanstack/ai` 1.2.0 family, `@tanstack/ai-mcp` 1.1.0 (`createMCPServer`, `serveMCPStdio` from `@tanstack/ai-mcp/server/stdio`, `createMCPClient({type: 'http', url, headers})` with `tools()` / `callTool`) (CLI imports `@tanstack/ai-mcp` directly; core through `@conciv/ai/server`), citty, Solid + Ark (`@conciv/ui-kit-system`), vitest (node + Playwright browser).
 
 **Spec:** `docs/specs/conciv-mcp-hub.md` (revision 3). Read it before any task; this plan argues from it.
 
@@ -31,8 +31,8 @@
 ## Review Focus
 
 1. **Unwritable or odd home folder** (read-only home in a container, `CONCIV_HOME` pointing at a file, folder owned by another user): the engine still starts and serves; registration logs once. Test in Task 2.
-2. **Corrupt `home.db`**: `openHomeDb` throws; the engine still starts; `list_tabs` reports the error with `home`, no crash. Tests in Tasks 2 and 6.
-3. **Engine dies during a hub call** (connection drops mid `call_tool`): the hub returns a clear error, drops that engine's cached client, and the next call re-resolves. Test in Task 6.
+2. **Corrupt `home.db`**: `openHomeDb` throws; the engine still starts; `external_list_tabs()` reports the error with the home folder, no crash. Tests in Tasks 2 and 6a.
+3. **Engine dies during a hub call** (connection drops mid forwarded call): a clear error, and the next `external_list_tabs()` no longer lists it. Test in Task 6a.
 4. **User clicks Deny**: the refusal text reaches the outside agent unchanged and the call stays refused on retry until allowed. Test in Task 5.
 5. **Install clicked when the harness already has `conciv-hub`** (or clicked twice): treated as connected, no error notice. Test in Task 7.
 
@@ -41,11 +41,13 @@
 ### Task 1: Home db in `@conciv/db`
 
 **Files:**
+
 - Create: `packages/db/src/home-schema.ts`, `packages/db/src/home-db.ts`, `packages/db/drizzle-home.config.ts`, `packages/db/drizzle-home/` (generated)
 - Modify: `packages/db/scripts/gen-migrations.ts` (also emit `src/home-migrations.gen.ts` from `drizzle-home/`), `packages/db/src/index.ts` (exports), `packages/db/package.json` + `pnpm-workspace.yaml` catalog (`env-paths: ^3.0.0`), `packages/db/README.md`
 - Test: `packages/db/test/db.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `concivHome(opts: {homeDir?: string; env: NodeJS.ProcessEnv}): string` (homeDir, else `env.CONCIV_HOME`, else `envPaths('conciv', {suffix: ''}).data`)
   - `openHomeDb(home: string): HomeDb` (prepares folder/file modes, opens `<home>/home.db`, WAL, `timeout: 5000`, migrates in `BEGIN IMMEDIATE`); `closeHomeDb(db: HomeDb): void`
@@ -73,10 +75,12 @@
 ### Task 2: Engines register; tests isolated from the real home
 
 **Files:**
+
 - Modify: `packages/vitest-config/src/reporters.ts` (`ciTest()` returns `env: {CONCIV_HOME: <mkdtempSync(join(tmpdir(), 'conciv-home-'))>}`), `packages/core/src/start.ts`, `packages/protocol/src/config-types.ts` (`homeDir?: string` beside `devEndpointDir`), `packages/plugin/src/core/vite.ts` + `packages/plugin/src/core/boot.ts` (pass `homeDir` like `devEndpointDir`), `packages/core/package.json` (dep `@conciv/db` if missing)
 - Test: `packages/core/test/core-api.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 `concivHome`, `withHomeDb`, `registerEngine`, `listEngines`.
 - Consumes also: Task 1 `retireEngine`, `checkEngines`.
 - Produces: `StartOpts.homeDir?: string`; `MakeAppOpts.engineId: string`; `/health` response gains `id`; every started engine has an `engines` row `{id: engineId, pid: process.pid, root: opts.root, apiBase: tokenScopedBase()}`, retired on `stop()`.
@@ -96,10 +100,12 @@
 ### Task 3: `page_route` reports title and visibility
 
 **Files:**
+
 - Modify: `packages/extensions/page/src/shared/defs.ts` (`routeDef` output), `packages/extensions/page/src/client/bodies.ts` (route body)
 - Test: `packages/extensions/page/test/page.browser.test.tsx`
 
 **Interfaces:**
+
 - Produces: `page_route` output `{pathname: string, search: string, href: string, title: string, state: 'visible' | 'hidden'}`.
 
 - [ ] **Step 1: Failing test** `route reports the document title and visibility`: set `document.title = 'Settings'`; run the route tool through the file's existing tool-run helper; expect `{title: 'Settings', state: 'visible'}` within the result.
@@ -111,11 +117,13 @@
 ### Task 4: `GET /api/tabs`
 
 **Files:**
+
 - Modify: `packages/core/src/page-bus.ts` (`openSessions`), `packages/core/src/README.md`, `packages/core/src/app.ts` (route inside `makeApp`, beside `/api/mcp`), `packages/protocol/src/chat-types.ts` (schemas)
 - Create: `packages/core/src/api/tabs.ts` (Hono sub-app, same pattern as `api/mcp.ts` with its own `Variables`)
 - Test: `packages/core/test/core-api.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 3 `page_route` output.
 - Produces:
   - `PageBus.openSessions(): Array<{sessionId: SessionId; subscribers: number}>`
@@ -136,10 +144,12 @@
 ### Task 5: Hub-origin calls: consent and transcript marker (engine side)
 
 **Files:**
+
 - Modify: `packages/protocol/src/chat-types.ts` (`CONCIV_ORIGIN_HEADER = 'conciv-origin'`, `CONCIV_CLIENT_HEADER = 'conciv-client'`), `packages/protocol/src/config-types.ts` (`hubAccess?: 'open' | 'session' | 'project'`), `packages/chat/src/approvals.ts` (sticky deny for `outside-session`), `packages/core/src/api/mcp.ts`, `packages/core/src/app.ts` (pass `hubAccess` and the gate into `McpDeps`), `packages/ai/src/session/session.ts` (no chat message when deciding an outside-origin approval), the session actions menu in `apps/conciv` ("Allow outside agents")
 - Test: `packages/core/test/core-api.it.test.ts`; `packages/ai/test/ai.test.ts` for the session decision path
 
 **Interfaces:**
+
 - Consumes: `plane.admitCall(sessionId, toolName, input, publish)` and `plane.decide(sessionId, approvalId, approved, scope)` (`packages/chat/src/index.ts`).
 - Produces:
   - `hubOriginFromHeaders(headers): {client: string} | null` in `mcp.ts`
@@ -161,44 +171,69 @@
 - [ ] **Step 5: Run, expect PASS** (both files).
 - [ ] **Step 6: Commit** `feat(core): outside agents need the user's allow; their calls are marked`.
 
-### Task 6: The hub, `conciv mcp`
+### Task 6a: Outside runs in the engine: `external_list_tabs`, `external_use_tab`, forwarding
+
+Spec section: "Engine: outside runs". Done before 6b.
 
 **Files:**
-- Create: `packages/cli/src/hub.ts` (server + tools), `packages/cli/src/hub-engines.ts` (discovery, resolve, client cache)
-- Modify: `packages/cli/src/main.ts` (citty `mcp` subcommand), `packages/cli/package.json` (deps `@conciv/db`, `@conciv/ai`), `packages/cli/src/README.md`
+
+- Modify: `packages/core/src/api/mcp.ts` (outside run = hub origin and no session header), the core capability set (where the other core `external_*` capabilities are defined), `packages/core/src/README.md`
+- Test: `packages/core/test/core-api.it.test.ts`, `describe('outside sessions')`
+
+**Interfaces:**
+
+- Consumes: Task 1 `concivHome`, `checkEngines`; Task 4 `/api/tabs` + `?session=`; Task 5 header names and consent; `createMCPClient` from `@conciv/ai/server` (core already uses it).
+- Produces: in an outside run only, `external_list_tabs()` and `external_use_tab(id)` with the spec's shapes and error codes `NO_TAB`, `TAB_NOT_OPEN`; every other capability forwarded as `execute_typescript` `return await external_<name>(<json>)` to the owner with `conciv-session-id`, `conciv-origin: hub`, `conciv-client` passed on.
+
+- [ ] **Step 1: Failing tests** (two engines in one process, fake page subscriber, `CONCIV_HOME` temp):
+  - `an in-page call does not see the outside capabilities`.
+  - `external_list_tabs lists both engines' tabs and no token`.
+  - `a capability before external_use_tab throws NO_TAB`.
+  - `external_use_tab on the other engine returns its instructions and tools`.
+  - `a forwarded call is refused until allow, then runs on the owner with the marker` (Review Focus 4 path).
+  - `the next block starts with no tab`.
+  - `an unknown tab throws TAB_NOT_OPEN`.
+  - `an owner that stops mid call returns an error and the next external_list_tabs no longer lists it` (Review Focus 3).
+- [ ] **Step 2: Run, expect FAIL**: `pnpm --filter @conciv/core exec vitest run --project node test/core-api.it.test.ts -t 'outside sessions'` (after `pnpm turbo run build --filter=@conciv/core^...`).
+- [ ] **Step 3: Implement** per the spec; descriptions carry the spec's agent guidance verbatim; corrupt `home.db` makes `external_list_tabs` throw a clear error naming the home folder (Review Focus 2).
+- [ ] **Step 4: Run, expect PASS.** Pay for added lines by deleting duplicate tests in the same file.
+- [ ] **Step 5: Commit** `feat(core): outside agents find and pick a conciv tab inside execute_typescript`.
+
+### Task 6b: The hub, `conciv mcp` (pass-through)
+
+Spec section: "Hub: `conciv mcp`".
+
+**Files:**
+
+- Create: `packages/cli/src/hub.ts`
+- Modify: `packages/cli/src/main.ts` (citty `mcp` subcommand, no args), `packages/cli/package.json` (deps `@conciv/db`, `@tanstack/ai-mcp`; NOT `@conciv/ai`), `packages/cli/src/README.md`
 - Test: `packages/cli/test/cli.test.ts`
 
 **Interfaces:**
-- Consumes: Task 1 `concivHome`, `checkEngines`; Task 4 `TabsSchema`, `TabOpenSchema`; Task 5 header names; `createMCPServer`, `serveMCPStdio`, `createMCPClient` via `@conciv/ai/server`.
-- Produces:
-  - `runHub(opts: {env: NodeJS.ProcessEnv; stdin: Readable; stdout: Writable}): Promise<void>`
-  - Tools `list_tabs()`, `tab_tools({tab})` → `{instructions: string | null, tools}`, `call_tool({tab, name, arguments})` with the spec's output shape and server instructions text (copy verbatim from the spec).
-  - Hub client name passed as `conciv-client`: the MCP `clientInfo.name` from `initialize`.
 
-- [ ] **Step 1: Failing tests** in `describe('conciv mcp hub')` using `startEngine` and `answerNextQuery` (keep answering), hub spawned over stdio with `CONCIV_HOME` = temp and an MCP client on its stdio:
-  - `list_tabs returns the open tab and no token` (serialized result contains no engine token).
-  - `list_tabs with no engines returns an empty list and the home folder`.
-  - `list_tabs reports a corrupt home db` (Review Focus 2): garbage `home.db`; result has an error naming `home`.
-  - `tab_tools returns the engine's own tools and instructions` (includes `execute_typescript`, one approval tool from the fixture extensions, and the engine's `systemPromptText`).
-  - `call_tool runs execute_typescript after allow` (engine `hubAccess: 'open'` for this case).
-  - `a restarted engine on another port still resolves the tab`.
-  - `an unknown tab says to call list_tabs`.
-  - `a row whose port refuses is retired`.
-  - `a wrong token lands in unreachable`.
-  - `an engine that stops mid call returns an error and the next call re-resolves` (Review Focus 3).
-- [ ] **Step 2: Run, expect FAIL**: `pnpm turbo run build --filter=@conciv/cli^... && pnpm --filter @conciv/cli exec vitest run test/cli.test.ts -t 'conciv mcp hub'`
-- [ ] **Step 3: Implement** discovery (`checkEngines(home, {timeoutMs: 2000})`; 404 → "engine too old for the hub; upgrade its @conciv packages"; 401/timeout → `unreachable`), resolve via `?session=` in parallel (zero → "tab <id> is not open; call list_tabs", two → error naming both roots and asking to close one browser tab), client cache per `apiBase` dropped on any transport error, tools zod-validated (`tab` as `SessionId`).
-- [ ] **Step 4: Run, expect PASS.**
-- [ ] **Step 5: Measure** a cold `npx -y @conciv/cli@<local pack> mcp` start (pack the CLI into a temp registry-free tarball, fresh npm cache). Record seconds in the commit body; over 10 s → STOP and report.
-- [ ] **Step 6: Commit** `feat(cli): conciv mcp, the hub that finds and drives open conciv tabs`.
+- Consumes: Task 1 `concivHome`, `checkEngines`; Task 5 header names; `createMCPServer`, `serveMCPStdio`, `createMCPClient` from `@tanstack/ai-mcp`.
+- Produces: `runHub(opts: {env: NodeJS.ProcessEnv; stdin: Readable; stdout: Writable}): Promise<void>`; fixed tools `execute_typescript`, `discover_tools`, forwarded unchanged to the runner.
+
+- [ ] **Step 1: Failing tests** in `describe('conciv mcp hub')` using `startEngine`, hub spawned over stdio with temp `CONCIV_HOME`:
+  - `tools/list is exactly execute_typescript and discover_tools`.
+  - `execute_typescript of external_list_tabs returns the engine's tab`.
+  - `a restarted engine on another port still answers`.
+  - `with no engine running the call names the home folder`.
+- [ ] **Step 2: Run, expect FAIL.**
+- [ ] **Step 3: Implement** per the spec. The `prod closure` test stays unchanged and passes.
+- [ ] **Step 4: Run, expect PASS.** Pay for added lines in `cli.test.ts`.
+- [ ] **Step 5: Measure** a cold `npx -y @conciv/cli@<local pack> mcp` start (packed tarball, fresh npm cache). Record seconds in the commit body; over 10 s → STOP and report.
+- [ ] **Step 6: Commit** `feat(cli): conciv mcp passes outside agents through to a running conciv engine`.
 
 ### Task 7: Install on click (engine side)
 
 **Files:**
+
 - Modify: `packages/protocol/src/harness-types.ts` (`HarnessInitBase.hub?: {add: (command: string[]) => string[]}`), `packages/harness-init/src/{claude/init.ts,codex.ts,gemini-cli.ts,opencode.ts}`, `packages/protocol/src/chat-types.ts` (`ChatModelsSchema.hubInstalls`), `packages/core/src/api/rpc/router.ts` (`meta.models` adds `hubInstalls`; new `meta.connectHub`), `packages/contract/src/contract.ts` (`connectHub: oc.input(z.object({harness: z.enum(INIT_HARNESS_IDS)})).output(z.object({ok: z.literal(true)}).or(z.object({ok: z.literal(false), message: z.string()})))`)
 - Test: `packages/core/test/core-api.it.test.ts`; `e2e/harnesses/tests/harnesses.spec.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 `recordHubConnection`, `hubConnections`; `detectHarnesses(env)` (`packages/harness-init/src/detect.ts`).
 - Produces: `meta.models` output `hubInstalls: Array<{harnessId: string; name: string}>`; `meta.connectHub({harness})`.
 - Argv: claude `['claude','mcp','add','-s','user','conciv-hub','--',...cmd]`; codex `['codex','mcp','add','conciv-hub','--',...cmd]`; gemini-cli `['gemini','mcp','add','-s','user','conciv-hub',...cmd]`; opencode: determine (see Step 1); pi none. `cmd = ['npx','-y',`@conciv/cli@${version}`,'mcp']`, where `version` is `@conciv/core`'s own package version (all `@conciv/*` share one version).
@@ -219,12 +254,14 @@
 ### Task 8: Widget: "Connect agents" menu, launch menus deleted
 
 **Files:**
+
 - Create: `apps/conciv/src/composer/connect-agents-menu.tsx`
 - Delete/modify per the spec's "Deletions" section (all listed files, symbols, docs, skill text, `AGENTS.md` connect sidecar, and tests).
 - Modify: `apps/conciv/src/composer/actions.tsx` (menu in the launch menu's slot)
 - Test: `apps/conciv/test/conciv.browser.test.tsx`; `packages/extensions/terminal/test/terminal.test.ts` (deletions only)
 
 **Interfaces:**
+
 - Consumes: Task 7 `meta.models().hubInstalls`, `meta.connectHub`.
 - Produces: `ConnectAgentsMenu(props: {class: string}): JSX.Element` built like today's `launch-menu.tsx` (`Action.Action` → `Action.Inline` → `Menu.Root` → `TooltipIconButtonSlot` + `Menu.Trigger asChild`), label "Connect agents", items "Connect <name>", notices via `useNotices()`: success "<name> connected. Ask any <name> session for your conciv tab."; failure carries the CLI's message.
 
@@ -241,10 +278,12 @@
 ### Task 9: Widget shows "from <client>" on outside calls
 
 **Files:**
+
 - Modify: the tool-call row that renders `TOOL_CALL_*` metadata (find it from the chunk's `metadata.tanstack` consumer in `packages/ui-kit-chat` / `apps/conciv`)
 - Test: `apps/conciv/test/conciv.browser.test.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 5 `metadata.conciv = {origin: 'hub', client}`.
 
 - [ ] **Step 1: Find an existing slot** in the tool-call row that can show a short secondary label. None → STOP and report to Omri.
