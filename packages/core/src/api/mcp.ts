@@ -65,11 +65,16 @@ const DECLARED_ERROR_PREFIX = /^([A-Z][A-Z0-9_]+): /
 const EXECUTE_DESCRIPTION =
   'Run TypeScript in a secure sandbox wired to this project. Every capability is an async external_* function; call discover_tools first for their typed signatures. Return a value to pass results back; console.log output is captured.'
 
-function stalenessNotice(staleness: EngineStaleness): string {
-  if (!staleness.stale) return ''
-  return `WARNING: this engine is running outdated code. The server code on disk is newer than the running engine (rebuilt since it booted: ${staleness.changed.join(', ')}). Restart the dev server; until then the capabilities listed here can differ from the project's current code.
+const STALE_PREFIX =
+  'WARNING: this engine is running outdated code. The server code on disk is newer than the running engine (rebuilt since it booted: '
 
-`
+const STALE_SUFFIX =
+  "). Restart the dev server; until then the capabilities listed here can differ from the project's current code.\n\n"
+
+function stalenessNotice(staleness: EngineStaleness, room: number): string {
+  if (!staleness.stale) return ''
+  const changed = fittedList(staleness.changed, room - STALE_PREFIX.length - STALE_SUFFIX.length, '')
+  return `${STALE_PREFIX}${changed}${STALE_SUFFIX}`
 }
 
 const SANDBOX_RULES = `Rules of the sandbox:
@@ -89,8 +94,11 @@ const LIST_ALL_HINT =
 type RunnerCapability = CodeRunner['capabilities'][number]
 
 function executeDescription(runner: CodeRunner, staleness: EngineStaleness): string {
-  const head = `${stalenessNotice(staleness)}${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
+  const rest = `${EXECUTE_DESCRIPTION}\n\n${SANDBOX_RULES}\n\n${capabilitiesIntro(runner)}`
   const names = runner.capabilities.map(sandboxName)
+  const namesReserve =
+    names.length === 0 ? 0 : NAMES_ONLY_HEADER.length + overflowTail(0, names.length, LIST_ALL_HINT).length
+  const head = `${stalenessNotice(staleness, DESCRIPTION_BUDGET_CHARS - rest.length - namesReserve)}${rest}`
   const lines = runner.capabilities.map(capabilityLine)
   const allNamesOnly = `${NAMES_ONLY_HEADER}${names.join(NAME_SEPARATOR)}`
   const room = DESCRIPTION_BUDGET_CHARS - head.length
@@ -114,12 +122,19 @@ function capabilityLine(capability: RunnerCapability): string {
 
 function namesOnly(names: string[], room: number): string {
   if (names.length === 0) return ''
-  const pieces = names.map((name, index) => (index === 0 ? name : `${NAME_SEPARATOR}${name}`))
-  const all = `${NAMES_ONLY_HEADER}${pieces.join('')}`
+  return `${NAMES_ONLY_HEADER}${fittedList(names, room - NAMES_ONLY_HEADER.length, LIST_ALL_HINT)}`
+}
+
+function fittedList(items: readonly string[], room: number, hint: string): string {
+  const pieces = items.map((item, index) => (index === 0 ? item : `${NAME_SEPARATOR}${item}`))
+  const all = pieces.join('')
   if (all.length <= room) return all
-  const more = `${NAME_SEPARATOR}and ${names.length} more${LIST_ALL_HINT}`
-  const listed = fittingCount(pieces, room - NAMES_ONLY_HEADER.length - more.length)
-  return `${NAMES_ONLY_HEADER}${pieces.slice(0, listed).join('')}${NAME_SEPARATOR}and ${names.length - listed} more${LIST_ALL_HINT}`
+  const listed = fittingCount(pieces, room - overflowTail(1, items.length, hint).length)
+  return `${pieces.slice(0, listed).join('')}${overflowTail(listed, items.length - listed, hint)}`
+}
+
+function overflowTail(listed: number, hidden: number, hint: string): string {
+  return `${listed === 0 ? '' : NAME_SEPARATOR}and ${hidden} more${hint}`
 }
 
 function fittingCount(pieces: string[], room: number): number {
