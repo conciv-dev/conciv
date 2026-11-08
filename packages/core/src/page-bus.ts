@@ -7,6 +7,7 @@ import {
 } from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
+import type {ServerVerb} from '@conciv/extension'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
 
 export type ChangeEntry = {
@@ -75,6 +76,7 @@ export type PageBus = {
   anySubscriber: () => boolean
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
   subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => () => void
+  serve: (name: string, verb: ServerVerb) => void
 }
 
 export type CaptureSink = (params: {
@@ -98,6 +100,7 @@ const SILENT_LIMIT = 3
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const idState = {n: 0}
+  const served = new Map<string, ServerVerb>()
 
   const nextRequestId = (): string => {
     idState.n += 1
@@ -169,6 +172,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
 
   async function ask(sessionId: SessionId, request: PageAsk): Promise<PageAnswer> {
     const {timeout, ...query} = request
+    const verb = served.get(query.name)
+    if (verb !== undefined) return {result: await verb(query.input, {sessionId})}
     const page = bySession.get(sessionId)
     if (page === undefined || page.subscribers.size === 0) {
       if (anySubscriber()) {
@@ -201,6 +206,9 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     anySubscriber,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
+    serve: (name, verb) => {
+      served.set(name, verb)
+    },
   }
 }
 

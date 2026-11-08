@@ -454,6 +454,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       dispose: result?.dispose,
       turnEnd: result?.turnEnd,
       systemPrompt: result?.systemPrompt,
+      verbs: result?.verbs ?? {},
     }
   }
 
@@ -522,6 +523,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ])
 
   registerExtensionTools(registry, mounted)
+  for (const entry of mounted)
+    for (const [name, verb] of Object.entries(entry.verbs)) primitives.page.bus.serve(name, verb)
 
   const withheld = withheldCapabilities({
     withhold: opts.withhold ?? [],

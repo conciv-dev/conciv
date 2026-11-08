@@ -65,6 +65,7 @@ export type {
   ServerHarness,
   ServerSessions,
   ServerResult,
+  ServerVerb,
   SessionPromptResolver,
   SystemPromptFactory,
   SystemPromptResolver,

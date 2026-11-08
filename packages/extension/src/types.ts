@@ -159,7 +159,13 @@ export type ServerResult<Context> = {
   turnEnd?: (sessionId: SessionId) => void | Promise<void>
   systemPrompt?: SessionPromptResolver
   dispose?: () => void | Promise<void>
+  verbs?: Record<string, ServerVerb>
 }
+
+export type ServerVerb = (
+  input: Record<string, unknown>,
+  context: {sessionId: SessionId},
+) => Promise<Record<string, unknown>>
 
 export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
 
