@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {and, desc, eq, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
-import {uniqBy} from 'es-toolkit'
+import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {
@@ -312,14 +312,18 @@ type ListedHit = ListedSession & {found: Found}
 
 export async function listSessionMetas(
   input: SessionListInput,
-): Promise<{sessions: SessionHit[]; next: HarnessListCursor | null}> {
+): Promise<{sessions: Omit<SessionHit, 'resume'>[]; next: HarnessListCursor | null}> {
   const frontier = sourcesFrontier(input.nativePages)
   const entries = [...nativeEntries(input.nativePages), ...(await concivOnlyEntries(input))]
   const covered = frontier === null ? entries : entries.filter((entry) => !olderThan(entry.cursor, frontier))
   const merged = pageAfter(covered, input.page, (entry) => entry.cursor)
   const listed = await listedSessions(merged.items, input)
   return {
-    sessions: listed.map((session) => ({...rowMeta(session, input), ...session.found})),
+    sessions: listed.map((session) => ({
+      ...rowMeta(session, input),
+      cwd: sameCwd(session.row.cwd, input.cwd) ? null : session.row.cwd,
+      ...session.found,
+    })),
     next: merged.next ?? frontier,
   }
 }
@@ -406,6 +410,7 @@ function olderThan(cursor: HarnessListCursor, other: HarnessListCursor): boolean
 
 async function currentOwners(input: SessionListInput, natives: NativeSession[]): Promise<Map<string, SessionRecord>> {
   if (natives.length === 0) return new Map()
+  const homes = homesOf(natives, input)
   const rows = await input.db
     .select()
     .from(sessions)
@@ -416,9 +421,10 @@ async function currentOwners(input: SessionListInput, natives: NativeSession[]):
       ),
     )
   return new Map(
-    rowsInCwd(rows, input.cwd)
+    validRows(SessionRecordSchema, rows, 'a session row')
       .filter((row): row is SessionRecord & {harnessSessionId: HarnessSessionId} => row.harnessSessionId !== null)
-      .map((row) => [nativeKey(row.harnessKind, row.harnessSessionId), row]),
+      .map((row) => [nativeKey(row.harnessKind, row.harnessSessionId), row] as const)
+      .filter(([key, row]) => sameCwd(row.cwd, homes[key] ?? input.cwd)),
   )
 }
 
@@ -442,7 +448,8 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
     wanted.has(nativeKey(claim.harnessKind, claim.nativeId)),
   )
   if (claims.length === 0) return new Map()
-  const owners = rowsInCwd(
+  const owners = validRows(
+    SessionRecordSchema,
     await input.db
       .select()
       .from(sessions)
@@ -452,12 +459,16 @@ async function earlierOwners(input: SessionListInput, natives: NativeSession[]):
           claims.map(({ownerId}) => ownerId),
         ),
       ),
-    input.cwd,
+    'a session row',
   )
-  const ownerById = new Map(owners.map((owner) => [owner.id, owner]))
+  const homes = homesOf(natives, input)
+  const ownerById = keyBy(owners, (owner) => owner.id)
   const owned = claims
-    .map((claim) => ({key: nativeKey(claim.harnessKind, claim.nativeId), owner: ownerById.get(claim.ownerId)}))
-    .filter((entry): entry is {key: string; owner: SessionRecord} => entry.owner !== undefined)
+    .map((claim) => ({key: nativeKey(claim.harnessKind, claim.nativeId), owner: ownerById[claim.ownerId]}))
+    .filter(
+      (entry): entry is {key: string; owner: SessionRecord} =>
+        entry.owner !== undefined && sameCwd(entry.owner.cwd, homes[entry.key] ?? input.cwd),
+    )
   return new Map(owned.map(({key, owner}) => [key, owner]))
 }
 
@@ -482,15 +493,24 @@ async function visibleRow(row: SessionRecord, input: SessionListInput): Promise<
 }
 
 async function materializedRow(native: NativeSession, input: SessionListInput): Promise<SessionRecord> {
-  const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd: input.cwd}
+  const cwd = homeOf(native, input)
+  const scope: RowScope = {db: input.db, harnessKind: native.harnessKind, cwd}
   const {sessionId} = await openNativeRow(scope, {
     harnessKind: native.harnessKind,
-    cwd: input.cwd,
+    cwd,
     nativeId: native.meta.id,
   })
   const row = await rowById(input.db, sessionId)
   if (row === null) throw new Error(`session row "${sessionId}" vanished while listing native sessions`)
   return row
+}
+
+function homeOf(native: NativeSession, input: SessionListInput): string {
+  return input.search !== null && !sameCwd(native.meta.cwd, input.cwd) ? native.meta.cwd : input.cwd
+}
+
+function homesOf(natives: NativeSession[], input: SessionListInput): Record<string, string> {
+  return mapValues(keyBy(natives, keyOf), (native) => homeOf(native, input))
 }
 
 function rowsInCwd(rows: unknown[], cwd: string): SessionRecord[] {

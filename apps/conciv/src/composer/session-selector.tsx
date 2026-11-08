@@ -1,4 +1,5 @@
-import {createMemo, createUniqueId, Index, Show, type JSX} from 'solid-js'
+import {createMemo, createUniqueId, Index, mapArray, Show, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {
   Button,
   ByteSize,
@@ -7,6 +8,8 @@ import {
   Loader,
   Presence,
   RelativeTime,
+  Switch,
+  Tooltip,
   TooltipIconButton,
   TruncatedText,
   VirtualList,
@@ -14,7 +17,8 @@ import {
 import {highlightPattern} from '@conciv/solid-streamdown'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {createDateNow} from '@solid-primitives/date'
-import {createDebouncedSignal} from '@tanstack/solid-pacer'
+import {createDebouncer} from '@tanstack/solid-pacer'
+import {useNavigate, useSearch} from '@tanstack/solid-router'
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/solid-query'
 import {groupBy, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
@@ -26,6 +30,7 @@ import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
+import {createResumeCopy} from './resume-copy.js'
 
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
@@ -54,6 +59,8 @@ const BUCKETS = ['Today', 'Yesterday', 'Earlier'] as const
 type Bucket = (typeof BUCKETS)[number]
 
 type PickerSession = SessionMeta | SessionHit
+
+type Elsewhere = {project: string; resume: string | null}
 
 type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: PickerSession}
 
@@ -87,6 +94,11 @@ function matchedOf(session: PickerSession): readonly string[] {
   return 'matched' in session ? session.matched : []
 }
 
+function elsewhereOf(session: PickerSession | undefined): Elsewhere | null {
+  if (session === undefined || !('cwd' in session) || session.cwd === null) return null
+  return {project: session.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? session.cwd, resume: session.resume}
+}
+
 export function SessionSelector(props: {
   variant: 'pill' | 'bar'
   activeId: () => string | null
@@ -95,11 +107,21 @@ export function SessionSelector(props: {
 }): JSX.Element {
   const appData = useAppData()
   const announce = useAnnounce()
-  const [search, setSearch, searchDebouncer] = createDebouncedSignal('', {wait: SEARCH_WAIT_MS})
-  const typed = (inputValue: string) => {
-    setSearch(inputValue.trim())
-    if (inputValue.trim() === '') searchDebouncer.flush()
+  const routeSearch = useSearch({strict: false})
+  const navigate = useNavigate()
+  const search = () => (routeSearch().sessionSearch ?? '').trim()
+  const allProjects = () => routeSearch().allProjects ?? false
+  const writeSearch = (patch: {sessionSearch?: string; allProjects?: boolean}) =>
+    void navigate({to: '.', search: (previous) => ({...previous, ...patch}), replace: true})
+  const searchWriter = createDebouncer((sessionSearch: string) => writeSearch({sessionSearch}), {
+    wait: SEARCH_WAIT_MS,
+  })
+  const typed = (details: {inputValue: string; reason?: string}) => {
+    if (details.reason !== 'input-change' && details.reason !== 'clear-trigger') return
+    searchWriter.maybeExecute(details.inputValue.trim())
+    if (details.inputValue.trim() === '') searchWriter.flush()
   }
+  const [picker, setPicker] = createStore<{highlighted: string | null}>({highlighted: null})
   const indexed = useQuery(() => appData.utils.sessions.changes.experimental_liveOptions())
   const indexVersion = () => ({indexVersion: indexed.data?.version ?? null})
   const listOptions = () => {
@@ -111,7 +133,7 @@ export function SessionSelector(props: {
     })
   }
   const searchOptions = (term: string) => {
-    const input = (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE})
+    const input = (cursor: HarnessListCursor | null) => ({term, cursor, limit: PAGE_SIZE, everywhere: allProjects()})
     return appData.utils.sessions.search.infiniteOptions({
       input,
       initialPageParam: null,
@@ -168,11 +190,28 @@ export function SessionSelector(props: {
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
+  const sessionOf = (id: string | null) => sessionsLoaded().find((session) => session.id === id)
+  const resumeCopies = createMemo(
+    mapArray(sessionsLoaded, (session) => {
+      const command = elsewhereOf(session)?.resume
+      return command ? {id: session.id, copy: createResumeCopy(() => command, announce)} : null
+    }),
+  )
+  const resumeCopyOf = (id: string) => resumeCopies().find((entry) => entry?.id === id)?.copy
+
   const select = (id: string) => {
     if (!id || id === activeId()) return
-    const title = sessionsLoaded().find((s) => s.id === id)?.title ?? id
+    const session = sessionOf(id)
+    const elsewhere = elsewhereOf(session)
+    if (elsewhere !== null) return openElsewhere(id, elsewhere)
     props.onActivate(id)
-    announce(`Switched to ${title}`)
+    announce(`Switched to ${session?.title ?? id}`)
+  }
+
+  const openElsewhere = (id: string, elsewhere: Elsewhere) => {
+    const copy = resumeCopyOf(id)
+    if (copy === undefined) return announce(`${sessionOf(id)?.title ?? id} is in ${elsewhere.project}, open it there`)
+    copy.copy()
   }
 
   const isPill = () => props.variant === 'pill'
@@ -188,12 +227,15 @@ export function SessionSelector(props: {
         const id = d.value[0]
         if (id) select(id)
       }}
-      onInputValueChange={(details) => typed(details.inputValue)}
+      defaultInputValue={search()}
+      onInputValueChange={typed}
+      onHighlightChange={(details) => setPicker('highlighted', details.highlightedValue)}
+      closeOnSelect={elsewhereOf(sessionOf(picker.highlighted)) === null}
       onOpenChange={(details) => {
         if (details.open) appData.invalidateSessions()
       }}
       openOnClick
-      selectionBehavior="clear"
+      selectionBehavior="preserve"
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 6}}
     >
       <Combobox.Control class="inline-flex min-w-0 max-w-full">
@@ -222,42 +264,56 @@ export function SessionSelector(props: {
       </Combobox.Control>
       <Combobox.Positioner>
         <Combobox.Content class="p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex-col max-h-90 w-70 hidden shadow-chat-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
-          <div class="mb-1 border-b border-b-chat-line-soft flex gap-1 items-center">
-            <Combobox.Input
-              class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
-              placeholder="Search sessions…"
-              onPointerDown={(event) => event.stopPropagation()}
-            />
-            <Presence
-              present={searching()}
-              lazyMount
-              unmountOnExit
-              class="flex shrink-0 size-7 items-center justify-center"
+          <search role="search" class="mb-1 border-b border-b-chat-line-soft flex flex-col">
+            <div class="flex gap-1 items-center">
+              <Combobox.Label class="sr-only">Search sessions</Combobox.Label>
+              <Combobox.Input
+                class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
+                placeholder="Search sessions…"
+                onPointerDown={(event) => event.stopPropagation()}
+              />
+              <Presence
+                present={searching()}
+                lazyMount
+                unmountOnExit
+                class="flex shrink-0 size-7 items-center justify-center"
+              >
+                <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
+                  <Loader.Indicator class="size-4 text-chat-text-3" />
+                </Loader.Root>
+              </Presence>
+              <Combobox.Context>
+                {(api) => (
+                  <Presence present={api().inputValue !== ''} lazyMount unmountOnExit class="flex shrink-0">
+                    <TooltipIconButton
+                      tooltip="Clear search"
+                      class={ACT}
+                      onClick={() => {
+                        api().setInputValue('', 'clear-trigger')
+                        api().focus()
+                      }}
+                    >
+                      <X class="size-5 block" aria-hidden="true" />
+                    </TooltipIconButton>
+                  </Presence>
+                )}
+              </Combobox.Context>
+              <TooltipIconButton tooltip="New session" class={ACT} onClick={() => props.onNewSession()}>
+                <Plus class="size-5 block" aria-hidden="true" />
+              </TooltipIconButton>
+            </div>
+            <Switch.Root
+              class="px-2 min-h-8"
+              checked={allProjects()}
+              onCheckedChange={(details) => writeSearch({allProjects: details.checked})}
             >
-              <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
-                <Loader.Indicator class="size-4 text-chat-text-3" />
-              </Loader.Root>
-            </Presence>
-            <Combobox.Context>
-              {(api) => (
-                <Presence present={api().inputValue !== ''} lazyMount unmountOnExit class="flex shrink-0">
-                  <TooltipIconButton
-                    tooltip="Clear search"
-                    class={ACT}
-                    onClick={() => {
-                      api().setInputValue('')
-                      api().focus()
-                    }}
-                  >
-                    <X class="size-5 block" aria-hidden="true" />
-                  </TooltipIconButton>
-                </Presence>
-              )}
-            </Combobox.Context>
-            <TooltipIconButton tooltip="New session" class={ACT} onClick={() => props.onNewSession()}>
-              <Plus class="size-5 block" aria-hidden="true" />
-            </TooltipIconButton>
-          </div>
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Label class="text-[0.75rem]">All projects</Switch.Label>
+              <Switch.HiddenInput />
+            </Switch.Root>
+          </search>
           <Show when={list.isLoading && sessionsLoaded().length === 0}>
             <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
               <div class={SKEL} />
@@ -330,7 +386,13 @@ export function SessionSelector(props: {
                   </div>
                 }
               >
-                {(session) => <SessionOption session={session()} suffix={harnessSuffix(session())} />}
+                {(session) => (
+                  <SessionOption
+                    session={session()}
+                    suffix={harnessSuffix(session())}
+                    copied={resumeCopyOf(session().id)?.announcement() ?? ''}
+                  />
+                )}
               </Show>
             )}
           </VirtualList>
@@ -353,13 +415,16 @@ function SessionSize(props: {sizeBytes: number | undefined}): JSX.Element {
   )
 }
 
-function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Element {
+function SessionOption(props: {session: PickerSession; suffix: string; copied: string}): JSX.Element {
   const labelId = createUniqueId()
   const excerptId = createUniqueId()
   const excerpt = () => excerptOf(props.session)
+  const elsewhere = () => elsewhereOf(props.session)
+  const [row, setRow] = createStore<{element: HTMLElement | undefined}>({element: undefined})
   const highlight = createMemo(() => highlightPattern(matchedOf(props.session)))
   return (
     <Combobox.Item
+      ref={(element) => setRow('element', element)}
       item={props.session}
       class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
       aria-labelledby={labelId}
@@ -370,8 +435,19 @@ function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Ele
         <SessionSize sizeBytes={props.session.sizeBytes} />
         {props.session.origin === 'conciv' ? ' · started in conciv' : ' · started externally'}
         {props.suffix}
+        {elsewhere() ? `, in ${elsewhere()?.project}, select to copy the command that opens it there` : ''}
         {props.session.running ? `, ${RUNNING_LABEL}` : ''}
       </span>
+      <Tooltip.Root
+        open={props.copied !== ''}
+        lazyMount
+        unmountOnExit
+        positioning={{placement: 'top-end', flip: false, getAnchorElement: () => row.element ?? null}}
+      >
+        <Tooltip.Positioner>
+          <Tooltip.Content>{props.copied}</Tooltip.Content>
+        </Tooltip.Positioner>
+      </Tooltip.Root>
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
           <Combobox.ItemText>
@@ -392,6 +468,14 @@ function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Ele
           Edited <RelativeTime value={new Date(props.session.updatedAt)} />
           <SessionSize sizeBytes={props.session.sizeBytes} />
           {props.suffix}
+          <Show when={elsewhere()}>
+            {(other) => (
+              <>
+                {' · '}
+                <TruncatedText class="min-w-0 text-chat-text-2" text={other().project} />
+              </>
+            )}
+          </Show>
         </span>
       </div>
       <Show when={props.session.origin === 'conciv'}>

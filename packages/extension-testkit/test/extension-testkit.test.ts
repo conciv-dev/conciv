@@ -149,7 +149,6 @@ describe('core kit seams', () => {
         history: [
           {
             id: HarnessSessionId.parse('native-1'),
-            cwd: '/project',
             derivedTitle: 'A native session',
             updatedAt: 1_700,
             sizeBytes: 7,

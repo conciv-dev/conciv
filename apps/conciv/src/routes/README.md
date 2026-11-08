@@ -6,9 +6,9 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Interface
 
-- root `Route` (`__root.tsx`): `createRootRouteWithContext<ConcivRouterContext>()`, search `{open?: true}` retained across navigations; renders the outlet, `ShellFab` and polite/assertive live regions
+- root `Route` (`__root.tsx`): `createRootRouteWithContext<ConcivRouterContext>()`, search `sessionPickerSearchSchema` (`lib/session-search-schemas.ts`): `open?: true`, `sessionSearch` (the picker's search term, `''` by default) and `allProjects` (`false` by default), all retained across navigations and the defaults stripped from the URL; renders the outlet, `ShellFab` and polite/assertive live regions
 - `/` (`index.tsx`): `Closed` component, the panel is closed
-- `/panel` (`panel.tsx`): `PanelLayout`
+- `/panel` (`panel.tsx`): `PanelLayout`; reads only `open` from the search (a `select`), so a picker term or switch written to the URL never reruns the open-panel composer focus
 - `/panel/latest` (`panel.latest.tsx`): resolves the latest session through `rpc.sessions.resolve({})` and redirects
 - `/panel/connect` (`panel.connect.tsx`): `ConnectRoute`; binds an api base found by the `connect` extension slot, then opens the session
 - `/panel/$sessionId` (`panel.$sessionId.tsx`): `PanelSession`, search `{popOut?: 'lost'}`; reads its session through `sessions.get`; clicking the header title (or Enter/Space on it) opens the session menu (`Popover`: Ark owns open state, focus, Escape and outside click, and returns focus to the title) hosting `SessionSelector`, context and refresh/pop-out/disconnect rows, and a pencil (`Editable`) renames in place through `rpc.sessions.rename`
@@ -20,7 +20,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Invariants
 
-- `__root.tsx:Route.validateSearch`: `open` is either `true` or absent
+- `__root.tsx:Route.validateSearch`: `open` is either `true` or absent; a malformed `sessionSearch` or `allProjects` falls back to its default (zod `.catch`), and a digit-only term is coerced back to a string
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false

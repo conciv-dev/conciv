@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
 import type {SessionHit} from '@conciv/contract'
@@ -10,6 +11,7 @@ import {
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
 import type {HarnessListCursor, HarnessListPage, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -62,13 +64,15 @@ async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<Na
   return pages.filter((native) => native !== null)
 }
 
+type ListedHit = Omit<SessionHit, 'resume'>
+
 async function sessionPage(
   chat: ChatContext,
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
   search: string | null,
   nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
-  returned: SessionHit[] = [],
-): Promise<{sessions: SessionHit[]; next: HarnessListCursor | null}> {
+  returned: ListedHit[] = [],
+): Promise<{sessions: ListedHit[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit - returned.length}
   const listed = await listSessionMetas({
     db: chat.db,
@@ -83,6 +87,32 @@ async function sessionPage(
   const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
   if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
   return sessionPage(chat, {...input, cursor: listed.next}, search, nativePagesOf, counted)
+}
+
+function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
+  const plan = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.connect?.plan
+  if (hit.cwd === null || hit.native === null || plan === undefined) return null
+  const {argv} = plan({
+    cwd: hit.cwd,
+    stateDir: concivStateDir(hit.cwd),
+    concivSessionId: hit.id,
+    harnessSessionId: hit.native.nativeId,
+    resume: true,
+    owned: false,
+    model: null,
+    mcpUrl: null,
+    hookUrl: null,
+  })
+  if (platform() === 'win32') return `cd /d ${cmdQuote(hit.cwd)} && ${argv.map(cmdQuote).join(' ')}`
+  return `cd ${shellQuote(hit.cwd)} && ${argv.map(shellQuote).join(' ')}`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`
+}
+
+function cmdQuote(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`
 }
 
 function cleanTitle(title: string): string {
@@ -172,9 +202,12 @@ export function sessionsRouter(deps: RpcDeps) {
       return page
     }),
     changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
-    search: os.sessions.search.handler(({input}) =>
-      sessionPage(chat, input, input.term, (page) => search.pages(input.term, page)),
-    ),
+    search: os.sessions.search.handler(async ({input}) => {
+      const page = await sessionPage(chat, input, input.term, (cursorPage) =>
+        search.pages(input.term, cursorPage, input.everywhere),
+      )
+      return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: resumeOf(chat, hit)}))}
+    }),
     get: os.sessions.get.handler(async ({input, errors}) => {
       const row = await rowById(db, input.sessionId)
       if (!row) throw errors.NOT_FOUND()

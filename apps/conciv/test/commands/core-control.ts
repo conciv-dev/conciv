@@ -18,7 +18,7 @@ export type BootCoreInput = {
   displayName?: string
   connect?: boolean
   terminal?: boolean
-  history?: Array<HarnessSessionMeta & {text?: string}>
+  history?: Array<Omit<HarnessSessionMeta, 'cwd'> & {cwd?: string; text?: string}>
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
   models?: HarnessModel[]

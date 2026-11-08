@@ -20,7 +20,7 @@ export type FakeHarness = HarnessAdapter & {
 
 type TranscriptHold = {hold: () => void; release: () => void; wait: () => Promise<void>}
 
-type FixtureSession = HarnessSessionMeta & {text?: string}
+type FixtureSession = Omit<HarnessSessionMeta, 'cwd'> & {cwd?: string; text?: string}
 
 const BASE_CAPABILITIES = {
   resume: false,
@@ -43,11 +43,18 @@ type SharedFields = {
 }
 
 function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): HarnessHistory {
-  const metaOf = (row: FixtureSession): HarnessSessionMeta => omit(row, ['text'])
+  const metaOf = (row: FixtureSession, cwd: string): HarnessSessionMeta => ({
+    ...omit(row, ['text']),
+    cwd: row.cwd ?? cwd,
+  })
   return {
-    list: (_scope, page) => {
-      const paged = pageAfter(rows, page, (row) => ({updatedAt: row.updatedAt, id: row.id}))
-      return Promise.resolve({sessions: paged.items.map(metaOf), next: paged.next})
+    list: (scope, page) => {
+      const listed = rows.flatMap((row) => {
+        if ('cwd' in scope) return row.cwd === undefined || row.cwd === scope.cwd ? [metaOf(row, scope.cwd)] : []
+        return row.cwd === undefined ? [] : [metaOf(row, row.cwd)]
+      })
+      const paged = pageAfter(listed, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
+      return Promise.resolve({sessions: paged.items, next: paged.next})
     },
     messages: async (_cwd, sessionId) => {
       const text = rows.find((row) => row.id === sessionId)?.text
@@ -55,9 +62,9 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
       await transcripts.wait()
       return [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text}]}]
     },
-    meta: (_cwd, sessionId) => {
+    meta: (cwd, sessionId) => {
       const row = rows.find((candidate) => candidate.id === sessionId)
-      return Promise.resolve(row === undefined ? null : metaOf(row))
+      return Promise.resolve(row === undefined ? null : metaOf(row, cwd))
     },
     observe: () => ({
       revision: () => Promise.resolve({ok: false as const, reason: 'missing' as const, detail: 'fixture history'}),

@@ -13,9 +13,11 @@ import type {
   HarnessHistory,
   HarnessListCursor,
   HarnessListPage,
+  HarnessListScope,
   HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import type {HarnessAdapter} from '@conciv/harness'
+import {sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {logError} from '../lib/debug.js'
@@ -32,7 +34,7 @@ type SessionSearchDeps = {
 type SessionSearch = {
   listed(): void
   changes(signal: AbortSignal | undefined): AsyncIteratorObject<SessionsChange, unknown, void>
-  pages(term: string, page: HarnessListPage): Promise<NativePage[]>
+  pages(term: string, page: HarnessListPage, everywhere: boolean): Promise<NativePage[]>
   retitle(harnessKind: string, nativeId: HarnessSessionId, title: string): Promise<void>
   dispose(): Promise<void>
 }
@@ -47,7 +49,7 @@ type IndexState = Awaited<ReturnType<SearchIndex['states']>>[number]
 
 type Listing = Parameters<SearchIndex['read']>[0]['listing']
 
-type Listed = {source: Indexed; meta: HarnessSessionMeta; title: string; current: IndexState | undefined}
+type Listed = {source: Indexed; meta: HarnessSessionMeta; cwd: string; title: string; current: IndexState | undefined}
 
 type TitlePass = {changed: boolean; unread: Listed[]}
 
@@ -65,7 +67,11 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       ? [{harness, history: harness.history}]
       : [],
   )
-  const state: {running: Running | null; version: number} = {running: null, version: Date.now()}
+  const state: {running: Running | null; version: number; scopes: HarnessListScope[]} = {
+    running: null,
+    version: Date.now(),
+    scopes: [{cwd: deps.cwd}],
+  }
   const publisher = new EventPublisher<{indexed: SessionsChange}>()
 
   const indexedChanged = (): void => {
@@ -76,7 +82,14 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
   const rebuild = async (): Promise<void> => {
     if (state.running === null) return
     const running = state.running
-    const passes = await Promise.all(indexed.map((source) => titlePass(running, source)))
+    await state.scopes.reduce<Promise<void>>(async (previous, scope) => {
+      await previous
+      await indexScope(running, scope)
+    }, Promise.resolve())
+  }
+
+  const indexScope = async (running: Running, scope: HarnessListScope): Promise<void> => {
+    const passes = await Promise.all(indexed.map((source) => titlePass(running, source, scope)))
     if (passes.some((pass) => pass.changed)) indexedChanged()
     if (
       await textPass(
@@ -101,22 +114,29 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     refreshes.addItem('refresh')
   }
 
-  const titlePass = async (running: Running, source: Indexed): Promise<TitlePass> => {
+  const titlePass = async (running: Running, source: Indexed, scope: HarnessListScope): Promise<TitlePass> => {
     const signal = running.stopped.signal
+    const inProject = 'cwd' in scope
+    const owned = (cwd: string): boolean => (cwd === deps.cwd) === inProject
+    const statesOwned = async () =>
+      (await running.index.states({harness: source.harness.id}, {signal})).filter((row) => owned(row.cwd))
     try {
-      const metas = await listedSessions(source.history, deps)
+      const metas = (await listedSessions(source.history, scope)).filter(
+        (meta) => inProject || !sameCwd(meta.cwd, deps.cwd),
+      )
       const titles = await rowTitles(deps.db, source.harness.id, metas)
-      const states = keyBy(await running.index.states({harness: source.harness.id}, {signal}), (row) => row.id)
+      const states = keyBy(await statesOwned(), (row) => row.id)
       const listed = metas.map((meta): Listed => {
         const id = documentIdOf(source.harness.id, meta.id)
-        return {source, meta, title: titles.get(meta.id) ?? meta.derivedTitle, current: states[id]}
+        const cwd = inProject ? deps.cwd : meta.cwd
+        return {source, meta, cwd, title: titles.get(meta.id) ?? meta.derivedTitle, current: states[id]}
       })
       const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
       const gone = difference(Object.keys(states), listedIds)
       await running.index.remove({ids: gone}, {signal})
       const retitled = listed.filter((entry) => !sameListing(entry.current, entry))
       await running.index.list({listings: retitled.map(listingOf)}, {signal})
-      const indexedIds = (await running.index.states({harness: source.harness.id}, {signal})).map((row) => row.id)
+      const indexedIds = (await statesOwned()).map((row) => row.id)
       const mismatched = xor(indexedIds, listedIds)
       if (mismatched.length > 0) {
         logError(
@@ -144,7 +164,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const readInto = async (running: Running, entry: Listed, now: number): Promise<boolean> => {
     const current = entry.current
-    const text = await entry.source.history.messages(deps.cwd, entry.meta.id).then(textOf, (error: unknown) => {
+    const text = await entry.source.history.messages(entry.cwd, entry.meta.id).then(textOf, (error: unknown) => {
       if (current === undefined || current.read || current.readAt === 0) {
         logError(
           `[core] reading the ${entry.source.harness.id} session ${entry.meta.id} for search failed, it is found by its title until a later search reads it: ${String(error)}`,
@@ -164,9 +184,10 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     term: string,
     after: HarnessListCursor | null,
     limit: number,
+    everywhere: boolean,
   ): Promise<Hit[]> => {
     const found = await running.index.search(
-      {term, tolerance: typoTolerance(term), after, limit},
+      {term, tolerance: typoTolerance(term), cwd: everywhere ? null : deps.cwd, after, limit},
       {signal: running.stopped.signal},
     )
     return found.flatMap((hit) => {
@@ -179,7 +200,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
           harnessKind: harness.id,
           meta: {
             id: nativeId.data,
-            cwd: deps.cwd,
+            cwd: hit.cwd,
             derivedTitle: hit.title,
             updatedAt: hit.updatedAt,
             sizeBytes: hit.sizeBytes,
@@ -205,11 +226,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       yield {version: state.version}
       yield* later
     },
-    async pages(term, page) {
+    async pages(term, page, everywhere) {
       if (state.running === null)
         return indexed.map(({harness}) => ({harnessKind: harness.id, page: {sessions: [], next: null}}))
+      if (everywhere && !state.scopes.some((scope) => 'everywhere' in scope)) state.scopes.push({everywhere: true})
       refresh()
-      const paged = pageAfter(await hitsOf(state.running, term, page.after, page.limit), page, (hit) => ({
+      const found = await hitsOf(state.running, term, page.after, page.limit, everywhere)
+      const paged = pageAfter(found, page, (hit) => ({
         updatedAt: hit.meta.updatedAt,
         id: hit.meta.id,
       }))
@@ -262,10 +285,10 @@ function unreadNow(entry: Listed): boolean {
   return Date.now() - current.readAt >= LIVE_REINDEX_MS
 }
 
-async function listedSessions(history: HarnessHistory, deps: SessionSearchDeps): Promise<HarnessSessionMeta[]> {
+async function listedSessions(history: HarnessHistory, scope: HarnessListScope): Promise<HarnessSessionMeta[]> {
   const collected: HarnessSessionMeta[] = []
   const walk = async (after: HarnessListCursor | null): Promise<HarnessSessionMeta[]> => {
-    const listed = await history.list({cwd: deps.cwd}, {after, limit: REFRESH_PAGE})
+    const listed = await history.list(scope, {after, limit: REFRESH_PAGE})
     collected.push(...listed.sessions)
     return listed.next === null ? collected : walk(listed.next)
   }
@@ -298,6 +321,7 @@ async function rowTitles(
 function sameListing(current: IndexState | undefined, entry: Listed): boolean {
   return (
     current !== undefined &&
+    current.cwd === entry.cwd &&
     current.updatedAt === entry.meta.updatedAt &&
     current.title === entry.title &&
     current.sizeBytes === entry.meta.sizeBytes
@@ -308,6 +332,7 @@ function listingOf(entry: Listed): Listing {
   return {
     id: documentIdOf(entry.source.harness.id, entry.meta.id),
     harness: entry.source.harness.id,
+    cwd: entry.cwd,
     title: entry.title,
     updatedAt: entry.meta.updatedAt,
     sizeBytes: entry.meta.sizeBytes,
