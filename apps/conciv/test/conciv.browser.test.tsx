@@ -1259,6 +1259,12 @@ describe('chat history paging', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const SEEDED_EXCHANGES = 100
   const GLIDE_DRAG_WINDOW_MS = 1_500
+  const STREAMED_REPLY_CLOSING = 'That is the end of the streamed reply.'
+  const STREAMED_REPLY = [
+    ...Array.from({length: 30}, (_, line) => `Streamed reply line ${line} keeps the reader company while it grows.`),
+    STREAMED_REPLY_CLOSING,
+  ].join('\n\n')
+  const STREAMED_REPLY_PACE = {chunk: 24, everyMs: 50}
   const core = bootedCore('history-paging', {
     displayName: 'Alpha',
     alternates: [{id: 'beta', displayName: 'Beta', text: 'Hello from beta'}],
@@ -1424,7 +1430,7 @@ describe('chat history paging', () => {
     await expectMarkersInPlace()
   })
 
-  test('Latest glides to the newest message from far up, and a wheel mid-glide leaves the reader where they scrolled', async () => {
+  test('Latest glides to the newest message from far up, a wheel mid-glide leaves the reader where they scrolled, and scrolling back down by hand follows the stream again', async () => {
     const latest = () => page.getByRole('button', {name: 'Scroll to bottom'})
     await openChat(long.sessionId)
     for (const boundary of [74, 49]) {
@@ -1436,7 +1442,6 @@ describe('chat history paging', () => {
     await userEvent.click(latest())
 
     await expect.element(latest()).toBeEnabled()
-    await expect.element(exchange(SEEDED_EXCHANGES - 1)).not.toBeInTheDocument()
     await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInViewport()
     await expect.element(latest()).toBeDisabled()
 
@@ -1449,7 +1454,21 @@ describe('chat history paging', () => {
     await new Promise((resolve) => setTimeout(resolve, GLIDE_DRAG_WINDOW_MS))
 
     await expect.element(latest()).toBeEnabled()
-    await expect.element(exchange(SEEDED_EXCHANGES - 1)).not.toBeInTheDocument()
+
+    await userEvent.click(latest())
+    await expect.element(latest()).toBeDisabled()
+    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
+    await coreControl.scriptTurn({toolCalls: [], text: STREAMED_REPLY, textPace: STREAMED_REPLY_PACE})
+    const streamed = await sendTurn(core(), long.sessionId, 'streamed while reading')
+    await expect.element(page.getByText('streamed while reading', {exact: true})).toBeInViewport()
+    await userEvent.wheel(thread(), {delta: {y: -300}})
+    await expect.element(latest()).toBeEnabled()
+    await scrollToEnd()
+    await streamed.awaitTurnEnd()
+
+    await expect.element(page.getByText(STREAMED_REPLY_CLOSING, {exact: true})).toBeInViewport()
+    await expect.element(latest()).toBeDisabled()
+    await coreControl.clearScript()
   }, 60_000)
 
   test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {

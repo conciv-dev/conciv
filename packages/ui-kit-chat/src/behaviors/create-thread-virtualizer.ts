@@ -23,6 +23,7 @@ import {
 
 export const SCROLL_END_THRESHOLD_PX = 1
 const NEAR_START_VIEWPORTS = 3
+const GLIDE_VIEWPORTS = 2
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
@@ -124,7 +125,19 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     }
     if (readerInput !== 'holding') readerInput = 'untouched'
     landedOffset = undefined
+    jumpNearEnd()
     instance.scrollToEnd({behavior: 'smooth'})
+  }
+
+  const jumpNearEnd = (): void => {
+    const element = config.scrollElement()
+    const target = instance.getOffsetForIndex(config.count() - 1, 'end')
+    if (!element?.isConnected || !target) return
+    const nearEnd = target[0] - element.clientHeight * GLIDE_VIEWPORTS
+    if (element.scrollTop >= nearEnd) return
+    writeScroll(nearEnd, 'auto')
+    instance.scrollOffset = element.scrollTop
+    update()
   }
 
   const stillOnTheLanding = (element: HTMLElement): boolean =>
