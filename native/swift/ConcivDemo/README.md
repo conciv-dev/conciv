@@ -2,7 +2,7 @@
 
 ## Overview
 
-iOS simulator demo app built with plain `swiftc` (no Xcode project), compiled together with the real ConcivWidget sources. The TanStack Start example's iOS extension points at this folder.
+iOS simulator demo app built with plain `swiftc` (no Xcode project), compiled together with the real ConcivWidget sources. The iOS example's (`apps/examples/ios`) iOS extension points at this folder.
 
 ## Interface
 
