@@ -229,6 +229,9 @@ the agent to warn the user when it is above 1.
     Under `'project'` one Allow or Deny covers the engine, so the server also clears the `outside-session` card
     stored in every other session (`metadataKeysEndingWith` in `packages/chat/src/stores.ts`); those tabs drop the
     card on their next history read. No new event.
+    A session event stream (the tab's push socket and `rpc.chat.events`) subscribes first, then replays the
+    session's waiting asks (`ChatPlane.pendingAsks`), then streams live, so a tab that connects while an
+    outside agent is waiting still shows the Allow.
   - Deny sticks. Today a Deny outside a running turn records nothing (`approvals.decide` in
     `packages/chat/src/approvals.ts` only stores `denied` when `runId !== null`), so every retry would prompt again.
     For the `outside-session` target a Deny is stored for the session (for the engine under `'project'`), and later
