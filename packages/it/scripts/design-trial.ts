@@ -40,11 +40,14 @@ type Options = {
   blind: boolean
   noDesign: boolean
   show: Shown
+  open: z.output<typeof OPENED>
 }
 
 type Shown = z.output<typeof SHOWN>
 
 const SHOWN = z.array(z.enum(['progress']))
+
+const OPENED = z.array(z.enum(['query']))
 
 type Trial = {rpc: RpcClient; page: Page; id: string; session: SessionId}
 
@@ -85,6 +88,7 @@ async function main(): Promise<void> {
       blind: {type: 'boolean', default: false},
       'no-design': {type: 'boolean', default: false},
       show: {type: 'string', multiple: true, default: []},
+      open: {type: 'string', multiple: true, default: []},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
@@ -92,6 +96,7 @@ async function main(): Promise<void> {
     ...values,
     noDesign: values['no-design'],
     show: SHOWN.parse(values.show),
+    open: OPENED.parse(values.open),
     width: Number(values.width),
     port: Number(values.port),
   }
@@ -162,6 +167,7 @@ async function hostServer(input: {
   blind: boolean
   noDesign: boolean
   show: Shown
+  open: z.output<typeof OPENED>
   printed: string[]
 }): Promise<ViteDevServer> {
   const server = await createServer({
@@ -183,7 +189,7 @@ async function hostServer(input: {
         extensions: {design: {blind: input.blind, show: input.show}},
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
-          `${DESIGN_TOOL_PREFIX}query`,
+          ...(input.open.includes('query') ? [] : [`${DESIGN_TOOL_PREFIX}query`]),
           `${DESIGN_TOOL_PREFIX}write`,
           ...(input.noDesign ? [getDef, checkDef, statusDef].map((tool) => tool.name) : []),
         ],
