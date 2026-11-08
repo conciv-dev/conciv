@@ -112,7 +112,7 @@ the behaviour breaks.
 - Add a changeset (`@conciv/ui-kit-system` is published).
 - Before finishing: `pnpm exec fallow audit --changed-since main --format json`, fix anything INTRODUCED.
 - Git: work only in a dedicated worktree on branch
-  `feat/settings-form-controls`). Commit locally, in small commits. Do NOT push. Do NOT open a PR.
+  `feat/settings-form-controls`. Commit locally, in small commits. Do NOT push. Do NOT open a PR.
 
 ## Out of scope
 
