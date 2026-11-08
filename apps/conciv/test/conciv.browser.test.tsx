@@ -72,7 +72,7 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {HostApiProvider} from '@conciv/extension/host'
+import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
 import {
   createChat,
@@ -2504,6 +2504,80 @@ describe('panel header', () => {
     await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
     await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
     await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+
+    const DRAFT = 'the draft that outlives the menu'
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer().click()
+    await userEvent.keyboard(DRAFT)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await switcher(OTHER).click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+  }, 30_000)
+
+  test('the session menu lives in the URL: back closes it, closing leaves no extra entry, a reload reopens it', async () => {
+    const TITLE = 'the session in the address'
+    const EARLIER = 'the session visited before'
+    const titleButton = (title = TITLE) =>
+      page.getByRole('banner').getByRole('button', {name: `${title}, session options`})
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const switcher = () => menu().getByRole('button', {name: `Session: ${TITLE}`})
+    const rpc = coreRpc(coreBase())
+    const earlierId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: earlierId, title: EARLIER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}?open=true`])
+
+    await expect.element(titleButton(), {timeout: 8000}).toBeVisible()
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/options`)
+
+    harness.back()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}/options?open=true`)
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await expect.element(switcher()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton()).toHaveFocus()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    harness.dispose()
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}/options?open=true`])
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await switcher().click()
+    await page.getByRole('option', {name: new RegExp(`^${EARLIER},`)}).click()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
   }, 30_000)
 })
 
@@ -2636,6 +2710,78 @@ describe('panel view tabs', () => {
 
     await coreControl.releaseFault(gate)
     await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('the session menu opens over a view and a tab switch lands on the new view without it', async () => {
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    await mountSeededPanel()
+
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await notesTab().click()
+    await expect.element(notes(), {timeout: 8000}).toBeVisible()
+
+    await page.getByRole('button', {name: /session options$/}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(notes()).toBeVisible()
+    expect(harness.pathname()).toMatch(/\/notes\/options$/)
+
+    await chatTab().click()
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toMatch(/options$/)
+  }, 30_000)
+
+  test('a locked view opens and closes its own session menu, and a session pick never leaves it', async () => {
+    const LOCKED_BODY = 'the locked view body'
+    const TITLE = 'the locked session'
+    const OTHER = 'the session a lock keeps away'
+    function LockedView(): JSX.Element {
+      const lock = getHostApi().useViewLock()
+      onMount(() => lock(true))
+      return <p>{LOCKED_BODY}</p>
+    }
+    const lockedExtension = defineExtension({
+      name: 'panel-view-lock',
+      views: [{id: 'locked', label: 'Locked', Component: LockedView}],
+    })
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
+    const lockedBody = () => page.getByText(LOCKED_BODY)
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(
+      [`/panel/${otherId}?open=true`, `/panel/${sessionId}?open=true`, `/panel/${sessionId}/locked?open=true`],
+      [lockedExtension],
+    )
+
+    await expect.element(lockedBody(), {timeout: 8000}).toBeVisible()
+    await expect.element(chatTab()).toBeDisabled()
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${TITLE}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(lockedBody()).toBeVisible()
+    await expect.element(titleButton()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+    await expect.element(lockedBody()).toBeVisible()
   }, 30_000)
 
   describe('during a running turn', () => {
