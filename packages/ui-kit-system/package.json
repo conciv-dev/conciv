@@ -53,6 +53,8 @@
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
+    "@tanstack/solid-form": "^1.33.5",
+    "@tanstack/solid-hotkeys": "^0.17.0",
     "@tanstack/solid-virtual": "catalog:",
     "@zag-js/json-tree-utils": "^1.47.0",
     "class-variance-authority": "catalog:",
@@ -75,7 +77,8 @@
     "unocss": "catalog:",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
