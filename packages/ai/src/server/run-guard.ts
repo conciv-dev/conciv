@@ -15,10 +15,6 @@ function isHarnessOutput(chunk: ChatEvent): boolean {
   return chunk.type !== EventType.RUN_STARTED && chunk.type !== EventType.CUSTOM
 }
 
-function endingOf(ended: AbortSignal): Promise<ChatEvent> {
-  return new Promise((resolve) => ended.addEventListener('abort', () => resolve(ended.reason), {once: true}))
-}
-
 async function* stopped(ending: ChatEvent, guard: RunGuard): AsyncIterable<ChatEvent> {
   try {
     yield ending
@@ -34,7 +30,9 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
   }
   if (guard.stopped.aborted) return
   const iterator = start()[Symbol.asyncIterator]()
-  const ending = endingOf(guard.ended)
+  const ending = Promise.withResolvers<ChatEvent>()
+  const end = () => ending.resolve(guard.ended.reason)
+  guard.ended.addEventListener('abort', end, {once: true})
   const finished = Promise.withResolvers<IteratorReturnResult<undefined>>()
   const finish = () => finished.resolve({done: true, value: undefined})
   guard.stopped.addEventListener('abort', finish, {once: true})
@@ -42,7 +40,7 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
   silence.addEventListener('abort', guard.onSilence, {once: true})
   try {
     for (;;) {
-      const next = await Promise.race([iterator.next(), ending, finished.promise])
+      const next = await Promise.race([iterator.next(), ending.promise, finished.promise])
       if ('type' in next) {
         yield* stopped(next, guard)
         return
@@ -53,6 +51,7 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
     }
   } finally {
     silence.removeEventListener('abort', guard.onSilence)
+    guard.ended.removeEventListener('abort', end)
     guard.stopped.removeEventListener('abort', finish)
     Promise.resolve(iterator.return?.()).catch((error: unknown) => {
       guard.log(`[ai] closing the adapter stream failed: ${String(error)}`)
