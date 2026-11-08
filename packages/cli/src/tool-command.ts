@@ -91,7 +91,13 @@ function scalarSchema(type: string | undefined, format: string | undefined): z.Z
   if (type === 'number') return z.number()
   if (type === 'integer') return z.int()
   if (format === 'path') return z.string().transform(existingPath)
+  if (type === undefined) return z.string().transform(jsonOrRaw)
   return z.string()
+}
+
+function jsonOrRaw(value: string): unknown {
+  const parsed = parsedJson(value)
+  return parsed === undefined ? value : parsed
 }
 
 function jsonObject(value: string, context: z.RefinementCtx): Record<string, unknown> {

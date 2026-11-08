@@ -317,6 +317,7 @@ describe('cli', () => {
       inputSchema: z.object({
         patch: z.record(z.string(), z.unknown()),
         strokes: z.array(z.object({x: z.number()}).loose()),
+        parts: z.array(z.unknown()).optional(),
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
@@ -415,6 +416,30 @@ describe('cli', () => {
         expect(answer.seen()).toMatchObject({
           name: 'acme_paint',
           input: {patch: {color: 'red'}, strokes: [{x: 1}, {x: 2, y: 3}]},
+        })
+      })
+
+      it('decodes JSON into an unconstrained array item and keeps a plain value a string', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--parts',
+            '{"type":"text","text":"Hello"}',
+            '--parts',
+            'plain words',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words']},
         })
       })
 
