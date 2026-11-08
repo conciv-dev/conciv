@@ -374,18 +374,19 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   entry still counts as connected.
   - pi: no `hub` field.
 - Which harnesses to list: `detectHarnesses` (`packages/harness-init/src/detect.ts`, bin on PATH or config dir)
-  minus those with a `hub_connections` row. Served as a top-level `hubInstalls: Array<{harnessId, name}>` field of
-  the `meta.models` output (`ChatModelsSchema`), not on the per-harness `HarnessMetaSchema`. Cheap: no spawning.
+  minus those with a `hub_connections` row. Served by its own procedure `meta.hubAgents` as `{installs, connections}`
+  (`HubAgentsSchema`, each `{harnessId, name}`), apart from `meta.models`. Cheap: PATH detection and the home db, no
+  spawning, so the widget polls it every 3 s and on window focus to pick up connects and disconnects made outside it.
 - Install procedure: a new oRPC procedure `meta.connectHub` (`oc.input(z.object({harness: z.enum(INIT_HARNESS_IDS)}))`, using `INIT_HARNESS_IDS` from `packages/harness-init/src/registry.ts`
   in `packages/contract/src/contract.ts`), callable only over a trusted connection. It spawns the harness's argv
   with `execFile` (no shell; argv from the registry only, never from input), 30s timeout, with the engine's PATH.
   Exit 0, or output saying the server already exists: `recordHubConnection(harness)` and return ok. Otherwise
   return the CLI's stderr; the widget shows it in a notice.
 - Widget: in the composer slot the launch menu used, a `TooltipIconButtonSlot` + `Menu.Trigger asChild` (the
-  pattern in today's `launch-menu.tsx`) labelled "Connect agents", shown only while `hubInstalls` is non-empty. Each
+  pattern in today's `launch-menu.tsx`) labelled "Connect agents", shown only while `installs` is non-empty. Each
   item "Connect <name>" calls `meta.connectHub`, shows pending, and on success posts via `useNotices()`:
   "<name> connected. Ask any <name> session for your conciv tab." On failure the notice carries the CLI's message.
-  `meta.models` is invalidated after success so the item leaves.
+  `meta.hubAgents` is invalidated after success so the item leaves.
 
 ### Disconnect and `conciv mcp connect` (decided 2026-11-08)
 

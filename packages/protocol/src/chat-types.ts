@@ -166,9 +166,10 @@ export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
-  hubInstalls: z.array(z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})),
-  hubConnections: z.array(z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})),
 })
+const HubAgentSchema = z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})
+export const HubAgentsSchema = z.object({installs: z.array(HubAgentSchema), connections: z.array(HubAgentSchema)})
+export type HubAgents = z.infer<typeof HubAgentsSchema>
 export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),

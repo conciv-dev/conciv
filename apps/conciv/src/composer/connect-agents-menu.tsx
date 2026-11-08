@@ -6,8 +6,8 @@ import {useHubConnections} from './hub-connections.js'
 
 const MENU_LABEL = 'Connect agents'
 
-export function ConnectAgentsMenu(props: {sessionId: string; class: string}): JSX.Element {
-  const hub = useHubConnections(() => props.sessionId)
+export function ConnectAgentsMenu(props: {class: string}): JSX.Element {
+  const hub = useHubConnections()
   return (
     <Show when={hub.installs().length > 0}>
       <Action.Action priority={10}>

@@ -40,7 +40,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Four top-level commands: `init`
 - the CLI carries no tool declarations of its own: no `@conciv/extension*` or `@conciv/tools` import, guarded by the dependency-closure and prod-closure tests
 - `failureOf` (`failure.ts`): tagged errors become user errors; anything else is 'unexpected' with a bug-report hint
 - `declaredSessionId` (`request.ts`): an invalid CONCIV_SESSION_ID throws a user failure
-- `servedOutcome` (`request.ts`): oRPC-defined errors and 4xx responses become user failures; network failures are offline and `runRpc` throws 'No conciv dev server on &lt;host&gt;'
+- `servedOutcome` (`request.ts`): oRPC-defined errors, 4xx responses and an `APPROVAL_DENIED` refusal (the user declined, or the agent is disconnected) become user failures, printed with the message and no stack or bug hint; network failures are offline and `runRpc` throws 'No conciv dev server on &lt;host&gt;'
 - `ServerStateSchema` (`engine-origin.ts`): port must be an integer 1-65535; lookup order: with `--tab` the live engine whose `/api/tabs?session=` says open (else a user failure naming the tab); otherwise CONCIV_PORT, .conciv/server.json in cwd or an ancestor, the most recently registered live engine in the home db (`CONCIV_HOME`), then 5173
 - `callOperation` (`server.ts`): throws when rpc.server[op] is not a function
 

@@ -1078,7 +1078,9 @@ describe('cli', () => {
         const refused = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', sessionId], {
           CODEX_THREAD_ID: 'thread',
         })
-        expect(refused).toMatchObject({ok: false, error: {message: /Codex is disconnected from conciv/}})
+        expect(refused).toMatchObject({ok: false, error: {kind: 'user', message: /Codex is disconnected from conciv/}})
+        expect(refused).not.toHaveProperty('error.stack')
+        expect(refused).not.toHaveProperty('error.hint')
         expect((await page.chat.hydrate({sessionId})).pendingApprovals).toEqual([])
       } finally {
         await engine.stop()

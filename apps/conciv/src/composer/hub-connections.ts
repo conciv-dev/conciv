@@ -1,25 +1,28 @@
-import {useMutation, useMutationState, useQueryClient} from '@tanstack/solid-query'
+import {useMutation, useMutationState, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {z} from 'zod'
-import type {ChatModels} from '@conciv/protocol/chat-types'
+import type {HubAgents} from '@conciv/protocol/chat-types'
 import {useAppData, useRpc} from '../app/context.js'
-import {useSessionModels} from '../data/harness-meta.js'
 import {useNotices} from '../shell/notice-context.js'
 
-type HubInstall = ChatModels['hubInstalls'][number]
-type HubConnection = ChatModels['hubConnections'][number]
+type HubInstall = HubAgents['installs'][number]
+type HubConnection = HubAgents['connections'][number]
+
+const HUB_AGENTS_REFRESH_MS = 3000
 
 const PendingAgentSchema = z.object({harnessId: z.string(), name: z.string()})
 
 type PendingAgent = z.infer<typeof PendingAgentSchema>
 
-export function useHubConnections(sessionId: () => string) {
+export function useHubConnections() {
   const rpc = useRpc()
   const appData = useAppData()
   const queryClient = useQueryClient()
   const notices = useNotices()
-  const models = useSessionModels(sessionId)
-  const installs = (): HubInstall[] => (models.isSuccess ? models.data.hubInstalls : [])
-  const connections = (): HubConnection[] => (models.isSuccess ? models.data.hubConnections : [])
+  const agents = useQuery(() =>
+    appData.utils.meta.hubAgents.queryOptions({refetchInterval: HUB_AGENTS_REFRESH_MS, refetchOnWindowFocus: true}),
+  )
+  const installs = (): HubInstall[] => (agents.isSuccess ? agents.data.installs : [])
+  const connections = (): HubConnection[] => (agents.isSuccess ? agents.data.connections : [])
   const connectKey = appData.utils.meta.connectHub.mutationKey()
   const disconnectKey = appData.utils.meta.disconnectHub.mutationKey()
   const pendingConnects = useMutationState(() => ({
@@ -30,7 +33,7 @@ export function useHubConnections(sessionId: () => string) {
     filters: {mutationKey: disconnectKey, status: 'pending'},
     select: (mutation) => mutation.state.variables,
   }))
-  const refresh = () => queryClient.invalidateQueries({queryKey: appData.utils.meta.models.key()})
+  const refresh = () => queryClient.invalidateQueries({queryKey: appData.utils.meta.hubAgents.key()})
   const connect = useMutation(() => ({
     mutationKey: connectKey,
     mutationFn: (agent: HubInstall) => rpc.meta.connectHub({harness: agent.harnessId}),

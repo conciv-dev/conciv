@@ -1775,6 +1775,21 @@ describe('harness switching', () => {
   })
 })
 
+const STATUS_PROBE_NAME = 'status-probe'
+
+const statusProbe = defineExtension({
+  name: STATUS_PROBE_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(STATUS_PROBE_NAME).useSlot() === 'status'}>
+      <span>env: staging</span>
+    </Show>
+  ),
+})
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof statusProbe> {}
+}
+
 describe('connect agents', () => {
   const core = bootedCore('connect-agents')
   const harness = createShellHarness(core)
@@ -1794,9 +1809,15 @@ describe('connect agents', () => {
     await page.viewport(1000, 900)
     await coreControl.fakeHubCli('fail')
     const sessionId = await createSession(coreRpc(core()))
-    harness.mountShell(`/panel/${sessionId}?open=true`)
+    harness.mountShell(`/panel/${sessionId}?open=true`, [statusProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('env: staging')).toBeVisible()
     await expect.element(agents()).not.toBeInTheDocument()
+
+    await coreControl.setHubConnection('codex', true)
+    await expect.element(agents().getByText('Codex', {exact: true}), {timeout: 8000}).toBeVisible()
+    await coreControl.setHubConnection('codex', false)
+    await expect.element(agents(), {timeout: 8000}).not.toBeInTheDocument()
 
     await more().click()
     await item().click()

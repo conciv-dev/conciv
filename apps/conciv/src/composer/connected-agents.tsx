@@ -5,15 +5,15 @@ import X from 'lucide-solid/icons/x'
 import {Clawd} from './clawd/clawd.js'
 import {useHubConnections} from './hub-connections.js'
 
-const ROW = 'inline-flex flex-wrap items-center gap-1.5'
+const ROW = 'contents [&>*+*]:ms-1.5'
 const CHIP_BASE = 'inline-flex items-center gap-1 min-h-6 ps-1.5 rounded-chat-pill bg-chat-fill text-chat-text-2'
 const CHIP = `${CHIP_BASE} pe-0.5`
 const PLAIN_CHIP = `${CHIP_BASE} pe-2`
 const DISCONNECT =
   'size-5 rounded-chat-pill relative after:content-[""] after:absolute after:-inset-3 text-chat-text-3 hover:text-chat-text-hi'
 
-export function ConnectedAgents(props: {sessionId: string; onDisconnected: () => void}): JSX.Element {
-  const hub = useHubConnections(() => props.sessionId)
+export function ConnectedAgents(props: {onDisconnected: () => void}): JSX.Element {
+  const hub = useHubConnections()
   const settled = () => hub.connections().filter((connection) => !hub.busy(connection.harnessId))
   const visible = () => settled().length + hub.connecting().length + hub.disconnecting().length > 0
   return (

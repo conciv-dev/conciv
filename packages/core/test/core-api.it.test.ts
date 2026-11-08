@@ -512,9 +512,9 @@ describe('connect hub', () => {
     rmSync(root, {recursive: true, force: true})
   })
 
-  const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
+  const hubInstalls = async () => (await kit().rpc.meta.hubAgents()).installs
 
-  const hubConnections = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubConnections
+  const hubConnections = async () => (await kit().rpc.meta.hubAgents()).connections
 
   const claudeConnection = {harnessId: 'claude', name: 'Claude'}
 

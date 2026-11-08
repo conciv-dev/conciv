@@ -10,7 +10,7 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
-import {concivHome, recordHubConnection, withHomeDb} from '@conciv/db'
+import {concivHome, recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -187,6 +187,12 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
+
+const setHubConnection: BrowserCommand<[string, boolean]> = (_ctx, harness, connected): void => {
+  withHomeDb(concivHome({env: process.env}), (db) =>
+    connected ? recordHubConnection(db, harness, Date.now()) : removeHubConnection(db, harness),
+  )
+}
 
 const hubExecute: BrowserCommand<[string, string, string?]> = async (
   ctx,
@@ -554,6 +560,7 @@ export const coreCommands = {
   clearScript,
   scriptCustomEvent,
   fakeHubCli,
+  setHubConnection,
   rpcCallCount,
   installFault,
   releaseFault,

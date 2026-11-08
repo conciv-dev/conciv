@@ -456,7 +456,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   <Thread.Composer>
                     <div class={ABOVE_COMPOSER}>
                       <Suspense>
-                        <ConnectedAgents sessionId={sessionId} onDisconnected={focusInput} />
+                        <ConnectedAgents onDisconnected={focusInput} />
                       </Suspense>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
