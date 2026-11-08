@@ -83,10 +83,6 @@ export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutco
   return outcome
 }
 
-export async function runRpcWhenServing(target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
-  return servedOutcome(await engineOrigin(process.cwd(), process.env, target.tab), target, call)
-}
-
 function rejectedByServer(error: unknown): boolean {
   const remote = RemoteSchema.safeParse(error)
   return remote.success && remote.data.status >= 400 && remote.data.status < 500

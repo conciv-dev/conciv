@@ -58,6 +58,7 @@ import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
 import '../styles.css'
+import 'virtual:uno.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
 

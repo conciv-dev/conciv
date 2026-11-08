@@ -97,6 +97,8 @@ const PREEXISTING_TERM_SITES = [
   {
     term: 'pipeline',
     paths: [
+      'apps/conciv/uno.config.ts',
+      'packages/embed/uno.config.ts',
       'packages/extension-testkit/src/test-host-config.ts',
       'packages/ui-kit-chat/uno.config.ts',
       'packages/ui-kit-chat-tools/uno.config.ts',

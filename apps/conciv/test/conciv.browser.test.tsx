@@ -1,4 +1,5 @@
 import '../src/styles.css'
+import 'virtual:uno.css'
 import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
@@ -44,7 +45,6 @@ import {
   useComposer,
   createTextAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
-import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {

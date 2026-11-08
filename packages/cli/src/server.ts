@@ -1,15 +1,16 @@
-import {description, extend, name, route} from '@bomb.sh/router'
-import type {RpcClient} from '@conciv/contract'
-import {BUILTIN_SERVER_TOOLS, serverOperationOfTool} from '@conciv/tools/builtins'
-import {envelopeFlag} from './envelope.js'
-import {runRpc} from './request.js'
-import {tabFlag} from './tab-flag.js'
-import {toolCommand} from './tool-command.js'
+import type {RpcClient, ToolCommandSignature} from '@conciv/contract'
+import type {CliOutcome} from './envelope.js'
+import {runRpc, type CliTarget} from './request.js'
 
 type OperationCall = (input: unknown) => Promise<unknown>
 
-function isOperationCall(value: unknown): value is OperationCall {
-  return typeof value === 'function'
+export function callServerOperation(
+  signature: ToolCommandSignature,
+  input: Record<string, unknown>,
+  target: CliTarget,
+): Promise<CliOutcome> {
+  const operation = signature.name.slice(signature.name.indexOf('_') + 1)
+  return runRpc(target, (rpc) => callOperation(rpc, operation, input))
 }
 
 function callOperation(rpc: RpcClient, operation: string, input: Record<string, unknown>): Promise<unknown> {
@@ -18,21 +19,6 @@ function callOperation(rpc: RpcClient, operation: string, input: Record<string, 
   return call(input)
 }
 
-function operationCommands() {
-  return BUILTIN_SERVER_TOOLS.map((tool) => {
-    const operation = serverOperationOfTool(tool.name)
-    return toolCommand(tool, {
-      name: operation,
-      positional: tool.meta?.positional,
-      run: (input, target) => runRpc(target, (rpc) => callOperation(rpc, operation, input)),
-    })
-  })
+function isOperationCall(value: unknown): value is OperationCall {
+  return typeof value === 'function'
 }
-
-export const serverRoute = route(
-  name('server'),
-  description('inspect & nudge the live dev server'),
-  envelopeFlag,
-  tabFlag,
-  extend(...operationCommands()),
-)

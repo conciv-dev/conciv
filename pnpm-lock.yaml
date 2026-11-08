@@ -606,6 +606,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../packages/extension-testkit
+      '@conciv/extension-whiteboard':
+        specifier: workspace:*
+        version: link:../../packages/extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
@@ -636,9 +639,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
@@ -666,22 +666,6 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(patch_hash=7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd)(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
-
-  apps/examples/ios:
-    dependencies:
-      '@conciv/it':
-        specifier: workspace:*
-        version: link:../../../packages/it
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.6
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
 
   apps/examples/nextjs-app:
     dependencies:
@@ -1771,6 +1755,22 @@ importers:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
 
+  native/swift:
+    dependencies:
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
+
   packages/ai:
     dependencies:
       '@agentclientprotocol/sdk':
@@ -2030,21 +2030,12 @@ importers:
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
-      '@conciv/extension-design':
-        specifier: workspace:^
-        version: link:../extensions/design
-      '@conciv/extension-page':
-        specifier: workspace:^
-        version: link:../extensions/page
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@conciv/tools':
-        specifier: workspace:^
-        version: link:../tools
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
@@ -2073,6 +2064,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/extension-design':
+        specifier: workspace:^
+        version: link:../extensions/design
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2438,6 +2432,12 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/extension-try-it':
+        specifier: workspace:*
+        version: link:../extensions/try-it
+      '@conciv/extension-whiteboard':
+        specifier: workspace:*
+        version: link:../extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2462,9 +2462,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0

@@ -22,9 +22,9 @@ unit-tests pure parsers plus the router-restore path (vitest browser project).
 - `./api-base` export (`package.json`): `src/lib/api-base.ts`
 - `./styles.css` export (`package.json`): `src/styles.css`
 - scripts (`package.json`): `dev` (vite, port 3000), `generate-routes` (`tsr generate`), `build`, `typecheck`, `lint` (oxlint), `test` (vitest), `test:perf`
-- `vite.config.ts`: `tanstackRouter({target: 'solid', autoCodeSplitting: false})` plus `solidPlugin`
+- `vite.config.ts`: `tanstackRouter({target: 'solid', autoCodeSplitting: false})`, `UnoCSS` (`unocss/vite`) and `solidPlugin`
 - `vitest.config.ts`: `unit` project (node, `test/**/*.test.ts`) and `browser` project (headless Chromium, `coreCommands` from `test/commands/core-control.js`)
-- `uno.config.ts`: `presetConciv`, scanning `src` and several `../../packages` sources
+- `uno.config.ts`: `presetConciv`, scanning `src` and several `../../packages` sources; the utilities reach the widget through `virtual:uno.css?inline` (`src/lib/widget-styles.ts`)
 - Subdirectories: [src](./src/README.md). `test/commands/` holds the command tests.
 
 ## Invariants
