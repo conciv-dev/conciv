@@ -2,7 +2,6 @@ import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tans
 import {useQuery} from '@tanstack/solid-query'
 import {Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
-  ChatProvider,
   coalesceTurns,
   createRunClock,
   createSessionStatus,
@@ -37,7 +36,6 @@ import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
-import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
@@ -201,11 +199,10 @@ function PanelSession(): JSX.Element {
     return turn ? turnRollup(turn) : undefined
   })
   const isStreaming = () => chat().runInProgress()
-  const queue = createMemo(() => chat().queue())
   const sessionStatus = createSessionStatus(() => ({
     latestRollup: latestRollup(),
     isStreaming: isStreaming(),
-    queueLength: queue().length,
+    queueLength: chat().queue().length,
     stopping: chat().stopping(),
     runError: chat().runError(),
     stopped: chat().stopped(),
@@ -326,9 +323,6 @@ function PanelSession(): JSX.Element {
         </Popover.Root>
         <CloseChatButton />
       </header>
-      <ChatProvider chat={chat()}>
-        <QueueStrip queue={queue()} />
-      </ChatProvider>
       <Outlet />
       <StatusBar
         status={sessionStatus()}

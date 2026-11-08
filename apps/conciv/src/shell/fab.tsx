@@ -3,7 +3,12 @@ import {createElementSize} from '@solid-primitives/resize-observer'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
-import {launcherPlacement, type DraggablePosition, type LauncherEdgeTab} from '../lib/draggable-position.js'
+import {
+  launcherPlacement,
+  type DraggablePosition,
+  type LauncherEdgeTab,
+  type PanelFrame,
+} from '../lib/draggable-position.js'
 import type {TriggerCorner, TriggerEdge} from '../lib/draggable-physics.js'
 import {FabRobot} from './fab-robot.js'
 
@@ -109,6 +114,7 @@ export function ShellFab(props: {
   ref: (el: HTMLButtonElement) => void
   open: () => boolean
   working: () => boolean
+  avoid: () => PanelFrame | undefined
   suppressed: () => '' | undefined
   fab: DraggablePosition
   locked: () => boolean
@@ -162,7 +168,7 @@ export function ShellFab(props: {
               <span class={props.open() ? FAB_BUSY : `${FAB_BUSY} ${FAB_ATTN}`} aria-hidden="true" />
             </Show>
           </Suspense>
-          <FabRobot open={props.open} working={props.working} />
+          <FabRobot open={props.open} working={props.working} avoid={props.avoid} />
           <Show when={props.locked()}>
             <span class={FAB_UNAUTHORIZED_TRACK}>
               <span class={FAB_UNAUTHORIZED}>
