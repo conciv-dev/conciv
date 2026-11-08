@@ -32,6 +32,7 @@ export function App() {
   if (requested === 'empty') return null
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
+  if (requested === 'tech') return <main className="tech" data-conciv-key="tEcHlP" />
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
   if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />
