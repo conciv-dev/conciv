@@ -2847,6 +2847,29 @@ describe('rpc wire', () => {
           expect(await paged(null)).toEqual(tied)
         })
 
+        it('carries an excerpt from the matching line and the words that matched it, by prefix or one typo', async () => {
+          const curlew = claudeId('claude-curlew')
+          writeClaudeTurn(curlew, 'a shore walk', 'first we packed\nthe Curlews jetted past the jetty')
+          expect(await listedNativeIds()).toContain(curlew)
+          await foundOnceIndexed('curl', [curlew])
+          const hitOf = async (term: string) => {
+            const {sessions: listed} = await searchKit().rpc.sessions.search({term, limit: 100})
+            return listed.map(({excerpt, matched}) => ({excerpt, matched}))
+          }
+
+          expect(await hitOf('curl')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['Curlews']}])
+          expect(await hitOf('jetti')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['jetty']}])
+          expect(await hitOf('packd')).toEqual([
+            {excerpt: 'first we packed\nthe Curlews jetted past the jetty', matched: ['packed']},
+          ])
+
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const owned = listed.find((meta) => meta.native?.nativeId === curlew)
+          if (owned === undefined) throw new Error('the curlew session was not listed')
+          await searchKit().rpc.sessions.rename({sessionId: owned.id, title: 'the godwit count'})
+          expect(await hitOf('godwit')).toEqual([{excerpt: null, matched: ['godwit']}])
+        })
+
         it('tolerates typos only when every word has at least four characters', async () => {
           writeClaudeTurn(claudeId('claude-item-three'), 'review item 3', 'checked')
           writeClaudeTurn(claudeId('claude-item-twenty-nine'), 'review item 29', 'checked')
