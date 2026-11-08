@@ -338,14 +338,7 @@ function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; liv
     if (element === null || element === undefined) return WHITE
     return opaque(element.styles.background) ? element.styles.background : behind(parents.get(element))
   }
-  const looks = nodeLooks(input.design)
-  const assets = new Set(looks.flatMap((look) => (look.asset === null ? [] : [look.node])))
-  const drawn = looks.reduce((inside, look) => {
-    const parent = look.within ?? ''
-    return inside.has(parent) || assets.has(parent) ? inside.add(look.node) : inside
-  }, new Set<string>())
-  return looks.flatMap((look) => {
-    if (drawn.has(look.node)) return []
+  return nodeLooks(input.design).flatMap((look) => {
     const element = reads.of(look.node)[0]
     if (element === undefined) return []
     const seen = {look, element, under: behind(parents.get(element))}

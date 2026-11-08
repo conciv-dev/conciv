@@ -177,9 +177,9 @@ function cropped(input: {design: Design; image: Uint8Array; wanted: Wanted[]}): 
 
 function withAssets(input: {node: DesignNode; paths: Map<string, string>}): DesignNode {
   const {node, paths} = input
-  const children = node.children.map((child) => withAssets({node: child, paths}))
   const asset = paths.get(node.id)
   const facts = node.figma
-  if (asset === undefined || facts === undefined) return {...node, children}
-  return {...node, children, figma: {...facts, fields: {...facts.fields, asset}}}
+  if (asset === undefined || facts === undefined)
+    return {...node, children: node.children.map((child) => withAssets({node: child, paths}))}
+  return {...node, children: [], figma: {...facts, fields: {...facts.fields, asset}}}
 }
