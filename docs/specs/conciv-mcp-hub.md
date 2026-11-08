@@ -226,9 +226,9 @@ the agent to warn the user when it is above 1.
     (`OUTSIDE_DECISION_WAIT_MS`, below Codex's 60 s tool timeout); only then is it refused with the gate's
     message. One click releases every call waiting on that grant. The allow is recorded for that session only.
     The check runs when a tool is called, never on `initialize` or `tools/list`, so listing tools never prompts.
-    Known limit: under `'project'`, an Allow clicked in one tab releases calls waiting in other tabs, but their own
-    prompts stay until their history reloads; moving approvals onto TanStack AI's own tool-approval flow (in-app and
-    outside alike) removes the side list that causes it and is its own lane.
+    Under `'project'` one Allow or Deny covers the engine, so the server also clears the `outside-session` card
+    stored in every other session (`metadataKeysEndingWith` in `packages/chat/src/stores.ts`); those tabs drop the
+    card on their next history read. No new event.
   - Deny sticks. Today a Deny outside a running turn records nothing (`approvals.decide` in
     `packages/chat/src/approvals.ts` only stores `denied` when `runId !== null`), so every retry would prompt again.
     For the `outside-session` target a Deny is stored for the session (for the engine under `'project'`), and later
@@ -267,7 +267,8 @@ the agent to warn the user when it is above 1.
 
 - Engine discovery (`packages/cli/src/engine-origin.ts`, now async): with `--tab`, the engine that owns that tab
   from the home db (wherever the CLI runs); else `CONCIV_PORT`, else `.conciv/server.json` in the current folder
-  (today's default, unchanged), else the most recently registered live engine in the home db. The token comes from that engine's `apiBase`.
+  (today's default, unchanged), else the most recently registered live engine in the home db. When `--tab` is held
+  by more than one live engine, the CLI fails and names each engine's project root instead of picking one. The token comes from that engine's `apiBase`.
 - Tab choice (`packages/cli/src/request.ts`): a global `--tab <id>` flag, zod-parsed as `SessionId`, wins over
   `CONCIV_SESSION_ID`; with neither, today's `sessions.resolve` default. A `--tab` call sends `conciv-origin: hub` and
   `conciv-client: cli`, so the owner's Allow card and marker apply exactly as for MCP. The engine enforces this on
@@ -305,6 +306,9 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   the runner's request), token from the owner's `apiBase`. The owner's reply becomes the capability's result, or
   its thrown error with the owner's declared code. The same path is used when the owner is the runner itself, so
   consent, the marker and the transcript mirroring happen once, on the owner, by the code that already does them.
+  Image parts in the owner's reply are passed on as image parts, not dropped. An outside call that lands while the
+  tab's own turn is running is still saved to that chat (`packages/core/src/api/call-trace.ts`); saves to one chat
+  are serialized by a per-thread lock with the turn's own save.
 - The runner's sandbox offers the runner's own capability set. A capability that the chosen tab's engine has and the
   runner lacks (a different extension set) is not callable in v1; `external_use_tab` lists the tab's real set, and
   calling a missing one fails with the sandbox's normal unknown-function error. Follow-up.
@@ -347,14 +351,14 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   `npx` start against each harness's MCP startup timeout (Codex defaults to about 10s); if it exceeds one, stop and
   ask Omri.
 - Per-harness data on each init contribution in `@conciv/harness-init` (`packages/harness-init/src/registry.ts`,
-  `HarnessInitContribution` in `@conciv/protocol/harness-types`): optional `hub: {add: (command: string[]) =>
-  string[]}` returning the argv. Starting values, each verified against the CLI pinned in CI
+  `HarnessInitContribution` in `@conciv/protocol/harness-types`): optional `hub: {add: (command: string[], env:
+  Record<string, string>) => string[]}` returning the argv. The installer passes `{CONCIV_HOME: <engine's home>}` so the
+  hub reads the same home db as the engine that installed it (a custom `homeDir` or `CONCIV_HOME` included). Starting values, each verified against the CLI pinned in CI
   (`.github/workflows/ci.yml` "Install harness CLIs") before it ships:
-  - claude: `claude mcp add -s user conciv-hub -- <command>`
-  - codex: `codex mcp add conciv-hub -- <command>`
-  - gemini-cli: `gemini mcp add -s user conciv-hub <command>`
-  - opencode: unknown. `opencode mcp add` shows `--url` for remote servers; its local-command form may be
-    interactive. If there is no non-interactive form, stop and ask Omri.
+  - claude: `claude mcp add -s user conciv-hub -e K=V -- <command>`
+  - codex: `codex mcp add conciv-hub --env K=V -- <command>`
+  - gemini-cli: `gemini mcp add -s user --env=K=V conciv-hub <command>`
+  - opencode: `opencode mcp add conciv-hub --env=K=V -- <command>`
   - pi: no `hub` field.
 - Which harnesses to list: `detectHarnesses` (`packages/harness-init/src/detect.ts`, bin on PATH or config dir)
   minus those with a `hub_connections` row. Served as a top-level `hubInstalls: Array<{harnessId, name}>` field of
