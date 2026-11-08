@@ -66,26 +66,27 @@ src/
   `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
   implied nodes out. `rules` are the sentences the page must follow.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the
-  mapping, and returns `{round, rows, reflow, coverage, counts, progress, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
+  mapping, and returns `{round, rows, reflow, coverage, counts, verdict, reasons}`. A row is `{node, key, kind, name, text, magnitude}`;
   rows at `slightly` are counted, not listed. `reflow` holds one entry per width (1024, 768): `rootHeight,
   sticksOut, overflowX, overlaps, tags` with `ok` and `why`. A page error, or a page that renders under half the nodes
   of the last settled round, answers `{unsettled: true, rendered, verdict: 'unsettled', reasons}` and writes nothing.
   Under half is decided after every stored pin is voted again: a restructured page is measured on a fresh vote, not
   on pins that point at elements it no longer has.
   The target counts unsettled checks in a row; from the second, the reply also carries `round, rows, reflow, coverage,
-  counts, progress` over what did render, a reason saying the page renders N of M nodes with the rest in `coverage.missing` (and by name in `coverage.gone`), and
+  counts` over what did render, a reason saying the page renders N of M nodes with the rest in `coverage.missing` (and by name in `coverage.gone`), and
   a round is written with verdict `unsettled` (its mapping is not kept). A settled check resets the count. The
   verdict is judged on the round the check wrote: `done` when `much + noticeably + pins = 0`, every required node renders
   (decorations and zero-size nodes are not required), nothing sticks out, nothing scrolls sideways and every reflow
   tag holds at 1024 and 768; `stalled` when `much` is above 0 and has not fallen for two rounds; else `not yet`. The
-  reasons say which condition failed with the numbers. Pixels are reported, never judged. `progress` is null on round 1;
+  reasons say which condition failed with the numbers. Pixels are reported, never judged. Each round also stores `progress`, which the replies leave
+  out unless the config's `show` lists `progress` (the trial's `--show progress`). It is null on round 1;
   after it, it compares with the round before: rows `closed`, `opened` and `kept` (with `repeat`), nodes `gained` and
   `lost`, pixel share `now` and `before`, and `changed`: the share of screenshot pixels that changed (anti-aliasing left
   out) and the changed regions (tiles of 8 px joined across 2 empty tiles, under 4 px a side or 24 px² dropped, only the
   12 largest are listed, `count` says how many changed), each with the three ids whose boxes overlap it most. Captures are frozen first: animations paused
   and rewound, transitions off. `note` says so when the edits changed no pixels at the design width, the reflow rows are
   the same as the round before, and rows are kept.
-- `design_status()` measures nothing: it returns `{verdict, reasons, round, counts, coverage, rows, progress}` of the last stored
+- `design_status()` measures nothing: it returns `{verdict, reasons, round, counts, coverage, rows}` (and `progress` when shown) of the last stored
   round, or `not yet` with round 0 when no check has run.
 
 ## Mapping

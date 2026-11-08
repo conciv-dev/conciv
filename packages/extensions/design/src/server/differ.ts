@@ -15,11 +15,11 @@ export function createDiffer(input: {
   runner: Runner
   page: DesignPage
   bundler: BundlerBridge | undefined
-  hide: readonly string[]
+  show: readonly string[]
 }): Differ {
   const {runtime, runner, page} = input
   const shown = <Reply extends {progress?: unknown}>(reply: Reply) =>
-    input.hide.includes('progress') ? omit(reply, ['progress']) : reply
+    input.show.includes('progress') ? reply : omit(reply, ['progress'])
   const {store} = runtime
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
