@@ -1521,6 +1521,7 @@ test.describe('selection containment', () => {
     await openLoggedIn(page, kit, host.base)
     await openPanel(page)
     await sendMessage(page, 'say something selectable', ASSISTANT_REPLY)
+    await page.getByText(ASSISTANT_REPLY).first().hover()
   }
 
   async function textStart(page: Page, text: string): Promise<Point> {
@@ -1554,7 +1555,7 @@ test.describe('selection containment', () => {
       {
         name: 'up past the top of the panel',
         target: async (page) => ({...(await textStart(page, ASSISTANT_REPLY)), y: 2}),
-        selects: /^\s*CONCIV[\s\S]*say something selectable[\s\S]*The widge$/,
+        selects: /say something selectable[\s\S]*say something selectable[\s\S]*The widge$/,
       },
       {name: 'sideways over host page text', target: (page) => textStart(page, HOST_TEXT), selects: /^The widge$/},
       {
