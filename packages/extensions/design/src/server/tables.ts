@@ -14,7 +14,6 @@ export function designTables(table: SQLiteTableFn) {
       height: real().notNull(),
       scale: real().notNull(),
       design: text({mode: 'json'}).$type<Design>().notNull(),
-      ids: text({mode: 'json'}).$type<IdTree>(),
       image: text().notNull(),
       unsettled: integer().notNull().default(0),
       at: integer().notNull(),
@@ -51,6 +50,7 @@ export function designTables(table: SQLiteTableFn) {
       unsettled: text(),
       live: text(),
       diff: text(),
+      ids: text({mode: 'json'}).$type<IdTree>(),
       at: integer().notNull(),
     }),
     missing: table('missing', {

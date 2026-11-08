@@ -1,7 +1,7 @@
-import {and, asc, desc, eq, max} from 'drizzle-orm'
+import {and, asc, desc, eq, isNotNull, max} from 'drizzle-orm'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
-import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
+import {RoundSchema, type GateRow, type IdTree, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
 import {walk} from '../shared/tree.js'
 import {attached} from './attached.js'
@@ -73,22 +73,65 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     return new Map([...walk(found.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
   }
 
-  async function latestFom(id: string): Promise<FomRow[]> {
+  async function fomAt(where: {id: string; round?: number}): Promise<FomRow[]> {
     const [last] = await orm
       .select({round: max(fom.round)})
       .from(fom)
-      .where(eq(fom.target_id, id))
-    const round = last?.round ?? null
+      .where(eq(fom.target_id, where.id))
+    const round = where.round ?? last?.round ?? null
     if (round === null) return []
     return orm
       .select()
       .from(fom)
-      .where(and(eq(fom.target_id, id), eq(fom.round, round)))
+      .where(and(eq(fom.target_id, where.id), eq(fom.round, round)))
       .orderBy(asc(fom.seq))
   }
 
-  async function mappingOf(id: string): Promise<Mapping> {
-    const held = await latestFom(id)
+  function writeFom(written: {
+    tx: Transaction
+    id: string
+    runId: number | null
+    round: number
+    ids: {tree: IdTree; revoted: Record<string, string>}
+    names: Map<string, string>
+    before: FomRow[]
+    at: number
+  }): void {
+    const {tx, id, runId, round, names, at} = written
+    const {tree, revoted} = written.ids
+    const carried = new Map(written.before.map((row) => [`${row.id}/${row.node}`, row]))
+    tx.delete(fom)
+      .where(and(eq(fom.target_id, id), eq(fom.round, round)))
+      .run()
+    for (const {node: site} of walk(tree.root)) {
+      for (const entry of site.fom) {
+        const reason = revoted[site.id]
+        const previous = carried.get(`${site.id}/${entry.nodeId}`)
+        const {at: loc} = site.src
+        tx.insert(fom)
+          .values({
+            target_id: id,
+            run_id: runId,
+            id: site.id,
+            node: entry.nodeId,
+            name: names.get(entry.nodeId) ?? null,
+            instance: entry.instance,
+            source: loc === null ? null : `${loc.file}:${loc.line}:${loc.column}`,
+            confidence: entry.confidence,
+            margin: entry.margin,
+            round,
+            voted_round: entry.round,
+            revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
+            reason: reason ?? previous?.reason ?? null,
+            at,
+          })
+          .run()
+      }
+    }
+  }
+
+  async function mappingOf(where: {id: string; round?: number}): Promise<Mapping> {
+    const held = await fomAt(where)
     return Object.fromEntries(
       Object.entries(Object.groupBy(held, (row) => row.id)).map(([key, grouped]) => [
         key,
@@ -119,7 +162,6 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         height: design.viewport.height,
         scale: design.scale,
         design,
-        ids: null,
         image: path,
         unsettled: 0,
         at: Date.now(),
@@ -145,7 +187,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       const [head] = await roundsHead({id, round})
       return readRaw({state, key: (kind === 'diff' ? head?.diff : head?.live) ?? null})
     },
-    mapping: mappingOf,
+    mapping: (id) => mappingOf({id}),
     writeVotes: async ({id, round, votes: cast}) => {
       const runId = await run()
       const names = await namesOf(id)
@@ -176,58 +218,28 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         at: Date.now(),
       })
     },
-    ids: async (id) => {
-      const tree = (await target(id))?.ids ?? null
-      if (tree === null) return null
-      return {...tree, root: attached({node: tree.root, mapping: await mappingOf(id)})}
+    ids: async ({id, round}) => {
+      const [held] = await orm
+        .select({ids: rounds.ids, round: rounds.round})
+        .from(rounds)
+        .where(and(eq(rounds.target_id, id), round === undefined ? isNotNull(rounds.ids) : eq(rounds.round, round)))
+        .orderBy(desc(rounds.seq))
+        .limit(1)
+      if (held?.ids === undefined || held.ids === null) return null
+      return {...held.ids, root: attached({node: held.ids.root, mapping: await mappingOf({id, round: held.round})})}
     },
-    writeIds: async ({id, ids, round, revoted}) => {
-      const runId = await run()
-      const names = await namesOf(id)
-      const before = await latestFom(id)
-      const at = Date.now()
-      orm.transaction((tx) => {
-        const carried = new Map(before.map((row) => [`${row.id}/${row.node}`, row]))
-        tx.update(targets)
-          .set({ids: {...ids, root: attached({node: ids.root, mapping: {}})}})
-          .where(eq(targets.target_id, id))
-          .run()
-        tx.delete(fom)
-          .where(and(eq(fom.target_id, id), eq(fom.round, round)))
-          .run()
-        for (const {node: site} of walk(ids.root)) {
-          for (const entry of site.fom) {
-            const reason = revoted[site.id]
-            const previous = carried.get(`${site.id}/${entry.nodeId}`)
-            const {at: loc} = site.src
-            tx.insert(fom)
-              .values({
-                target_id: id,
-                run_id: runId,
-                id: site.id,
-                node: entry.nodeId,
-                name: names.get(entry.nodeId) ?? null,
-                instance: entry.instance,
-                source: loc === null ? null : `${loc.file}:${loc.line}:${loc.column}`,
-                confidence: entry.confidence,
-                margin: entry.margin,
-                round,
-                voted_round: entry.round,
-                revoted_round: reason === undefined ? (previous?.revoted_round ?? null) : round,
-                reason: reason ?? previous?.reason ?? null,
-                at,
-              })
-              .run()
-          }
-        }
-      })
-    },
+    looks: async (id) =>
+      (await orm.select().from(nodes).where(eq(nodes.target_id, id)).orderBy(asc(nodes.seq))).map(
+        ({seq: _seq, target_id: _target, run_id: _run, ...look}) => look,
+      ),
     unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
     writeUnsettledCount: async ({id, count}) => {
       await orm.update(targets).set({unsettled: count}).where(eq(targets.target_id, id))
     },
-    writeRound: async ({id, round, live, diff, notes: told = []}) => {
+    writeRound: async ({id, round, live, diff, notes: told = [], ids}) => {
       const written = RoundSchema.parse(round)
+      const names = await namesOf(id)
+      const before = await fomAt({id})
       const livePath = live.length > 0 ? `${id}/live/${round.round}.png` : null
       const diffPath = diff.length > 0 ? `${id}/diff/${round.round}.png` : null
       if (livePath !== null) await state.setItemRaw(livePath, live)
@@ -240,6 +252,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       const repeats = new Map(earlier.map((row) => [rowKey(row), row.repeat + 1]))
       orm.transaction((tx) => {
         const own = {target_id: id, run_id: runId, round: written.round}
+        if (ids !== undefined) writeFom({tx, id, runId, round: written.round, ids, names, before, at: written.at})
         for (const text of told)
           tx.insert(notes)
             .values({...own, text})
@@ -276,6 +289,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             unsettled: written.unsettled,
             live: livePath,
             diff: diffPath,
+            ids: ids === undefined ? null : {...ids.tree, root: attached({node: ids.tree.root, mapping: {}})},
           })
           .run()
         for (const row of written.rows)
@@ -380,6 +394,8 @@ type Stored = {
 }
 
 type FomRow = DesignDb['tables']['fom']['$inferSelect']
+
+type Transaction = Parameters<Parameters<DesignDb['orm']['transaction']>[0]>[0]
 
 const TARGET_IMAGE = 'target.png'
 

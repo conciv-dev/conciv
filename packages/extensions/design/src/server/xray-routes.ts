@@ -5,7 +5,8 @@ import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import type {DesignRuntime} from '../shared/defs.js'
+import type {Box, DesignRuntime, IdNode} from '../shared/defs.js'
+import type {Store} from '../shared/store.js'
 
 export function createXrayRoutes(input: {runtime: DesignRuntime; pageDir: string; takumiDir: string}) {
   const {runtime} = input
@@ -42,6 +43,16 @@ function makeXrayRouter(runtime: DesignRuntime) {
         if (target === undefined) throw new ORPCError('NOT_FOUND', {message: `no design with id ${query.id}`})
         return {target, rounds: await store.rounds(target.id), mapping: await store.mapping(target.id)}
       }),
+      layers: xrayOs
+        .input(z.object({id: NonEmptySchema, round: z.number().int().positive()}))
+        .handler(async ({input: query}) => {
+          const target = (await store.list()).find((record) => record.id === query.id)
+          if (target === undefined) throw new ORPCError('NOT_FOUND', {message: `no design with id ${query.id}`})
+          const [ids, looks] = await Promise.all([store.ids(query), store.looks(target.id)])
+          if (ids === null) return null
+          const byNode = new Map(looks.map((look) => [look.node, look]))
+          return {round: query.round, width: target.width, root: layerOf({node: ids.root, byNode, scale: target.scale})}
+        }),
     },
   })
 }
@@ -82,6 +93,29 @@ function makeXrayApp(input: {runtime: DesignRuntime; pageDir: string; takumiDir:
       if (!kind.success || !Number.isInteger(round)) return c.text('not found', 404)
       return pngResponse(await store.image({id: c.req.param('id'), round, kind: kind.data}))
     })
+}
+
+function layerOf(input: {node: IdNode; byNode: Map<string, Look>; scale: number}): Layer {
+  const {node, byNode, scale} = input
+  return {
+    id: node.id,
+    dom: node.dom,
+    cssom: node.cssom,
+    src: node.src,
+    fom: node.fom.map((entry) => {
+      const look = byNode.get(entry.nodeId) ?? null
+      const box = look === null ? null : {x: look.x * scale, y: look.y * scale, w: look.w * scale, h: look.h * scale}
+      return {...entry, box, look}
+    }),
+    children: node.children.map((child) => layerOf({...input, node: child})),
+  }
+}
+
+type Look = Awaited<ReturnType<Store['looks']>>[number]
+
+type Layer = Omit<IdNode, 'fom' | 'children'> & {
+  fom: (IdNode['fom'][number] & {box: Box | null; look: Look | null})[]
+  children: Layer[]
 }
 
 function pngResponse(image: Uint8Array | null): Response {

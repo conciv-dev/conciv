@@ -150,6 +150,12 @@ Motion is the View Transitions API, nothing hand-animated:
 2. Closed: the pane folds into that column; one surface behind one button.
 3. Widths with no stored boxes (a reflow width measured only for overflow and height): draw nothing, or draw the
    design-width boxes greyed. Mockup: nothing.
+   Closed: this version stores boxes at the design width only. At another width the overlay draws the design-width
+   boxes dimmed with one line "boxes measured at <design width>", and the reflow rows of that width on them.
+4. Closed: the id tree is stored per round (`rounds.ids`, written in the transaction that writes the round), so
+   `xray.layers({id, round})` answers for any stored round. A wave 14 database keeps opening: its `targets.ids`
+   becomes the last round's.
+5. Closed: the host has no settings view; `HostWiring.hotkeys.bindings()` is the list of registered bindings.
 
 ## Proof
 

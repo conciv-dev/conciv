@@ -68,7 +68,7 @@ const SETTLE_WAIT_MS = 5000
 
 async function stored(input: {runtime: DesignRuntime; record: TargetRecord}): Promise<Got> {
   const {runtime, record} = input
-  const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids(record.id)])
+  const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids({id: record.id})])
   return documentOf({target: record.id, design, ids})
 }
 

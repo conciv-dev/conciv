@@ -21,7 +21,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       store.mapping(record.id),
       store.rounds(record.id),
       store.image({id: record.id}),
-      store.ids(record.id),
+      store.ids({id: record.id}),
       store.unsettledCount(record.id),
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
@@ -56,13 +56,6 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const {rendered} = coverage
     if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
-    if (unsettled === null)
-      await store.writeIds({
-        id: record.id,
-        ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
-        round,
-        revoted: mapped.reasons,
-      })
     const widths = widthsOf({design, styles: measured.queries})
     const results = []
     const failures = []
@@ -124,6 +117,9 @@ export function createRunner(runtime: DesignRuntime): Runner {
       round: written,
       live: measured.raster.png(),
       diff: pixels.diff,
+      ...(unsettled === null
+        ? {ids: {tree: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}, revoted: mapped.reasons}}
+        : {}),
       notes: [
         `capture ${measured.path}`,
         ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
