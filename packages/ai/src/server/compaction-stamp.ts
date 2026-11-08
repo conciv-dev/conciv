@@ -8,6 +8,8 @@ const COMPACTION: z.infer<typeof CompactionMetadataSchema> = {conciv: {compactio
 
 const RunTagSchema = z.object({tanstack: z.object({run: z.object({id: z.string()})})})
 
+const ConcivBagSchema = z.object({conciv: z.record(z.string(), z.unknown())})
+
 export function compactionStamp(messages: MessageStore) {
   return defineChatMiddleware({
     name: 'conciv-compaction-stamp',
@@ -19,18 +21,25 @@ export function compactionStamp(messages: MessageStore) {
       ) {
         return undefined
       }
-      return {...chunk, metadata: {...chunk.metadata, ...COMPACTION}}
+      return {...chunk, metadata: stamped(chunk.metadata)}
     },
     onFinish: async (ctx) => {
       const stored = await messages.loadThread(ctx.threadId)
+      if (!stored.some((message) => ranIn(message, ctx.runId))) return
       await messages.saveThread(
         ctx.threadId,
         stored.map((message) =>
-          ranIn(message, ctx.runId) ? {...message, metadata: {...message.metadata, ...COMPACTION}} : message,
+          ranIn(message, ctx.runId) ? {...message, metadata: stamped(message.metadata)} : message,
         ),
       )
     },
   })
+}
+
+function stamped(metadata: Record<string, unknown> | undefined): Record<string, unknown> {
+  const bag = ConcivBagSchema.safeParse(metadata)
+  const conciv = bag.success ? bag.data.conciv : {}
+  return {...metadata, conciv: {...conciv, ...COMPACTION.conciv}}
 }
 
 function ranIn(message: ModelMessage, runId: string): boolean {
