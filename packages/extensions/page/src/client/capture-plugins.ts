@@ -16,14 +16,18 @@ const keepOneLineText: SnapdomPlugin = {
   name: 'keep-one-line-text',
   afterClone: (context) => {
     const root = context.clone
-    if (!(root instanceof HTMLElement)) return
-    for (const box of root.querySelectorAll('*')) {
-      if (!(box instanceof HTMLElement) || box.style.getPropertyValue('text-wrap-mode') !== 'nowrap') continue
-      for (const inner of box.querySelectorAll('*')) {
-        if (inner instanceof HTMLElement) inner.style.setProperty('text-wrap-mode', 'nowrap')
-      }
-    }
+    if (root) carryOneLine(root, pinnedToOneLine(root))
   },
+}
+
+const pinnedToOneLine = (box: Element): boolean =>
+  box instanceof HTMLElement && box.style.getPropertyValue('text-wrap-mode') === 'nowrap'
+
+const carryOneLine = (box: Element, pinned: boolean): void => {
+  for (const child of box.children) {
+    if (pinned && child instanceof HTMLElement) child.style.setProperty('text-wrap-mode', 'nowrap')
+    carryOneLine(child, pinned || pinnedToOneLine(child))
+  }
 }
 
 export const capturePlugins: SnapdomPlugin[] = [keepBodyMargins, keepOneLineText]
