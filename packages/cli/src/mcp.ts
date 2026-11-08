@@ -35,7 +35,7 @@ const disconnectCommand = command(
   envelopeFlag,
   handler(async (model) => {
     const {agent} = AgentModelSchema.parse(model)
-    return settled(await connections().disconnect(agent, async () => {}), {disconnected: agent})
+    return settled(await connections().disconnect(agent), {disconnected: agent})
   }),
 )
 

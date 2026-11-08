@@ -43,6 +43,7 @@ type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   stateRoot: string
   hubAccess: HubAccess
+  outsideRevokedAt: () => number
   firstOutputTimeoutMs?: number
 }
 
@@ -100,7 +101,6 @@ export type ChatPlane = {
   pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
-  revokeOutsideAllows: () => Promise<void>
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
@@ -108,6 +108,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const approvals = createApprovalStore(
     {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
     deps.hubAccess,
+    deps.outsideRevokedAt,
   )
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
@@ -234,7 +235,6 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       })),
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
-    revokeOutsideAllows: () => approvals.revokeOutsideAllows(),
     codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)

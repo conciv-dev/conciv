@@ -1,0 +1,122 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "id": "62747c6a-ab27-4f3f-ab15-f999d91ce355",
+  "prevIds": ["d4afe199-4f99-4a8f-8156-3d385a730798"],
+  "ddl": [
+    {
+      "name": "engines",
+      "entityType": "tables"
+    },
+    {
+      "name": "hub_connections",
+      "entityType": "tables"
+    },
+    {
+      "name": "hub_revocations",
+      "entityType": "tables"
+    },
+    {
+      "table": "engines",
+      "name": "id",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "engines",
+      "name": "pid",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "engines",
+      "name": "root",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "engines",
+      "name": "api_base",
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "engines",
+      "name": "deleted_at",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_connections",
+      "name": "harness",
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_connections",
+      "name": "connected_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_revocations",
+      "name": "revoked_at",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "engines",
+      "name": "engines_pk",
+      "columns": ["id"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "hub_connections",
+      "name": "hub_connections_pk",
+      "columns": ["harness"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "table": "hub_revocations",
+      "name": "hub_revocations_pk",
+      "columns": ["revoked_at"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    }
+  ],
+  "renames": []
+}

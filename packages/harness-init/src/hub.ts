@@ -1,6 +1,13 @@
 import {execFile} from 'node:child_process'
 import {z} from 'zod'
-import {hubConnections, recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
+import {
+  hubConnections,
+  lastHubRevocation,
+  readHomeDb,
+  recordHubConnection,
+  removeHubConnection,
+  withHomeDb,
+} from '@conciv/db'
 import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-types'
 import {initContributions} from './registry.js'
 
@@ -17,7 +24,7 @@ type RunOutcome = {ok: boolean; output: string; message: string}
 
 export function createHubConnections(home: string, run: (argv: string[]) => Promise<RunOutcome> = runFile) {
   const list = (): HubConnection[] =>
-    withHomeDb(home, hubConnections).flatMap((row) => {
+    (readHomeDb(home, hubConnections) ?? []).flatMap((row) => {
       const parsed = HarnessIdSchema.safeParse(row.harness)
       const hub = parsed.success ? initContributions[parsed.data].hub : undefined
       if (!parsed.success || hub === undefined) return []
@@ -25,6 +32,7 @@ export function createHubConnections(home: string, run: (argv: string[]) => Prom
     })
   return {
     list,
+    revokedAt: (): number => readHomeDb(home, lastHubRevocation) ?? 0,
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
@@ -39,12 +47,11 @@ export function createHubConnections(home: string, run: (argv: string[]) => Prom
       if (!replaced.ok) return {ok: false, message: replaced.message}
       return record(home, harness)
     },
-    disconnect: async (harness: InitHarnessId, revoked: () => Promise<void>): Promise<HubOutcome> => {
+    disconnect: async (harness: InitHarnessId): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
       const forgotten = forget(home, harness)
       if (!forgotten.ok) return forgotten
-      await revoked()
       if (hub.remove === undefined) {
         return {
           ok: true,
@@ -103,7 +110,7 @@ function record(home: string, harness: InitHarnessId): HubOutcome {
 
 function forget(home: string, harness: InitHarnessId): HubOutcome {
   try {
-    withHomeDb(home, (db) => removeHubConnection(db, harness))
+    withHomeDb(home, (db) => removeHubConnection(db, harness, Date.now()))
     return {ok: true}
   } catch (error) {
     return {ok: false, message: `conciv could not forget the connection: ${String(error)}`}

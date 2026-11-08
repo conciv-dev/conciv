@@ -35,6 +35,7 @@ import {
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
+import {createHubConnections} from '@conciv/harness-init/hub'
 import {
   anchorKey,
   chatMetadata,
@@ -43,6 +44,7 @@ import {
   listEngines,
   recordHubConnection,
   registerEngine,
+  removeHubConnection,
   sessions,
   TRANSCRIPT_NAMESPACE,
   withHomeDb,
@@ -4000,6 +4002,47 @@ describe('outside agent consent', () => {
       expect(await makeRpcClient(base).meta.disconnectHub({harness: 'codex'})).toEqual({ok: true})
       expect(await hubCall(base, sessionId)).toContain('Codex is disconnected from conciv')
       expect(await makeRpcClient(base).meta.connectHub({harness: 'codex'})).toEqual({ok: true})
+      const asked = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, false)
+      expect(await asked).toContain(DENIED)
+    } finally {
+      process.env.PATH = savedPath
+    }
+  })
+
+  it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
+    const home = connectedHome()
+    const base = await boot(undefined, home)
+    const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex', Date.now()))
+    const sessionId = await newSession(base)
+    const overMcp = hubCall(base, sessionId)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    forget()
+    await decideOutside(base, sessionId, true)
+    expect(await overMcp).toContain('Codex is disconnected from conciv')
+    connectedHome(home)
+    const tab = await openTab(base)
+    const overRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: tab, ...HUB}})
+      .registry.call({name: 'page_route', input: {}})
+      .then(String, String)
+    await vi.waitFor(async () => expect(await pendingOf(base, tab)).toHaveLength(1), {timeout: 3000})
+    forget()
+    await decideOutside(base, tab, true)
+    expect(await overRpc).toContain('Codex is disconnected from conciv')
+  })
+
+  it('a disconnect from anything sharing the home, the terminal included, voids the outside Allow every engine holds', async () => {
+    const savedPath = process.env.PATH
+    process.env.PATH = tempDir('conciv-no-agents-')
+    try {
+      const home = connectedHome()
+      const base = await boot(undefined, home)
+      const sessionId = await newSession(base)
+      const allowed = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, true)
+      expect(await allowed).toMatch(RAN)
+      expect(await createHubConnections(home).disconnect('codex')).toMatchObject({ok: true})
+      connectedHome(home)
       const asked = hubCall(base, sessionId)
       await decideOutside(base, sessionId, false)
       expect(await asked).toContain(DENIED)

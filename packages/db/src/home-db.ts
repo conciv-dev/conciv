@@ -1,13 +1,13 @@
-import {chmodSync, closeSync, lstatSync, mkdirSync, openSync} from 'node:fs'
+import {chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
-import {isNull, eq} from 'drizzle-orm'
+import {isNull, eq, max} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
-import {engines, hubConnections as hubConnectionsTable} from './home-schema.js'
+import {engines, hubConnections as hubConnectionsTable, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
 
@@ -47,6 +47,11 @@ export function withHomeDb<T>(home: string, run: (db: HomeDb) => T): T {
   }
 }
 
+export function readHomeDb<T>(home: string, run: (db: HomeDb) => T): T | null {
+  if (!existsSync(join(home, 'home.db'))) return null
+  return withHomeDb(home, run)
+}
+
 export function registerEngine(db: HomeDb, row: EngineRow): void {
   db.insert(engines).values(row).onConflictDoUpdate({target: engines.id, set: row}).run()
 }
@@ -67,8 +72,20 @@ export function recordHubConnection(db: HomeDb, harness: string, now: number): v
   db.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
 }
 
-export function removeHubConnection(db: HomeDb, harness: string): void {
-  db.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
+export function removeHubConnection(db: HomeDb, harness: string, now: number): void {
+  db.transaction((tx) => {
+    tx.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
+    tx.insert(hubRevocations).values({revokedAt: now}).onConflictDoNothing().run()
+  })
+}
+
+export function lastHubRevocation(db: HomeDb): number {
+  return (
+    db
+      .select({revokedAt: max(hubRevocations.revokedAt)})
+      .from(hubRevocations)
+      .get()?.revokedAt ?? 0
+  )
 }
 
 export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt: number}> {

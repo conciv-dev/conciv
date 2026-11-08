@@ -15,7 +15,7 @@ const DetectionEnvSchema = z.object({
 
 type HubConnections = ReturnType<typeof createHubConnections>
 
-export function createHubInstaller(homeDir: string | undefined, revokeOutsideAllows: () => Promise<void>) {
+export function createHubInstaller(homeDir: string | undefined) {
   const connections = (): HubConnections => createHubConnections(concivHome({homeDir, env: process.env}))
   const connected = (): ReturnType<HubConnections['list']> => {
     try {
@@ -37,7 +37,15 @@ export function createHubInstaller(homeDir: string | undefined, revokeOutsideAll
     connections: (): Array<{harnessId: InitHarnessId; name: string}> =>
       connected().map((connection) => ({harnessId: connection.harness, name: connection.name})),
     connect: (harness: InitHarnessId) => connections().connect(harness, hubCommand(harness)),
-    disconnect: (harness: InitHarnessId) => connections().disconnect(harness, revokeOutsideAllows),
+    disconnect: (harness: InitHarnessId) => connections().disconnect(harness),
+    revokedAt: (): number => {
+      try {
+        return connections().revokedAt()
+      } catch (error) {
+        logError(`[core] the conciv home db could not be read, so every outside Allow asks again: ${String(error)}`)
+        return Number.MAX_SAFE_INTEGER
+      }
+    },
     refusal: (client: string | null): string | null => connections().refusal(client),
   }
 }

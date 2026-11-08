@@ -8,6 +8,10 @@ export const engines = sqliteTable('engines', {
   deletedAt: integer('deleted_at'),
 })
 
+export const hubRevocations = sqliteTable('hub_revocations', {
+  revokedAt: integer('revoked_at').primaryKey(),
+})
+
 export const hubConnections = sqliteTable('hub_connections', {
   harness: text('harness').primaryKey(),
   connectedAt: integer('connected_at').notNull(),

@@ -403,16 +403,21 @@ engine answering them and makes the user click Allow again.
   `makeHubAdmission` in `packages/core/src/api/rpc/mount.ts`): a hub-origin call whose client is a harness with a
   `hub` contribution must have a `hub_connections` row, else refused with "<name> is disconnected from conciv;
   reconnect it from the conciv widget or run `conciv mcp connect <harness>`". This applies whatever
-  `hubAccess` says. `terminal` and unknown clients skip this check and still go through the Allow card.
-- Disconnect: delete the row FIRST (the gate then refuses the agent, whatever its config says), clear the outside
-  approvals the agent holds (how `plane.admitCall` keeps an Allow decides the scope: if Allows are kept per tab
-  rather than per client, clear every tab's outside Allow and say so in the PR), then run `hub.remove`
-  best-effort. opencode has no remove: its entry stays in `opencode.json` and the result says it is refused until
+  `hubAccess` says. `terminal` and unknown clients skip this check and still go through the Allow card. The gate
+  runs again after the Allow card resolves, so an Allow clicked after a disconnect still refuses the waiting call.
+- Disconnect: delete the row FIRST (the gate then refuses the agent, whatever its config says) and, in the same
+  home db transaction, record the disconnect time in `hub_revocations`; then run `hub.remove` best-effort.
+  Revocation is lazy and home-wide (decided 2026-11-08, PR #775 review): an Allow is kept per tab (or per
+  project), never per client, and each engine has its own project db, so instead of clearing grants the outside
+  Allow records when it was granted (`outsideAllowedAt` in the grants entry) and admission ignores an Allow
+  granted at or before the home's last disconnect, so the card asks again. This covers every engine sharing the
+  home and a `conciv mcp disconnect` from the terminal alike. Denies stay. opencode has no remove: its entry stays in `opencode.json` and the result says it is refused until
   reconnected.
 - One shared implementation, `@conciv/harness-init/hub` (new subpath; harness-init gains `@conciv/db`):
   `connectHub({harness, home, command})`, `disconnectHub({harness, home})`, `listHubConnections(home)`. Connect =
   `hub.add` (remove-then-add on "already exists", as today) + record the row. Core's `hub.ts` becomes a thin caller
-  (`HUB_COMMAND` gains `serve --agent <harness>`); add `removeHubConnection(db, harness)` to `packages/db`.
+  (`HUB_COMMAND` gains `serve --agent <harness>`); add `removeHubConnection(db, harness, now)` to `packages/db`. Planning reads (`list`, the init
+  plan, `--dry-run`, a cancelled wizard) never create the home db or its folder: an absent db is no connections.
 - CLI commands, JSON envelope like every route: `conciv mcp connect <agent>`, `conciv mcp disconnect <agent>`,
   `conciv mcp list` (`[{harness, name, connectedAt}]`). `<agent>` is a zod `z.enum` of the harnesses with a `hub`
   contribution. The CLI writes its own installed version into the command.

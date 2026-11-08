@@ -1842,6 +1842,7 @@ describe('init', () => {
         expect(code).toBe(0)
         expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Install @conciv/it')
         expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Connect Claude to conciv')
+        expect(existsSync(join(run.home, 'conciv'))).toBe(false)
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
         expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)

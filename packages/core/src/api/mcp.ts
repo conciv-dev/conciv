@@ -297,7 +297,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
     if (origin === null) return null
     const refusal = deps.hubRefusal(origin.client)
     if (refusal !== null || caller.outside) return refusal
-    return deps.admitOutside(scope, origin.client, caller.signal)
+    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
   }
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})

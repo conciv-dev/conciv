@@ -2,7 +2,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
-import {mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
 import {createServer, type Server} from 'node:http'
 import {Worker} from 'node:worker_threads'
 import {once} from 'node:events'
@@ -22,11 +22,13 @@ import {
   closeHomeDb,
   concivHome,
   hubConnections,
+  lastHubRevocation,
   isHomeFolderRefused,
   listEngines,
   openHomeDb,
   recordHubConnection,
   registerEngine,
+  readHomeDb,
   removeHubConnection,
   retireEngine,
   withHomeDb,
@@ -578,9 +580,20 @@ describe('home db', () => {
         {harness: 'claude', connectedAt: 3},
         {harness: 'codex', connectedAt: 1},
       ])
-      removeHubConnection(db, 'codex')
+      expect(lastHubRevocation(db)).toBe(0)
+      removeHubConnection(db, 'codex', 4)
       expect(hubConnections(db)).toEqual([{harness: 'claude', connectedAt: 3}])
+      removeHubConnection(db, 'claude', 9)
+      expect(lastHubRevocation(db)).toBe(9)
     })
+  })
+
+  it('reads the home db only when it exists, so a lookup never creates the home folder', () => {
+    const home = join(freshHome(), 'not-yet')
+    expect(readHomeDb(home, hubConnections)).toBeNull()
+    expect(existsSync(home)).toBe(false)
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+    expect(readHomeDb(home, hubConnections)).toEqual([{harness: 'codex', connectedAt: 1}])
   })
 
   it('a connection opened while another is mid-migration waits and succeeds', async () => {

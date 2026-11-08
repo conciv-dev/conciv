@@ -107,7 +107,8 @@ async function admitHubCaller(
 ): Promise<void> {
   const hub = callTrace((header) => rpcHeader(context, header)).hub
   if (hub === null) return
-  const refusal = await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)
+  const refusal =
+    (await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)) ?? deps.hub.refusal(hub.client)
   if (refusal !== null) throw new ORPCError('APPROVAL_DENIED', {message: refusal})
 }
 
