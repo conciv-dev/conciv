@@ -19,7 +19,7 @@ import {
   type ApprovalScope,
 } from './approvals.js'
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
-import {clearThread, runningThreadIds} from './stores.js'
+import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {turnHooks, type TurnDeps} from './turn.js'
 
@@ -103,7 +103,10 @@ export type ChatPlane = {
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const stores = drizzleChatStores(deps.db, {harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id})
-  const approvals = createApprovalStore(stores.metadata, deps.hubAccess)
+  const approvals = createApprovalStore(
+    {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
+    deps.hubAccess,
+  )
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({
     harnessFor: deps.harnessFor,

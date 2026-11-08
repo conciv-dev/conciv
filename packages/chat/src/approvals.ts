@@ -78,11 +78,17 @@ function sessionGrantable(approvalId: string): boolean {
   return command === undefined || !HIDDEN_COMMAND.test(command)
 }
 
-const pendingKey = (threadId: string): string => `${threadId}:pending-approvals`
+const PENDING_SUFFIX = ':pending-approvals'
+
+const pendingKey = (threadId: string): string => `${threadId}${PENDING_SUFFIX}`
 
 const grantsKey = (threadId: string): string => `${threadId}:grants`
 
-export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess: HubAccess): ApprovalStore {
+type ApprovalMetadata = ChatStores['metadata'] & {
+  keysEndingWith: (namespace: string, suffix: string) => Promise<readonly string[]>
+}
+
+export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAccess): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
   const holderOf = (threadId: string, approvalId: string): string =>
     approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
@@ -103,8 +109,24 @@ export function createApprovalStore(metadata: ChatStores['metadata'], hubAccess:
     )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
     metadata.set(APPROVALS_NAMESPACE, grantsKey(threadId), grants)
+  const clearCoveredCards = async (): Promise<void> => {
+    if (hubAccess !== 'project') return
+    const keys = await metadata.keysEndingWith(APPROVALS_NAMESPACE, PENDING_SUFFIX)
+    await Promise.all(
+      keys.map(async (key) => {
+        const pending = PendingSchema.parse((await metadata.get(APPROVALS_NAMESPACE, key)) ?? [])
+        if (!pending.some((entry) => entry.approvalId === OUTSIDE_APPROVAL_ID)) return
+        await metadata.set(
+          APPROVALS_NAMESPACE,
+          key,
+          pending.filter((entry) => entry.approvalId !== OUTSIDE_APPROVAL_ID),
+        )
+      }),
+    )
+  }
   const decideOutside = async (threadId: string, approved: boolean): Promise<ApprovalDecision> => {
     const holder = outsideHolder(threadId)
+    await clearCoveredCards()
     const grants = await grantsOf(holder)
     const bucket = approved ? 'session' : 'refused'
     await writeGrants(holder, {...grants, [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])]})

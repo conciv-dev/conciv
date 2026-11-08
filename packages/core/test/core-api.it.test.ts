@@ -3807,6 +3807,25 @@ describe('outside agent consent', () => {
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
   })
 
+  it('project policy: a deny or allow in one session releases the calls waiting in every session and clears their cards', async () => {
+    const base = await boot('project')
+    const [first, second] = [await newSession(base), await newSession(base)]
+    const raise = async () => {
+      const waiting = [hubCall(base, first), hubCall(base, second)]
+      await vi.waitFor(async () => expect(await pendingOf(base, second)).toHaveLength(1), {timeout: 3000})
+      return waiting
+    }
+    const refused = await raise()
+    await decideOutside(base, first, false)
+    expect(await Promise.all(refused)).toEqual([expect.stringContaining(DENIED), expect.stringContaining(DENIED)])
+    expect(await pendingOf(base, second)).toEqual([])
+    await rpcOf(base, first).chat.allowOutside({sessionId: first})
+    const allowed = await raise()
+    await decideOutside(base, second, true)
+    expect(await Promise.all(allowed)).toEqual([expect.stringMatching(RAN), expect.stringMatching(RAN)])
+    expect(await pendingOf(base, first)).toEqual([])
+  })
+
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)
