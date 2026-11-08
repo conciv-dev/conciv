@@ -35,6 +35,7 @@ type ColorPickerProps = {
   presets?: string[]
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
 }
 
@@ -48,14 +49,16 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     'presets',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
   ])
   const field = useFieldContext()
   const picker = useColorPicker(() => ({
     value: HEX.test(local.value) ? parseColor(local.value) : undefined,
     format: 'hsba',
-    disabled: local.disabled,
-    readOnly: local.readOnly,
+    disabled: local.disabled ?? field?.().disabled,
+    readOnly: local.readOnly ?? field?.().readOnly,
+    invalid: local.invalid ?? field?.().invalid,
     positioning: {strategy: 'fixed', placement: 'bottom-start', gutter: 6},
     onValueChange: (details) => {
       local.onValueChange?.(toHex(details))

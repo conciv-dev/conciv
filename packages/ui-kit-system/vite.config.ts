@@ -13,14 +13,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [
-        /^solid-js/,
-        /^@ark-ui\//,
-        /^lucide-solid/,
-        /^@conciv\//,
-        /^@tanstack\/solid-form/,
-        /^@tanstack\/solid-hotkeys/,
-      ],
+      external: [/^solid-js/, /^@ark-ui\//, /^lucide-solid/, /^@conciv\//, /^@tanstack\/solid-hotkeys/],
     },
     emptyOutDir: true,
     sourcemap: true,

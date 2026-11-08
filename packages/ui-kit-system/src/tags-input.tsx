@@ -18,6 +18,7 @@ type TagsInputProps = {
   max?: number
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
   'aria-label'?: string
 }
@@ -30,10 +31,13 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
     'max',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
     'aria-label',
   ])
   const field = useFieldContext()
+  const disabled = () => local.disabled ?? field?.().disabled
+  const readOnly = () => local.readOnly ?? field?.().readOnly
   return (
     <Ark.Root
       class={`min-w-0 ${local.class ?? ''}`}
@@ -43,8 +47,9 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
       addOnPaste
       blurBehavior="add"
       max={local.max}
-      disabled={local.disabled}
-      readOnly={local.readOnly}
+      disabled={disabled()}
+      readOnly={readOnly()}
+      invalid={local.invalid ?? field?.().invalid}
       translations={{deleteTagTriggerLabel: (value) => `Remove ${value}`}}
     >
       <Ark.Control class={CONTROL}>
@@ -53,7 +58,7 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
             <Ark.Item index={index()} value={tag}>
               <Ark.ItemPreview class={ITEM_PREVIEW}>
                 <Ark.ItemText>{tag}</Ark.ItemText>
-                <Show when={!local.readOnly && !local.disabled}>
+                <Show when={!readOnly() && !disabled()}>
                   <Ark.ItemDeleteTrigger
                     asChild={(triggerProps) => (
                       <TooltipIconButton
