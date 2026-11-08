@@ -8,7 +8,6 @@ const MENU_LABEL = 'Connect agents'
 
 export function ConnectAgentsMenu(props: {sessionId: string; class: string}): JSX.Element {
   const hub = useHubConnections(() => props.sessionId)
-  const pending = (harnessId: string) => hub.connecting().some((install) => install.harnessId === harnessId)
   return (
     <Show when={hub.installs().length > 0}>
       <Action.Action priority={10}>
@@ -31,7 +30,7 @@ export function ConnectAgentsMenu(props: {sessionId: string; class: string}): JS
                   {(install) => (
                     <Menu.Item
                       value={install.harnessId}
-                      disabled={pending(install.harnessId)}
+                      disabled={hub.busy(install.harnessId)}
                       onSelect={() => hub.connect(install)}
                     >
                       <Plug class="size-4 block" aria-hidden="true" />
@@ -47,7 +46,7 @@ export function ConnectAgentsMenu(props: {sessionId: string; class: string}): JS
           {(install) => (
             <Action.ActionMenuItem
               label={`Connect ${install.name}`}
-              disabled={pending(install.harnessId)}
+              disabled={hub.busy(install.harnessId)}
               onSelect={() => hub.connect(install)}
             >
               <Plug class="size-4 block" aria-hidden="true" />

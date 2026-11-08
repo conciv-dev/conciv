@@ -1819,18 +1819,26 @@ describe('connect agents', () => {
     await expect.element(item()).not.toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
 
-    await coreControl.fakeHubCli('hold')
+    await coreControl.fakeHubCli('hold-remove')
     await disconnect().click()
     await expect.element(agents().getByRole('status')).toHaveTextContent('Disconnecting Claude…')
+    await more().click()
+    await page.getByRole('menuitem', {name: 'Connect OpenCode'}).click()
+    await expect
+      .element(page.getByText('OpenCode connected. Ask any OpenCode session for your conciv tab.'))
+      .toBeVisible()
+    await expect.element(agents().getByRole('status')).toHaveTextContent('Disconnecting Claude…')
+    await more().click()
+    await expect.element(item()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
     await coreControl.fakeHubCli('ok')
     await expect.element(page.getByText('Claude disconnected.')).toBeVisible()
-    await expect.element(agents()).not.toBeInTheDocument()
+    await expect.element(agents().getByText('OpenCode', {exact: true})).toBeVisible()
     await expect.element(composer()).toHaveFocus()
     await more().click()
-    await expect.element(item()).toBeVisible()
+    await expect.element(item()).not.toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
 
-    await page.getByRole('menuitem', {name: 'Connect OpenCode'}).click()
-    await expect.element(agents().getByText('OpenCode', {exact: true})).toBeVisible()
     await page.getByRole('button', {name: 'Disconnect OpenCode'}).click()
     await expect
       .element(

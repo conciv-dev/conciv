@@ -547,7 +547,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
     hubAccess: opts.cfg.hubAccess,
-    outsideRevokedAt: hub.revokedAt,
+    hubGeneration: hub.generation,
     harnessFor,
     harnessEnv: opts.harnessEnv,
     systemPrompt: {

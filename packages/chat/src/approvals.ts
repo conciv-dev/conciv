@@ -31,7 +31,7 @@ const GrantsSchema = z.object({
   outside: z.array(z.string()).default([]),
   denied: z.array(z.string()).default([]),
   refused: z.array(z.string()).default([]),
-  outsideAllowedAt: z.number().default(0),
+  outsideAllowedGeneration: z.number().default(0),
 })
 
 type Grants = z.infer<typeof GrantsSchema>
@@ -94,7 +94,7 @@ type ApprovalMetadata = ChatStores['metadata'] & {
 export function createApprovalStore(
   metadata: ApprovalMetadata,
   hubAccess: HubAccess,
-  outsideRevokedAt: () => number,
+  hubGeneration: () => number,
 ): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
   const holderOf = (threadId: string, approvalId: string): string =>
@@ -112,7 +112,7 @@ export function createApprovalStore(
         outside: [],
         denied: [],
         refused: [],
-        outsideAllowedAt: 0,
+        outsideAllowedGeneration: 0,
       },
     )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
@@ -137,11 +137,11 @@ export function createApprovalStore(
     await clearCoveredCards()
     const grants = await grantsOf(holder)
     const bucket = approved ? 'session' : 'refused'
-    const allowedAt = approved ? Date.now() : grants.outsideAllowedAt
+    const allowedGeneration = approved ? hubGeneration() : grants.outsideAllowedGeneration
     await writeGrants(holder, {
       ...grants,
       [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])],
-      outsideAllowedAt: allowedAt,
+      outsideAllowedGeneration: allowedGeneration,
     })
     return {startsTurn: false}
   }
@@ -209,7 +209,7 @@ export function createApprovalStore(
     admit: async (threadId, approvalId) => {
       const holder = holderOf(threadId, approvalId)
       const grants = await grantsOf(holder)
-      const revoked = approvalId === OUTSIDE_APPROVAL_ID && grants.outsideAllowedAt <= outsideRevokedAt()
+      const revoked = approvalId === OUTSIDE_APPROVAL_ID && grants.outsideAllowedGeneration < hubGeneration()
       if (grants.session.includes(approvalId) && !revoked) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'
       if (!grants.outside.includes(approvalId)) return 'ask'

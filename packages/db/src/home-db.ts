@@ -1,13 +1,13 @@
 import {chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
-import {isNull, eq, max} from 'drizzle-orm'
+import {and, eq, isNull, max} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
-import {engines, hubConnections as hubConnectionsTable, hubRevocations} from './home-schema.js'
+import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
 
@@ -68,19 +68,16 @@ export function listEngines(db: HomeDb): EngineRow[] {
     .all()
 }
 
+export type HubOperation = {harness: string; pid: number; startedAt: number}
+
 export function recordHubConnection(
   db: HomeDb,
   harness: string,
   now: number,
-  revokedBefore = Number.POSITIVE_INFINITY,
+  generation = Number.POSITIVE_INFINITY,
 ): boolean {
   return db.transaction((tx) => {
-    const revokedAt =
-      tx
-        .select({revokedAt: max(hubRevocations.revokedAt)})
-        .from(hubRevocations)
-        .get()?.revokedAt ?? 0
-    if (revokedAt > revokedBefore) return false
+    if (currentGeneration(tx) > generation) return false
     tx.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
     return true
   })
@@ -89,17 +86,36 @@ export function recordHubConnection(
 export function removeHubConnection(db: HomeDb, harness: string): void {
   db.transaction((tx) => {
     tx.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
-    tx.insert(hubRevocations).values({revokedAt: Date.now()}).onConflictDoNothing().run()
+    tx.insert(hubRevocations).values({}).run()
   })
 }
 
 export function lastHubRevocation(db: HomeDb): number {
-  return (
-    db
-      .select({revokedAt: max(hubRevocations.revokedAt)})
-      .from(hubRevocations)
-      .get()?.revokedAt ?? 0
-  )
+  return currentGeneration(db)
+}
+
+export function takeHubOperation(db: HomeDb, operation: HubOperation, stale: (held: HubOperation) => boolean): boolean {
+  return db.transaction((tx) => {
+    const held = tx.select().from(hubOperations).where(eq(hubOperations.harness, operation.harness)).get()
+    if (held !== undefined && !stale(held)) return false
+    tx.insert(hubOperations)
+      .values(operation)
+      .onConflictDoUpdate({target: hubOperations.harness, set: {pid: operation.pid, startedAt: operation.startedAt}})
+      .run()
+    return true
+  })
+}
+
+export function endHubOperation(db: HomeDb, operation: HubOperation): void {
+  db.delete(hubOperations)
+    .where(
+      and(
+        eq(hubOperations.harness, operation.harness),
+        eq(hubOperations.pid, operation.pid),
+        eq(hubOperations.startedAt, operation.startedAt),
+      ),
+    )
+    .run()
 }
 
 export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt: number}> {
@@ -143,4 +159,13 @@ function retryMigrate(db: HomeDb): void {
     closeHomeDb(db)
     throw error
   }
+}
+
+function currentGeneration(db: Pick<HomeDb, 'select'>): number {
+  return (
+    db
+      .select({generation: max(hubRevocations.generation)})
+      .from(hubRevocations)
+      .get()?.generation ?? 0
+  )
 }

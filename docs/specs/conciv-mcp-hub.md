@@ -406,11 +406,15 @@ engine answering them and makes the user click Allow again.
   `hubAccess` says. `terminal` and unknown clients skip this check and still go through the Allow card. The gate
   runs again after the Allow card resolves, so an Allow clicked after a disconnect still refuses the waiting call.
 - Disconnect: delete the row FIRST (the gate then refuses the agent, whatever its config says) and, in the same
-  home db transaction, record the disconnect time in `hub_revocations`; then run `hub.remove` best-effort.
+  home db transaction, bump the home's hub generation (an autoincrement row in `hub_revocations`); then run
+  `hub.remove` best-effort. Every agent CLI change (add, remove) runs under a per-harness `hub_operations` lease
+  (pid + start time, stale after 60 s or when the pid is gone); a connect that finds a live lease answers "<Name>
+  is still being (dis)connected; try again in a moment", and a connect only records its row when the generation
+  has not moved since it started, so neither a slow remove nor a slow add can undo a later change.
   Revocation is lazy and home-wide (decided 2026-11-08, PR #775 review): an Allow is kept per tab (or per
   project), never per client, and each engine has its own project db, so instead of clearing grants the outside
-  Allow records when it was granted (`outsideAllowedAt` in the grants entry) and admission ignores an Allow
-  granted at or before the home's last disconnect, so the card asks again. This covers every engine sharing the
+  Allow records the home's hub generation when it was granted (`outsideAllowedGeneration` in the grants entry) and
+  admission ignores an Allow from an older generation, so the card asks again. No clock is involved. This covers every engine sharing the
   home and a `conciv mcp disconnect` from the terminal alike. Denies stay. opencode has no remove: its entry stays in `opencode.json` and the result says it is refused until
   reconnected.
 - One shared implementation, `@conciv/harness-init/hub` (new subpath; harness-init gains `@conciv/db`):

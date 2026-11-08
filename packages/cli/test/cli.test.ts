@@ -1290,11 +1290,44 @@ describe('cli', () => {
       })
       const connecting = hub.connect('claude', ['conciv'])
       await adding.promise
-      expect(await hub.disconnect('claude')).toEqual({ok: true})
+      expect(await hub.disconnect('claude')).toEqual({
+        ok: true,
+        note: 'Claude is still being (dis)connected, so its conciv-hub entry stays for now; conciv refuses it until you reconnect.',
+      })
       release.resolve()
       expect(await connecting).toEqual({ok: false, message: 'Claude was disconnected while connecting; connect again'})
       expect(hub.list()).toEqual([])
       expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+    })
+
+    it('a reconnect waits out a slow remove, so the remove never deletes the entry the reconnect installed', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const entries = new Set<string>()
+      const removing = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const hub = createHubConnections(home, async (argv) => {
+        if (argv.includes('remove')) {
+          removing.resolve()
+          await release.promise
+          entries.delete('conciv-hub')
+          return {ok: true, output: '', message: ''}
+        }
+        entries.add('conciv-hub')
+        return {ok: true, output: '', message: ''}
+      })
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      const disconnecting = hub.disconnect('claude')
+      await removing.promise
+      expect(hub.list()).toEqual([])
+      expect(await hub.connect('claude', ['conciv'])).toEqual({
+        ok: false,
+        message: 'Claude is still being (dis)connected; try again in a moment',
+      })
+      release.resolve()
+      expect(await disconnecting).toEqual({ok: true})
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(entries.has('conciv-hub')).toBe(true)
       expect(hub.list()).toMatchObject([{harness: 'claude'}])
     })
 

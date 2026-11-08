@@ -38,9 +38,9 @@ export function createHubInstaller(homeDir: string | undefined) {
       connected().map((connection) => ({harnessId: connection.harness, name: connection.name})),
     connect: (harness: InitHarnessId) => connections().connect(harness, hubCommand(harness)),
     disconnect: (harness: InitHarnessId) => connections().disconnect(harness),
-    revokedAt: (): number => {
+    generation: (): number => {
       try {
-        return connections().revokedAt()
+        return connections().generation()
       } catch (error) {
         logError(`[core] the conciv home db could not be read, so every outside Allow asks again: ${String(error)}`)
         return Number.MAX_SAFE_INTEGER

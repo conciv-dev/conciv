@@ -9,7 +9,13 @@ export const engines = sqliteTable('engines', {
 })
 
 export const hubRevocations = sqliteTable('hub_revocations', {
-  revokedAt: integer('revoked_at').primaryKey(),
+  generation: integer('generation').primaryKey({autoIncrement: true}),
+})
+
+export const hubOperations = sqliteTable('hub_operations', {
+  harness: text('harness').primaryKey(),
+  pid: integer('pid').notNull(),
+  startedAt: integer('started_at').notNull(),
 })
 
 export const hubConnections = sqliteTable('hub_connections', {

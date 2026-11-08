@@ -1,5 +1,4 @@
 import {For, Show, type JSX} from 'solid-js'
-import {difference} from 'es-toolkit'
 import {Progress, TooltipIconButton} from '@conciv/ui-kit-system'
 import Plug from 'lucide-solid/icons/plug'
 import X from 'lucide-solid/icons/x'
@@ -15,8 +14,8 @@ const DISCONNECT =
 
 export function ConnectedAgents(props: {sessionId: string; onDisconnected: () => void}): JSX.Element {
   const hub = useHubConnections(() => props.sessionId)
-  const settled = () => difference(hub.connections(), hub.disconnecting())
-  const visible = () => hub.connections().length + hub.connecting().length > 0
+  const settled = () => hub.connections().filter((connection) => !hub.busy(connection.harnessId))
+  const visible = () => settled().length + hub.connecting().length + hub.disconnecting().length > 0
   return (
     <Show when={visible()}>
       <div class={ROW} role="group" aria-label="Connected agents">

@@ -28,7 +28,9 @@ import {
   openHomeDb,
   recordHubConnection,
   registerEngine,
+  endHubOperation,
   readHomeDb,
+  takeHubOperation,
   removeHubConnection,
   retireEngine,
   withHomeDb,
@@ -581,16 +583,32 @@ describe('home db', () => {
         {harness: 'codex', connectedAt: 1},
       ])
       expect(lastHubRevocation(db)).toBe(0)
-      const before = Date.now()
       removeHubConnection(db, 'codex')
       expect(hubConnections(db)).toEqual([{harness: 'claude', connectedAt: 3}])
-      expect(lastHubRevocation(db)).toBeGreaterThanOrEqual(before)
-      expect(recordHubConnection(db, 'codex', 5, before - 1)).toBe(false)
+      expect(lastHubRevocation(db)).toBe(1)
+      const startedBetween = lastHubRevocation(db)
+      removeHubConnection(db, 'claude')
+      expect(lastHubRevocation(db)).toBe(2)
+      expect(recordHubConnection(db, 'codex', 5, 0)).toBe(false)
+      expect(recordHubConnection(db, 'codex', 5, startedBetween)).toBe(false)
       expect(recordHubConnection(db, 'codex', 5, lastHubRevocation(db))).toBe(true)
-      expect(hubConnections(db)).toEqual([
-        {harness: 'claude', connectedAt: 3},
-        {harness: 'codex', connectedAt: 5},
-      ])
+      expect(hubConnections(db)).toEqual([{harness: 'codex', connectedAt: 5}])
+    })
+  })
+
+  it('leases one harness config change at a time, takes over a stale lease, and ends only its own', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      const first = {harness: 'claude', pid: 1, startedAt: 10}
+      const second = {harness: 'claude', pid: 2, startedAt: 20}
+      expect(takeHubOperation(db, first, () => false)).toBe(true)
+      expect(takeHubOperation(db, second, () => false)).toBe(false)
+      expect(takeHubOperation(db, {harness: 'codex', pid: 2, startedAt: 20}, () => false)).toBe(true)
+      expect(takeHubOperation(db, second, (held) => held.pid === 1)).toBe(true)
+      endHubOperation(db, first)
+      expect(takeHubOperation(db, first, () => false)).toBe(false)
+      endHubOperation(db, second)
+      expect(takeHubOperation(db, first, () => false)).toBe(true)
     })
   })
 

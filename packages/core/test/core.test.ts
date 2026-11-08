@@ -428,7 +428,7 @@ describe('chat plane', () => {
       db,
       stateRoot: options.root,
       hubAccess: 'session',
-      outsideRevokedAt: () => 0,
+      hubGeneration: () => 0,
       cwd: options.root,
       harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},

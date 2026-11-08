@@ -1,5 +1,5 @@
 import {useMutation, useMutationState, useQueryClient} from '@tanstack/solid-query'
-import {intersectionWith, isEqual} from 'es-toolkit'
+import {z} from 'zod'
 import type {ChatModels} from '@conciv/protocol/chat-types'
 import {useAppData, useRpc} from '../app/context.js'
 import {useSessionModels} from '../data/harness-meta.js'
@@ -7,6 +7,10 @@ import {useNotices} from '../shell/notice-context.js'
 
 type HubInstall = ChatModels['hubInstalls'][number]
 type HubConnection = ChatModels['hubConnections'][number]
+
+const PendingAgentSchema = z.object({harnessId: z.string(), name: z.string()})
+
+type PendingAgent = z.infer<typeof PendingAgentSchema>
 
 export function useHubConnections(sessionId: () => string) {
   const rpc = useRpc()
@@ -29,49 +33,49 @@ export function useHubConnections(sessionId: () => string) {
   const refresh = () => queryClient.invalidateQueries({queryKey: appData.utils.meta.models.key()})
   const connect = useMutation(() => ({
     mutationKey: connectKey,
-    mutationFn: (input: {harness: HubInstall['harnessId']}) => rpc.meta.connectHub(input),
-    onSuccess: async (outcome, input) => {
+    mutationFn: (agent: HubInstall) => rpc.meta.connectHub({harness: agent.harnessId}),
+    onSuccess: async (outcome, agent) => {
       if (!outcome.ok) {
         notices.notify(outcome.message, {tone: 'warn'})
         return
       }
-      const name = nameOf(installs(), input.harness)
-      notices.notify(`${name} connected. Ask any ${name} session for your conciv tab.`)
+      notices.notify(`${agent.name} connected. Ask any ${agent.name} session for your conciv tab.`)
       await refresh()
     },
-    onError: (_error: unknown, input) =>
-      notices.notify(`Couldn’t connect ${nameOf(installs(), input.harness)}. Try again.`, {tone: 'warn'}),
+    onError: (_error: unknown, agent) => notices.notify(`Couldn’t connect ${agent.name}. Try again.`, {tone: 'warn'}),
   }))
   const disconnect = useMutation(() => ({
     mutationKey: disconnectKey,
-    mutationFn: (input: {harness: HubConnection['harnessId']}) => rpc.meta.disconnectHub(input),
-    onSuccess: async (outcome, input) => {
+    mutationFn: (agent: HubConnection) => rpc.meta.disconnectHub({harness: agent.harnessId}),
+    onSuccess: async (outcome, agent) => {
       if (!outcome.ok) {
         notices.notify(outcome.message, {tone: 'warn'})
         return
       }
-      const disconnected = `${nameOf(connections(), input.harness)} disconnected.`
+      const disconnected = `${agent.name} disconnected.`
       notices.notify(outcome.note === undefined ? disconnected : `${disconnected} ${outcome.note}`)
       await refresh()
     },
-    onError: (_error: unknown, input) =>
-      notices.notify(`Couldn’t disconnect ${nameOf(connections(), input.harness)}. Try again.`, {tone: 'warn'}),
+    onError: (_error: unknown, agent) =>
+      notices.notify(`Couldn’t disconnect ${agent.name}. Try again.`, {tone: 'warn'}),
   }))
+  const connecting = (): PendingAgent[] => pendingAgents(pendingConnects())
+  const disconnecting = (): PendingAgent[] => pendingAgents(pendingDisconnects())
   return {
     installs,
     connections,
-    connecting: (): HubInstall[] => intersectionWith(installs(), pendingConnects(), isInputFor),
-    disconnecting: (): HubConnection[] => intersectionWith(connections(), pendingDisconnects(), isInputFor),
-    connect: (install: HubInstall) => connect.mutate({harness: install.harnessId}),
-    disconnect: (connection: HubConnection, onSettled: () => void) =>
-      disconnect.mutate({harness: connection.harnessId}, {onSettled}),
+    connecting,
+    disconnecting,
+    busy: (harnessId: string): boolean =>
+      [...connecting(), ...disconnecting()].some((agent) => agent.harnessId === harnessId),
+    connect: (install: HubInstall) => connect.mutate(install),
+    disconnect: (connection: HubConnection, onSettled: () => void) => disconnect.mutate(connection, {onSettled}),
   }
 }
 
-function isInputFor(agent: {harnessId: string}, variables: unknown): boolean {
-  return isEqual(variables, {harness: agent.harnessId})
-}
-
-function nameOf(agents: Array<{harnessId: string; name: string}>, harnessId: string): string {
-  return agents.find((agent) => agent.harnessId === harnessId)?.name ?? harnessId
+function pendingAgents(variables: unknown[]): PendingAgent[] {
+  return variables.flatMap((value) => {
+    const parsed = PendingAgentSchema.safeParse(value)
+    return parsed.success ? [parsed.data] : []
+  })
 }

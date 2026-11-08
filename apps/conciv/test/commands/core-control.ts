@@ -253,13 +253,16 @@ const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value):
   kitOf(ctx).harness.script.scriptCustomEvent(name, value)
 }
 
-const fakeHubCli: BrowserCommand<['ok' | 'fail' | 'hold' | null]> = (ctx, outcome): void => {
+type HubCliHold = 'fail' | 'hold' | 'hold-remove'
+
+const HUB_CLI_MARKERS: Record<HubCliHold, string> = {fail: 'fail', hold: 'gate', 'hold-remove': 'gate-remove'}
+
+const fakeHubCli: BrowserCommand<['ok' | HubCliHold | null]> = (ctx, outcome): void => {
   const state = stateOf(ctx)
   if (outcome === null) return restoreHubCli(state)
   const root = hubCliRoot(state)
-  rmSync(join(root, 'fail'), {force: true})
-  rmSync(join(root, 'gate'), {force: true})
-  if (outcome !== 'ok') writeFileSync(join(root, outcome === 'fail' ? 'fail' : 'gate'), '')
+  for (const marker of Object.values(HUB_CLI_MARKERS)) rmSync(join(root, marker), {force: true})
+  if (outcome !== 'ok') writeFileSync(join(root, HUB_CLI_MARKERS[outcome]), '')
   Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home'), CONCIV_HOME: join(root, 'conciv')})
 }
 
@@ -272,6 +275,7 @@ function hubCliRoot(state: FileState): string {
   const lines = [
     '#!/bin/sh',
     `while [ -f '${join(current.root, 'gate')}' ]; do /bin/sleep 0.05; done`,
+    `case "$*" in *remove*) while [ -f '${join(current.root, 'gate-remove')}' ]; do /bin/sleep 0.05; done ;; esac`,
     `if [ -f '${join(current.root, 'fail')}' ]; then echo "\${0##*/}: could not add conciv-hub" >&2; exit 2; fi`,
     'exit 0',
   ]

@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "62747c6a-ab27-4f3f-ab15-f999d91ce355",
+  "id": "a43f7f25-3019-4b43-bef8-2b62b7bc47d2",
   "prevIds": ["d4afe199-4f99-4a8f-8156-3d385a730798"],
   "ddl": [
     {
@@ -10,6 +10,10 @@
     },
     {
       "name": "hub_connections",
+      "entityType": "tables"
+    },
+    {
+      "name": "hub_operations",
       "entityType": "tables"
     },
     {
@@ -87,11 +91,41 @@
       "entityType": "columns"
     },
     {
-      "table": "hub_revocations",
-      "name": "revoked_at",
-      "type": "integer",
+      "table": "hub_operations",
+      "name": "harness",
+      "type": "text",
       "notNull": false,
       "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_operations",
+      "name": "pid",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_operations",
+      "name": "started_at",
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "entityType": "columns"
+    },
+    {
+      "table": "hub_revocations",
+      "name": "generation",
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": true,
       "default": null,
       "generated": null,
       "entityType": "columns"
@@ -111,9 +145,16 @@
       "entityType": "pks"
     },
     {
+      "table": "hub_operations",
+      "name": "hub_operations_pk",
+      "columns": ["harness"],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
       "table": "hub_revocations",
       "name": "hub_revocations_pk",
-      "columns": ["revoked_at"],
+      "columns": ["generation"],
       "nameExplicit": false,
       "entityType": "pks"
     }
