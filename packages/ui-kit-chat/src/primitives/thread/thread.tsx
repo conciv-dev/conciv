@@ -14,6 +14,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {keyBy} from 'es-toolkit'
 import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -150,6 +151,7 @@ function VirtualMessages(props: {
 }): JSX.Element {
   const thread = useThread()
   const items = () => thread.turns
+  const itemsByKey = createMemo(() => keyBy(items(), (item) => item.key))
   const turnCount = createMemo(
     () => {
       const list = items()
@@ -261,7 +263,7 @@ function VirtualMessages(props: {
             class={ROW}
             style={{transform: `translateY(${item.start - metrics.scrollMargin}px)`}}
           >
-            <Show when={items()[item.index]} keyed>
+            <Show when={itemsByKey()[String(item.key)]} keyed>
               {(turnItem) => <TurnSlot item={turnItem} total={turnCount} messages={props.messages} />}
             </Show>
           </div>

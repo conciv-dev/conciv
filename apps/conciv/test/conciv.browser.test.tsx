@@ -1380,6 +1380,24 @@ describe('chat history paging', () => {
     expect(await hydrates()).toBe(opened + 1)
   })
 
+  test('the replies on screen are kept, not rebuilt, when the page before them lands', async () => {
+    await openChat(long.sessionId)
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    await userEvent.wheel(thread(), {delta: {y: -1000}})
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await userEvent.hover(thread().getByText('Hello from conciv', {exact: true}).first())
+    await userEvent.click(thread().getByRole('button', {name: 'Copy'}).first())
+    const copyOutcome = thread()
+      .getByRole('status')
+      .filter({hasText: /^(Copied the message|Could not copy the message)$/})
+    await expect.element(copyOutcome).toBeInTheDocument()
+
+    await faults.releaseAll()
+
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expect.element(copyOutcome).toBeInTheDocument()
+  })
+
   async function expectInViewOnly(shown: number[], hidden: number[]): Promise<void> {
     for (const index of shown) await expect.element(exchange(index)).toBeInViewport()
     for (const index of hidden) await expect.element(exchange(index)).not.toBeInViewport()
