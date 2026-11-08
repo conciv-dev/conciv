@@ -192,7 +192,6 @@ export const BUILTIN_TABS_TOOL = defineTool({
     hint: TABS_GUIDANCE,
     category: 'read',
     mutating: false,
-    mirrors: false,
     keywords: ['sessions', 'pages'],
   },
 }).server((_input, ctx: TabsToolContext) => ctx.listTabs())

@@ -228,6 +228,11 @@ with different rooting rules.
   `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane.
+- There is no connect/launch-plan sidecar. Outside sessions of a harness (any cwd) reach conciv through the
+  `conciv-hub` MCP server, `conciv mcp` from `@conciv/cli` (`packages/cli/src/hub.ts`), which the user installs
+  from the composer's "Connect agents" menu. That install argv lives on the harness's init contribution in
+  `@conciv/harness-init` as `hub: {add(command): string[]}` (`packages/harness-init/src/codex.ts`), not on the
+  `HarnessAdapter`; a harness with no MCP support (pi) omits `hub`.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
   (`packages/protocol/src/harness-types.ts:35-39`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for
@@ -293,7 +298,8 @@ fit in this file's budget.
 - `packages/harness/src/_shared/contract.ts`
 - `packages/harness/src/registry.ts`
 - `packages/harness/src/codex/index.ts`
-- `packages/harness/src/codex/args.ts`
+- `packages/harness-init/src/codex.ts`
+- `packages/cli/src/hub.ts`
 - `packages/harness/src/codex/history.ts`
 - `packages/harness/src/claude/index.ts`
 - `packages/harness/src/claude/chat.ts`

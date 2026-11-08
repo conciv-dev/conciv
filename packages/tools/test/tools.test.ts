@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, builtinToolNames} from '../src/builtins.js'
+import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL, builtinToolNames} from '../src/builtins.js'
 import {concivExtensionsToolDef} from '../src/extensions-tool.js'
 import {concivSandboxTools} from '../src/tools.js'
 
@@ -22,6 +22,10 @@ describe('builtins', () => {
     registry.register(BUILTIN_OPEN_TOOL, {
       owner: 'a test registrant',
       context: {openInEditor: (file: string) => opened.push(file)},
+    })
+    registry.register(BUILTIN_TABS_TOOL, {
+      owner: 'a test registrant',
+      context: {listTabs: async () => ({tabs: [], unreachable: []})},
     })
     return registry
   }
