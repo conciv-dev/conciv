@@ -222,6 +222,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: ^5.0.5
       version: 5.0.5
+    '@zag-js/highlight-word':
+      specifier: ^1.47.0
+      version: 1.47.0
     '@zumer/snapdom':
       specifier: 3.3.3
       version: 3.3.3
@@ -4349,6 +4352,9 @@ importers:
 
   packages/solid-streamdown:
     dependencies:
+      '@zag-js/highlight-word':
+        specifier: 'catalog:'
+        version: 1.47.0
       marked:
         specifier: 'catalog:'
         version: 18.1.2

@@ -7,7 +7,6 @@ The `Streamdown` Solid component and its block splitter. Markdown is healed with
 ## Interface
 
 - `streamdown.tsx:Streamdown` - props `children`, `animated`, `isAnimating`, `caret` (`'block' | 'circle' | boolean`), `parseIncompleteMarkdown`, `remendOptions`, `allowRawHtml`, `allowedLinkPrefixes`, `allowedImagePrefixes`, `linkBlockPolicy` (`'indicator' | 'text-only'`, handed to `rehype-harden`), `highlightCode`, `highlight`, `class`.
-- `highlight-pattern.ts:highlightPattern(words)` - one case-insensitive, whole-word (`\p{L}\p{N}_` boundaries) regex with a single capture group over the regex-escaped words, longest first; `null` for no words. `text.split(pattern)` puts the matches at odd indexes.
 - `streamdown.tsx:StreamdownProps` / `HighlightCode` / `HastElement` / `FenceView` - exported types; `HighlightCode` returns a `HastElement`, a `FenceView` or `undefined`.
 - `parse-blocks.ts:parseMarkdownIntoBlocks(markdown)` - splits markdown into block strings with the `marked` lexer.
 - `index.tsx` - re-exports the above.
@@ -19,7 +18,7 @@ The `Streamdown` Solid component and its block splitter. Markdown is healed with
 - `parse-blocks.ts:parseMarkdownIntoBlocks` - markdown with footnote references or definitions stays one block; an open HTML block absorbs following tokens until its tag closes.
 - `streamdown.tsx:Streamdown` - incomplete markdown is healed with `remend` unless `parseIncompleteMarkdown === false`; empty blocks are dropped.
 - `streamdown.tsx:Streamdown` - raw HTML is parsed only with `allowRawHtml` and then passed through `rehype-sanitize`; link and image prefixes default to `['*']`.
-- `streamdown.tsx:Streamdown` - `highlight` builds one `highlightPattern` per value (memoized) and adds a rehype step after `rehype-harden` that splits HAST text nodes outside `code` and `pre` at the matches and wraps each in a `mark` element; it builds HAST nodes, never HTML strings.
+- `streamdown.tsx:Streamdown` - `highlight` adds a rehype step after `rehype-harden` that runs zag `highlightWord` (`ignoreCase`, `matchAll`, `exactMatch`, the engine behind Ark `Highlight`) over HAST text nodes outside `code` and `pre` and wraps each matched chunk in a `mark` element; it builds HAST nodes, never HTML strings.
 - `streamdown.tsx:Streamdown` - animation runs only when `animated !== false` and `isAnimating === true`, and enter animation starts after mount.
 
 ## Side Effects

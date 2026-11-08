@@ -92,6 +92,7 @@ catalog:
   '@vitejs/plugin-react': '^6.1.2'
   '@vitest/browser-playwright': 5.0.5
   '@vitest/coverage-v8': '^5.0.5'
+  '@zag-js/highlight-word': '^1.47.0'
   '@zumer/snapdom': 3.3.3
   ai-motion: 0.4.8
   # held at the version react-grab 0.2.0 uses, one copy; bippy 0.7's main entry imports react

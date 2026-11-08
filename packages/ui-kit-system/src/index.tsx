@@ -28,6 +28,7 @@ export {
   type TooltipIconButtonProps,
   type TooltipIconButtonSlotProps,
 } from './tooltip-icon-button.js'
+export {Highlight} from './highlight.js'
 export {Menu} from './menu.js'
 export {
   LIST_PANEL,

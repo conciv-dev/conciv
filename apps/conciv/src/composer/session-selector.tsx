@@ -1,9 +1,10 @@
-import {createMemo, createUniqueId, Index, Show, type JSX} from 'solid-js'
+import {createMemo, createUniqueId, Show, type JSX} from 'solid-js'
 import {
   Button,
   ByteSize,
   Combobox,
   createListCollection,
+  Highlight,
   Loader,
   Presence,
   RelativeTime,
@@ -11,7 +12,6 @@ import {
   TruncatedText,
   VirtualList,
 } from '@conciv/ui-kit-system'
-import {highlightPattern} from '@conciv/solid-streamdown'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {createDateNow} from '@solid-primitives/date'
 import {createDebouncedSignal} from '@tanstack/solid-pacer'
@@ -83,7 +83,7 @@ function excerptOf(session: PickerSession): string | null {
   return 'excerpt' in session ? session.excerpt : null
 }
 
-function matchedOf(session: PickerSession): readonly string[] {
+function matchedOf(session: PickerSession): string[] {
   return 'matched' in session ? session.matched : []
 }
 
@@ -357,7 +357,6 @@ function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Ele
   const labelId = createUniqueId()
   const excerptId = createUniqueId()
   const excerpt = () => excerptOf(props.session)
-  const highlight = createMemo(() => highlightPattern(matchedOf(props.session)))
   return (
     <Combobox.Item
       item={props.session}
@@ -375,7 +374,7 @@ function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Ele
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
           <Combobox.ItemText>
-            <MarkedText text={props.session.title} pattern={highlight()} />
+            <Highlight text={props.session.title} query={matchedOf(props.session)} ignoreCase matchAll exactMatch />
           </Combobox.ItemText>
         </TruncatedText>
         <Show when={excerpt()}>
@@ -405,9 +404,4 @@ function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Ele
       </Combobox.ItemIndicator>
     </Combobox.Item>
   )
-}
-
-function MarkedText(props: {text: string; pattern: RegExp | null}): JSX.Element {
-  const parts = createMemo(() => (props.pattern === null ? [props.text] : props.text.split(props.pattern)))
-  return <Index each={parts()}>{(part, index) => (index % 2 === 1 ? <mark>{part()}</mark> : <>{part()}</>)}</Index>
 }

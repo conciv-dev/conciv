@@ -21,7 +21,7 @@ import {harden} from 'rehype-harden'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import {parseMarkdownIntoBlocks} from './parse-blocks.js'
-import {highlightPattern} from './highlight-pattern.js'
+import {highlightWord} from '@zag-js/highlight-word'
 
 export type FenceView = (props: {code: string}) => JSX.Element
 
@@ -239,7 +239,7 @@ type MarkdownProcessorOptions = {
   linkPrefixes: string[]
   imagePrefixes: string[]
   linkBlockPolicy: 'indicator' | 'text-only'
-  highlight: RegExp | null
+  highlight: readonly string[]
 }
 
 function createMarkdownProcessor(options: MarkdownProcessorOptions) {
@@ -257,29 +257,29 @@ function createMarkdownProcessor(options: MarkdownProcessorOptions) {
           linkBlockPolicy: options.linkBlockPolicy,
         },
       ],
-      ...(options.highlight === null ? [] : [[rehypeMark, options.highlight] satisfies Pluggable]),
+      ...(options.highlight.length === 0 ? [] : [[rehypeMark, options.highlight] satisfies Pluggable]),
     ])
 }
 
-function rehypeMark(pattern: RegExp) {
+function rehypeMark(words: readonly string[]) {
   return (tree: {children: HastContent[]}): void => {
-    tree.children = markedChildren(tree.children, pattern)
+    tree.children = markedChildren(tree.children, words)
   }
 }
 
-function markedChildren(children: HastContent[], pattern: RegExp): HastContent[] {
+function markedChildren(children: HastContent[], words: readonly string[]): HastContent[] {
   return children.flatMap((child): HastContent[] => {
-    if (child.type === 'text') return markedText(child.value, pattern)
+    if (child.type === 'text') return markedText(child.value, words)
     if (child.type !== 'element' || unmarkedTags.has(child.tagName)) return [child]
-    return [{...child, children: markedChildren(child.children, pattern)}]
+    return [{...child, children: markedChildren(child.children, words)}]
   })
 }
 
-function markedText(value: string, pattern: RegExp): HastContent[] {
-  return value.split(pattern).flatMap((part, index): HastContent[] => {
-    if (part === '') return []
-    if (index % 2 === 0) return [{type: 'text', value: part}]
-    return [{type: 'element', tagName: 'mark', properties: {}, children: [{type: 'text', value: part}]}]
+function markedText(value: string, words: readonly string[]): HastContent[] {
+  const chunks = highlightWord({text: value, query: [...words], ignoreCase: true, matchAll: true, exactMatch: true})
+  return chunks.map((chunk): HastContent => {
+    if (!chunk.match) return {type: 'text', value: chunk.text}
+    return {type: 'element', tagName: 'mark', properties: {}, children: [{type: 'text', value: chunk.text}]}
   })
 }
 
@@ -330,7 +330,7 @@ export function Streamdown(props: StreamdownProps): JSX.Element {
     return parseMarkdownIntoBlocks(healed).filter((block) => block.trim())
   })
 
-  const highlight = createMemo(() => highlightPattern(props.highlight ?? []))
+  const highlight = createMemo(() => (props.highlight ?? []).filter((word) => word !== ''))
   const processor = createMemo(() =>
     createMarkdownProcessor({
       allowRawHtml: props.allowRawHtml === true,
