@@ -31,9 +31,9 @@ const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 type Options = {
   route: string
   width: number
-  image?: string
-  figma?: string
-  document?: string
+  image: string[]
+  figma: string[]
+  document: string[]
   state?: string
   model?: string
   port: number
@@ -79,9 +79,9 @@ async function main(): Promise<void> {
     options: {
       route: {type: 'string', default: '/'},
       width: {type: 'string', default: '1280'},
-      image: {type: 'string'},
-      figma: {type: 'string'},
-      document: {type: 'string'},
+      image: {type: 'string', multiple: true, default: []},
+      figma: {type: 'string', multiple: true, default: []},
+      document: {type: 'string', multiple: true, default: []},
       state: {type: 'string'},
       model: {type: 'string'},
       port: {type: 'string', default: '0'},
@@ -141,14 +141,20 @@ function debuggingArgs(endpoint: string | undefined): string[] {
 }
 
 async function targetInput(options: Options): Promise<GetInput> {
-  const {image, figma, document} = options
-  if (document !== undefined) {
-    if (figma === undefined || image === undefined) throw new Error('--document needs --figma and --image')
-    const parsed: unknown = JSON.parse(await readFile(resolve(document), 'utf8'))
-    return {figma, image: resolve(image), document: parsed}
+  const {figma, document} = options
+  const image = options.image.map((file) => resolve(file))
+  if (document.length > 0) {
+    if (figma.length !== document.length || image.length !== document.length)
+      throw new Error('every --document needs its --figma and --image')
+    const parsed = await Promise.all(
+      document.map(async (file): Promise<unknown> => JSON.parse(await readFile(resolve(file), 'utf8'))),
+    )
+    const [one] = parsed
+    if (parsed.length === 1) return {figma: figma[0], image: image[0], document: one}
+    return {figma, image, document: parsed}
   }
-  if (image !== undefined && figma === undefined) return {image: resolve(image)}
-  if (figma !== undefined && image === undefined) return {figma}
+  if (image.length === 1 && figma.length === 0) return {image: image[0]}
+  if (figma.length > 0 && image.length === 0) return {figma: figma.length === 1 ? figma[0] : figma}
   throw new Error('--image <png> or --figma <link> is required')
 }
 
@@ -239,11 +245,17 @@ async function open(input: {
     schema: getDef.outputSchema,
     raw: await rpc.registry.call({name: getDef.name, input: input.target}),
   })
+  const frames = 'variants' in registered ? registered.variants : [registered]
+  const [first] = frames
+  if (first === undefined) throw new Error('design_get registered no frame')
   print(
-    `target ${registered.target} ${registered.viewport.width}x${registered.viewport.height}` +
-      ` nodes ${registered.count} tab ${input.options.width}`,
+    `target ${first.target} ${first.viewport.width}x${first.viewport.height}` +
+      ` nodes ${first.count} tab ${input.options.width}` +
+      (frames.length > 1
+        ? ` variants ${frames.map((frame) => `${frame.target}@${frame.viewport.width}`).join(',')}`
+        : ''),
   )
-  return {rpc, page, id: registered.target, session}
+  return {rpc, page, id: first.target, session}
 }
 
 async function injectWidget(input: {page: Page; apiBase: string}): Promise<void> {
