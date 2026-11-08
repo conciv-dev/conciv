@@ -1350,7 +1350,7 @@ describe('chat history paging', () => {
     expect(await hydrates()).toBe(opened + 1)
   })
 
-  test('scrolling up loads the page before well ahead of the top, and the messages in view stay where they were', async () => {
+  test('scrolling up loads the older page well before the top, and the messages in view stay where they were', async () => {
     const opened = await openChat(long.sessionId)
     await faults.install({kind: 'gate', path: HYDRATE_PATH})
 
