@@ -13,13 +13,21 @@ type ToolCommandOptions = {
   run: (input: Record<string, unknown>) => Promise<CliOutcome>
 }
 
-const DeclaredField = z.object({
-  type: z.string().optional(),
+const DeclaredTypes = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((type) => [type ?? []].flat())
+
+const UnionBranches = z.array(z.object({type: DeclaredTypes})).default([])
+
+const DeclaredNode = z.object({type: DeclaredTypes, anyOf: UnionBranches, oneOf: UnionBranches})
+
+const DeclaredField = DeclaredNode.extend({
   enum: z.array(z.string()).optional(),
   description: z.string().optional(),
   format: z.string().optional(),
-  items: z.object({type: z.string().optional()}).optional(),
-})
+  items: DeclaredNode.transform((items) => ({type: declaredType(items)})).optional(),
+}).transform((field) => ({...field, type: declaredType(field)}))
 
 type Field = z.infer<typeof DeclaredField>
 
@@ -56,6 +64,12 @@ function declaredFields(inputSchema: unknown): ToolField[] {
     const declaredEntry = {name: entry, required: required.has(entry), field}
     return {...declaredEntry, schema: wireSchema(declaredEntry)}
   })
+}
+
+function declaredType(node: z.output<typeof DeclaredNode>): string | undefined {
+  const types = [...node.type, ...[...node.anyOf, ...node.oneOf].flatMap((branch) => branch.type)]
+  if (types.includes('string')) return 'string'
+  return types.find((type) => type !== 'null')
 }
 
 function fieldElement(entry: ToolField, positional: string | undefined): Element {

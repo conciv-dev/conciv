@@ -318,6 +318,7 @@ describe('cli', () => {
         patch: z.record(z.string(), z.unknown()),
         strokes: z.array(z.object({x: z.number()}).loose()),
         parts: z.array(z.unknown()).optional(),
+        label: z.string().nullable().optional(),
       }),
       outputSchema: z.object({painted: z.boolean()}),
       meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
@@ -419,7 +420,7 @@ describe('cli', () => {
         })
       })
 
-      it('decodes JSON into an unconstrained array item and keeps a plain value a string', async () => {
+      it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
         const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
         const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
         expect(
@@ -435,11 +436,13 @@ describe('cli', () => {
             '{"type":"text","text":"Hello"}',
             '--parts',
             'plain words',
+            '--label',
+            '123',
           ]),
         ).toBe(0)
         expect(answer.seen()).toMatchObject({
           name: 'acme_paint',
-          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words']},
+          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words'], label: '123'},
         })
       })
 
