@@ -30,11 +30,12 @@ The work ships as three PRs in that order. All three are approved; the decisions
 | 1 | `@conciv/app` | `apps/conciv/src/composer/session-selector.tsx` | Search rows render the excerpt. |
 | 2 | `@conciv/contract`, `@conciv/core` | `contract.ts`, `packages/core/src/api/rpc/` (sessions router), `packages/core/src/sessions/` | `sessions.preview` reads a transcript window, read-only. |
 | 2 | `@conciv/app` | new `apps/conciv/src/composer/session-preview.tsx`; `session-selector.tsx` | The preview surface and its wiring to the picker. |
+| 2 | `@conciv/ui-kit-system` | reused only: `Popover` (`popover.tsx`) | The preview surface: positioning, layer stack, Escape, focus return. |
 | 2 | `@conciv/ui-kit-chat` | reused only: `Thread` (`styled/thread.tsx`), `ChatProvider`, `useThreadViewport` | The preview is the real chat thread, read-only. |
 | 3 | `@conciv/protocol`, `@conciv/harness` | `harness-types.ts`, `packages/harness/src/{claude,codex,opencode,pi}/history.ts` | `list(scope)`, and `cwd` on each meta. |
 | 3 | `@conciv/core`, `@conciv/contract`, `@conciv/app` | index worker, `sessions.search` input, picker | A `cwd` index field, an `everywhere` search flag, and the "All projects" `Switch`. |
 
-Kit components used, all existing: Ark `Combobox` (the picker), `VirtualList` (ui-kit-system), `Streamdown` / `Markdown`, `Thread` + `ChatProvider` (ui-kit-chat), the `Switch` and `ClipboardCopyButton` (ui-kit-system, piece 3), and the ui-kit-chat `ConversationSkeleton` pattern for loading states. We build no new primitive. The ui-kit-system `HoverCard` is NOT used. It is a hover-and-focus link-preview pattern, and combobox items never take DOM focus (virtual focus through `aria-activedescendant`), so it can't follow the keyboard. Piece 2 positions its own surface instead (see below).
+Kit components used, all existing: Ark `Combobox` (the picker), the kit `Popover` (the preview), `VirtualList` (ui-kit-system), `Streamdown` / `Markdown`, `Thread` + `ChatProvider` (ui-kit-chat), the `Switch` and `ClipboardCopyButton` (ui-kit-system, piece 3), and the ui-kit-chat `ConversationSkeleton` pattern for loading states. We build no new primitive. The ui-kit-system `HoverCard` is NOT used. It is a hover-and-focus link-preview pattern, and combobox items never take DOM focus (virtual focus through `aria-activedescendant`), so it can't follow the keyboard. Piece 2 uses the kit `Popover` (Ark), controlled by the combobox highlight (see below).
 
 ## 1. Excerpts with highlighted matches
 
@@ -110,13 +111,20 @@ Row layout for a search hit:
 
 ## 2. Session preview
 
-### Surface
+### Surface: kit `Popover` (Ark), controlled
 
-- One preview surface per picker, not one per row. It sits in the same `Combobox.Positioner` layer, positioned to the side of `Combobox.Content` with Ark/zag positioning (`placement: 'right-start'`, flipping to `left-start`, `getAnchorElement` set to the content element). Below the panel width breakpoint it renders under the list instead.
-- It follows the combobox's `highlightedValue`, which pointer hover and the arrow keys both set. One source drives it, so pointer and keyboard behave the same.
-- Open delay: a `@tanstack/solid-pacer` debounced value of `highlightedValue`, 300 ms. Moving fast through rows shows nothing; resting on one opens it. After a preview is open, changing rows swaps the content at once (no delay), like a tooltip group.
+The preview is one ui-kit-system `Popover` per picker, not one per row and not a HoverCard. Ark owns positioning, the layer stack, Escape, outside interaction and focus restore. We write none of that ourselves. The props come from zag popover 1.45 (`popover.types.d.ts`) and dismissable (`persistentElements`):
+
+- `open`: controlled. It is true when the picker is open and a debounced `highlightedValue` names a session. `onOpenChange(false)` from Ark (Escape, outside interaction) clears the preview's own state; it never closes the picker.
+- `modal={false}`, `autoFocus={false}`: the combobox input keeps focus and typing keeps working while the preview is open.
+- `positioning={{placement: 'right-start', flip: ['left-start', 'bottom-start'], getAnchorElement: () => comboboxContentElement}}`: the preview anchors to the list, not to a row, so it doesn't jump on every highlight move.
+- `persistentElements: [() => comboboxContentElement, () => comboboxInputElement]`: hovering, clicking or scrolling the list and typing in the input never count as an outside interaction.
+- `closeOnEscape` (default true): zag's dismissable layer stack closes the topmost layer first. The first Escape closes the preview and the second closes the picker, with no stopPropagation of our own. If the combobox doesn't register as a layer under the popover, the implementer reports back before adding any key handler.
+- `finalFocusEl: () => comboboxInputElement`: focus always comes back to the input.
+- Content: `Popover.Content` with a `Popover.Title` holding the session title. Ark wires `role="dialog"` and `aria-labelledby` to it.
+- What drives it: the combobox's `highlightedValue`, which both pointer hover and the arrow keys set. A `@tanstack/solid-pacer` debounced value of it (300 ms) gates the first open. Once the preview is open, a new highlight swaps the content at once, like a tooltip group.
 - Size: the list's height and up to 26rem wide (token-derived). The thread inside scrolls.
-- Closes when the picker closes, when the highlight clears, or on Escape. The first Escape closes the preview, the second closes the picker. The preview takes Escape before the combobox does, the same way the Editable Input already stops it.
+- Narrow panel: `flip` lands it under the list.
 
 ### Content (`apps/conciv/src/composer/session-preview.tsx`)
 
@@ -140,13 +148,13 @@ Row layout for a search hit:
 
 ### Motion
 
-- The preview enters with `anim-presence-in` and exits with `anim-presence-out` through the existing ui-kit-system `presence.tsx`. A content swap between rows crossfades with `anim-combo`. Every animation is off under reduced motion.
+- The kit Popover content already enters with `anim-pop` on `data-[state=open]`. Exit goes through Ark's presence (`lazyMount`/`unmountOnExit` with the `data-[state=closed]` exit animation), so it isn't hand-rolled. A content swap between rows crossfades with `anim-combo`. Every animation is off under reduced motion (the shortcuts already carry `motion-reduce`).
 
 ### Accessibility
 
-- The preview is `role="region"` with `aria-label="Preview of <title>"`, and the combobox content points at it with `aria-controls`. It isn't a live region, so screen readers aren't flooded when the highlight moves.
+- The preview is Ark's non-modal `role="dialog"`, labelled by its `Popover.Title` ("Preview of <title>"). It isn't a live region, so screen readers aren't flooded when the highlight moves.
 - The preview is not in the tab order while the input has focus. Reaching it by keyboard is an explicit step: **Alt+ArrowRight** (or **Tab** from the input) moves focus into the preview's scroller, where the arrows and Page keys scroll; **Escape** or **Alt+ArrowLeft** returns to the input with the same highlight. The hint shows once in the preview footer as kbd text.
-- Focus is restored to the combobox input on close (Ark focus restore).
+- Focus returns to the combobox input on close (`finalFocusEl`).
 
 ### Tests
 
