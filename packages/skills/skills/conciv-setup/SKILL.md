@@ -175,9 +175,11 @@ deprecated aliases for `harnessBin`/`sessionId`
 (`apps/site/content/docs/configuration.mdx:54`, `packages/protocol/src/config-types.ts:44-45`).
 
 To drive a conciv tab from an agent session outside the browser (any directory), pick "Connect <harness>"
-in the composer's "Connect agents" menu: the engine runs that harness's own `mcp add` command to install
-the `conciv-hub` MCP server (`conciv mcp`, `packages/cli/src/hub.ts`). Claude Code, Codex, opencode and
-Gemini CLI are supported; pi has no MCP support.
+in the composer's "Connect agents" menu (or run `conciv mcp connect <harness>`; `conciv init` offers it for
+every detected agent not yet connected): conciv runs that harness's own `mcp add` command to install the
+`conciv-hub` MCP server (`conciv mcp serve --agent <harness>`, `packages/cli/src/hub.ts`). Claude Code, Codex,
+opencode and Gemini CLI are supported; pi has no MCP support. Disconnect from the chip above the composer or
+`conciv mcp disconnect <harness>`; conciv refuses a disconnected agent at once.
 
 ## Minimal config surface
 

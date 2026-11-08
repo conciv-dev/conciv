@@ -8,6 +8,8 @@ import {
   type SessionId,
 } from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
+import {initContributions} from '@conciv/harness-init/registry'
+import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
@@ -26,7 +28,7 @@ const OFFLINE_CODES = new Set([
 
 const MAX_CAUSE_DEPTH = 5
 
-const HUB_CLIENT = 'cli'
+const TERMINAL_CLIENT = 'terminal'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
 
@@ -63,7 +65,7 @@ type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
   const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
-  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: HUB_CLIENT}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env)}
   return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
@@ -81,6 +83,16 @@ export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutco
   const outcome = await servedOutcome(engine, target, call)
   if (outcome === null) throw offlineFailure(engine.origin)
   return outcome
+}
+
+function callingAgent(env: NodeJS.ProcessEnv): string {
+  const shellEnv = (id: (typeof INIT_HARNESS_IDS)[number]) => initContributions[id].hub?.shellEnv
+  return (
+    INIT_HARNESS_IDS.find((id) => {
+      const variable = shellEnv(id)
+      return variable !== undefined && Boolean(env[variable])
+    }) ?? TERMINAL_CLIENT
+  )
 }
 
 function rejectedByServer(error: unknown): boolean {

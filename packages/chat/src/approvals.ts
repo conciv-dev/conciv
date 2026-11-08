@@ -63,6 +63,7 @@ export type ApprovalStore = {
   decided: (threadId: string, approvalId: string, signal: AbortSignal) => Promise<void>
   outsideDenied: (threadId: string) => Promise<boolean>
   allowOutside: (threadId: string) => Promise<void>
+  revokeOutsideAllows: () => Promise<void>
 }
 
 const OUTSIDE_APPROVAL_ID = toolApprovalId(OUTSIDE_SESSION_TARGET)
@@ -82,7 +83,9 @@ const PENDING_SUFFIX = ':pending-approvals'
 
 const pendingKey = (threadId: string): string => `${threadId}${PENDING_SUFFIX}`
 
-const grantsKey = (threadId: string): string => `${threadId}:grants`
+const GRANTS_SUFFIX = ':grants'
+
+const grantsKey = (threadId: string): string => `${threadId}${GRANTS_SUFFIX}`
 
 type ApprovalMetadata = ChatStores['metadata'] & {
   keysEndingWith: (namespace: string, suffix: string) => Promise<readonly string[]>
@@ -207,6 +210,19 @@ export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAc
       const holder = outsideHolder(threadId)
       const grants = await grantsOf(holder)
       await writeGrants(holder, {...grants, refused: grants.refused.filter((id) => id !== OUTSIDE_APPROVAL_ID)})
+    },
+    revokeOutsideAllows: async () => {
+      const keys = await metadata.keysEndingWith(APPROVALS_NAMESPACE, GRANTS_SUFFIX)
+      await Promise.all(
+        keys.map(async (key) => {
+          const grants = GrantsSchema.parse(await metadata.get(APPROVALS_NAMESPACE, key))
+          if (!grants.session.includes(OUTSIDE_APPROVAL_ID)) return
+          await metadata.set(APPROVALS_NAMESPACE, key, {
+            ...grants,
+            session: grants.session.filter((id) => id !== OUTSIDE_APPROVAL_ID),
+          })
+        }),
+      )
     },
   }
 }

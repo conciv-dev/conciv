@@ -1828,6 +1828,19 @@ describe('connect agents', () => {
     await expect.element(composer()).toHaveFocus()
     await more().click()
     await expect.element(item()).toBeVisible()
+
+    await page.getByRole('menuitem', {name: 'Connect OpenCode'}).click()
+    await expect.element(agents().getByText('OpenCode', {exact: true})).toBeVisible()
+    await page.getByRole('button', {name: 'Disconnect OpenCode'}).click()
+    await expect
+      .element(
+        page.getByText(
+          'OpenCode disconnected. OpenCode keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.',
+        ),
+      )
+      .toBeVisible()
+    await expect.element(agents()).not.toBeInTheDocument()
+    await expect.element(composer()).toHaveFocus()
   }, 30_000)
 })
 

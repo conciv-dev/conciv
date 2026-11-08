@@ -100,6 +100,7 @@ export type ChatPlane = {
   pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
+  revokeOutsideAllows: () => Promise<void>
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
@@ -233,6 +234,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       })),
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
+    revokeOutsideAllows: () => approvals.revokeOutsideAllows(),
     codeRunner: async (sessionId, publish, given) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
       const capabilities = given ?? deps.capabilities(sessionId)

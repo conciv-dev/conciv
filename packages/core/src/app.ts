@@ -594,6 +594,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
+  const hub = createHubInstaller(opts.home, () => plane.revokeOutsideAllows())
+
   const admitOutside = async (
     scope: SessionScope,
     client: string | null,
@@ -621,7 +623,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
     admitOutside,
-    hub: createHubInstaller(opts.home),
+    hub,
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -665,6 +667,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           }),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         admitOutside,
+        hubRefusal: hub.refusal,
         staleness,
       },
       tabs: {

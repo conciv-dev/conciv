@@ -574,9 +574,12 @@ describe('home db', () => {
       recordHubConnection(db, 'codex', 1)
       recordHubConnection(db, 'codex', 2)
       recordHubConnection(db, 'claude', 3)
-      expect(hubConnections(db)).toEqual(['claude', 'codex'])
+      expect(hubConnections(db)).toEqual([
+        {harness: 'claude', connectedAt: 3},
+        {harness: 'codex', connectedAt: 1},
+      ])
       removeHubConnection(db, 'codex')
-      expect(hubConnections(db)).toEqual(['claude'])
+      expect(hubConnections(db)).toEqual([{harness: 'claude', connectedAt: 3}])
     })
   })
 

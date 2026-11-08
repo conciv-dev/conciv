@@ -72,7 +72,12 @@ type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
-  hub?: {add: (command: string[], env: Readonly<Record<string, string>>) => string[]; remove?: string[]}
+  hub?: {
+    name: string
+    shellEnv: string
+    add: (command: string[], env: Readonly<Record<string, string>>) => string[]
+    remove?: string[]
+  }
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {

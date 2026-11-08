@@ -10,6 +10,7 @@ import {
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import {concivHome, recordHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -194,6 +195,7 @@ const hubExecute: BrowserCommand<[string, string, string?]> = async (
   origin = 'hub',
 ): Promise<string> => {
   const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: origin, [CONCIV_CLIENT_HEADER]: 'codex'}
+  withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
   const {connectMcpClient} = await testkitOf(ctx)
   const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
   try {
@@ -266,15 +268,16 @@ function hubCliRoot(state: FileState): string {
   state.hubCli.current = current
   mkdirSync(join(current.root, 'bin'), {recursive: true})
   mkdirSync(join(current.root, 'home'), {recursive: true})
-  const script = join(current.root, 'bin', 'claude')
-  if (existsSync(script)) return current.root
+  if (existsSync(join(current.root, 'bin', 'claude'))) return current.root
   const lines = [
     '#!/bin/sh',
     `while [ -f '${join(current.root, 'gate')}' ]; do /bin/sleep 0.05; done`,
-    `if [ -f '${join(current.root, 'fail')}' ]; then echo "claude: could not add conciv-hub" >&2; exit 2; fi`,
+    `if [ -f '${join(current.root, 'fail')}' ]; then echo "\${0##*/}: could not add conciv-hub" >&2; exit 2; fi`,
     'exit 0',
   ]
-  writeFileSync(script, `${lines.join('\n')}\n`, {mode: 0o755})
+  for (const agent of ['claude', 'opencode']) {
+    writeFileSync(join(current.root, 'bin', agent), `${lines.join('\n')}\n`, {mode: 0o755})
+  }
   return current.root
 }
 

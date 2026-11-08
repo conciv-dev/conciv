@@ -600,6 +600,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../../packages/db
       '@conciv/extension-page':
         specifier: workspace:^
         version: link:../../packages/extensions/page
@@ -3643,6 +3646,9 @@ importers:
 
   packages/harness-init:
     dependencies:
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol

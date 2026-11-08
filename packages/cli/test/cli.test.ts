@@ -1062,12 +1062,27 @@ describe('cli', () => {
   }
 
   describe('conciv tools on any tab', () => {
-    const conciv = (cwd: string, home: string, args: string[]) =>
+    const conciv = (cwd: string, home: string, args: string[], agentEnv: Record<string, string> = {}) =>
       new Promise<unknown>((resolve) =>
-        execFile(process.execPath, [bin, ...args], {cwd, env: {CONCIV_HOME: home}}, (_error, stdout) =>
+        execFile(process.execPath, [bin, ...args], {cwd, env: {CONCIV_HOME: home, ...agentEnv}}, (_error, stdout) =>
           resolve(JSON.parse(stdout)),
         ),
       )
+
+    it('names the calling agent from its shell env, so a disconnected Codex is refused before any Allow card', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const refused = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', sessionId], {
+          CODEX_THREAD_ID: 'thread',
+        })
+        expect(refused).toMatchObject({ok: false, error: {message: /Codex is disconnected from conciv/}})
+        expect((await page.chat.hydrate({sessionId})).pendingApprovals).toEqual([])
+      } finally {
+        await engine.stop()
+      }
+    })
 
     it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
@@ -1081,7 +1096,7 @@ describe('cli', () => {
           timeout: 5000,
         })
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
@@ -1114,9 +1129,9 @@ describe('cli', () => {
           timeout: 5000,
         })
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
-        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
-        expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied cli access/}})
+        expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
       } finally {
         await engine.stop()
       }
@@ -1200,15 +1215,70 @@ describe('cli', () => {
   describe('conciv mcp hub', () => {
     const hub = (home: string) =>
       createMCPClient({
-        transport: stdioTransport({command: process.execPath, args: [bin, 'mcp'], env: {CONCIV_HOME: home}}),
+        transport: stdioTransport({
+          command: process.execPath,
+          args: [bin, 'mcp', 'serve', '--agent', 'claude'],
+          env: {CONCIV_HOME: home},
+        }),
         name: 'cli-test',
       })
+
+    const fakeClaude = () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const binDir = mkdtempSync(join(tmpdir(), 'conciv-agent-bin-'))
+      const log = join(binDir, 'calls.log')
+      writeFileSync(join(binDir, 'claude'), `#!/bin/sh\necho "$*" >> '${log}'\n`)
+      chmodSync(join(binDir, 'claude'), 0o755)
+      const mcp = (...args: string[]) => {
+        const ran = spawnSync(process.execPath, [bin, 'mcp', ...args], {
+          env: {...process.env, CONCIV_HOME: home, PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`},
+          encoding: 'utf8',
+        })
+        const document: unknown = JSON.parse(ran.stdout)
+        return {status: ran.status, document}
+      }
+      const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [])
+      return {home, mcp, calls}
+    }
+
+    it('connects, lists and disconnects an agent through its CLI, and the engine refuses it once disconnected', async () => {
+      const claude = fakeClaude()
+      expect(claude.mcp('list')).toEqual({status: 0, document: {ok: true, data: []}})
+      expect(claude.mcp('connect', 'claude')).toEqual({status: 0, document: {ok: true, data: {connected: 'claude'}}})
+      expect(claude.mcp('list')).toMatchObject({
+        status: 0,
+        document: {ok: true, data: [{harness: 'claude', name: 'Claude'}]},
+      })
+      expect(claude.calls()).toEqual([
+        expect.stringMatching(
+          new RegExp(
+            `^mcp add -s user conciv-hub -e CONCIV_HOME=${claude.home} -- npx -y @conciv/cli@\\S+ mcp serve --agent claude$`,
+          ),
+        ),
+      ])
+      expect(claude.mcp('disconnect', 'claude')).toEqual({
+        status: 0,
+        document: {ok: true, data: {disconnected: 'claude'}},
+      })
+      expect(claude.calls().at(-1)).toBe('mcp remove -s user conciv-hub')
+      expect(claude.mcp('list')).toEqual({status: 0, document: {ok: true, data: []}})
+      expect(claude.mcp('connect', 'pi')).toMatchObject({status: 1, document: {ok: false}})
+      const engine = await engineWithTab(claude.home)
+      const client = await hub(claude.home)
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('Claude is disconnected from conciv')
+      } finally {
+        await client.close()
+        await engine.engine.stop()
+      }
+    })
 
     const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
 
     it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
-      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const first = await engineWithTab(home)
       const client = await hub(home)
       try {
@@ -1724,6 +1794,7 @@ describe('init', () => {
             {id: 'framework', status: 'done'},
             {id: 'agents', status: 'done'},
             {id: 'claude', status: 'done'},
+            {id: 'connect-claude', status: 'done'},
           ],
         })
         expect(JSON.stringify(parsed.data)).toContain('pnpm dev')
@@ -1770,6 +1841,7 @@ describe('init', () => {
         )
         expect(code).toBe(0)
         expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Install @conciv/it')
+        expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Connect Claude to conciv')
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
         expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
@@ -2105,7 +2177,12 @@ describe('init', () => {
       return {
         selections: async (found: FoundSelections) => {
           events.push('selections')
-          return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+          return {
+            framework: true,
+            harnesses: found.harnesses.map((one) => one.id),
+            agents: found.agents,
+            docsPack: false,
+          }
         },
         confirmRun: async () => {
           events.push('confirmRun')
@@ -2118,7 +2195,13 @@ describe('init', () => {
       it('wires a vite project end to end with --yes over the injected runtime', async () => {
         const run = initFixture()
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'done',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
         expect(run.added).toEqual(['@conciv/it'])
         expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/it')
         expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toContain('@conciv/it/plugin/vite')
@@ -2128,6 +2211,11 @@ describe('init', () => {
           `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
           'claude plugin install conciv-connect@conciv --scope local',
           'claude plugin update conciv-connect@conciv --scope local',
+          expect.stringMatching(
+            new RegExp(
+              `^claude mcp add -s user conciv-hub -e CONCIV_HOME=${join(run.home, 'conciv')} -- npx -y @conciv/cli@\\S+ mcp serve --agent claude$`,
+            ),
+          ),
         ])
         expect(run.events).toContain('intro:conciv init')
         expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
@@ -2168,12 +2256,13 @@ describe('init', () => {
           'settle:done:Wired vite.config.ts',
           'settle:done:Wrote the conciv section to AGENTS.md',
           'settle:done:Installed the conciv claude plugin',
+          'settle:done:Connected Claude to conciv',
         ])
         const stepAt = run.events.indexOf('step:Wiring vite.config.ts…')
         const settleAt = run.events.indexOf('settle:done:Wired vite.config.ts')
         expect(stepAt).toBeGreaterThan(-1)
         expect(settleAt).toBeGreaterThan(stepAt)
-        expect(run.events).toContain('success:4 wired')
+        expect(run.events).toContain('success:5 wired')
       })
 
       it('streams the claude plugin install output into that step before it settles', async () => {
@@ -2211,10 +2300,16 @@ describe('init', () => {
       it('resolves a step that can only card as a manual line with its own reason and keeps going', async () => {
         const run = initFixture({configFixture: 'vite.config.no-plugins.ts'})
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        expect(statusById(result)).toEqual({install: 'done', framework: 'manual', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'manual',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
         expect(run.events).toContain('settle:manual:Wire the vite config — needs a manual step (see the card below)')
         expect(run.events.some((event) => event.startsWith('note:Wire the conciv vite plugin:'))).toBe(true)
-        expect(run.events).toContain('warn:3 wired · 1 manual step below')
+        expect(run.events).toContain('warn:4 wired · 1 manual step below')
         expect(run.events).toContain('settle:done:Installed the conciv claude plugin')
       })
 
@@ -2222,7 +2317,7 @@ describe('init', () => {
         const run = initFixture()
         const result = await runInit(
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
-          {...run.runtime, prompts: acceptWith({framework: true, harnesses: [], docsPack: false})},
+          {...run.runtime, prompts: acceptWith({framework: true, harnesses: [], agents: [], docsPack: false})},
         )
         expect(statusById(result).claude).toBe('skipped')
         expect(run.events).toContain('settle:skipped:Install the conciv claude plugin — skipped: not selected')
@@ -2238,7 +2333,7 @@ describe('init', () => {
             prompts: {
               selections: async () => {
                 run.events.push('selections')
-                return {framework: false, harnesses: [], docsPack: false}
+                return {framework: false, harnesses: [], agents: [], docsPack: false}
               },
               confirmRun: async () => {
                 run.events.push('confirmRun')
@@ -2256,7 +2351,12 @@ describe('init', () => {
         expect(plans).toHaveLength(1)
         expect(plans[0]).not.toContain('Wire the vite config')
         expect(plans[0]).toContain('○ claude (not selected)')
-        expect(statusById(result)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          agents: 'done',
+          claude: 'skipped',
+          'connect-claude': 'skipped',
+        })
         expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
         expect(run.spawned).toEqual([])
       })
@@ -2274,11 +2374,11 @@ describe('init', () => {
           expect(statusById(second)[id], id).toBe('already')
         }
         expect(run.added).toEqual(['@conciv/it'])
-        expect(run.spawned).toHaveLength(3)
+        expect(run.spawned).toHaveLength(4)
         const plans = plansOf(run.events)
         expect(plans[1]).toContain('already wired')
         expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
-        expect(run.events).toContain('success:4 already wired')
+        expect(run.events).toContain('success:5 already wired')
       })
 
       it('plans the dry run against this run selections, not the harnesses a previous run recorded', async () => {
@@ -2368,7 +2468,13 @@ describe('init', () => {
           {yes: true, dryRun: false, force: false, cwd: run.cwd},
           {...run.runtime, interactive: () => false},
         )
-        expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'done',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
       })
 
       it('restores the config, says so, and exits 130 when the run is interrupted mid-apply', async () => {
@@ -2485,7 +2591,7 @@ describe('init', () => {
         const run = initFixture()
         const result = await runInit(
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
-          {...run.runtime, prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true})},
+          {...run.runtime, prompts: acceptWith({framework: true, harnesses: ['claude'], agents: [], docsPack: true})},
         )
         expect(statusById(result)['docs-pack']).toBe('done')
         expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
@@ -2499,7 +2605,7 @@ describe('init', () => {
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
           {
             ...run.runtime,
-            prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true}),
+            prompts: acceptWith({framework: true, harnesses: ['claude'], agents: [], docsPack: true}),
             spawn: async (bin, args, spawnCwd, onLine) => {
               if (bin === 'pnpm' && args[0] === 'dlx' && args[1] === '@tanstack/intent@latest') {
                 return {code: 1, output: 'network unreachable'}

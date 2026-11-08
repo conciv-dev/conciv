@@ -27,9 +27,10 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `preflight` (`preflight.ts`): needs package.json in cwd; without force, refuses a dirty git tree or an unreadable git status; no repository is allowed
 - `settleStep` (`pipeline.ts`): detect 'present' records 'already' and skips apply; a detect error counts as missing; dry run calls only plan
 - `settleStep` (`pipeline.ts`): an apply throw, or verify false after apply, makes the step manual with `step.manualCard`
-- `stepList` (`pipeline.ts`): order is install @conciv/it, framework (if selected), AGENTS.md, one step per harness file init, docs pack (if selected)
+- `stepList` (`pipeline.ts`): order is install @conciv/it, framework (if selected), AGENTS.md, one step per harness file init, one `connect-<agent>` step per found harness that has a `hub` (already connected ones settle as 'already'), docs pack (if selected)
+- `connectableAgents` (`pipeline.ts`): the found hub harnesses not yet in the conciv home db (`InitRuntime.concivHome`); the wizard's "Connect these agents to conciv" multiselect offers only these, all checked; an unreadable home db offers every found hub harness
 - `frameworkStep` (`pipeline.ts`): vite and astro use viteStep, nextjs nextjsStep, webpack and rspack webpackFamilyStep, everything else fallbackStep
-- `approvePlan` (`wizard.ts`): dry run and --yes take the defaults (framework true, every found harness, docsPack false)
+- `approvePlan` (`wizard.ts`): dry run and --yes take the defaults (framework true, every found harness, every connectable agent, docsPack false), so `--dry-run` and `--json` list each `Connect <Name> to conciv` step and `--yes` connects them
 - `detectFramework` (`detect.ts`): rule order sets priority; an invalid manifest gives 'unknown'
 - `execFileOutcome` (`exec.ts`): a signal exit resolves with code 1
 - `guardBackups` (`interrupt.ts`): restores in reverse order; a file captured as null is deleted on restore
@@ -37,7 +38,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 ## Side Effects
 
 - `runInit` (`pipeline.ts`): `writeConsent` writes .conciv/harnesses.json after a backup
-- `defaultRuntime` (`pipeline.ts`): reads PATH and HOME; calls process.exit(130) on interrupt
+- `defaultRuntime` (`pipeline.ts`): reads PATH, HOME and the conciv home (`concivHome`, CONCIV_HOME or the platform data folder); calls process.exit(130) on interrupt
 - `guardBackups` / `onInterrupt` (`interrupt.ts`): add process 'exit' and SIGINT listeners and rewrite or delete backed-up files
 - `execFileOutcome` (`exec.ts`): spawns child processes
 - `preflight` (`preflight.ts`): runs `git status --porcelain` with LC_ALL=C

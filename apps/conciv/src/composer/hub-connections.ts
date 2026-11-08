@@ -50,7 +50,8 @@ export function useHubConnections(sessionId: () => string) {
         notices.notify(outcome.message, {tone: 'warn'})
         return
       }
-      notices.notify(`${nameOf(connections(), input.harness)} disconnected.`)
+      const disconnected = `${nameOf(connections(), input.harness)} disconnected.`
+      notices.notify(outcome.note === undefined ? disconnected : `${disconnected} ${outcome.note}`)
       await refresh()
     },
     onError: (_error: unknown, input) =>

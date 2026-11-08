@@ -71,12 +71,12 @@ export function removeHubConnection(db: HomeDb, harness: string): void {
   db.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
 }
 
-export function hubConnections(db: HomeDb): string[] {
+export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt: number}> {
   return db
-    .select({harness: hubConnectionsTable.harness})
+    .select({harness: hubConnectionsTable.harness, connectedAt: hubConnectionsTable.connectedAt})
     .from(hubConnectionsTable)
+    .orderBy(hubConnectionsTable.harness)
     .all()
-    .map((row) => row.harness)
 }
 
 export function isHomeFolderRefused(error: unknown): error is Error {

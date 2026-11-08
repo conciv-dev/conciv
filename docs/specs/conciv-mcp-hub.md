@@ -336,7 +336,7 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 > Allow in the conciv tab, then retry; if it says the user denied outside agents, stop and tell the user, do not
 > retry. If a call says the tab is not open, call external_tabs({}) again.
 
-### Hub: `conciv mcp` (`@conciv/cli`)
+### Hub: `conciv mcp serve` (`@conciv/cli`)
 
 - A citty subcommand `mcp` in `packages/cli/src/main.ts`, no arguments. Server built with `createMCPServer` and
   served with `serveMCPStdio(server)` from `@tanstack/ai-mcp/server/stdio`; engine calls use
@@ -356,7 +356,7 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 
 - MCP server name: `conciv-hub` (the project-scoped `conciv-connect` plugin already registers a server named
   `conciv`; `packages/harness-init/src/claude/names.ts`).
-- Install line pinned to the engine's own `@conciv/cli` version: `npx -y @conciv/cli@<version> mcp`. Measure a cold
+- Install line pinned to the engine's own `@conciv/cli` version: `npx -y @conciv/cli@<version> mcp serve --agent <harness>` (see Disconnect). Measure a cold
   `npx` start against each harness's MCP startup timeout (Codex defaults to about 10s); if it exceeds one, stop and
   ask Omri.
 - Per-harness data on each init contribution in `@conciv/harness-init` (`packages/harness-init/src/registry.ts`,
@@ -386,6 +386,45 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   item "Connect <name>" calls `meta.connectHub`, shows pending, and on success posts via `useNotices()`:
   "<name> connected. Ask any <name> session for your conciv tab." On failure the notice carries the CLI's message.
   `meta.models` is invalidated after success so the item leaves.
+
+### Disconnect and `conciv mcp connect` (decided 2026-11-08)
+
+No tokens. Every agent runs as the user, so any token on disk is readable by every agent and buys nothing over the
+agent's name; the per-tab Allow card is the security boundary. Disconnect is for honest agents: it stops the
+engine answering them and makes the user click Allow again.
+
+- Agent name: the hub command written into each agent's config is `npx -y @conciv/cli@<version> mcp serve --agent
+  <harness>` (bare `conciv mcp` becomes a group; `serve` is the old server). `serve` sends `conciv-client:
+  <harness>` from `--agent`, not the MCP clientInfo name. `conciv tools` on the outside path
+  (`packages/cli/src/request.ts`, home-db fallback) names the agent from the env var each agent CLI sets for its
+  shell commands (verify each name against the CLI pinned in CI before shipping; Claude Code sets `CLAUDECODE`),
+  else `terminal`.
+- Engine gate, before `admitOutside`, at both doors (`/api/mcp` in `packages/core/src/api/mcp.ts` and
+  `makeHubAdmission` in `packages/core/src/api/rpc/mount.ts`): a hub-origin call whose client is a harness with a
+  `hub` contribution must have a `hub_connections` row, else refused with "<name> is disconnected from conciv;
+  reconnect it from the conciv widget or run `conciv mcp connect <harness>`". This applies whatever
+  `hubAccess` says. `terminal` and unknown clients skip this check and still go through the Allow card.
+- Disconnect: delete the row FIRST (the gate then refuses the agent, whatever its config says), clear the outside
+  approvals the agent holds (how `plane.admitCall` keeps an Allow decides the scope: if Allows are kept per tab
+  rather than per client, clear every tab's outside Allow and say so in the PR), then run `hub.remove`
+  best-effort. opencode has no remove: its entry stays in `opencode.json` and the result says it is refused until
+  reconnected.
+- One shared implementation, `@conciv/harness-init/hub` (new subpath; harness-init gains `@conciv/db`):
+  `connectHub({harness, home, command})`, `disconnectHub({harness, home})`, `listHubConnections(home)`. Connect =
+  `hub.add` (remove-then-add on "already exists", as today) + record the row. Core's `hub.ts` becomes a thin caller
+  (`HUB_COMMAND` gains `serve --agent <harness>`); add `removeHubConnection(db, harness)` to `packages/db`.
+- CLI commands, JSON envelope like every route: `conciv mcp connect <agent>`, `conciv mcp disconnect <agent>`,
+  `conciv mcp list` (`[{harness, name, connectedAt}]`). `<agent>` is a zod `z.enum` of the harnesses with a `hub`
+  contribution. The CLI writes its own installed version into the command.
+- `conciv init`: after its existing steps, offers to connect each detected harness with a `hub` contribution that
+  is not connected (clack multiselect; `--yes` connects all; `--dry-run` lists them in the plan; `--json` reports
+  them in `steps`).
+- Widget: every connected agent gets Disconnect (no `canDisconnect` field); the opencode notice names the leftover
+  `opencode.json` entry. `meta.connectHub` / `meta.disconnectHub` are refused for hub origin.
+- Entries written before this ship run bare `mcp` and send no `--agent`; they are refused as unconnected-looking
+  until reconnected (pre-release, no migration).
+- Not built (stronger option, only if ever needed): an in-memory token the engine hands the `serve` process when
+  the user clicks Allow, killed on disconnect. One-shot `conciv tools` runs cannot hold it.
 
 ### Deletions (launch menu and "Open externally")
 

@@ -1,9 +1,13 @@
 import {homedir} from 'node:os'
+import {difference} from 'es-toolkit'
+import {concivHome} from '@conciv/db'
+import {createHubConnections} from '@conciv/harness-init/hub'
+import {initContributions} from '@conciv/harness-init/registry'
 import {CONCIV_BIN} from '@conciv/harness-init/agent-guide'
 import {detectProject, type Detected} from './detect.js'
 import {execFileOutcome, type CommandOutcome} from './exec.js'
 import {detectHarnesses, type FoundHarness} from '@conciv/harness-init/detect'
-import {harnessFileInits, harnessIds} from './harness-detect.js'
+import {harnessFileInits, harnessIds, type HarnessId} from './harness-detect.js'
 import {captureFile, guardBackups, onInterrupt, type FileBackup} from './interrupt.js'
 import type {LedgerEntry, ManualCard, StepNote, StepOutcome, StepPlan} from './ledger.js'
 import {emitOutro} from './outro.js'
@@ -14,6 +18,7 @@ import {nextjsStep} from './steps/framework/nextjs.js'
 import {viteStep} from './steps/framework/vite.js'
 import {webpackFamilyStep} from './steps/framework/webpack-family.js'
 import {agentsMdStep} from './steps/harness/agents-md.js'
+import {connectAgentStep} from './steps/harness/connect-agent.js'
 import {consentFile, writeConsent} from './steps/harness/consent.js'
 import {harnessInitStep} from './steps/harness/install-harness.js'
 import {addWithNypm, installItStep, type AddDep} from './steps/install-it.js'
@@ -76,6 +81,7 @@ export type InitRuntime = {
   spawn: SpawnBin
   prompts: PlanPrompts
   env: {PATH: string; HOME: string}
+  concivHome: string
   output: InitOutput
   interactive: () => boolean
   exit: (code: number) => void
@@ -93,6 +99,7 @@ function defaultRuntime(): InitRuntime {
     spawn: spawnBin,
     prompts: clackPrompts,
     env: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? homedir()},
+    concivHome: concivHome({env: process.env}),
     output: clackOutput,
     interactive: interactiveTerminal,
     exit: (code) => process.exit(code),
@@ -111,15 +118,41 @@ function nextSteps(packageManager: string): string[] {
   return [`start your app: ${dev}`, `ask your agent to run ${CONCIV_BIN} tools --help`]
 }
 
-function stepList(detected: Detected, selections: ConfirmedSelections, runtime: InitRuntime): InitStep[] {
+function stepList(
+  detected: Detected,
+  selections: ConfirmedSelections,
+  runtime: InitRuntime,
+  agents: HarnessId[],
+): InitStep[] {
   const consented = () => selections.harnesses
   return [
     installItStep(runtime.addDependency, detected.packageManager),
     ...(selections.framework ? [frameworkStep(detected)] : []),
     agentsMdStep(consented),
     ...harnessFileInits.map((init) => harnessInitStep(init, consented, {home: runtime.env.HOME, run: runtime.spawn})),
+    ...agents.map((agent) =>
+      connectAgentStep(agent, () => selections.agents, {concivHome: runtime.concivHome, spawn: runtime.spawn}),
+    ),
     ...(selections.docsPack ? [docsPackStep(runtime.addDependency, runtime.spawn)] : []),
   ]
+}
+
+function hubAgents(found: FoundHarness[]): HarnessId[] {
+  return found.flatMap(({id}) => (initContributions[id].hub === undefined ? [] : [id]))
+}
+
+function connectableAgents(found: FoundHarness[], home: string): HarnessId[] {
+  return difference(hubAgents(found), connectedAgents(home))
+}
+
+function connectedAgents(home: string): HarnessId[] {
+  try {
+    return createHubConnections(home)
+      .list()
+      .map((connection) => connection.harness)
+  } catch {
+    return []
+  }
 }
 
 function detectionSummary(detected: Detected, found: FoundHarness[]): string {
@@ -164,14 +197,18 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
   }
   const detected = await detectProject(options.cwd)
   const found = detectHarnesses(runtime.env)
+  const agents = connectableAgents(found, runtime.concivHome)
   detecting.stop(detectionSummary(detected, found))
   const approved = await approvePlan({
     yes: options.yes,
     dryRun: options.dryRun,
-    found: {framework: detected.framework, harnesses: found},
+    found: {framework: detected.framework, harnesses: found, agents},
     renderSelected: async (selections) =>
       renderPlan(
-        await planRows(stepList(detected, selections, runtime), quietContext(options.cwd, options.yes)),
+        await planRows(
+          stepList(detected, selections, runtime, hubAgents(found)),
+          quietContext(options.cwd, options.yes),
+        ),
         harnessRows(found, selections),
       ),
     prompts: runtime.prompts,
@@ -201,7 +238,11 @@ export async function runInit(options: InitOptions, overrides: Partial<InitRunti
         runtime.exit(130)
       }),
   }
-  const entries = await runSteps(stepList(detected, approved.selections, runtime), settings, runtime.output)
+  const entries = await runSteps(
+    stepList(detected, approved.selections, runtime, hubAgents(found)),
+    settings,
+    runtime.output,
+  )
   backups.release()
   const next = nextSteps(detected.packageManager)
   emitOutro(runtime.output, entries, next)

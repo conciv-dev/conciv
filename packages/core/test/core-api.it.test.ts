@@ -39,7 +39,9 @@ import {
   anchorKey,
   chatMetadata,
   chatRuns,
+  concivHome,
   listEngines,
+  recordHubConnection,
   registerEngine,
   sessions,
   TRANSCRIPT_NAMESPACE,
@@ -485,7 +487,7 @@ describe('connect hub', () => {
     fail: join(root, 'fail'),
     missing: join(root, 'missing'),
   }
-  const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp']
+  const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp', 'serve', '--agent', 'claude']
 
   beforeEach(() => {
     mkdirSync(join(root, 'bin'), {recursive: true})
@@ -512,7 +514,7 @@ describe('connect hub', () => {
 
   const hubConnections = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubConnections
 
-  const claudeConnection = {harnessId: 'claude', name: 'Claude', canDisconnect: true}
+  const claudeConnection = {harnessId: 'claude', name: 'Claude'}
 
   const invocations = () => readFileSync(file.argv, 'utf8').trim().split('\n')
 
@@ -558,29 +560,51 @@ describe('connect hub', () => {
     expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
   })
 
-  it('disconnectHub treats a server the CLI no longer knows as removed, and keeps the connection when the CLI fails', async () => {
+  it('disconnectHub forgets the connection before the CLI runs: a failing remove still disconnects with a note, a missing server counts as removed, opencode names its leftover entry', async () => {
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
     writeFileSync(file.fail, '')
-    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: false, message: 'boom'})
-    expect(await hubConnections()).toEqual([claudeConnection])
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({
+      ok: true,
+      note: 'Claude could not remove its conciv-hub entry (boom); conciv refuses it until you reconnect.',
+    })
+    expect(await hubConnections()).toEqual([])
     rmSync(file.fail)
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
     writeFileSync(file.missing, '')
     expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: true})
     expect(await hubConnections()).toEqual([])
     expect(await kit().rpc.meta.disconnectHub({harness: 'opencode'})).toEqual({
-      ok: false,
-      message: 'opencode cannot disconnect from the conciv hub',
+      ok: true,
+      note: 'OpenCode keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.',
     })
   })
 
   it('an outside agent can neither connect nor disconnect agents, and the harness CLI never runs', async () => {
     const outside = makeRpcClient(kit().base, {
-      headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+      headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
     })
     const refusal = "outside agents can't connect or disconnect agents; do it in the tab"
     expect(await outside.meta.connectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
     expect(await outside.meta.disconnectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
     expect(existsSync(file.argv)).toBe(false)
+  })
+
+  it('a hub call from a harness with no connection is refused at both doors with the reconnect text, and passes once connected', async () => {
+    const as = (client: string) => ({[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: client})
+    const refusal =
+      'Claude is disconnected from conciv; reconnect it from the conciv widget or run `conciv mcp connect claude`'
+    const rpcAs = (client: string) =>
+      makeRpcClient(kit().base, {headers: as(client)})
+        .meta.harnesses()
+        .then(String, String)
+    const mcpAs = (client: string) => executeOverMcp(kit().base, as(client), 'return 21 * 2').then(String, String)
+    expect(await rpcAs('claude')).toContain(refusal)
+    expect(await mcpAs('claude')).toContain(refusal)
+    expect(await rpcAs('terminal')).not.toContain('disconnected')
+    expect(await mcpAs('terminal')).toContain('42')
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await rpcAs('claude')).not.toContain('disconnected')
+    expect(await mcpAs('claude')).toContain('42')
   })
 })
 
@@ -1960,6 +1984,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {turn} = await heldTurn(sessionId, 'hold for an outside call')
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+        withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
         await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
           timeout: 3000,
@@ -3734,7 +3759,13 @@ describe('outside agent consent', () => {
     await Promise.allSettled(engines.map((engine) => engine.stop()))
   })
 
+  function connectedHome(home = tempDir('conciv-home-')): string {
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    return home
+  }
+
   async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+    connectedHome(home)
     const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
     engines.push(engine)
     return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
@@ -3918,7 +3949,7 @@ describe('outside agent consent', () => {
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
-      homeDir: tempDir('conciv-home-'),
+      homeDir: connectedHome(),
       extensions: [probe],
     })
     engines.push(engine)
@@ -3932,6 +3963,45 @@ describe('outside agent consent', () => {
     expect(touched).toEqual([])
     expect(await extOf({}).touch({sessionId})).toEqual({touched: true})
     expect(touched).toEqual([sessionId])
+  })
+
+  it('a terminal caller needs no connection and still gets the Allow card', async () => {
+    const base = await boot()
+    const sessionId = await newSession(base)
+    const terminal = {
+      [CONCIV_SESSION_HEADER]: sessionId,
+      [CONCIV_ORIGIN_HEADER]: 'hub',
+      [CONCIV_CLIENT_HEADER]: 'terminal',
+    }
+    const asked = executeOverMcp(base, terminal, 'return 1').then(String, String)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const [ask] = await pendingOf(base, sessionId)
+    expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab', input: {client: 'terminal'}})
+    await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+    expect(await asked).toContain('denied')
+  })
+
+  it('disconnecting an agent refuses it at once and clears the outside Allow, so after reconnecting the tab asks again', async () => {
+    const bin = tempDir('conciv-fake-codex-')
+    writeFileSync(join(bin, 'codex'), '#!/bin/sh\nexit 0\n', {mode: 0o755})
+    const savedPath = process.env.PATH
+    process.env.PATH = bin
+    try {
+      const base = await boot()
+      const sessionId = await newSession(base)
+      const allowed = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, true)
+      expect(await allowed).toMatch(RAN)
+      expect(await hubCall(base, sessionId)).toMatch(RAN)
+      expect(await makeRpcClient(base).meta.disconnectHub({harness: 'codex'})).toEqual({ok: true})
+      expect(await hubCall(base, sessionId)).toContain('Codex is disconnected from conciv')
+      expect(await makeRpcClient(base).meta.connectHub({harness: 'codex'})).toEqual({ok: true})
+      const asked = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, false)
+      expect(await asked).toContain(DENIED)
+    } finally {
+      process.env.PATH = savedPath
+    }
   })
 
   it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {

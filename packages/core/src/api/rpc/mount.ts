@@ -84,18 +84,19 @@ const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; 
 
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
-    const outside = callTrace((header) => rpcHeader(context, header)).hub !== null
-    const procedure = path.join('.')
-    if (outside && DECIDING_PROCEDURES.has(procedure)) {
-      throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
-    }
-    if (outside && HUB_PROCEDURES.has(procedure)) {
-      throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
-    }
+    const hub = callTrace((header) => rpcHeader(context, header)).hub
+    if (hub !== null) refuseOutside(deps, hub.client, path.join('.'))
     const named = NamedSessionSchema.safeParse(input)
     if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
     return next()
   })
+}
+
+function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): void {
+  const disconnected = deps.hub.refusal(client)
+  if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
+  if (DECIDING_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
+  if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
 }
 
 async function admitHubCaller(

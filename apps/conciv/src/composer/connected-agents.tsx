@@ -22,18 +22,16 @@ export function ConnectedAgents(props: {sessionId: string; onDisconnected: () =>
       <div class={ROW} role="group" aria-label="Connected agents">
         <For each={settled()}>
           {(connection) => (
-            <span class={connection.canDisconnect ? CHIP : PLAIN_CHIP}>
+            <span class={CHIP}>
               <AgentIcon harnessId={connection.harnessId} />
               <span>{connection.name}</span>
-              <Show when={connection.canDisconnect}>
-                <TooltipIconButton
-                  tooltip={`Disconnect ${connection.name}`}
-                  class={DISCONNECT}
-                  onClick={() => hub.disconnect(connection, props.onDisconnected)}
-                >
-                  <X class="size-3 block" aria-hidden="true" />
-                </TooltipIconButton>
-              </Show>
+              <TooltipIconButton
+                tooltip={`Disconnect ${connection.name}`}
+                class={DISCONNECT}
+                onClick={() => hub.disconnect(connection, props.onDisconnected)}
+              >
+                <X class="size-3 block" aria-hidden="true" />
+              </TooltipIconButton>
             </span>
           )}
         </For>
