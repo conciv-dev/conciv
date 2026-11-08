@@ -1201,11 +1201,13 @@ describe('engine staleness', () => {
   test('an engine running outdated code says so, and says it is the server code that moved', async () => {
     await mountNotice(staleness(true, 'stamp-boot'))
 
+    const alert = page.getByRole('alert')
     await expect
-      .element(page.getByRole('alert'))
+      .element(alert)
       .toHaveTextContent(
-        'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.Dismiss',
+        'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.',
       )
+    await expect.element(alert.getByRole('button', {name: 'Dismiss'})).toBeVisible()
   })
 
   test('a further rebuild speaks up again even after the earlier notice was dismissed', async () => {
