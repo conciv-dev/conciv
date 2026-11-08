@@ -1,16 +1,19 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, server} from 'vitest/browser'
 import {collectClientEffects, collectClientTools, type ClientEffect, type ClientToolCtx} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver, installReactBridge} from '@conciv/page'
 import type {PageError} from '@conciv/protocol/page-types'
 import pageExtension from '../src/client.js'
 import {PAGE_TOOL_PREFIX, PAGE_TOOL_DEFS} from '../src/shared/defs.js'
 import {z} from 'zod'
+import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
-describe('effects', () => {
+const inFirefox = server.browser === 'firefox'
+
+describe.skipIf(inFirefox)('effects', () => {
   function installBanner(): ClientEffect {
     let banner: HTMLElement | null = null
     return {
@@ -117,7 +120,7 @@ describe('effects', () => {
   })
 })
 
-describe('page tools', () => {
+describe.skipIf(inFirefox)('page tools', () => {
   let container: HTMLElement
   let reactRoot: Root
   let driver: PageDriver
@@ -549,10 +552,15 @@ describe('page tools', () => {
   })
 
   describe('screenshot', () => {
-    const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+    const CapturedShape = z.object({
+      image: z.string().min(1),
+      width: z.number(),
+      height: z.number(),
+      warnings: z.array(z.string()).optional(),
+    })
 
-    const screenshotOf = async () => {
-      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    const screenshotOf = async (input: {exclude?: string[]} = {}) => {
+      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
     }
@@ -589,14 +597,33 @@ describe('page tools', () => {
       expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
     }, 10_000)
 
-    it('leaves the conciv widget host out of the capture', async () => {
+    it('leaves the conciv widget host, effects surface and grab toast out of the capture', async () => {
       const plain = coverViewport()
       const covered = centrePixel(await decoded((await screenshotOf()).image))
       plain.remove()
-      coverViewport('data-conciv-root')
-      const excluded = centrePixel(await decoded((await screenshotOf()).image))
+      const widget = coverViewport('data-conciv-root')
+      const widgetExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      widget.remove()
+      const effects = coverViewport('data-conciv-effects')
+      const effectsExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      effects.remove()
+      coverViewport('data-conciv-toast')
+      const toastExcluded = centrePixel(await decoded((await screenshotOf()).image))
       expect(isRed(covered)).toBe(true)
-      expect(isRed(excluded)).toBe(false)
+      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded), toast: isRed(toastExcluded)}).toEqual({
+        widget: false,
+        effects: false,
+        toast: false,
+      })
+    }, 10_000)
+
+    it('leaves out host-page elements the caller names and warns about a selector it cannot read', async () => {
+      coverViewport('data-host-devtools')
+      const shot = await screenshotOf({exclude: ['[data-host-devtools]', '[[not a selector']})
+      expect({excluded: !isRed(centrePixel(await decoded(shot.image))), warnings: shot.warnings}).toEqual({
+        excluded: true,
+        warnings: ['ignored invalid selector: [[not a selector'],
+      })
     }, 10_000)
   })
 
@@ -699,4 +726,66 @@ describe('page tools', () => {
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
     })
   })
+})
+
+describe('a capture in every engine', () => {
+  const mountProbe = async (layout: string, fill: (box: HTMLElement) => void): Promise<void> => {
+    const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)
+    if (!face) throw new Error('no Archivo 600 face to load')
+    const fontRule = document.createElement('style')
+    fontRule.textContent = `@font-face{font-family:'Capture Probe';font-weight:600;src:url(${face.src}) format('woff2')}`
+    document.head.append(fontRule)
+    await document.fonts.load('600 14px "Capture Probe"')
+    const box = document.createElement('nav')
+    box.style.cssText = `position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;background:#fff;color:#000;font:600 14px/20px "Capture Probe";${layout}`
+    fill(box)
+    document.body.appendChild(box)
+    onTestFinished(() => {
+      box.remove()
+      fontRule.remove()
+    })
+  }
+
+  const capturedLines = async (): Promise<{firstLine: boolean; secondLine: boolean}> => {
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+    const {image} = z.object({image: z.string().min(1)}).parse(outcome.result)
+    const response = await fetch(`data:image/webp;base64,${image}`)
+    const bitmap = await createImageBitmap(await response.blob())
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the screenshot')
+    context.drawImage(bitmap, 0, 0)
+    const inked = (top: number, bottom: number): boolean =>
+      context.getImageData(0, top, 300, bottom - top).data.some((value, index) => index % 4 === 0 && value < 128)
+    return {firstLine: inked(16, 36), secondLine: inked(38, 70)}
+  }
+
+  it('keeps link text that sits on one line on one line in the capture', async () => {
+    await mountProbe('display:flex;flex-wrap:wrap;align-items:flex-start;overflow-wrap:anywhere', (box) => {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
+      for (const label of ['Home', 'About', 'Form', 'Docs']) {
+        const link = document.createElement('a')
+        link.href = '#'
+        link.textContent = label
+        link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
+        row.append(link)
+      }
+      box.append(row)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: false})
+  }, 10_000)
+
+  it('keeps a wrapping paragraph inside a nowrap container wrapped in the capture', async () => {
+    await mountProbe('white-space:nowrap', (box) => {
+      const paragraph = document.createElement('p')
+      paragraph.textContent = 'Wraps here'
+      paragraph.style.cssText = 'margin:0;width:60px;white-space:normal'
+      box.append(paragraph)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: true})
+  }, 10_000)
 })

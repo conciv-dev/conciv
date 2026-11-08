@@ -1,4 +1,10 @@
-import type {ClientEffect, ClientToolCtx, ClientToolEntry, ClientToolLocator} from '@conciv/extension'
+import {
+  CONCIV_UI_SELECTOR,
+  type ClientEffect,
+  type ClientToolCtx,
+  type ClientToolEntry,
+  type ClientToolLocator,
+} from '@conciv/extension'
 import type {PageQuery, PageResult} from '@conciv/protocol/page-types'
 import type {
   CssBundle,
@@ -18,10 +24,8 @@ export type PageToolAnswer = {result: PageResult; capture?: PageCaptureBundle}
 
 export type PageToolDispatch = (query: PageQuery) => Promise<PageToolAnswer>
 
-const OURS = '[data-conciv-root]'
-
 function isOurs(el: Element): boolean {
-  if (el.closest(OURS) !== null) return true
+  if (el.closest(CONCIV_UI_SELECTOR) !== null) return true
   const root = el.getRootNode()
   return root instanceof ShadowRoot && isOurs(root.host)
 }

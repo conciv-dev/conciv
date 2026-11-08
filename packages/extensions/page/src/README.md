@@ -12,7 +12,7 @@ client.tsx builds the browser extension from `PAGE_CLIENT_TOOLS` and `grabAttach
 - `page` / default export (`server.ts`): extension with `tools: declarations`, `systemPrompt: PAGE_PROMPT`, `attachments: [grabAttachment]`, and context `{cwd, symbolicate}` taken from the server
 - `PageServerContext` (`server.ts`): type `{cwd: string; symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>}`
 - tool `page_locate` server step (`server.ts`, `locateServer`): calls the page, then fills in `source` through `ctx.symbolicate` when the page returned no source
-- tool `page_screenshot` server step (`server.ts`, `screenshotServer`): returns `imageResult('image/webp', image, {width, height, path})`
+- tool `page_screenshot` server step (`server.ts`, `screenshotServer`): returns `imageResult('image/webp', image, {width, height, path, warnings?})`
 - Subdirectories:
   - [server](./server/README.md): Registers the server-side handler for the grab attachment, which decodes a base64 grab payload into a text part for the model.
   - [shared](./shared/README.md): Environment-neutral definitions for all 40 `page_*` tools (zod input/output schemas, metadata, capture mode) plus the grab attachment declaration.

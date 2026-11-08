@@ -29,11 +29,11 @@ const locateServer = locateDef.server(async (input, ctx: PageServerContext, _req
 })
 
 const screenshotServer = screenshotDef.server(async (input, ctx: PageServerContext, _request, page) => {
-  const {image, width, height} = PageScreenshotSchema.parse(await page.call(screenshotDef.name, input))
+  const {image, width, height, warnings} = PageScreenshotSchema.parse(await page.call(screenshotDef.name, input))
   const path = join(CONCIV_STATE_DIR, 'tmp', 'screenshots', `${randomUUID()}.webp`)
   await mkdir(dirname(join(ctx.cwd, path)), {recursive: true})
   await writeFile(join(ctx.cwd, path), Buffer.from(image, 'base64'))
-  return imageResult('image/webp', image, {width, height, path})
+  return imageResult('image/webp', image, {width, height, path, ...(warnings ? {warnings} : {})})
 })
 
 const SERVER_STEPS: Record<string, AnyToolBuilder> = {
