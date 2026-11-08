@@ -729,31 +729,24 @@ describe.skipIf(inFirefox)('page tools', () => {
 })
 
 describe('a capture in every engine', () => {
-  it('keeps link text that sits on one line on one line in the capture', async () => {
+  const mountProbe = async (layout: string, fill: (box: HTMLElement) => void): Promise<void> => {
     const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)
     if (!face) throw new Error('no Archivo 600 face to load')
     const fontRule = document.createElement('style')
     fontRule.textContent = `@font-face{font-family:'Capture Probe';font-weight:600;src:url(${face.src}) format('woff2')}`
     document.head.append(fontRule)
     await document.fonts.load('600 14px "Capture Probe"')
-    const header = document.createElement('nav')
-    header.style.cssText =
-      'position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;display:flex;flex-wrap:wrap;align-items:flex-start;background:#fff;color:#000;overflow-wrap:anywhere;font:600 14px/20px "Capture Probe"'
-    const row = document.createElement('div')
-    row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
-    for (const label of ['Home', 'About', 'Form', 'Docs']) {
-      const link = document.createElement('a')
-      link.href = '#'
-      link.textContent = label
-      link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
-      row.append(link)
-    }
-    header.append(row)
-    document.body.appendChild(header)
+    const box = document.createElement('nav')
+    box.style.cssText = `position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;background:#fff;color:#000;font:600 14px/20px "Capture Probe";${layout}`
+    fill(box)
+    document.body.appendChild(box)
     onTestFinished(() => {
-      header.remove()
+      box.remove()
       fontRule.remove()
     })
+  }
+
+  const capturedLines = async (): Promise<{firstLine: boolean; secondLine: boolean}> => {
     const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
     onTestFinished(() => driver.dispose())
     const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
@@ -767,6 +760,32 @@ describe('a capture in every engine', () => {
     context.drawImage(bitmap, 0, 0)
     const inked = (top: number, bottom: number): boolean =>
       context.getImageData(0, top, 300, bottom - top).data.some((value, index) => index % 4 === 0 && value < 128)
-    expect({firstLine: inked(16, 36), secondLine: inked(38, 70)}).toEqual({firstLine: true, secondLine: false})
+    return {firstLine: inked(16, 36), secondLine: inked(38, 70)}
+  }
+
+  it('keeps link text that sits on one line on one line in the capture', async () => {
+    await mountProbe('display:flex;flex-wrap:wrap;align-items:flex-start;overflow-wrap:anywhere', (box) => {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
+      for (const label of ['Home', 'About', 'Form', 'Docs']) {
+        const link = document.createElement('a')
+        link.href = '#'
+        link.textContent = label
+        link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
+        row.append(link)
+      }
+      box.append(row)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: false})
+  }, 10_000)
+
+  it('keeps a wrapping paragraph inside a nowrap container wrapped in the capture', async () => {
+    await mountProbe('white-space:nowrap', (box) => {
+      const paragraph = document.createElement('p')
+      paragraph.textContent = 'Wraps here'
+      paragraph.style.cssText = 'margin:0;width:60px;white-space:normal'
+      box.append(paragraph)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: true})
   }, 10_000)
 })
