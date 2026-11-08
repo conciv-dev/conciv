@@ -94,7 +94,7 @@ export function TraceRail(props: {
   let runSvg: SVGSVGElement | undefined
   let runLine: SVGPathElement | undefined
   let pendingFrame: number | undefined
-  let pendingReflow = false
+  let travelFrame: number | undefined
   let drawnKey: string | undefined
 
   const openList = (): HTMLUListElement | undefined => (props.open() ? props.list() : undefined)
@@ -140,39 +140,42 @@ export function TraceRail(props: {
     writeStyleProperty(runSvg, 'opacity', '1')
   }
 
-  const draw = (): void => {
+  const draw = (beforeWrite?: () => void): void => {
     const geometry = readGeometry()
     if (!geometry) return
     const key = geometryKey(geometry)
     if (key === drawnKey) return
     drawnKey = key
+    beforeWrite?.()
     const paths = railPaths(geometry)
     drawRail(geometry, paths)
     drawRunSegment(geometry, paths)
   }
 
-  const schedule = (reflow: boolean): void => {
-    pendingReflow = pendingReflow || reflow
+  const schedule = (): void => {
     if (pendingFrame !== undefined) return
     pendingFrame = requestAnimationFrame(() => {
       pendingFrame = undefined
-      const settlesInPlace = pendingReflow
-      pendingReflow = false
-      if (settlesInPlace) runSvg?.style.setProperty('--rail-travel', '0ms')
       draw()
-      if (!settlesInPlace) return
-      requestAnimationFrame(() => {
-        runSvg?.style.removeProperty('--rail-travel')
-      })
+    })
+  }
+
+  const settleTravel = (): void => {
+    runSvg?.style.setProperty('--rail-travel', '0ms')
+    if (travelFrame !== undefined) return
+    travelFrame = requestAnimationFrame(() => {
+      travelFrame = undefined
+      runSvg?.style.removeProperty('--rail-travel')
     })
   }
 
   const observeResize = (): void => {
-    schedule(true)
+    draw(settleTravel)
   }
 
   onCleanup(() => {
     if (pendingFrame !== undefined) cancelAnimationFrame(pendingFrame)
+    if (travelFrame !== undefined) cancelAnimationFrame(travelFrame)
   })
 
   onMount(() => {
@@ -192,7 +195,7 @@ export function TraceRail(props: {
 
   createEffect(() => {
     props.liveKey()
-    schedule(false)
+    schedule()
   })
 
   return (
