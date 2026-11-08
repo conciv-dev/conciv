@@ -478,10 +478,9 @@ does not; and a conciv id must answer with its FOM, expected fill and font inclu
   Six runs an arm: look rows alone, look rows with the query, against the six hidden-progress runs of wave 13.
 - A blind judge (opus, page screenshot beside the design render, a score and one line) joins the table for every run,
   so look has a number not tied to our rows.
-- Capture is a mode, like `comparator` and `segmenter`: `page` (the widget's own paths: region, snapdom live, snapdom
-  mirror; any browser the user has open) and `cdp` (the engine attaches to a browser over CDP through `playwright-core`,
-  takes true-pixel screenshots at a configured device scale, clipped per node). The engine never launches a browser; it
-  connects to the endpoint it is given: the trial's Playwright, a Playwright CLI, or a Chrome with a debugging port. The
-  config sets the default; `design_check({capture})` overrides it per call, so the agent can ask for a high-resolution
-  pass; the round stores the path that ran. Image rows and the whole-page compare read pixels through one capture
-  interface with one implementation per mode.
+- Capture is not a mode of the design extension. The page verbs `screenshot` and `screenshot_node` are answered by the
+  page extension's client (region, snapdom) when nothing else does, and by a `browser` extension from the server when it
+  is loaded: it attaches to an existing browser (never launches one) through `puppeteer-core`, one driver per protocol,
+  CDP for Chromium now, WebDriver BiDi for Firefox and Chromium later, and takes true-pixel screenshots at a configured
+  device scale, clipped per node. The engine lets an extension answer a page verb from the server before the browser is
+  asked. Design calls the verbs and never learns who answered; the round stores the capture path that ran.
