@@ -434,3 +434,18 @@ Past twelve changed regions, SnapEye replaces them with the one box around all o
 and the ids it names are always the root containers (Dashboard, Body, Row on OrangeFarm), whatever the agent edited. A
 deviation from SnapEye: the reply lists the twelve largest regions with their ids, `count` says how many changed and
 `truncated` stays true.
+
+### Progress is stored, not shown by default; A/Bs run six a side; code mode runs in the QuickJS thread (2026-11-08)
+
+Progress shown to the agent against hidden, sonnet, three runs a side: shown 1 of 3 done at $4.75, hidden 2 of 3 at $4.50,
+and the rounds after a "changed no pixels" note closed their kept rows the same either way. Progress stays computed and
+stored for our queries; the reply leaves it out unless the trial's `--hide` is turned around into a show flag for a later
+test. Three runs a side cannot separate two reply shapes; from here a reply A/B runs six a side.
+
+The engine died twice in eight runs. The crash reports: one `SIGSEGV` inside `isolated-vm` creating a context under the
+Homebrew node 25 while the repo asks for node 26; one `SIGSEGV` in V8's `JSON.parse` on the main isolate under the nvm node
+22 while `isolated-vm` isolates share the process. The code-mode driver list tries `@tanstack/ai-isolate-node`
+(isolated-vm, a native module built for one node ABI and loaded by whichever node runs) first and the QuickJS worker thread
+second. The QuickJS thread is out of the server thread, memory-capped, and needs no native build: it becomes the only
+driver; `isolated-vm` and `@tanstack/ai-isolate-node` leave the dependency list. The note also reads the reflow widths: an
+edit that moved nothing at the design width but changed the reflow rows is not "changed no pixels".
