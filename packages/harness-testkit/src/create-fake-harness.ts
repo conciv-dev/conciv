@@ -45,7 +45,7 @@ type SharedFields = {
 function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): HarnessHistory {
   const metaOf = (row: FixtureSession): HarnessSessionMeta => omit(row, ['text'])
   return {
-    list: (_cwd, page) => {
+    list: (_scope, page) => {
       const paged = pageAfter(rows, page, (row) => ({updatedAt: row.updatedAt, id: row.id}))
       return Promise.resolve({sessions: paged.items.map(metaOf), next: paged.next})
     },

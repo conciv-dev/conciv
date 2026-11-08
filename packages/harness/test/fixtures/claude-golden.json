@@ -66,6 +66,7 @@
   ],
   "meta": {
     "id": "fixture",
+    "cwd": "/proj/fixture",
     "derivedTitle": "rename the settings panel",
     "updatedAt": 1785417797467,
     "sizeBytes": 1526,

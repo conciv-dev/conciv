@@ -8,7 +8,7 @@ Pi harness, published as `./pi`. Chat is unsupported (`unsupportedChatConfig`). 
 
 - `pi` (`index.ts`): id/binName `'pi'`, displayName `'Pi'`; capabilities resume false, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'none'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `chatConfig: unsupportedChatConfig('pi', 'pi')`; no models.
 - `pi.connect.plan(ctx)` (`index.ts`): argv `pi [--session <sessionsDir(cwd)>/<id>.jsonl] [--model <model>]` (`piSessionArgs`).
-- `encodeSessionDir(cwd)`, `sessionsDir(cwd)` -> `$PI_CODING_AGENT_DIR/sessions/<encoded>` (default `~/.pi/agent`, the same rule pi follows), `activePath(entries)`, `sessionIdFromFile(fileName)`, `piHistory` `{messages, observe, transcriptPath, transcriptRoot, list, meta}` (`history.ts`).
+- `encodeSessionDir(cwd)`, `sessionsDir(cwd)` -> `$PI_CODING_AGENT_DIR/sessions/<encoded>` (default `~/.pi/agent`, the same rule pi follows), `activePath(entries)`, `sessionIdFromFile(fileName)`, `piHistory` `{messages, observe, transcriptPath, transcriptRoot, list, meta}` (`history.ts`). `list({cwd}, page)` reads `sessionsDir(cwd)`, `list({everywhere: true}, page)` every folder under `$PI_CODING_AGENT_DIR/sessions`; each meta's `cwd` comes from the session header (`{type: 'session', cwd}`), never from the lossy folder name, and a session with no header cwd is left out of an `everywhere` listing.
 
 ## Invariants
 

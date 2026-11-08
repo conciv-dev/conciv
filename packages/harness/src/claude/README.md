@@ -25,7 +25,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - Connect uses strict `claudeMcpArgs` only when `ctx.owned`, else `claudeMcpArgsPermissive`; `--resume` when `ctx.resume`, else `--session-id` (`claudeConnectArgs`).
 - `--plugin-dir` is added to connect argv only when `CONCIV_PLUGIN_DIR` is non-null (`claudeConnectPlan`, `index.ts`).
 - The Claude config dir is `CLAUDE_CONFIG_DIR`, else `~/.claude` (`claudeConfigDir` from `@conciv/harness-init/claude/state`), the same rule the Agent SDK follows; no Claude history call takes a home.
-- `listSessions` and `sessionMeta` go through the Agent SDK (`listSessions({dir: cwd, includeWorktrees: false})` then `pageAfter`, and `getSessionInfo`): the title is the SDK `summary`, `updatedAt` its `lastModified`, `sizeBytes` its `fileSize`. Sessions the SDK hides (no summary in the head or tail it reads, superseded by a `continued-in` record, non-UUID ids) are not listed and their `meta` is null.
+- `listSessions(scope, page)` and `sessionMeta` go through the Agent SDK (`listSessions({dir: cwd, includeWorktrees: false})` for a `{cwd}` scope, `listSessions()` across every project for `{everywhere: true}`, then `pageAfter`; and `getSessionInfo`): the title is the SDK `summary`, `updatedAt` its `lastModified`, `sizeBytes` its `fileSize`, `cwd` its `cwd` (the transcript's recorded cwd; a session with none is left out of an `everywhere` listing). Sessions the SDK hides (no summary in the head or tail it reads, superseded by a `continued-in` record, non-UUID ids) are not listed and their `meta` is null.
 - `transcriptMessages` streams the transcript through `foldJsonlFile` with the same line fold as `observeTranscript`.
 - `sessionSummary`, `transcriptMessages` and `observeTranscript` refuse session ids whose path escapes `transcriptRoot` (`withinProject` via `containedPath`).
 - History skips sidechain records (`isSidechain`), machinery records in user turns (`isFromMachinery`), `INTERNAL_MARKERS`, `SYNTHETIC_MARKERS` and `MACHINERY_XML_BLOCK`; assistant records sharing `message.id` are merged and tool results attach to the last assistant message (`foldAssistantTurn`, `foldUserTurn`).
@@ -39,7 +39,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - Sets adapter env `MCP_TOOL_TIMEOUT=150000` and `ENABLE_TOOL_SEARCH=false`, merged with `deps.env` (`claudeChatConfig`).
 - `existsSync` probe at module load (`CONCIV_PLUGIN_DIR`).
 - Starts an Agent SDK `query` with `permissionMode: 'acceptEdits'` to read `supportedCommands`, then interrupts it (`probeCommands`, `sdk.ts`).
-- Reads `<Claude config dir>/projects/<encoded cwd>/*.jsonl` (`sessionSummary`, `transcriptMessages`, `observeTranscript`) and, through the Agent SDK, the same directory's heads and tails (`listSessions`, `sessionMeta`).
+- Reads `<Claude config dir>/projects/<encoded cwd>/*.jsonl` (`sessionSummary`, `transcriptMessages`, `observeTranscript`) and, through the Agent SDK, the same directory's heads and tails (`listSessions`, `sessionMeta`); an `everywhere` listing reads every `projects/*` directory.
 - The TTY command unsets env vars with prefixes `CLAUDECODE`, `CLAUDE_CODE_`, `CLAUDE_EFFORT`, `AI_AGENT` (`NESTED_SESSION_MARKERS`, `tty.ts`).
 
 ## Verification

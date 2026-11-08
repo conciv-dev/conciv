@@ -177,7 +177,13 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       return [
         {
           harnessKind: harness.id,
-          meta: {id: nativeId.data, derivedTitle: hit.title, updatedAt: hit.updatedAt, sizeBytes: hit.sizeBytes},
+          meta: {
+            id: nativeId.data,
+            cwd: deps.cwd,
+            derivedTitle: hit.title,
+            updatedAt: hit.updatedAt,
+            sizeBytes: hit.sizeBytes,
+          },
         },
       ]
     })
@@ -257,7 +263,7 @@ function unreadNow(entry: Listed): boolean {
 async function listedSessions(history: HarnessHistory, deps: SessionSearchDeps): Promise<HarnessSessionMeta[]> {
   const collected: HarnessSessionMeta[] = []
   const walk = async (after: HarnessListCursor | null): Promise<HarnessSessionMeta[]> => {
-    const listed = await history.list(deps.cwd, {after, limit: REFRESH_PAGE})
+    const listed = await history.list({cwd: deps.cwd}, {after, limit: REFRESH_PAGE})
     collected.push(...listed.sessions)
     return listed.next === null ? collected : walk(listed.next)
   }

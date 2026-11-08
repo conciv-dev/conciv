@@ -3518,9 +3518,15 @@ describe('session picker after login', () => {
     resume: true,
     holdTranscripts: true,
     history: [
-      {id: HarnessSessionId.parse('gannet-notes'), derivedTitle: 'the gannet notes', updatedAt: Date.now() - DAY_MS},
+      {
+        id: HarnessSessionId.parse('gannet-notes'),
+        cwd: '/project',
+        derivedTitle: 'the gannet notes',
+        updatedAt: Date.now() - DAY_MS,
+      },
       {
         id: HarnessSessionId.parse('cliff-survey'),
+        cwd: '/project',
         derivedTitle: 'a cliff survey',
         updatedAt: Date.now() - 2 * DAY_MS,
         text: 'a gannet colony nests on the stack',
@@ -3595,35 +3601,47 @@ describe('session selector', () => {
     resume: true,
     holdTranscripts: true,
     history: [
-      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
+      {
+        id: EXTERNAL_ID,
+        cwd: '/project',
+        derivedTitle: 'a session mid-run',
+        updatedAt: Date.now(),
+        sizeBytes: 2_400_000,
+      },
       {
         id: HarnessSessionId.parse('after-midnight'),
+        cwd: '/project',
         derivedTitle: 'a minute after midnight',
         updatedAt: localMidnight + MINUTE_MS,
       },
       {
         id: HarnessSessionId.parse('before-midnight'),
+        cwd: '/project',
         derivedTitle: 'a minute before midnight',
         updatedAt: localMidnight - MINUTE_MS,
       },
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
+        cwd: '/project',
         derivedTitle: `older session ${index}`,
         updatedAt: Date.now() - (index + 1) * DAY_MS,
         sizeBytes: 1536,
       })),
       {
         id: HarnessSessionId.parse('kiwi-orchard'),
+        cwd: '/project',
         derivedTitle: 'the kiwi orchard plan',
         updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('puffin-notes'),
+        cwd: '/project',
         derivedTitle: 'the puffin notes',
         updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('seabird-survey'),
+        cwd: '/project',
         derivedTitle: 'a seabird survey',
         updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
         text: 'a puffin colony nests on the cliff',

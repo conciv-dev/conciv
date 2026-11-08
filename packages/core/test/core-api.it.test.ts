@@ -699,7 +699,7 @@ describe('api harness switching', () => {
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
   const betaTranscripts: HarnessSessionMeta[] = [
-    {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
+    {id: NATIVE_BETA, cwd: '/project', derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
     createFakeHarness({
@@ -904,6 +904,7 @@ describe('api harness switching', () => {
     if (!owned) throw new Error('the beta turn recorded no native session')
     betaTranscripts.push({
       id: HarnessSessionId.parse(owned),
+      cwd: '/project',
       derivedTitle: 'the owned transcript',
       updatedAt: Date.now() + 3_600_000,
     })

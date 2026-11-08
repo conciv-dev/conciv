@@ -147,7 +147,13 @@ describe('core kit seams', () => {
       const kit = await bootCoreKit({
         id: 'seams-history',
         history: [
-          {id: HarnessSessionId.parse('native-1'), derivedTitle: 'A native session', updatedAt: 1_700, sizeBytes: 7},
+          {
+            id: HarnessSessionId.parse('native-1'),
+            cwd: '/project',
+            derivedTitle: 'A native session',
+            updatedAt: 1_700,
+            sizeBytes: 7,
+          },
         ],
       })
       state.kit = kit

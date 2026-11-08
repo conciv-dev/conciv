@@ -36,7 +36,7 @@ async function nativePageOf(
   const history = harness.history
   if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, page: await history.list(chat.cwd, page)}
+    return {harnessKind: harness.id, page: await history.list({cwd: chat.cwd}, page)}
   } catch (error) {
     logError(
       `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
