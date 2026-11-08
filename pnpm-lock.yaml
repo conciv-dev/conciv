@@ -249,6 +249,9 @@ catalogs:
     drizzle-orm:
       specifier: 1.0.0-rc.5
       version: 1.0.0-rc.5
+    env-paths:
+      specifier: ^3.0.0
+      version: 3.0.0
     es-toolkit:
       specifier: ^1.53.0
       version: 1.53.0
@@ -603,9 +606,6 @@ importers:
       '@conciv/extension-page':
         specifier: workspace:^
         version: link:../../packages/extensions/page
-      '@conciv/extension-terminal':
-        specifier: workspace:^
-        version: link:../../packages/extensions/terminal
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../packages/extension-testkit
@@ -1779,6 +1779,9 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ~1.8.0
         version: 1.8.0(zod@4.6.7)
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2027,6 +2030,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/harness-init':
         specifier: workspace:^
         version: link:../harness-init
@@ -2036,6 +2042,9 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-mcp':
+        specifier: 'catalog:'
+        version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       diff:
         specifier: ^9.0.0
         version: 9.0.0
@@ -2313,15 +2322,18 @@ importers:
 
   packages/db:
     dependencies:
-      '@conciv/ai':
-        specifier: workspace:^
-        version: link:../ai
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      env-paths:
+        specifier: 'catalog:'
+        version: 3.0.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@conciv/vitest-config':
         specifier: workspace:*
@@ -26967,8 +26979,7 @@ snapshots:
 
   env-paths@2.2.1: {}
 
-  env-paths@3.0.0:
-    optional: true
+  env-paths@3.0.0: {}
 
   env-runner@0.3.10:
     dependencies:

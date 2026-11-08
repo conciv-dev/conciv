@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "~1.8.0",
+    "@conciv/db": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@opencode-ai/sdk": "^1.19.4",
     "@tanstack/ai": "catalog:",

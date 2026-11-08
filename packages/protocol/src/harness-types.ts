@@ -1,6 +1,6 @@
-import {z} from 'zod'
+import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import {HarnessSessionId, type ReasoningEffort, SessionId} from './chat-types.js'
+import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -54,14 +54,6 @@ export type HarnessConnectContext = {
 
 export type HarnessConnectFile = {path: string; contents: string; mode?: number}
 
-export type HarnessConnectPlan = {
-  argv: string[]
-  env: Record<string, string>
-  files: HarnessConnectFile[]
-}
-
-export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
-
 export type HarnessInitDetection = {bin: string; configDir: string[]}
 
 export type HarnessInitCommand = {bin: string; args: string[]}
@@ -72,10 +64,15 @@ export type HarnessInitProject = {cwd: string; stateDir: string}
 
 export type HarnessInitPlan = {root: string; files: HarnessConnectFile[]; commands: HarnessInitCommand[]}
 
+export const INIT_HARNESS_IDS = ['claude', 'codex', 'gemini-cli', 'opencode', 'pi'] as const
+
+export type InitHarnessId = (typeof INIT_HARNESS_IDS)[number]
+
 type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
+  hub?: {add: (command: string[], env: Readonly<Record<string, string>>) => string[]; remove?: string[]}
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
@@ -92,10 +89,6 @@ export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
 export type HarnessInitContribution<Id extends string = string> =
   | HarnessInit<Id>
   | (HarnessInitBase<Id> & {init: 'none'})
-
-export type TerminalOpenRequest = {bin: string; args: string[]}
-
-export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
 
 export type HarnessChatDeps = {
   cwd: string
@@ -120,8 +113,6 @@ export type HarnessSessionMeta = {
 }
 
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
-
-export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: z.union([HarnessSessionId, SessionId])})
 
 export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
 

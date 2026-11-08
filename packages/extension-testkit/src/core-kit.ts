@@ -9,7 +9,8 @@ import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessConnect, HarnessModel} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
+import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {procedurePathOf, samePath} from './rpc-payload.js'
 
@@ -32,11 +33,11 @@ export async function bootCoreKit(opts: {
   text?: string
   resume?: boolean
   displayName?: string
-  connect?: HarnessConnect
   extensions?: AnyExtension[]
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   history?: FixtureSession[]
+  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
@@ -47,10 +48,10 @@ export async function bootCoreKit(opts: {
     text: opts.text ?? 'Hello from conciv',
     ...(opts.resume ? {resume: true} : {}),
     ...(opts.displayName ? {displayName: opts.displayName} : {}),
-    ...(opts.connect ? {connect: opts.connect} : {}),
     models: opts.models,
     commands: opts.commands,
     history: opts.history,
+    tty: opts.tty,
   })
   const captured: {runtime?: CoreRuntime} = {}
   const served: (readonly string[])[] = []
@@ -67,6 +68,7 @@ export async function bootCoreKit(opts: {
         harnessSessionId: undefined,
         systemPrompt: '',
         extensions: undefined,
+        hubAccess: 'session',
       },
       cwd: env.cwd,
       openInEditor: () => {},

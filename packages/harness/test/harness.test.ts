@@ -42,7 +42,6 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
 import {CLAUDE_ASK_RULES} from '../src/claude/ask-rules.js'
 import {CHAT_SYSTEM_PROMPT} from '../src/claude/system-prompt.js'
-import {CONCIV_PLUGIN_DIR} from '../src/claude/plugin-dir.js'
 import {
   parseHistory,
   parseSessionMeta,
@@ -381,7 +380,7 @@ describe('claude chat config', () => {
   })
 })
 
-describe('claude connect plan', () => {
+describe('claude terminal command', () => {
   const CONCIV_SESSION = SessionId.parse('conciv_plan_test')
 
   const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
@@ -398,14 +397,9 @@ describe('claude connect plan', () => {
   })
 
   function plan(over: Partial<HarnessConnectContext> = {}): string[] {
-    const connect = claude.connect
-    if (!connect) throw new Error('claude harness has no connect plan')
-    const built = connect.plan(context(over))
-    expect(built.env).toEqual({})
-    expect(built.files).toEqual([])
-    const pluginAt = built.argv.indexOf('--plugin-dir')
-    if (pluginAt === -1) return built.argv
-    return [...built.argv.slice(0, pluginAt), ...built.argv.slice(pluginAt + 2)]
+    const command = claude.tty?.command(context(over))
+    if (!command) throw new Error('claude harness has no terminal command')
+    return [command.bin, ...command.args]
   }
 
   function mcpConfigOf(argv: string[]): unknown {
@@ -414,7 +408,7 @@ describe('claude connect plan', () => {
     return JSON.parse(raw)
   }
 
-  describe('claude connect.plan', () => {
+  describe('claude tty.command', () => {
     it('resumes an existing harness session and carries the conciv session header into the mcp config', () => {
       const argv = plan({resume: true, mcpUrl: 'http://127.0.0.1:1/api/mcp'})
       expect(argv.slice(0, 3)).toEqual(['claude', '--resume', 'tok-1'])
@@ -446,13 +440,6 @@ describe('claude connect plan', () => {
 
     it('passes the model through', () => {
       expect(plan({model: 'opus'})).toEqual(['claude', '--session-id', 'tok-1', '--model', 'opus'])
-    })
-
-    it('points claude at the bundled conciv plugin directory', () => {
-      const connect = claude.connect
-      if (!connect) throw new Error('claude harness has no connect plan')
-      if (!CONCIV_PLUGIN_DIR) throw new Error('conciv claude plugin is not bundled')
-      expect(connect.plan(context()).argv.slice(-2)).toEqual(['--plugin-dir', CONCIV_PLUGIN_DIR])
     })
   })
 })
@@ -936,19 +923,6 @@ describe('claude tty', () => {
 })
 
 describe('codex chat config', () => {
-  const connectContext = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
-    cwd: '/tmp',
-    stateDir: '/tmp/.conciv/codex',
-    concivSessionId: SessionId.parse('conciv_codex_test'),
-    harnessSessionId: null,
-    resume: false,
-    owned: true,
-    model: null,
-    mcpUrl: null,
-    hookUrl: null,
-    ...over,
-  })
-
   const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
     cwd: '/tmp/codex-test',
     sessionId: SessionId.parse('conciv_s-1'),
@@ -987,37 +961,6 @@ describe('codex chat config', () => {
       expect(bridged).toContain('mcp_servers.tanstack.default_tools_approval_mode')
       const bare = JSON.stringify(codex.chatConfig(deps()).adapter)
       expect(bare).not.toContain('mcp_servers.tanstack')
-    })
-
-    it('plans a resume invocation for an existing harness session', () => {
-      expect(
-        codex.connect?.plan(
-          connectContext({resume: true, harnessSessionId: HarnessSessionId.parse('thread-9'), model: 'gpt-5.1'}),
-        ),
-      ).toEqual({
-        argv: ['codex', 'resume', 'thread-9', '-m', 'gpt-5.1'],
-        env: {},
-        files: [],
-      })
-    })
-
-    it('plans a bare invocation when there is no harness session and no model', () => {
-      expect(codex.connect?.plan(connectContext({}))).toEqual({argv: ['codex'], env: {}, files: []})
-    })
-
-    it('leaves the session to codex when a known session is not being resumed', () => {
-      expect(codex.connect?.plan(connectContext({harnessSessionId: HarnessSessionId.parse('thread-9')})).argv).toEqual([
-        'codex',
-      ])
-    })
-
-    it('passes the conciv mcp server as a whole-table toml override', () => {
-      const argv = codex.connect?.plan(connectContext({mcpUrl: 'http://127.0.0.1:4321/api/mcp'})).argv ?? []
-      expect(argv).toEqual([
-        'codex',
-        '-c',
-        'mcp_servers={conciv={url="http://127.0.0.1:4321/api/mcp",http_headers={"conciv-session-id"="conciv_codex_test"},startup_timeout_sec=30}}',
-      ])
     })
   })
 })
@@ -1750,60 +1693,6 @@ describe('opencode models', () => {
   })
 })
 
-describe('opencode connect plan', () => {
-  const CONCIV_SESSION = SessionId.parse('conciv_opencode_test')
-
-  const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
-    cwd: '/workspace',
-    stateDir: '/tmp/.conciv/opencode',
-    concivSessionId: CONCIV_SESSION,
-    harnessSessionId: null,
-    resume: false,
-    owned: true,
-    model: null,
-    mcpUrl: null,
-    hookUrl: null,
-    ...over,
-  })
-
-  function plan(over: Partial<HarnessConnectContext> = {}) {
-    const connect = opencode.connect
-    if (!connect) throw new Error('opencode harness has no connect plan')
-    return connect.plan(context(over))
-  }
-
-  describe('opencode connect.plan', () => {
-    it('continues an existing session only when resuming', () => {
-      expect(plan({resume: true, harnessSessionId: HarnessSessionId.parse('ses_1')}).argv).toEqual([
-        'opencode',
-        '--session',
-        'ses_1',
-      ])
-      expect(plan({harnessSessionId: HarnessSessionId.parse('ses_1')}).argv).toEqual(['opencode'])
-    })
-
-    it('passes the conciv mcp server through the config content env var', () => {
-      const built = plan({mcpUrl: 'http://127.0.0.1:4321/api/mcp'})
-      expect(built.files).toEqual([])
-      expect(JSON.parse(built.env.OPENCODE_CONFIG_CONTENT ?? '')).toEqual({
-        mcp: {
-          conciv: {
-            type: 'remote',
-            url: 'http://127.0.0.1:4321/api/mcp',
-            headers: {[CONCIV_SESSION_HEADER]: CONCIV_SESSION},
-            oauth: false,
-            enabled: true,
-          },
-        },
-      })
-    })
-
-    it('leaves the environment alone when there is no mcp url', () => {
-      expect(plan().env).toEqual({})
-    })
-  })
-})
-
 describe('opencode history', () => {
   const PROJECT = '/workspace/demo'
   const OTHER = '/workspace/other'
@@ -2135,19 +2024,6 @@ describe('pi history', () => {
 
   const jsonl = (lines: unknown[]): string => `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
 
-  const context = (over: Partial<HarnessConnectContext> = {}): HarnessConnectContext => ({
-    cwd: PROJECT,
-    stateDir: '/tmp/.conciv/pi',
-    concivSessionId: SessionId.parse('conciv_pi_test'),
-    harnessSessionId: null,
-    resume: false,
-    owned: true,
-    model: null,
-    mcpUrl: null,
-    hookUrl: null,
-    ...over,
-  })
-
   const history = () => {
     const found = pi.history
     if (!found) throw new Error('pi harness has no history')
@@ -2331,26 +2207,6 @@ describe('pi history', () => {
       expect(await handle.revision()).toMatchObject({ok: false})
       handle.close()
       expect(await history().messages(project, escapee)).toEqual([])
-    })
-  })
-
-  describe('pi connect.plan', () => {
-    it('names the session file itself so the transcript is findable again', () => {
-      expect(pi.connect?.plan(context({harnessSessionId: CONCIV_NAMED, model: 'anthropic/claude-opus-4-6'}))).toEqual({
-        argv: [
-          'pi',
-          '--session',
-          join(sessionsDir(PROJECT), 'conciv-sess-1.jsonl'),
-          '--model',
-          'anthropic/claude-opus-4-6',
-        ],
-        env: {},
-        files: [],
-      })
-    })
-
-    it('launches bare when nothing is pinned', () => {
-      expect(pi.connect?.plan(context()).argv).toEqual(['pi'])
     })
   })
 })

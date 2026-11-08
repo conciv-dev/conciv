@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
-import type {SessionHit} from '@conciv/contract'
+import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   SessionId,
@@ -96,6 +96,13 @@ async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<Na
 
 type ListedHit = Omit<SessionHit, 'resume'>
 
+export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): Promise<SessionMeta | null> {
+  const row = await rowById(chat.db, sessionId)
+  if (!row) return null
+  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => modelOf(chat.db, id)}
+  return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+}
+
 async function sessionPage(
   chat: ChatContext,
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
@@ -120,9 +127,9 @@ async function sessionPage(
 }
 
 function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
-  const plan = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.connect?.plan
-  if (hit.cwd === null || hit.native === null || plan === undefined) return null
-  const {argv} = plan({
+  const tty = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.tty
+  if (hit.cwd === null || hit.native === null || tty === undefined) return null
+  const {bin, args} = tty.command({
     cwd: hit.cwd,
     stateDir: concivStateDir(hit.cwd),
     concivSessionId: hit.id,
@@ -133,6 +140,7 @@ function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
     mcpUrl: null,
     hookUrl: null,
   })
+  const argv = [bin, ...args]
   if (platform() === 'win32') return `cd /d ${cmdQuote(hit.cwd)} && ${argv.map(cmdQuote).join(' ')}`
   return `cd ${shellQuote(hit.cwd)} && ${argv.map(shellQuote).join(' ')}`
 }
@@ -157,7 +165,6 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
     name: harness.displayName ?? harness.id,
-    canLaunch: Boolean(harness.connect),
     imageInput: harness.capabilities.imageInput,
   }
 }
@@ -239,10 +246,9 @@ export function sessionsRouter(deps: RpcDeps) {
       return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: resumeOf(chat, hit)}))}
     }),
     get: os.sessions.get.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      const context = {db, running: await chat.plane.running(), model: (sessionId: SessionId) => modelOf(db, sessionId)}
-      return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+      const meta = await rpcSessionMeta(chat, input.sessionId)
+      if (meta === null) throw errors.NOT_FOUND()
+      return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors}) => {
       const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd)

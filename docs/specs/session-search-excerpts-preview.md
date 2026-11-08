@@ -20,20 +20,20 @@ The work ships as three PRs in that order. All three are approved; the decisions
 
 ## Map: packages, folders, components
 
-| Piece | Package | Folder / file | What changes |
-| --- | --- | --- | --- |
-| 1 | `@conciv/core` | `packages/core/src/sessions/search-index-worker.ts`, `session-search.ts`, `session-rows.ts` | The worker cuts the excerpt and finds the matched words. Hits carry both through the search pipeline. |
-| 1 | `@conciv/contract` | `packages/contract/src/contract.ts` | The `sessions.search` output rows gain `excerpt` and `matched`. |
-| 1 | `@conciv/solid-streamdown` | `packages/solid-streamdown/src/streamdown.tsx` | New `highlight` prop: a rehype step that wraps matches in `<mark>`. |
-| 1 | `@conciv/ui-kit-chat` | `packages/ui-kit-chat/src/styled/markdown.tsx` | `Markdown` gains `highlight` and a `compact` variant for excerpts. |
-| 1 | `@conciv/uno-preset` / `ui-kit-chat` tokens | `packages/ui-kit-chat/src/theme/tokens.css`, `packages/uno-preset/src/motion.ts` | `--chat-mark` derived from `--chat-accent`, plus an `anim-mark` shortcut. |
-| 1 | `@conciv/app` | `apps/conciv/src/composer/session-selector.tsx` | Search rows render the excerpt. |
-| 2 | `@conciv/contract`, `@conciv/core` | `contract.ts`, `packages/core/src/api/rpc/` (sessions router), `packages/core/src/sessions/` | `sessions.preview` reads a transcript window, read-only. |
-| 2 | `@conciv/app` | new `apps/conciv/src/composer/session-preview.tsx`; `session-selector.tsx` | The preview surface and its wiring to the picker. |
-| 2 | `@conciv/ui-kit-system` | reused only: `Popover` (`popover.tsx`) | The preview surface: positioning, layer stack, Escape, focus return. |
-| 2 | `@conciv/ui-kit-chat` | reused only: `Thread` (`styled/thread.tsx`), `ChatProvider`, `useThreadViewport` | The preview is the real chat thread, read-only. |
-| 3 | `@conciv/protocol`, `@conciv/harness` | `harness-types.ts`, `packages/harness/src/{claude,codex,opencode,pi}/history.ts` | `list(scope)`, and `cwd` on each meta. |
-| 3 | `@conciv/core`, `@conciv/contract`, `@conciv/app` | index worker, `sessions.search` input, picker | A `cwd` index field, an `everywhere` search flag, and the "All projects" `Switch`. |
+| Piece | Package                                           | Folder / file                                                                                | What changes                                                                                          |
+| ----- | ------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 1     | `@conciv/core`                                    | `packages/core/src/sessions/search-index-worker.ts`, `session-search.ts`, `session-rows.ts`  | The worker cuts the excerpt and finds the matched words. Hits carry both through the search pipeline. |
+| 1     | `@conciv/contract`                                | `packages/contract/src/contract.ts`                                                          | The `sessions.search` output rows gain `excerpt` and `matched`.                                       |
+| 1     | `@conciv/solid-streamdown`                        | `packages/solid-streamdown/src/streamdown.tsx`                                               | New `highlight` prop: a rehype step that wraps matches in `<mark>`.                                   |
+| 1     | `@conciv/ui-kit-chat`                             | `packages/ui-kit-chat/src/styled/markdown.tsx`                                               | `Markdown` gains `highlight` and a `compact` variant for excerpts.                                    |
+| 1     | `@conciv/uno-preset` / `ui-kit-chat` tokens       | `packages/ui-kit-chat/src/theme/tokens.css`, `packages/uno-preset/src/motion.ts`             | `--chat-mark` derived from `--chat-accent`, plus an `anim-mark` shortcut.                             |
+| 1     | `@conciv/app`                                     | `apps/conciv/src/composer/session-selector.tsx`                                              | Search rows render the excerpt.                                                                       |
+| 2     | `@conciv/contract`, `@conciv/core`                | `contract.ts`, `packages/core/src/api/rpc/` (sessions router), `packages/core/src/sessions/` | `sessions.preview` reads a transcript window, read-only.                                              |
+| 2     | `@conciv/app`                                     | new `apps/conciv/src/composer/session-preview.tsx`; `session-selector.tsx`                   | The preview surface and its wiring to the picker.                                                     |
+| 2     | `@conciv/ui-kit-system`                           | reused only: `Popover` (`popover.tsx`)                                                       | The preview surface: positioning, layer stack, Escape, focus return.                                  |
+| 2     | `@conciv/ui-kit-chat`                             | reused only: `Thread` (`styled/thread.tsx`), `ChatProvider`, `useThreadViewport`             | The preview is the real chat thread, read-only.                                                       |
+| 3     | `@conciv/protocol`, `@conciv/harness`             | `harness-types.ts`, `packages/harness/src/{claude,codex,opencode,pi}/history.ts`             | `list(scope)`, and `cwd` on each meta.                                                                |
+| 3     | `@conciv/core`, `@conciv/contract`, `@conciv/app` | index worker, `sessions.search` input, picker                                                | A `cwd` index field, an `everywhere` search flag, and the "All projects" `Switch`.                    |
 
 Kit components used, all existing: Ark `Combobox` (the picker), the kit `Popover` (the preview), `VirtualList` (ui-kit-system), `Streamdown` / `Markdown`, `Thread` + `ChatProvider` (ui-kit-chat), the `Switch` and `ClipboardCopyButton` (ui-kit-system, piece 3), and the ui-kit-chat `ConversationSkeleton` pattern for loading states. We build no new primitive. The ui-kit-system `HoverCard` is NOT used. It is a hover-and-focus link-preview pattern, and combobox items never take DOM focus (virtual focus through `aria-activedescendant`), so it can't follow the keyboard. Piece 2 uses the kit `Popover` (Ark), controlled by the combobox highlight (see below).
 

@@ -2,14 +2,12 @@
 
 ## Overview
 
-Codex CLI harness, published as `./codex`. It chats through `codex` from `@conciv/ai/server`, reads models and the default model from `CODEX_HOME` files, builds the TTY connect argv with an inline MCP server config, and reads session history from Codex's SQLite state DB and rollout JSONL files.
+Codex CLI harness, published as `./codex`. It chats through `codex` from `@conciv/ai/server`, reads models and the default model from `CODEX_HOME` files, and reads session history from Codex's SQLite state DB and rollout JSONL files.
 
 ## Interface
 
 - `codex` (`index.ts`): id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`.
 - `codex.chatConfig` (`index.ts`): codexAdapter with `sandboxMode: 'workspace-write'`, `approvalPolicy: 'never'`; with `deps.hasTools` adds `mcp_servers.tanstack.default_tools_approval_mode = "approve"`; env through `definedEntries`; `sessionId` when resuming.
-- `codex.connect.plan(ctx)` (`index.ts`): argv `codex [resume <id>] [-m <model>] [-c mcp_servers={...}]`.
-- `codexMcpArgs(mcpUrl, concivSessionId)` (`args.ts`): `-c mcp_servers={conciv={url=...,http_headers={<CONCIV_SESSION_HEADER>=...},startup_timeout_sec=30}}` with TOML-escaped strings.
 - `codexHome(env)`, `codexModels(dir)`, `codexDefaultModel(dir)` (`models.ts`).
 - `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project. `list({cwd}, page)` reads the `threads` rows of that cwd, `list({everywhere: true}, page)` every unarchived row; each meta carries the row's `cwd`.
 

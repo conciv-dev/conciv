@@ -159,7 +159,10 @@ describe.skipIf(inFirefox)('page tools', () => {
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
     <span id="failprobe">probe</span>
-    <select id="sel"><option value="a">A</option><option value="b">B</option></select>
+    <select id="sel"><option value="a">A</option><option value="b">B</option><option value="fs">Full Stack</option></select>
+    <input id="locked" type="checkbox" disabled />
+    <input id="qty" type="number" />
+    <input id="stuck" type="checkbox" />
     <button id="hovbtn">hover me</button>
     <div id="htmlhost"><i>old</i></div>
   `
@@ -281,7 +284,12 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(route.pathname).toBe(location.pathname)
       expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await resultOf('query', {selector: 'input'})
-      expect(query.count).toBe(5)
+      expect(query.count).toBe(8)
+    })
+
+    it('route reports the document title and visibility', async () => {
+      document.title = 'Settings'
+      expect(await resultOf('route')).toMatchObject({title: 'Settings', state: 'visible'})
     })
 
     it('waits for visibility and times out with an explanation', async () => {
@@ -363,6 +371,38 @@ describe.skipIf(inFirefox)('page tools', () => {
       expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
       expect(changes).toEqual(['b'])
       expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
+    })
+
+    it('selects by visible label, and a missing option fails listing the options without changing the select', async () => {
+      expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
+      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual({
+        code: 'invalid-args',
+        message: 'No option "fullstack"; options: a "A", b "B", fs "Full Stack".',
+      })
+      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'fs'})
+    })
+
+    it('fails instead of reporting ok when a field or box refuses the change', async () => {
+      document.querySelector('#stuck')?.addEventListener('click', (event) => event.preventDefault())
+      expect(await failureOf('fill', {selector: '#qty', value: 'many'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "many" and stayed empty.',
+      })
+      const pin = Object.assign(document.createElement('input'), {id: 'pin', type: 'password'})
+      pin.addEventListener('input', () => (pin.value = ''))
+      container.appendChild(pin)
+      const refused = await failureOf('fill', {selector: '#pin', value: 'hunter2-secret'})
+      pin.remove()
+      expect(refused).toEqual({code: 'invalid-args', message: 'The field rejected *** and stayed empty.'})
+      expect(JSON.stringify(refused)).not.toContain('hunter2-secret')
+      expect(await failureOf('check', {selector: '#locked'})).toEqual({
+        code: 'invalid-args',
+        message: 'That element is disabled.',
+      })
+      expect(await failureOf('check', {selector: '#stuck'})).toEqual({
+        code: 'invalid-args',
+        message: 'The box is still unchecked; the page prevented the change.',
+      })
     })
 
     it('submits the form owning the target without navigating', async () => {

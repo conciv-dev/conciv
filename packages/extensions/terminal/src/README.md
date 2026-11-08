@@ -2,18 +2,16 @@
 
 ## Overview
 
-`client.tsx` defines the `terminal` extension. It has one view (`terminal`, labeled 'Terminal'), whose component is `TerminalPanelView` with `TerminalActions` as the action bar, and its client context is a `createTerminalStore()` store. `server.ts` defines `createTerminalExtension`, which makes a `createTtySessions()` registry per server. It exposes the RPC procedures `open`, `close`, `state`, `launch` and `connectCommand`, plus a Hono app with `GET /tty` that upgrades to a WebSocket and streams pty output both ways. The pty is started from the harness `ttyCommand`, and resume tokens are minted through `server.sessions`.
+`client.tsx` defines the `terminal` extension. It has one view (`terminal`, labeled 'Terminal'), whose component is `TerminalPanelView` with `TerminalActions` as the action bar, and its client context is a `createTerminalStore()` store. `server.ts` defines `createTerminalExtension`, which makes a `createTtySessions()` registry per server. It exposes the RPC procedures `open`, `close` and `state`, plus a Hono app with `GET /tty` that upgrades to a WebSocket and streams pty output both ways. The pty is started from the harness `ttyCommand`, and resume tokens are minted through `server.sessions`.
 
 ## Interface
 
 - `terminal` / default (`client.tsx`): client extension named `TERMINAL_NAME`, with view `{id:'terminal', Component: TerminalPanelView, actions: TerminalActions}` and context `{store}`; it also augments `ExtensionRegistry` in `@conciv/protocol/config-types`
-- `createTerminalExtension(opts?: {openTerminal?})` (`server.ts`): server extension that returns `{context:{}, router, app, dispose}`; `dispose` calls `tty.shutdown()`
+- `createTerminalExtension()` (`server.ts`): server extension that returns `{context:{}, router, app, dispose}`; `dispose` calls `tty.shutdown()`
 - default export (`server.ts`): `createTerminalExtension()` called with no options
 - RPC `open` (`server.ts`): input is `TerminalOpenRequestSchema` plus `sessionId`; reuses a live pty (resizing it) or spawns a new one, and returns `{alive:true}`
 - RPC `close` (`server.ts`): kills the session's pty and returns `{alive:false}`
 - RPC `state` (`server.ts`): returns a `TerminalState` with fields `{alive, busy}`
-- RPC `launch` (`server.ts`): builds the harness `connectPlan` and opens it in an external OS terminal via `launchConnectPlan`, returning `{ok}`
-- RPC `connectCommand` (`server.ts`): returns `{command}`, a shell command string from `renderConnectCommand`
 - Route `GET /tty?session=&cols=&rows=` (`server.ts`): WebSocket that attaches a `TtySink`; binary frames carry pty data and JSON frames carry control messages
 - `TerminalRouter`, `TerminalAppType` (`server.ts`): exported types for the router and the Hono app
 - Subdirectories:
@@ -29,7 +27,6 @@
 - Every harness surface is the session's: `server.harness(sessionId)`; a live pty opened by another harness is closed and treated as absent (`liveTty`, `server.ts`)
 - RPC `open` throws `NO_TTY` when `server.harness(sessionId).ttyCommand` is missing; `openTtySession` likewise throws `harness "<id>" has no terminal mode` (`server.ts`)
 - RPC `close` throws `BUSY` when the session's pty is busy (`server.ts`)
-- RPC `launch` and `connectCommand` throw `NO_CONNECT` when `harness.connectPlan` is absent (`server.ts`)
 - `LaunchInputSchema` limits `model` to 1-200 characters (`server.ts`)
 - `reuseAlive` reuses a session only if one exists and `exited()` is null (`server.ts`)
 - `applyControl`: a lone ESC is sent as an interrupt only while the session is busy; otherwise the text goes to the pty (`server.ts`)
@@ -43,7 +40,6 @@
 - `openTtySession` (`server.ts`) spawns a pty process via `tty.open` and, on resume, injects a dim 'conciv: resumed session' banner
 - `mintHarnessSession` (`server.ts`) persists a new harness token with `server.sessions.recordToken`
 - `GET /tty` (`server.ts`) sends pty bytes and JSON control frames over the WebSocket and writes client input to the pty
-- RPC `launch` (`server.ts`) writes plan files and a launch script to disk and spawns an external terminal process
 
 ## Verification
 
