@@ -274,9 +274,13 @@ the agent to warn the user when it is above 1.
   by more than one live engine, the CLI fails and names each engine's project root instead of picking one. The token comes from that engine's `apiBase`.
 - Tab choice (`packages/cli/src/request.ts`): a global `--tab <id>` flag, zod-parsed as `SessionId`, wins over
   `CONCIV_SESSION_ID`; with neither, today's `sessions.resolve` default. A `--tab` call sends `conciv-origin: hub` and
-  `conciv-client: cli`, so the owner's Allow card and marker apply exactly as for MCP. The engine enforces this on
+  `conciv-client: cli`, so the owner's Allow card and marker apply exactly as for MCP. An engine found through the home-db fallback (no `CONCIV_PORT`, no `.conciv/server.json`)
+  is an outside caller too and sends the same headers; only the current folder's own engine is an inside caller. The
+  CLI reads the first `--tab` from argv before loading any dynamic catalog, so the catalog and the call target the
+  same engine. The engine enforces this on
   its RPC path too (decided 2026-11-07): the RPC mount (`packages/core/src/api/rpc/mount.ts`) reads the hub headers
-  and runs the same `admitOutside` check before any tool call from a hub-origin request, and its tool chunks carry the
+  and runs the same `admitOutside` check before any procedure that names a session (session header or input
+  `sessionId`) from a hub-origin request; procedures that name no session (catalog, list, create, resolve) never prompt, and its tool chunks carry the
   same `metadata.conciv` marker. Consent lives in the engine, never in a client.
 - `--tab` is declared on every route and command the way `envelopeFlag` is (router options belong to the segment
   that declares them).
