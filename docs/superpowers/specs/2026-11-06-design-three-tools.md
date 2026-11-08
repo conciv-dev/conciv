@@ -479,7 +479,7 @@ does not; and a conciv id must answer with its FOM, expected fill and font inclu
 - A blind judge (opus, page screenshot beside the design render, a score and one line) joins the table for every run,
   so look has a number not tied to our rows.
 - Capture is not a mode of the design extension. The page verbs `screenshot` and `screenshot_node` are answered by the
-  page extension's client (region, snapdom) when nothing else does, and by a `web-driver` extension from the server when it
+  page extension's client (region, snapdom) when nothing else does, and by a `browser-driver` extension from the server when it
   is loaded: it attaches to an existing browser (never launches one) through `puppeteer-core`, one driver per protocol,
   CDP for Chromium now, WebDriver BiDi for Firefox and Chromium later, and takes true-pixel screenshots at a configured
   device scale, clipped per node. The engine lets an extension answer a page verb from the server before the browser is
