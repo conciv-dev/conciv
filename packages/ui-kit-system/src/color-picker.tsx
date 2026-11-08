@@ -1,4 +1,5 @@
 import {For, Show, splitProps, type JSX} from 'solid-js'
+import {useFieldContext} from '@ark-ui/solid/field'
 import {ColorPicker as Ark, parseColor, useColorPicker} from '@ark-ui/solid/color-picker'
 import Check from 'lucide-solid/icons/check'
 import {INPUT_FRAME} from './input-frame.js'
@@ -49,6 +50,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     'readOnly',
     'class',
   ])
+  const field = useFieldContext()
   const picker = useColorPicker(() => ({
     value: HEX.test(local.value) ? parseColor(local.value) : undefined,
     format: 'hsba',
@@ -71,7 +73,12 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
           <Ark.ValueSwatch class={VALUE_SWATCH} />
         </Ark.Trigger>
         <div class={HEX_FRAME}>
-          <Ark.ChannelInput channel="hex" class={HEX_INPUT} />
+          <Ark.ChannelInput
+            channel="hex"
+            class={HEX_INPUT}
+            aria-labelledby={field?.().ids.label}
+            aria-describedby={field?.().ariaDescribedby}
+          />
         </div>
       </Ark.Control>
       <Show when={local.presets?.length}>
