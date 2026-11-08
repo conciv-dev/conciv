@@ -2526,7 +2526,7 @@ describe('session options outside agents', () => {
     await page.getByRole('button', {name: 'Deny'}).click()
     await expect.element(strip()).not.toBeInTheDocument()
     expect(await denied).toContain('The user denied codex access')
-    await page.getByRole('button', {name: 'Session options'}).click()
+    await page.getByRole('button', {name: /session options$/}).click()
     await allowRow().click()
     await expect.element(allowRow()).not.toBeInTheDocument()
     const allowed = coreControl.hubExecute(sessionId, 'return 1')
