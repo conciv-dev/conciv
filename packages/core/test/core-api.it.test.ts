@@ -3689,11 +3689,12 @@ describe('outside agent consent', () => {
     return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
   }
 
-  async function openTab(base: string, silent?: () => void): Promise<string> {
+  async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
     const sessionId = await newSession(base)
     const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
+        heard.push(queryName(query))
         if (silent) silent()
         else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
@@ -3708,8 +3709,9 @@ describe('outside agent consent', () => {
 
   const SCREENSHOT = {image: 'UklGRhYAAABXRUJQVlA4', width: 1, height: 1}
 
-  const pageAnswer = (query: unknown) =>
-    z.object({name: z.string()}).safeParse(query).data?.name === 'page_screenshot' ? SCREENSHOT : ROUTE
+  const queryName = (query: unknown) => z.object({name: z.string()}).safeParse(query).data?.name ?? ''
+
+  const pageAnswer = (query: unknown) => (queryName(query) === 'page_screenshot' ? SCREENSHOT : ROUTE)
 
   const rpcOf = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -3815,6 +3817,38 @@ describe('outside agent consent', () => {
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
+  })
+
+  it('cancelling an outside block while its forwarded call waits for the allow leaves nothing to run after a later allow', async () => {
+    const home = tempDir('conciv-home-')
+    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+    const heard: string[] = []
+    const theirs = await openTab(owner, undefined, heard)
+    const pick = `await external_use_tab({id: "${theirs}"});`
+    const leaving = await connectMcpClient(`${runner}/api/mcp`, HUB)
+    const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
+    const cancelled = execute?.execute({typescriptCode: `${pick} return await external_page_screenshot({})`})
+    await vi.waitFor(async () => expect(await pendingOf(owner, theirs)).toHaveLength(1), {timeout: 3000})
+    await leaving.close()
+    await expect(cancelled).rejects.toThrow()
+    await decideOutside(owner, theirs, true)
+    expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
+    expect(heard.filter((name) => name === 'page_screenshot')).toEqual([])
+  })
+
+  it('a hub-origin rpc call naming a session passes its consent: after a deny it can neither read nor clear the journal, nor allow itself', async () => {
+    const base = await boot()
+    const sessionId = await newSession(base)
+    const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+    const asked = hubRpc.page.changes(undefined).then(String, String)
+    await decideOutside(base, sessionId, false)
+    expect(await asked).toContain(DENIED)
+    expect(await hubRpc.page.clearChanges(undefined).then(String, String)).toContain(DENIED)
+    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(DENIED)
+    expect(await hubRpc.chat.hydrate({sessionId}).then(String, String)).toContain(DENIED)
+    const own = rpcOf(base, sessionId)
+    expect(await own.chat.outsideAccess({sessionId})).toEqual({denied: true})
+    expect(await own.page.changes(undefined)).toEqual([])
   })
 
   it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {

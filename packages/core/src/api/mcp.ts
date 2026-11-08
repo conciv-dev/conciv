@@ -272,7 +272,7 @@ type McpDeps = {
     publish: (chunk: ChatEvent) => void,
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
-  outsideCapabilities: (sessionId: SessionId, client: string | null) => CodeCapability[]
+  outsideCapabilities: (sessionId: SessionId, client: string | null, signal: AbortSignal) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   staleness: () => EngineStaleness
@@ -299,7 +299,7 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   const runner = await deps.codeRunner(
     scope.id,
     (chunk) => mirror.publish([caller.trace.mark(chunk)]),
-    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client) : undefined,
+    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client, caller.signal) : undefined,
   )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')

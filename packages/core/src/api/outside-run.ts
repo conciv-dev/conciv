@@ -42,6 +42,7 @@ export function outsideRunCapabilities(deps: {
   tabs: OutsideTabs
   client: string | null
   capabilities: readonly CodeCapability[]
+  signal: AbortSignal
 }): CodeCapability[] {
   const picked: {tab: PickedTab | null} = {tab: null}
   const useTab: CodeCapability = {
@@ -68,21 +69,23 @@ export function outsideRunCapabilities(deps: {
         errors: [...capability.errors, {code: 'NO_TAB', message: NO_TAB_MESSAGE}],
         execute: (input) => {
           if (picked.tab === null) throw toolError('NO_TAB', {message: NO_TAB_MESSAGE})
-          return forward(picked.tab, deps.client, capability.name, input)
+          return forward(picked.tab, {client: deps.client, signal: deps.signal}, capability.name, input)
         },
       }
     })
   return [useTab, ...forwarded]
 }
 
-async function forward(tab: PickedTab, client: string | null, name: string, input: unknown): Promise<unknown> {
+type Caller = {client: string | null; signal: AbortSignal}
+
+async function forward(tab: PickedTab, caller: Caller, name: string, input: unknown): Promise<unknown> {
   const headers = {
     [CONCIV_SESSION_HEADER]: tab.id,
     [CONCIV_ORIGIN_HEADER]: HUB_FORWARD_ORIGIN,
-    ...(client === null ? {} : {[CONCIV_CLIENT_HEADER]: client}),
+    ...(caller.client === null ? {} : {[CONCIV_CLIENT_HEADER]: caller.client}),
   }
   const typescriptCode = `return await external_${name}(${JSON.stringify(input ?? {})})`
-  const reply = await callOwner(tab, headers, typescriptCode)
+  const reply = await callOwner(tab, headers, typescriptCode, caller.signal)
   const text = reply.content.flatMap((part) => (part.text === undefined ? [] : [part.text])).join('\n')
   const parsed = parsedJson(text)
   if (reply.isError === true) {
@@ -106,14 +109,14 @@ function contentPart(part: z.infer<typeof ReplyPartSchema>): ContentPart {
   return {type: 'text', content: part.text ?? ''}
 }
 
-async function callOwner(tab: PickedTab, headers: Record<string, string>, typescriptCode: string) {
+async function callOwner(tab: PickedTab, headers: Record<string, string>, typescriptCode: string, signal: AbortSignal) {
   try {
     const owner = await createMCPClient({
       transport: {type: 'http', url: `${tab.apiBase}/api/mcp`, headers},
       name: 'conciv-runner',
     })
     try {
-      return ReplySchema.parse(await owner.callTool(EXECUTE_TOOL_NAME, {typescriptCode}))
+      return ReplySchema.parse(await owner.callTool(EXECUTE_TOOL_NAME, {typescriptCode}, {signal}))
     } finally {
       await owner
         .close()

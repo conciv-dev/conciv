@@ -12,7 +12,7 @@ import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
-import {makeSessionOs, os, type RpcDeps} from './mount.js'
+import {makeHubAdmission, makeSessionOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {cappedText, safeStringify} from '@conciv/chat'
@@ -29,7 +29,8 @@ export const PAGE_ERROR_NAME = {
 type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
 type BundlerErrors = {NO_BUNDLER: () => Error}
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
-type GatedCall = {context: RpcContext & {session: SessionScope}; errors: ApprovalErrors; signal?: AbortSignal}
+type SessionContext = RpcContext & {session: SessionScope}
+type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
@@ -65,18 +66,15 @@ async function refuseUnapproved(deps: RpcDeps, name: string, input: unknown, cal
   if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal.message})
 }
 
-async function hubGated<Result>(
-  deps: RpcDeps,
-  call: GatedCall,
+async function hubTraced<Result>(
+  context: SessionContext,
   name: string,
   input: unknown,
   run: () => Promise<Result>,
 ): Promise<Result> {
-  const trace = callTrace((header) => rpcHeader(call.context, header))
+  const trace = callTrace((header) => rpcHeader(context, header))
   if (trace.hub === null) return run()
-  const scope = call.context.session
-  const refusal = await deps.admitOutside(scope, trace.hub.client, call.signal ?? new AbortController().signal)
-  if (refusal !== null) throw call.errors.APPROVAL_DENIED({message: refusal})
+  const scope = context.session
   const callId = randomUUID()
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
   const mirror = trace.mirror(mirrored, {publish: scope.stream.publish, record: scope.run.record})
@@ -98,7 +96,7 @@ export function makeRpcRouter(deps: RpcDeps) {
   const db = chat.db
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
-  return os.router({
+  return os.use(makeHubAdmission(deps)).router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
@@ -131,7 +129,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       call: sessionOs.registry.call.handler(async ({input, context, errors, signal}) => {
         if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-        return hubGated(deps, {context, errors, signal}, input.name, input.input, () =>
+        return hubTraced(context, input.name, input.input, () =>
           context.session.tools.call(input.name, input.input).catch((error: unknown) => {
             throw registryCallError(error, errors)
           }),
@@ -143,11 +141,15 @@ export function makeRpcRouter(deps: RpcDeps) {
     },
     page: {
       symbolicate: os.page.symbolicate.handler(({input}) => engine.symbolicate(input.frames)),
-      changes: sessionOs.page.changes.handler(({context}) => context.session.page.changes()),
-      clearChanges: sessionOs.page.clearChanges.handler(async ({context}) => {
-        await context.session.page.clearChanges()
-        return {ok: true as const}
-      }),
+      changes: sessionOs.page.changes.handler(({context}) =>
+        hubTraced(context, 'page_changes', {}, () => context.session.page.changes()),
+      ),
+      clearChanges: sessionOs.page.clearChanges.handler(({context}) =>
+        hubTraced(context, 'page_clear_changes', {}, async () => {
+          await context.session.page.clearChanges()
+          return {ok: true as const}
+        }),
+      ),
       queries: sessionOs.page.queries.handler(({context, signal}) =>
         context.session.page.queries(signal ?? new AbortController().signal),
       ),
@@ -157,49 +159,47 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     server: {
-      config: sessionOs.server.config.handler(({context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_config.name, {}, () =>
+      config: sessionOs.server.config.handler(({context, errors}) =>
+        hubTraced(context, BUILTIN_SERVER_TOOL.server_config.name, {}, () =>
           callTool(BUILTIN_SERVER_TOOL.server_config, {}, errors),
         ),
       ),
-      resolve: sessionOs.server.resolve.handler(({input, context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_resolve.name, input, () =>
+      resolve: sessionOs.server.resolve.handler(({input, context, errors}) =>
+        hubTraced(context, BUILTIN_SERVER_TOOL.server_resolve.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_resolve, input, errors),
         ),
       ),
-      graph: sessionOs.server.graph.handler(({input, context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_graph.name, input, () =>
+      graph: sessionOs.server.graph.handler(({input, context, errors}) =>
+        hubTraced(context, BUILTIN_SERVER_TOOL.server_graph.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_graph, input, errors),
         ),
       ),
-      transform: sessionOs.server.transform.handler(({input, context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_transform.name, input, () =>
+      transform: sessionOs.server.transform.handler(({input, context, errors}) =>
+        hubTraced(context, BUILTIN_SERVER_TOOL.server_transform.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_transform, input, errors),
         ),
       ),
-      urls: sessionOs.server.urls.handler(({context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_urls.name, {}, () =>
+      urls: sessionOs.server.urls.handler(({context, errors}) =>
+        hubTraced(context, BUILTIN_SERVER_TOOL.server_urls.name, {}, () =>
           callTool(BUILTIN_SERVER_TOOL.server_urls, {}, errors),
         ),
       ),
       reload: sessionOs.server.reload.handler(async ({input, context, errors, signal}) => {
         await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_reload.name, input, {context, errors, signal})
-        return hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
+        return hubTraced(context, BUILTIN_SERVER_TOOL.server_reload.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_reload, input, errors),
         )
       }),
       restart: sessionOs.server.restart.handler(async ({input, context, errors, signal}) => {
         await refuseUnapproved(deps, BUILTIN_SERVER_TOOL.server_restart.name, input, {context, errors, signal})
-        return hubGated(deps, {context, errors, signal}, BUILTIN_SERVER_TOOL.server_restart.name, input, () =>
+        return hubTraced(context, BUILTIN_SERVER_TOOL.server_restart.name, input, () =>
           callTool(BUILTIN_SERVER_TOOL.server_restart, input, errors),
         )
       }),
     },
     editor: {
-      open: sessionOs.editor.open.handler(({input, context, errors, signal}) =>
-        hubGated(deps, {context, errors, signal}, BUILTIN_OPEN_TOOL.name, input, () =>
-          callTool(BUILTIN_OPEN_TOOL, input),
-        ),
+      open: sessionOs.editor.open.handler(({input, context}) =>
+        hubTraced(context, BUILTIN_OPEN_TOOL.name, input, () => callTool(BUILTIN_OPEN_TOOL, input)),
       ),
       openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },

@@ -165,28 +165,36 @@ export const contract = {
       .output(SessionPageSchema),
     search: oc.input(SessionSearchInput).output(SessionPageSchema),
     changes: oc.output(eventIterator(SessionsChangeSchema)),
-    get: oc.errors(notFound).input(SessionIdInput).output(SessionMetaSchema),
+    get: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(SessionMetaSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
-    restore: oc.input(SessionIdInput).output(SessionIdInput),
+    restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
     rename: oc
-      .errors(notFound)
+      .errors({...notFound, ...approvalDenied})
       .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
       .output(z.object({title: z.string()})),
-    delete: oc.input(SessionIdInput).output(Ok),
+    delete: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     model: oc
-      .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
+      .errors({...notFound, ...approvalDenied, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
     effort: oc
-      .errors({...notFound, UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'}})
+      .errors({
+        ...notFound,
+        ...approvalDenied,
+        UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'},
+      })
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc.input(SessionIdInput).output(Ok),
+    compact: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     switchHarness: oc
       .errors({
         ...notFound,
+        ...approvalDenied,
         UNKNOWN_HARNESS: {message: 'that harness is not available'},
         UNKNOWN_MODEL: {message: 'the target harness does not offer that model'},
         SESSION_RUNNING: {message: 'the session has a run in progress'},
@@ -195,28 +203,40 @@ export const contract = {
       .output(z.object({harnessId: z.string()})),
   },
   drafts: {
-    get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(Ok),
+    get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
+    set: oc
+      .errors(approvalDenied)
+      .input(DraftRowSchema.omit({updatedAt: true}))
+      .output(Ok),
   },
   markers: {
-    list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
+    list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),
   },
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    hydrate: oc.input(SessionIdInput.extend(ChatHistoryWindowSchema.shape)).output(ChatHydrationSchema),
-    stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
+    events: oc.errors(approvalDenied).input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    hydrate: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput.extend(ChatHistoryWindowSchema.shape))
+      .output(ChatHydrationSchema),
+    stop: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput.extend({runIds: z.array(z.string().min(1))}))
+      .output(Ok),
     permissionDecision: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)
       .output(Ok.extend({startsTurn: z.boolean()})),
-    outsideAccess: oc.input(SessionIdInput).output(z.object({denied: z.boolean()})),
-    allowOutside: oc.input(SessionIdInput).output(Ok),
+    outsideAccess: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput)
+      .output(z.object({denied: z.boolean()})),
+    allowOutside: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     uiReply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending ui question'}})
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
       .output(Ok),
   },
@@ -228,15 +248,15 @@ export const contract = {
       .output(z.unknown()),
   },
   captures: {
-    list: oc.input(SessionIdInput).output(SessionCapturesSchema),
+    list: oc.errors(approvalDenied).input(SessionIdInput).output(SessionCapturesSchema),
   },
   page: {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-    changes: oc.output(z.array(PageChangeEntrySchema)),
-    clearChanges: oc.output(Ok),
-    queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
+    changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
+    clearChanges: oc.errors(approvalDenied).output(Ok),
+    queries: oc.errors(approvalDenied).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
       .output(Ok),
   },
@@ -271,9 +291,9 @@ export const contract = {
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
-    models: oc.input(SessionIdInput).output(ChatModelsSchema),
+    models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
-    commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
+    commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
     connectHub: oc

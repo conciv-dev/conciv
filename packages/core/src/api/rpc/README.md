@@ -16,13 +16,14 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - RPC `editor.open`, `editor.openFromFrames` (`router.ts`)
 - RPC `meta.models` and `meta.commands` (per session: the session's harness), `meta.harnesses` (the available set, each harness with its models and default model, and the default harness), `meta.tools`, `meta.engine` (`router.ts`)
 - `PAGE_ERROR_NAME` (`router.ts`): PageErrorCode to NO_PAGE_CLIENT, PAGE_TIMEOUT, UNKNOWN_TOOL, INVALID_ARGS, HANDLER_ERROR
-- `os`, `makeSessionOs`, `callerScope`, `RpcDeps`, `ChatContext`, `SessionOs`, `CompositeRpcRouter` (`mount.ts`)
+- `os`, `makeSessionOs`, `makeHubAdmission`, `callerScope`, `RpcDeps`, `ChatContext`, `SessionOs`, `CompositeRpcRouter` (`mount.ts`)
 
 ## Invariants
 
 - `headerSessionId` / `callerScope` (`mount.ts`): a malformed session header throws BAD_REQUEST; a missing one on a session-scoped procedure throws BAD_REQUEST too, so a 401 only ever means the login gate refused
 - `registry.call` (`router.ts`): UNKNOWN_TOOL when the session has no such tool; page errors map through `PAGE_ERROR_NAME`
-- `hubGated` (`router.ts`): a hub-origin request (`conciv-origin: hub`) to registry.call, server.* or editor.open passes `deps.admitOutside` first (which holds the call up to 50 s for the user's Allow, and stops waiting when the request aborts) and throws APPROVAL_DENIED on refusal, then publishes its tool call chunks with the `metadata.conciv` marker; any other request runs unchanged and publishes nothing
+- `makeSessionOs` / `makeHubAdmission` (`mount.ts`): a hub-origin request (`conciv-origin: hub`) that names a session, by the session header or by an input `sessionId`, passes `deps.admitOutside` for that session first (which holds the call up to 50 s for the user's Allow, and stops waiting when the request aborts) and throws APPROVAL_DENIED on refusal; requests that name no session (catalog, list, create, resolve) and non-hub requests run unchanged
+- `hubTraced` (`router.ts`): registry.call, page.changes, page.clearChanges, server.* and editor.open from a hub-origin request publish their tool call chunks with the `metadata.conciv` marker; any other request publishes nothing
 - `refuseUnapproved` (`router.ts`): skipped for widget-origin callers; tools with `approval: 'ask'` go through `plane.admitCall` and throw APPROVAL_DENIED on refusal (registry.call, server.reload, server.restart)
 - `callTool` (`router.ts`): throws when a tool has no outputSchema and parses output with it; `NO_BUNDLER` maps to the NO_BUNDLER error
 - `page.reply`, `chat.permissionDecision`, `chat.uiReply` (`router.ts`, `chat.ts`): UNKNOWN_REQUEST when nothing is pending
