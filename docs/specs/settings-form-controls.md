@@ -1,120 +1,69 @@
-# Settings form controls in @conciv/ui-kit-system
+# Ark form controls missing from @conciv/ui-kit-system
 
-Status: approved direction (Omri, 2026-11-08). First PR of the settings lane.
+Status: rework of PR #778 (Omri, 2026-11-09).
+
+## The rule
+
+`@conciv/ui-kit-system` is the design system. It gets the generic, Ark-backed controls it is missing, and
+nothing else. Anything specific to a feature (settings form wiring, settings vocabulary, settings states) lives
+in the app or extension that uses it. The settings page will be built in `apps/conciv` using these kit
+controls, as nested routes with tabs; that is the next PR.
 
 ## Why
 
-conciv is getting a settings page. Extensions will declare their own settings with a zod schema and the page
-renders a control for each field, so the kit needs a complete, accessible set of form controls that look
-right in the 480px panel and work the same everywhere. This PR builds those controls and wires them to
-TanStack Form. The settings page, its routes and the settings storage come in later PRs.
+conciv is getting a settings page, and extensions will add their own settings. The page needs input controls
+the kit does not have yet: number input, tags input, color picker, password input, checkbox, radio cards,
+a styled combobox, a shortcut recorder and a confirm dialog. Any feature could use them unchanged, so they
+belong in the kit.
 
-Visual reference (open in a browser):
+Visual reference: `docs/specs/settings-controls-mockup.html` (the look of each control; ignore its settings
+copy). `docs/specs/settings-page-variant-a.html` and `-b.html` are page layouts for the next app PR.
 
-- `docs/specs/settings-controls-mockup.html`: every control, every state. This is the target look.
-- `docs/specs/settings-page-variant-a.html`, `docs/specs/settings-page-variant-b.html`: the two page layouts
-  under consideration, so you can see the controls in context. Do not build the pages.
+## Scope of the rework (commits on PR #778)
 
-The mockup's colors are approximations; the real controls use the kit's existing tokens and skins.
+### Remove from the kit
 
-## Scope
+- `settings-form.tsx`, `settings-form-contexts.ts`, `settings-fields.tsx`, `settings-form.stories.tsx`, and the
+  `useSettingsForm` export.
+- The `@tanstack/solid-form` dependency (and the vite external for it).
+- From the field wrapper: the changed marker, "Reset to default" and the locked-with-reason state. Those are
+  settings concepts and come back in the app.
 
-All in `packages/ui-kit-system`.
+### Keep in the kit, made generic
 
-### 1. Field shell (new)
+- The field wrapper (`FieldShell`, on Ark `Field` / `Fieldset`): label, description, error, `row` / `stack`
+  layout, disabled, read-only, required. Nothing else.
+- `NumberInput`, `TagsInput`, `ColorPicker`, `PasswordInput`, `Checkbox` / `CheckboxGroup`, `RadioCards`,
+  `ComboboxSelect`, `HotkeyRecorder`, `ConfirmDialog`, and the `TextField` / `Select` extensions (invalid
+  state, addons, end action). Each control takes plain props (`value`, `onValueChange`, `disabled`,
+  `readOnly`, `invalid`, ...); no form library inside.
+- Remove props or code paths that only existed for the settings wiring. Keep whatever a generic consumer of
+  the Ark primitive would expect.
 
-Built on Ark `Field` (and `Fieldset` for groups). One shell every control sits in:
+### Stories
 
-- label, description under it, error under that (`Field.ErrorText`, announced), all linked by Ark so the
-  control gets `aria-describedby` and `aria-invalid`;
-- two layouts: `row` (label block left, control right, for switches, selects, short numbers) and `stack`
-  (control under the label, for cards, tags, text areas, the recorder);
-- a changed marker plus a "Reset to default" action, shown when the consumer says the value differs from its
-  default;
-- a locked state: control read-only, value visible, and a reason line ("Set in vite.config.ts");
-- disabled state with the reason in the description.
+- Every control keeps a states story and a keyboard story, with neutral copy (no settings, no "Set in
+  vite.config.ts", no product feature names). States: default, invalid with error, disabled, read-only.
+- Stories hold state with `createStore`, not a form library.
+- `play` functions stay the interaction tests: pointer clicks, typing key by key, Tab and arrow keys, focus
+  asserts. They must fail if the behaviour breaks.
 
-### 2. Controls
+### Changeset
 
-Existing components are restyled or extended to sit in the shell; new ones are built on the Ark primitive
-named. Read each component's anatomy and examples with the Ark UI MCP (`mcp__ark-ui__*`) before building.
+Rewrite `.changeset/settings-form-controls.md` to describe new generic controls (patch).
 
-| Setting kind              | Component                                   | Ark primitive        | Notes                                                                                                                                                            |
-| ------------------------- | ------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| boolean                   | `Switch` (exists)                           | switch               | row layout                                                                                                                                                       |
-| 2 to 4 choices            | `SegmentGroup` (exists)                     | segment-group        | optional icon per item, sliding indicator stays                                                                                                                  |
-| choices with explanations | `RadioCards` (new)                          | radio-group          | title + description per option, arrow keys                                                                                                                       |
-| long list                 | `Select` (exists)                           | select               | add invalid styling                                                                                                                                              |
-| searchable list           | `Combobox` (exists, unstyled today)         | combobox             | style it; filter as you type                                                                                                                                     |
-| number in a range         | `Slider` (exists) paired with `NumberInput` | slider, number-input | value always visible, optional ticks                                                                                                                             |
-| open-ended number         | `NumberInput` (new)                         | number-input         | steppers, unit suffix, arrow/Page keys                                                                                                                           |
-| text                      | `TextField` (exists)                        | field                | add invalid, prefix/suffix addons, end buttons                                                                                                                   |
-| URL / path                | `TextField` with addons                     | field                | prefix text or icon, end action slot                                                                                                                             |
-| long text                 | `TextArea` (exists)                         | field                | optional character counter                                                                                                                                       |
-| secret                    | `PasswordInput` (new)                       | password-input       | reveal toggle, optional copy                                                                                                                                     |
-| list of text              | `TagsInput` (new)                           | tags-input           | Enter/comma add, Backspace remove                                                                                                                                |
-| several of a set          | `Checkbox`, `CheckboxGroup` (new)           | checkbox             |                                                                                                                                                                  |
-| color                     | `ColorPicker` (new)                         | color-picker         | swatch, hex input, presets, picker in a popover                                                                                                                  |
-| keyboard shortcut         | `HotkeyRecorder` (new)                      | none                 | `createHotkeyRecorder` from `@tanstack/solid-hotkeys`; shows keys as kbd chips, record state, modifier toggles, conflict warning slot, Esc cancels, clear button |
-| destructive action        | `ConfirmDialog` (new)                       | dialog               | built on the kit `Dialog`; focus starts on Cancel                                                                                                                |
+## Rules (all apply)
 
-### 3. TanStack Form wiring
-
-Add `@tanstack/solid-form` to the kit (TanStack packages are pre-approved). Export a form hook made with
-`createFormHookContexts` + `createFormHook` whose `fieldComponents` are one field component per row of the
-table above (`TextField`, `NumberField`, `SliderField`, `SwitchField`, `SegmentField`, `RadioCardsField`,
-`SelectField`, `ComboboxField`, `CheckboxGroupField`, `TagsField`, `PasswordField`, `ColorField`,
-`HotkeyField`, `TextAreaField`; name them consistently). Each field component:
-
-- reads `useFieldContext`, wires value, change and blur;
-- shows the first validation error in the shell's error slot and sets the invalid state;
-- takes `label`, `description`, `locked`, `changed` / `onReset`, `disabled` like the shell.
-
-The kit stays validator-agnostic: field components show whatever errors TanStack Form reports, so a consumer can pass a zod
-schema (Standard Schema) or plain validator functions. The stories use TanStack Form's function validators, so the kit
-carries no zod dependency; the zod-to-control mapping arrives with the extension settings API.
-There is no save button: the kit only reports changes. Choices, toggles and sliders commit on change; text
-and numbers commit on blur or Enter (expose this so a consumer can autosave).
-
-### 4. Storybook
-
-Every control gets a story file (or its existing file is extended) under `ui-kit-system/<Component>`,
-showing: default, focused, changed with reset, invalid with error, locked, disabled. Plus one composite story,
-`ui-kit-system/Settings form`: one field of every kind, each with a validator, rendered through the form hook in the
-row/stack layouts at 480px wide, with a visible log of committed values, so you can see validation and commits
-work.
-
-Stories must look good in both skins and in light and dark. Run the storybook app headless
-(`apps/storybook`, `storybook dev`), open every new or changed story with Playwright (headless), screenshot
-each state, and look at the screenshots before you finish. Report the screenshot paths.
-
-Story `play` functions are the interaction tests: drive each control the way a user does (pointer clicks,
-typing key by key, Tab and arrow keys) and assert the result and where focus lands, written so they fail if
-the behaviour breaks.
-
-## Rules (all apply, no exceptions)
-
-- Functions, not classes. No IIFEs. Zero comments in TS/TSX. No `any`, no `as` casts, no `@ts-ignore`,
-  no non-null `!`. No em dashes in code.
-- Solid: no raw `createSignal` / `createEffect` in new component code; use TanStack Form state, Ark's own
-  state, `createMemo`, or `@solid-primitives/*`. Stories hold their state in the form hook, not signals.
-- Styling: UnoCSS classes in the component files, the way `text-field.tsx` does it, deriving every value from
-  existing `--chat-*` / kit tokens. No new raw colors, no new CSS files, nothing in `styles.css`. px only for
-  hairline borders. Focus rings use the existing `focus-ring` utility. Motion uses the kit's motion tokens and
-  turns off under reduced motion.
-- Accessibility: every control has an accessible name and description through Ark `Field`; keyboard follows
-  Ark; check contrast with the existing `test/wcag.ts` helper.
-- Tests: one browser and one node test file per package. `test/ui-kit-system.browser.test.tsx` is already at
-  1071 lines and must not grow: put interaction coverage in story `play` functions, and if something must go in
-  the browser test file, delete a duplicate to make room. No mocks, no stubs, no CSS or DOM implementation
-  assertions, no test ids. Run only the test files and stories you touch. Headless browsers only.
-- Never load the machine: one Storybook, one test run at a time.
-- Add a changeset (`@conciv/ui-kit-system` is published).
-- Before finishing: `pnpm exec fallow audit --changed-since main --format json`, fix anything INTRODUCED.
-- Git: work only in a dedicated worktree on branch
-  `feat/settings-form-controls`. Commit locally, in small commits. Do NOT push. Do NOT open a PR.
+- Functions, not classes. No IIFEs. Zero comments in TS/TSX. No `any`, no `as`, no `@ts-ignore`, no `!`. No em
+  dashes in code.
+- Solid: no raw `createSignal` / `createEffect`.
+- Styling: UnoCSS classes from existing `--chat-*` / kit tokens, `focus-ring` utility, kit motion tokens.
+- Tests: no new test files; `test/ui-kit-system.browser.test.tsx` must not grow. No mocks, no CSS/DOM
+  implementation assertions, no test ids. Headless browsers only. One Storybook, one test run at a time.
+- `pnpm exec fallow audit --changed-since main --format json --quiet` must report nothing INTRODUCED.
+- Git: commit on branch `feat/settings-form-controls` in its worktree. Do not push. Do not open a PR.
 
 ## Out of scope
 
-The settings page and its routes, settings storage on the engine, the zod-to-control mapping for extension
-schemas, the extension `settings` API. Those are the next PRs.
+The settings page in `apps/conciv` (nested routes, one per tab), the settings form wiring with TanStack Form
+(app), settings storage, the extension `settings` API.
