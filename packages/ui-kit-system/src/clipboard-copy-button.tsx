@@ -64,6 +64,7 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
         variant={local.variant}
         class={local.class ?? 'size-7'}
         disabled={local.disabled}
+        keepOpenOnClick
         data-copied={clipboard.copied() ? '' : undefined}
         data-copy-failed={clipboard.failed() ? '' : undefined}
         onClick={clipboard.copy}

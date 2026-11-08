@@ -138,6 +138,7 @@ export function SessionSelector(props: {
   })
   const typed = (details: {inputValue: string; reason?: string}) => {
     if (details.reason !== 'input-change' && details.reason !== 'clear-trigger') return
+    dismissPreview()
     searchWriter.maybeExecute(details.inputValue.trim())
     if (details.inputValue.trim() === '') searchWriter.flush()
   }

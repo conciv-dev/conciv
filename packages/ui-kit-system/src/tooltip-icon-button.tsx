@@ -31,12 +31,17 @@ export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
   shortcut?: string
   side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
+  keepOpenOnClick?: boolean
 }
 
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class'])
+  const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class', 'keepOpenOnClick'])
   return (
-    <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
+    <Tooltip.Root
+      positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}
+      closeOnPointerDown={!local.keepOpenOnClick}
+      closeOnClick={!local.keepOpenOnClick}
+    >
       <Tooltip.Trigger
         type="button"
         class={iconButtonClass(local.variant, local.class)}
