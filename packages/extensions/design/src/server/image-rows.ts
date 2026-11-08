@@ -68,7 +68,7 @@ async function captured(input: {
   const {mask} = live.compare({other: reference, comparator: 'pixelmatch'})
   const painted = mask.reduce<{seen: number; wrong: number}>(
     (sums, wrong, index) => {
-      if ((ink[index * CHANNELS + ALPHA] ?? 0) === 0) return sums
+      if (wrong === 0 && (ink[index * CHANNELS + ALPHA] ?? 0) === 0) return sums
       return {seen: sums.seen + 1, wrong: sums.wrong + wrong}
     },
     {seen: 0, wrong: 0},
