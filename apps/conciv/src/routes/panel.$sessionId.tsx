@@ -37,6 +37,7 @@ import {resolveGrabSource} from '../pane/grab-source-resolve.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {usePanelChrome} from '../app/panel-chrome.js'
 import {ContextSummary} from '../pane/context-tracker.js'
+import {ChatPane} from '../pane/chat-pane.js'
 import {QueueStrip} from '../pane/queue-strip.js'
 import {StatusBar, type StatusBarView} from '../pane/status-bar.js'
 import {SessionPillPending, SessionTitlePending, UsagePending, ViewTabsPending} from '../shell/pending.js'
@@ -122,6 +123,8 @@ function PanelSession(): JSX.Element {
   }
 
   const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
+  const openSettings = () =>
+    router.navigate({to: '/panel/$sessionId/settings', params: {sessionId: params().sessionId}})
   const newSession = async () => {
     const {sessionId} = await rpc.sessions.create(undefined)
     appData.invalidateSessions()
@@ -135,7 +138,11 @@ function PanelSession(): JSX.Element {
 
   useBlocker({
     shouldBlockFn: ({current, next}) =>
-      running() && next.pathname.startsWith('/panel') && next.pathname !== current.pathname,
+      running() &&
+      next.pathname.startsWith('/panel') &&
+      next.pathname !== current.pathname &&
+      !next.pathname.includes('/settings') &&
+      !current.pathname.includes('/settings'),
   })
 
   const chatKey = createMemo(() => ({sessionId: params().sessionId, generation: generation()}))
@@ -250,10 +257,21 @@ function PanelSession(): JSX.Element {
                 <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                 Pop out to a window
               </button>
-              <button type="button" class={RAIL_MENU_ROW} onClick={() => void router.navigate({to: '/panel/settings'})}>
-                <SlidersHorizontal class="size-4 block shrink-0" aria-hidden="true" />
-                Settings
-              </button>
+              <Popover.Context>
+                {(popover) => (
+                  <button
+                    type="button"
+                    class={RAIL_MENU_ROW}
+                    onClick={() => {
+                      popover().setOpen(false)
+                      void openSettings()
+                    }}
+                  >
+                    <SlidersHorizontal class="size-4 block shrink-0" aria-hidden="true" />
+                    Settings
+                  </button>
+                )}
+              </Popover.Context>
               <Show when={connectMode && disconnect}>
                 <button type="button" class={RAIL_MENU_ROW} onClick={() => disconnect?.()}>
                   <Unplug class="size-4 block shrink-0" aria-hidden="true" />
@@ -270,6 +288,11 @@ function PanelSession(): JSX.Element {
       <ChatProvider chat={chat()}>
         <QueueStrip queue={queue()} />
       </ChatProvider>
+      <Show when={!viewMatch()}>
+        <Show when={chatKey()} keyed>
+          {(value) => <ChatPane sessionId={value.sessionId} />}
+        </Show>
+      </Show>
       <Outlet />
       <Suspense fallback={<ViewTabsPending />}>
         <StatusBar

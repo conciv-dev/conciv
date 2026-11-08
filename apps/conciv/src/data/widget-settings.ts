@@ -21,6 +21,12 @@ export const FALLBACK_SCHEME: SchemeValue = SchemeValueSchema.catch('auto').pars
 
 export type SchemeLayers = {project: SettingsLayerValue; global: SettingsLayerValue}
 
+export function schemeOfLayer(layer: SettingsLayerValue): SchemeValue | undefined {
+  if (layer.state !== 'valid') return undefined
+  const parsed = SchemeValueSchema.safeParse(layer.value)
+  return parsed.success ? parsed.data : undefined
+}
+
 export type SchemeSetting = {
   value: SchemeValue
   source: SettingsSource
@@ -35,8 +41,6 @@ const DEFAULT_LAYERS: SchemeLayers = {project: ABSENT_LAYER, global: ABSENT_LAYE
 
 const DEFAULT_SCHEME: SchemeSetting = {value: FALLBACK_SCHEME, source: 'default', layers: DEFAULT_LAYERS}
 
-const NO_REVISIONS: SettingsRevisions = {project: '', global: ''}
-
 function schemeOf(read: SettingsRead | undefined): SchemeSetting {
   const view = read?.keys.find((entry) => entry.key === SCHEME_KEY)
   if (!view) return DEFAULT_SCHEME
@@ -45,14 +49,8 @@ function schemeOf(read: SettingsRead | undefined): SchemeSetting {
   return {value: parsed.data, source: view.source, layers: view.layers}
 }
 
-function revisionsOf(read: SettingsRead | undefined): SettingsRevisions {
-  if (!read) return NO_REVISIONS
-  return {project: read.layers.project.revision, global: read.layers.global.revision}
-}
-
 export type WidgetSettings = {
   scheme: Accessor<SchemeSetting>
-  revisions: Accessor<SettingsRevisions>
   isLoading: Accessor<boolean>
   isError: Accessor<boolean>
   retry: () => void
@@ -64,10 +62,8 @@ export function createWidgetSettings(data: AppData, queryClient: QueryClient): W
     () => queryClient,
   )
   const scheme = createMemo(() => (query.isSuccess ? schemeOf(query.data) : DEFAULT_SCHEME))
-  const revisions = createMemo(() => (query.isSuccess ? revisionsOf(query.data) : NO_REVISIONS))
   return {
     scheme,
-    revisions,
     isLoading: () => query.isLoading,
     isError: () => query.isError,
     retry: () => void query.refetch(),

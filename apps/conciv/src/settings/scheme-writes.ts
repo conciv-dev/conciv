@@ -15,7 +15,6 @@ export type SchemeWrite =
   | {kind: 'set'; value: SchemeValue; scope: SettingsScope; announcement: string}
   | {kind: 'clear'; scope: SettingsScope; announcement: string}
   | {kind: 'apply-globally'; value: SchemeValue; announcement: string}
-  | {kind: 'reset'; announcement: string}
 
 export type SchemeWriteError = {message: string; announcement: string; retryable: boolean}
 
@@ -42,21 +41,16 @@ export function applyGloballyWrite(value: SchemeValue): SchemeWrite {
   return {kind: 'apply-globally', value, announcement: `Color scheme ${value} now applies to all projects`}
 }
 
-export function forkToProjectWrite(value: SchemeValue): SchemeWrite {
+export function clearProjectWrite(): SchemeWrite {
+  return {kind: 'clear', scope: 'project', announcement: 'Color scheme now follows your global setting'}
+}
+
+export function clearGlobalWrite(): SchemeWrite {
   return {
-    kind: 'set',
-    value,
-    scope: 'project',
-    announcement: `Color scheme ${value} now applies to this project only`,
+    kind: 'clear',
+    scope: 'global',
+    announcement: 'Global color scheme cleared. Projects without their own setting use the default.',
   }
-}
-
-export function useGlobalValueWrite(): SchemeWrite {
-  return {kind: 'clear', scope: 'project', announcement: 'Color scheme now follows your global value'}
-}
-
-export function resetWrite(): SchemeWrite {
-  return {kind: 'reset', announcement: 'Color scheme reset to the default'}
 }
 
 function validLayer(value: SchemeValue) {
@@ -67,7 +61,6 @@ function layersAfter(layers: SchemeLayers, write: SchemeWrite): SchemeLayers {
   if (write.kind === 'apply-globally') return {project: ABSENT_LAYER, global: validLayer(write.value)}
   if (write.kind === 'set' && write.scope === 'project') return {...layers, project: validLayer(write.value)}
   if (write.kind === 'set') return {...layers, global: validLayer(write.value)}
-  if (write.kind === 'reset') return {project: ABSENT_LAYER, global: ABSENT_LAYER}
   return {
     project: write.scope === 'project' ? ABSENT_LAYER : layers.project,
     global: write.scope === 'global' ? ABSENT_LAYER : layers.global,
@@ -142,41 +135,47 @@ export function createSchemeWrites(options: {
   rpc: RpcClient
   data: AppData
   queryClient: QueryClient
-  revisions: () => SettingsRevisions
   announce: (message: string, assertive?: boolean) => void
 }): SchemeWrites {
   const queryKey = options.data.utils.settings.get.queryOptions().queryKey
+  let writeQueue: Promise<unknown> = Promise.resolve()
+  const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = writeQueue.then(task)
+    writeQueue = next.catch(() => undefined)
+    return next
+  }
+  const freshRevisions = async (): Promise<SettingsRevisions> => {
+    const read = await options.rpc.settings.get(undefined)
+    return {project: read.layers.project.revision, global: read.layers.global.revision}
+  }
+  const runWrite = async (write: SchemeWrite): Promise<void> => {
+    const revisions = await freshRevisions()
+    if (write.kind === 'apply-globally') {
+      await options.rpc.settings.applyGlobally({
+        key: SCHEME_KEY,
+        value: write.value,
+        expectedRevisions: revisions,
+      })
+      return
+    }
+    if (write.kind === 'set') {
+      await options.rpc.settings.set({
+        key: SCHEME_KEY,
+        value: write.value,
+        scope: write.scope,
+        expectedRevision: revisions[write.scope],
+      })
+      return
+    }
+    await options.rpc.settings.clear({
+      key: SCHEME_KEY,
+      scope: write.scope,
+      expectedRevision: revisions[write.scope],
+    })
+  }
   const mutation = useMutation(
     () => ({
-      mutationFn: async (write: SchemeWrite) => {
-        const revisions = options.revisions()
-        if (write.kind === 'apply-globally') {
-          await options.rpc.settings.applyGlobally({
-            key: SCHEME_KEY,
-            value: write.value,
-            expectedRevisions: revisions,
-          })
-          return
-        }
-        if (write.kind === 'set') {
-          await options.rpc.settings.set({
-            key: SCHEME_KEY,
-            value: write.value,
-            scope: write.scope,
-            expectedRevision: revisions[write.scope],
-          })
-          return
-        }
-        if (write.kind === 'reset') {
-          await options.rpc.settings.reset({key: SCHEME_KEY, expectedRevisions: revisions})
-          return
-        }
-        await options.rpc.settings.clear({
-          key: SCHEME_KEY,
-          scope: write.scope,
-          expectedRevision: revisions[write.scope],
-        })
-      },
+      mutationFn: (write: SchemeWrite) => enqueue(() => runWrite(write)),
       onMutate: async (write: SchemeWrite) => {
         await options.queryClient.cancelQueries({queryKey})
         const previous = options.queryClient.getQueryData(queryKey)

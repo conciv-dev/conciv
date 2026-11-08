@@ -3,6 +3,8 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test, type Page} from '@playwright/test'
 import {serveHost} from '@conciv/extension-testkit/serve-host'
+import {currentHref} from '@conciv/extension-testkit/navigation-state'
+import {until} from '@conciv/harness-testkit/until'
 import {bootEmbedKit, type EmbedKit} from '../helpers/boot.js'
 import {hostPage} from '../helpers/host.js'
 import {openPanel} from './helpers/panel.js'
@@ -253,10 +255,39 @@ test('the disabled sections are listed but never navigate', async ({page}) => {
   await openWidget(page)
   await openSettings(page)
 
-  await expect(page.getByText('Composer', {exact: true})).toBeVisible()
-  await expect(page.getByText('Connection', {exact: true})).toBeVisible()
+  const sections = page.getByLabel('Settings sections')
+  await expect(sections.getByText('Composer')).toBeVisible()
+  await expect(sections.getByText('Connection')).toBeVisible()
   await expect(page.getByRole('link', {name: 'Composer'})).toHaveCount(0)
+  await expect(page.getByLabel('Settings sections').getByText('SOON', {exact: true})).toHaveCount(2)
   await expect(page.getByRole('heading', {name: 'Appearance'})).toBeVisible()
+})
+
+test('the back control returns to the conversation', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+
+  await page.getByRole('button', {name: 'Back to the conversation'}).click()
+
+  await expect(page.getByRole('heading', {name: 'Appearance'})).toBeHidden()
+  await expect(page.getByRole('button', {name: 'Session options'})).toBeVisible()
+})
+
+test('the back control still reaches the conversation when settings was restored from a reload', async ({page}) => {
+  await openWidget(page)
+  await openSettings(page)
+  await until(async () => (await currentHref(kit)).includes('/settings/appearance'), {
+    hangGuardMs: 30_000,
+    intervalMs: 100,
+  })
+
+  await page.goto(host.base, {waitUntil: 'domcontentloaded'})
+  await expect(page.getByRole('heading', {name: 'Appearance'})).toBeVisible({timeout: 30_000})
+
+  await page.getByRole('button', {name: 'Back to the conversation'}).click()
+
+  await expect(page.getByRole('heading', {name: 'Appearance'})).toBeHidden()
+  await expect(page.getByRole('button', {name: 'Session options'})).toBeVisible()
 })
 
 test('a failed write shows an inline error and rolls the choice back', async ({page}) => {

@@ -1,4 +1,4 @@
-export const SETTINGS_APPEARANCE_PATH = '/panel/settings/appearance'
+export const SETTINGS_APPEARANCE_PATH = '/panel/$sessionId/settings/appearance'
 
 export type SettingsSectionId = 'appearance' | 'composer' | 'connection'
 

@@ -1,6 +1,6 @@
 import {Link, Outlet, createFileRoute, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {For, Show, createMemo, createSignal, type Component, type JSX} from 'solid-js'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {Dialog, TooltipIconButton} from '@conciv/ui-kit-system'
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import Keyboard from 'lucide-solid/icons/keyboard'
 import Palette from 'lucide-solid/icons/palette'
@@ -26,7 +26,7 @@ const SECTION_ICONS: Record<SettingsSectionId, Component<{class?: string; 'aria-
   connection: Plug,
 }
 
-export const Route = createFileRoute('/panel/settings')({component: SettingsLayout})
+export const Route = createFileRoute('/panel/$sessionId/settings')({component: SettingsLayout})
 
 function SettingsLayout(): JSX.Element {
   const router = useRouter()
@@ -35,6 +35,7 @@ function SettingsLayout(): JSX.Element {
   const [nav, setNav] = createSignal<HTMLElement | undefined>()
   const [navLabel, setNavLabel] = createSignal<HTMLElement | undefined>()
   const [list, setList] = createSignal<HTMLUListElement | undefined>()
+  const [open, setOpen] = createSignal(true)
 
   const activeIndex = createMemo(() => {
     const index = SETTINGS_SECTIONS.findIndex((section) => section.path && matchRoute({to: section.path}))
@@ -42,10 +43,22 @@ function SettingsLayout(): JSX.Element {
   })
   const activeLabel = () => SETTINGS_SECTIONS[activeIndex()]?.label ?? 'Settings'
 
+  const params = Route.useParams()
+  const leave = () =>
+    void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
+
   return (
-    <>
+    <Dialog
+      variant="fill"
+      layer="inline"
+      label="Settings"
+      dismissable
+      open={open()}
+      onOpenChange={(next) => setOpen(next)}
+      onExitComplete={leave}
+    >
       <header class={RAIL}>
-        <TooltipIconButton tooltip="Back to the conversation" class={GHOST} onClick={() => router.history.back()}>
+        <TooltipIconButton tooltip="Back to the conversation" class={GHOST} onClick={() => setOpen(false)}>
           <ArrowLeft class="size-4 block" strokeWidth={1.75} aria-hidden="true" />
         </TooltipIconButton>
         <div class={RAIL_LEFT}>
@@ -74,11 +87,18 @@ function SettingsLayout(): JSX.Element {
                         <span class="chat-settings-nav-link" aria-disabled="true">
                           <Icon class="chat-settings-nav-icon" aria-hidden={true} />
                           {section.label}
+                          <span class="chat-settings-nav-soon">SOON</span>
                         </span>
                       }
                     >
                       {(path) => (
-                        <Link to={path} replace class="chat-settings-nav-link" activeProps={{'data-active': ''}}>
+                        <Link
+                          to={path}
+                          params={{sessionId: params().sessionId}}
+                          replace
+                          class="chat-settings-nav-link"
+                          activeProps={{'data-active': ''}}
+                        >
                           <Icon class="chat-settings-nav-icon" aria-hidden={true} />
                           {section.label}
                         </Link>
@@ -95,6 +115,6 @@ function SettingsLayout(): JSX.Element {
           <Outlet />
         </div>
       </div>
-    </>
+    </Dialog>
   )
 }

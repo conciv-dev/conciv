@@ -15,6 +15,9 @@ const CONTENT_SIZE = {
   lg: 'w-[min(34rem,calc(100vw-2rem))]',
   xl: 'w-[min(75rem,calc(100vw-2rem))]',
 }
+const FILL_POSITIONER = 'absolute inset-0 z-1 flex flex-col'
+const FILL_CONTENT =
+  'flex flex-1 flex-col min-h-0 min-w-0 [background:var(--chat-bg)] text-chat-text overflow-hidden focus-visible:outline-none data-[state=open]:anim-tab-right data-[state=closed]:anim-presence-out'
 
 type DialogName = {title: string; label?: never} | {label: string; title?: never}
 
@@ -22,44 +25,58 @@ export function Dialog(
   props: DialogName & {
     open: boolean
     onOpenChange?: (open: boolean) => void
+    onExitComplete?: () => void
     footer?: JSX.Element
     role?: 'dialog' | 'alertdialog'
     initialFocus?: () => HTMLElement | null
     restoreFocus?: boolean
     dismissable?: boolean
     size?: 'md' | 'lg' | 'xl'
+    variant?: 'card' | 'fill'
     layer?: 'page' | 'inline'
     children: JSX.Element
   },
 ): JSX.Element {
+  const fill = () => props.variant === 'fill'
   return (
     <Ark.Root
       open={props.open}
       onOpenChange={(d) => props.onOpenChange?.(d.open)}
+      onExitComplete={() => props.onExitComplete?.()}
       role={props.role ?? 'dialog'}
       modal
+      preventScroll={!fill()}
       closeOnEscape={props.dismissable ?? false}
-      closeOnInteractOutside={props.dismissable ?? false}
+      closeOnInteractOutside={!fill() && (props.dismissable ?? false)}
       initialFocusEl={props.initialFocus}
       restoreFocus={props.restoreFocus ?? true}
     >
-      <Ark.Backdrop class={BACKDROP} />
-      <Ark.Positioner class={POSITIONER}>
+      <Show when={!fill()}>
+        <Ark.Backdrop class={BACKDROP} />
+      </Show>
+      <Ark.Positioner class={fill() ? FILL_POSITIONER : POSITIONER}>
         <Ark.Content
-          class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
+          class={fill() ? FILL_CONTENT : `${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
           aria-label={props.title === undefined ? props.label : undefined}
         >
-          <div class={SHELL}>
-            <Show when={props.title}>
-              {(title) => (
-                <div class={HEADER}>
-                  <Ark.Title class={TITLE}>{title()}</Ark.Title>
-                </div>
-              )}
-            </Show>
-            <div class={BODY}>{props.children}</div>
-            <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
-          </div>
+          <Show
+            when={fill()}
+            fallback={
+              <div class={SHELL}>
+                <Show when={props.title}>
+                  {(title) => (
+                    <div class={HEADER}>
+                      <Ark.Title class={TITLE}>{title()}</Ark.Title>
+                    </div>
+                  )}
+                </Show>
+                <div class={BODY}>{props.children}</div>
+                <Show when={props.footer}>{(footer) => <div class={FOOTER}>{footer()}</div>}</Show>
+              </div>
+            }
+          >
+            {props.children}
+          </Show>
         </Ark.Content>
       </Ark.Positioner>
     </Ark.Root>

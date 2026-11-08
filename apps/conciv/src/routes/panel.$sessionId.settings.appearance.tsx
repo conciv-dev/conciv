@@ -4,7 +4,7 @@ import {useAnnounce, useAppData, useAppQueryClient, useRpc, useWidgetSettings} f
 import {SchemeField} from '../settings/scheme-field.js'
 import {createSchemeWrites} from '../settings/scheme-writes.js'
 
-export const Route = createFileRoute('/panel/settings/appearance')({component: AppearanceSection})
+export const Route = createFileRoute('/panel/$sessionId/settings/appearance')({component: AppearanceSection})
 
 function AppearanceSection(): JSX.Element {
   const rpc = useRpc()
@@ -12,7 +12,7 @@ function AppearanceSection(): JSX.Element {
   const queryClient = useAppQueryClient()
   const announce = useAnnounce()
   const settings = useWidgetSettings()
-  const writes = createSchemeWrites({rpc, data, queryClient, announce, revisions: settings.revisions})
+  const writes = createSchemeWrites({rpc, data, queryClient, announce})
 
   return (
     <>

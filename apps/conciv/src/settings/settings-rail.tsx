@@ -54,12 +54,12 @@ function verticalPlan(gutter: number, rootRect: DOMRect, headerCenter: number, r
   }
 }
 
-function horizontalPlan(rootRect: DOMRect, rows: Box[], active: number): Plan {
+function horizontalPlan(layerHeight: number, rows: Box[], active: number): Plan {
   const row = rows[active]
   return {
     spine: '',
     arms: '',
-    underline: centerline(rootRect.height - STROKE),
+    underline: centerline(layerHeight - STROKE),
     band: row ? {start: row.start, end: row.end} : {start: 0, end: 0},
   }
 }
@@ -121,7 +121,7 @@ export function SettingsRail(props: {
     const axis = readAxis(root)
     const rows = boxesOf(props.list(), rootRect, axis)
     if (rows.length === 0) return undefined
-    if (axis === 'horizontal') return {plan: horizontalPlan(rootRect, rows, props.active()), axis}
+    if (axis === 'horizontal') return {plan: horizontalPlan(root.clientHeight, rows, props.active()), axis}
     const gutter = Number.parseFloat(getComputedStyle(root).getPropertyValue('--chat-trace-gutter'))
     if (!(gutter > 0)) return undefined
     const header = props.header()

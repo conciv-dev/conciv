@@ -47,7 +47,6 @@ export function makeAppContextValue(options: AppContextValueOptions): AppContext
         source: 'default',
         layers: {project: {state: 'absent', value: undefined}, global: {state: 'absent', value: undefined}},
       }),
-      revisions: () => ({project: '', global: ''}),
       isLoading: () => false,
       isError: () => false,
       retry: () => {},
