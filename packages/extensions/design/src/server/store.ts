@@ -127,7 +127,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       orm.transaction((tx) => {
         tx.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row}).run()
         tx.delete(nodes).where(eq(nodes.target_id, design.id)).run()
-        for (const {gradient: _gradient, ...look} of nodeLooks(design))
+        for (const {gradient: _gradient, lineAuto: _auto, ...look} of nodeLooks(design))
           tx.insert(nodes)
             .values({...look, target_id: design.id, run_id: row.run_id})
             .run()

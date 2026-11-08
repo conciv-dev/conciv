@@ -44,10 +44,13 @@ type NodeLook = {
   token_gap: string | null
   token_padding: string | null
   gradient: {from: Stop; to: Stop} | null
+  lineAuto: boolean
 }
 
 type Stop = {color: string; opacity: number}
 
+const PIXELS = 'PIXELS'
+const INTRINSIC = 'INTRINSIC'
 const StopSchema = z.object({color: z.string(), opacity: z.number().default(1)})
 const PaintSchema = z.object({
   type: z.string(),
@@ -70,7 +73,7 @@ const FieldsSchema = z.object({
       family: z.string().optional(),
       size: z.number().optional(),
       weight: z.number().optional(),
-      lineHeight: z.object({value: z.number()}).optional(),
+      lineHeight: z.object({value: z.number(), unit: z.string().default(PIXELS)}).optional(),
       align: z.string().optional(),
     })
     .optional()
@@ -127,6 +130,7 @@ function lookOf(input: {
     token_font: tokens.font ?? null,
     token_gap: tokens.gap ?? null,
     token_padding: tokens.padding ?? null,
+    lineAuto: font?.lineHeight !== undefined && font.lineHeight.unit.startsWith(INTRINSIC),
     gradient: first === undefined || last === undefined ? null : {from: first, to: last},
   }
 }

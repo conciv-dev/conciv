@@ -405,7 +405,7 @@ function textRows(seen: Seen): Compared[] {
       ? []
       : [{kind: 'font weight' as const, expected: `${look.font_weight}`, found: `${styles.fontWeight}`, token}]),
     ...pxRow({kind: 'font size', expected: look.font_size, found: styles.fontSize, token}),
-    ...pxRow({kind: 'line height', expected: look.line_height, found: styles.lineHeight, token}),
+    ...pxRow({kind: 'line height', expected: look.lineAuto ? null : look.line_height, found: styles.lineHeight, token}),
   ]
 }
 

@@ -77,7 +77,9 @@ function fontOf(node: FigmaNode): Record<string, unknown> {
     size: style.fontSize,
     weight: style.fontWeight ?? REGULAR_WEIGHT,
     ...(style.fontStyle === undefined ? {} : {style: style.fontStyle}),
-    ...(style.lineHeightPx === undefined ? {} : {lineHeight: {unit: 'PIXELS', value: style.lineHeightPx}}),
+    ...(style.lineHeightPx === undefined
+      ? {}
+      : {lineHeight: {unit: style.lineHeightUnit ?? 'PIXELS', value: style.lineHeightPx}}),
     ...(style.letterSpacing === undefined || style.letterSpacing === 0
       ? {}
       : {letterSpacing: {unit: 'PIXELS', value: style.letterSpacing}}),
