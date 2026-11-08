@@ -1,4 +1,7 @@
 import {configDefaults, defineConfig} from 'vitest/config'
+import unocss from '@unocss/postcss'
+import unoConfig from './uno.config.js'
+import type {UserConfig} from 'unocss'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
@@ -14,6 +17,11 @@ const SHELL_DEPS = [
   'semver/functions/lt',
   'semver/functions/valid',
 ]
+const TEST_UNO_CONFIG: UserConfig = {
+  ...unoConfig,
+  configFile: false,
+  content: {...unoConfig.content, filesystem: [...(unoConfig.content?.filesystem ?? []), 'test/**/*.{ts,tsx}']},
+}
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 export default defineConfig(({mode}) => ({
@@ -32,6 +40,7 @@ export default defineConfig(({mode}) => ({
       },
       {
         plugins: [solidPlugin()],
+        css: {postcss: {plugins: [unocss({configOrPath: TEST_UNO_CONFIG})]}},
         optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS]),
         test: {
           ...ciTestSolidBrowser(),

@@ -44,7 +44,6 @@ import {
   useComposer,
   createTextAttachmentAdapter,
 } from '@conciv/ui-kit-chat'
-import './utilities.css'
 import '@conciv/ui-kit-chat/theme/tokens.css'
 import {useChatSession} from '@conciv/client'
 import {
