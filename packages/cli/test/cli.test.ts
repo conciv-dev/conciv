@@ -303,6 +303,27 @@ describe('cli', () => {
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
 
+    const serverStatus = defineTool({
+      name: 'server_status',
+      description: 'Report the acme status board.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({green: z.boolean()}),
+      meta: {summary: 'report the acme status board', mutating: false},
+    }).client()
+
+    const paint = defineTool({
+      name: 'acme_paint',
+      description: 'Paint strokes and patch the acme canvas.',
+      inputSchema: z.object({
+        patch: z.record(z.string(), z.unknown()),
+        strokes: z.array(z.object({x: z.number()}).loose()),
+      }),
+      outputSchema: z.object({painted: z.boolean()}),
+      meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
+    }).client()
+
+    const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
+
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
@@ -365,6 +386,45 @@ describe('cli', () => {
         const answer = await answerNextQuery(kit, {ok: true, result: {raised: true}})
         expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
         expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
+      })
+
+      it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {green: true}})
+        expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'server_status'})
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {green: true}})
+      })
+
+      it('parses object and array-of-object flags as JSON before sending them', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{"color":"red"}',
+            '--strokes',
+            '{"x":1}',
+            '--strokes',
+            '{"x":2,"y":3}',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {patch: {color: 'red'}, strokes: [{x: 1}, {x: 2, y: 3}]},
+        })
+      })
+
+      it('rejects a flag that is not valid JSON with the flag named', async () => {
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining('--patch: expected a JSON object')},
+        })
       })
 
       it('sends the effect argument to the server instead of dropping it', async () => {

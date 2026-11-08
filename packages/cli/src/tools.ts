@@ -1,7 +1,7 @@
 import {description, dynamic, extend, name, route, type AnyRoute} from '@bomb.sh/router'
 import {groupBy, partition} from 'es-toolkit'
 import {z} from 'zod'
-import {ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
+import {contract, ToolCommandSignatureSchema, type ToolCommandSignature} from '@conciv/contract'
 import {envelopeFlag} from './envelope.js'
 import {openCommand} from './open.js'
 import {pageChangesCommand} from './page.js'
@@ -32,7 +32,7 @@ function catalogRoutes(catalog: readonly ToolCommandSignature[]): AnyRoute[] {
       name: group,
       description: `the ${group} tools the running dev server serves; run --help for every capability`,
       signatures,
-      call: group === SERVER_GROUP ? callServerOperation : callRegistry,
+      call: group === SERVER_GROUP ? callServerTool : callRegistry,
       extra: group === PAGE_GROUP ? [pageChangesCommand] : [],
     }),
   )
@@ -62,6 +62,13 @@ function singleCommand(signature: ToolCommandSignature): AnyRoute {
 
 function groupOf(signature: ToolCommandSignature): string {
   return signature.name.slice(0, signature.name.indexOf('_'))
+}
+
+function callServerTool(signature: ToolCommandSignature, input: Record<string, unknown>) {
+  if (Object.hasOwn(contract.server, signature.name.slice(SERVER_GROUP.length + 1))) {
+    return callServerOperation(signature, input)
+  }
+  return callRegistry(signature, input)
 }
 
 function callRegistry(signature: ToolCommandSignature, input: Record<string, unknown>) {

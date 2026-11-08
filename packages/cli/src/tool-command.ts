@@ -28,6 +28,8 @@ const DeclaredInput = z.object({
   required: z.array(z.string()).default([]),
 })
 
+const JsonObject = z.record(z.string(), z.unknown())
+
 type DeclaredEntry = {name: string; required: boolean; field: Field}
 
 type ToolField = DeclaredEntry & {schema: Schema}
@@ -85,10 +87,26 @@ function fieldScalar(field: Field): z.ZodType {
 }
 
 function scalarSchema(type: string | undefined, format: string | undefined): z.ZodType {
+  if (type === 'object') return z.string().transform(jsonObject)
   if (type === 'number') return z.number()
   if (type === 'integer') return z.int()
   if (format === 'path') return z.string().transform(existingPath)
   return z.string()
+}
+
+function jsonObject(value: string, context: z.RefinementCtx): Record<string, unknown> {
+  const parsed = JsonObject.safeParse(parsedJson(value))
+  if (parsed.success) return parsed.data
+  context.addIssue({code: 'custom', message: `expected a JSON object, got ${value}`})
+  return z.NEVER
+}
+
+function parsedJson(value: string): unknown {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return undefined
+  }
 }
 
 function existingPath(value: string): string {
