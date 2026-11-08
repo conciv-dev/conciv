@@ -24,11 +24,11 @@ export function createXrayView(input: {
     return wanted !== null && widths().includes(wanted) ? wanted : designWidth()
   })
   const atDesignWidth = createMemo(() => shownWidth() === designWidth())
-  const rows = createMemo(() => {
-    const listed = (shownRound()?.rows ?? []).map((row) => ({...row, kind: kindOf(row.magnitude)}))
-    if (atDesignWidth()) return listed.filter((row) => row.magnitude !== 'reflow')
-    return listed.filter((row) => row.magnitude === 'reflow' && row.width === shownWidth())
-  })
+  const kinded = createMemo(() => (shownRound()?.rows ?? []).map((row) => ({...row, kind: kindOf(row.magnitude)})))
+  const designRows = createMemo(() => kinded().filter((row) => row.magnitude !== 'reflow'))
+  const widthRows = createMemo(() => kinded().filter((row) => row.magnitude === 'reflow' && row.width === shownWidth()))
+  const rows = createMemo(() => (atDesignWidth() ? designRows() : widthRows()))
+  const designById = createMemo(() => groupBy(designRows(), (row) => row.id ?? ''))
   const rowsById = createMemo(() => groupBy(rows(), (row) => row.id ?? ''))
   const tree = createMemo(() => layers.latest ?? null)
   const entries = createMemo(() => {
@@ -42,7 +42,7 @@ export function createXrayView(input: {
         return {
           node,
           rows: own,
-          shown: shownOf(own),
+          shown: shownOf(own.length > 0 ? own : (designById()[node.id] ?? [])),
           name: look?.name ?? node.src.element,
           paired: node.fom.length > 0,
         }

@@ -56,6 +56,7 @@ src/
     view.ts            the views over that data: widths, rows at the shown width, ids with their rows
     overlay.tsx        the host element on document.body, its shadow root and the hotkeys
     rail.tsx           the icon rail: on, pick, layers, magnitudes, panel
+    boxes.tsx          the ids drawn on the page: DOM boxes by magnitude, Figma boxes dashed, changed regions
     column.tsx         the content column: states, sliders, counts, rows and the round's images
 ```
 
