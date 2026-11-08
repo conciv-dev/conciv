@@ -35,12 +35,12 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `capture-queries.ts:writeToolCapture` dedupes CSS by `cssBundles.hash` (`onConflictDoNothing`) and upserts a capture on the composite key; `deleteSessionCaptures` deletes CSS bundles no remaining capture references.
 - `page-change-queries.ts:pageChangesFor` orders by the autoincrement `page_changes.id`, exposed as `seq`; `appendPageChange` throws when the insert returns no row.
 
-- `home-db.ts:openHomeDb` refuses (`HomeFolderRefused`) a home folder that is a symlink, not a directory, or owned by another uid. It sets WAL and applies `homeMigrations` with drizzle's `migrateSync`; when two processes migrate a fresh db at once the loser's run throws, and it runs the pragma and `migrateSync` once more on the same connection, which skips the migrations the winner recorded.
+- `home-db.ts:openHomeDb` refuses (`HomeFolderRefused`) a home folder that is a symlink, not a directory, or owned by another uid. It sets WAL and applies `homeMigrations` with drizzle's `migrateSync` while holding `BEGIN EXCLUSIVE` on a sibling `home.lock` sqlite file, so concurrent openers (threads or processes) migrate one at a time and each later one finds the migrations recorded. The lock is a separate file because `migrateSync` issues its own `BEGIN` on `home.db` and reads the applied migrations before it, so two unserialized openers both run `CREATE TABLE`; and a fresh file's `PRAGMA journal_mode = WAL` returns `database is locked` at once, without the busy timeout, when two connections race the switch. A lock held past the 5000 ms busy timeout fails the open with `database is locked`.
 - `home-db.ts:retireEngine` only sets `deletedAt`; no home db query deletes rows.
 
 ## Side Effects
 
-- `home-db.ts:openHomeDb` creates the home folder (`0700`, or `chmod 0700` when it exists), creates `home.db` with mode `0600`, opens it with a 5000 ms busy timeout and WAL.
+- `home-db.ts:openHomeDb` creates the home folder (`0700`, or `chmod 0700` when it exists), creates `home.db` and `home.lock` through sqlite and sets each to mode `0600` (never through a separate `fs` file descriptor, whose close would drop the process's sqlite locks on that file), opens `home.db` with a 5000 ms busy timeout and WAL.
 - `engine-check.ts:checkEngines` makes HTTP requests to each registered engine's `/health` and retires rows that fail the identity check.
 
 - `db.ts:openDb` creates `<stateRoot>/.conciv` with `mkdirSync`, opens `conciv.db` under `concivStateDir(stateRoot)` with `DatabaseSync` (5000 ms busy timeout), and sets `PRAGMA journal_mode = WAL`.
