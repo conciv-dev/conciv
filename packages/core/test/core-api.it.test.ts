@@ -2628,6 +2628,13 @@ describe('rpc wire', () => {
           if (owned === undefined) throw new Error('the curlew session was not listed')
           await searchKit().rpc.sessions.rename({sessionId: owned.id, title: 'the godwit count'})
           expect(await hitOf('godwit')).toEqual([{excerpt: null, matched: ['godwit']}])
+
+          const tabbed = claudeId('claude-tabbed')
+          writeClaudeTurn(tabbed, 'a tabbed tally', `${'alpha\t'.repeat(100)}phalarope`)
+          await foundOnceIndexed('phalarope', [tabbed])
+          const [phalarope] = await hitOf('phalarope')
+          expect(phalarope?.matched).toEqual(['phalarope'])
+          expect(phalarope?.excerpt).toMatch(/^….*phalarope$/s)
         })
 
         it('previews a native transcript newest window first, pages back by message, and refuses an unknown one', async () => {

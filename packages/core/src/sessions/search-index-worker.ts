@@ -183,7 +183,10 @@ function excerptOf(
 
 function excerptStart(body: string, lineStart: number, first: number): number {
   if (first - lineStart <= EXCERPT_LENGTH) return lineStart
-  return Math.max(lineStart, body.lastIndexOf(' ', first - EXCERPT_LEAD) + 1)
+  const lead = first - EXCERPT_LEAD
+  const floor = Math.max(lineStart, lead - EXCERPT_LEAD)
+  const gap = body.slice(floor, lead + 1).search(/\s\S*$/)
+  return gap < 0 ? lead : floor + gap + 1
 }
 
 function matchedWords(text: string, property: Property, queryTokens: string[], tolerance: number): string[] {
