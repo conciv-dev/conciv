@@ -5,12 +5,12 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {defineTool} from '@conciv/extension/tool'
 import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
+import {LiveStylesSchema} from './live-styles.js'
 import {DESIGN_ERRORS} from './errors.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 const DESIGN_EXTENSION_NAME = 'design'
-const BORDER_SIDES = ['top', 'right', 'bottom', 'left'] as const
 
 export const DESIGN_TOOL_PREFIX = 'design_'
 
@@ -50,28 +50,6 @@ const ContainerLayoutSchema = z.object({
 const NodeLayoutSchema = ContainerLayoutSchema.partial().extend({
   size: SizeSchema.describe('on the direction axis of the parent'),
   index: z.number().describe('1-based position among the parent children in reading order'),
-})
-
-const SizingSchema = z.enum(['fixed', 'set', 'auto'])
-
-const LiveStylesSchema = z.object({
-  background: z.string(),
-  color: z.string(),
-  fontSize: z.number(),
-  lineHeight: z.number(),
-  fontWeight: z.number(),
-  fontFamily: z.string(),
-  textAlign: z.string().describe('the computed text-align'),
-  radius: z.number(),
-  position: z.string(),
-  display: z.string().default(''),
-  flexDirection: z.string().default(''),
-  overflowX: z.string().default('visible'),
-  sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed: own px rule, set: any other size'),
-  border: z.object({width: z.number(), style: z.string(), color: z.string(), side: z.enum(BORDER_SIDES)}),
-  gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
-  opacity: z.number().optional(),
-  image: z.string().optional().describe('the src of an img, else the url of the background image'),
 })
 
 const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -334,11 +312,18 @@ const TaggedNodeSchema = z
   })
   .loose()
 
+const LinksSchema = z.union([z.url(), z.array(z.url()).min(1)])
+
+const PathsSchema = z.union([z.string().meta({format: 'path'}), z.array(z.string().meta({format: 'path'}))])
+
 const GetInputSchema = z
   .object({
-    figma: z.url().optional().describe('the Figma frame link, with its node-id'),
-    document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
-    image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
+    figma: LinksSchema.optional().describe('the Figma frame link, with its node-id; a list, one link per width'),
+    document: z
+      .unknown()
+      .optional()
+      .describe('the frame REST nodes document when the engine has no key; a list for several'),
+    image: PathsSchema.optional().describe('path of the design PNG, or the PNG as base64; a list for several'),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
@@ -352,6 +337,8 @@ const GetResultSchema = z.object({
   rules: z.array(z.string()),
   nodes: z.array(TaggedNodeSchema),
 })
+
+const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
 
 const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
 
@@ -451,11 +438,11 @@ function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
 const getDef = designTool({
   verb: 'get',
   summary:
-    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design.',
+    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design. With several links, one frame per width, each frame is registered and the reply holds one design per frame in variants.',
   running: 'Reading the design',
   done: 'Read the design',
   input: GetInputSchema,
-  output: GetResultSchema,
+  output: GetReplySchema,
   keywords: ['design', 'figma', 'frame', 'nodes', 'build'],
 })
 
@@ -572,7 +559,7 @@ export type Pairer = (input: {
 export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<RoundReply>
 
 export type Differ = {
-  get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<Got>
+  get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<z.output<typeof GetReplySchema>>
   check(input: {nodes: string[] | undefined; session: string}): Promise<Checked>
   status(input: {session: string}): Promise<Status>
   dispose(): void

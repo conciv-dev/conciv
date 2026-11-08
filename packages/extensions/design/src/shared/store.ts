@@ -22,6 +22,8 @@ export type Store = {
   rounds(id: string): Promise<Round[]>
   clear(id: string): Promise<void>
   current(session: string): Promise<TargetRecord | null>
+  variants(session: string): Promise<TargetRecord[]>
+  group(ids: string[]): Promise<void>
   list(): Promise<TargetRecord[]>
 }
 

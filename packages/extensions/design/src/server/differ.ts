@@ -29,9 +29,18 @@ export function createDiffer(input: {
   const edits = watchEdits(input.bundler)
   return {
     get: async ({input: query, session, page: access}) => {
+      const links = linksOf(query.figma)
+      if (links.length > 1) return {variants: await variantsGot({runtime, query, links, session, page: access})}
+      const one = {
+        ...query,
+        figma: links[0],
+        image: at({list: query.image, index: 0}),
+        document: at({list: query.document, index: 0}),
+      }
       const known = await store.current(session)
-      if (known !== null && sameRef({record: known, query, cwd: runtime.cwd})) return stored({runtime, record: known})
-      const record = await registered({runtime, query, session, page: access})
+      if (known !== null && sameRef({record: known, query: one, cwd: runtime.cwd}))
+        return stored({runtime, record: known})
+      const record = await registered({runtime, query: one, session, page: access})
       return stored({runtime, record})
     },
     check: async ({nodes, session}) => {
@@ -58,6 +67,8 @@ type DesignPage = ServerApi<unknown>['page']
 
 type GetQuery = Parameters<Differ['get']>[0]['input']
 
+type OneQuery = {figma?: string | undefined; image?: string | undefined; document?: unknown}
+
 const BASE64_REF = 'base64'
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
@@ -72,7 +83,7 @@ async function stored(input: {runtime: DesignRuntime; record: TargetRecord}): Pr
   return documentOf({target: record.id, design, ids})
 }
 
-function sameRef(input: {record: TargetRecord; query: GetQuery; cwd: string}): boolean {
+function sameRef(input: {record: TargetRecord; query: OneQuery; cwd: string}): boolean {
   const {record, query} = input
   if (query.figma === undefined && query.image === undefined) return true
   const link = query.figma === undefined ? null : figmaRef(query.figma)
@@ -90,7 +101,7 @@ function figmaRef(link: string): string | null {
 
 async function registered(input: {
   runtime: DesignRuntime
-  query: GetQuery
+  query: OneQuery
   session: string
   page: ServerToolPageAccess
 }): Promise<TargetRecord> {
@@ -151,13 +162,52 @@ function pngBase64(ref: string): Uint8Array<ArrayBuffer> | null {
   return PNG_SIGNATURE.every((byte, index) => bytes[index] === byte) ? bytes : null
 }
 
+async function variantsGot(input: {
+  runtime: DesignRuntime
+  query: GetQuery
+  links: string[]
+  session: string
+  page: ServerToolPageAccess
+}): Promise<Got[]> {
+  const {runtime, query, session} = input
+  const records: TargetRecord[] = []
+  for (const [index, link] of input.links.entries()) {
+    const held = await runtime.store.list()
+    const known = held.find((record) => record.session === session && record.ref === figmaRef(link))
+    const one = {figma: link, image: at({list: query.image, index}), document: at({list: query.document, index})}
+    records.push(known ?? (await registered({runtime, query: one, session, page: input.page})))
+  }
+  await runtime.store.group(records.map((record) => record.id))
+  const got = await Promise.all(records.map((record) => stored({runtime, record})))
+  return got.map((design) => ({
+    ...design,
+    rules: [...design.rules, variantRule({design, widths: records.map((record) => record.width)})],
+  }))
+}
+
+function variantRule(input: {design: Got; widths: number[]}): string {
+  const others = input.widths.filter((width) => width !== input.design.viewport.width).join(' and ')
+  return `This frame is the page at ${input.design.viewport.width} wide; the other variants are the same page at ${others} wide. Build one page, one set of elements, that matches each frame at its width, with media or container queries between them.`
+}
+
+function linksOf(figma: GetQuery['figma']): string[] {
+  if (figma === undefined) return []
+  return typeof figma === 'string' ? [figma] : figma
+}
+
+function at<Value>(input: {list: Value | Value[] | undefined; index: number}): Value | undefined {
+  const {list, index} = input
+  if (Array.isArray(list)) return list[index]
+  return index === 0 ? list : undefined
+}
+
 async function currentTarget(input: {runtime: DesignRuntime; session: string}): Promise<TargetRecord> {
   const record = await input.runtime.store.current(input.session)
   if (record !== null) return record
   throw toolError('no-target', {message: 'no design is registered; call design_get with the Figma link'})
 }
 
-function only(input: {checked: Extract<Checked, {round: number}>; nodes: string[]}): Checked {
+function only(input: {checked: Extract<Checked, {round: number}>; nodes: string[]}): Extract<Checked, {round: number}> {
   const wanted = new Set(input.nodes)
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }

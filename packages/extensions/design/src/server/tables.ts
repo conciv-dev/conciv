@@ -17,6 +17,7 @@ export function designTables(table: SQLiteTableFn) {
       ids: text({mode: 'json'}).$type<IdTree>(),
       image: text().notNull(),
       unsettled: integer().notNull().default(0),
+      lead: text(),
       at: integer().notNull(),
     }),
     rounds: table('rounds', {

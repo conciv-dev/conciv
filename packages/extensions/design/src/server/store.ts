@@ -1,4 +1,4 @@
-import {and, asc, desc, eq, max} from 'drizzle-orm'
+import {and, asc, desc, eq, inArray, max} from 'drizzle-orm'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
@@ -122,6 +122,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         ids: null,
         image: path,
         unsettled: 0,
+        lead: null,
         at: Date.now(),
       }
       orm.transaction((tx) => {
@@ -345,6 +346,21 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     current: async (session) => {
       const records = await list()
       return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
+    },
+    variants: async (session) => {
+      const held = await orm.select().from(targets).orderBy(asc(targets.at))
+      const last = held.filter((entry) => entry.session === session).at(-1) ?? held.at(-1)
+      if (last === undefined) return []
+      if (last.lead === null) return [recordOf(last)]
+      return held
+        .filter((entry) => entry.lead === last.lead)
+        .map(recordOf)
+        .toSorted((a, b) => b.width - a.width)
+    },
+    group: async (ids) => {
+      const [lead] = ids
+      if (lead === undefined) return
+      await orm.update(targets).set({lead}).where(inArray(targets.target_id, ids))
     },
     list,
   }
