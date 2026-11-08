@@ -1,0 +1,279 @@
+- generic [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - navigation [ref=f1e3]:
+      - heading [level=2] [ref=f1e4]:
+        - link "TanStack Start" [ref=f1e5] [cursor=pointer]:
+          - /url: /
+      - generic [ref=f1e7]:
+        - link "Home" [ref=f1e8] [cursor=pointer]:
+          - /url: /
+        - link "About" [ref=f1e9] [cursor=pointer]:
+          - /url: /about
+        - link "Form" [ref=f1e10] [cursor=pointer]:
+          - /url: /form
+        - link "Docs" [ref=f1e11] [cursor=pointer]:
+          - /url: https://tanstack.com/start/latest/docs/framework/react/overview
+      - generic [ref=f1e12]:
+        - link "Follow TanStack on X" [ref=f1e13] [cursor=pointer]:
+          - /url: https://x.com/tan_stack
+        - link "Go to TanStack GitHub" [ref=f1e17] [cursor=pointer]:
+          - /url: https://github.com/TanStack
+        - 'button "Theme mode: auto (system). Click to switch to light mode." [ref=f1e21] [cursor=pointer]': Auto
+  - main [ref=f1e22]:
+    - generic [ref=f1e24]:
+      - generic [ref=f1e25]:
+        - generic [ref=f1e26]: Page actions playground
+        - heading "A form with every interaction." [level=1] [ref=f1e28]
+        - paragraph [ref=f1e29]: Built with TanStack Form. Every native control on one screen so the agent can exercise fill, select, check, click, hover, press, scroll, and submit against real inputs.
+      - generic [ref=f1e30]:
+        - generic [ref=f1e31]:
+          - paragraph [ref=f1e32]: Controls on this page
+          - generic [ref=f1e33]: "10"
+        - generic [ref=f1e34]:
+          - generic [ref=f1e35]: text
+          - generic [ref=f1e36]: email
+          - generic [ref=f1e37]: number
+          - generic [ref=f1e38]: select
+          - generic [ref=f1e39]: radio
+          - generic [ref=f1e40]: checkbox
+          - generic [ref=f1e41]: range
+          - generic [ref=f1e42]: color
+          - generic [ref=f1e43]: date
+          - generic [ref=f1e44]: textarea
+    - generic [ref=f1e45]:
+      - form "Demo profile form" [ref=f1e46]:
+        - generic [ref=f1e47]:
+          - generic [ref=f1e48]:
+            - generic [ref=f1e49]:
+              - generic [ref=f1e50]: "1"
+              - heading "Identity" [level=2] [ref=f1e51]
+            - paragraph [ref=f1e52]: Text, email, number, and select
+          - generic [ref=f1e53]:
+            - generic [ref=f1e54]:
+              - generic [ref=f1e55]: Full name
+              - textbox "Full name" [ref=f1e57]:
+                - /placeholder: Ada Lovelace
+            - generic [ref=f1e58]:
+              - generic [ref=f1e59]: Email
+              - textbox "Email" [ref=f1e61]:
+                - /placeholder: ada@example.com
+            - generic [ref=f1e62]:
+              - generic [ref=f1e63]:
+                - generic [ref=f1e64]: Age
+                - generic [ref=f1e65]: 0–120
+              - spinbutton "Age" [ref=f1e66]: "18"
+            - generic [ref=f1e67]:
+              - generic [ref=f1e68]: Role
+              - combobox "Role" [ref=f1e70] [cursor=pointer]:
+                - option "Select a role…" [selected]
+                - option "Frontend"
+                - option "Backend"
+                - option "Full Stack"
+                - option "Design"
+                - option "Product"
+        - generic [ref=f1e71]:
+          - generic [ref=f1e72]:
+            - generic [ref=f1e73]:
+              - generic [ref=f1e74]: "2"
+              - heading "Craft" [level=2] [ref=f1e75]
+            - paragraph [ref=f1e76]: Radio group and checkbox group
+          - group "Experience" [ref=f1e77]:
+            - generic [ref=f1e79]:
+              - generic [ref=f1e80] [cursor=pointer]:
+                - radio "Junior (0-2 yrs)" [checked] [ref=f1e81]
+                - text: Junior (0-2 yrs)
+              - generic [ref=f1e82] [cursor=pointer]:
+                - radio "Mid (2-5 yrs)" [ref=f1e83]
+                - text: Mid (2-5 yrs)
+              - generic [ref=f1e84] [cursor=pointer]:
+                - radio "Senior (5+ yrs)" [ref=f1e85]
+                - text: Senior (5+ yrs)
+          - group "Skills" [ref=f1e86]:
+            - generic [ref=f1e88]:
+              - generic [ref=f1e89] [cursor=pointer]:
+                - checkbox "React" [ref=f1e90]
+                - text: React
+              - generic [ref=f1e91] [cursor=pointer]:
+                - checkbox "TypeScript" [ref=f1e92]
+                - text: TypeScript
+              - generic [ref=f1e93] [cursor=pointer]:
+                - checkbox "CSS" [ref=f1e94]
+                - text: CSS
+              - generic [ref=f1e95] [cursor=pointer]:
+                - checkbox "Node" [ref=f1e96]
+                - text: Node
+              - generic [ref=f1e97] [cursor=pointer]:
+                - checkbox "Testing" [ref=f1e98]
+                - text: Testing
+        - generic [ref=f1e99]:
+          - generic [ref=f1e100]:
+            - generic [ref=f1e101]:
+              - generic [ref=f1e102]: "3"
+              - heading "Preferences" [level=2] [ref=f1e103]
+            - paragraph [ref=f1e104]: Range, color, and date
+          - generic [ref=f1e105]:
+            - generic [ref=f1e106]:
+              - generic [ref=f1e107]:
+                - generic [ref=f1e108]: Satisfaction
+                - generic [ref=f1e109]: 5 / 10
+              - generic [ref=f1e110]:
+                - slider "Satisfaction" [ref=f1e111] [cursor=pointer]: "5"
+                - generic [ref=f1e112]:
+                  - generic [ref=f1e113]: "0"
+                  - generic [ref=f1e114]: "10"
+            - generic [ref=f1e115]:
+              - generic [ref=f1e116]: Birthday
+              - textbox "Birthday" [ref=f1e118]
+            - generic [ref=f1e119]:
+              - generic [ref=f1e120]: Favorite color
+              - generic [ref=f1e122]:
+                - textbox "Favorite color" [ref=f1e123] [cursor=pointer]: "#4fb8b2"
+                - generic [ref=f1e124]: "#4fb8b2"
+        - generic [ref=f1e125]:
+          - generic [ref=f1e126]:
+            - generic [ref=f1e127]:
+              - generic [ref=f1e128]: "4"
+              - heading "About you" [level=2] [ref=f1e129]
+            - paragraph [ref=f1e130]: Multi-line text
+          - generic [ref=f1e131]:
+            - generic [ref=f1e132]:
+              - generic [ref=f1e133]: Bio
+              - generic [ref=f1e134]: 0 characters
+            - textbox "Bio" [ref=f1e135]:
+              - /placeholder: Tell us about yourself…
+        - generic [ref=f1e136]:
+          - generic [ref=f1e137]:
+            - generic [ref=f1e138]:
+              - generic [ref=f1e139]: "5"
+              - heading "Consent" [level=2] [ref=f1e140]
+            - paragraph [ref=f1e141]: Required before submitting
+          - generic [ref=f1e142]:
+            - generic [ref=f1e143] [cursor=pointer]:
+              - checkbox "Subscribe to the newsletter Occasional product notes. Optional." [ref=f1e144]
+              - generic [ref=f1e145]:
+                - generic [ref=f1e146]: Subscribe to the newsletter
+                - generic [ref=f1e147]: Occasional product notes. Optional.
+            - generic [ref=f1e149] [cursor=pointer]:
+              - checkbox "I accept the terms and conditions Required. Validation runs as soon as you touch the field." [ref=f1e150]
+              - generic [ref=f1e151]:
+                - generic [ref=f1e152]: I accept the terms and conditions
+                - generic [ref=f1e153]: Required. Validation runs as soon as you touch the field.
+        - generic [ref=f1e154]:
+          - generic [ref=f1e155]: Ready to submit
+          - generic [ref=f1e157]:
+            - button "Reset" [ref=f1e158] [cursor=pointer]
+            - button "Submit" [ref=f1e159] [cursor=pointer]
+      - complementary "Live form state" [ref=f1e160]:
+        - generic [ref=f1e161]:
+          - generic [ref=f1e162]:
+            - paragraph [ref=f1e163]: Live state
+            - generic [ref=f1e164]: updates on change
+          - generic [ref=f1e165]: "{ \"fullName\": \"\", \"email\": \"\", \"age\": 18, \"role\": \"\", \"experience\": \"junior\", \"bio\": \"\", \"skills\": [], \"satisfaction\": 5, \"favoriteColor\": \"#4fb8b2\", \"birthday\": \"\", \"newsletter\": false, \"terms\": false }"
+        - generic [ref=f1e166]:
+          - paragraph [ref=f1e168]: Last submission
+          - paragraph [ref=f1e169]: Submit the form to see the payload here.
+  - contentinfo [ref=f1e170]:
+    - generic [ref=f1e171]:
+      - generic [ref=f1e172]:
+        - paragraph [ref=f1e173]: Built with TanStack Start
+        - paragraph [ref=f1e174]: © 2026 Your name here. All rights reserved.
+      - generic [ref=f1e175]:
+        - link "Follow TanStack on X" [ref=f1e176] [cursor=pointer]:
+          - /url: https://x.com/tan_stack
+        - link "Go to TanStack GitHub" [ref=f1e180] [cursor=pointer]:
+          - /url: https://github.com/TanStack
+  - generic:
+    - generic [active]:
+      - generic:
+        - generic:
+          - dialog "conciv chat agent" [ref=f1e184]:
+            - region "Notifications, bottom (alt+T)"
+            - separator "Resize chat height" [ref=f1e185]
+            - separator "Resize chat width" [ref=f1e186]
+            - banner [ref=f1e187]:
+              - button "Pop out to a window" [ref=f1e188] [cursor=pointer]
+              - generic [ref=f1e192]: conciv
+              - 'button "Session: draw a labeled flowchart on the whiteboard showing how conciv works: your app, t" [ref=f1e195] [cursor=pointer]':
+                - generic [ref=f1e197]: "draw a labeled flowchart on the whiteboard showing how conciv works: your app, t"
+              - button "Model context usage" [ref=f1e200] [cursor=pointer]:
+                - generic [ref=f1e201]: 67%
+                - img "Model context usage" [ref=f1e202]
+              - button "Close chat" [ref=f1e205] [cursor=pointer]
+            - tablist [ref=f1e210]:
+              - tab "Chat" [selected] [ref=f1e211] [cursor=pointer]
+              - tab "Terminal" [ref=f1e212] [cursor=pointer]
+              - tab "Recorder" [ref=f1e216] [cursor=pointer]
+            - generic [ref=f1e225]:
+              - log [ref=f1e226]:
+                - separator "New session" [ref=f1e227]
+                - generic [ref=f1e232]: "draw a labeled flowchart on the whiteboard showing how conciv works: your app, the conciv widget, the agent, and the source files. use solid boxes with clear labels, connect them with arrows, and make sure everything has real margin so nothing touches the canvas edge"
+                - generic [ref=f1e233]:
+                  - button "Chain of Thought" [ref=f1e236] [cursor=pointer]
+                  - paragraph [ref=f1e249]: Now arrows.
+                  - button "Chain of Thought" [ref=f1e252] [cursor=pointer]
+                  - paragraph [ref=f1e265]: Preview before commit.
+                  - button "Chain of Thought" [ref=f1e268] [cursor=pointer]
+                  - paragraph [ref=f1e281]: Flowchart drawn, published. 4 boxes (App, Widget, Agent, Source Files), arrows App→Widget→Agent↔Source Files, margins clear of canvas edge.
+                - generic [ref=f1e282]: the boxes have no visible labels and no arrows connecting them, and the top box is clipped off the canvas edge. please add a clear white text label to each box (your app, conciv widget, agent, source files), draw solid arrows connecting them in order, and reposition everything so it all fits with real margin inside the canvas
+                - generic [ref=f1e283]:
+                  - button "Chain of Thought" [ref=f1e286] [cursor=pointer]
+                  - paragraph [ref=f1e299]: Clearing whole board, redoing clean.
+                  - button "Chain of Thought" [ref=f1e302] [cursor=pointer]
+                  - paragraph [ref=f1e315]: "Old elements moved off-canvas. Redrawing clean set: rectangles, then labels on top, then arrows in order."
+                  - button "Chain of Thought" [ref=f1e318] [cursor=pointer]
+                  - paragraph [ref=f1e331]: Now arrows drawn manually with explicit coordinates (connect was buggy last time).
+                  - button "Chain of Thought" [ref=f1e334] [cursor=pointer]
+                  - generic [ref=f1e346]:
+                    - paragraph [ref=f1e347]:
+                      - text: "Fixed and published. Root cause: rectangles drawn after text/arrows buried them (z-order), and"
+                      - code [ref=f1e348]: canvas.connect
+                      - text: placed arrows unbound at (0,0) instead of between boxes.
+                    - paragraph [ref=f1e349]: "Now: rects → white labels on top → hand-placed solid arrows (App→Widget→Agent→Source Files), all within margin (x:80–880, y:220–520), old broken elements moved off-canvas (-9000,-9000; delete/clear needs approval that timed out headless, so parked them instead)."
+                - generic [ref=f1e350]: the first three boxes still have no text labels at all, and the fourth box says the placeholder word drawing instead of Source Files. please add the correct white bold label text on top of each of the 4 boxes (Your App, conciv Widget, Agent, Source Files) so they are clearly legible, then confirm when settled
+                - generic [ref=f1e351]:
+                  - button "Chain of Thought" [ref=f1e354] [cursor=pointer]
+                  - paragraph [ref=f1e367]: "Labels were buried under the boxes (rects had higher z-order than text). Bumped label z-order above the rects, set bold + fontSize 22, all 4 white texts confirmed present in live canvas data: Your App, Conciv Widget, Agent, Source Files. Please check the board — that should fix all 3 missing labels and the \"Source Files\" one too."
+                - generic [ref=f1e368]: still nothing visible on the canvas. instead of separate text elements, please double-click directly into each rectangle to add its native bound label (Your App, conciv Widget, Agent, Source Files), which renders on top of the fill automatically. also delete or fix the stray drawing text near the fourth box.
+                - generic [ref=f1e369]:
+                  - button "Chain of Thought" [ref=f1e372] [cursor=pointer]
+                  - paragraph [ref=f1e385]:
+                    - text: "Bound labels wired: 4 texts have"
+                    - code [ref=f1e386]: containerId
+                    - text: = matching rect, rects have
+                    - code [ref=f1e387]: boundElements
+                    - text: back-ref. No stray "drawing" element exists in the data (checked full element list) — that word must be a stale UI artifact from the earlier failed clear/delete approval, not canvas data; nothing here to delete.
+                  - button "Chain of Thought" [ref=f1e390] [cursor=pointer]
+                  - paragraph [ref=f1e403]: Updates applied directly to live canvas already (no draft pending). Check the board now — 4 boxes should show bold white centered labels natively bound to each rectangle. If that "drawing" text is still visible, it's a stale UI overlay, not a canvas element — refresh the tab should clear it.
+                - generic [ref=f1e404]: "the layout is good but this app's chat panel is docked on the right edge and covers part of the diagram at 100% zoom. please move all 4 boxes into a vertical stack down the left third of the canvas instead (top to bottom: Your App, conciv Widget, Agent, Source Files), each with real margin, arrows connecting them in order"
+                - generic [ref=f1e405]:
+                  - button "Chain of Thought" [ref=f1e408] [cursor=pointer]
+                  - paragraph [ref=f1e421]: Now draw new vertical arrows connecting the stack.
+                  - button "Chain of Thought" [ref=f1e424] [cursor=pointer]
+                  - paragraph [ref=f1e437]: Done. Boxes now stacked left third (x:60–320), top to bottom Your App→Widget→Agent→Source Files, 60px gaps, vertical arrows between each, clear of right edge where your chat panel sits.
+                  - toolbar "Message actions" [ref=f1e438]:
+                    - button "Copy" [ref=f1e439] [cursor=pointer]
+                    - button "Refresh" [ref=f1e448] [cursor=pointer]
+                    - button "More" [ref=f1e454] [cursor=pointer]
+              - generic [ref=f1e461]:
+                - generic [ref=f1e463]:
+                  - textbox "Message the conciv agent" [ref=f1e465]:
+                    - paragraph [ref=f1e466]
+                  - generic: Ask a question…
+                - generic [ref=f1e467]:
+                  - button "Choose File" [ref=f1e468]
+                  - button "Add attachment" [ref=f1e469] [cursor=pointer]
+                  - button "Select an element from the page" [ref=f1e472] [cursor=pointer]
+                  - button "Start a new session" [ref=f1e475] [cursor=pointer]
+                  - button "Compress the conversation" [ref=f1e479] [cursor=pointer]
+                  - button "Terminal options for Claude" [ref=f1e484] [cursor=pointer]
+                  - button "Open the whiteboard canvas" [ref=f1e488] [cursor=pointer]
+                  - button "Comment on an element" [ref=f1e492] [cursor=pointer]
+                  - status "TanStack inspector active" [ref=f1e495]
+                  - button "Select model" [ref=f1e505] [cursor=pointer]:
+                    - generic [ref=f1e506]: Claude Sonnet 4.6
+                  - generic [ref=f1e511]:
+                    - button "Refresh the conversation" [ref=f1e513] [cursor=pointer]
+                    - button "Send message" [disabled] [ref=f1e519]
+          - button "Minimize conciv chat" [expanded] [ref=f1e522] [cursor=pointer]
+          - status
+          - alert

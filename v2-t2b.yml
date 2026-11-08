@@ -1,0 +1,234 @@
+- generic [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - navigation [ref=f1e3]:
+      - heading [level=2] [ref=f1e4]:
+        - link "TanStack Start" [ref=f1e5] [cursor=pointer]:
+          - /url: /
+      - generic [ref=f1e7]:
+        - link "Home" [ref=f1e8] [cursor=pointer]:
+          - /url: /
+        - link "About" [ref=f1e9] [cursor=pointer]:
+          - /url: /about
+        - link "Form" [ref=f1e10] [cursor=pointer]:
+          - /url: /form
+        - link "Docs" [ref=f1e11] [cursor=pointer]:
+          - /url: https://tanstack.com/start/latest/docs/framework/react/overview
+      - generic [ref=f1e12]:
+        - link "Follow TanStack on X" [ref=f1e13] [cursor=pointer]:
+          - /url: https://x.com/tan_stack
+        - link "Go to TanStack GitHub" [ref=f1e17] [cursor=pointer]:
+          - /url: https://github.com/TanStack
+        - 'button "Theme mode: dark. Click to switch mode." [ref=f1e21] [cursor=pointer]': Dark
+  - main [ref=f1e22]:
+    - generic [ref=f1e24]:
+      - generic [ref=f1e25]:
+        - generic [ref=f1e26]: Page actions playground
+        - heading "A form with every interaction." [level=1] [ref=f1e28]
+        - paragraph [ref=f1e29]: Built with TanStack Form. Every native control on one screen so the agent can exercise fill, select, check, click, hover, press, scroll, and submit against real inputs.
+      - generic [ref=f1e30]:
+        - generic [ref=f1e31]:
+          - paragraph [ref=f1e32]: Controls on this page
+          - generic [ref=f1e33]: "10"
+        - generic [ref=f1e34]:
+          - generic [ref=f1e35]: text
+          - generic [ref=f1e36]: email
+          - generic [ref=f1e37]: number
+          - generic [ref=f1e38]: select
+          - generic [ref=f1e39]: radio
+          - generic [ref=f1e40]: checkbox
+          - generic [ref=f1e41]: range
+          - generic [ref=f1e42]: color
+          - generic [ref=f1e43]: date
+          - generic [ref=f1e44]: textarea
+    - generic [ref=f1e45]:
+      - form "Demo profile form" [ref=f1e46]:
+        - generic [ref=f1e47]:
+          - generic [ref=f1e48]:
+            - generic [ref=f1e49]:
+              - generic [ref=f1e50]: "1"
+              - heading "Identity" [level=2] [ref=f1e51]
+            - paragraph [ref=f1e52]: Text, email, number, and select
+          - generic [ref=f1e53]:
+            - generic [ref=f1e54]:
+              - generic [ref=f1e55]: Full name
+              - textbox "Full name" [ref=f1e57]:
+                - /placeholder: Ada Lovelace
+            - generic [ref=f1e58]:
+              - generic [ref=f1e59]: Email
+              - textbox "Email" [ref=f1e61]:
+                - /placeholder: ada@example.com
+            - generic [ref=f1e62]:
+              - generic [ref=f1e63]:
+                - generic [ref=f1e64]: Age
+                - generic [ref=f1e65]: 0–120
+              - spinbutton "Age" [ref=f1e66]: "18"
+            - generic [ref=f1e67]:
+              - generic [ref=f1e68]: Role
+              - combobox "Role" [ref=f1e70] [cursor=pointer]:
+                - option "Select a role…" [selected]
+                - option "Frontend"
+                - option "Backend"
+                - option "Full Stack"
+                - option "Design"
+                - option "Product"
+        - generic [ref=f1e71]:
+          - generic [ref=f1e72]:
+            - generic [ref=f1e73]:
+              - generic [ref=f1e74]: "2"
+              - heading "Craft" [level=2] [ref=f1e75]
+            - paragraph [ref=f1e76]: Radio group and checkbox group
+          - group "Experience" [ref=f1e77]:
+            - generic [ref=f1e79]:
+              - generic [ref=f1e80] [cursor=pointer]:
+                - radio "Junior (0-2 yrs)" [checked] [ref=f1e81]
+                - text: Junior (0-2 yrs)
+              - generic [ref=f1e82] [cursor=pointer]:
+                - radio "Mid (2-5 yrs)" [ref=f1e83]
+                - text: Mid (2-5 yrs)
+              - generic [ref=f1e84] [cursor=pointer]:
+                - radio "Senior (5+ yrs)" [ref=f1e85]
+                - text: Senior (5+ yrs)
+          - group "Skills" [ref=f1e86]:
+            - generic [ref=f1e88]:
+              - generic [ref=f1e89] [cursor=pointer]:
+                - checkbox "React" [ref=f1e90]
+                - text: React
+              - generic [ref=f1e91] [cursor=pointer]:
+                - checkbox "TypeScript" [ref=f1e92]
+                - text: TypeScript
+              - generic [ref=f1e93] [cursor=pointer]:
+                - checkbox "CSS" [ref=f1e94]
+                - text: CSS
+              - generic [ref=f1e95] [cursor=pointer]:
+                - checkbox "Node" [ref=f1e96]
+                - text: Node
+              - generic [ref=f1e97] [cursor=pointer]:
+                - checkbox "Testing" [ref=f1e98]
+                - text: Testing
+        - generic [ref=f1e99]:
+          - generic [ref=f1e100]:
+            - generic [ref=f1e101]:
+              - generic [ref=f1e102]: "3"
+              - heading "Preferences" [level=2] [ref=f1e103]
+            - paragraph [ref=f1e104]: Range, color, and date
+          - generic [ref=f1e105]:
+            - generic [ref=f1e106]:
+              - generic [ref=f1e107]:
+                - generic [ref=f1e108]: Satisfaction
+                - generic [ref=f1e109]: 5 / 10
+              - generic [ref=f1e110]:
+                - slider "Satisfaction" [ref=f1e111] [cursor=pointer]: "5"
+                - generic [ref=f1e112]:
+                  - generic [ref=f1e113]: "0"
+                  - generic [ref=f1e114]: "10"
+            - generic [ref=f1e115]:
+              - generic [ref=f1e116]: Birthday
+              - textbox "Birthday" [ref=f1e118]
+            - generic [ref=f1e119]:
+              - generic [ref=f1e120]: Favorite color
+              - generic [ref=f1e122]:
+                - textbox "Favorite color" [ref=f1e123] [cursor=pointer]: "#4fb8b2"
+                - generic [ref=f1e124]: "#4fb8b2"
+        - generic [ref=f1e125]:
+          - generic [ref=f1e126]:
+            - generic [ref=f1e127]:
+              - generic [ref=f1e128]: "4"
+              - heading "About you" [level=2] [ref=f1e129]
+            - paragraph [ref=f1e130]: Multi-line text
+          - generic [ref=f1e131]:
+            - generic [ref=f1e132]:
+              - generic [ref=f1e133]: Bio
+              - generic [ref=f1e134]: 0 characters
+            - textbox "Bio" [ref=f1e135]:
+              - /placeholder: Tell us about yourself…
+        - generic [ref=f1e136]:
+          - generic [ref=f1e137]:
+            - generic [ref=f1e138]:
+              - generic [ref=f1e139]: "5"
+              - heading "Consent" [level=2] [ref=f1e140]
+            - paragraph [ref=f1e141]: Required before submitting
+          - generic [ref=f1e142]:
+            - generic [ref=f1e143] [cursor=pointer]:
+              - checkbox "Subscribe to the newsletter Occasional product notes. Optional." [ref=f1e144]
+              - generic [ref=f1e145]:
+                - generic [ref=f1e146]: Subscribe to the newsletter
+                - generic [ref=f1e147]: Occasional product notes. Optional.
+            - generic [ref=f1e149] [cursor=pointer]:
+              - checkbox "I accept the terms and conditions Required. Validation runs as soon as you touch the field." [ref=f1e150]
+              - generic [ref=f1e151]:
+                - generic [ref=f1e152]: I accept the terms and conditions
+                - generic [ref=f1e153]: Required. Validation runs as soon as you touch the field.
+        - generic [ref=f1e154]:
+          - generic [ref=f1e155]: Ready to submit
+          - generic [ref=f1e157]:
+            - button "Reset" [ref=f1e158] [cursor=pointer]
+            - button "Submit" [ref=f1e159] [cursor=pointer]
+      - complementary "Live form state" [ref=f1e160]:
+        - generic [ref=f1e161]:
+          - generic [ref=f1e162]:
+            - paragraph [ref=f1e163]: Live state
+            - generic [ref=f1e164]: updates on change
+          - generic [ref=f1e165]: "{ \"fullName\": \"\", \"email\": \"\", \"age\": 18, \"role\": \"\", \"experience\": \"junior\", \"bio\": \"\", \"skills\": [], \"satisfaction\": 5, \"favoriteColor\": \"#4fb8b2\", \"birthday\": \"\", \"newsletter\": false, \"terms\": false }"
+        - generic [ref=f1e166]:
+          - paragraph [ref=f1e168]: Last submission
+          - paragraph [ref=f1e169]: Submit the form to see the payload here.
+  - contentinfo [ref=f1e170]:
+    - generic [ref=f1e171]:
+      - generic [ref=f1e172]:
+        - paragraph [ref=f1e173]: Built with TanStack Start
+        - paragraph [ref=f1e174]: © 2026 Your name here. All rights reserved.
+      - generic [ref=f1e175]:
+        - link "Follow TanStack on X" [ref=f1e176] [cursor=pointer]:
+          - /url: https://x.com/tan_stack
+        - link "Go to TanStack GitHub" [ref=f1e180] [cursor=pointer]:
+          - /url: https://github.com/TanStack
+  - generic:
+    - generic [active]:
+      - generic:
+        - generic:
+          - dialog "conciv chat agent" [ref=f1e184]:
+            - region "Notifications, bottom (alt+T)"
+            - separator "Resize chat height" [ref=f1e185]
+            - separator "Resize chat width" [ref=f1e186]
+            - banner [ref=f1e950]:
+              - button "Pop out to a window" [ref=f1e951] [cursor=pointer]
+              - generic [ref=f1e955]: conciv
+              - 'button "Session: New session" [ref=f1e958] [cursor=pointer]':
+                - generic [ref=f1e960]: New session
+              - button "Close chat" [ref=f1e963] [cursor=pointer]
+            - tablist [ref=f1e968]:
+              - tab "Chat" [selected] [ref=f1e969] [cursor=pointer]
+              - tab "Terminal" [ref=f1e970] [cursor=pointer]
+              - tab "Recorder" [ref=f1e974] [cursor=pointer]
+            - generic [ref=f1e983]:
+              - log [ref=f1e984]:
+                - generic [ref=f1e985]:
+                  - paragraph [ref=f1e986]: How can I help you today?
+                  - generic [ref=f1e987]:
+                    - button "Explain this page" [ref=f1e988] [cursor=pointer]
+                    - button "Change the primary color" [ref=f1e989] [cursor=pointer]
+                    - button "Why doesn't this layout fit?" [ref=f1e990] [cursor=pointer]
+                - separator "New session" [ref=f1e991]
+              - generic [ref=f1e998]:
+                - generic [ref=f1e1000]:
+                  - textbox "Message the conciv agent" [ref=f1e1002]:
+                    - paragraph [ref=f1e1003]
+                  - generic: Ask a question…
+                - generic [ref=f1e1004]:
+                  - button "Choose File" [ref=f1e1005]
+                  - button "Add attachment" [ref=f1e1006] [cursor=pointer]
+                  - button "Select an element from the page" [ref=f1e1009] [cursor=pointer]
+                  - button "Start a new session" [ref=f1e1012] [cursor=pointer]
+                  - button "Compress the conversation" [ref=f1e1016] [cursor=pointer]
+                  - button "Terminal options for Claude" [ref=f1e1021] [cursor=pointer]
+                  - button "Open the whiteboard canvas" [ref=f1e1025] [cursor=pointer]
+                  - button "Comment on an element" [ref=f1e1029] [cursor=pointer]
+                  - status "TanStack inspector active" [ref=f1e1032]
+                  - button "Select model" [ref=f1e1042] [cursor=pointer]:
+                    - generic [ref=f1e1043]: Claude Sonnet 4.6
+                  - generic [ref=f1e1048]:
+                    - button "Refresh the conversation" [ref=f1e1050] [cursor=pointer]
+                    - button "Send message" [disabled] [ref=f1e1056]
+          - button "Minimize conciv chat" [expanded] [ref=f1e215] [cursor=pointer]
+          - status: Started a new session
+          - alert

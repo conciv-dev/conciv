@@ -1,0 +1,8 @@
+{
+  "browser": {
+    "contextOptions": {
+      "viewport": {"width": 1280, "height": 800},
+      "deviceScaleFactor": 3
+    }
+  }
+}
