@@ -3844,11 +3844,31 @@ describe('outside agent consent', () => {
     await decideOutside(base, sessionId, false)
     expect(await asked).toContain(DENIED)
     expect(await hubRpc.page.clearChanges(undefined).then(String, String)).toContain(DENIED)
-    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(DENIED)
+    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain("outside agents can't answer")
     expect(await hubRpc.chat.hydrate({sessionId}).then(String, String)).toContain(DENIED)
     const own = rpcOf(base, sessionId)
     expect(await own.chat.outsideAccess({sessionId})).toEqual({denied: true})
     expect(await own.page.changes(undefined)).toEqual([])
+  })
+
+  it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {
+    const base = await boot()
+    const sessionId = await newSession(base)
+    const allowed = hubCall(base, sessionId)
+    await decideOutside(base, sessionId, true)
+    expect(await allowed).toMatch(RAN)
+    const own = rpcOf(base, sessionId)
+    const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const [card] = await pendingOf(base, sessionId)
+    const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+    const decision = {approvalId: card?.approvalId ?? '', approved: true}
+    const refusal = "outside agents can't answer permission requests; decide it in the tab"
+    expect(await hubRpc.chat.permissionDecision(decision).then(String, String)).toContain(refusal)
+    expect(await hubRpc.chat.allowOutside({sessionId}).then(String, String)).toContain(refusal)
+    expect(await pendingOf(base, sessionId)).toEqual([card])
+    await own.chat.permissionDecision({approvalId: card?.approvalId ?? '', approved: false})
+    await waiting
   })
 
   it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {

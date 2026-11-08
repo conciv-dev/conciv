@@ -74,8 +74,16 @@ export function makeSessionOs(deps: RpcDeps) {
   })
 }
 
+const DECIDING_PROCEDURES = new Set(['chat.permissionDecision', 'chat.allowOutside'])
+
+const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
+
 export function makeHubAdmission(deps: RpcDeps) {
-  return os.middleware(async ({context, next, signal}, input: unknown) => {
+  return os.middleware(async ({context, next, signal, path}, input: unknown) => {
+    const outside = callTrace((header) => rpcHeader(context, header)).hub !== null
+    if (outside && DECIDING_PROCEDURES.has(path.join('.'))) {
+      throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
+    }
     const named = NamedSessionSchema.safeParse(input)
     if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
     return next()
