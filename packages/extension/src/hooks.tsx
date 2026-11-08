@@ -1,5 +1,5 @@
 import {onCleanup, onMount, splitProps, useContext, type Component, type JSX} from 'solid-js'
-import {HostApiContext, use, type HostWiring} from './host-context.js'
+import {HostApiContext, use, type HostWiring, type HotkeyRegistry} from './host-context.js'
 
 export {useExtensionValue} from './host-context.js'
 
@@ -34,10 +34,19 @@ const hostApi = {
   useSlot: () => use('slot', 'useSlot'),
   useConnect: () => use('connect', 'useConnect'),
   useColorScheme: () => use('colorScheme', 'useColorScheme'),
+  useHotkeys: () => hotkeysFor({hotkeys: use('hotkeys', 'useHotkeys'), owner: use('owner', 'useHotkeys')}),
   Suppress: layerComponent(true, 'Suppress'),
   YieldFocus: layerComponent(false, 'YieldFocus'),
 }
 
 export function getHostApi(): typeof hostApi {
   return hostApi
+}
+
+function hotkeysFor(input: {hotkeys: HotkeyRegistry; owner: string}) {
+  const {hotkeys, owner} = input
+  return {
+    register: (binding: {binding: string; label: string; handler: () => void}) => hotkeys.register({...binding, owner}),
+    bindings: hotkeys.bindings,
+  }
 }

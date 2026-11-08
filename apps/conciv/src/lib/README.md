@@ -14,7 +14,7 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 - `createMediaQuery(query)`, `PHONE_MEDIA_QUERY` (`media-query.ts`): `(max-width: 520px)`
 - `hostFocusTarget`, `hostPageHasFocus` (`host-focus.ts`)
 - `elementAt(x, y)` (`element-at.ts`): top element at a point that is not inside `[data-conciv-effects]`
-- `toRawHotkey(binding)` (`hotkey.ts`): `parseHotkey` from `@tanstack/hotkeys`
+- `createHotkeyRegistry()` (`hotkey-registry.ts`): the host `hotkeys` member; `register({binding, handler, label, owner})` binds through `createHotkey` with `parseHotkey`, refuses a binding another owner holds (the error names both), and `bindings()` lists every held binding with its label and owner
 - `QuickSearchSchema`, `quickPaneIds`, `quickSearchFor` (`quick-search.ts`): `panes` (comma-separated session ids) and `focus` search params
 - `setShutter(router, open)` (`shutter.ts`): sets or clears the `open` search param with `replace: true`
 

@@ -52,6 +52,7 @@ import {
   defineExtension,
   collectToolRenderers,
   getExtensionApi,
+  type ExtensionApi,
   type RegisterExtension,
 } from '@conciv/extension'
 import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
@@ -3084,6 +3085,67 @@ describe('reachability flows', () => {
 
     await coreControl.releaseFault(refused)
   }, 30_000)
+})
+
+const HOTKEY_PROBE_NAME = 'hotkey-probe'
+
+function HotkeyProbe(): JSX.Element {
+  const hotkeys = getExtensionApi(HOTKEY_PROBE_NAME).useHotkeys()
+  const [pressed, setPressed] = createSignal(0)
+  hotkeys.register({binding: 'Control+Shift+K', label: 'Probe count', handler: () => setPressed((count) => count + 1)})
+  const refused = clash(hotkeys.register)
+  return (
+    <section aria-label="hotkey probe">
+      <p>pressed {pressed()}</p>
+      <p>refused: {refused}</p>
+      <ul aria-label="registered hotkeys">
+        <For each={hotkeys.bindings()}>
+          {(entry) => (
+            <li>
+              {entry.binding} {entry.label} {entry.owner}
+            </li>
+          )}
+        </For>
+      </ul>
+    </section>
+  )
+}
+
+function clash(register: ReturnType<ExtensionApi['useHotkeys']>['register']): string {
+  try {
+    register({binding: 'Mod+`', label: 'Probe clash', handler: () => undefined})
+    return 'no refusal'
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
+
+const hotkeyProbe = defineExtension({name: HOTKEY_PROBE_NAME, Surface: HotkeyProbe}).client(() => ({value: {}}))
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof hotkeyProbe> {}
+}
+
+describe('host hotkeys', () => {
+  const core = bootedCore('host-hotkeys')
+  const harness = createShellHarness(core)
+
+  afterEach(() => harness.dispose())
+
+  const probe = () => page.getByRole('region', {name: 'hotkey probe'})
+  const listed = () => probe().getByRole('list', {name: 'registered hotkeys'})
+
+  test('an extension binds a key through the host, is refused one the quick terminal holds, and every binding is listed', async () => {
+    harness.mountShell('/', [hotkeyProbe])
+    await expect.element(listed().getByText('Mod+` Quick terminal conciv')).toBeVisible()
+    await expect.element(listed().getByText('Control+Shift+K Probe count hotkey-probe')).toBeVisible()
+    await expect
+      .element(probe().getByText('refused: Mod+` for Probe clash (hotkey-probe) is held by Quick terminal (conciv)'))
+      .toBeVisible()
+    await expect.element(listed().getByText(/Probe clash/)).not.toBeInTheDocument()
+    await userEvent.keyboard('{Control>}{Shift>}K{/Shift}{/Control}')
+    await expect.element(probe().getByText('pressed 1')).toBeVisible()
+  })
 })
 
 const SURFACE_PROBE_NAME = 'surface-probe'

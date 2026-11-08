@@ -77,7 +77,11 @@ function PanelView(): JSX.Element {
               class="flex flex-1 flex-col min-h-0 focus-visible:[outline:var(--chat-focus)] focus-visible:[outline-offset:-2px]"
             >
               <ExtensionBoundary name={mount.view.instance.extension.name} fallback="tab" focusAfterRetry={content}>
-                <MountedView view={mount.view} clientValue={mount.view.instance.clientValue} />
+                <MountedView
+                  view={mount.view}
+                  clientValue={mount.view.instance.clientValue}
+                  owner={mount.view.instance.extension.name}
+                />
               </ExtensionBoundary>
             </div>
           </div>

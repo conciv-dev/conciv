@@ -7,6 +7,11 @@ import type {ExtensionSlot} from './types.js'
 export type ColorScheme = 'light' | 'dark'
 export type Toast = (message: string, tone?: 'info' | 'success' | 'error') => void
 export type ConnectHostApi = {origin: string; found: (apiBase: string) => void}
+export type HotkeyBinding = {binding: string; label: string; owner: string}
+export type HotkeyRegistry = {
+  register: (input: HotkeyBinding & {handler: () => void}) => void
+  bindings: () => HotkeyBinding[]
+}
 export type PopoverParts = {
   Root: Component<ComponentProps<PopoverApi['Root']>>
   Positioner: Component<ComponentProps<PopoverApi['Positioner']>>
@@ -31,6 +36,8 @@ export type HostWiring = {
   slot: ExtensionSlot
   connect: ConnectHostApi
   colorScheme: () => ColorScheme
+  hotkeys: HotkeyRegistry
+  owner: string
   value: object
 }
 

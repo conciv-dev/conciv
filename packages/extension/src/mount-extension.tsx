@@ -14,7 +14,7 @@ export function MountedExtension(props: MountedExtensionProps): JSX.Element {
   return (
     <Show when={props.extension.Component}>
       {(Component) => (
-        <HostApiProvider slot={props.slot} value={props.clientValue}>
+        <HostApiProvider slot={props.slot} value={props.clientValue} owner={props.extension.name}>
           <Dynamic component={Component()} />
         </HostApiProvider>
       )}
@@ -31,7 +31,7 @@ export function MountedSurface(props: MountedSurfaceProps): JSX.Element {
   return (
     <Show when={props.extension.Surface}>
       {(Surface) => (
-        <HostApiProvider slot="surface" value={props.clientValue}>
+        <HostApiProvider slot="surface" value={props.clientValue} owner={props.extension.name}>
           <Dynamic component={Surface()} />
         </HostApiProvider>
       )}
@@ -42,11 +42,12 @@ export function MountedSurface(props: MountedSurfaceProps): JSX.Element {
 export type MountedViewProps = {
   view: ExtensionView
   clientValue: object
+  owner: string
 }
 
 export function MountedView(props: MountedViewProps): JSX.Element {
   return (
-    <HostApiProvider slot="widget" value={untrack(() => props.clientValue)}>
+    <HostApiProvider slot="widget" value={untrack(() => props.clientValue)} owner={props.owner}>
       <Dynamic component={props.view.Component} />
     </HostApiProvider>
   )
