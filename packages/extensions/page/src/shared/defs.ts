@@ -198,6 +198,7 @@ export const PageScreenshotSchema = z.object({
   image: z.string(),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  warnings: z.array(z.string()).optional(),
 })
 
 export type PageScreenshot = z.infer<typeof PageScreenshotSchema>
@@ -214,7 +215,14 @@ export const screenshotDef = pageTool({
   label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
   hint: 'the one look at what the user sees: pixels, not DOM; for structure use page_snapshot or page_tree',
   keywords: ['screenshot', 'image', 'viewport', 'pixels', 'visual'],
-  input: noInput,
+  input: z.object({
+    exclude: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'CSS selectors for host-page elements to leave out of the image, such as a devtools button; conciv UI is always left out, and a selector the page cannot read is skipped with a warning',
+      ),
+  }),
   output: z.array(z.union([ImagePart, ImageDetailPart])),
 })
 

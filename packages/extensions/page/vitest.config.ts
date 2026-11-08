@@ -24,6 +24,21 @@ export default defineConfig({
         },
       },
       {
+        oxc: {jsx: {runtime: 'automatic', importSource: 'react'}},
+        test: {
+          ...ciTest(),
+          name: 'browser-firefox',
+          include: ['test/page.browser.test.tsx'],
+          fileParallelism: false,
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright({contextOptions: {deviceScaleFactor: 2}}),
+            instances: [{browser: 'firefox'}],
+          },
+        },
+      },
+      {
         plugins: [solidPlugin()],
         resolve: {conditions: ['browser', 'development']},
         test: {

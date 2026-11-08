@@ -1,7 +1,7 @@
 import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
 import {z} from 'zod'
-import {browserRpcConnection, consumeMagicLinkCode, makeBrowserRpcClient} from '@conciv/contract'
+import {browserRpcConnection, forgetMagicLinkCode, makeBrowserRpcClient, readMagicLinkCode} from '@conciv/contract'
 import {collectAttachmentCards, type AnyExtension} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
@@ -148,9 +148,9 @@ function installStorageFixtures(): void {
 
 async function loginHost(apiBase: string): Promise<void> {
   const {trust} = browserRpcConnection(apiBase)
-  const code = consumeMagicLinkCode()
-  if (await trust.requestTrust()) return
-  if (code !== undefined) await trust.requestTrustWithCode(code)
+  const code = readMagicLinkCode()
+  if (!(await trust.requestTrust()) && code !== undefined) await trust.requestTrustWithCode(code)
+  forgetMagicLinkCode()
 }
 
 export function startHost(extension: AnyExtension): void {

@@ -39,6 +39,12 @@ export function App() {
       />
       <Cards variant={variant} />
       {variant === 'missing' ? null : <Table />}
+      {requested === 'effects-cover' ? (
+        <div
+          data-conciv-effects=""
+          style={{position: 'fixed', inset: 0, zIndex: 2147483647, background: 'rgb(255,0,0)'}}
+        />
+      ) : null}
     </>
   )
 }

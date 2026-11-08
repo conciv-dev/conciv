@@ -1,11 +1,10 @@
 import type {createMirror, Mirror, serializeNodeWithId, stringifyStylesheet} from 'rrweb-snapshot'
+import {CONCIV_UI_SELECTOR} from '@conciv/extension'
 import {isDangerousTag, neutralizeSubtree} from '@conciv/protocol/element-capture-sanitize'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {collectPendingCss, type PendingCssText} from './css-bundle.js'
 import {showToast} from './effect-toast.js'
 import {elementDescriptor} from './element-descriptor.js'
-
-const WIDGET_SELECTOR = '[data-conciv-root]'
 
 const TARGET_MARKER = 'data-rr-target'
 
@@ -191,9 +190,9 @@ function serializeWithAncestors(el: Element, doc: Document, snapshot: SnapshotLi
 }
 
 function containsWidget(el: Element): boolean {
-  if (el.matches(WIDGET_SELECTOR)) return true
-  if (el.closest(WIDGET_SELECTOR) !== null) return true
-  return el.querySelector(WIDGET_SELECTOR) !== null
+  if (el.matches(CONCIV_UI_SELECTOR)) return true
+  if (el.closest(CONCIV_UI_SELECTOR) !== null) return true
+  return el.querySelector(CONCIV_UI_SELECTOR) !== null
 }
 
 export type CaptureDeps = {document: Document; snapshot: SnapshotLibrary | null}

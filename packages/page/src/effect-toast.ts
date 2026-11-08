@@ -18,6 +18,7 @@ export function showToast(msg: string, tone: 'info' | 'success' | 'error' = 'inf
   if (typeof document === 'undefined') return
   const el = document.createElement('div')
   el.textContent = msg
+  el.setAttribute('data-conciv-toast', '')
   overlayLayer(el)
   Object.assign(el.style, {
     bottom: '18px',
