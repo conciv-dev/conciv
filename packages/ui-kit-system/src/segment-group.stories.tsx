@@ -5,7 +5,6 @@ import Monitor from 'lucide-solid/icons/monitor'
 import Moon from 'lucide-solid/icons/moon'
 import Sun from 'lucide-solid/icons/sun'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {SegmentGroup} from './segment-group.js'
 import {useSettingsForm} from './settings-form.js'
 
@@ -128,19 +127,15 @@ const SCHEME_OPTIONS = [
 ]
 const DENSITY_OPTIONS = DENSITIES.map((density) => ({value: density.toLowerCase(), label: density}))
 
-const segmentSchema = z.object({
-  scheme: z.string(),
-  density: z.string(),
-  dock: z.string().refine((value) => value !== 'float', 'Floating needs a wider window.'),
-  locale: z.string(),
-  motion: z.string(),
-})
+function validateSegments({value}: {value: {dock: string}}) {
+  return {fields: {dock: value.dock === 'float' ? 'Floating needs a wider window.' : undefined}}
+}
 
 function SegmentSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {scheme: 'auto', density: 'compact', dock: 'float', locale: 'auto', motion: 'auto'},
-    validators: {onMount: segmentSchema, onBlur: segmentSchema},
+    validators: {onMount: validateSegments, onBlur: validateSegments},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

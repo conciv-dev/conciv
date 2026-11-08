@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/RadioCards'}
@@ -19,19 +18,15 @@ const SANDBOXES = [
   {value: 'container', title: 'Container', description: 'Needs Docker running.'},
 ]
 
-const radioSchema = z.object({
-  runner: z.string(),
-  replay: z.string(),
-  sandbox: z.string().refine((value) => value !== 'container', 'Docker is not running on this machine.'),
-  harness: z.string(),
-  storage: z.string(),
-})
+function validateRadios({value}: {value: {sandbox: string}}) {
+  return {fields: {sandbox: value.sandbox === 'container' ? 'Docker is not running on this machine.' : undefined}}
+}
 
 function RadioCardSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {runner: 'vitest', replay: 'full', sandbox: 'container', harness: 'claude', storage: 'disk'},
-    validators: {onMount: radioSchema, onBlur: radioSchema},
+    validators: {onMount: validateRadios, onBlur: validateRadios},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

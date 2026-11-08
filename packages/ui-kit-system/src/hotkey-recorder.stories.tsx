@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/HotkeyRecorder'}
@@ -10,18 +9,11 @@ type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const hotkeySchema = z.object({
-  open: z.string().nullable(),
-  palette: z.string().nullable(),
-  grab: z
-    .string()
-    .nullable()
-    .refine((value) => value !== null, 'Pick a shortcut.'),
-  stop: z.string().nullable(),
-  replay: z.string().nullable(),
-})
+function validateHotkeys({value}: {value: {grab: string | null}}) {
+  return {fields: {grab: value.grab === null ? 'Pick a shortcut.' : undefined}}
+}
 
-const HOTKEY_DEFAULTS: z.input<typeof hotkeySchema> = {
+const HOTKEY_DEFAULTS: Record<'open' | 'palette' | 'grab' | 'stop' | 'replay', string | null> = {
   open: 'Mod+K',
   palette: 'Mod+Shift+O',
   grab: null,
@@ -33,7 +25,7 @@ function HotkeySettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: HOTKEY_DEFAULTS,
-    validators: {onMount: hotkeySchema, onBlur: hotkeySchema},
+    validators: {onMount: validateHotkeys, onBlur: validateHotkeys},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/NumberInput'}
@@ -10,23 +9,37 @@ type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const numberSchema = z.object({
-  port: z
-    .number({error: 'Enter a port.'})
-    .int()
-    .min(1024, 'Use a port from 1024 to 65535.')
-    .max(65535, 'Use a port from 1024 to 65535.'),
-  timeout: z.number({error: 'Enter a timeout.'}).min(1).max(600),
-  retries: z.number({error: 'Enter a count.'}).max(5, 'At most 5 retries.'),
-  workers: z.number(),
-  fps: z.number(),
-})
+function validateNumbers({value}: {value: {port: number; timeout: number; retries: number}}) {
+  return {
+    fields: {port: portError(value.port), timeout: timeoutError(value.timeout), retries: retriesError(value.retries)},
+  }
+}
+
+function portError(port: number) {
+  if (!Number.isFinite(port)) return 'Enter a port.'
+  if (!Number.isInteger(port)) return 'Invalid input: expected int, received number'
+  if (port < 1024 || port > 65535) return 'Use a port from 1024 to 65535.'
+  return undefined
+}
+
+function timeoutError(timeout: number) {
+  if (!Number.isFinite(timeout)) return 'Enter a timeout.'
+  if (timeout < 1) return 'Too small: expected number to be >=1'
+  if (timeout > 600) return 'Too big: expected number to be <=600'
+  return undefined
+}
+
+function retriesError(retries: number) {
+  if (!Number.isFinite(retries)) return 'Enter a count.'
+  if (retries > 5) return 'At most 5 retries.'
+  return undefined
+}
 
 function NumberSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {port: 4700, timeout: 90, retries: 9, workers: 4, fps: 30},
-    validators: {onMount: numberSchema, onBlur: numberSchema},
+    validators: {onMount: validateNumbers, onBlur: validateNumbers},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

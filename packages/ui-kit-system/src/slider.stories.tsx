@@ -2,7 +2,6 @@ import {createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 import {Slider} from './slider.js'
 
@@ -63,19 +62,15 @@ export const Disabled: Story = {
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const sliderSchema = z.object({
-  volume: z.number(),
-  quality: z.number(),
-  memory: z.number().max(8, 'More than 8 GB starves the simulator.'),
-  cpu: z.number(),
-  zoom: z.number(),
-})
+function validateSliders({value}: {value: {memory: number}}) {
+  return {fields: {memory: value.memory > 8 ? 'More than 8 GB starves the simulator.' : undefined}}
+}
 
 function SliderSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {volume: 40, quality: 90, memory: 12, cpu: 4, zoom: 100},
-    validators: {onMount: sliderSchema, onBlur: sliderSchema},
+    validators: {onMount: validateSliders, onBlur: validateSliders},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/Select'}
@@ -19,19 +18,15 @@ const DEVICES = [
   {value: 'pixel-9', label: 'Pixel 9'},
 ]
 
-const selectSchema = z.object({
-  level: z.string(),
-  retention: z.string(),
-  device: z.string().min(1, 'Pick a device to boot.'),
-  region: z.string(),
-  model: z.string(),
-})
+function validateSelects({value}: {value: {device: string}}) {
+  return {fields: {device: value.device.length === 0 ? 'Pick a device to boot.' : undefined}}
+}
 
 function SelectSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {level: 'warn', retention: '30', device: '', region: 'eu', model: 'default'},
-    validators: {onMount: selectSchema, onBlur: selectSchema},
+    validators: {onMount: validateSelects, onBlur: validateSelects},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

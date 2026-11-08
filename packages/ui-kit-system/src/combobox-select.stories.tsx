@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/ComboboxSelect'}
@@ -16,13 +15,9 @@ const DEVICES = [
   {value: 'pixel-9', label: 'Pixel 9', meta: 'Android 15'},
 ]
 
-const comboboxSchema = z.object({
-  device: z.string(),
-  fallback: z.string(),
-  tablet: z.string().refine((value) => value !== 'ipad-air', 'iPad Air is not installed.'),
-  pinned: z.string(),
-  cloud: z.string(),
-})
+function validateCombobox({value}: {value: {tablet: string}}) {
+  return {fields: {tablet: value.tablet === 'ipad-air' ? 'iPad Air is not installed.' : undefined}}
+}
 
 function ComboboxSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
@@ -34,7 +29,7 @@ function ComboboxSettings() {
       pinned: 'iphone-16-pro',
       cloud: 'iphone-16',
     },
-    validators: {onMount: comboboxSchema, onBlur: comboboxSchema},
+    validators: {onMount: validateCombobox, onBlur: validateCombobox},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

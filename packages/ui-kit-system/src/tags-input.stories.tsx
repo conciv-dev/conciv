@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/TagsInput'}
@@ -10,13 +9,9 @@ type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const tagsSchema = z.object({
-  ignore: z.array(z.string()),
-  mask: z.array(z.string()),
-  hosts: z.array(z.string()).max(2, 'At most 2 hosts.'),
-  origins: z.array(z.string()),
-  labels: z.array(z.string()),
-})
+function validateTags({value}: {value: {hosts: string[]}}) {
+  return {fields: {hosts: value.hosts.length > 2 ? 'At most 2 hosts.' : undefined}}
+}
 
 function TagSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
@@ -28,7 +23,7 @@ function TagSettings() {
       origins: ['https://conciv.dev'],
       labels: ['beta'],
     },
-    validators: {onMount: tagsSchema, onBlur: tagsSchema},
+    validators: {onMount: validateTags, onBlur: validateTags},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

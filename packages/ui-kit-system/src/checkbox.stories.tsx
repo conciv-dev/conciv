@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {Checkbox} from './checkbox.js'
 import {useSettingsForm} from './settings-form.js'
 
@@ -45,15 +44,16 @@ export const Default: Story = {
   },
 }
 
-const groupSchema = z.object({
-  capture: z.array(z.string()).min(1, 'Pick at least one event.'),
-  mask: z.array(z.string()),
-  upload: z.array(z.string()).min(1, 'Pick at least one event.'),
-  pinned: z.array(z.string()),
-  cloud: z.array(z.string()),
-})
+function validateGroups({value}: {value: {capture: string[]; upload: string[]}}) {
+  return {
+    fields: {
+      capture: value.capture.length === 0 ? 'Pick at least one event.' : undefined,
+      upload: value.upload.length === 0 ? 'Pick at least one event.' : undefined,
+    },
+  }
+}
 
-const GROUP_DEFAULTS: z.input<typeof groupSchema> = {
+const GROUP_DEFAULTS: {capture: string[]; mask: string[]; upload: string[]; pinned: string[]; cloud: string[]} = {
   capture: ['clicks', 'inputs'],
   mask: ['inputs', 'network'],
   upload: [],
@@ -65,7 +65,7 @@ function CheckboxGroupSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: GROUP_DEFAULTS,
-    validators: {onMount: groupSchema, onBlur: groupSchema},
+    validators: {onMount: validateGroups, onBlur: validateGroups},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

@@ -5,8 +5,6 @@ import {expect, userEvent, waitFor, within} from 'storybook/test'
 import Monitor from 'lucide-solid/icons/monitor'
 import Moon from 'lucide-solid/icons/moon'
 import Sun from 'lucide-solid/icons/sun'
-import {z} from 'zod'
-import {mapValues} from 'es-toolkit'
 import {Button} from './button.js'
 import {ClipboardCopyButton} from './clipboard-copy-button.js'
 import {ConfirmDialog} from './confirm-dialog.js'
@@ -55,31 +53,58 @@ const SCHEMES = [
 
 const PRESETS = ['#c9857f', '#5fb3d9', '#6fbf8b', '#d6a25e', '#b48ad9']
 
-const schema = z.object({
-  scheme: z.enum(['auto', 'light', 'dark']),
-  console: z.boolean(),
-  network: z.boolean(),
-  upload: z.boolean(),
-  masking: z.enum(['none', 'inputs', 'sensitive']),
-  simulator: z.string(),
-  bootDevice: z.string(),
-  windowMinutes: z.number().int().min(1, 'Keep at least 1 minute.').max(60, 'Keep at most 60 minutes.'),
-  port: z
-    .number('Enter a port.')
-    .int()
-    .min(1024, 'Use a port from 1024 to 65535.')
-    .max(65535, 'Use a port from 1024 to 65535.'),
-  bundleId: z.string().regex(/^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/, 'Use reverse-DNS, like dev.conciv.app.'),
-  designUrl: z.string(),
-  instructions: z.string().max(2000, 'Keep it under 2,000 characters.'),
-  token: z.string(),
-  ignore: z.array(z.string()),
-  capture: z.array(z.string()).min(1, 'Pick at least one.'),
-  highlight: z.string().regex(/^#[0-9a-f]{6}$/i, 'Use a hex color.'),
-  hotkey: z.string().nullable(),
-})
+type Settings = {
+  scheme: 'auto' | 'light' | 'dark'
+  console: boolean
+  network: boolean
+  upload: boolean
+  masking: 'none' | 'inputs' | 'sensitive'
+  simulator: string
+  bootDevice: string
+  windowMinutes: number
+  port: number
+  bundleId: string
+  designUrl: string
+  instructions: string
+  token: string
+  ignore: string[]
+  capture: string[]
+  highlight: string
+  hotkey: string | null
+}
 
-type Settings = z.infer<typeof schema>
+function validateSettings({value}: {value: Settings}) {
+  return {
+    fields: {
+      windowMinutes: windowMinutesError(value.windowMinutes),
+      port: portError(value.port),
+      bundleId: /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/.test(value.bundleId)
+        ? undefined
+        : 'Use reverse-DNS, like dev.conciv.app.',
+      instructions: value.instructions.length > 2000 ? 'Keep it under 2,000 characters.' : undefined,
+      capture: value.capture.length === 0 ? 'Pick at least one.' : undefined,
+      highlight: /^#[0-9a-f]{6}$/i.test(value.highlight) ? undefined : 'Use a hex color.',
+    },
+  }
+}
+
+function windowMinutesError(minutes: number) {
+  if (!Number.isInteger(minutes)) return 'Invalid input: expected int, received number'
+  if (minutes < 1) return 'Keep at least 1 minute.'
+  if (minutes > 60) return 'Keep at most 60 minutes.'
+  return undefined
+}
+
+function portError(port: number) {
+  if (!Number.isFinite(port)) return 'Enter a port.'
+  if (!Number.isInteger(port)) return 'Invalid input: expected int, received number'
+  if (port < 1024 || port > 65535) return 'Use a port from 1024 to 65535.'
+  return undefined
+}
+
+function committedDefaults() {
+  return Object.fromEntries(Object.entries(DEFAULTS).map(([name, value]) => [name, JSON.stringify(value)]))
+}
 
 const DEFAULTS: Settings = {
   scheme: 'auto',
@@ -109,12 +134,12 @@ const LOG =
 function SettingsFormDemo() {
   const [log, setLog] = createStore<{entries: string[]; committed: Record<string, string>; confirmOpen: boolean}>({
     entries: [],
-    committed: mapValues(DEFAULTS, (value) => JSON.stringify(value)),
+    committed: committedDefaults(),
     confirmOpen: false,
   })
   const form = useSettingsForm(() => ({
     defaultValues: DEFAULTS,
-    validators: {onBlur: schema},
+    validators: {onBlur: validateSettings},
     listeners: {
       onBlur: ({fieldApi}) => {
         const value = JSON.stringify(fieldApi.state.value)
@@ -318,10 +343,7 @@ function SettingsFormDemo() {
         confirmLabel="Reset all"
         onConfirm={() => {
           form.reset()
-          setLog(
-            'committed',
-            mapValues(DEFAULTS, (value) => JSON.stringify(value)),
-          )
+          setLog('committed', committedDefaults())
           setLog('entries', (entries) => [...entries, 'reset all'])
         }}
       />

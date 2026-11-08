@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/PasswordInput'}
@@ -10,19 +9,15 @@ type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const secretSchema = z.object({
-  figma: z.string(),
-  github: z.string(),
-  openai: z.string().startsWith('sk-', 'OpenAI keys start with sk-.'),
-  sentry: z.string(),
-  cloud: z.string(),
-})
+function validateSecrets({value}: {value: {openai: string}}) {
+  return {fields: {openai: value.openai.startsWith('sk-') ? undefined : 'OpenAI keys start with sk-.'}}
+}
 
 function SecretSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {figma: 'figd_0000', github: 'ghp_1234', openai: 'pk-live', sentry: 'sntrys_99', cloud: ''},
-    validators: {onMount: secretSchema, onBlur: secretSchema},
+    validators: {onMount: validateSecrets, onBlur: validateSecrets},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name} saved`)

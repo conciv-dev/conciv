@@ -1,7 +1,6 @@
 import {createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 import {Switch} from './switch.js'
 
@@ -69,18 +68,14 @@ export const Default: Story = {
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const settingsSchema = z.object({
-  console: z.boolean(),
-  pause: z.boolean(),
-  consent: z.boolean().refine((value) => value, 'Turn this on to send crash reports.'),
-  network: z.boolean(),
-  upload: z.boolean(),
-})
+function validateSwitches({value}: {value: {consent: boolean}}) {
+  return {fields: {consent: value.consent ? undefined : 'Turn this on to send crash reports.'}}
+}
 
 function SwitchSettings() {
   const form = useSettingsForm(() => ({
     defaultValues: {console: true, pause: true, consent: false, network: false, upload: false},
-    validators: {onMount: settingsSchema, onBlur: settingsSchema},
+    validators: {onMount: validateSwitches, onBlur: validateSwitches},
   }))
   const values = form.useStore((state) => state.values)
   return (

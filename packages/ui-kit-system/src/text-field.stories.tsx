@@ -2,7 +2,6 @@ import {createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 import {TextArea} from './text-field.js'
 
@@ -62,14 +61,17 @@ export const Autosize: Story = {
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 
-const textSchema = z.object({
-  name: z.string().min(1, 'Give the project a name.'),
-  baseUrl: z.string(),
-  bundleId: z.string().regex(/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/i, 'Use reverse-DNS, like dev.conciv.app.'),
-  apiHost: z.string(),
-  remote: z.string(),
-  notes: z.string().max(80, 'Keep it under 80 characters.'),
-})
+function validateTexts({value}: {value: {name: string; bundleId: string; notes: string}}) {
+  return {
+    fields: {
+      name: value.name.length === 0 ? 'Give the project a name.' : undefined,
+      bundleId: /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/i.test(value.bundleId)
+        ? undefined
+        : 'Use reverse-DNS, like dev.conciv.app.',
+      notes: value.notes.length > 80 ? 'Keep it under 80 characters.' : undefined,
+    },
+  }
+}
 
 function TextSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
@@ -82,7 +84,7 @@ function TextSettings() {
       remote: '',
       notes: '',
     },
-    validators: {onMount: textSchema, onBlur: textSchema},
+    validators: {onMount: validateTexts, onBlur: validateTexts},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)

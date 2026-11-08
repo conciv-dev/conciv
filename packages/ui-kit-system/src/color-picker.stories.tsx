@@ -1,7 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {z} from 'zod'
 import {useSettingsForm} from './settings-form.js'
 
 const meta: Meta = {title: 'ui-kit-system/ColorPicker'}
@@ -11,19 +10,17 @@ type Story = StoryObj
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 const PRESETS = ['#7c5cff', '#2f80ed', '#27ae60', '#f2994a', '#eb5757']
 
-const colorSchema = z.object({
-  accent: z.string(),
-  highlight: z.string(),
-  marker: z.string().refine((value) => value.toLowerCase() !== '#ffffff', 'White markers vanish on light pages.'),
-  brand: z.string(),
-  cursor: z.string(),
-})
+function validateColors({value}: {value: {marker: string}}) {
+  return {
+    fields: {marker: value.marker.toLowerCase() === '#ffffff' ? 'White markers vanish on light pages.' : undefined},
+  }
+}
 
 function ColorSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
     defaultValues: {accent: '#7c5cff', highlight: '#f2994a', marker: '#ffffff', brand: '#2f80ed', cursor: '#27ae60'},
-    validators: {onMount: colorSchema, onBlur: colorSchema},
+    validators: {onMount: validateColors, onBlur: validateColors},
     listeners: {
       onBlur: ({fieldApi}) => {
         if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)
