@@ -18,7 +18,7 @@ edit both the demo app and the SDK sources.
 1. Start the engine from the repo root and leave it running:
 
    ```bash
-   pnpm --filter ios-example dev
+   pnpm exec turbo run dev --filter=ios-example
    ```
 
 2. Launch the demo app in the simulator, either from the agent panel (`ios_build`, then `ios_run`,
