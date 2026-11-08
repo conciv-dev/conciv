@@ -28,6 +28,8 @@ const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
 
 const FILES_ROOT = '/'
 
+const ASSET_FOLDER = ['public', 'design']
+
 const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
   configSchema: designConfig,
@@ -48,7 +50,15 @@ const design = defineExtension({
     project,
     files,
     store: createStore({db, state, run: createRuns(db).current}),
-    adapters: [createImageAdapter({config}), createFigmaAdapter({token: process.env.FIGMA_API_KEY ?? null, config})],
+    adapters: [
+      createImageAdapter({config}),
+      createFigmaAdapter({
+        token: process.env.FIGMA_API_KEY ?? null,
+        config,
+        folder: createStorage({driver: fsDriver({base: join(server.cwd, ...ASSET_FOLDER)})}),
+        cache: createStorage({driver: fsDriver({base: join(server.stateDir, 'design', 'assets')})}),
+      }),
+    ],
     measurer,
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,

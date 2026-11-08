@@ -25,13 +25,13 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
 type Tagged = Got['nodes'][number]
 
 const NODE_FIELDS =
-  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields.'
+  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node.'
 
 const RULES = [
   'The dev server stamps data-conciv-key attributes into your JSX as you save; keep them, never strip or rewrite them, and edit around them.',
   'Lay the page out with normal flow, flex and grid: no position absolute, no px width or height on containers or text; sizes come from content, gaps and flex/grid rules, percentages and ratios, so the page stays a page and reflows at other widths.',
-  'Every node marked image: true is an empty div with no background, border or fill, never a drawn svg, data url or CSS shape.',
-  'Every image div gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
+  'A node with asset renders that file (an <img src> for a png, an inline svg or an <img> for an svg) sized by its box ratio, and draws nothing else; never a data url, emoji or CSS shape.',
+  'Every asset element gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
   'A node not marked image is a box: when it has a solid fill, that fill is its background, whether it is an icon, a logo, a dot or a drawing.',
   'A row whose auto-layout says wrap: WRAP keeps all its children on one line at the design width, exactly as the Figma frame shows them; it may wrap only when the viewport is narrower than the row is in the design, never at the design width.',
   'design_check returns the rows to fix and the verdict: a row without a width is about the page at the design width; a row with a width is about the page measured at that width, mostly narrower: it did not reflow as tagged, sticks out, overlaps a sibling or scrolls sideways.',

@@ -20,10 +20,16 @@ import {structured} from './structure.js'
 import {reflowTagged} from './reflow-tags.js'
 import {figmaSchemas} from './figma-schema.js'
 import {figmaFacts} from './figma-facts.js'
+import {figmaAssets} from './figma-assets.js'
 import {namedTokens} from './figma-tokens.js'
 
-export function createFigmaAdapter(input: {token: string | null; config: DesignConfig}): TargetAdapter {
-  const {token, config} = input
+export function createFigmaAdapter(input: {
+  token: string | null
+  config: DesignConfig
+  folder: Storage
+  cache: Storage
+}): TargetAdapter {
+  const {token, config, folder, cache} = input
   return {
     kind: 'figma',
     accepts: (ref) => isFigmaUrl(ref) || isJsonRef(ref),
@@ -35,14 +41,16 @@ export function createFigmaAdapter(input: {token: string | null; config: DesignC
       const built = designRoot({frame: frame.node, scale, raster: createRaster(fetched.image), config})
       const fileKey = link?.fileKey ?? null
       const named = await namedTokens({root: built, fileKey, token})
-      const design: Design = {
+      const plain: Design = {
         id: designId({link, ref, version: fetched.version, root: built}),
         source: {kind: 'figma', ref: link === null ? ref : `${link.fileKey}/${link.nodeId}`},
         viewport: frame.viewport,
         scale,
-        root: hashed(named.root),
+        root: named.root,
       }
-      const warnings = [...frame.warnings, ...unmapped(frame.node), named.line]
+      const assets = await figmaAssets({design: plain, image: fetched.image, fileKey, token, folder, cache})
+      const design = {...assets.design, root: hashed(assets.design.root)}
+      const warnings = [...frame.warnings, ...unmapped(frame.node), named.line, assets.line]
       return {design, image: fetched.image, warnings}
     },
   }
