@@ -47,6 +47,7 @@ export function Boxes(props: {
                     }}
                     style={{
                       ...placed(dom.box),
+                      'view-transition-name': index() === 0 ? boxName(entry.node.id) : 'none',
                       'outline-color':
                         props.xray.state.picked === entry.node.id ? 'var(--chat-accent)' : hue(entry.shown),
                     }}
@@ -64,6 +65,10 @@ export function Boxes(props: {
 
 function placed(box: Box): JSX.CSSProperties {
   return {left: `${box.x}px`, top: `${box.y}px`, width: `${box.w}px`, height: `${box.h}px`}
+}
+
+function boxName(id: string): string {
+  return `box-${CSS.escape(id)}`
 }
 
 function hue(shown: string): string {

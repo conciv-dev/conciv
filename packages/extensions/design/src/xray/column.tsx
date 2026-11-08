@@ -28,6 +28,7 @@ export function Column(props: {
   return (
     <section
       aria-label="Design x-ray panel"
+      style={{'view-transition-name': 'xray-column'}}
       class="overscroll-contain flex flex-col max-w-[calc(100vw-var(--spacing)*12)] w-90 overflow-y-auto"
     >
       <header class="px-3 py-1.5 border-b border-chat-line-soft flex gap-1 items-center">

@@ -28,7 +28,12 @@ export function Card(props: {
     )
   }
   return (
-    <aside aria-label="Design x-ray card" aria-live="polite" class="px-3 py-2 flex flex-col gap-3">
+    <aside
+      aria-label="Design x-ray card"
+      aria-live="polite"
+      style={{'view-transition-name': 'xray-card'}}
+      class="px-3 py-2 flex flex-col gap-3"
+    >
       <header class="flex gap-1 items-center">
         <TooltipIconButton tooltip="Back to the round" class="size-8" onClick={() => props.xray.pickId(null)}>
           <ArrowLeft class="size-4 block" aria-hidden="true" />

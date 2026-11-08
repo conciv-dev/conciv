@@ -86,7 +86,11 @@ export function ThreeD(props: {
                           aria-hidden="true"
                           class="outline-1 absolute"
                           classList={{'outline-dashed': plane.key === 'fom', 'outline-solid': plane.key !== 'fom'}}
-                          style={{...position(placed.box), 'outline-color': `var(--xray-${entry.shown})`}}
+                          style={{
+                            ...position(placed.box),
+                            'outline-color': `var(--xray-${entry.shown})`,
+                            'view-transition-name': placed.name,
+                          }}
                         >
                           <Show when={placed.label !== null}>
                             <span class="text-xs text-chat-text-2 font-chat-mono px-0.5 bg-chat-panel truncate start-0 top-0 absolute">
@@ -160,13 +164,14 @@ const GAP_SHARE = 0.18
 
 const ORBIT_RATE = 0.3
 
-function boxesOf(input: {plane: PlaneKey; entry: Entry}): {box: Box; label: string | null}[] {
+function boxesOf(input: {plane: PlaneKey; entry: Entry}): {box: Box; label: string | null; name: string}[] {
   const {plane, entry} = input
   if (plane === 'fom')
-    return entry.node.fom.flatMap((pair) => (pair.box === null ? [] : [{box: pair.box, label: null}]))
+    return entry.node.fom.flatMap((pair) => (pair.box === null ? [] : [{box: pair.box, label: null, name: 'none'}]))
   const at = entry.node.src.at
   const label = plane === 'src' ? (at === null ? entry.node.src.element : `${at.file}:${at.line}`) : null
-  return entry.node.dom.map((dom) => ({
+  return entry.node.dom.map((dom, index) => ({
+    name: plane === 'dom' && index === 0 ? `box-${CSS.escape(entry.node.id)}` : 'none',
     box: dom.box,
     label: plane === 'cssom' ? (entry.node.cssom[0]?.display ?? null) : label,
   }))

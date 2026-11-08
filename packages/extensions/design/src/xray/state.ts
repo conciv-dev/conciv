@@ -16,8 +16,12 @@ export function createXrayState() {
     orbit: {tilt: ORBIT_TILT, turn: ORBIT_TURN},
   })
   const change = (input: {apply: (draft: XrayState) => void; animate: boolean}): void => {
-    batch(() => setState(produce(input.apply)))
-    writeStorage(STORAGE_KEY, SavedSchema.parse(state), JSON.stringify)
+    const swap = (): void => {
+      batch(() => setState(produce(input.apply)))
+      writeStorage(STORAGE_KEY, SavedSchema.parse(state), JSON.stringify)
+    }
+    if (!input.animate || !transitions()) return swap()
+    document.startViewTransition(swap)
   }
   const animate = (apply: (draft: XrayState) => void): void => change({apply, animate: true})
   return {
@@ -160,6 +164,12 @@ const ESCAPES: {when: (state: XrayState) => boolean; apply: (draft: XrayState) =
     },
   },
 ]
+
+function transitions(): boolean {
+  return 'startViewTransition' in document && !matchMedia(REDUCED_MOTION).matches
+}
+
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 function parseSaved(raw: string): z.output<typeof SavedSchema> | undefined {
   const parsed = SavedSchema.safeParse(JSON.parse(raw))

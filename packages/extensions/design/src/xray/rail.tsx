@@ -13,7 +13,10 @@ import type {createXrayState} from './state.js'
 
 export function Rail(props: {xray: ReturnType<typeof createXrayState>; keys: Keys | undefined}): JSX.Element {
   return (
-    <div class="p-1.5 border-e border-chat-line-soft flex flex-col gap-0.5 w-12 items-center">
+    <div
+      class="p-1.5 border-e border-chat-line-soft flex flex-col gap-0.5 w-12 items-center"
+      style={{'view-transition-name': 'xray-rail'}}
+    >
       <RailButton
         tooltip="X-ray"
         shortcut={props.keys?.overlay}
