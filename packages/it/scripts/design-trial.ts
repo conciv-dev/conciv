@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
-import {parseArgs} from 'node:util'
+import {parseArgs, stripVTControlCharacters} from 'node:util'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
@@ -24,6 +24,7 @@ const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const RUNS_COMMAND = 'design:runs'
+const LOGIN_MARK = '#conciv_otp='
 const LAUNCH_ARGS = ['--disable-features=LocalNetworkAccessChecks']
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 const [getDef, checkDef, statusDef] = DESIGN_TOOLS
@@ -187,6 +188,10 @@ async function hostServer(input: {
       ...createLogger('silent'),
       info: (message) => {
         input.printed.push(message)
+        message
+          .split('\n')
+          .filter((line) => line.includes(LOGIN_MARK))
+          .forEach((line) => print(stripVTControlCharacters(line).trim()))
       },
     },
     server: {host: '127.0.0.1', port: input.port},
