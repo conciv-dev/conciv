@@ -251,6 +251,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             pins: counts.pins,
             other: counts.other,
             reflow: counts.reflow,
+            paint: counts.paint,
             rows_count: counts.rows,
             nodes: coverage.nodes,
             mapped: coverage.mapped,
@@ -406,14 +407,25 @@ function rowOf(row: GateRow): Omit<RowRow, 'seq' | 'target_id' | 'run_id' | 'rou
     magnitude: row.magnitude,
     width: row.width ?? null,
     text: row.text,
+    token: row.token ?? null,
     confidence: row.confidence,
     margin: row.margin,
   }
 }
 
 function gateRowOf(row: RowRow): Record<string, unknown> {
-  const {seq: _seq, target_id: _target, run_id: _run, round: _round, at: _at, repeat: _repeat, width, ...rest} = row
-  return width === null ? rest : {...rest, width}
+  const {
+    seq: _seq,
+    target_id: _target,
+    run_id: _run,
+    round: _round,
+    at: _at,
+    repeat: _repeat,
+    width,
+    token,
+    ...rest
+  } = row
+  return {...rest, ...(width === null ? {} : {width}), ...(token === null ? {} : {token})}
 }
 
 async function readRaw(input: {state: Storage; key: string | null}): Promise<Uint8Array | null> {
@@ -467,6 +479,7 @@ function roundOf(input: Stored): Round {
       other: head.other,
       rows: head.rows_count,
       reflow: head.reflow,
+      paint: head.paint,
     },
     pixels: head.pixel_share === null ? null : {share: head.pixel_share},
     progress: progressOf(input),

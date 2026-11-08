@@ -1,13 +1,14 @@
-import {formatHex8, parse} from 'culori'
+import {formatHex, interpolate, parse} from 'culori'
 import {z} from 'zod'
-import type {Box, Counts, Coverage, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
+import type {Box, Counts, Coverage, Design, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
+import {nodeLooks} from './node-look.js'
 
-export function gateOf(input: {root: DesignNode; reads: ReturnType<typeof readIds>}): Gate {
+export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): Gate {
   const {reads} = input
-  const records = recordsOf(input.root)
+  const records = recordsOf(input.design.root)
   const byId = new Map(records.map((record) => [record.id, record]))
   const first = (id: string): LiveComponent | undefined => reads.of(id)[0]
   const grouped = Map.groupBy(records, (record) => record.parent ?? '')
@@ -37,14 +38,15 @@ export function gateOf(input: {root: DesignNode; reads: ReturnType<typeof readId
     revoted: 0,
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
-  return {rows: rows.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(rows)}
+  const painted = [...rows, ...lookRows({design: input.design, reads, live: input.live})]
+  return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
 }
 
 type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
 
 type Placed = {record: Record; box: Box | null}
 
-type Row = {head: string; measured?: {a: number; b: number; position: boolean}; paint?: boolean}
+type Row = {head: string; measured?: {a: number; b: number; position: boolean}}
 
 type Record = {
   id: string
@@ -54,7 +56,6 @@ type Record = {
   parent: string | null
   leaf: boolean
   direction?: 'row' | 'column'
-  fill: {color: string; text: boolean} | null
 }
 
 const FAR_PX = 24
@@ -75,10 +76,7 @@ const AXES = {
   h: {property: 'height', less: 'shorter', more: 'taller', edge: 'y'},
 } as const
 const FLAT_KINDS = new Set(['text', 'line'])
-const SOLID = 'solid'
-const CLEAR = 'transparent'
 const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
-const FillsSchema = z.array(z.object({type: z.string(), color: z.string().optional(), opacity: z.number().optional()}))
 
 function recordsOf(root: DesignNode): Record[] {
   return [...walk(root)].flatMap(({node, parent}): Record[] => {
@@ -94,7 +92,6 @@ function recordsOf(root: DesignNode): Record[] {
         parent: gate.parent,
         leaf: gate.leaf,
         ...(gate.direction === undefined ? {} : {direction: gate.direction}),
-        fill: fillOf(node),
       },
     ]
   })
@@ -125,31 +122,6 @@ function inFlow(input: {kids: DesignNode[]; mode: 'HORIZONTAL' | 'VERTICAL'; gap
     const b = kid.figma?.box ?? kid.box
     return Math.abs(b[axis] - (a[axis] + a[size] + gap)) <= designConfig.tolerances.geometryPx
   })
-}
-
-function fillOf(node: DesignNode): Record['fill'] {
-  if (node.kind === 'image' || node.figma?.fields.image === true) return null
-  const fills = FillsSchema.safeParse(node.figma?.fields.fills)
-  const [fill] = fills.success ? fills.data : []
-  if (fill === undefined || fills.data?.length !== 1 || fill.type !== SOLID || fill.color === undefined) return null
-  const parsed = parse(fill.color)
-  if (parsed === undefined) return null
-  return {color: paintKey(formatHex8({...parsed, alpha: fill.opacity ?? 1})), text: node.kind === 'text'}
-}
-
-function paintKey(hex: string): string {
-  return hex.endsWith('00') ? CLEAR : hex
-}
-
-function paintRows(input: {label: string; r: Record; d: LiveComponent}): Row[] {
-  const {label, r, d} = input
-  if (r.fill === null) return []
-  const shown = r.fill.text ? d.styles.color : d.styles.background
-  const parsed = parse(shown)
-  const live = parsed === undefined ? shown : paintKey(formatHex8(parsed))
-  if (live === r.fill.color) return []
-  const property = r.fill.text ? 'color' : 'background-color'
-  return [{head: `${label}: paint ${property} ${live} where the design fills ${r.fill.color}`, paint: true}]
 }
 
 function imageGate(input: {node: DesignNode; parent: DesignNode | null}): NonNullable<DesignNode['gate']> {
@@ -208,7 +180,6 @@ function rowsOf(input: {
     ...(parent === undefined || pd === undefined
       ? []
       : positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)})),
-    ...paintRows({label, r, d}),
   ]
 }
 
@@ -305,7 +276,6 @@ function worded(input: {
 }): GateRow {
   const {record, named, row} = input
   const base = {node: record.id, ...named, kind: record.kind, name: record.name}
-  if (row.paint === true) return {...base, text: row.head, magnitude: 'much'}
   if (row.measured === undefined)
     return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}
   const magnitude = magnitudeOf(row.measured)
@@ -329,6 +299,7 @@ function countsOf(rows: GateRow[]): Counts {
     pins: count('pin'),
     other: count('other'),
     reflow: count('reflow'),
+    paint: count('paint'),
     rows: rows.length - count('slightly'),
   }
 }
@@ -336,3 +307,182 @@ function countsOf(rows: GateRow[]): Counts {
 function rounded(box: Box): Box {
   return {x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.w), h: Math.round(box.h)}
 }
+
+type Look = ReturnType<typeof nodeLooks>[number]
+
+type Seen = {look: Look; element: LiveComponent; under: string}
+
+type Compared = {kind: PaintKind; expected: string; found: string; token: string | null}
+
+type PaintKind =
+  | 'fill'
+  | 'text color'
+  | 'font family'
+  | 'font weight'
+  | 'font size'
+  | 'line height'
+  | 'radius'
+  | 'border'
+  | 'opacity'
+
+const PX = designConfig.tolerances.geometryPx
+const COLOR_DELTA = designConfig.tolerances.colorDeltaE
+const distance = designConfig.colorMetrics.ciede2000
+const WEIGHT_STEP = 100
+const QUOTES = ['"', "'"]
+
+function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): GateRow[] {
+  const {reads} = input
+  const parents = new Map([...walk(input.live)].map(({node, parent}) => [node, parent]))
+  const behind = (element: LiveComponent | null | undefined): string => {
+    if (element === null || element === undefined) return WHITE
+    return opaque(element.styles.background) ? element.styles.background : behind(parents.get(element))
+  }
+  const looks = nodeLooks(input.design)
+  const assets = new Set(looks.flatMap((look) => (look.asset === null ? [] : [look.node])))
+  const drawn = looks.reduce((inside, look) => {
+    const parent = look.within ?? ''
+    return inside.has(parent) || assets.has(parent) ? inside.add(look.node) : inside
+  }, new Set<string>())
+  return looks.flatMap((look) => {
+    if (drawn.has(look.node)) return []
+    const element = reads.of(look.node)[0]
+    if (element === undefined) return []
+    const seen = {look, element, under: behind(parents.get(element))}
+    return compared(seen).map((found) => ({
+      node: look.node,
+      ...reads.named(look.node),
+      kind: found.kind,
+      name: look.name,
+      text: `wrong ${found.kind} at [${look.node}]: ${found.token === null ? found.expected : `${found.token} (${found.expected})`} expected, ${found.found} found`,
+      magnitude: 'paint',
+      token: found.token,
+    }))
+  })
+}
+
+function compared(seen: Seen): Compared[] {
+  const {look} = seen
+  if (look.image || look.asset !== null) return []
+  if (look.type === 'TEXT') return textRows(seen)
+  return [...fillRows(seen), ...radiusRows(seen), ...borderRows(seen), ...opacityRows(seen)]
+}
+
+function fillRows(seen: Seen): Compared[] {
+  const {look, element, under} = seen
+  const token = look.token_fill
+  const ends = look.gradient === null ? null : endsOf({gradient: look.gradient, under})
+  if (look.fill_kind === 'gradient' && ends !== null && !near({a: ends.from, b: ends.to})) {
+    const found = element.styles.gradient
+    const {from, to} = ends
+    const shownFrom = found === null ? '' : blended({color: found.from, over: under, alpha: 1})
+    const shownTo = found === null ? '' : blended({color: found.to, over: under, alpha: 1})
+    if (found !== null && near({a: shownFrom, b: from}) && near({a: shownTo, b: to})) return []
+    const shown = found === null ? shownColor({element, under}) : `${found.from} to ${found.to}`
+    return [{kind: 'fill', expected: `${from} to ${to}`, found: shown, token}]
+  }
+  if (look.fill_kind === 'none' || look.fill === null) return []
+  const expected = ends?.from ?? blended({color: look.fill, over: under, alpha: look.fill_opacity ?? 1})
+  const found = shownColor({element, under})
+  return near({a: found, b: expected}) ? [] : [{kind: 'fill', expected, found, token}]
+}
+
+function textRows(seen: Seen): Compared[] {
+  const {look, element} = seen
+  const {styles} = element
+  const token = look.token_font
+  const family = firstFamily(styles.fontFamily)
+  const color = look.fill === null ? null : blended({color: look.fill, over: seen.under, alpha: look.fill_opacity ?? 1})
+  const shown = blended({color: styles.color, over: seen.under, alpha: styles.opacity})
+  return [
+    ...(color === null || near({a: shown, b: color})
+      ? []
+      : [{kind: 'text color' as const, expected: color, found: shown, token: look.token_fill}]),
+    ...(look.font_family === null || family === look.font_family.toLowerCase()
+      ? []
+      : [{kind: 'font family' as const, expected: look.font_family, found: family, token}]),
+    ...(look.font_weight === null || hundred(look.font_weight) === hundred(styles.fontWeight)
+      ? []
+      : [{kind: 'font weight' as const, expected: `${look.font_weight}`, found: `${styles.fontWeight}`, token}]),
+    ...pxRow({kind: 'font size', expected: look.font_size, found: styles.fontSize, token}),
+    ...pxRow({kind: 'line height', expected: look.line_height, found: styles.lineHeight, token}),
+  ]
+}
+
+function radiusRows(seen: Seen): Compared[] {
+  const {look, element} = seen
+  const drawn = look.fill_kind !== 'none' || look.stroke !== null
+  if (!drawn) return []
+  return pxRow({kind: 'radius', expected: look.radius ?? 0, found: element.styles.radius, token: look.token_radius})
+}
+
+function borderRows(seen: Seen): Compared[] {
+  const {look, element} = seen
+  if (look.stroke === null) return []
+  const {border} = element.styles
+  const weight = look.stroke_weight ?? 1
+  const shown = border.style === 'none' || border.width === 0 ? 'none' : `${border.width}px ${border.color}`
+  const same = border.width === weight && near({a: border.color, b: look.stroke})
+  return same ? [] : [{kind: 'border', expected: `${weight}px ${look.stroke}`, found: shown, token: look.token_stroke}]
+}
+
+function opacityRows(seen: Seen): Compared[] {
+  const {look, element, under} = seen
+  if (look.fill_kind !== 'solid' || look.fill === null) return []
+  const own = look.opacity ?? 1
+  const background = opaque(element.styles.background) ? element.styles.background : look.fill
+  const expected = blended({color: look.fill, over: under, alpha: own * (look.fill_opacity ?? 1)})
+  const found = blended({color: background, over: under, alpha: element.styles.opacity})
+  if (near({a: expected, b: found}) || own === element.styles.opacity) return []
+  return [{kind: 'opacity', expected: `${own} ${expected}`, found: `${element.styles.opacity} ${found}`, token: null}]
+}
+
+function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string}): {from: string; to: string} {
+  const {gradient, under} = input
+  return {
+    from: blended({color: gradient.from.color, over: under, alpha: gradient.from.opacity}),
+    to: blended({color: gradient.to.color, over: under, alpha: gradient.to.opacity}),
+  }
+}
+
+function pxRow(input: {kind: PaintKind; expected: number | null; found: number; token: string | null}): Compared[] {
+  const {kind, expected, found, token} = input
+  if (expected === null || Math.abs(expected - found) <= PX) return []
+  return [{kind, expected: `${expected}px`, found: `${found}px`, token}]
+}
+
+function shownColor(input: {element: LiveComponent; under: string}): string {
+  const {styles} = input.element
+  return blended({color: opaque(styles.background) ? styles.background : input.under, over: input.under, alpha: 1})
+}
+
+function near(input: {a: string; b: string}): boolean {
+  return distance(input) <= COLOR_DELTA
+}
+
+function opaque(color: string): boolean {
+  const parsed = parse(color)
+  return parsed !== undefined && (parsed.alpha ?? 1) > 0
+}
+
+function blended(input: {color: string; over: string; alpha: number}): string {
+  const top = parse(input.color)
+  const bottom = parse(input.over)
+  if (top === undefined) return input.color
+  const alpha = (top.alpha ?? 1) * input.alpha
+  if (bottom === undefined || alpha >= 1) return formatHex(top)
+  return formatHex(interpolate([bottom, top], 'rgb')(alpha))
+}
+
+function firstFamily(family: string): string {
+  const [first = ''] = family.split(',')
+  return QUOTES.reduce((text, quote) => text.replaceAll(quote, ''), first)
+    .trim()
+    .toLowerCase()
+}
+
+function hundred(weight: number): number {
+  return Math.round(weight / WEIGHT_STEP) * WEIGHT_STEP
+}
+
+const WHITE = '#ffffff'

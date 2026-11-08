@@ -53,10 +53,16 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
   const {much, noticeably, pins, other} = round.counts
   const missing = round.coverage.missing.filter((node) => required.has(node))
   const reflow = round.rows.filter((row) => row.magnitude === 'reflow')
+  const paint = round.rows.filter((row) => row.magnitude === 'paint' && row.kind !== UNBLOCKING)
   return [
     ...(much + noticeably + pins + other > 0
       ? [
           `${much} rows differ much, ${noticeably} noticeably, ${pins} pin a px size and ${other} differ otherwise; all four must be 0.`,
+        ]
+      : []),
+    ...(paint.length > 0
+      ? [
+          `${paint.length} paint rows are left (fill, text color, font, line height, radius, border or opacity unlike the design); all must be 0, font family rows only report.`,
         ]
       : []),
     ...(missing.length > 0
@@ -74,6 +80,8 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
 }
 
 const MISSING_SHOWN = 10
+
+const UNBLOCKING = 'font family'
 
 function stalled(rounds: Round[]): boolean {
   const recent = rounds.slice(-(STALL_ROUNDS + 1)).map((round) => round.counts.much)

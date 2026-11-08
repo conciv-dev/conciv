@@ -90,6 +90,9 @@ const OVERLAY_FALLBACK = 'the dev server shows an error overlay'
 const DRAWN_SHAPES = 'path, polygon, circle'
 const DATA_URL = 'data:'
 const LINEAR_GRADIENT = 'linear-gradient('
+const URL_TOKEN = 'url('
+const PICTURES = 'img, svg'
+const INLINE_SVG = 'inline svg'
 const RGB_TOKEN = 'rgb'
 const HEX_TOKEN = '#'
 const TOKEN_ENDS = [' ', ',', ')']
@@ -854,7 +857,17 @@ function readStyles(input: {style: CSSStyleDeclaration; element: Element; scan: 
     sizing: {width: ownSizing({...input, property: 'width'}), height: ownSizing({...input, property: 'height'})},
     border: readBorder(style),
     gradient: gradientStops(style.backgroundImage),
+    opacity: Number(style.opacity),
+    image: imageSource({element: input.element, image: style.backgroundImage}),
   }
+}
+
+function imageSource(input: {element: Element; image: string}): string {
+  const start = input.image.indexOf(URL_TOKEN)
+  if (start >= 0) return enclosedBody(input.image.slice(start + URL_TOKEN.length))
+  const shown = input.element.matches(PICTURES) ? input.element : input.element.querySelector(PICTURES)
+  if (shown === null) return ''
+  return shown.tagName.toLowerCase() === 'img' ? (shown.getAttribute('src') ?? '') : INLINE_SVG
 }
 
 function gradientStops(image: string): Gradient | null {

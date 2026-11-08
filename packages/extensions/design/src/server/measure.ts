@@ -60,6 +60,8 @@ const ROOT_STYLES = {
   sizing: {width: 'fixed', height: 'fixed'},
   border: {width: 0, style: 'none', color: '', side: 'top'},
   gradient: null,
+  opacity: 1,
+  image: '',
 } as const
 
 async function widgetConnected(input: {page: ServerToolPageAccess; tolerances: Tolerances}): Promise<void> {

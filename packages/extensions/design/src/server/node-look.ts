@@ -43,10 +43,12 @@ type NodeLook = {
   token_font: string | null
   token_gap: string | null
   token_padding: string | null
-  gradient: {from: string; to: string} | null
+  gradient: {from: Stop; to: Stop} | null
 }
 
-const StopSchema = z.object({color: z.string()})
+type Stop = {color: string; opacity: number}
+
+const StopSchema = z.object({color: z.string(), opacity: z.number().default(1)})
 const PaintSchema = z.object({
   type: z.string(),
   color: z.string().optional(),
@@ -94,8 +96,8 @@ function lookOf(input: {
   const px = (value: number | undefined): number | null => (value === undefined ? null : value * scale)
   const radius = Array.isArray(fields.radius) ? fields.radius[0] : fields.radius
   const image = node.kind === 'image' || fields.image === true
-  const first = fill?.stops?.[0]?.color
-  const last = fill?.stops?.at(-1)?.color
+  const first = fill?.stops?.[0]
+  const last = fill?.stops?.at(-1)
   const {tokens} = fields
   return {
     node: node.id,
@@ -105,7 +107,7 @@ function lookOf(input: {
     depth: input.depth,
     ...facts.box,
     fill_kind: fillKind({image, type: fill?.type}),
-    fill: fill?.color ?? first ?? null,
+    fill: fill?.color ?? first?.color ?? null,
     fill_opacity: fill?.opacity ?? null,
     stroke: stroke?.color ?? null,
     stroke_weight: stroke === undefined ? null : px(fields.strokeWeight ?? 1),

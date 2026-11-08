@@ -128,7 +128,8 @@ async function revotedOf(input: Omit<Parameters<typeof mappingOf>[0], 'built'> &
 
 async function gatedOf(input: Parameters<typeof mappingOf>[0]) {
   const mapped = await mappingOf(input)
-  const gate = gateOf({root: input.design.root, reads: readIds({root: mapped.root, live: input.measured.live})})
+  const reads = readIds({root: mapped.root, live: input.measured.live})
+  const gate = gateOf({design: input.design, reads, live: input.measured.live})
   const coverage = {
     ...gate.coverage,
     dupes: mapped.dupes,

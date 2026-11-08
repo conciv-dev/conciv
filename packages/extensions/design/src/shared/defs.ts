@@ -70,6 +70,8 @@ const LiveStylesSchema = z.object({
   sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed: own px rule, set: any other size'),
   border: z.object({width: z.number(), style: z.string(), color: z.string(), side: z.enum(BORDER_SIDES)}),
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
+  opacity: z.number().default(1),
+  image: z.string().default('').describe('the src of an img, else the url of the background image'),
 })
 
 const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -242,7 +244,7 @@ const IdNodeSchema = z.object({
 
 export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
-const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow'])
+const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow', 'paint'])
 
 const GateRowSchema = z.object({
   node: z.string(),
@@ -256,6 +258,7 @@ const GateRowSchema = z.object({
   text: z.string(),
   magnitude: MagnitudeSchema,
   width: z.number().optional().describe('the page width a reflow row was measured at'),
+  token: z.string().nullable().optional().describe('the design token a paint row field is bound to'),
 })
 
 const ReflowSchema = z.object({
@@ -299,7 +302,7 @@ const CoverageSchema = z.object({
 
 const COUNTED = {much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count}
 
-const CountsSchema = z.object({...COUNTED, reflow: Count.default(0)})
+const CountsSchema = z.object({...COUNTED, reflow: Count.default(0), paint: Count.default(0)})
 
 const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
 

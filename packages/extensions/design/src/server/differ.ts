@@ -5,7 +5,7 @@ import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {Checked, DesignRuntime, Differ, Got, RoundReply, Runner, TargetRecord} from '../shared/defs.js'
+import type {Checked, DesignRuntime, Differ, GateRow, Got, RoundReply, Runner, TargetRecord} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
 import {verdictOf} from './verdict.js'
@@ -18,8 +18,10 @@ export function createDiffer(input: {
   show: readonly string[]
 }): Differ {
   const {runtime, runner, page} = input
-  const shown = <Reply extends {progress?: unknown}>(reply: Reply) =>
-    input.show.includes('progress') ? reply : omit(reply, ['progress'])
+  const shown = <Reply extends {progress?: unknown; rows: GateRow[]}>(reply: Reply) => {
+    const grouped = {...reply, rows: tokenGroups(reply.rows)}
+    return input.show.includes('progress') ? grouped : omit(grouped, ['progress'])
+  }
   const {store} = runtime
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
@@ -191,4 +193,18 @@ function watchEdits(bundler: BundlerBridge | undefined): {quiet: () => Promise<v
       unsubscribe?.()
     },
   }
+}
+
+function tokenGroups(rows: GateRow[]): GateRow[] {
+  const keyOf = (row: GateRow): string | null =>
+    row.magnitude === 'paint' && row.token !== undefined && row.token !== null ? `${row.token}|${row.kind}` : null
+  const groups = Map.groupBy(rows, (row) => keyOf(row) ?? '')
+  return rows.flatMap((row) => {
+    const key = keyOf(row)
+    const group = key === null ? [] : (groups.get(key) ?? [])
+    if (group.length < 2) return [row]
+    if (group[0] !== row) return []
+    const nodes = group.map((entry) => entry.node).join(', ')
+    return [{...row, text: `token ${row.token} wrong on ${group.length} nodes: [${nodes}] (${row.kind})`}]
+  })
 }
