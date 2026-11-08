@@ -13,7 +13,7 @@ import {
   type TurnHooks,
 } from '../src/server.js'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it, vi} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
@@ -376,12 +376,16 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const launched: string[] = []
     const inSetup = Promise.withResolvers<void>()
     const setupHeld = Promise.withResolvers<void>()
+    const streamed = Promise.withResolvers<void>()
+    const stopped = Promise.withResolvers<void>()
     const hooks: TurnHooks = {
       plan: (turn) => ({
         adapter: makeTextAdapter('abortable', async function* (options) {
           launched.push(turn.runId)
           yield {type: ChatEventType.RUN_STARTED, runId: turn.runId, threadId: turn.threadId, timestamp: Date.now()}
           yield* createTextChunks('partial')
+          streamed.resolve()
+          await stopped.promise
           await new Promise((resolve) => options.request?.signal?.addEventListener('abort', resolve, {once: true}))
         }),
         systemPrompts: [],
@@ -413,8 +417,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     const streaming = server.drive({threadId: 'thread', runId: 'streaming', kind: 'chat'}, [
       {id: 'user-b', role: 'user', content: 'b'},
     ])
-    await vi.waitUntil(() => launched.includes('streaming'))
+    await streamed.promise
     await server.stop('thread', ['streaming'])
+    stopped.resolve()
     await streaming
     expect({
       announced,
@@ -424,6 +429,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       userTexts: (await server.hydrate('thread')).messages
         .filter((message) => message.role === 'user')
         .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')),
+      stoppedTurns: (await server.hydrate('thread')).messages.flatMap((message) =>
+        StoppedTurnSchema.safeParse(message.metadata).success ? message.parts : [],
+      ),
     }).toEqual({
       announced: ['streaming'],
       launched: ['streaming'],
@@ -433,8 +441,11 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       ],
       replayEnds: ['aborted', 'aborted'],
       userTexts: ['a', 'b'],
+      stoppedTurns: [{type: 'text', content: 'partial'}],
     })
   })
+
+  const StoppedTurnSchema = z.object({tanstack: z.looseObject({stopReason: z.literal('aborted')})})
 
   const ReplayedChunkSchema = z.looseObject({
     type: z.string(),
