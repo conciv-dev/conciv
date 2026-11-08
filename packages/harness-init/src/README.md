@@ -6,7 +6,8 @@ Top-level sources of `@conciv/harness-init`: the init-contribution registry for 
 
 ## Interface
 
-- `INIT_HARNESS_IDS` (`['claude', 'codex', 'gemini-cli', 'opencode', 'pi']`), `InitHarnessId`, `initContributions` (`registry.ts`, export `./registry`).
+- `initContributions` (`registry.ts`, export `./registry`), keyed by `INIT_HARNESS_IDS` (`['claude', 'codex', 'gemini-cli', 'opencode', 'pi']`) and `InitHarnessId` from `@conciv/protocol/harness-types` (browser-safe, so the oRPC contract can validate a harness id).
+- `hub.add(command)` on the claude, codex, gemini-cli and opencode contributions: the argv that registers `conciv-hub` as a user-scope stdio MCP server in that CLI (pi has none); `hub.remove` on claude, codex and gemini-cli is the argv that drops an existing `conciv-hub` so the installer can re-add it with this engine's `CONCIV_HOME` (opencode has no non-interactive remove, so an existing entry there stays as is).
 - `CONCIV_BIN` = `'.conciv/bin/conciv'`, `CONCIV_RANKING_SENTENCE`, `CONCIV_COMMAND_GUIDE` (`agent-guide.ts`, export `./agent-guide`): text telling agents to prefer `conciv tools page|react|design|server` over browser MCP. The `AGENTS.md` write itself happens in the CLI (`packages/cli/src/init/steps/harness/agents-md.ts`).
 - `codexInit` (`codex.ts`): detection `{bin: 'codex', configDir: ['.codex']}`, `init: 'none'`.
 - `geminiCliInit` (`gemini-cli.ts`): detection `{bin: 'gemini', configDir: ['.gemini']}`, `init: 'none'`.

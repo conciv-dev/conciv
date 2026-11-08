@@ -531,8 +531,12 @@ test.describe('element capture', () => {
       page,
     }) => {
       test.setTimeout(180_000)
+      const fresh = await kit.rpc.sessions.create()
+      const title = `code mode turn ${fresh.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
       await openHostPage(page)
       await openPanel(page)
+      await switchToSessionByTitle(page, title)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })
@@ -1521,6 +1525,7 @@ test.describe('selection containment', () => {
     await openLoggedIn(page, kit, host.base)
     await openPanel(page)
     await sendMessage(page, 'say something selectable', ASSISTANT_REPLY)
+    await page.getByText(ASSISTANT_REPLY).first().hover()
   }
 
   async function textStart(page: Page, text: string): Promise<Point> {
@@ -1554,7 +1559,7 @@ test.describe('selection containment', () => {
       {
         name: 'up past the top of the panel',
         target: async (page) => ({...(await textStart(page, ASSISTANT_REPLY)), y: 2}),
-        selects: /^\s*CONCIV[\s\S]*say something selectable[\s\S]*The widge$/,
+        selects: /say something selectable[\s\S]*say something selectable[\s\S]*The widge$/,
       },
       {name: 'sideways over host page text', target: (page) => textStart(page, HOST_TEXT), selects: /^The widge$/},
       {

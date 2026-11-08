@@ -1,7 +1,6 @@
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import {
   type HarnessCommand,
-  type HarnessConnect,
   type HarnessConnectContext,
   type HarnessHistory,
   type HarnessModel,
@@ -36,7 +35,6 @@ type SharedFields = {
   id: string
   binName: string
   displayName?: string
-  connect?: HarnessConnect
   chatConfig: HarnessAdapter['chatConfig']
   models: HarnessModel[] | undefined
   tty: {command(ctx: HarnessConnectContext): TtyCommand} | undefined
@@ -108,7 +106,6 @@ export function createFakeHarness(
     text?: string
     resume?: boolean
     displayName?: string
-    connect?: HarnessConnect
     models?: HarnessModel[]
     commands?: HarnessCommand[]
     history?: FixtureSession[]
@@ -121,7 +118,6 @@ export function createFakeHarness(
     id,
     binName: 'true',
     ...(opts.displayName ? {displayName: opts.displayName} : {}),
-    ...(opts.connect ? {connect: opts.connect} : {}),
     chatConfig: (deps) => ({adapter: makeTextAdapter(id, (options) => scripted.chatStream(deps, options))}),
     models: opts.models,
     tty: opts.tty,

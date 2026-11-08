@@ -65,6 +65,7 @@ export type PageBus = {
   ask: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>) => Promise<PageAnswer>
   connected: (sessionId: SessionId) => boolean
   anySubscriber: () => boolean
+  openSessions: () => Array<{sessionId: SessionId; subscribers: number}>
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
   subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => () => void
 }
@@ -105,8 +106,14 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     }
   }
 
+  function openSessions(): Array<{sessionId: SessionId; subscribers: number}> {
+    return [...bySession].flatMap(([sessionId, page]) =>
+      page.subscribers.size > 0 ? [{sessionId, subscribers: page.subscribers.size}] : [],
+    )
+  }
+
   function anySubscriber(): boolean {
-    return [...bySession.values()].some((page) => page.subscribers.size > 0)
+    return openSessions().length > 0
   }
 
   async function ask(sessionId: SessionId, query: Omit<PageQuery, 'requestId'>): Promise<PageAnswer> {
@@ -140,6 +147,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     ask,
     connected: (sessionId) => (bySession.get(sessionId)?.subscribers.size ?? 0) > 0,
     anySubscriber,
+    openSessions,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
   }

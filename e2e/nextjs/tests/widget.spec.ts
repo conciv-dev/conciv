@@ -1,5 +1,8 @@
 import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {z} from 'zod'
+import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
+
+const CreatedSchema = z.object({json: z.object({sessionId: z.string()})})
 
 test('widget boots from dist in a nextjs app', async ({page}) => {
   const failures = collectFailures(page)
@@ -7,11 +10,16 @@ test('widget boots from dist in a nextjs app', async ({page}) => {
   await expectWidgetBoots(page, failures)
 })
 
-test('the terminal builtin server extension loaded and can hand back a real connect command', async ({page}) => {
-  const failures = collectFailures(page)
-  await loginWidget(page)
-  await expectWidgetBoots(page, failures)
-  await page.getByRole('button', {name: 'More composer actions'}).click()
-  await page.getByRole('menuitem', {name: 'Copy command'}).click()
-  await expect(page.getByText(/--mcp-config/)).toBeVisible()
+test('the terminal builtin server extension loaded and answers for a session', async ({page}) => {
+  const base = await trustedEngineBase(page)
+  const post = async (path: string, json: unknown): Promise<unknown> =>
+    (
+      await fetch(`${base}/rpc/${path}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({json}),
+      })
+    ).json()
+  const {sessionId} = CreatedSchema.parse(await post('sessions/create', undefined)).json
+  expect(await post('ext/terminal/state', {sessionId})).toEqual({json: {alive: false, busy: false}})
 })

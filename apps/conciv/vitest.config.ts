@@ -14,6 +14,7 @@ const SHELL_DEPS = [
   'semver/functions/lt',
   'semver/functions/valid',
 ]
+const BUILT_PACKAGE = /\/packages\/.+\/dist\//
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 function browserProject(name: string, include: string[], exclude: string[]): TestProjectInlineConfiguration {
@@ -40,6 +41,7 @@ function browserProject(name: string, include: string[], exclude: string[]): Tes
 export default defineConfig({
   test: {
     ...ciTest(),
+    server: {deps: {external: [BUILT_PACKAGE]}},
     projects: [
       {
         test: {

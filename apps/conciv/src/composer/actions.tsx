@@ -1,35 +1,17 @@
-import {Show, createSignal, type JSX} from 'solid-js'
-import {useMutation} from '@tanstack/solid-query'
+import {createSignal, type JSX} from 'solid-js'
 import {ComposerActions as Action} from '@conciv/ui-kit-chat'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import FoldVertical from 'lucide-solid/icons/fold-vertical'
 import SquarePen from 'lucide-solid/icons/square-pen'
 import {getHostApi} from '@conciv/extension/host'
-import {writeClipboardText} from '@conciv/ui-kit-system'
 import type {Grab} from '@conciv/grab'
-import {useSessionModels} from '../data/harness-meta.js'
-import {rpcErrorCode} from '../shell/rpc-error-message.js'
-import {useNotices} from '../shell/notice-context.js'
-import type {Notify} from '../shell/notices.js'
-import {LaunchMenu} from './launch-menu.js'
-import {terminalRpc} from './terminal-rpc.js'
+import {ConnectAgentsMenu} from './connect-agents-menu.js'
 
 const ACT =
   'size-8 rounded-chat-pill [border:none] bg-transparent text-chat-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-chat-text-hi hover:bg-chat-fill-strong'
 
 function busyClass(busy: boolean): string {
   return busy ? `${ACT} opacity-60 cursor-progress` : ACT
-}
-
-type LaunchOutcome = {opened: boolean; command: string | null}
-
-async function copyCommand(notify: Notify, command: string): Promise<void> {
-  try {
-    await writeClipboardText(command)
-    notify('Command copied. Paste it in your terminal.')
-  } catch {
-    notify(`Run in your terminal: ${command}`)
-  }
 }
 
 export function ComposerActions(props: {
@@ -39,14 +21,8 @@ export function ComposerActions(props: {
   onNewSession: () => void
   onStageGrab: (grab: Grab) => void
 }): JSX.Element {
-  const notices = useNotices()
   const grab = getHostApi().useGrab()
   const toast = getHostApi().useToast()
-  const meta = useSessionModels(() => props.sessionId)
-  const harnessName = () => (meta.isSuccess ? meta.data.harness.name : 'the harness')
-  const apiBase = getHostApi().useApiBase()
-  const terminal = () => terminalRpc(apiBase())
-
   const grabDisabled = () => (grab.grabbable ? !grab.grabbable() : false)
 
   const [picking, setPicking] = createSignal(false)
@@ -61,34 +37,6 @@ export function ComposerActions(props: {
       setPicking(false)
     }
   }
-
-  const launchFailure = (error: unknown): string => {
-    if (rpcErrorCode(error) === 'NO_CONNECT') return `${harnessName()} can’t be opened in a terminal.`
-    return `Couldn’t open ${harnessName()}.`
-  }
-
-  const openExternal = useMutation(() => ({
-    mutationFn: async (): Promise<LaunchOutcome> => {
-      const {ok} = await terminal().launch({sessionId: props.sessionId})
-      if (ok) return {opened: true, command: null}
-      const {command} = await terminal().connectCommand({sessionId: props.sessionId})
-      return {opened: false, command}
-    },
-    onSuccess: async (outcome: LaunchOutcome) => {
-      if (outcome.opened) {
-        notices.notify(`Opened in ${harnessName()}.`)
-        return
-      }
-      if (outcome.command) await copyCommand(notices.notify, outcome.command)
-    },
-    onError: (error: unknown) => notices.notify(launchFailure(error), {tone: 'warn'}),
-  }))
-
-  const copyConnect = useMutation(() => ({
-    mutationFn: () => terminal().connectCommand({sessionId: props.sessionId}),
-    onSuccess: (result: {command: string}) => void copyCommand(notices.notify, result.command),
-    onError: (error: unknown) => notices.notify(launchFailure(error), {tone: 'warn'}),
-  }))
 
   return (
     <>
@@ -114,17 +62,7 @@ export function ComposerActions(props: {
       >
         <FoldVertical class="size-5 block" />
       </Action.ActionButton>
-      <Show when={meta.data === undefined || meta.data.harness.canLaunch}>
-        <LaunchMenu
-          harnessName={harnessName()}
-          class={busyClass(openExternal.isPending || copyConnect.isPending || meta.isPending)}
-          pending={meta.isPending}
-          failed={meta.isError}
-          onOpen={() => openExternal.mutate()}
-          onCopy={() => copyConnect.mutate()}
-          onRetry={() => void meta.refetch()}
-        />
-      </Show>
+      <ConnectAgentsMenu sessionId={props.sessionId} class={ACT} />
     </>
   )
 }

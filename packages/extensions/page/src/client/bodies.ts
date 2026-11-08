@@ -163,6 +163,8 @@ const routeTool = routeDef
       pathname: location.pathname,
       search: location.search,
       href: location.href,
+      title: document.title,
+      state: document.visibilityState === 'visible' ? 'visible' : 'hidden',
     })),
   )
   .render(readValueCard)

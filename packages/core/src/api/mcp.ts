@@ -2,8 +2,8 @@ import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {generateMessageId, isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {isContentParts, type ContentPart} from '@conciv/protocol/chat-message-types'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {
@@ -23,11 +23,13 @@ import {
   RESULT_CAP_CHARS,
   safeStringify,
   truncationEnvelope,
+  type CodeCapability,
   type CodeRunner,
   type CodeTool,
 } from '@conciv/chat'
 import {createMCPServer, imageBlocks, imagesIn, withoutImages} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
+import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema} from './execute-schemas.js'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -209,45 +211,44 @@ function successReply(result: z.infer<typeof ExecuteResultSchema>): ExecuteReply
   return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
 }
 
-type PublishChunks = (chunks: ChatEvent[]) => void
+type PublishChunks = (chunks: readonly ChatEvent[]) => void
 
-function callStartChunks(callId: string, toolName: string, input: unknown): ChatEvent[] {
-  return [
-    {type: ChatEventType.TOOL_CALL_START, toolCallId: callId, toolCallName: toolName},
-    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
-    {type: ChatEventType.TOOL_CALL_END, toolCallId: callId},
-  ]
+type CallTrace = ReturnType<typeof callTrace>
+
+type CallPublisher = {
+  publish: PublishChunks
+  settle: () => Promise<void>
+  trace: CallTrace
+  run: {threadId: string; live: boolean}
 }
 
-function executeResultChunk(executionId: string, reply: ExecuteReply): ChatEvent {
-  const text = reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
-  return {
-    type: ChatEventType.TOOL_CALL_RESULT,
-    messageId: generateMessageId(),
-    toolCallId: executionId,
-    content: text || JSON.stringify({result: 'non-text content'}),
-    ...(reply.isError === true && {metadata: {tanstack: {state: 'output-error'}}}),
-  }
+function replyText(reply: ExecuteReply): string {
+  return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
-async function runExecute(runner: CodeRunner, typescriptCode: string, publish: PublishChunks): Promise<ExecuteReply> {
+async function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): Promise<void> {
+  calls.publish(calls.trace.result(calls.run, callId, replyText(reply), reply.isError === true))
+  await calls.settle()
+}
+
+async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
   const executionId = randomUUID()
-  publish(callStartChunks(executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
+  calls.publish(calls.trace.start(calls.run, executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
-    .run(typescriptCode, executionId)
+    .run(typescriptCode, calls.trace.shown ? executionId : null)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
   const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
-  publish([executeResultChunk(executionId, reply)])
+  await publishResult(calls, executionId, reply)
   return reply
 }
 
-async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks): Promise<ExecuteReply> {
+async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
   const callId = randomUUID()
-  publish(callStartChunks(callId, tool.name, input))
+  calls.publish(calls.trace.start(calls.run, callId, tool.name, input))
   const reply: ExecuteReply = await tool.run(input, callId).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
@@ -255,7 +256,7 @@ async function runDirect(tool: CodeTool, input: unknown, publish: PublishChunks)
       isError: true,
     }),
   )
-  publish([executeResultChunk(callId, reply)])
+  await publishResult(calls, callId, reply)
   return reply
 }
 
@@ -266,20 +267,45 @@ async function runDiscover(runner: CodeRunner, toolNames: string[]): Promise<Exe
 }
 
 type McpDeps = {
-  codeRunner: (sessionId: SessionId) => Promise<CodeRunner | null>
+  codeRunner: (
+    sessionId: SessionId,
+    publish: (chunk: ChatEvent) => void,
+    capabilities?: readonly CodeCapability[],
+  ) => Promise<CodeRunner | null>
+  outsideCapabilities: (sessionId: SessionId, client: string | null, signal: AbortSignal) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
+  admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   staleness: () => EngineStaleness
 }
 
 export type McpVars = {mcp: McpDeps}
 
-async function sessionTools(deps: McpDeps, scope: SessionScope) {
-  const runner = await deps.codeRunner(scope.id)
+function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => Promise<ExecuteReply>) {
+  return async (args: Args): Promise<ExecuteReply> => {
+    const refusal = await admit()
+    if (refusal === null) return run(args)
+    return {content: [{type: 'text', text: refusal}], isError: true}
+  }
+}
+
+type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
+
+async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
+  const origin = caller.trace.hub
+  const admit = (): Promise<string | null> =>
+    origin === null || caller.outside ? Promise.resolve(null) : deps.admitOutside(scope, origin.client, caller.signal)
+  const run = {threadId: scope.id, live: await scope.run.live()}
+  const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
+  const runner = await deps.codeRunner(
+    scope.id,
+    (chunk) => mirror.publish([caller.trace.mark(chunk)]),
+    origin !== null && caller.outside ? deps.outsideCapabilities(scope.id, origin.client, caller.signal) : undefined,
+  )
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
   }
-  const publish: PublishChunks = (chunks) => chunks.forEach((chunk) => scope.stream.publish(chunk))
+  const calls: CallPublisher = {publish: mirror.publish, settle: mirror.settle, trace: caller.trace, run}
   const discover = runner.discover
   const discoverTools =
     discover === null
@@ -289,38 +315,41 @@ async function sessionTools(deps: McpDeps, scope: SessionScope) {
             name: DISCOVER_TOOL_NAME,
             description: discover.description,
             inputSchema: DiscoverInputSchema,
-          }).server((args) => runDiscover(runner, args.toolNames)),
+          }).server(gated(admit, (args) => runDiscover(runner, args.toolNames))),
         ]
   const askingTools = runner.asking.map((tool) =>
-    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server((args) =>
-      runDirect(tool, args, publish),
+    defineTool({name: tool.name, description: tool.description, inputSchema: tool.inputSchema}).server(
+      gated(admit, (args) => runDirect(tool, args, calls)),
     ),
   )
   const executeTool = defineTool({
     name: EXECUTE_TOOL_NAME,
     description: executeDescription(runner, deps.staleness()),
     inputSchema: ExecuteInputSchema,
-  }).server(async (args) => {
-    try {
-      return await runExecute(runner, args.typescriptCode, publish)
-    } catch (error) {
-      logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
-      throw error
-    }
-  })
+  }).server(
+    gated(admit, async (args) => {
+      try {
+        return await runExecute(runner, args.typescriptCode, calls)
+      } catch (error) {
+        logError(`[mcp] ${EXECUTE_TOOL_NAME} failed outside the sandbox: ${String(error)}`)
+        throw error
+      }
+    }),
+  )
   return [...discoverTools, ...askingTools, executeTool]
 }
 
 const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
   if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
-  const scope = await c.var.mcp.resolveSession(
-    sessionIdFromHeaders(c.req.raw.headers),
-    nativeIdFromHeaders(c.req.raw.headers),
-  )
+  const header = sessionIdFromHeaders(c.req.raw.headers)
+  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+  const trace = callTrace((name) => c.req.raw.headers.get(name))
+  const scope = await c.var.mcp.resolveSession(header, nativeId)
+  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null, signal: c.req.raw.signal}
   const server = createMCPServer({
     name: 'conciv',
     version: corePackage.version,
-    tools: await sessionTools(c.var.mcp, scope),
+    tools: await sessionTools(c.var.mcp, scope, caller),
     onerror: (error) => logError(`[mcp] ${error.message}`),
   })
   return server.handle(c.req.raw)

@@ -1,6 +1,12 @@
 import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
-import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
+import {
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+  isSessionId,
+  type SessionId,
+} from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
@@ -19,6 +25,8 @@ const OFFLINE_CODES = new Set([
 ])
 
 const MAX_CAUSE_DEPTH = 5
+
+const HUB_CLIENT = 'cli'
 
 const LinkSchema = z.object({code: z.string().optional(), message: z.string().optional(), cause: z.unknown()})
 
@@ -47,13 +55,20 @@ async function sessionId(origin: string): Promise<SessionId> {
   return resolved.sessionId
 }
 
-async function withSession(origin: string, call: (rpc: RpcClient) => Promise<unknown>): Promise<unknown> {
-  const headers = {[CONCIV_SESSION_HEADER]: await sessionId(origin)}
-  return call(makeRpcClient(origin, {headers}))
+export type CliTarget = {tab: SessionId | null}
+
+type RpcCall = (rpc: RpcClient) => Promise<unknown>
+
+type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
+
+async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
+  const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: HUB_CLIENT}
+  return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
-async function servedOutcome(origin: string, call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome | null> {
-  const result = await safe(withSession(origin, call))
+async function servedOutcome(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
+  const result = await safe(withSession(engine, target, call))
   if (result.isSuccess) return {report: 'json', data: result.data}
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
   if (offline(result.error, 0)) return null
@@ -61,15 +76,11 @@ async function servedOutcome(origin: string, call: (rpc: RpcClient) => Promise<u
   throw result.error
 }
 
-export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome> {
-  const origin = engineOrigin(process.cwd(), process.env)
-  const outcome = await servedOutcome(origin, call)
-  if (outcome === null) throw offlineFailure(origin)
+export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutcome> {
+  const engine = await engineOrigin(process.cwd(), process.env, target.tab)
+  const outcome = await servedOutcome(engine, target, call)
+  if (outcome === null) throw offlineFailure(engine.origin)
   return outcome
-}
-
-export function runRpcWhenServing(call: (rpc: RpcClient) => Promise<unknown>): Promise<CliOutcome | null> {
-  return servedOutcome(engineOrigin(process.cwd(), process.env), call)
 }
 
 function rejectedByServer(error: unknown): boolean {

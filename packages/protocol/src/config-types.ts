@@ -1,3 +1,5 @@
+import type {HubAccess} from './chat-types.js'
+
 export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 
 export interface ModalConfig {
@@ -43,6 +45,10 @@ export interface ConcivConfig {
   port?: number
 
   devEndpointDir?: string
+
+  homeDir?: string
+
+  hubAccess?: HubAccess
 
   systemPrompt?: string | boolean
   claudePath?: string

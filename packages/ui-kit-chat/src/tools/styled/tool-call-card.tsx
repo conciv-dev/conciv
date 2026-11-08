@@ -1,5 +1,6 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
   ToolCardEntry,
@@ -78,6 +79,8 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
 
 export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
 
+const OutsideMarkerSchema = z.object({conciv: z.object({origin: z.literal('hub'), client: z.string().nullable()})})
+
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
@@ -121,7 +124,13 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   )
   return (
     <>
-      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={cardBody} foldable={framed()} />
+      <TraceToolRow
+        projection={projection()}
+        ring={local.ring ?? true}
+        body={cardBody}
+        foldable={framed()}
+        tag={outsideTag(local.part)}
+      />
       <Show when={asked()}>
         <TracePermissionBlock
           part={local.part}
@@ -132,4 +141,10 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       </Show>
     </>
   )
+}
+
+function outsideTag(part: ToolCallPart): string | undefined {
+  const marker = OutsideMarkerSchema.safeParse(part.metadata)
+  if (!marker.success) return undefined
+  return `from ${marker.data.conciv.client ?? 'outside agent'}`
 }

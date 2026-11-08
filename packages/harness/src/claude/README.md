@@ -2,7 +2,7 @@
 
 ## Overview
 
-Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combines the model list, connect/TTY argv builders, the chat adapter config (on `claudeCode` from `@conciv/ai/server`), slash-command probing through `@anthropic-ai/claude-agent-sdk`, and transcript parsing of `<Claude config dir>/projects/*.jsonl`. Init behaviour comes from `claudeInit` in `@conciv/harness-init/claude`.
+Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combines the model list, the TTY argv builder, the chat adapter config (on `claudeCode` from `@conciv/ai/server`), slash-command probing through `@anthropic-ai/claude-agent-sdk`, and transcript parsing of `~/.claude/projects/*.jsonl`. Init behaviour comes from `claudeInit` in `@conciv/harness-init/claude`.
 
 ## Interface
 
@@ -23,7 +23,6 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `claudeExecutable` throws when a `--plugin-dir` or `--settings` path contains whitespace, because `@tanstack/ai-claude-code` splits the executable string on spaces (`spaceFreePath`, `chat.ts`).
 - Chat always passes `--strict-mcp-config` and disallows `AskUserQuestion` (`claudeExecutable`, `claudeChatConfig`).
 - Connect uses strict `claudeMcpArgs` only when `ctx.owned`, else `claudeMcpArgsPermissive`; `--resume` when `ctx.resume`, else `--session-id` (`claudeConnectArgs`).
-- `--plugin-dir` is added to connect argv only when `CONCIV_PLUGIN_DIR` is non-null (`claudeConnectPlan`, `index.ts`).
 - The Claude config dir is `CLAUDE_CONFIG_DIR`, else `~/.claude` (`claudeConfigDir` from `@conciv/harness-init/claude/state`), the same rule the Agent SDK follows; no Claude history call takes a home.
 - `listSessions` and `sessionMeta` go through the Agent SDK (`listSessions({dir: cwd, includeWorktrees: false})` then `pageAfter`, and `getSessionInfo`): the title is the SDK `summary`, `updatedAt` its `lastModified`, `sizeBytes` its `fileSize`. Sessions the SDK hides (no summary in the head or tail it reads, superseded by a `continued-in` record, non-UUID ids) are not listed and their `meta` is null.
 - `transcriptMessages` streams the transcript through `foldJsonlFile` with the same line fold as `observeTranscript`.

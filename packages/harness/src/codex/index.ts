@@ -4,7 +4,6 @@ import type {ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessChatConfig} from '../_shared/contract.js'
 import {definedEntries} from '../_shared/env.js'
-import {codexMcpArgs} from './args.js'
 import {codexHistory} from './history.js'
 import {codexDefaultModel, codexHome, codexModels} from './models.js'
 
@@ -71,16 +70,4 @@ export const codex = defineHarness({
   models: () => codexModels(),
   defaultModel: codexDefaultModel(),
   history: codexHistory,
-  connect: {
-    plan: (ctx) => ({
-      argv: [
-        'codex',
-        ...(ctx.resume && ctx.harnessSessionId ? ['resume', ctx.harnessSessionId] : []),
-        ...(ctx.model ? ['-m', ctx.model] : []),
-        ...(ctx.mcpUrl ? codexMcpArgs(ctx.mcpUrl, ctx.concivSessionId) : []),
-      ],
-      env: {},
-      files: [],
-    }),
-  },
 })
