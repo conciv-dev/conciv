@@ -19,12 +19,6 @@ function endingOf(ended: AbortSignal): Promise<ChatEvent> {
   return new Promise((resolve) => ended.addEventListener('abort', () => resolve(ended.reason), {once: true}))
 }
 
-function finishedOn(signal: AbortSignal): Promise<IteratorReturnResult<undefined>> {
-  return new Promise((resolve) =>
-    signal.addEventListener('abort', () => resolve({done: true, value: undefined}), {once: true}),
-  )
-}
-
 async function* stopped(ending: ChatEvent, guard: RunGuard): AsyncIterable<ChatEvent> {
   try {
     yield ending
@@ -41,12 +35,14 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
   if (guard.stopped.aborted) return
   const iterator = start()[Symbol.asyncIterator]()
   const ending = endingOf(guard.ended)
-  const finished = finishedOn(guard.stopped)
+  const finished = Promise.withResolvers<IteratorReturnResult<undefined>>()
+  const finish = () => finished.resolve({done: true, value: undefined})
+  guard.stopped.addEventListener('abort', finish, {once: true})
   const silence = AbortSignal.timeout(guard.firstOutputMs)
   silence.addEventListener('abort', guard.onSilence, {once: true})
   try {
     for (;;) {
-      const next = await Promise.race([iterator.next(), ending, finished])
+      const next = await Promise.race([iterator.next(), ending, finished.promise])
       if ('type' in next) {
         yield* stopped(next, guard)
         return
@@ -57,6 +53,7 @@ async function* guarded(start: () => AsyncIterable<ChatEvent>, guard: RunGuard):
     }
   } finally {
     silence.removeEventListener('abort', guard.onSilence)
+    guard.stopped.removeEventListener('abort', finish)
     Promise.resolve(iterator.return?.()).catch((error: unknown) => {
       guard.log(`[ai] closing the adapter stream failed: ${String(error)}`)
     })
