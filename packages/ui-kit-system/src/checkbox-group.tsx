@@ -2,7 +2,7 @@ import {For, splitProps, type JSX} from 'solid-js'
 import {Checkbox as Ark} from '@ark-ui/solid/checkbox'
 import {Checkbox} from './checkbox.js'
 
-const ROOT = 'grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-x-4 gap-y-0.5 min-w-0'
+const ROOT = 'flex flex-wrap gap-x-6 gap-y-0.5 min-w-0'
 
 type CheckboxGroupProps = {
   options: {value: string; label: string; disabled?: boolean}[]
