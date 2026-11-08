@@ -282,7 +282,7 @@ the agent to warn the user when it is above 1.
   and runs the same `admitOutside` check before any procedure that names a session (session header or input
   `sessionId`) from a hub-origin request; procedures that name no session (catalog, list, create, resolve) never prompt. A hub-origin
   `chat.permissionDecision` or `chat.allowOutside` is always refused (decided 2026-11-08): only a click in the tab
-  answers a permission card, and its tool chunks carry the
+  answers a permission card. Extension routers mounted on the engine get the same admission, and its tool chunks carry the
   same `metadata.conciv` marker. Consent lives in the engine, never in a client.
 - `--tab` is declared on every route and command the way `envelopeFlag` is (router options belong to the segment
   that declares them).
@@ -368,6 +368,10 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   - codex: `codex mcp add conciv-hub --env K=V -- <command>`
   - gemini-cli: `gemini mcp add -s user --env=K=V conciv-hub <command>`
   - opencode: `opencode mcp add conciv-hub --env=K=V -- <command>`
+- `hub.remove` (argv, optional): when the add reports the entry already exists, the installer runs remove then add so
+  the entry pins this engine's home. claude `claude mcp remove -s user conciv-hub`, codex `codex mcp remove conciv-hub`,
+  gemini-cli `gemini mcp remove -s user conciv-hub`; opencode has no non-interactive remove, so an existing opencode
+  entry still counts as connected.
   - pi: no `hub` field.
 - Which harnesses to list: `detectHarnesses` (`packages/harness-init/src/detect.ts`, bin on PATH or config dir)
   minus those with a `hub_connections` row. Served as a top-level `hubInstalls: Array<{harnessId, name}>` field of
