@@ -17,7 +17,6 @@ import {
   type TokenUsage,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
-import type {IsolateDriver} from '@tanstack/ai-code-mode'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
   APPROVAL_REQUESTED_EVENT,
@@ -317,7 +316,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver: IsolateDriver | null = await loadIsolateDriver(config.log)
+  const driver = loadIsolateDriver(config.log)
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
@@ -463,10 +462,12 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const plan = planned(hooks, turn)
     const granted: {approvals: Approvals} = {approvals: new Map()}
     const approvals = (): Approvals => granted.approvals
-    const coded =
-      driver === null
-        ? null
-        : codeModeTools(stoppedWith(driver, controller.signal, config.log), plan.codeMode, config.codeModeResult, debug)
+    const coded = codeModeTools(
+      stoppedWith(driver, controller.signal, config.log),
+      plan.codeMode,
+      config.codeModeResult,
+      debug,
+    )
     const seconds = Math.round(config.firstOutputTimeoutMs / 1000)
     const view: RunMessages = {full: []}
     return chat({
@@ -560,7 +561,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}
     },
     codeRunner: (codeMode) => {
-      if (driver === null) return null
       const coded = codeModeTools(driver, codeMode, (value) => value, debug)
       if (coded === null) return null
       const execute = coded.execute.execute
