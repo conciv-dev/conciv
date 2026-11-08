@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>conciv settings, controls for extension settings</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600&display=swap">
+<style>
+*{box-sizing:border-box}
+:root{--bg:#0a0a0b;--panel:#17161a;--sunk:#0f0e11;--text:#d8d2ce;--hi:#f0ebe8;--t2:#a29c9c;--dim:#8d8887;--fill:rgba(255,255,255,.03);--fill2:rgba(255,255,255,.07);--line:#2a272c;--soft:#232025;--line2:#38333a;--accent:#c9857f;--danger:#e0806f;--warn:#d6a25e;--ok:#6fbf8b;--on:#14100f;--ring:color-mix(in oklch,var(--accent) 55%,transparent)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Source Sans 3',ui-sans-serif,system-ui,sans-serif;font-size:13px;padding:44px 32px}
+h1{font-family:Archivo,sans-serif;font-size:28px;font-weight:600;color:var(--hi);margin:0 0 6px}
+.sub{margin:0 0 32px;color:var(--t2);font-size:14px;max-width:1100px;line-height:1.45}
+.sub code,.k code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--hi)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:20px;max-width:1720px}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.k{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--soft);background:var(--fill)}
+.k .kind{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.k .ark{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--accent)}
+.k .zod{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--t2);padding:6px 14px 0;display:block}
+.body{padding:14px;display:flex;flex-direction:column;gap:16px}
+.zodline{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--t2);padding:8px 14px;border-top:1px solid var(--soft);margin-top:auto;background:var(--sunk);white-space:pre-wrap}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field.row{flex-direction:row;align-items:center;gap:14px}
+.fc{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.label{color:var(--hi);font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+.help{color:var(--t2);font-size:12px;line-height:1.4}
+.err{color:var(--danger);font-size:12px;display:flex;gap:6px;align-items:center}
+.reset{background:none;border:0;padding:0;color:var(--dim);font:inherit;font-size:11.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.reset:hover{color:var(--hi)}
+.dot{width:6px;height:6px;border-radius:9px;background:var(--accent);display:inline-block}
+.lock{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim)}
+.disabled{opacity:.45;pointer-events:none}
+
+.input{display:flex;align-items:center;height:32px;border:1px solid var(--line2);border-radius:6px;background:var(--sunk);color:var(--hi);transition:border-color .15s,box-shadow .15s}
+.input:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in oklch,var(--accent) 22%,transparent)}
+.input.invalid{border-color:var(--danger);box-shadow:0 0 0 3px color-mix(in oklch,var(--danger) 18%,transparent)}
+.input input,.input textarea{flex:1;min-width:0;height:100%;border:0;background:none;color:inherit;font:inherit;font-size:13px;padding:0 10px;outline:none}
+.input input::placeholder{color:var(--dim)}
+.input.mono input{font-family:'JetBrains Mono',monospace;font-size:12px}
+.addon{display:flex;align-items:center;gap:6px;padding:0 10px;height:100%;color:var(--dim);font-size:12px;font-family:'JetBrains Mono',monospace;border-right:1px solid var(--soft);white-space:nowrap}
+.addon.end{border-right:0;border-left:1px solid var(--soft)}
+.ibtn{display:grid;place-items:center;width:30px;height:100%;border:0;background:none;color:var(--t2);cursor:pointer}
+.ibtn:hover{color:var(--hi);background:var(--fill2)}
+.input.area{height:auto;align-items:stretch}
+.input.area textarea{padding:8px 10px;resize:none;line-height:1.45;min-height:64px}
+.count{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim);align-self:flex-end}
+
+.sw{width:34px;height:20px;border-radius:99px;background:var(--fill2);border:1px solid var(--line2);position:relative;flex:none;cursor:pointer;padding:0;transition:background .18s}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:99px;background:var(--dim);transition:transform .22s cubic-bezier(.34,1.4,.64,1),background .18s}
+.sw[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
+.sw[aria-checked="true"]::after{transform:translateX(14px);background:var(--on)}
+
+.seg{display:inline-flex;padding:3px;gap:2px;background:var(--fill2);border-radius:8px;position:relative;align-self:flex-start}
+.seg button{position:relative;z-index:1;display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:0;background:none;border-radius:6px;color:var(--t2);font:inherit;font-size:12.5px;cursor:pointer}
+.seg button[aria-checked="true"]{color:var(--hi)}
+.seg .ind{position:absolute;top:3px;left:3px;height:28px;border-radius:6px;background:var(--panel);box-shadow:0 1px 2px rgba(0,0,0,.4),inset 0 0 0 1px var(--line2);transition:transform .32s cubic-bezier(.34,1.3,.64,1),width .32s cubic-bezier(.34,1.3,.64,1)}
+.seg button[aria-checked="true"] svg{color:var(--accent)}
+.seg svg{width:14px;height:14px}
+
+.cards{display:flex;flex-direction:column;gap:6px}
+.rc{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line2);border-radius:8px;cursor:pointer;transition:border-color .15s,background .15s}
+.rc:hover{background:var(--fill)}
+.rc[aria-checked="true"]{border-color:var(--accent);background:color-mix(in oklch,var(--accent) 7%,transparent)}
+.radio{width:16px;height:16px;border-radius:99px;border:1px solid var(--line2);flex:none;margin-top:1px;display:grid;place-items:center}
+.rc[aria-checked="true"] .radio{border-color:var(--accent)}
+.rc[aria-checked="true"] .radio::after{content:'';width:8px;height:8px;border-radius:99px;background:var(--accent)}
+
+.sel{display:flex;align-items:center;justify-content:space-between;gap:8px;height:32px;padding:0 10px;border:1px solid var(--line2);border-radius:6px;background:var(--sunk);color:var(--hi);cursor:pointer;min-width:190px;font-size:13px}
+.menu{border:1px solid var(--line2);border-radius:8px;background:#1d1b20;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:4px;display:flex;flex-direction:column;gap:1px}
+.menu .search{display:flex;align-items:center;gap:6px;padding:6px 8px 8px;border-bottom:1px solid var(--soft);margin-bottom:4px;color:var(--dim)}
+.menu .search input{flex:1;border:0;background:none;color:var(--hi);font:inherit;outline:none}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:5px;color:var(--text);font-size:12.5px}
+.opt.hl{background:var(--fill2);color:var(--hi)}
+.opt .meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--dim)}
+.opt svg{color:var(--accent)}
+
+.num{display:flex;align-items:center;height:32px;border:1px solid var(--line2);border-radius:6px;background:var(--sunk);width:150px}
+.num input{width:100%;min-width:0;border:0;background:none;color:var(--hi);font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:0 10px;outline:none;text-align:left}
+.num .unit{color:var(--dim);font-size:11.5px;padding-right:6px}
+.steps{display:flex;flex-direction:column;height:100%;border-left:1px solid var(--soft)}
+.steps button{flex:1;width:24px;border:0;background:none;color:var(--t2);cursor:pointer;display:grid;place-items:center;padding:0}
+.steps button+button{border-top:1px solid var(--soft)}
+.steps button:hover{background:var(--fill2);color:var(--hi)}
+
+.slider{display:flex;align-items:center;gap:12px}
+.track{position:relative;flex:1;height:4px;border-radius:9px;background:var(--fill2)}
+.range{position:absolute;left:0;top:0;bottom:0;border-radius:9px;background:var(--accent)}
+.thumb{position:absolute;top:50%;width:16px;height:16px;border-radius:99px;background:var(--hi);border:3px solid var(--accent);transform:translate(-50%,-50%);box-shadow:0 0 0 4px color-mix(in oklch,var(--accent) 18%,transparent)}
+.ticks{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);padding:0 0 0 0}
+
+.tags{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-height:32px;padding:4px 6px;border:1px solid var(--line2);border-radius:6px;background:var(--sunk)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 4px 0 8px;border-radius:4px;background:var(--fill2);border:1px solid var(--line2);font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--hi)}
+.tag button{border:0;background:none;color:var(--dim);cursor:pointer;display:grid;place-items:center;width:16px;height:16px;border-radius:3px;padding:0}
+.tag button:hover{color:var(--hi);background:var(--fill2)}
+.tags input{flex:1;min-width:90px;border:0;background:none;color:var(--hi);font:inherit;font-size:12.5px;outline:none;padding:0 4px}
+
+.chks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chk{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)}
+.box{width:16px;height:16px;border-radius:4px;border:1px solid var(--line2);display:grid;place-items:center;flex:none;transition:background .15s}
+.chk[aria-checked="true"] .box{background:var(--accent);border-color:var(--accent);color:var(--on)}
+.chk[aria-checked="false"] .box svg{opacity:0}
+
+.color{display:flex;gap:8px;align-items:center}
+.swatch{width:32px;height:32px;border-radius:6px;border:1px solid var(--line2);flex:none}
+.presets{display:flex;gap:6px}
+.presets span{width:20px;height:20px;border-radius:99px;border:2px solid transparent;cursor:pointer}
+.presets span.on{border-color:var(--hi)}
+
+.kbdrow{display:flex;align-items:center;gap:8px}
+.keys{display:flex;gap:3px}
+.kbd{font-family:'JetBrains Mono',monospace;font-size:11px;min-width:22px;height:22px;display:inline-grid;place-items:center;padding:0 6px;color:var(--hi);border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;background:var(--fill)}
+.rec{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--accent);border-radius:8px;background:color-mix(in oklch,var(--accent) 6%,transparent)}
+.rec .capture{height:40px;display:grid;place-items:center;border:1px dashed var(--line2);border-radius:6px;font-family:'JetBrains Mono',monospace;color:var(--hi);gap:4px}
+.mods{display:flex;gap:4px}
+.mods button{height:24px;padding:0 8px;border:1px solid var(--line2);border-radius:5px;background:none;color:var(--t2);font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer}
+.mods button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on)}
+.warn{display:flex;gap:6px;align-items:flex-start;color:var(--warn);font-size:12px}
+.btns{display:flex;gap:6px;justify-content:flex-end}
+.btn{height:28px;padding:0 12px;border:1px solid var(--line2);border-radius:6px;background:none;color:var(--text);font:inherit;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--fill2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on)}
+.btn.d{border-color:color-mix(in oklch,var(--danger) 45%,transparent);color:var(--danger)}
+.btn.dfill{background:var(--danger);border-color:var(--danger);color:var(--on)}
+
+.dialog{border:1px solid var(--line2);border-radius:10px;background:#1d1b20;box-shadow:0 18px 40px rgba(0,0,0,.55);padding:16px;display:flex;flex-direction:column;gap:10px}
+.dialog h3{margin:0;font-family:Archivo,sans-serif;font-size:14px;color:var(--hi)}
+.dialog p{margin:0;color:var(--t2);font-size:12.5px;line-height:1.45}
+
+.states{display:grid;grid-template-columns:1fr;gap:12px}
+.sep{height:1px;background:var(--soft)}
+.legend{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.notes{max-width:1100px;margin-top:36px;color:var(--t2);font-size:13px;line-height:1.55}
+.notes h2{font-family:Archivo,sans-serif;font-size:16px;color:var(--hi);margin:0 0 8px}
+.notes li{margin-bottom:4px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<h1>Controls for extension settings</h1>
+<p class="sub">One control per kind of setting an extension can declare. The page picks the control from the zod type (and <code>.meta()</code> hints), wires it through <b>TanStack Form</b> (<code>createFormHook</code> field components) and builds every control on an <b>Ark UI</b> primitive, so label, description and error are linked for screen readers (<code>Field.Root</code> sets <code>aria-describedby</code> / <code>aria-invalid</code>), keyboard works the Ark way, and focus rings are shared. Each cell shows the zod declaration, the Ark primitive, and the states. Controls respond to clicks.</p>
+
+<div class="grid" id="grid"></div>
+
+<div class="notes">
+<h2>Shared rules for every control</h2>
+<ul>
+<li><b>One field shell</b> (Ark <code>Field</code>): label, description under it, error under that with <code>role="alert"</code>, a changed dot and "Reset to default" when the value differs from the default, a lock line when the project config sets it. Rows put the control on the right; wide controls (cards, tags, textarea, recorder) go under the label.</li>
+<li><b>Saved as you go</b>: TanStack Form validates with the extension's zod schema (Standard Schema). Toggles, choices and sliders save on change; text and numbers save on blur or Enter. An invalid value shows its error and is never sent. The server validates again with the same schema.</li>
+<li><b>States</b>: default, focus (accent ring), changed, invalid, locked (read-only, value shown, why it is locked), disabled (dimmed, reason in the description).</li>
+<li><b>Keyboard</b>: Tab moves between fields; segmented and radio cards use arrow keys; selects and comboboxes open with Enter/Space and type-ahead; number fields take arrow up/down and Page Up/Down; tags take Enter/comma to add, Backspace to remove; the recorder captures any combo and Esc cancels.</li>
+<li><b>Motion</b>: segmented indicator and switch thumb slide with the same spring as the rail; all of it off under reduced motion.</li>
+<li><b>Fallback</b>: a zod type with no mapping (objects, unions, records) is not rendered; the extension can pass its own <code>SettingsComponent</code> for it, built from the same field components.</li>
+</ul>
+</div>
+
+<script>
+const ic = {
+  x: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  caret: '<svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3.5l3 3 3-3"/></svg>',
+  up: '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6.5l3-3 3 3"/></svg>',
+  down: '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5l3 3 3-3"/></svg>',
+  check: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3.5 8.5l3 3 6-7"/></svg>',
+  eye: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>',
+  copy: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg>',
+  folder: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1.5 4.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg>',
+  lock: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>',
+  alert: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5M8 10.8v.4"/></svg>',
+  warn: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;margin-top:1px"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></svg>',
+  search: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>',
+  undo: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5v3h3"/></svg>',
+  auto: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="8.5" rx="1.2"/><path d="M5.5 13.5h5"/></svg>',
+  sun: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg>',
+  moon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"/></svg>',
+}
+
+function field(o) {
+  const changed = o.changed ? ' <span class="dot" title="Changed"></span>' : ''
+  const reset = o.changed ? '<button class="reset">' + ic.undo + 'Reset to ' + o.changed + '</button>' : ''
+  const lock = o.locked ? '<span class="lock">' + ic.lock + 'Set in ' + o.locked + '</span>' : ''
+  const err = o.error ? '<span class="err" role="alert">' + ic.alert + o.error + '</span>' : ''
+  const head = '<div class="fc"><span class="label">' + o.label + changed + '</span>' + (o.help ? '<span class="help">' + o.help + '</span>' : '') + (o.row ? err + lock + reset : '') + '</div>'
+  if (o.row) return '<div class="field row' + (o.disabled ? ' disabled' : '') + '">' + head + o.control + '</div>'
+  return '<div class="field' + (o.disabled ? ' disabled' : '') + '">' + head + o.control + err + lock + reset + '</div>'
+}
+function cell(kind, ark, zod, body) {
+  return '<section class="cell"><div class="k"><span class="kind">' + kind + '</span><span class="ark">' + ark + '</span></div><div class="body">' + body + '</div><div class="zodline">' + zod + '</div></section>'
+}
+function sw(on) { return '<button class="sw" role="switch" aria-checked="' + on + '"></button>' }
+function seg(items, sel) {
+  return '<div class="seg" role="radiogroup"><span class="ind"></span>' + items.map(function (it, i) {
+    return '<button role="radio" aria-checked="' + (i === sel) + '">' + (it.icon || '') + it.label + '</button>'
+  }).join('') + '</div>'
+}
+function num(v, unit, invalid) {
+  return '<div class="num input' + (invalid ? ' invalid' : '') + '"><input value="' + v + '" inputmode="numeric" aria-label="value"><span class="unit">' + (unit || '') + '</span><div class="steps"><button aria-label="Increase">' + ic.up + '</button><button aria-label="Decrease">' + ic.down + '</button></div></div>'
+}
+function sep(label) { return '<div class="legend">' + label + '</div>' }
+
+const cells = [
+  cell('Boolean', 'Switch', "console: z.boolean().default(true)\n  .meta({title: 'Capture console'})",
+    sep('default / changed') +
+    field({row: true, label: 'Capture console', help: 'Console messages ride along with the replay.', control: sw(true)}) +
+    field({row: true, label: 'Pause when the tab is hidden', changed: 'off', control: sw(true)}) +
+    sep('locked / disabled') +
+    field({row: true, label: 'Record network', locked: 'vite.config.ts', control: sw(false)}) +
+    field({row: true, label: 'Upload replays', help: 'Needs a cloud project.', disabled: true, control: sw(false)})),
+
+  cell('Small choice, 2 to 4', 'SegmentGroup', "scheme: z.enum(['auto', 'light', 'dark'])\n  .meta({icons: {...}})",
+    field({label: 'Color mode', help: 'Auto follows the page, then your system.', control: seg([{label: 'Auto', icon: ic.auto}, {label: 'Light', icon: ic.sun}, {label: 'Dark', icon: ic.moon}], 0)}) +
+    field({label: 'Mask in replays', changed: 'None', control: seg([{label: 'None'}, {label: 'Inputs'}, {label: 'Sensitive'}], 2)})),
+
+  cell('Choice with explanations', 'RadioGroup (cards)', "masking: z.enum([...]).meta({options: {\n  none: {title, description}, ...}})",
+    field({label: 'Mask in replays', control: '<div class="cards" role="radiogroup">' +
+      '<div class="rc" role="radio" aria-checked="false"><span class="radio"></span><span class="fc"><span class="label">None</span><span class="help">Record everything as typed.</span></span></div>' +
+      '<div class="rc" role="radio" aria-checked="true"><span class="radio"></span><span class="fc"><span class="label">Inputs</span><span class="help">Replace text typed into fields with dots.</span></span></div>' +
+      '<div class="rc" role="radio" aria-checked="false"><span class="radio"></span><span class="fc"><span class="label">Sensitive</span><span class="help">Also hide emails, tokens and card numbers on the page.</span></span></div></div>'})),
+
+  cell('Long list', 'Select / Combobox', "simulator: z.enum([...devices])  // 5+ options\n  // 12+ options or .meta({search: true}): Combobox",
+    field({row: true, label: 'Simulator', help: 'Device the app boots on.', control: '<div class="sel"><span>iPhone 17 Pro</span>' + ic.caret + '</div>'}) +
+    '<div class="menu" role="listbox"><div class="search">' + ic.search + '<input placeholder="Search devices" value="ipad" aria-label="Search devices"></div>' +
+    '<div class="opt hl">iPad Pro 13 <span class="meta">iOS 26.1</span></div><div class="opt">iPad Air 11 <span class="meta">iOS 26.1</span></div><div class="opt">iPad mini <span class="meta">iOS 18.4</span></div></div>'),
+
+  cell('Number in a range', 'Slider + NumberInput', "windowMinutes: z.number().int().min(1).max(60)\n  .default(10).meta({unit: 'minutes', step: 5})",
+    field({label: 'Keep the last', help: 'Older events are dropped.', changed: '10 minutes', control:
+      '<div class="slider"><div class="track"><div class="range" style="width:24%"></div><div class="thumb" style="left:24%"></div></div>' + num(15, 'min') + '</div><div class="ticks"><span>1</span><span>15</span><span>30</span><span>45</span><span>60</span></div>'})),
+
+  cell('Number, open-ended', 'NumberInput', "port: z.number().int().min(1024).max(65535)",
+    field({row: true, label: 'Port', help: 'Where the simulator bridge listens.', control: num(4610, '')}) +
+    field({row: true, label: 'Timeout', error: 'Must be 1 to 600 seconds.', control: num(900, 's', true)})),
+
+  cell('Text', 'Field + Input', "scheme: z.string().min(1).optional()\n  .meta({placeholder: 'App'})",
+    field({label: 'Xcode scheme', help: 'Leave empty to use the first scheme in the project.', control: '<div class="input"><input placeholder="App"></div>'}) +
+    field({label: 'Bundle id', error: 'Use reverse-DNS, like dev.conciv.app.', control: '<div class="input invalid mono"><input value="conciv app"></div>'}) +
+    field({label: 'Project root', locked: 'vite.config.ts', control: '<div class="input mono disabled" style="opacity:.7"><input value="native/swift" readonly></div>'})),
+
+  cell('URL', 'Field + Input with prefix', "apiBase: z.url().meta({prefix: 'https://'})",
+    field({label: 'Design file', help: 'Figma or image URL the design check compares against.', control: '<div class="input mono"><span class="addon">https://</span><input value="figma.com/design/Abc123/App"><button class="ibtn" aria-label="Copy">' + ic.copy + '</button></div>'})),
+
+  cell('Path', 'Field + Input + folder browser', "projectRoot: z.string().meta({kind: 'directory'})",
+    field({label: 'Extra source folders', help: 'Relative to the project. Browse opens a folder list from the engine.', control: '<div class="input mono"><span class="addon">' + ic.folder + '</span><input value="native/swift/Shared"><span class="addon end" style="font-family:inherit;color:var(--t2);cursor:pointer">Browse</span></div>'}) +
+    field({label: 'Developer dir', error: 'Folder not found.', control: '<div class="input mono invalid"><span class="addon">' + ic.folder + '</span><input value="/Applications/Xcode-beta.app"></div>'})),
+
+  cell('Long text', 'Field + TextArea (auto-grow)', "systemPrompt: z.string().max(2000)\n  .meta({multiline: true})",
+    field({label: 'Extra instructions for the agent', help: 'Added to the system prompt when this extension is on.', control: '<div class="input area"><textarea>Prefer SwiftUI. Never touch the Xcode project file by hand.</textarea></div><span class="count">58 / 2000</span>'})),
+
+  cell('Secret', 'PasswordInput', "token: z.string().meta({secret: true})",
+    field({label: 'Figma token', help: 'Kept in ~/.conciv on this machine, never in the project file.', control: '<div class="input mono"><input type="password" value="figd_000000000000000"><button class="ibtn" aria-label="Show token">' + ic.eye + '</button><button class="ibtn" aria-label="Copy">' + ic.copy + '</button></div>'})),
+
+  cell('List of text', 'TagsInput', "ignore: z.array(z.string()).default([])",
+    field({label: 'Ignore selectors', help: 'Enter or comma adds, Backspace removes the last.', control: '<div class="tags"><span class="tag">.ad-banner<button aria-label="Remove .ad-banner">' + ic.x + '</button></span><span class="tag">#cookie-bar<button aria-label="Remove #cookie-bar">' + ic.x + '</button></span><span class="tag">[data-private]<button aria-label="Remove [data-private]">' + ic.x + '</button></span><input placeholder="Add selector" aria-label="Add selector"></div>'})),
+
+  cell('Several of a set', 'Checkbox group', "capture: z.array(z.enum(['console','network','storage','errors']))",
+    field({label: 'Capture with the replay', control: '<div class="chks" role="group">' + [['Console', true], ['Network', true], ['Storage', false], ['Errors', true]].map(function (c) {
+      return '<span class="chk" role="checkbox" aria-checked="' + c[1] + '"><span class="box">' + ic.check + '</span>' + c[0] + '</span>'
+    }).join('') + '</div>'})),
+
+  cell('Color', 'ColorPicker', "highlight: z.string().regex(/^#[0-9a-f]{6}$/i)\n  .meta({kind: 'color'})",
+    field({label: 'Highlight color', help: 'Outline drawn around picked elements.', changed: '#c9857f', control: '<div class="color"><span class="swatch" style="background:#5fb3d9"></span><div class="input mono" style="width:120px"><input value="#5fb3d9"></div><div class="presets"><span style="background:#c9857f"></span><span class="on" style="background:#5fb3d9"></span><span style="background:#6fbf8b"></span><span style="background:#d6a25e"></span><span style="background:#b48ad9"></span></div></div>'})),
+
+  cell('Keyboard shortcut', 'createHotkeyRecorder (TanStack Hotkeys)', "commands: [{name: 'Start or stop recording', keys: 'Mod+Shift+R', run}]",
+    field({row: true, label: 'Start or stop recording', control: '<div class="kbdrow"><span class="keys"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">R</span></span><button class="ibtn" aria-label="Clear">' + ic.x + '</button></div>'}) +
+    '<div class="rec"><span class="label">Pick an element on the page</span><div class="capture" aria-live="polite"><span class="keys"><span class="kbd">⌘</span><span class="kbd">⇧</span><span class="kbd">C</span></span></div>' +
+    '<div class="mods">' + [['⌘', true], ['⌃', false], ['⌥', false], ['⇧', true]].map(function (m) { return '<button aria-pressed="' + m[1] + '">' + m[0] + '</button>' }).join('') + '</div>' +
+    '<span class="warn">' + ic.warn + '<span>Also used by <b style="color:var(--hi);font-weight:500">Compare with the design</b>. Saving moves it here.</span></span>' +
+    '<div class="btns"><button class="btn">Cancel</button><button class="btn primary">Save</button></div></div>'),
+
+  cell('Destructive action', 'Dialog (confirm)', "// not a setting: Reset buttons on Advanced",
+    field({row: true, label: 'Reset all settings', help: 'Chats and history are kept.', control: '<button class="btn dfill">Reset all</button>'}) +
+    '<div class="dialog" role="alertdialog" aria-labelledby="dt"><h3 id="dt">Reset all settings for this project?</h3><p>Views, shortcuts and extension settings go back to their defaults. Values set in vite.config.ts stay.</p><div class="btns"><button class="btn">Cancel</button><button class="btn dfill">Reset all</button></div></div>'),
+]
+document.getElementById('grid').innerHTML = cells.join('')
+
+function placeSeg(seg) {
+  const on = seg.querySelector('[aria-checked="true"]')
+  const ind = seg.querySelector('.ind')
+  ind.style.width = on.offsetWidth + 'px'
+  ind.style.transform = 'translateX(' + (on.offsetLeft - 3) + 'px)'
+}
+document.querySelectorAll('.seg').forEach(placeSeg)
+
+document.addEventListener('click', function (event) {
+  const t = event.target.closest('button,[role="radio"],[role="checkbox"]')
+  if (!t) return
+  if (t.classList.contains('sw')) { t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true')); return }
+  if (t.getAttribute('role') === 'checkbox') { t.setAttribute('aria-checked', String(t.getAttribute('aria-checked') !== 'true')); return }
+  if (t.getAttribute('role') === 'radio') {
+    const group = t.closest('[role="radiogroup"]')
+    group.querySelectorAll('[role="radio"]').forEach(function (r) { r.setAttribute('aria-checked', String(r === t)) })
+    if (group.classList.contains('seg')) placeSeg(group)
+    return
+  }
+  if (t.hasAttribute('aria-pressed')) t.setAttribute('aria-pressed', String(t.getAttribute('aria-pressed') !== 'true'))
+})
+</script>
+</body>
+</html>
