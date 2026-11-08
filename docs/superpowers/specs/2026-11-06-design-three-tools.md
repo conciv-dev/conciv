@@ -484,3 +484,24 @@ does not; and a conciv id must answer with its FOM, expected fill and font inclu
   CDP for Chromium now, WebDriver BiDi for Firefox and Chromium later, and takes true-pixel screenshots at a configured
   device scale, clipped per node. The engine lets an extension answer a page verb from the server before the browser is
   asked. Design calls the verbs and never learns who answered; the round stores the capture path that ran.
+
+### The widget is not hidden by decree; a target says whether it is measured (2026-11-09)
+
+Every measurement hides the widget and the overlay: the walk skips them, the keys query skips them, the live and mirror
+captures exclude them, the server's capture call lists them under `hide`. That is right for a page the agent builds
+and wrong for the one page where the overlay is the design: the x-ray overlay itself, drawn in Figma, cannot be
+checked by the tools that it shows. Omri: the hiding must be something a target can override.
+
+- `design_get` takes `widget`, `hidden` (the default, today's behaviour) or `shown`. The target stores it
+  (`targets.widget`, a migration); `design_status` and the `targets` source show it.
+- With `shown`, nothing of the widget is hidden: the walk enters `[data-conciv-root]`, `[data-conciv-effects]` and
+  `[data-conciv-overlay]` and their shadow roots (the id tree already walks shadow children as `/s/n`), the keys
+  query reads keys inside shadow roots too, the live snapdom capture excludes only the mirror host, and the server
+  passes an empty `hide` list to the capture verb. Boxes are page coordinates as for any element.
+- With `shown`, a round measures at the tab width only, live: the mirror rebuilds a document and cannot carry the
+  widget's shadow roots, so other widths are not measured and the round's note says `widget shown: one width`. The
+  reflow rows for the design's media widths are not produced; nothing else in the check changes.
+- A key stamped inside the widget's own sources pairs like any other key. Where the stamping does not reach a source
+  (the extension's own files are not the app's), the mapping is the selector, as the ruling of 2026-11-07 says.
+- No new tolerance or constant: the two values are a schema enum, the exclusion lists already exist and are read
+  through one function that takes the target's `widget`.
