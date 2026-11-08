@@ -342,6 +342,22 @@ describe('tool durations', () => {
     it('records nothing for a part that was already settled at first sight', () => {
       expect(foldToolDuration(call('complete'), {}, makeClock(0).now)).toEqual({})
     })
+
+    it('a remounted running row counts from the server start, not from its remount', () => {
+      const clock = makeClock(1_000)
+      const running = {...call('input-complete'), metadata: {parentToolCallId: 'p', startedAt: 400}}
+      const remounted = foldToolDuration(running, {}, clock.now)
+      clock.advance(250)
+      expect(foldToolDuration({...running, state: 'complete'}, remounted, clock.now).ms).toBe(850)
+    })
+
+    it('a malformed start stamp falls back to the first sighting', () => {
+      const clock = makeClock(1_000)
+      const running = {...call('input-complete'), metadata: {startedAt: 'soon'}}
+      const pending = foldToolDuration(running, {}, clock.now)
+      clock.advance(250)
+      expect(foldToolDuration({...running, state: 'complete'}, pending, clock.now).ms).toBe(250)
+    })
   })
 })
 

@@ -3019,7 +3019,7 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, startedAt: expect.any(Number)}]),
         )
         expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
         const results = resultsOf(await thread(sessionId))
