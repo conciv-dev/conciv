@@ -37,7 +37,7 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
-type Runner = {apiBase: string; client: MCPClient}
+type Runner = {apiBase: string; root: string; client: MCPClient}
 
 type Reply = {content: {type: 'text'; text: string}[]; isError: true}
 
@@ -57,7 +57,7 @@ async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
       transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers: clientHeaders()},
       name: 'conciv-hub',
     })
-    held.runner = {apiBase: row.apiBase, client}
+    held.runner = {apiBase: row.apiBase, root: row.root, client}
     return client
   }
 
@@ -66,7 +66,7 @@ async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
     held.runner = null
     await runner?.client
       .close()
-      .catch((error: unknown) => logHub(`closing the client of ${runner.apiBase} failed`, error))
+      .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${runner.root} failed`, error))
   }
 
   async function forward(toolName: ToolName, input: unknown): Promise<unknown> {
