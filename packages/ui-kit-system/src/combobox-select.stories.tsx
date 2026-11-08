@@ -1,115 +1,79 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {useSettingsForm} from './settings-form.js'
+import {ComboboxSelect} from './combobox-select.js'
+import {FieldShell} from './field-shell.js'
 
 const meta: Meta = {title: 'ui-kit-system/ComboboxSelect'}
 export default meta
 type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
-const DEVICES = [
-  {value: 'iphone-16', label: 'iPhone 16', meta: 'iOS 18.2'},
-  {value: 'iphone-16-pro', label: 'iPhone 16 Pro', meta: 'iOS 18.2'},
-  {value: 'ipad-air', label: 'iPad Air', meta: 'iPadOS 18.2'},
-  {value: 'pixel-9', label: 'Pixel 9', meta: 'Android 15'},
+const NOTE = 'text-[0.75rem] text-chat-text-2'
+const CITIES = [
+  {value: 'lisbon', label: 'Lisbon', meta: 'Portugal'},
+  {value: 'lyon', label: 'Lyon', meta: 'France'},
+  {value: 'osaka', label: 'Osaka', meta: 'Japan'},
+  {value: 'oslo', label: 'Oslo', meta: 'Norway'},
 ]
 
-function validateCombobox({value}: {value: {tablet: string}}) {
-  return {fields: {tablet: value.tablet === 'ipad-air' ? 'iPad Air is not installed.' : undefined}}
-}
-
-function ComboboxSettings() {
-  const [log, setLog] = createStore({last: 'nothing yet'})
-  const form = useSettingsForm(() => ({
-    defaultValues: {
-      device: 'iphone-16',
-      fallback: 'pixel-9',
-      tablet: 'ipad-air',
-      pinned: 'iphone-16-pro',
-      cloud: 'iphone-16',
-    },
-    validators: {onMount: validateCombobox, onBlur: validateCombobox},
-    listeners: {
-      onBlur: ({fieldApi}) => {
-        if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)
-      },
-    },
-  }))
-  const values = form.useStore((state) => state.values)
+function ComboboxStates() {
+  const [state, setState] = createStore({departure: 'lisbon', arrival: 'lisbon'})
+  const arrivalError = () => (state.arrival === state.departure ? 'Pick a city other than the departure.' : undefined)
   return (
     <div class={STACK}>
-      <form.AppField name="device">
-        {(field) => (
-          <field.ComboboxField
-            label="Simulator device"
-            description="Type to filter installed runtimes."
-            options={DEVICES}
-            emptyText="No installed device matches"
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="fallback">
-        {(field) => (
-          <field.ComboboxField
-            label="Fallback device"
-            options={DEVICES}
-            changed={values().fallback !== 'iphone-16'}
-            onReset={() => form.setFieldValue('fallback', 'iphone-16')}
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="tablet">
-        {(field) => <field.ComboboxField label="Tablet device" options={DEVICES} />}
-      </form.AppField>
-      <form.AppField name="pinned">
-        {(field) => <field.ComboboxField label="Pinned device" options={DEVICES} locked="Set in conciv.config.ts" />}
-      </form.AppField>
-      <form.AppField name="cloud">
-        {(field) => (
-          <field.ComboboxField label="Cloud device" description="Needs a cloud project." options={DEVICES} disabled />
-        )}
-      </form.AppField>
-      <p class="text-[0.75rem] text-chat-text-2">Committed {log.last}</p>
+      <FieldShell label="Departure" description="Type to filter the list.">
+        <ComboboxSelect
+          options={CITIES}
+          value={state.departure}
+          emptyText="No city matches"
+          onValueChange={(value) => setState('departure', value)}
+        />
+      </FieldShell>
+      <FieldShell label="Arrival" error={arrivalError()}>
+        <ComboboxSelect options={CITIES} value={state.arrival} onValueChange={(value) => setState('arrival', value)} />
+      </FieldShell>
+      <FieldShell label="Home city" readOnly>
+        <ComboboxSelect options={CITIES} value="oslo" />
+      </FieldShell>
+      <FieldShell label="Stopover" description="Direct flights only." disabled>
+        <ComboboxSelect options={CITIES} value={undefined} placeholder="None" />
+      </FieldShell>
+      <p class={NOTE}>Departure {state.departure}</p>
     </div>
   )
 }
 
-export const SettingStates: Story = {render: () => <ComboboxSettings />}
+export const States: Story = {render: () => <ComboboxStates />}
 
-export const SettingKeyboard: Story = {
-  render: () => <ComboboxSettings />,
+export const Keyboard: Story = {
+  render: () => <ComboboxStates />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
-    const device = canvas.getByRole('combobox', {name: 'Simulator device'})
-    await expect(device).toHaveAccessibleDescription('Type to filter installed runtimes.')
-    await expect(canvas.getByRole('combobox', {name: 'Tablet device'})).toHaveAccessibleDescription(
-      /iPad Air is not installed\./,
-    )
+    const departure = canvas.getByRole('combobox', {name: 'Departure'})
+    await expect(departure).toHaveAccessibleDescription('Type to filter the list.')
+    const arrival = canvas.getByRole('combobox', {name: 'Arrival'})
+    await expect(arrival).toHaveAccessibleDescription(/Pick a city other than the departure\./)
+    await expect(arrival).toHaveAttribute('aria-invalid', 'true')
 
-    await userEvent.click(device)
-    await userEvent.clear(device)
-    await userEvent.type(device, 'pix')
-    await expect(page.getByRole('option', {name: /Pixel 9/})).toBeVisible()
-    await expect(page.queryByRole('option', {name: /iPhone 16 Pro/})).toBeNull()
+    await userEvent.click(departure)
+    await userEvent.clear(departure)
+    await userEvent.type(departure, 'osa')
+    await expect(page.getByRole('option', {name: /Osaka/})).toBeVisible()
+    await expect(page.queryByRole('option', {name: /Oslo/})).toBeNull()
     await userEvent.keyboard('{Enter}')
-    await waitFor(() => expect(device).toHaveValue('Pixel 9'))
-    await expect(device).toHaveFocus()
-    await expect(canvas.getByText('Committed device: pixel-9')).toBeVisible()
+    await waitFor(() => expect(departure).toHaveValue('Osaka'))
+    await expect(departure).toHaveFocus()
+    await expect(canvas.getByText('Departure osaka')).toBeVisible()
+    await expect(canvas.queryByText('Pick a city other than the departure.')).toBeNull()
 
-    await userEvent.clear(device)
-    await userEvent.type(device, 'zzz')
-    await expect(page.getByText('No installed device matches')).toBeVisible()
+    await userEvent.clear(departure)
+    await userEvent.type(departure, 'zzz')
+    await expect(page.getByText('No city matches')).toBeVisible()
     await userEvent.keyboard('{Escape}')
 
-    await userEvent.click(canvas.getByRole('button', {name: 'Reset to default'}))
-    const fallback = canvas.getByRole('combobox', {name: 'Fallback device'})
-    await waitFor(() => expect(fallback).toHaveValue('iPhone 16'))
-    await expect(fallback).toHaveFocus()
-    await expect(canvas.getByText('Committed fallback: iphone-16')).toBeVisible()
-
-    await expect(canvas.getByRole('combobox', {name: 'Pinned device'})).toHaveAttribute('readonly')
-    await expect(canvas.getByRole('combobox', {name: 'Cloud device'})).toBeDisabled()
+    await expect(canvas.getByRole('combobox', {name: 'Home city'})).toHaveAttribute('readonly')
+    await expect(canvas.getByRole('combobox', {name: 'Stopover'})).toBeDisabled()
   },
 }

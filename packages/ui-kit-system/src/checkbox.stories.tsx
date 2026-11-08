@@ -2,18 +2,20 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
 import {Checkbox} from './checkbox.js'
-import {useSettingsForm} from './settings-form.js'
+import {CheckboxGroup} from './checkbox-group.js'
+import {FieldShell} from './field-shell.js'
 
 const meta: Meta = {title: 'ui-kit-system/Checkbox'}
 export default meta
 type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
-const EVENTS = [
-  {value: 'clicks', label: 'Clicks'},
-  {value: 'inputs', label: 'Inputs'},
-  {value: 'scroll', label: 'Scroll'},
-  {value: 'network', label: 'Network'},
+const NOTE = 'text-[0.75rem] text-chat-text-2'
+const DAYS = [
+  {value: 'mon', label: 'Monday'},
+  {value: 'tue', label: 'Tuesday'},
+  {value: 'wed', label: 'Wednesday'},
+  {value: 'thu', label: 'Thursday'},
 ]
 
 export const Default: Story = {
@@ -22,122 +24,91 @@ export const Default: Story = {
     return (
       <div class="flex flex-col gap-2">
         <Checkbox
-          label="Open the panel on start"
+          label="Remember me"
           checked={state.checked}
           onCheckedChange={(checked) => setState('checked', checked)}
         />
-        <Checkbox label="Sync across devices" disabled />
-        <Checkbox label="Accept the license" invalid />
-        <span class="text-[0.75rem] text-chat-text-2">Open on start: {state.checked ? 'yes' : 'no'}</span>
+        <Checkbox label="Keep a copy" disabled />
+        <Checkbox label="Accept the terms" invalid />
+        <Checkbox label="Archived" checked readOnly />
+        <span class={NOTE}>Remember me: {state.checked ? 'yes' : 'no'}</span>
       </div>
     )
   },
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const open = canvas.getByRole('checkbox', {name: 'Open the panel on start'})
-    await userEvent.click(canvas.getByText('Open the panel on start'))
-    await waitFor(() => expect(open).toBeChecked())
-    await expect(canvas.getByText('Open on start: yes')).toBeVisible()
+    const remember = canvas.getByRole('checkbox', {name: 'Remember me'})
+    await userEvent.click(canvas.getByText('Remember me'))
+    await waitFor(() => expect(remember).toBeChecked())
+    await expect(canvas.getByText('Remember me: yes')).toBeVisible()
     await userEvent.keyboard(' ')
-    await waitFor(() => expect(open).not.toBeChecked())
-    await expect(canvas.getByRole('checkbox', {name: 'Sync across devices'})).toBeDisabled()
+    await waitFor(() => expect(remember).not.toBeChecked())
+    await expect(canvas.getByRole('checkbox', {name: 'Keep a copy'})).toBeDisabled()
+    await userEvent.click(canvas.getByText('Archived'))
+    await expect(canvas.getByRole('checkbox', {name: 'Archived'})).toBeChecked()
   },
 }
 
-function validateGroups({value}: {value: {capture: string[]; upload: string[]}}) {
-  return {
-    fields: {
-      capture: value.capture.length === 0 ? 'Pick at least one event.' : undefined,
-      upload: value.upload.length === 0 ? 'Pick at least one event.' : undefined,
-    },
-  }
-}
-
-const GROUP_DEFAULTS: {capture: string[]; mask: string[]; upload: string[]; pinned: string[]; cloud: string[]} = {
-  capture: ['clicks', 'inputs'],
-  mask: ['inputs', 'network'],
-  upload: [],
-  pinned: ['clicks'],
-  cloud: ['clicks'],
-}
-
-function CheckboxGroupSettings() {
-  const [log, setLog] = createStore({last: 'nothing yet'})
-  const form = useSettingsForm(() => ({
-    defaultValues: GROUP_DEFAULTS,
-    validators: {onMount: validateGroups, onBlur: validateGroups},
-    listeners: {
-      onBlur: ({fieldApi}) => {
-        if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)
-      },
-    },
-  }))
-  const values = form.useStore((state) => state.values)
+function DayGroups() {
+  const [state, setState] = createStore<{open: string[]; delivery: string[]}>({open: ['mon', 'tue'], delivery: []})
+  const deliveryError = () => (state.delivery.length === 0 ? 'Pick at least one day.' : undefined)
   return (
     <div class={STACK}>
-      <form.AppField name="capture">
-        {(field) => (
-          <field.CheckboxGroupField label="Capture" description="What each replay records." options={EVENTS} />
-        )}
-      </form.AppField>
-      <form.AppField name="mask">
-        {(field) => (
-          <field.CheckboxGroupField
-            label="Mask"
-            options={EVENTS}
-            changed={values().mask.join() !== 'inputs'}
-            onReset={() => form.setFieldValue('mask', ['inputs'])}
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="upload">
-        {(field) => <field.CheckboxGroupField label="Upload" options={EVENTS} />}
-      </form.AppField>
-      <form.AppField name="pinned">
-        {(field) => (
-          <field.CheckboxGroupField label="Always record" options={EVENTS} locked="Set by your organization" />
-        )}
-      </form.AppField>
-      <form.AppField name="cloud">
-        {(field) => (
-          <field.CheckboxGroupField label="Cloud sync" description="Needs a cloud project." options={EVENTS} disabled />
-        )}
-      </form.AppField>
-      <p class="text-[0.75rem] text-chat-text-2">Committed {log.last}</p>
+      <FieldShell label="Open days" description="Days the store is open." group>
+        <CheckboxGroup options={DAYS} value={state.open} onValueChange={(value) => setState('open', value)} />
+      </FieldShell>
+      <FieldShell label="Delivery days" group error={deliveryError()}>
+        <CheckboxGroup
+          options={DAYS}
+          value={state.delivery}
+          invalid={deliveryError() !== undefined}
+          onValueChange={(value) => setState('delivery', value)}
+        />
+      </FieldShell>
+      <FieldShell label="Holidays" group>
+        <CheckboxGroup options={DAYS} value={['mon']} readOnly />
+      </FieldShell>
+      <FieldShell label="Late hours" description="Needs an evening shift first." group disabled>
+        <CheckboxGroup options={DAYS} value={['wed']} disabled />
+      </FieldShell>
+      <p class={NOTE}>Open {state.open.join(', ')}</p>
     </div>
   )
 }
 
-export const GroupSettingStates: Story = {render: () => <CheckboxGroupSettings />}
+export const GroupStates: Story = {render: () => <DayGroups />}
 
-export const GroupSettingKeyboard: Story = {
-  render: () => <CheckboxGroupSettings />,
+export const GroupKeyboard: Story = {
+  render: () => <DayGroups />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const capture = within(canvas.getByRole('group', {name: 'Capture'}))
-    await expect(canvas.getByRole('group', {name: 'Capture'})).toHaveAccessibleDescription('What each replay records.')
-    await expect(canvas.getByRole('group', {name: 'Upload'})).toHaveAccessibleDescription(/Pick at least one event\./)
+    const open = within(canvas.getByRole('group', {name: 'Open days'}))
+    await expect(canvas.getByRole('group', {name: 'Open days'})).toHaveAccessibleDescription('Days the store is open.')
+    await expect(canvas.getByRole('group', {name: 'Delivery days'})).toHaveAccessibleDescription(
+      /Pick at least one day\./,
+    )
 
-    await userEvent.click(capture.getByText('Scroll'))
-    await waitFor(() => expect(capture.getByRole('checkbox', {name: 'Scroll'})).toBeChecked())
-    await expect(canvas.getByText('Committed capture: clicks,inputs,scroll')).toBeVisible()
+    await userEvent.click(open.getByText('Wednesday'))
+    await waitFor(() => expect(open.getByRole('checkbox', {name: 'Wednesday'})).toBeChecked())
+    await expect(canvas.getByText('Open mon, tue, wed')).toBeVisible()
     await userEvent.tab()
-    await expect(capture.getByRole('checkbox', {name: 'Network'})).toHaveFocus()
+    await expect(open.getByRole('checkbox', {name: 'Thursday'})).toHaveFocus()
     await userEvent.keyboard(' ')
-    await waitFor(() => expect(capture.getByRole('checkbox', {name: 'Network'})).toBeChecked())
-    await expect(canvas.getByText('Committed capture: clicks,inputs,scroll,network')).toBeVisible()
+    await waitFor(() => expect(open.getByRole('checkbox', {name: 'Thursday'})).toBeChecked())
+    await expect(canvas.getByText('Open mon, tue, wed, thu')).toBeVisible()
 
-    await userEvent.click(canvas.getByRole('button', {name: 'Reset to default'}))
-    const mask = within(canvas.getByRole('group', {name: 'Mask'}))
-    await waitFor(() => expect(mask.getByRole('checkbox', {name: 'Network'})).not.toBeChecked())
-    await expect(mask.getByRole('checkbox', {name: 'Clicks'})).toHaveFocus()
-    await expect(canvas.getByText('Committed mask: inputs')).toBeVisible()
+    const delivery = within(canvas.getByRole('group', {name: 'Delivery days'}))
+    await userEvent.tab()
+    await expect(delivery.getByRole('checkbox', {name: 'Monday'})).toHaveFocus()
+    await userEvent.keyboard(' ')
+    await waitFor(() => expect(delivery.getByRole('checkbox', {name: 'Monday'})).toBeChecked())
+    await expect(canvas.queryByText('Pick at least one day.')).toBeNull()
 
-    const pinned = within(canvas.getByRole('group', {name: 'Always record'}))
-    await userEvent.click(pinned.getByText('Scroll'))
-    await expect(pinned.getByRole('checkbox', {name: 'Scroll'})).not.toBeChecked()
+    const holidays = within(canvas.getByRole('group', {name: 'Holidays'}))
+    await userEvent.click(holidays.getByText('Tuesday'))
+    await expect(holidays.getByRole('checkbox', {name: 'Tuesday'})).not.toBeChecked()
     await expect(
-      within(canvas.getByRole('group', {name: 'Cloud sync'})).getByRole('checkbox', {name: 'Clicks'}),
+      within(canvas.getByRole('group', {name: 'Late hours'})).getByRole('checkbox', {name: 'Monday'}),
     ).toBeDisabled()
   },
 }
