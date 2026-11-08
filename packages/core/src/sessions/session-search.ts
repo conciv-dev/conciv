@@ -20,7 +20,7 @@ import {pageAfter} from '@conciv/harness/page'
 import {sessions, type ConcivDb} from '@conciv/db'
 import {logError} from '../lib/debug.js'
 import type {SessionsChange} from '@conciv/contract'
-import type {NativePage} from './session-rows.js'
+import type {Found, NativePage} from './session-rows.js'
 import type {SearchIndexRouter} from './search-index-worker.js'
 
 type SessionSearchDeps = {
@@ -39,7 +39,7 @@ type SessionSearch = {
 
 type Indexed = {harness: HarnessAdapter; history: HarnessHistory}
 
-type Hit = {harnessKind: string; meta: HarnessSessionMeta}
+type Hit = {harnessKind: string; meta: HarnessSessionMeta; found: Found}
 
 type SearchIndex = RouterClient<SearchIndexRouter>
 
@@ -178,6 +178,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         {
           harnessKind: harness.id,
           meta: {id: nativeId.data, derivedTitle: hit.title, updatedAt: hit.updatedAt, sizeBytes: hit.sizeBytes},
+          found: {excerpt: hit.excerpt, matched: hit.matched},
         },
       ]
     })
@@ -206,13 +207,14 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         updatedAt: hit.meta.updatedAt,
         id: hit.meta.id,
       }))
-      return indexed.map(({harness}) => ({
-        harnessKind: harness.id,
-        page: {
-          sessions: paged.items.filter((hit) => hit.harnessKind === harness.id).map((hit) => hit.meta),
-          next: paged.next,
-        },
-      }))
+      return indexed.map(({harness}) => {
+        const hits = paged.items.filter((hit) => hit.harnessKind === harness.id)
+        return {
+          harnessKind: harness.id,
+          page: {sessions: hits.map((hit) => hit.meta), next: paged.next},
+          found: new Map(hits.map((hit) => [hit.meta.id, hit.found])),
+        }
+      })
     },
     async retitle(harnessKind, nativeId, title) {
       if (state.running === null) return

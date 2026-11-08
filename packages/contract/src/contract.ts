@@ -26,7 +26,7 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
-import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
+import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -38,6 +38,10 @@ const SessionListInput = z.object({
 })
 const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
 const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
+const SessionSearchPageSchema = z.object({
+  sessions: z.array(SessionHitSchema),
+  next: HarnessListCursorSchema.nullable(),
+})
 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
 
@@ -162,7 +166,7 @@ export const contract = {
     list: oc
       .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
       .output(SessionPageSchema),
-    search: oc.input(SessionSearchInput).output(SessionPageSchema),
+    search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
     changes: oc.output(eventIterator(SessionsChangeSchema)),
     get: oc.errors(notFound).input(SessionIdInput).output(SessionMetaSchema),
     create: oc.output(SessionIdInput),

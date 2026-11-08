@@ -78,6 +78,7 @@
   --chat-glyph: light-dark(rgba(15, 18, 24, 0.28), #5f595d);
   --chat-target: light-dark(var(--chat-text-2), #ded8d4);
   --chat-code: light-dark(var(--chat-text-2), var(--chat-accent-hi));
+  --chat-highlight: color-mix(in oklch, var(--chat-accent) 45%, var(--chat-panel));
   --chat-summary: light-dark(var(--chat-text-2), #c4beba);
   --chat-microlabel: light-dark(var(--chat-text-3), #6b666b);
   --chat-faint: light-dark(var(--chat-text-3), #5f5a5f);
@@ -143,6 +144,37 @@
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+/* Compact markdown for one-glance excerpts: one type size taken from the container, no heading scale,
+   no block spacing, and a fence reads as inline code, so a clipped excerpt keeps a fixed line height. */
+.chat-markdown-compact {
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown-compact :is(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, pre, table, figure) {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.chat-markdown-compact :is(h1, h2, h3, h4, h5, h6, strong) {
+  font-weight: 600;
+  color: var(--chat-text-hi);
+}
+
+.chat-markdown-compact :is(ul, ol) {
+  list-style-position: inside;
+}
+
+.chat-markdown-compact pre {
+  white-space: normal;
+}
+
+.chat-markdown-compact code {
+  font-family: var(--chat-mono);
+  color: var(--chat-code);
 }
 
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets

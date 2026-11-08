@@ -1,5 +1,7 @@
 import {MessagePort, workerData} from 'node:worker_threads'
 import {count, create, getByID, removeMultiple, search, upsert, upsertMultiple} from '@orama/orama'
+import {boundedLevenshtein} from '@orama/orama/internals'
+import {uniq} from 'es-toolkit'
 import {os} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/message-port'
 import {z} from 'zod'
@@ -25,6 +27,14 @@ const IndexedSchema = ListingSchema.extend({
 const NOTHING_READ = {body: '', read: false, readAt: 0, readUpdatedAt: 0}
 
 const CursorSchema = z.object({updatedAt: z.number(), id: z.string()})
+
+const EXCERPT_LENGTH = 300
+
+const EXCERPT_LEAD = 80
+
+type Property = 'title' | 'body'
+
+const WORD = /[\p{L}\p{N}_'-]+/gu
 
 const index = create({
   schema: {
@@ -110,6 +120,7 @@ const router = {
       const window = await matches(range, reach)
       const edge = window.hits.at(-1)?.document.updatedAt
       const found = edge === undefined ? window : await matches(range, reach + (await tiesAt(edge)))
+      const queryTokens = index.tokenizer.tokenize(input.term, undefined, undefined, false)
       return found.hits.map((hit) => {
         const document = IndexedSchema.parse({...hit.document, id: hit.id})
         return {
@@ -118,6 +129,7 @@ const router = {
           title: document.title,
           updatedAt: document.updatedAt,
           sizeBytes: document.sizeBytes,
+          ...excerptOf(document, queryTokens, input.tolerance),
         }
       })
     }),
@@ -133,4 +145,50 @@ port.start()
 function currentOf(id: string): z.infer<typeof IndexedSchema> | undefined {
   const found = getByID(index, id)
   return found === undefined ? undefined : IndexedSchema.parse({...found, id})
+}
+
+function excerptOf(
+  document: {title: string; body: string},
+  queryTokens: string[],
+  tolerance: number,
+): {excerpt: string | null; matched: string[]} {
+  const body = document.body
+  const inTitle = matchedWords(document.title, 'title', queryTokens, tolerance)
+  const first = firstMatchAt(body, queryTokens, tolerance)
+  if (first === undefined) return {excerpt: null, matched: inTitle}
+  const lineStart = body.lastIndexOf('\n', first - 1) + 1
+  const start =
+    first - lineStart > EXCERPT_LENGTH
+      ? Math.max(lineStart, body.lastIndexOf(' ', first - EXCERPT_LEAD) + 1)
+      : lineStart
+  const boundary = body.slice(start + EXCERPT_LENGTH).search(/\s/)
+  const end = boundary < 0 ? body.length : start + EXCERPT_LENGTH + boundary
+  const excerpt = body.slice(start, end).trimEnd()
+  const matched = uniq([...inTitle, ...matchedWords(excerpt, 'body', queryTokens, tolerance)])
+  return {excerpt: start > lineStart ? `…${excerpt}` : excerpt, matched}
+}
+
+function matchedWords(text: string, property: Property, queryTokens: string[], tolerance: number): string[] {
+  return uniq(
+    Array.from(text.matchAll(WORD), (word) => word[0]).filter((word) =>
+      wordMatches(word, property, queryTokens, tolerance),
+    ),
+  )
+}
+
+function firstMatchAt(body: string, queryTokens: string[], tolerance: number): number | undefined {
+  for (const word of body.matchAll(WORD)) {
+    if (wordMatches(word[0], 'body', queryTokens, tolerance)) return word.index
+  }
+  return undefined
+}
+
+function wordMatches(word: string, property: Property, queryTokens: string[], tolerance: number): boolean {
+  return index.tokenizer
+    .tokenize(word, undefined, property, false)
+    .some((token) =>
+      queryTokens.some(
+        (queryToken) => token.startsWith(queryToken) || boundedLevenshtein(queryToken, token, tolerance).isBounded,
+      ),
+    )
 }

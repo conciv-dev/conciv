@@ -272,9 +272,31 @@ function codeBlock(fenceText: string, lang: string | undefined, streaming: boole
   return streamedPrefix(requested, fenceText)
 }
 
-export type MarkdownProps = {content: string; streaming?: boolean}
+export type MarkdownProps = {
+  content: string
+  streaming?: boolean
+  compact?: boolean
+  highlight?: readonly string[]
+}
+
+const NO_LINK_PREFIXES: string[] = []
 
 export function Markdown(props: MarkdownProps): JSX.Element {
+  return (
+    <Show when={props.compact} fallback={<FullMarkdown {...props} />}>
+      <Streamdown
+        class="chat-markdown-compact"
+        allowedLinkPrefixes={NO_LINK_PREFIXES}
+        linkBlockPolicy="text-only"
+        highlight={props.highlight}
+      >
+        {props.content}
+      </Streamdown>
+    </Show>
+  )
+}
+
+function FullMarkdown(props: MarkdownProps): JSX.Element {
   warmHighlighter()
   const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
   return (
@@ -283,6 +305,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}
+      highlight={props.highlight}
     >
       {props.content}
     </Streamdown>

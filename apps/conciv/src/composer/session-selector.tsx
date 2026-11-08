@@ -1,4 +1,4 @@
-import {createMemo, createUniqueId, Show, type JSX} from 'solid-js'
+import {createMemo, createUniqueId, Index, Show, type JSX} from 'solid-js'
 import {
   Button,
   ByteSize,
@@ -11,6 +11,8 @@ import {
   TruncatedText,
   VirtualList,
 } from '@conciv/ui-kit-system'
+import {highlightPattern} from '@conciv/solid-streamdown'
+import {Markdown} from '@conciv/ui-kit-chat'
 import {createDateNow} from '@solid-primitives/date'
 import {createDebouncedSignal} from '@tanstack/solid-pacer'
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/solid-query'
@@ -20,7 +22,7 @@ import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
 import Plus from 'lucide-solid/icons/plus'
 import X from 'lucide-solid/icons/x'
-import type {SessionMeta} from '@conciv/contract'
+import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
@@ -43,13 +45,17 @@ const HEADER_ROW_SIZE = 26
 
 const SESSION_ROW_SIZE = 48
 
+const EXCERPT_ROW_SIZE = 100
+
 const MORE_ROW_SIZE = 44
 
 const BUCKETS = ['Today', 'Yesterday', 'Earlier'] as const
 
 type Bucket = (typeof BUCKETS)[number]
 
-type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: SessionMeta}
+type PickerSession = SessionMeta | SessionHit
+
+type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: PickerSession}
 
 type SessionPage = {next: HarnessListCursor | null}
 
@@ -59,7 +65,7 @@ function bucketOf(updatedAt: number, now: number): Bucket {
   return 'Earlier'
 }
 
-function pickerRows(list: SessionMeta[], now: number): PickerRow[] {
+function pickerRows(list: PickerSession[], now: number): PickerRow[] {
   const byBucket = groupBy(list, (session) => bucketOf(session.updatedAt, now))
   return BUCKETS.flatMap((name): PickerRow[] => {
     const sessions = byBucket[name]
@@ -69,7 +75,16 @@ function pickerRows(list: SessionMeta[], now: number): PickerRow[] {
 }
 
 function rowSize(row: PickerRow): number {
-  return row.kind === 'header' ? HEADER_ROW_SIZE : SESSION_ROW_SIZE
+  if (row.kind === 'header') return HEADER_ROW_SIZE
+  return excerptOf(row.session) === null ? SESSION_ROW_SIZE : EXCERPT_ROW_SIZE
+}
+
+function excerptOf(session: PickerSession): string | null {
+  return 'excerpt' in session ? session.excerpt : null
+}
+
+function matchedOf(session: PickerSession): readonly string[] {
+  return 'matched' in session ? session.matched : []
 }
 
 export function SessionSelector(props: {
@@ -118,7 +133,7 @@ export function SessionSelector(props: {
   const harnesses = useHarnesses()
   const harnessSuffix = (s: SessionMeta): string =>
     harnesses.switchable() ? ` · ${harnesses.nameOf(s.harnessKind)}` : ''
-  const sessionsLoaded = createMemo((): SessionMeta[] =>
+  const sessionsLoaded = createMemo((): PickerSession[] =>
     uniqBy(list.data?.pages.flatMap((page) => page.sessions) ?? [], (session) => session.id),
   )
   const searching = () => list.isFetchingNextPage || (list.isFetching && (list.isPlaceholderData || list.isPending))
@@ -135,7 +150,7 @@ export function SessionSelector(props: {
   const [clock] = createDateNow(CLOCK_TICK_MS)
   const now = () => clock().getTime()
   const collection = createMemo(() =>
-    createListCollection<SessionMeta>({
+    createListCollection<PickerSession>({
       items: sessionsLoaded(),
       itemToValue: (session) => session.id,
       itemToString: (session) => session.title,
@@ -338,13 +353,17 @@ function SessionSize(props: {sizeBytes: number | undefined}): JSX.Element {
   )
 }
 
-function SessionOption(props: {session: SessionMeta; suffix: string}): JSX.Element {
+function SessionOption(props: {session: PickerSession; suffix: string}): JSX.Element {
   const labelId = createUniqueId()
+  const excerptId = createUniqueId()
+  const excerpt = () => excerptOf(props.session)
+  const highlight = createMemo(() => highlightPattern(matchedOf(props.session)))
   return (
     <Combobox.Item
       item={props.session}
-      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong"
+      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
       aria-labelledby={labelId}
+      aria-describedby={excerpt() === null ? undefined : excerptId}
     >
       <span id={labelId} class="sr-only">
         {props.session.title}, Edited <RelativeTime value={new Date(props.session.updatedAt)} />
@@ -355,8 +374,20 @@ function SessionOption(props: {session: SessionMeta; suffix: string}): JSX.Eleme
       </span>
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
-          <Combobox.ItemText>{props.session.title}</Combobox.ItemText>
+          <Combobox.ItemText>
+            <MarkedText text={props.session.title} pattern={highlight()} />
+          </Combobox.ItemText>
         </TruncatedText>
+        <Show when={excerpt()}>
+          {(text) => (
+            <div
+              id={excerptId}
+              class="text-[0.75rem] text-chat-text-2 leading-4 h-12 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-0.5rem),transparent)]"
+            >
+              <Markdown content={text()} compact highlight={matchedOf(props.session)} />
+            </div>
+          )}
+        </Show>
         <span class="text-[0.6875rem] text-chat-text-3 truncate" aria-hidden="true">
           Edited <RelativeTime value={new Date(props.session.updatedAt)} />
           <SessionSize sizeBytes={props.session.sizeBytes} />
@@ -374,4 +405,9 @@ function SessionOption(props: {session: SessionMeta; suffix: string}): JSX.Eleme
       </Combobox.ItemIndicator>
     </Combobox.Item>
   )
+}
+
+function MarkedText(props: {text: string; pattern: RegExp | null}): JSX.Element {
+  const parts = createMemo(() => (props.pattern === null ? [props.text] : props.text.split(props.pattern)))
+  return <Index each={parts()}>{(part, index) => (index % 2 === 1 ? <mark>{part()}</mark> : <>{part()}</>)}</Index>
 }

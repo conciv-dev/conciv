@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
-import type {SessionMeta} from '@conciv/contract'
+import type {SessionHit} from '@conciv/contract'
 import {
   SessionId,
   type HarnessMenuEntry,
@@ -67,8 +67,8 @@ async function sessionPage(
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
   search: string | null,
   nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
-  returned: SessionMeta[] = [],
-): Promise<{sessions: SessionMeta[]; next: HarnessListCursor | null}> {
+  returned: SessionHit[] = [],
+): Promise<{sessions: SessionHit[]; next: HarnessListCursor | null}> {
   const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit - returned.length}
   const listed = await listSessionMetas({
     db: chat.db,
