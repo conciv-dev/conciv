@@ -133,6 +133,8 @@
     "@conciv/embed",
     "@conciv/extension-compiler",
     "@conciv/extension-page",
+    "@conciv/extension-try-it",
+    "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/skills",

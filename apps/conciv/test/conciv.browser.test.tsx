@@ -1,4 +1,5 @@
 import '../src/styles.css'
+import 'virtual:uno.css'
 import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'

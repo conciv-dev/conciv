@@ -3,6 +3,7 @@ import {defineConfig} from 'unocss'
 
 export default defineConfig({
   content: {
+    pipeline: {include: [/\.tsx?($|\?)/]},
     filesystem: [
       'src/**/*.{ts,tsx}',
       '../../packages/ui-kit-chat/src/**/*.{ts,tsx}',

@@ -606,6 +606,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../packages/extension-testkit
+      '@conciv/extension-whiteboard':
+        specifier: workspace:*
+        version: link:../../packages/extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../packages/harness-testkit
@@ -636,9 +639,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
@@ -2426,6 +2426,12 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/extension-try-it':
+        specifier: workspace:*
+        version: link:../extensions/try-it
+      '@conciv/extension-whiteboard':
+        specifier: workspace:*
+        version: link:../extensions/whiteboard
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
@@ -2450,9 +2456,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
