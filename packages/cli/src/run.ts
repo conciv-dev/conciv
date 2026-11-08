@@ -39,10 +39,8 @@ export async function runCli(app: typeof main, argv: string[]): Promise<number> 
     const run = handlerOf(result.definition)
     if (run === null) throw new Error(`the route ${result.route} has no handler`)
     const model = ModelSchema.parse(result.model)
-    const parsedTab = Object.values(ModelsSchema.parse(result.models)).find(
-      (routeModel) => routeModel.tab !== undefined,
-    )
-    if ((parsedTab?.tab ?? null) !== tab) {
+    const tabs = Object.values(ModelsSchema.parse(result.models)).flatMap((routeModel) => routeModel.tab ?? [])
+    if ((tabs[0] ?? null) !== tab || tabs.some((each) => each !== tab)) {
       throw userFailure('--tab was given more than once with different tab ids.', {hint: 'pass --tab once.'})
     }
     return await writeOutcome(Promise.resolve().then(() => run(model, {tab})))

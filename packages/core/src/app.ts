@@ -57,9 +57,11 @@ import {
 } from '@conciv/chat'
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
-import type {ChatContext} from './api/rpc/mount.js'
+import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
 import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
+import {os} from '@orpc/server'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {createHubInstaller} from './api/rpc/hub.js'
 import tabsApp, {type TabsVars} from './api/tabs.js'
@@ -610,7 +612,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
 
   const search = createSessionSearch({db, cwd: chatDeps.cwd, harnesses: chatDeps.harnesses})
-  const rpc = makeRpcRouter({
+  const rpcDeps: RpcDeps = {
     chat: chatDeps,
     search,
     tools: toolList,
@@ -626,12 +628,22 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       browsers,
       now: Date.now,
     }),
-  })
+  }
+  const rpc = makeRpcRouter(rpcDeps)
+  const admittedOs = os.$context<RpcContext>().use(makeHubAdmission(rpcDeps))
 
   const compositeRpc = makeCompositeRpcRouter(
     rpc,
     mounted.flatMap((entry) =>
-      entry.router ? [{slug: slug(entry.extensionName), extensionName: entry.extensionName, router: entry.router}] : [],
+      entry.router
+        ? [
+            {
+              slug: slug(entry.extensionName),
+              extensionName: entry.extensionName,
+              router: admittedOs.router(entry.router),
+            },
+          ]
+        : [],
     ),
   )
 

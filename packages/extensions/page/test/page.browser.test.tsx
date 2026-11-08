@@ -388,6 +388,13 @@ describe.skipIf(inFirefox)('page tools', () => {
         code: 'invalid-args',
         message: 'The field rejected "many" and stayed empty.',
       })
+      const pin = Object.assign(document.createElement('input'), {id: 'pin', type: 'password'})
+      pin.addEventListener('input', () => (pin.value = ''))
+      container.appendChild(pin)
+      const refused = await failureOf('fill', {selector: '#pin', value: 'hunter2-secret'})
+      pin.remove()
+      expect(refused).toEqual({code: 'invalid-args', message: 'The field rejected *** and stayed empty.'})
+      expect(JSON.stringify(refused)).not.toContain('hunter2-secret')
       expect(await failureOf('check', {selector: '#locked'})).toEqual({
         code: 'invalid-args',
         message: 'That element is disabled.',

@@ -1122,6 +1122,32 @@ describe('cli', () => {
       }
     })
 
+    it('a root --tab and a verb --tab naming different tabs are refused instead of acting on the first', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['--tab', sessionId, 'tools', 'tabs', '--tab', 'conciv_other'])
+        const allowIfAsked = vi
+          .waitFor(
+            async () => {
+              const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+              if (!ask) throw new Error('no ask yet')
+              await page.chat.permissionDecision({approvalId: ask.approvalId, approved: true})
+            },
+            {timeout: 3000},
+          )
+          .catch(() => {})
+        expect(await waiting).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: '--tab was given more than once with different tab ids.'},
+        })
+        await allowIfAsked
+      } finally {
+        await engine.stop()
+      }
+    })
+
     it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const lantern = defineTool({

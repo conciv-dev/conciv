@@ -17,7 +17,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `conciv tools page changes [--clear]` (`page.ts`): `pageChangesCommand`, added to the `page` group; calls `rpc.page.changes` or `rpc.page.clearChanges`
 - every other group verb calls `rpc.registry.call({name, input})`
 - `envelopeFlag` (`envelope.ts`): the --json toggle accepted on every route that does not declare its own `json`
-- `tabFlag` (`tab-flag.ts`): `--tab <id>`, zod-parsed as `SessionId`, declared on the root, the tools routes and every tool command that does not declare its own `tab`; `runCli` takes the first `tab` from any route model and hands handlers a `CliTarget`
+- `tabFlag` (`tab-flag.ts`): `--tab <id>`, zod-parsed as `SessionId`, declared on the root, the tools routes and every tool command that does not declare its own `tab`; `runCli` refuses route models whose `tab`s differ from the flagged one and hands handlers a `CliTarget`
 - `runCli(app, argv)` (`run.ts`): parses, resumes the catalog checkpoint with the live catalog, prints help/version or runs the handler, returns an exit code
 - `routeFailure` (`arguments.ts`): turns the router's method-not-allowed / unprocessable-content result into a user error envelope
 - `handler` / `handlerOf` (`router/handler.ts`): attach a run function to a route definition and read it back from the parsed intent

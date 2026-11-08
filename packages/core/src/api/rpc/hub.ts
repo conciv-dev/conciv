@@ -20,6 +20,8 @@ const DetectionEnvSchema = z.object({
 
 type ConnectOutcome = {ok: true} | {ok: false; message: string}
 
+type RunOutcome = {ok: boolean; output: string; message: string}
+
 export function createHubInstaller(homeDir: string | undefined) {
   const home = (): string => concivHome({homeDir, env: process.env})
   return {
@@ -30,11 +32,15 @@ export function createHubInstaller(homeDir: string | undefined) {
         .map(({id}) => ({harnessId: id, name: getHarness(id)?.displayName ?? id}))
     },
     connect: async (harness: InitHarnessId): Promise<ConnectOutcome> => {
-      const argv = initContributions[harness].hub?.add(HUB_COMMAND, {CONCIV_HOME: home()}) ?? []
-      const [bin, ...args] = argv
-      if (bin === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
-      const ran = await run(bin, args, process.env)
-      if (!ran.ok && !ALREADY_EXISTS.test(ran.output)) return {ok: false, message: ran.message}
+      const hub = initContributions[harness].hub
+      if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
+      const add = hub.add(HUB_COMMAND, {CONCIV_HOME: home()})
+      const added = await run(add)
+      if (added.ok) return record(harness, home())
+      if (!ALREADY_EXISTS.test(added.output)) return {ok: false, message: added.message}
+      if (hub.remove === undefined) return record(harness, home())
+      const replaced = await replace(hub.remove, add)
+      if (!replaced.ok) return {ok: false, message: replaced.message}
       return record(harness, home())
     },
   }
@@ -49,13 +55,17 @@ function readConnections(home: string): string[] {
   }
 }
 
-function run(
-  bin: string,
-  args: string[],
-  env: NodeJS.ProcessEnv,
-): Promise<{ok: boolean; output: string; message: string}> {
+async function replace(remove: string[], add: string[]): Promise<RunOutcome> {
+  const removed = await run(remove)
+  if (!removed.ok) return removed
+  return run(add)
+}
+
+function run(argv: string[]): Promise<RunOutcome> {
+  const [bin, ...args] = argv
+  if (bin === undefined) return Promise.resolve({ok: false, output: '', message: 'the harness gave no command to run'})
   return new Promise((resolve) => {
-    execFile(bin, args, {timeout: INSTALL_TIMEOUT_MS, env}, (error, stdout, stderr) => {
+    execFile(bin, args, {timeout: INSTALL_TIMEOUT_MS, env: process.env}, (error, stdout, stderr) => {
       const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
       resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
     })

@@ -49,6 +49,7 @@ export const claudeInit: HarnessInit<'claude'> = {
       '--',
       ...command,
     ],
+    remove: ['claude', 'mcp', 'remove', '-s', 'user', 'conciv-hub'],
   },
   init: 'files',
   title: 'Install the conciv claude plugin',

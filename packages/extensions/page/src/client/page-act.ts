@@ -1,3 +1,4 @@
+import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
 import {setNativeValue, simulateClick, simulateFill} from './simulator.js'
 
@@ -69,7 +70,7 @@ export async function fill(options: {element: Element; value: string; agent: str
   if (!isInput(element) && !isTextArea(element)) return 'That element is not a text field.'
   if (element.readOnly) return 'That field is read-only.'
   await simulateFill({element, value, agent})
-  if (value !== '' && element.value === '') return `The field rejected ${JSON.stringify(value)} and stayed empty.`
+  if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
   return null
 }
 
@@ -78,7 +79,7 @@ export function select(options: {element: Element; value: string}): {value: stri
   if (!isSelect(element)) return 'That element is not a select.'
   const choices = Array.from(element.options)
   const option = choices.find((each) => each.value === value) ?? choices.find((each) => each.label.trim() === value)
-  if (!option) return `No option ${JSON.stringify(value)}; options: ${choices.map(described).join(', ')}.`
+  if (!option) return `No option ${shown({element, value})}; options: ${choices.map(described).join(', ')}.`
   setNativeValue({element, value: option.value})
   changed(element)
   return {value: element.value}
@@ -100,6 +101,10 @@ export async function setChecked(options: {
   if (aria === null) return 'That element is not a checkbox.'
   if ((aria === 'true') !== checked) await simulateClick({element, agent})
   return reached({now: element.getAttribute('aria-checked') === 'true', checked})
+}
+
+function shown(options: {element: Element; value: string}): string {
+  return isSensitiveField(options.element) ? MASKED_VALUE : JSON.stringify(options.value)
 }
 
 function described(option: HTMLOptionElement): string {

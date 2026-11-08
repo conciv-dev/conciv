@@ -23,7 +23,7 @@ import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEa
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
-import {type EngineStaleness} from '@conciv/contract'
+import {abortableFetch, type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,
@@ -96,7 +96,9 @@ import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/pag
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
-import {os} from '@orpc/server'
+import {createORPCClient} from '@orpc/client'
+import {RPCLink} from '@orpc/client/fetch'
+import {os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
@@ -485,8 +487,9 @@ describe('connect hub', () => {
     mkdirSync(join(root, 'home'))
     const script = [
       '#!/bin/sh',
-      `printf '%s\\n' "$@" > '${file.argv}'`,
+      `printf '%s\\n' "$*" >> '${file.argv}'`,
       `if [ -f '${file.fail}' ]; then echo boom >&2; exit 2; fi`,
+      `if [ "$2" = remove ]; then /bin/rm -f '${file.exists}'; exit 0; fi`,
       `if [ -f '${file.exists}' ]; then echo 'MCP server conciv-hub already exists in user config' >&2; exit 1; fi`,
     ]
     writeFileSync(join(root, 'bin', 'claude'), script.join('\n'), {mode: 0o755})
@@ -501,28 +504,32 @@ describe('connect hub', () => {
 
   const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
 
+  const invocations = () => readFileSync(file.argv, 'utf8').trim().split('\n')
+
+  const addLine = [
+    'mcp',
+    'add',
+    '-s',
+    'user',
+    'conciv-hub',
+    '-e',
+    `CONCIV_HOME=${engineHome}`,
+    '--',
+    ...hubCommand,
+  ].join(' ')
+
   it('connectHub runs the harness add command over a trusted connection only, and the harness leaves the list', async () => {
     await expect(makeRpcClient(kit().origin).meta.connectHub({harness: 'claude'})).rejects.toThrow()
     expect(existsSync(file.argv)).toBe(false)
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
-    const argv = readFileSync(file.argv, 'utf8').trim().split('\n')
-    expect(argv).toEqual([
-      'mcp',
-      'add',
-      '-s',
-      'user',
-      'conciv-hub',
-      '-e',
-      `CONCIV_HOME=${engineHome}`,
-      '--',
-      ...hubCommand,
-    ])
+    expect(invocations()).toEqual([addLine])
     expect(await hubInstalls()).toEqual([])
   })
 
-  it('connectHub treats an already-installed hub as connected', async () => {
+  it('connectHub replaces an already-installed hub so it reads this engine home', async () => {
     writeFileSync(file.exists, '')
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(invocations()).toEqual([addLine, 'mcp remove -s user conciv-hub', addLine])
     expect(await hubInstalls()).toEqual([])
   })
 
@@ -3849,6 +3856,38 @@ describe('outside agent consent', () => {
     const own = rpcOf(base, sessionId)
     expect(await own.chat.outsideAccess({sessionId})).toEqual({denied: true})
     expect(await own.page.changes(undefined)).toEqual([])
+  })
+
+  it('a hub-origin extension procedure naming a session passes its consent: after a deny the extension is never reached', async () => {
+    const probeOs = os.$context<RpcContext>()
+    const touched: string[] = []
+    const router = probeOs.router({
+      touch: probeOs.input(z.object({sessionId: SessionId})).handler(({input}) => {
+        touched.push(input.sessionId)
+        return {touched: true}
+      }),
+    })
+    const probe = defineExtension({name: 'Consent Probe'}).server(() => ({context: {}, router}))
+    const root = tempDir('conciv-consent-')
+    const engine = await start({
+      options: {stateRoot: root},
+      root,
+      launchEditor: () => {},
+      harness: createFakeHarness(),
+      homeDir: tempDir('conciv-home-'),
+      extensions: [probe],
+    })
+    engines.push(engine)
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = await newSession(base)
+    const extOf = (headers: Record<string, string>): RouterClient<typeof router> =>
+      createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
+    const asked = extOf(HUB).touch({sessionId}).then(String, String)
+    await decideOutside(base, sessionId, false)
+    expect(await asked).toContain(DENIED)
+    expect(touched).toEqual([])
+    expect(await extOf({}).touch({sessionId})).toEqual({touched: true})
+    expect(touched).toEqual([sessionId])
   })
 
   it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {

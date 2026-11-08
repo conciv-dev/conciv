@@ -14,6 +14,7 @@ export const geminiCliInit: HarnessInitContribution<'gemini-cli'> = {
       'conciv-hub',
       ...command,
     ],
+    remove: ['gemini', 'mcp', 'remove', '-s', 'user', 'conciv-hub'],
   },
   init: 'none',
 }

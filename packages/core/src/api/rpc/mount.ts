@@ -1,4 +1,4 @@
-import {implement, ORPCError} from '@orpc/server'
+import {implement, ORPCError, os as plainOs} from '@orpc/server'
 import {contract} from '@conciv/contract'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -79,7 +79,7 @@ const DECIDING_PROCEDURES = new Set(['chat.permissionDecision', 'chat.allowOutsi
 const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
 
 export function makeHubAdmission(deps: RpcDeps) {
-  return os.middleware(async ({context, next, signal, path}, input: unknown) => {
+  return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
     const outside = callTrace((header) => rpcHeader(context, header)).hub !== null
     if (outside && DECIDING_PROCEDURES.has(path.join('.'))) {
       throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})

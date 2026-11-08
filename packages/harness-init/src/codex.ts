@@ -13,6 +13,7 @@ export const codexInit: HarnessInitContribution<'codex'> = {
       '--',
       ...command,
     ],
+    remove: ['codex', 'mcp', 'remove', 'conciv-hub'],
   },
   init: 'none',
 }
