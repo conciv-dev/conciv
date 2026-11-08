@@ -636,9 +636,6 @@ importers:
       '@types/semver':
         specifier: 'catalog:'
         version: 7.8.0
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0
@@ -2434,9 +2431,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@unocss/postcss':
-        specifier: 'catalog:'
-        version: 66.12.0(postcss@8.5.32)
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.12.0

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://v2-10-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/core/src/cards/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/extensions/page/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/extensions/terminal/src/**/*.{ts,tsx}",
+        "$TURBO_ROOT$/packages/extensions/whiteboard/src/**/*.{ts,tsx}"
+      ]
+    }
+  }
+}

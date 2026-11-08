@@ -1,7 +1,7 @@
 import {createEffect} from 'solid-js'
 import {clearDelegatedEvents, delegateEvents} from 'solid-js/web'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
-import styles from '../styles.css?inline'
+import {widgetStyles} from '../lib/widget-styles.js'
 import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
 import {applySchemeClass, applySkinClass, themeClasses, type HostTheme} from '../lib/color-scheme.js'
 
@@ -48,7 +48,7 @@ export function openPipWindow(opts: {title?: string; theme?: () => HostTheme} = 
   win.document.body.appendChild(host)
   const root = host.attachShadow({mode: 'open'})
   const style = win.document.createElement('style')
-  style.textContent = styles
+  style.textContent = widgetStyles
   root.appendChild(style)
   const wrap = win.document.createElement('div')
   root.appendChild(wrap)

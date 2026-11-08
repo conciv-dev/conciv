@@ -1,9 +1,10 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [UnoCSS(), solid()],
   define: {'define.amd': 'false', 'process.env.NODE_ENV': '"production"'},
   build: {
     lib: {

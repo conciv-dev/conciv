@@ -75,7 +75,6 @@
     "@playwright/test": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@types/node": "catalog:",
-    "@unocss/postcss": "catalog:",
     "@unocss/reset": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "publint": "catalog:",

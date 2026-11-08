@@ -1,4 +1,5 @@
 import '../src/styles.css'
+import 'virtual:uno.css'
 import {expect, test} from 'vitest'
 import {
   registerCalmCore,
