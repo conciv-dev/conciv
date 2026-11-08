@@ -57,7 +57,7 @@ declare module 'vitest/internal/browser' {
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
-    outsideReload: (sessionId: string, file: string) => Promise<string>
+    hubExecute: (sessionId: string, typescriptCode: string, origin?: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
@@ -70,8 +70,7 @@ declare module 'vitest/internal/browser' {
     scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
-    setTerminalLaunch: (succeeds: boolean) => Promise<void>
-    terminalLaunches: () => Promise<number>
+    fakeHubCli: (outcome: 'ok' | 'fail' | null) => Promise<void>
     rpcCallCount: (path: string[]) => Promise<number>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
@@ -193,6 +192,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const data = makeAppData(rpc, queryClient)
   const connected = () => true
   const liveSessions = makeLiveSessions({
+    active: () => null,
     rpc,
     apiBase: () => options.base,
     generation: () => 0,

@@ -42,6 +42,7 @@ in, so you get a live page with the widget attached.
 | `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`, `ios`) that embed conciv                                                           |
 | `apps/site`      | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                           |
 | `apps/storybook` | Component storybook for the Solid UI kits                                                                                              |
+| `native/swift`   | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`)           |
 | `packages/`      | ~40 published/internal packages: server/core logic, the browser client, extension system, and the Solid `ui-kit-*` component libraries |
 
 ## Everyday commands

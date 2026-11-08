@@ -105,9 +105,13 @@ function EdgeTab(props: {tab: LauncherEdgeTab; suppressed: () => '' | undefined;
   )
 }
 
-function fabLabel(open: boolean, locked: boolean): string {
-  if (locked) return 'Unauthorized. Authorize conciv'
-  return open ? 'Minimize conciv chat' : 'Open conciv chat'
+const UNAUTHORIZED_BADGE = 'Unauthorized'
+const WAITING_BADGE = 'Waiting for your Allow'
+
+function fabLabel(open: boolean, badge: string | null): string {
+  if (badge === UNAUTHORIZED_BADGE) return 'Unauthorized. Authorize conciv'
+  const action = open ? 'Minimize conciv chat' : 'Open conciv chat'
+  return badge === null ? action : `${badge}. ${action}`
 }
 
 export function ShellFab(props: {
@@ -118,13 +122,18 @@ export function ShellFab(props: {
   suppressed: () => '' | undefined
   fab: DraggablePosition
   locked: () => boolean
+  waiting: () => boolean
   onToggle: () => void
 }): JSX.Element {
   let launcher: HTMLButtonElement | undefined
   const [label, setLabel] = createSignal<HTMLSpanElement>()
   const labelSize = createElementSize(label)
+  const badge = createMemo(() => {
+    if (props.locked()) return UNAUTHORIZED_BADGE
+    return props.waiting() ? WAITING_BADGE : null
+  })
   const towardStart = createMemo(
-    () => props.locked() && labelSize.width !== null && props.fab.growsTowardStart(labelSize.width),
+    () => badge() !== null && labelSize.width !== null && props.fab.growsTowardStart(labelSize.width),
   )
   const restore = () => {
     props.fab.restore()
@@ -139,7 +148,7 @@ export function ShellFab(props: {
         {(tab) => <EdgeTab tab={tab()} suppressed={props.suppressed} onRestore={restore} />}
       </Show>
       <Tooltip.Root
-        disabled={props.locked()}
+        disabled={badge() !== null}
         positioning={{strategy: 'fixed', placement: tooltipPlacement(props.fab.position()), gutter: 8}}
       >
         <Tooltip.Trigger
@@ -152,7 +161,7 @@ export function ShellFab(props: {
           data-conciv-fab
           data-conciv-suppressed={props.suppressed()}
           style={launcherPlacement(props.fab.anchor(), towardStart())}
-          aria-label={fabLabel(props.open(), props.locked())}
+          aria-label={fabLabel(props.open(), badge())}
           aria-busy={props.working()}
           aria-haspopup={props.locked() ? 'dialog' : undefined}
           aria-expanded={props.locked() ? undefined : props.open()}
@@ -169,28 +178,32 @@ export function ShellFab(props: {
             </Show>
           </Suspense>
           <FabRobot open={props.open} working={props.working} avoid={props.avoid} />
-          <Show when={props.locked()}>
-            <span class={FAB_UNAUTHORIZED_TRACK}>
-              <span class={FAB_UNAUTHORIZED}>
-                <span
-                  ref={setLabel}
-                  class={`${FAB_UNAUTHORIZED_LABEL} ${towardStart() ? FAB_UNAUTHORIZED_TOWARD_START : FAB_UNAUTHORIZED_TOWARD_END}`}
-                >
-                  Unauthorized
+          <Show when={badge()}>
+            {(text) => (
+              <>
+                <span class={FAB_UNAUTHORIZED_TRACK}>
+                  <span class={FAB_UNAUTHORIZED}>
+                    <span
+                      ref={setLabel}
+                      class={`${FAB_UNAUTHORIZED_LABEL} ${towardStart() ? FAB_UNAUTHORIZED_TOWARD_START : FAB_UNAUTHORIZED_TOWARD_END}`}
+                    >
+                      {text()}
+                    </span>
+                  </span>
                 </span>
-              </span>
-            </span>
-            <span
-              class={`${FAB_LOCK} ${towardStart() ? FAB_LOCK_TOWARD_START : FAB_LOCK_TOWARD_END}`}
-              aria-hidden="true"
-            >
-              <span class={FAB_LOCK_CHROME} />
-              <TriangleAlert class={FAB_LOCK_ICON} />
-            </span>
+                <span
+                  class={`${FAB_LOCK} ${towardStart() ? FAB_LOCK_TOWARD_START : FAB_LOCK_TOWARD_END}`}
+                  aria-hidden="true"
+                >
+                  <span class={FAB_LOCK_CHROME} />
+                  <TriangleAlert class={FAB_LOCK_ICON} />
+                </span>
+              </>
+            )}
           </Show>
         </Tooltip.Trigger>
         <Tooltip.Positioner>
-          <Tooltip.Content>{fabLabel(props.open(), false)}</Tooltip.Content>
+          <Tooltip.Content>{fabLabel(props.open(), null)}</Tooltip.Content>
         </Tooltip.Positioner>
       </Tooltip.Root>
     </>

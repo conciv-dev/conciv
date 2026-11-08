@@ -146,10 +146,10 @@ launch booted dev.conciv.YourApp`.
   any other port is still found through the pairing file, so the probe is the recovery path rather
   than the usual one.
 
-If discovery finds nothing, check that the dev server is still running, then that it is not running
-under a test environment. With `VITEST` set, the core writes the pairing file to a
-temporary directory instead of `~/.conciv`. The SDK only ever reads `~/.conciv/dev-endpoint.json`, so
-the app cannot see that core; it drops to the port probe, and if a different dev core left a healthy
+If discovery finds nothing, check that the dev server is still running, then that its plugin config
+does not set `devEndpointDir`. That option makes the core write the pairing file to that folder instead
+of `~/.conciv`. The SDK only ever reads `~/.conciv/dev-endpoint.json`, so the app cannot see that core;
+it drops to the port probe, and if a different dev core left a healthy
 `~/.conciv/dev-endpoint.json` behind, the app pairs with that one instead. Set `CONCIV_URL` when you
 need to be sure which core the app talks to.
 

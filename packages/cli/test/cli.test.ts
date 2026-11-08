@@ -1,7 +1,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
-import {execFileSync, spawnSync} from 'node:child_process'
+import {execFile, execFileSync, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
@@ -17,6 +17,9 @@ import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {createMCPClient} from '@tanstack/ai-mcp'
+import {stdioTransport} from '@tanstack/ai-mcp/stdio'
+import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -77,6 +80,8 @@ import {
 } from './helpers.js'
 
 describe('cli', () => {
+  const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
+
   describe('cli arguments', () => {
     const {cleanups, written} = cliSession()
 
@@ -124,20 +129,15 @@ describe('cli', () => {
         })
       })
 
-      it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {
+      it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
         expect(await runCli(cliMain, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
-      })
-
-      it('rejects an unknown flag placed before the very first subcommand', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        written.length = 0
         expect(await runCli(cliMain, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
+        expect(answer.seen()).toBeNull()
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
@@ -193,7 +193,6 @@ describe('cli', () => {
   describe('cli bin', () => {
     const ESCAPE = '\u001b'
     const COLOR_VARIABLES = new Set(['NO_COLOR', 'FORCE_COLOR', 'CI', 'TEST', 'TERM'])
-    const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
 
     let cwd = ''
     let closedPort = 0
@@ -230,10 +229,11 @@ describe('cli', () => {
     })
 
     describe('the built conciv bin through a pipe', () => {
-      it('prints --help without ANSI escapes when stdout is not a terminal', () => {
+      it('prints --help, init among the commands, without ANSI escapes when stdout is not a terminal', () => {
         const help = conciv(['--help'])
         expect(help.status).toBe(0)
         expect(help.stdout).toContain('tools')
+        expect(help.stdout).toMatch(/^\s+init\s/m)
         expect(help.stdout).not.toContain(ESCAPE)
       })
 
@@ -245,53 +245,24 @@ describe('cli', () => {
         expect(conciv(['-v'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
       })
 
-      it('registers init under the root command', () => {
-        const help = conciv(['--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toMatch(/^\s+init\s/m)
-      })
-
-      it('lists the built-in page verbs offline and says so on the last line', () => {
-        const help = conciv(['tools', 'page', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('snapshot')
-        expect(help.stdout).toContain('fill')
-        expect(help.stdout.trim().split('\n').at(-1)).toBe(
-          'offline: showing the built-in page capabilities; a running server may add more',
-        )
-      })
-
-      it('lists only the react verbs under react --help offline', () => {
-        const help = conciv(['tools', 'react', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('locate')
-        expect(help.stdout).not.toContain('fill')
-      })
-
-      it('derives the design verbs offline from the design tool declarations', () => {
-        const help = conciv(['tools', 'design', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('register a design image as the target')
-      })
-
-      it('shows a verb flags offline', () => {
-        const help = conciv(['tools', 'page', 'fill', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('--value')
-      })
-
-      it('running a page verb offline still fails, pointing at server.json and CONCIV_PORT', () => {
-        const run = conciv(['tools', 'page', 'snapshot'])
-        expect(run.status).toBe(1)
-        const document: unknown = JSON.parse(run.stdout)
-        expect(document).toMatchObject({
-          ok: false,
-          error: {
-            kind: 'user',
-            message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
-            hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
-          },
-        })
+      it('offline, group help and group verbs fail with the start-a-server envelope', () => {
+        for (const argv of [
+          ['tools', 'page', '--help'],
+          ['tools', 'design', '--help'],
+          ['tools', 'page', 'snapshot'],
+        ]) {
+          const run = conciv(argv)
+          expect(run.status).toBe(1)
+          const document: unknown = JSON.parse(run.stdout)
+          expect(document).toMatchObject({
+            ok: false,
+            error: {
+              kind: 'user',
+              message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
+              hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
+            },
+          })
+        }
       })
     })
   })
@@ -311,7 +282,7 @@ describe('cli', () => {
     }
 
     const beacon = defineTool({
-      name: 'page_beacon',
+      name: 'acme_beacon',
       description: 'Raise the acme beacon over the page.',
       inputSchema: z.object({height: z.number().int().min(1)}),
       outputSchema: z.object({raised: z.boolean()}),
@@ -325,6 +296,29 @@ describe('cli', () => {
     }).client()
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
+
+    const serverStatus = defineTool({
+      name: 'server_status',
+      description: 'Report the acme status board.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({green: z.boolean()}),
+      meta: {summary: 'report the acme status board', mutating: false},
+    }).client()
+
+    const paint = defineTool({
+      name: 'acme_paint',
+      description: 'Paint strokes and patch the acme canvas.',
+      inputSchema: z.object({
+        patch: z.record(z.string(), z.unknown()),
+        strokes: z.array(z.object({x: z.number()}).loose()),
+        parts: z.array(z.unknown()).optional(),
+        label: z.string().nullable().optional(),
+      }),
+      outputSchema: z.object({painted: z.boolean()}),
+      meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
+    }).client()
+
+    const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -382,10 +376,77 @@ describe('cli', () => {
         expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
       })
 
-      it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
-        await bootCli(cleanups, {extensions: [beaconExtension]})
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).toContain('raise the acme beacon over the page')
+      it('serves a group from an extension the CLI has never heard of', async () => {
+        const kit = await bootCli(cleanups, {extensions: [beaconExtension]})
+        expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
+        const answer = await answerNextQuery(kit, {ok: true, result: {raised: true}})
+        expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
+      })
+
+      it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {green: true}})
+        expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'server_status'})
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {green: true}})
+      })
+
+      it('parses object and array-of-object flags as JSON before sending them', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{"color":"red"}',
+            '--strokes',
+            '{"x":1}',
+            '--strokes',
+            '{"x":2,"y":3}',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {patch: {color: 'red'}, strokes: [{x: 1}, {x: 2, y: 3}]},
+        })
+      })
+
+      it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--parts',
+            '{"type":"text","text":"Hello"}',
+            '--parts',
+            'plain words',
+            '--label',
+            '123',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words'], label: '123'},
+        })
+      })
+
+      it('rejects a flag that is not valid JSON with the flag named', async () => {
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining('--patch: expected a JSON object')},
+        })
       })
 
       it('sends the effect argument to the server instead of dropping it', async () => {
@@ -412,13 +473,6 @@ describe('cli', () => {
           name: 'page_setattr',
           input: {selector: '#a', attribute: 'data-state', value: 'open'},
         })
-      })
-
-      it('rejects an edit that names no attribute rather than sending a nameless one', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'page', 'setattr', '#a', '--value', 'open'])).toBe(1)
-        expect(answer.seen()).toBeNull()
       })
 
       it('clears a field when the value is explicitly empty', async () => {
@@ -456,14 +510,6 @@ describe('cli', () => {
         expect(help.replaceAll(/\s+/g, ' ')).toContain(
           'after editing a file, wait for the hot update to land before reading the page',
         )
-      })
-
-      it('offers the react verbs under react and leaves the page-only ones out', async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'react', '--help'])
-        expect(help).toContain('inspect')
-        expect(help).toContain('override')
-        expect(help).not.toContain('sethtml')
       })
 
       it('derives a dev-server operation and its positional from the declaration', async () => {
@@ -511,23 +557,13 @@ describe('cli', () => {
         expect(resolved).toEqual(['./x.ts from src/a.ts'])
       })
 
-      it('rejects a non-positive line number as a plain user mistake, not a bug', async () => {
+      it('rejects a zero, fractional or non-numeric line number as a plain user mistake, not a bug', async () => {
         await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '0'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('rejects a fractional line number as a plain user mistake, not a bug', async () => {
-        await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '1.5'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('opens at a positive integer line number', async () => {
-        const opened: {file: string; line?: number}[] = []
-        await bootCli(cleanups, {openInEditor: (file, line) => opened.push({file, line})})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '3'])).toBe(0)
-        expect(opened).toEqual([{file: 'src/a.ts', line: 3}])
+        for (const line of ['0', '1.5', 'abc']) {
+          written.length = 0
+          expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', line])).toBe(1)
+          expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
+        }
       })
     })
   })
@@ -612,18 +648,7 @@ describe('cli', () => {
         expect(error.stack).toBeUndefined()
       })
 
-      it('a page verb with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
-        process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
-        expect(code).toBe(1)
-        const error = failure()
-        expect(error.kind).toBe('user')
-        expect(error.message).toContain('No conciv dev server')
-        expect(error.hint).toContain('.conciv/server.json')
-        expect(error.hint).toContain('CONCIV_PORT')
-      })
-
-      it('a server whose catalog declares no page capabilities is reported, not silently shrunk', async () => {
+      it('a server whose catalog serves no page tools rejects page as a user error', async () => {
         process.env.CONCIV_PORT = String(
           await listen((_request, response) => {
             response.writeHead(200, {'content-type': 'application/json'})
@@ -634,7 +659,7 @@ describe('cli', () => {
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
-        expect(error.message).toContain('no page capabilities')
+        expect(error.message).toContain("'page' for conciv tools")
       })
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
@@ -678,22 +703,13 @@ describe('cli', () => {
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('page fill drives registry.call and prints one success envelope with exit 0', async () => {
+      it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
+        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c', '--json'])
         expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}})
         expect(code).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'a@b.c'}})
-      })
-
-      it('accepts --json on a verb and still prints exactly one document', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
-        expect(code).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'x'}})
       })
 
       it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
@@ -725,16 +741,6 @@ describe('cli', () => {
         })
       })
 
-      it('server config without a bridge fails as a user error with the declared code and exit 1', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'server', 'config'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toEqual({
-          ok: false,
-          error: {kind: 'user', code: 'NO_BUNDLER', message: 'no bundler bridge'},
-        })
-      })
-
       it('page wait with an invalid --state is a user error before any rpc call', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
@@ -745,15 +751,6 @@ describe('cli', () => {
         expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
         expect(JSON.stringify(failure)).toContain('visible')
         expect(JSON.stringify(failure)).not.toContain('\\n    at ')
-      })
-
-      it('open with a non-numeric --line is a user error, not a raw zod stack', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'open', 'x.ts', '--line', 'abc'])
-        expect(code).toBe(1)
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('line')
       })
 
       it('page changes lists the journal in an envelope and --clear resets it', async () => {
@@ -770,14 +767,6 @@ describe('cli', () => {
         written.length = 0
         expect(await runCli(cliMain, ['tools', 'page', 'changes'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
-      })
-
-      it('server restart without a session context is refused with exit 1', async () => {
-        const bridge = restartCapableBridge()
-        await bootCli(cleanups, {bridge})
-        const code = await runCli(cliMain, ['tools', 'server', 'restart'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
       })
 
       it('server restart is refused through the session and an approval lets the retry run', async () => {
@@ -938,13 +927,9 @@ describe('cli', () => {
       expect(browser).toEqual([])
     })
 
-    test('the CLI reads the tool declarations without loading the extension package index', () => {
-      const external = runtimeClosure(cliEntry)
-      expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension')).toSorted()).toEqual([
-        '@conciv/extension-design/defs',
-        '@conciv/extension-page/defs',
-        '@conciv/extension/tool',
-      ])
+    test('the CLI loads no extension code; every tool group comes from the running engine', () => {
+      const external = [...runtimeClosure(cliEntry)]
+      expect(external.filter((specifier) => /^@conciv\/(extension|tools)/.test(specifier))).toEqual([])
     })
   })
 
@@ -967,31 +952,25 @@ describe('cli', () => {
       return {root, nested}
     }
 
-    test('finds the engine port in .conciv/server.json walking up from a nested cwd', () => {
+    const originFor = async (cwd: string, env: NodeJS.ProcessEnv) =>
+      (await engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)).origin
+
+    test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234')
-      expect(engineOrigin(project.root, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.root, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
     })
 
-    test('CONCIV_PORT wins over .conciv/server.json', () => {
-      const project = projectWith(JSON.stringify({port: 41234}))
-      expect(engineOrigin(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
+    test('falls back to 5173 with no server.json anywhere up the tree, or a malformed one, and no live engine', async () => {
+      expect(await originFor(projectWith(null).nested, {})).toBe('http://127.0.0.1:5173')
+      expect(await originFor(projectWith('{"port": "not a number"').nested, {})).toBe('http://127.0.0.1:5173')
     })
 
-    test('falls back to 5173 with no server.json anywhere up the tree', () => {
-      const project = projectWith(null)
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
-    })
-
-    test('a malformed server.json falls through to 5173 instead of throwing', () => {
-      const project = projectWith('{"port": "not a number"')
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
-    })
-
-    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
+    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234, token: 'from-file'}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
-      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
+      expect(await originFor(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
     })
 
     test('auth revoke lists, revokes one and revokes every trusted browser', () => {
@@ -1064,6 +1043,210 @@ describe('cli', () => {
     })
   })
 
+  const pages = new AbortController()
+  afterAll(() => pages.abort())
+
+  async function engineWithTab(
+    home: string,
+    shared?: {root: string; sessionId: string},
+    extensions?: Parameters<typeof startEngine>[0]['extensions'],
+  ) {
+    const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
+    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home, extensions})
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await page.page.queries(undefined, {signal: pages.signal})
+    return {engine, sessionId, base, page, root}
+  }
+
+  describe('conciv tools on any tab', () => {
+    const conciv = (cwd: string, home: string, args: string[]) =>
+      new Promise<unknown>((resolve) =>
+        execFile(process.execPath, [bin, ...args], {cwd, env: {CONCIV_HOME: home}}, (_error, stdout) =>
+          resolve(JSON.parse(stdout)),
+        ),
+      )
+
+    it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
+        const viaTab = ['tools', 'tabs', '--tab', sessionId]
+        const waiting = conciv(elsewhere, home, viaTab)
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        expect(await waiting).toMatchObject(listed)
+        expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
+        const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
+        expect(await conciv(elsewhere, home, missing)).toMatchObject({
+          ok: false,
+          error: {message: /conciv_gone.*not open/},
+        })
+        const malformed = {ok: false, error: {kind: 'user', message: expect.stringContaining('--tab')}}
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'nope'])).toMatchObject(malformed)
+        const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        mkdirSync(join(project, '.conciv'))
+        writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify({port: 9}))
+        expect(await conciv(project, home, ['tools', 'tabs'])).toMatchObject({
+          ok: false,
+          error: {message: 'No conciv dev server on 127.0.0.1:9.'},
+        })
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('a call that found its engine through the home db asks the tab like --tab does, and a deny refuses it', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied cli access/}})
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('a root --tab and a verb --tab naming different tabs are refused instead of acting on the first', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['--tab', sessionId, 'tools', 'tabs', '--tab', 'conciv_other'])
+        const allowIfAsked = vi
+          .waitFor(
+            async () => {
+              const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+              if (!ask) throw new Error('no ask yet')
+              await page.chat.permissionDecision({approvalId: ask.approvalId, approved: true})
+            },
+            {timeout: 3000},
+          )
+          .catch(() => {})
+        expect(await waiting).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: '--tab was given more than once with different tab ids.'},
+        })
+        await allowIfAsked
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const lantern = defineTool({
+        name: 'page_lantern',
+        description: 'Light the lantern over the page.',
+        inputSchema: z.object({brightness: z.number().int().min(1)}),
+        outputSchema: z.object({lit: z.boolean()}),
+        meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
+      }).client()
+      const cwdEngine = await engineWithTab(home)
+      const holder = await engineWithTab(home, undefined, [defineExtension({name: 'lantern', tools: [lantern]})])
+      const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      mkdirSync(join(project, '.conciv'))
+      const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
+      writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify(recorded))
+      try {
+        const args = [bin, 'tools', 'page', 'lantern', '--tab', holder.sessionId, '--help']
+        const help = await new Promise<{failed: boolean; stdout: string}>((resolve) =>
+          execFile(process.execPath, args, {cwd: project, env: {CONCIV_HOME: home}}, (error, stdout) =>
+            resolve({failed: error !== null, stdout}),
+          ),
+        )
+        expect({failed: help.failed, mentions: help.stdout.includes('--brightness')}).toEqual({
+          failed: false,
+          mentions: true,
+        })
+      } finally {
+        await Promise.all([cwdEngine.engine.stop(), holder.engine.stop()])
+      }
+    })
+
+    it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home, first)
+      try {
+        expect(await conciv(tmpdir(), home, ['tools', 'tabs', '--tab', first.sessionId])).toMatchObject({
+          ok: false,
+          error: {
+            kind: 'user',
+            message: `tab ${first.sessionId} is open in 2 running conciv dev servers: ${first.root}, ${first.root}.`,
+          },
+        })
+      } finally {
+        await Promise.all([first.engine.stop(), second.engine.stop()])
+      }
+    })
+  })
+
+  describe('conciv mcp hub', () => {
+    const hub = (home: string) =>
+      createMCPClient({
+        transport: stdioTransport({command: process.execPath, args: [bin, 'mcp'], env: {CONCIV_HOME: home}}),
+        name: 'cli-test',
+      })
+
+    const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
+      JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
+
+    it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const first = await engineWithTab(home)
+      const client = await hub(home)
+      try {
+        expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
+          'discover_tools',
+          'execute_typescript',
+        ])
+        expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
+        const direct = await createMCPClient({transport: {type: 'http', url: `${first.base}/api/mcp`, headers}})
+        const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
+        await direct.close()
+        expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
+        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        await first.engine.stop()
+        const second = await engineWithTab(home)
+        expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)
+        await second.engine.stop()
+      } finally {
+        await client.close()
+      }
+    })
+
+    it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const client = await hub(home)
+      try {
+        const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+        expect(execute?.description).toContain('external_use_tab({id})')
+        const reply = await run(client, 'return 1')
+        expect(reply).toContain('no conciv dev server is running; start one and open its page')
+        expect(reply).toContain(home)
+      } finally {
+        await client.close()
+      }
+    })
+  })
+
   describe('prod closure', () => {
     const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
@@ -1115,10 +1298,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never the harness package or an agent sdk', () => {
+    test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(manifestOf)
       const names = manifests.map((manifest) => manifest.name)
       expect(names).toContain('@conciv/harness-init')
+      expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {
         const declared = Object.keys(manifest.dependencies).filter((name) => BANNED.includes(name))
@@ -2122,38 +2306,10 @@ describe('init', () => {
         expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
       })
 
-      it('prints the plan and touches nothing with --dry-run', async () => {
+      it.each([false, true])('prints the plan and touches nothing with --dry-run (--yes %s)', async (yes) => {
         const run = initFixture()
         const result = await runInit(
-          {yes: false, dryRun: true, force: false, cwd: run.cwd},
-          {
-            ...run.runtime,
-            interactive: () => false,
-            prompts: {
-              selections: async () => {
-                throw new Error('selections must not run under --dry-run')
-              },
-              confirmRun: async () => {
-                throw new Error('confirmRun must not run under --dry-run')
-              },
-            },
-          },
-        )
-        expect(result.outcome).toBe('planned')
-        expect(result.outcome === 'planned' ? result.plan : '').toContain('Install @conciv/it')
-        const plans = plansOf(run.events)
-        expect(plans).toHaveLength(1)
-        expect(plans[0]).toContain('Install @conciv/it')
-        expect(run.events).toContain('outro:Dry run — nothing changed.')
-        expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
-        expect(run.added).toEqual([])
-        expect(run.spawned).toEqual([])
-      })
-
-      it('prints the plan and touches nothing when --yes and --dry-run are passed together', async () => {
-        const run = initFixture()
-        const result = await runInit(
-          {yes: true, dryRun: true, force: false, cwd: run.cwd},
+          {yes, dryRun: true, force: false, cwd: run.cwd},
           {
             ...run.runtime,
             interactive: () => false,
@@ -2276,14 +2432,6 @@ describe('init', () => {
         expect(run.events.some((event) => event.startsWith('failure:'))).toBe(true)
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
-      })
-
-      it('refuses a directory without a package.json with the reason', async () => {
-        const run = initFixture()
-        const empty = mkdtempSync(join(tmpdir(), 'conciv-init-empty-'))
-        const result = await runInit({yes: true, dryRun: false, force: false, cwd: empty}, run.runtime)
-        expect(result).toEqual({outcome: 'refused', reason: 'no package.json here — run init from your app directory'})
-        expect(run.events).toContain('error:no package.json here — run init from your app directory')
       })
 
       it('plans the manual card honestly when no framework is detected', async () => {

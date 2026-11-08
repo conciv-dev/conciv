@@ -6,7 +6,8 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 ## Interface
 
-- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, then rethrows any failed cancel writes as one `AggregateError`), `settled`, `hydrate`, `codeRunner`).
+- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, then rethrows any failed cancel writes as one `AggregateError`), `settled`, `hydrate`, `record`, `codeRunner`).
+- `chat-server.ts:record` - folds the given chunks through a `StreamProcessor` and appends the assistant messages to the thread the same way a stopped turn is saved, skipping tool calls the thread already holds.
 - `chat-server.ts:TurnPlan.reasoning` - passed to `chat({reasoning})`; the adapter maps it for its model (`--effort` or `MAX_THINKING_TOKENS` for claude-code) and drops it for a model it has no reasoning data for.
 - `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.
 - `code-mode.ts:codeModeTools` - the code-mode `discover_tools` carries our own short description (`DISCOVER_DESCRIPTION`) in place of the library's, which embeds the whole capability catalog; the same tool serves chat turns and MCP.
@@ -15,8 +16,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
 - `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`; `endsTheRun` also counts a terminal run-lifecycle chunk.
 - `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.saveThread` upserts one `chat_messages` row per message (rewriting only rows whose JSON changed) and deletes rows past the new end. `messages.loadThread` with a `limit` reads one page: the end position (the row count, or the `before` message's row through the `thread_id, message_id` index), the nearest user row at or before `end - limit`, then only the rows in that range, and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
-- `chat-tables.ts:chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
-- `chat-tables.ts:chatMessages` / `chatMetadata` - tables `chat_messages` (one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`) and `chat_metadata` (composite PK namespace + key).
+- `chatMessages` / `chatMetadata` / `chatRuns` tables come from `@conciv/db`.
 - `image-tool-results.ts:imageToolProvisioner` - a `ToolBridgeProvisioner` that serves an MCP JSON-RPC bridge at `/mcp`.
 - `image-tool-results.ts:imagesIn` / `withoutImages` / `imageBlocks` - find image parts, replace them with a stub, or convert them to MCP image blocks.
 - `child-cards.ts:childCardChunks` / `childCards` - turn `code_mode:external_call/result/error` custom events into TOOL_CALL_* chunks linked to the parent `execute_typescript` call.

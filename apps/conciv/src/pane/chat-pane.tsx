@@ -172,6 +172,13 @@ function turnHarnessNames(
   }
 }
 
+function decidedThen(chat: ChatSession, after: () => Promise<void>): ChatSession['decide'] {
+  return async (approvalId, approved, scope) => {
+    await chat.decide(approvalId, approved, scope)
+    await after()
+  }
+}
+
 function markersAfter(chat: ChatSession, rows: () => MarkerRow[]): (messageId: string | undefined) => MarkerRow[] {
   return (messageId) => {
     if (messageId === undefined && chat.hasOlderMessages()) return []
@@ -246,7 +253,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
-    decide: (approvalId, approved, scope) => chat.decide(approvalId, approved, scope),
+    decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
     durationFor: (part, previous) => foldToolDuration(part, previous, Date.now),

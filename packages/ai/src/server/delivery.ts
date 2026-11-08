@@ -13,6 +13,7 @@ import {
 } from '@tanstack/ai'
 import {isRunPhaseTerminal, runLifecycleEvent, type ChatEvent, type RunPhase} from '@conciv/protocol/chat-event-types'
 import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-types'
+import {z} from 'zod'
 
 export type Turn = {threadId: string; runId: string; kind: 'chat' | 'compact'}
 
@@ -24,7 +25,7 @@ export type ChatDelivery = {
   socket: (request: Request) => ChatSocket
   events: (request: Request) => Promise<Response>
   resume: (request: Request) => Response | null
-  drive: (turn: Turn, messages: ModelMessage[]) => Promise<void>
+  drive: (turn: Turn, messages: Array<ChatMessage | ModelMessage>) => Promise<void>
 }
 
 type DeliveryDeps = {
@@ -42,6 +43,8 @@ type DeliveryDeps = {
 const LIVE_BATCH = 1
 
 const FROM_START = '-1'
+
+const IdentifiedMessagesSchema = z.array(z.looseObject({id: z.string().min(1)}))
 
 type SocketHandler = (event: {data: unknown}) => void
 
@@ -83,6 +86,7 @@ async function* finishLast(stream: AsyncIterable<ChatEvent>): AsyncGenerator<Cha
 
 export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDelivery {
   const drive = async (turn: Turn, messages: Array<ChatMessage | ModelMessage>): Promise<void> => {
+    IdentifiedMessagesSchema.parse(messages)
     const durability = memoryStream({runId: turn.runId})
     const stream = run(turn, messages, durability, new AbortController())
     const response = toServerSentEventsResponse(finishLast(stream), {
@@ -103,6 +107,7 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
       durability: (ctx) => memoryStream({runId: ctx.runId, offset: FROM_START}),
       onRun: (ctx) => {
         if (seenRun(ctx.runId)) return noStream()
+        IdentifiedMessagesSchema.parse(ctx.messages)
         drive({threadId: ctx.threadId, runId: ctx.runId, kind: 'chat'}, ctx.messages).catch((error: unknown) =>
           log(`[ai] run ${ctx.runId} failed outside its stream: ${String(error)}`),
         )
@@ -113,7 +118,9 @@ export function createDelivery({run, seenRun, debug, log}: DeliveryDeps): ChatDe
 
   const parsedParams = async (request: Request) => {
     try {
-      return await chatParamsFromRequestBody(await request.json())
+      const params = await chatParamsFromRequestBody(await request.json())
+      IdentifiedMessagesSchema.parse(params.messages)
+      return params
     } catch (error) {
       log(`[ai] refused a chat request: ${String(error)}`)
       return null

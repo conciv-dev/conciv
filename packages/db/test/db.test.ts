@@ -2,19 +2,37 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
-import {mkdtempSync, readdirSync, readFileSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
+import {createServer, type Server} from 'node:http'
+import {Worker} from 'node:worker_threads'
+import {once} from 'node:events'
+import envPaths from 'env-paths'
 import {DatabaseSync} from 'node:sqlite'
 import {fileURLToPath} from 'node:url'
-import {eq} from 'drizzle-orm'
+import {asc, eq} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
-import {drizzleChatStores} from '@conciv/ai/server'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb, type ConcivDb} from '../src/db.js'
 import {importLegacyThreads} from '../src/chat-thread-import.js'
-import {chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
+import {chatMessages, chatRuns, runMessages, runs, sessionHistory} from '../src/run-schema.js'
 import {sessions} from '../src/schema.js'
 import {modelOf, runMessagesFor} from '../src/run-queries.js'
+import {
+  closeHomeDb,
+  concivHome,
+  hubConnections,
+  isHomeFolderRefused,
+  listEngines,
+  openHomeDb,
+  recordHubConnection,
+  registerEngine,
+  retireEngine,
+  withHomeDb,
+} from '../src/home-db.js'
+import {engines} from '../src/home-schema.js'
+import {homeMigrations} from '../src/home-migrations.gen.js'
+import {checkEngines} from '../src/engine-check.js'
 
 function legacyHistoryRows(db: ConcivDb, sessionId: string) {
   return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
@@ -284,6 +302,15 @@ describe('db', () => {
     return client
   }
 
+  function threadRows(db: ReturnType<typeof drizzle>, threadId: string) {
+    return db
+      .select()
+      .from(chatMessages)
+      .where(eq(chatMessages.threadId, threadId))
+      .orderBy(asc(chatMessages.position))
+      .all()
+  }
+
   describe('chat messages migration', () => {
     const MESSAGES_MIGRATION = readdirSync(drizzleDir).find((name) => name.endsWith('_chat_messages')) ?? 'missing'
     const STORED = [
@@ -306,12 +333,11 @@ describe('db', () => {
 
       migrationsFrom(MESSAGES_MIGRATION).forEach((name) => applyMigration(client, name))
 
-      const stores = drizzleChatStores(drizzle({client}), {harnessOf: () => 'claude'})
-      expect(await stores.messages.loadThread('conciv_old')).toEqual(STORED)
-      expect(await stores.messages.loadThread('conciv_old', {limit: 1})).toEqual({
-        messages: STORED,
-        truncated: false,
-      })
+      const rows = threadRows(drizzle({client}), 'conciv_old')
+      expect(rows.map((row) => row.messageJson)).toEqual(STORED)
+      expect(rows.map((row) => [row.messageId, row.role])).toEqual(
+        STORED.map((message) => [message.id ?? null, message.role]),
+      )
       expect(client.prepare("SELECT name FROM sqlite_master WHERE name = 'chat_threads'").all()).toEqual([])
       client.close()
     })
@@ -332,7 +358,7 @@ describe('db', () => {
 
       importLegacyThreads(db, 1)
 
-      const stored = await drizzleChatStores(db, {harnessOf: () => 'claude'}).messages.loadThread('conciv_long')
+      const stored = threadRows(db, 'conciv_long').map((row) => row.messageJson)
       expect(stored).toHaveLength(7000)
       expect(stored.at(-1)).toMatchObject({id: 'm6999', role: 'user', content: 'message 6999'})
       client.close()
@@ -466,4 +492,204 @@ describe('run queries', () => {
       expect(modelOf(db, 'conciv_m')).toBe('haiku')
     })
   })
+})
+
+describe('home db', () => {
+  const packageJsonPath = fileURLToPath(new URL('../package.json', import.meta.url))
+  const homeDbModule = new URL('../src/home-db.ts', import.meta.url).href
+
+  function freshHome(): string {
+    return join(mkdtempSync(join(tmpdir(), 'conciv-home-')), 'home')
+  }
+
+  async function listen(handler: Parameters<typeof createServer>[1]): Promise<{server: Server; origin: string}> {
+    const server = createServer(handler)
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('no port')
+    return {server, origin: `http://127.0.0.1:${address.port}`}
+  }
+
+  function healthAnswering(id: string): Parameters<typeof createServer>[1] {
+    return (_request, response) => {
+      response.setHeader('content-type', 'application/json')
+      response.end(JSON.stringify({ok: true, id}))
+    }
+  }
+
+  it('registers, lists and retires engines by id', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      registerEngine(db, {id: 'a', pid: 7, root: '/r', apiBase: 'http://127.0.0.1:1/t/x'})
+      registerEngine(db, {id: 'b', pid: 7, root: '/r', apiBase: 'http://127.0.0.1:2/t/y'})
+      expect(
+        listEngines(db)
+          .map((row) => row.id)
+          .toSorted(),
+      ).toEqual(['a', 'b'])
+      retireEngine(db, 'a', 123)
+      expect(listEngines(db).map((row) => row.id)).toEqual(['b'])
+      expect(db.select().from(engines).where(eq(engines.id, 'a')).get()?.deletedAt).toBe(123)
+    })
+  })
+
+  it('checkEngines keeps a live engine, retires a refused port and a wrong id, reports a silent one', async () => {
+    const home = freshHome()
+    const live = await listen(healthAnswering('live'))
+    const imposter = await listen(healthAnswering('someone-else'))
+    const silent = await listen(() => {})
+    const closed = await listen(healthAnswering('closed'))
+    closed.server.close()
+    await once(closed.server, 'close')
+    withHomeDb(home, (db) => {
+      registerEngine(db, {id: 'live', pid: 1, root: '/live', apiBase: `${live.origin}/t/token`})
+      registerEngine(db, {id: 'imposter', pid: 1, root: '/imposter', apiBase: `${imposter.origin}/t/token`})
+      registerEngine(db, {id: 'silent', pid: 1, root: '/silent', apiBase: `${silent.origin}/t/token`})
+      registerEngine(db, {id: 'closed', pid: 1, root: '/closed', apiBase: `${closed.origin}/t/token`})
+    })
+    try {
+      const result = await checkEngines(home, {timeoutMs: 300})
+      expect(result.live.map((row) => row.id)).toEqual(['live'])
+      expect(result.unreachable.map((row) => row.root)).toEqual(['/silent'])
+      expect(
+        withHomeDb(home, (db) =>
+          listEngines(db)
+            .map((row) => row.id)
+            .toSorted(),
+        ),
+      ).toEqual(['live', 'silent'])
+    } finally {
+      for (const {server} of [live, imposter, silent]) {
+        server.closeAllConnections()
+        server.close()
+      }
+    }
+  })
+
+  it('records hub connections once per harness', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      recordHubConnection(db, 'codex', 1)
+      recordHubConnection(db, 'codex', 2)
+      expect(hubConnections(db)).toEqual(['codex'])
+    })
+  })
+
+  it('a connection opened while another is mid-migration waits and succeeds', async () => {
+    const home = freshHome()
+    mkdirSync(home, {recursive: true})
+    const migrator = new Worker(
+      `
+      const {createRequire} = require('node:module')
+      const {DatabaseSync} = require('node:sqlite')
+      const {parentPort, workerData} = require('node:worker_threads')
+      const packageRequire = createRequire(workerData.packageJson)
+      const {drizzle} = packageRequire('drizzle-orm/node-sqlite')
+      const {migrateSync} = packageRequire('drizzle-orm/sqlite-core/async/session')
+      const client = new DatabaseSync(workerData.file, {timeout: 5000})
+      client.exec('PRAGMA journal_mode = WAL')
+      const logger = {
+        logQuery(query) {
+          if (!query.startsWith('INSERT INTO')) return
+          parentPort.postMessage('migrating')
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400)
+        },
+      }
+      migrateSync(workerData.migrations, drizzle({client, logger})._.session)
+      client.close()
+      `,
+      {
+        eval: true,
+        workerData: {packageJson: packageJsonPath, file: join(home, 'home.db'), migrations: homeMigrations},
+      },
+    )
+    await once(migrator, 'message')
+    const first = openHomeDb(home)
+    const second = openHomeDb(home)
+    expect(listEngines(first)).toEqual([])
+    expect(listEngines(second)).toEqual([])
+    closeHomeDb(first)
+    closeHomeDb(second)
+    await once(migrator, 'exit')
+  })
+
+  it('two connections opening a fresh db at the same instant both succeed', async () => {
+    const rounds = await Promise.all(
+      Array.from({length: 8}, async () => {
+        const home = freshHome()
+        const barrier = new SharedArrayBuffer(4)
+        return Promise.all([openInWorker(home, barrier), openInWorker(home, barrier)])
+      }),
+    )
+    expect(rounds.flat()).toEqual(Array.from({length: 16}, () => ({engines: []})))
+  })
+
+  it.skipIf(process.platform === 'win32')('creates the folder 0700 and home.db 0600', () => {
+    const home = freshHome()
+    closeHomeDb(openHomeDb(home))
+    expect(statSync(home).mode & 0o777).toBe(0o700)
+    expect(statSync(join(home, 'home.db')).mode & 0o777).toBe(0o600)
+  })
+
+  it('refuses a symlinked home folder', () => {
+    const target = freshHome()
+    mkdirSync(target, {recursive: true})
+    const link = join(mkdtempSync(join(tmpdir(), 'conciv-home-link-')), 'home')
+    symlinkSync(target, link)
+    const refusal = captureThrow(() => openHomeDb(link))
+    expect(isHomeFolderRefused(refusal)).toBe(true)
+    expect(String(refusal)).toContain(link)
+  })
+
+  it('concivHome prefers homeDir, then CONCIV_HOME, then the platform folder', () => {
+    expect(concivHome({homeDir: '/explicit', env: {CONCIV_HOME: '/from-env'}})).toBe('/explicit')
+    expect(concivHome({env: {CONCIV_HOME: '/from-env'}})).toBe('/from-env')
+    expect(concivHome({env: {}})).toBe(envPaths('conciv', {suffix: ''}).data)
+    expect(concivHome({env: {CONCIV_HOME: ''}})).toBe(envPaths('conciv', {suffix: ''}).data)
+  })
+
+  async function openInWorker(home: string, barrier: SharedArrayBuffer): Promise<unknown> {
+    const worker = new Worker(
+      `
+      const {existsSync} = require('node:fs')
+      const {registerHooks} = require('node:module')
+      const {fileURLToPath} = require('node:url')
+      const {parentPort, workerData} = require('node:worker_threads')
+      registerHooks({
+        resolve(specifier, context, next) {
+          const source = context.parentURL && specifier.startsWith('.') && new URL(specifier.replace(/\\.js$/, '.ts'), context.parentURL)
+          if (source && existsSync(fileURLToPath(source))) return next(source.href, context)
+          return next(specifier, context)
+        },
+      })
+      const gate = new Int32Array(workerData.barrier)
+      import(workerData.module).then((home) => {
+        Atomics.add(gate, 0, 1)
+        Atomics.notify(gate, 0)
+        for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
+        try {
+          const db = home.openHomeDb(workerData.home)
+          parentPort.postMessage({engines: home.listEngines(db)})
+          home.closeHomeDb(db)
+        } catch (error) {
+          parentPort.postMessage({error: String(error)})
+        }
+      })
+      `,
+      {eval: true, workerData: {module: homeDbModule, home, barrier}},
+    )
+    const [message] = await once(worker, 'message')
+    await once(worker, 'exit')
+    return message
+  }
+
+  function captureThrow(run: () => unknown): unknown {
+    try {
+      run()
+    } catch (error) {
+      return error
+    }
+    throw new Error('expected a throw')
+  }
 })
