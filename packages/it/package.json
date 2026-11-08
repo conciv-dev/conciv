@@ -63,7 +63,7 @@
     "lint": "oxlint --ignore-pattern 'test/fixtures/design/host/**' --ignore-pattern 'test/fixtures/design/provenance/**'",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run",
+    "test": "vitest run && playwright test",
     "trial": "tsx scripts/design-trial.ts"
   },
   "dependencies": {
@@ -86,6 +86,7 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
+    "@playwright/test": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
