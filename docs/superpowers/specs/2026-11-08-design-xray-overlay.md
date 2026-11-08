@@ -24,6 +24,12 @@ overlay reads, never computes a verdict.
   attribute, one selector, everywhere the pane is excluded now).
 - The toolbar and the card are children of the host. Nothing of the overlay lives outside it.
 - Clicks reach the page unless `pick` is on; then only the boxes take pointer events. No pointer capture, ever.
+- The overlay ships no stylesheet of its own (ruling, 2026-11-08). The widget's Uno scan covers the design extension's
+  sources, the widget root adopts its styles as one `CSSStyleSheet` built once per document, and `HostWiring.styles()`
+  returns that sheet; the overlay's shadow root sets `adoptedStyleSheets` to `host.styles()`. The six `--xray-*` hues
+  are inline custom properties on the overlay host element (`style.setProperty`), derived from `--chat-*`;
+  `view-transition-name` is set inline per box. Nothing in the design package produces CSS, so the "extension's own
+  stylesheet" in Look and motion below means those inline properties.
 
 ## Layers (toggles, all drawn from stored data, none measured live)
 
