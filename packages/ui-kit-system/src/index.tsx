@@ -29,6 +29,7 @@ export {
   type TooltipIconButtonSlotProps,
 } from './tooltip-icon-button.js'
 export {Highlight} from './highlight.js'
+export {useFormatHotkey, useHotkeys} from './hotkeys.js'
 export {Kbd} from './kbd.js'
 export {Menu} from './menu.js'
 export {

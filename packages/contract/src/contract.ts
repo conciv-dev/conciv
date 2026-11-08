@@ -7,6 +7,7 @@ import {
   ChatHistorySchema,
   ChatModelsSchema,
   ChatToolsSchema,
+  HarnessSessionId,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
@@ -42,6 +43,14 @@ const SessionSearchPageSchema = z.object({
   sessions: z.array(SessionHitSchema),
   next: HarnessListCursorSchema.nullable(),
 })
+
+const SessionPreviewInput = z.object({
+  harness: z.string().min(1),
+  nativeId: HarnessSessionId,
+  before: z.string().min(1).nullable(),
+  limit: z.number().int().min(1).max(100),
+})
+const SessionPreviewSchema = z.object({messages: ChatHistorySchema, earlier: z.string().min(1).nullable()})
 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
 
@@ -169,6 +178,7 @@ export const contract = {
     search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
     changes: oc.output(eventIterator(SessionsChangeSchema)),
     get: oc.errors(notFound).input(SessionIdInput).output(SessionMetaSchema),
+    preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),

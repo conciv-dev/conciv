@@ -3,10 +3,10 @@ import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
 import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
-import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
+import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
@@ -18,7 +18,7 @@ export type BootCoreInput = {
   displayName?: string
   connect?: boolean
   terminal?: boolean
-  history?: Array<HarnessSessionMeta & {text?: string}>
+  history?: FixtureSession[]
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
   models?: HarnessModel[]

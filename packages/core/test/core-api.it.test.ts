@@ -2869,6 +2869,49 @@ describe('rpc wire', () => {
           expect(await hitOf('godwit')).toEqual([{excerpt: null, matched: ['godwit']}])
         })
 
+        it('previews a native transcript newest window first, pages back by message, and refuses an unknown one', async () => {
+          const sanderling = claudeId('claude-sanderling')
+          writeClaudeLines(
+            sanderling,
+            [0, 1, 2]
+              .flatMap((turn) => [
+                JSON.stringify({type: 'user', message: {content: `sanderling question ${turn}`}}),
+                JSON.stringify({
+                  type: 'assistant',
+                  message: {content: [{type: 'text', text: `sanderling answer ${turn}`}]},
+                }),
+              ])
+              .join('\n') + '\n',
+            nextStamp(),
+          )
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const native = listed.find((meta) => meta.native?.nativeId === sanderling)?.native
+          if (!native) throw new Error('the sanderling session was not listed')
+          const textsIn = (window: {messages: ChatMessage[]}) =>
+            window.messages.map((message) =>
+              message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+            )
+          const ask = {harness: native.harnessKind, nativeId: native.nativeId, limit: 4}
+
+          const newest = await searchKit().rpc.sessions.preview({...ask, before: null})
+          expect(textsIn(newest)).toEqual([
+            ['sanderling question 1'],
+            ['sanderling answer 1'],
+            ['sanderling question 2'],
+            ['sanderling answer 2'],
+          ])
+          const earlier = await searchKit().rpc.sessions.preview({...ask, before: newest.earlier})
+          expect(textsIn(earlier)).toEqual([['sanderling question 0'], ['sanderling answer 0']])
+          expect(earlier.earlier).toBeNull()
+          const never = HarnessSessionId.parse(claudeId('claude-never'))
+          await expect(searchKit().rpc.sessions.preview({...ask, nativeId: never, before: null})).rejects.toMatchObject(
+            {
+              code: 'NOT_FOUND',
+            },
+          )
+          expect((await searchKit().rpc.sessions.list({limit: 100})).sessions).toHaveLength(listed.length)
+        })
+
         it('tolerates typos only when every word has at least four characters', async () => {
           writeClaudeTurn(claudeId('claude-item-three'), 'review item 3', 'checked')
           writeClaudeTurn(claudeId('claude-item-twenty-nine'), 'review item 29', 'checked')

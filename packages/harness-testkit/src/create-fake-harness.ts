@@ -9,6 +9,7 @@ import {
 } from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
 import {omit} from 'es-toolkit'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {pageAfter} from '@conciv/harness/page'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {makeScriptedRun, type ScriptedRun} from './scripted-run.js'
@@ -20,7 +21,7 @@ export type FakeHarness = HarnessAdapter & {
 
 type TranscriptHold = {hold: () => void; release: () => void; wait: () => Promise<void>}
 
-type FixtureSession = HarnessSessionMeta & {text?: string}
+export type FixtureSession = HarnessSessionMeta & {text?: string; messages?: ChatMessage[]}
 
 const BASE_CAPABILITIES = {
   resume: false,
@@ -43,17 +44,20 @@ type SharedFields = {
 }
 
 function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): HarnessHistory {
-  const metaOf = (row: FixtureSession): HarnessSessionMeta => omit(row, ['text'])
+  const metaOf = (row: FixtureSession): HarnessSessionMeta => omit(row, ['text', 'messages'])
   return {
     list: (_cwd, page) => {
       const paged = pageAfter(rows, page, (row) => ({updatedAt: row.updatedAt, id: row.id}))
       return Promise.resolve({sessions: paged.items.map(metaOf), next: paged.next})
     },
     messages: async (_cwd, sessionId) => {
-      const text = rows.find((row) => row.id === sessionId)?.text
-      if (text === undefined) return []
+      const row = rows.find((candidate) => candidate.id === sessionId)
+      const text = row?.text
+      if (row?.messages === undefined && text === undefined) return []
       await transcripts.wait()
-      return [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text}]}]
+      return (
+        row?.messages ?? [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text ?? ''}]}]
+      )
     },
     meta: (_cwd, sessionId) => {
       const row = rows.find((candidate) => candidate.id === sessionId)

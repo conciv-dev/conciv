@@ -2,9 +2,11 @@ import {randomUUID} from 'node:crypto'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
 import type {SessionHit} from '@conciv/contract'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   SessionId,
   type HarnessMenuEntry,
+  type HarnessSessionId,
   type HarnessMeta,
   type ReasoningEffort,
   type SessionRecord,
@@ -55,6 +57,33 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
     logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return undefined
   }
+}
+
+async function transcriptOf(
+  chat: ChatContext,
+  harnessKind: string,
+  nativeId: HarnessSessionId,
+): Promise<ChatMessage[]> {
+  const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
+  if (history === undefined) return []
+  if (history.withinProject && !history.withinProject(chat.cwd, nativeId)) return []
+  try {
+    return await history.messages(chat.cwd, nativeId)
+  } catch (error) {
+    logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    return []
+  }
+}
+
+function previewWindow(
+  messages: ChatMessage[],
+  before: string | null,
+  limit: number,
+): {messages: ChatMessage[]; earlier: string | null} | null {
+  const end = before === null ? messages.length : messages.findIndex((message) => message.id === before)
+  if (messages.length === 0 || end < 0) return null
+  const start = Math.max(0, end - limit)
+  return {messages: messages.slice(start, end), earlier: start > 0 ? (messages[start]?.id ?? null) : null}
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
@@ -180,6 +209,12 @@ export function sessionsRouter(deps: RpcDeps) {
       if (!row) throw errors.NOT_FOUND()
       const context = {db, running: await chat.plane.running(), model: (sessionId: SessionId) => modelOf(db, sessionId)}
       return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+    }),
+    preview: os.sessions.preview.handler(async ({input, errors}) => {
+      const messages = await transcriptOf(chat, input.harness, input.nativeId)
+      const window = previewWindow(messages, input.before, input.limit)
+      if (window === null) throw errors.NOT_FOUND()
+      return window
     }),
     create: os.sessions.create.handler(async () => {
       const sessionId = SessionId.parse(`conciv_${randomUUID()}`)

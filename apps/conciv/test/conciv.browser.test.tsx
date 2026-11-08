@@ -55,7 +55,7 @@ import {
   type RegisterExtension,
 } from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
-import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
@@ -3590,6 +3590,11 @@ describe('session selector', () => {
 
   const localMidnight = new Date().setHours(0, 0, 0, 0)
   const MINUTE_MS = 60_000
+  const TIDE_TURNS = 30
+  const tideLog = Array.from({length: TIDE_TURNS}, (_, turn): ChatMessage[] => [
+    {id: `tide-question-${turn}`, role: 'user', parts: [{type: 'text', content: `question ${turn}`}]},
+    {id: `tide-entry-${turn}`, role: 'assistant', parts: [{type: 'text', content: `tide log entry ${turn}`}]},
+  ]).flat()
 
   const core = bootedCore('session-selector', {
     resume: true,
@@ -3600,11 +3605,13 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('after-midnight'),
         derivedTitle: 'a minute after midnight',
         updatedAt: localMidnight + MINUTE_MS,
+        messages: tideLog,
       },
       {
         id: HarnessSessionId.parse('before-midnight'),
         derivedTitle: 'a minute before midnight',
         updatedAt: localMidnight - MINUTE_MS,
+        text: 'the evening ebb',
       },
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
@@ -3782,7 +3789,50 @@ describe('session selector', () => {
     await expect
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toHaveTextContent('Switched to the kiwi orchard plan | Switched to the puffin notes')
-  }, 30_000)
+
+    const anyPreview = page.getByRole('dialog', {name: /^Preview of /})
+    const preview = (title: string) => page.getByRole('dialog', {name: `Preview of ${title}`})
+    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true})
+    await userEvent.click(trigger)
+    await expect.element(option('a minute after midnight')).toBeVisible()
+    expect(anyPreview.query()).toBeNull()
+    await typeKeyByKey(search, 'tide', '')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.hover(option('a minute after midnight'))
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
+    await expect.element(search).toHaveFocus()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.hover(option('a minute after midnight'))
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await expect.element(preview('a minute after midnight').getByRole('mark')).not.toBeInTheDocument()
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(entry('a minute before midnight', 'the evening ebb')).toBeVisible()
+    await userEvent.keyboard('{ArrowUp}')
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+
+    const thread = preview('a minute after midnight').getByRole('log')
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    await expect.element(thread).toHaveFocus()
+    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
+    await userEvent.keyboard('{Alt>}{ArrowLeft}{/Alt}')
+    await expect.element(search).toHaveFocus()
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    await expect.element(thread).toHaveFocus()
+    await userEvent.keyboard('{Home}')
+    await expect.element(entry('a minute after midnight', 'tide log entry 9')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(search).toHaveFocus()
+    await expect.element(anyPreview).not.toBeInTheDocument()
+    await expect.element(option('a minute after midnight')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveFocus()
+  }, 45_000)
 
   test('a session past the first page shows its own title on the trigger', async () => {
     const sessionId = await adoptNativeSession(coreRpc(core()), HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`))

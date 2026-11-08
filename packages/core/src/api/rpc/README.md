@@ -7,7 +7,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 ## Interface
 
 - `makeRpcRouter(deps)` (`router.ts`): builds the full router
-- RPC `sessions.list`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact`, `.switchHarness` (`sessions.ts`, `sessionsRouter`)
+- RPC `sessions.list`, `.preview`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact`, `.switchHarness` (`sessions.ts`, `sessionsRouter`)
 - RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`)
 - RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set`, `captures.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`)
@@ -38,6 +38,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `sessions.*` (`sessions.ts`): writes `sessions` and `markers`; `delete` tombstones the row and deletes drafts, plane state, captures and page changes
 - `sessions.list` (`sessions.ts`): reads the transcript history of every available harness with `transcriptHistory`; a harness whose listing throws is logged and contributes nothing. It never reads the search index; once the first list has answered it calls `search.listed()`, which starts the background index build. A page that comes back short while `next` is set (sessions dropped as earlier transcripts of a switched session, or Codex rows whose rollout is gone) is filled from the following pages, so a page holds `limit` sessions whenever more exist; a session a refill lists again (a search hit in another transcript of the same session) is counted once.
 - `sessions.search` (`sessions.ts`): `{term, includeHidden?, cursor?, limit}`, the same pipeline and output as `sessions.list`; native sessions come from the in-memory Orama index (`sessions/session-search.ts`) and conciv-only rows match on `title LIKE`; the search answers from the index at once and queues one background refresh
+- `sessions.preview` (`sessions.ts`): `{harness, nativeId, before, limit}`; reads the transcript through that harness's `HarnessHistory.messages` (refused by `withinProject` when the harness has it) and returns the `limit` messages before `before` (the newest when null) plus `earlier`, the id that pages above them. It writes nothing and creates no row. An unknown harness, a transcript outside the project, an empty or unreadable transcript, or a `before` it does not hold is NOT_FOUND.
 - `sessions.changes` (`sessions.ts`): streams the search index version, the current one first (`search.changes(signal)`); the search itself comes in through `RpcDeps.search`, created and disposed by `makeApp`
 - `server.reload` / `server.restart` / `editor.open` (`router.ts`): reload or restart the dev server, or open an editor
 

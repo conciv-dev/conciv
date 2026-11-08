@@ -1,4 +1,4 @@
-import {createSignal, onMount, Show, type JSX} from 'solid-js'
+import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
 import {createStore, produce, unwrap} from 'solid-js/store'
 import {mapValues} from 'es-toolkit'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
@@ -281,14 +281,23 @@ export type MarkdownProps = {
 
 const NO_LINK_PREFIXES: string[] = []
 
+const MarkdownHighlightContext = createContext<readonly string[]>([])
+
+export const MarkdownHighlightProvider = MarkdownHighlightContext.Provider
+
 export function Markdown(props: MarkdownProps): JSX.Element {
+  const inherited = useContext(MarkdownHighlightContext)
+  const highlight = () => props.highlight ?? inherited
   return (
-    <Show when={props.compact} fallback={<FullMarkdown {...props} />}>
+    <Show
+      when={props.compact}
+      fallback={<FullMarkdown content={props.content} streaming={props.streaming} highlight={highlight()} />}
+    >
       <Streamdown
         class="chat-markdown-compact"
         allowedLinkPrefixes={NO_LINK_PREFIXES}
         linkBlockPolicy="text-only"
-        highlight={props.highlight}
+        highlight={highlight()}
       >
         {props.content}
       </Streamdown>

@@ -1,4 +1,5 @@
 import {createMemo, createUniqueId, Show, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {
   Button,
   ByteSize,
@@ -14,9 +15,9 @@ import {
 } from '@conciv/ui-kit-system'
 import {Markdown} from '@conciv/ui-kit-chat'
 import {createDateNow} from '@solid-primitives/date'
-import {createDebouncedSignal} from '@tanstack/solid-pacer'
+import {createDebouncedSignal, createDebouncer} from '@tanstack/solid-pacer'
 import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/solid-query'
-import {groupBy, uniqBy} from 'es-toolkit'
+import {groupBy, isEqual, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
@@ -26,6 +27,7 @@ import type {SessionHit, SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
 import {useAnnounce, useAppData} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
+import {SessionPreview} from './session-preview.js'
 
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-chat-surface-sm bg-transparent text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong hover:text-chat-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
@@ -39,6 +41,7 @@ const PAGE_SIZE = 30
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
 const SEARCH_WAIT_MS = 250
+const PREVIEW_WAIT_MS = 300
 const CLOCK_TICK_MS = 60_000
 
 const HEADER_ROW_SIZE = 26
@@ -81,6 +84,10 @@ function rowSize(row: PickerRow): number {
 
 function excerptOf(session: PickerSession): string | null {
   return 'excerpt' in session ? session.excerpt : null
+}
+
+function projectOf(cwd: string): string {
+  return cwd.split(/[\\/]/).findLast((segment) => segment !== '') ?? cwd
 }
 
 function matchedOf(session: PickerSession): string[] {
@@ -175,6 +182,36 @@ export function SessionSelector(props: {
     announce(`Switched to ${title}`)
   }
 
+  let content: HTMLDivElement | undefined
+  let input: HTMLInputElement | undefined
+  const [preview, setPreview] = createStore<{value: string | null; open: boolean}>({value: null, open: false})
+  const settle = createDebouncer((value: string) => setPreview({value, open: true}), {wait: PREVIEW_WAIT_MS})
+  const dismissPreview = () => {
+    settle.cancel()
+    setPreview('open', false)
+  }
+  const highlighted = (value: string | null) => {
+    if (value === null) return settle.cancel()
+    if (preview.open) return setPreview('value', value)
+    settle.maybeExecute(value)
+  }
+  const previewTarget = createMemo(
+    () => {
+      const session = sessionsLoaded().find((candidate) => candidate.id === preview.value)
+      const native = session?.native
+      if (session === undefined || native === null || native === undefined) return null
+      return {
+        title: session.title,
+        project: projectOf(native.cwd),
+        harness: native.harnessKind,
+        nativeId: native.nativeId,
+        matched: matchedOf(session),
+      }
+    },
+    null,
+    {equals: isEqual},
+  )
+
   const isPill = () => props.variant === 'pill'
   return (
     <Combobox.Root
@@ -189,8 +226,10 @@ export function SessionSelector(props: {
         if (id) select(id)
       }}
       onInputValueChange={(details) => typed(details.inputValue)}
+      onHighlightChange={(details) => highlighted(details.highlightedValue)}
       onOpenChange={(details) => {
         if (details.open) appData.invalidateSessions()
+        if (!details.open) dismissPreview()
       }}
       openOnClick
       selectionBehavior="clear"
@@ -221,9 +260,17 @@ export function SessionSelector(props: {
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex-col max-h-90 w-70 hidden shadow-chat-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
+        <Combobox.Content
+          ref={(element) => {
+            content = element
+          }}
+          class="p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex-col max-h-90 w-70 hidden shadow-chat-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo"
+        >
           <div class="mb-1 border-b border-b-chat-line-soft flex gap-1 items-center">
             <Combobox.Input
+              ref={(element) => {
+                input = element
+              }}
               class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
               placeholder="Search sessions…"
               onPointerDown={(event) => event.stopPropagation()}
@@ -336,6 +383,13 @@ export function SessionSelector(props: {
           </VirtualList>
         </Combobox.Content>
       </Combobox.Positioner>
+      <SessionPreview
+        target={previewTarget()}
+        open={preview.open}
+        onDismiss={dismissPreview}
+        anchor={() => content ?? null}
+        input={() => input ?? null}
+      />
     </Combobox.Root>
   )
 }
