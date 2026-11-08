@@ -2,7 +2,7 @@
 
 ## Overview
 
-TanStack Start (React) example host app wired to conciv through `@conciv/it/plugin/vite`, including the iOS extension pointed at `native/swift/ConcivDemo`.
+TanStack Start (React) example host app wired to conciv through `@conciv/it/plugin/vite`.
 
 Welcome to your new TanStack Start app!
 
@@ -195,19 +195,19 @@ For TanStack Start specific documentation, visit [TanStack Start](https://tansta
 ## Interface
 
 - `vite.config.ts` default export: plugins `devtools`, `tailwindcss`, `tanstackStart`, `viteReact`, `conciv(...)`
-- `conciv({port: 4599, widget: {quickTerminal: {hotkey: 'Alt+k'}}, extensions: {ios: ...}})` (`vite.config.ts`): conciv core on port 4599, iOS extension with `bundleId: 'dev.conciv.ConcivDemo'`, `simulator: 'iPhone 17 Pro'`, `buildMode: 'swiftc'`
+- `conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}})` (`vite.config.ts`): conciv core on its persisted port (or a free one), quick terminal on `Alt+k`
 - `CONCIV_NITRO` env (`vite.config.ts`): `1` adds the `nitro/vite` plugin
 - scripts (`package.json`): `dev`, `build`, `generate-routes`, `typecheck`, `lint`
 - Subdirectories: [conciv](./conciv/README.md), [src](./src/README.md)
 
 ## Invariants
 
-- `vite.config.ts`: the iOS `projectRoot` is `../../../native/swift/ConcivDemo` and `extraSourceDirs` is `../ConcivWidget/Sources/ConcivWidget`; moving either breaks the iOS extension
+- `vite.config.ts`: no `ios` extension; the iOS overlay demo lives in [../ios](../ios/README.md) so web sessions here never get the iOS system prompt
 - `package.json:typecheck`: typechecks both the React app and `conciv/extensions/tsconfig.json` (Solid JSX)
 
 ## Side Effects
 
-- `vite.config.ts:conciv`: the dev server starts a conciv core on port 4599 and the iOS extension can build and launch the ConcivDemo simulator app
+- `vite.config.ts:conciv`: the dev server starts a conciv core
 
 ## Verification
 

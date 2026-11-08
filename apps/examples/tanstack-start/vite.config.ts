@@ -1,4 +1,3 @@
-import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import {devtools} from '@tanstack/devtools-vite'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
@@ -19,19 +18,7 @@ export default defineConfig(async () => {
       tailwindcss(),
       tanstackStart(),
       viteReact(),
-      conciv({
-        port: 4599,
-        widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: {
-          ios: {
-            projectRoot: fileURLToPath(new URL('../../../native/swift/ConcivDemo', import.meta.url)),
-            bundleId: 'dev.conciv.ConcivDemo',
-            simulator: 'iPhone 17 Pro',
-            buildMode: 'swiftc',
-            extraSourceDirs: ['../ConcivWidget/Sources/ConcivWidget'],
-          },
-        },
-      }),
+      conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
     ],
   }
 })

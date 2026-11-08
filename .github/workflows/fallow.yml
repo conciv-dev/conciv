@@ -43,7 +43,7 @@ jobs:
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f
         with:
           mode: firewall-free
-          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+          firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

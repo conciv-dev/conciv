@@ -113,8 +113,8 @@ capturing a screenshot at each step as the evidence bundle (the spike stored
 shipped source).
 
 1. `pnpm turbo run build --filter=@conciv/embed` (fresh bundle).
-2. Start the dev core on the pinned port for a native project (or the spike demo app in
-   `swiftc` mode).
+2. Start the dev core on the pinned port for a native project, or `pnpm --filter ios-example dev`
+   for the in-repo ConcivDemo app (`apps/examples/ios`, port 4599, `swiftc` mode).
 3. From the agent panel, run `ios_build` then `ios_run`; confirm no bash approval
    prompts, the app boots in the sim, and the transparent overlay plus FAB appear over
    the native screen.
