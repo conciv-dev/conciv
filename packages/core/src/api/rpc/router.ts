@@ -212,6 +212,7 @@ export function makeRpcRouter(deps: RpcDeps) {
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
           harness: harnessMetaOf(harness),
           hubInstalls: deps.hub.installs(),
+          hubConnections: deps.hub.connections(),
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
@@ -224,6 +225,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
+      disconnectHub: os.meta.disconnectHub.handler(({input}) => deps.hub.disconnect(input.harness)),
     },
   })
 }

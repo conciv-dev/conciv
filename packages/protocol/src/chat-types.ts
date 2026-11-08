@@ -167,6 +167,9 @@ export const ChatModelsSchema = z.object({
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
   hubInstalls: z.array(z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})),
+  hubConnections: z.array(
+    z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string(), canDisconnect: z.boolean()}),
+  ),
 })
 export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
   models: z.array(HarnessModelSchema),

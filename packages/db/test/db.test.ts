@@ -27,6 +27,7 @@ import {
   openHomeDb,
   recordHubConnection,
   registerEngine,
+  removeHubConnection,
   retireEngine,
   withHomeDb,
 } from '../src/home-db.js'
@@ -567,12 +568,15 @@ describe('home db', () => {
     }
   })
 
-  it('records hub connections once per harness', () => {
+  it('records hub connections once per harness and removes one harness on disconnect', () => {
     const home = freshHome()
     withHomeDb(home, (db) => {
       recordHubConnection(db, 'codex', 1)
       recordHubConnection(db, 'codex', 2)
-      expect(hubConnections(db)).toEqual(['codex'])
+      recordHubConnection(db, 'claude', 3)
+      expect(hubConnections(db)).toEqual(['claude', 'codex'])
+      removeHubConnection(db, 'codex')
+      expect(hubConnections(db)).toEqual(['claude'])
     })
   })
 

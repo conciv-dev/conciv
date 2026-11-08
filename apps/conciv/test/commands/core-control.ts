@@ -1,4 +1,4 @@
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
@@ -251,23 +251,38 @@ const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value):
   kitOf(ctx).harness.script.scriptCustomEvent(name, value)
 }
 
-const fakeHubCli: BrowserCommand<['ok' | 'fail' | null]> = (ctx, outcome): void => {
+const fakeHubCli: BrowserCommand<['ok' | 'fail' | 'hold' | null]> = (ctx, outcome): void => {
   const state = stateOf(ctx)
   if (outcome === null) return restoreHubCli(state)
-  const current = state.hubCli.current ?? {
-    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
-    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', CONCIV_HOME: process.env.CONCIV_HOME ?? ''},
-  }
+  const root = hubCliRoot(state)
+  rmSync(join(root, 'fail'), {force: true})
+  rmSync(join(root, 'gate'), {force: true})
+  if (outcome !== 'ok') writeFileSync(join(root, outcome === 'fail' ? 'fail' : 'gate'), '')
+  Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home'), CONCIV_HOME: join(root, 'conciv')})
+}
+
+function hubCliRoot(state: FileState): string {
+  const current = state.hubCli.current ?? freshHubCli()
   state.hubCli.current = current
   mkdirSync(join(current.root, 'bin'), {recursive: true})
   mkdirSync(join(current.root, 'home'), {recursive: true})
-  const exit = outcome === 'ok' ? 'exit 0' : 'echo "claude: could not add conciv-hub" >&2; exit 2'
-  writeFileSync(join(current.root, 'bin', 'claude'), `#!/bin/sh\n${exit}\n`, {mode: 0o755})
-  Object.assign(process.env, {
-    PATH: join(current.root, 'bin'),
-    HOME: join(current.root, 'home'),
-    CONCIV_HOME: join(current.root, 'conciv'),
-  })
+  const script = join(current.root, 'bin', 'claude')
+  if (existsSync(script)) return current.root
+  const lines = [
+    '#!/bin/sh',
+    `while [ -f '${join(current.root, 'gate')}' ]; do /bin/sleep 0.05; done`,
+    `if [ -f '${join(current.root, 'fail')}' ]; then echo "claude: could not add conciv-hub" >&2; exit 2; fi`,
+    'exit 0',
+  ]
+  writeFileSync(script, `${lines.join('\n')}\n`, {mode: 0o755})
+  return current.root
+}
+
+function freshHubCli(): NonNullable<HubCliState> {
+  return {
+    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
+    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', CONCIV_HOME: process.env.CONCIV_HOME ?? ''},
+  }
 }
 
 function restoreHubCli(state: FileState): void {

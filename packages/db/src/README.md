@@ -17,7 +17,7 @@ Source of `@conciv/db`: the drizzle SQLite schema, `openDb` (opens `conciv.db` o
 - `chat-thread-import.ts:importLegacyThreads`, `chat-thread-import.ts:TRANSCRIPT_NAMESPACE` (`conciv.transcript`), `chat-thread-import.ts:anchorKey`, `chat-thread-import.ts:pendingFromKey`.
 - `home-schema.ts` tables (home db): `engines` (`id`, `pid`, `root`, `apiBase`, `deletedAt`), `hubConnections` (`hub_connections`: `harness`, `connectedAt`).
 - `home-db.ts:concivHome({homeDir?, env})` - `homeDir`, else a non-empty `env.CONCIV_HOME` (zod-parsed), else `envPaths('conciv', {suffix: ''}).data`.
-- `home-db.ts:openHomeDb(home)` / `closeHomeDb(db)` / `withHomeDb(home, run)` - `HomeDb`; `registerEngine`, `retireEngine(db, id, now)`, `listEngines` (rows with `deletedAt` null), type `EngineRow`; `recordHubConnection(db, harness, now)`, `hubConnections`; `isHomeFolderRefused(error)`.
+- `home-db.ts:openHomeDb(home)` / `closeHomeDb(db)` / `withHomeDb(home, run)` - `HomeDb`; `registerEngine`, `retireEngine(db, id, now)`, `listEngines` (rows with `deletedAt` null), type `EngineRow`; `recordHubConnection(db, harness, now)`, `removeHubConnection(db, harness)`, `hubConnections`; `isHomeFolderRefused(error)`.
 - `engine-check.ts:checkEngines(home, {timeoutMs})` - GETs `<origin>/health` for every listed engine in parallel: matching `id` is live; refused, another `id` or a non-conciv body retires the row; a timeout reports it unreachable.
 - `index.ts` - `export *` of the modules above and `export {migrations} from './migrations.gen.js'` (generated, not committed source).
 

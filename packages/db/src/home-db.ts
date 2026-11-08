@@ -67,6 +67,10 @@ export function recordHubConnection(db: HomeDb, harness: string, now: number): v
   db.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
 }
 
+export function removeHubConnection(db: HomeDb, harness: string): void {
+  db.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
+}
+
 export function hubConnections(db: HomeDb): string[] {
   return db
     .select({harness: hubConnectionsTable.harness})

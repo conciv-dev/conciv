@@ -479,7 +479,12 @@ describe('connect hub', () => {
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
-  const file = {argv: join(root, 'argv'), exists: join(root, 'exists'), fail: join(root, 'fail')}
+  const file = {
+    argv: join(root, 'argv'),
+    exists: join(root, 'exists'),
+    fail: join(root, 'fail'),
+    missing: join(root, 'missing'),
+  }
   const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp']
 
   beforeEach(() => {
@@ -489,6 +494,7 @@ describe('connect hub', () => {
       '#!/bin/sh',
       `printf '%s\\n' "$*" >> '${file.argv}'`,
       `if [ -f '${file.fail}' ]; then echo boom >&2; exit 2; fi`,
+      `if [ "$2" = remove ] && [ -f '${file.missing}' ]; then echo 'No MCP server found with name: conciv-hub' >&2; exit 1; fi`,
       `if [ "$2" = remove ]; then /bin/rm -f '${file.exists}'; exit 0; fi`,
       `if [ -f '${file.exists}' ]; then echo 'MCP server conciv-hub already exists in user config' >&2; exit 1; fi`,
     ]
@@ -503,6 +509,10 @@ describe('connect hub', () => {
   })
 
   const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
+
+  const hubConnections = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubConnections
+
+  const claudeConnection = {harnessId: 'claude', name: 'Claude', canDisconnect: true}
 
   const invocations = () => readFileSync(file.argv, 'utf8').trim().split('\n')
 
@@ -537,6 +547,40 @@ describe('connect hub', () => {
     writeFileSync(file.fail, '')
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: false, message: 'boom'})
     expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
+  })
+
+  it('disconnectHub runs the harness remove command and the harness moves back from connected to the list', async () => {
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await hubConnections()).toEqual([claudeConnection])
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(invocations()).toEqual([addLine, 'mcp remove -s user conciv-hub'])
+    expect(await hubConnections()).toEqual([])
+    expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
+  })
+
+  it('disconnectHub treats a server the CLI no longer knows as removed, and keeps the connection when the CLI fails', async () => {
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    writeFileSync(file.fail, '')
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: false, message: 'boom'})
+    expect(await hubConnections()).toEqual([claudeConnection])
+    rmSync(file.fail)
+    writeFileSync(file.missing, '')
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await hubConnections()).toEqual([])
+    expect(await kit().rpc.meta.disconnectHub({harness: 'opencode'})).toEqual({
+      ok: false,
+      message: 'opencode cannot disconnect from the conciv hub',
+    })
+  })
+
+  it('an outside agent can neither connect nor disconnect agents, and the harness CLI never runs', async () => {
+    const outside = makeRpcClient(kit().base, {
+      headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'},
+    })
+    const refusal = "outside agents can't connect or disconnect agents; do it in the tab"
+    expect(await outside.meta.connectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
+    expect(await outside.meta.disconnectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
+    expect(existsSync(file.argv)).toBe(false)
   })
 })
 
