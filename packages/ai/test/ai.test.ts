@@ -196,7 +196,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       },
     }
     const server = await chatServer(hooks, (message) => logged.push(message))
-    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [
+      {id: 'user-hi', role: 'user', content: 'hi'},
+    ])
     await started.promise
     await server.endRuns('thread')
     await driven
@@ -233,9 +235,13 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       end: async () => undefined,
     }
     const server = await chatServer(hooks, () => undefined)
-    const first = server.drive({threadId: 'thread', runId: 'first', kind: 'chat'}, [{role: 'user', content: 'one'}])
+    const first = server.drive({threadId: 'thread', runId: 'first', kind: 'chat'}, [
+      {id: 'user-one', role: 'user', content: 'one'},
+    ])
     await firstInSetup.promise
-    const second = server.drive({threadId: 'thread', runId: 'second', kind: 'chat'}, [{role: 'user', content: 'two'}])
+    const second = server.drive({threadId: 'thread', runId: 'second', kind: 'chat'}, [
+      {id: 'user-two', role: 'user', content: 'two'},
+    ])
     await secondLaunched.promise
     firstSetup.resolve()
     await first
@@ -270,7 +276,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       }
       const server = await chatServer(hooks, () => undefined, db)
       const driven = [...started.keys()].map((threadId) =>
-        server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [{role: 'user', content: 'hi'}]),
+        server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [
+          {id: 'user-hi', role: 'user', content: 'hi'},
+        ]),
       )
       await Promise.all([...started.values()].map((gate) => gate.promise))
       const outcome = await server.endAllRuns().then(
@@ -311,7 +319,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         end: async (_turn, run) => ended.resolve(run),
       }
       const server = await chatServer(hooks, () => undefined)
-      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+      await server.drive({threadId: 'thread', runId: 'slow', kind: 'chat'}, [
+        {id: 'user-hi', role: 'user', content: 'hi'},
+      ])
       const run = await ended.promise
       expect(run.error).toBe('Agent process exited with code 1')
     },
@@ -347,7 +357,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       end: async () => undefined,
     }
     const server = await chatServer(hooks, () => undefined, db)
-    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    const driven = server.drive({threadId: 'thread', runId: 'run', kind: 'chat'}, [
+      {id: 'user-hi', role: 'user', content: 'hi'},
+    ])
     await toolRunning.promise
     const outcome = await Promise.race([
       server.endAllRuns().then(() => 'ended'),
@@ -392,14 +404,14 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     }
     const server = await chatServer(hooks, () => undefined, db)
     const inSetupRun = server.drive({threadId: 'thread', runId: 'in-setup', kind: 'chat'}, [
-      {role: 'user', content: 'a'},
+      {id: 'user-a', role: 'user', content: 'a'},
     ])
     await inSetup.promise
     await server.stop('thread', ['in-setup'])
     setupHeld.resolve()
     await inSetupRun
     const streaming = server.drive({threadId: 'thread', runId: 'streaming', kind: 'chat'}, [
-      {role: 'user', content: 'b'},
+      {id: 'user-b', role: 'user', content: 'b'},
     ])
     await vi.waitUntil(() => launched.includes('streaming'))
     await server.stop('thread', ['streaming'])
@@ -409,6 +421,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       launched,
       runs: db.$client.prepare('SELECT run_id, status FROM chat_runs ORDER BY started_at').all(),
       replayEnds: [await replayEnd(server, 'in-setup'), await replayEnd(server, 'streaming')],
+      userTexts: (await server.hydrate('thread')).messages
+        .filter((message) => message.role === 'user')
+        .map((message) => message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('')),
     }).toEqual({
       announced: ['streaming'],
       launched: ['streaming'],
@@ -417,6 +432,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         {run_id: 'streaming', status: 'aborted'},
       ],
       replayEnds: ['aborted', 'aborted'],
+      userTexts: ['a', 'b'],
     })
   })
 
@@ -471,7 +487,12 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       end: async (_turn, run) => ended.resolve(run),
     }
     const server = await chatServer(hooks, () => undefined)
-    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [{role: 'user', content: 'hi'}])
+    await expect(
+      server.drive({threadId: 'thread', runId: 'anonymous', kind: 'chat'}, [{role: 'user', content: 'no id'}]),
+    ).rejects.toThrow(/id/)
+    await server.drive({threadId: 'thread', runId: 'waited', kind: 'chat'}, [
+      {id: 'user-hi', role: 'user', content: 'hi'},
+    ])
     const run = await ended.promise
     expect({calls: seen.calls, phase: run.phase}).toEqual({calls: 2, phase: 'completed'})
   })
