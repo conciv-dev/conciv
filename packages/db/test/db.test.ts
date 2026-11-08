@@ -613,8 +613,7 @@ describe('home db', () => {
       },
     )
     const signal = AbortSignal.timeout(10_000)
-    const exited = once(migrator, 'exit', {signal})
-    try {
+    const openWhileMigrating = async () => {
       await once(migrator, 'message', {signal})
       const first = openHomeDb(home)
       const second = openHomeDb(home)
@@ -622,7 +621,9 @@ describe('home db', () => {
       expect(listEngines(second)).toEqual([])
       closeHomeDb(first)
       closeHomeDb(second)
-      await exited
+    }
+    try {
+      await Promise.all([openWhileMigrating(), once(migrator, 'exit', {signal})])
     } finally {
       await migrator.terminate()
     }
