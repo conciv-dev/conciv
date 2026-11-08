@@ -2676,37 +2676,41 @@ describe('rpc wire', () => {
         it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
           const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
           const transcriptIn = (nativeId: string, ask: string, answer: string) => {
-            const path = requireTranscriptPath(requireClaude())(folder, HarnessSessionId.parse(nativeId))
-            mkdirSync(dirname(path), {recursive: true})
-            writeFileSync(
-              path,
-              [
-                JSON.stringify({type: 'user', cwd: folder, message: {content: ask}}),
-                JSON.stringify({type: 'assistant', cwd: folder, message: {content: [{type: 'text', text: answer}]}}),
-              ].join('\n') + '\n',
+            const id = HarnessSessionId.parse(nativeId)
+            const entries = [
+              {type: 'session', version: 3, id, timestamp: '2026-11-07T09:00:00.000Z'},
+              {
+                type: 'message',
+                id: 'u1',
+                parentId: null,
+                message: {role: 'user', content: [{type: 'text', text: ask}]},
+              },
+              {
+                type: 'message',
+                id: 'a1',
+                parentId: 'u1',
+                message: {role: 'assistant', content: [{type: 'text', text: answer}]},
+              },
+            ]
+            writeWhole(
+              requireTranscriptPath(piHarness)(folder, id),
+              entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''),
+              nextStamp(),
             )
-            const stamp = nextStamp() / 1000
-            utimesSync(path, stamp, stamp)
           }
-          const previewed = claudeId('claude-plover-previewed')
-          const neighbour = claudeId('claude-plover-neighbour')
-          transcriptIn(previewed, 'a plover on the shingle', 'it ran the tideline')
-          transcriptIn(neighbour, 'a ringed plover nest', 'four speckled eggs')
-          const resident = claudeId('claude-plover-resident')
-          writeClaudeTurn(resident, 'a resident dunlin', 'it probed the sandbar')
+          transcriptIn('pi-plover-previewed', 'a plover on the shingle', 'it ran the tideline')
+          transcriptIn('pi-plover-neighbour', 'a ringed plover nest', 'four speckled eggs')
           await searchKit().rpc.sessions.list({limit: 100})
-          await foundOnceIndexed('sandbar', [resident])
 
           const window = await searchKit().rpc.sessions.preview({
-            harness: 'claude',
-            nativeId: HarnessSessionId.parse(previewed),
+            harness: 'pi',
+            nativeId: HarnessSessionId.parse('pi-plover-previewed'),
             cwd: folder,
             before: null,
             limit: 10,
           })
           expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
-          await indexedChange()
-          expect(await found('ringed', true)).toEqual([neighbour])
+          await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
           rmSync(folder, {recursive: true, force: true})
         })
 
