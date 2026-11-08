@@ -41,7 +41,9 @@ export function createXrayData(input: {
     (key) => key.client.xray.layers({id: key.id, round: key.round}),
   )
   const file = (path: string): string => `${input.apiBase()}/api/ext/${DESIGN_EXTENSION_NAME}/files/${path}`
-  return {design, hotkeys, layers, shownRound, file}
+  const label = (written: Parameters<ReturnType<typeof client>['xray']['label']>[0]): Promise<void> =>
+    client().xray.label(written)
+  return {design, hotkeys, layers, shownRound, file, label}
 }
 
 const DESIGN_EXTENSION_NAME = 'design'

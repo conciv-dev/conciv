@@ -24,6 +24,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     candidates,
     widths,
     regions,
+    labels,
   } = tables
 
   async function target(id: string): Promise<TargetRow | undefined> {
@@ -198,6 +199,9 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             .values({...ballot, name: names.get(ballot.node) ?? null, target_id: id, run_id: runId, round, at})
             .run()
       })
+    },
+    writeLabel: async ({target: targetId, round, node, id, verdict, by}) => {
+      await orm.insert(labels).values({target_id: targetId, run_id: await run(), round, node, id, verdict, by})
     },
     writeToolCall: async ({session, tool, round, input: given, replyBytes, durationMs, error}) => {
       const [own] = await orm

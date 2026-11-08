@@ -41,7 +41,7 @@ src/
     verdict.ts         done, stalled or not yet with reasons
     measure.ts         the measurer: asks the widget's measure tool at a width and height
     raster.ts          pixel and box operations, compare and diff painting
-    xray-routes.ts     the x-ray RPC (hotkeys, targets, current, rounds, layers) and its image and wasm routes
+    xray-routes.ts     the x-ray RPC (hotkeys, targets, current, rounds, layers, label) and its image and wasm routes
     pairers/           the voter: the calibrated vote that proposes a key for an unmapped node
     sources/
       figma.ts         createFigmaAdapter: link parsing, REST or pasted document, the collapse rule, the one tree
@@ -58,6 +58,7 @@ src/
     rail.tsx           the icon rail: on, pick, layers, magnitudes, panel
     boxes.tsx          the ids drawn on the page: DOM boxes by magnitude, Figma boxes dashed, changed regions
     column.tsx         the content column: states, sliders, counts, rows and the round's images
+    card.tsx           the picked id: FOM, DOM, CSSOM and SRC, its rows, and the right and wrong pair labels
 ```
 
 ## Tools

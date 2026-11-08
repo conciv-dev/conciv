@@ -4,7 +4,7 @@ import {ORPCError, os} from '@orpc/server'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import type {Box, DesignRuntime, IdNode} from '../shared/defs.js'
+import {DESIGN_VERDICTS, type Box, type DesignRuntime, type IdNode} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
 import type {designConfig} from '../shared/tolerances.js'
 
@@ -19,6 +19,8 @@ export function createXrayRoutes(input: {runtime: DesignRuntime; hotkeys: Design
 type DesignConfig = z.output<typeof designConfig>
 
 const NonEmptySchema = z.string().min(1)
+
+const LABEL_AUTHOR = 'x-ray'
 
 const WASM_EXTENSION = '.wasm'
 
@@ -47,6 +49,17 @@ function makeXrayRouter(input: {runtime: DesignRuntime; hotkeys: DesignConfig['h
         ])
         return {target, rounds, mapping, unsettled}
       }),
+      label: xrayOs
+        .input(
+          z.object({
+            target: NonEmptySchema,
+            round: z.number().int().positive(),
+            node: NonEmptySchema,
+            id: NonEmptySchema,
+            verdict: z.enum(DESIGN_VERDICTS),
+          }),
+        )
+        .handler(({input: label}) => store.writeLabel({...label, by: LABEL_AUTHOR})),
       layers: xrayOs
         .input(z.object({id: NonEmptySchema, round: z.number().int().positive()}))
         .handler(async ({input: query}) => {

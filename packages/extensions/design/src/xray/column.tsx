@@ -4,6 +4,7 @@ import Camera from 'lucide-solid/icons/camera'
 import X from 'lucide-solid/icons/x'
 import {Button, Slider, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {Round} from '../shared/defs.js'
+import {Card} from './card.js'
 import type {createXrayData} from './data.js'
 import type {createXrayState} from './state.js'
 import type {createXrayView} from './view.js'
@@ -51,6 +52,21 @@ export function Column(props: {
         </Match>
         <Match when={props.data.design.latest !== undefined && props.view.rounds().length === 0}>
           <Line>No round yet. Call design_check.</Line>
+        </Match>
+        <Match when={props.view.picked() !== null && props.data.shownRound()}>
+          {(round) => (
+            <Show when={props.view.picked()}>
+              {(entry) => (
+                <Card
+                  xray={props.xray}
+                  data={props.data}
+                  entry={entry()}
+                  target={props.view.target()?.id ?? ''}
+                  round={round().round}
+                />
+              )}
+            </Show>
+          )}
         </Match>
         <Match when={props.data.shownRound()}>
           {(round) => <RoundPanel xray={props.xray} data={props.data} view={props.view} round={round()} />}

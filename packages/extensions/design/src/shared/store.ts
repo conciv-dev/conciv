@@ -1,5 +1,5 @@
 import type {designTables} from '../server/tables.js'
-import type {Ballot, Design, IdTree, Mapping, Round, TargetRecord} from './defs.js'
+import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord} from './defs.js'
 
 export type Store = {
   put(input: {
@@ -14,6 +14,7 @@ export type Store = {
   mapping(id: string): Promise<Mapping>
   writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
   writeToolCall(input: ToolCall & {session: string; round: number | null}): Promise<void>
+  writeLabel(input: Label): Promise<void>
   ids(input: {id: string; round?: number}): Promise<IdTree | null>
   looks(id: string): Promise<Look[]>
   unsettledCount(id: string): Promise<number>
@@ -34,5 +35,14 @@ export type Store = {
 }
 
 type ToolCall = {tool: string; input: unknown; replyBytes: number | null; durationMs: number; error: string | null}
+
+type Label = {
+  target: string
+  round: number
+  node: string
+  id: string
+  verdict: (typeof DESIGN_VERDICTS)[number]
+  by: string
+}
 
 type Look = Omit<ReturnType<typeof designTables>['nodes']['$inferSelect'], 'seq' | 'target_id' | 'run_id'>
