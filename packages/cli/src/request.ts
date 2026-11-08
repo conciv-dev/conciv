@@ -59,19 +59,16 @@ export type CliTarget = {tab: SessionId | null}
 
 type RpcCall = (rpc: RpcClient) => Promise<unknown>
 
-async function withSession(origin: string, target: CliTarget, call: RpcCall): Promise<unknown> {
-  if (target.tab === null)
-    return call(makeRpcClient(origin, {headers: {[CONCIV_SESSION_HEADER]: await sessionId(origin)}}))
-  const headers = {
-    [CONCIV_SESSION_HEADER]: target.tab,
-    [CONCIV_ORIGIN_HEADER]: 'hub',
-    [CONCIV_CLIENT_HEADER]: HUB_CLIENT,
-  }
-  return call(makeRpcClient(origin, {headers}))
+type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
+
+async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
+  const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: HUB_CLIENT}
+  return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
-async function servedOutcome(origin: string, target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
-  const result = await safe(withSession(origin, target, call))
+async function servedOutcome(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
+  const result = await safe(withSession(engine, target, call))
   if (result.isSuccess) return {report: 'json', data: result.data}
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
   if (offline(result.error, 0)) return null
@@ -80,9 +77,9 @@ async function servedOutcome(origin: string, target: CliTarget, call: RpcCall): 
 }
 
 export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutcome> {
-  const origin = await engineOrigin(process.cwd(), process.env, target.tab)
-  const outcome = await servedOutcome(origin, target, call)
-  if (outcome === null) throw offlineFailure(origin)
+  const engine = await engineOrigin(process.cwd(), process.env, target.tab)
+  const outcome = await servedOutcome(engine, target, call)
+  if (outcome === null) throw offlineFailure(engine.origin)
   return outcome
 }
 

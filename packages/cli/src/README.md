@@ -25,8 +25,8 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `handler` / `handlerOf` (`router/handler.ts`): attach a run function to a route definition and read it back from the parsed intent
 - `toolCommand` / `wireToolCommand` (`tool-command.ts`): turn a zod or wire JSON schema into a router command (positional `argument`, boolean `toggle`, array `multiple()` option, every other field an `option` with a Standard Schema)
 - `toolGroupRoute` / `liveCatalog` (`tool-group.ts`): noun route whose verbs come from the live registry catalog through `dynamic()`
-- `runRpc(target, call)` / `runRpcWhenServing(target, call)` (`request.ts`): oRPC call with the session header; with a `--tab` the session is that tab and the call carries `conciv-origin: hub` and `conciv-client: cli`, so the owning engine asks the user before it runs; the second returns null when offline
-- `engineOrigin(cwd, env, tab)` (`engine-origin.ts`, async): http://127.0.0.1:&lt;port&gt; or a live engine's `apiBase`
+- `runRpc(target, call)` / `runRpcWhenServing(target, call)` (`request.ts`): oRPC call with the session header; with a `--tab` the session is that tab; with `--tab` or an engine found through the home db fallback the call carries `conciv-origin: hub` and `conciv-client: cli`, so that engine asks the user before it runs; the second returns null when offline
+- `engineOrigin(cwd, env, tab)` (`engine-origin.ts`, async): `{origin, outside}`; origin is http://127.0.0.1:&lt;port&gt; or a live engine's `apiBase`; `outside` is true when the engine was found through `--tab` or the home db fallback, and `runRpc` then sends `conciv-origin: hub` and `conciv-client: cli` so that engine asks the user first
 - `writeOutcome` / `writeFailure` / `CliOutcome` (`envelope.ts`); `userFailure` / `failureOf` (`failure.ts`); `closest` (`suggest.ts`)
 - Subdirectories:
   - init: [./init/README.md](./init/README.md) - the `conciv init` pipeline
@@ -36,7 +36,7 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `routeFailure` (`arguments.ts`): a route without a command is 'No command given', an unknown word under a route with children is 'Unknown command' with a `closest` suggestion, an unknown flag is 'Unknown flag' with 'Did you mean --x?', a positional passed as a flag says how to pass it, an extra word is 'Unexpected argument', and a schema issue is prefixed with the flag or `<ARG>` it belongs to
 - option flags accept both the camelCase and the kebab-case spelling of the field name; toggles accept `--x` and `--no-x`; arguments after `--` are not bound
 - `-h`/`--help` and `-v`/`--version` are claimed by the router anywhere in argv; only the root supports version
-- `settle` (`run.ts`): every `dynamic()` increment is resumed with `liveCatalog(target)` before help, version or execute is decided; only a `--tab` given on that group route itself reaches the catalog, since earlier route models are not exposed until parsing completes
+- `settle` (`run.ts`): every `dynamic()` increment is resumed with `liveCatalog(target)` before help, version or execute is decided; the catalog target is the first `--tab` in argv before `--` (root, tools route, group route or after the verb), and the handler runs on that same tab; a parsed `--tab` that differs from it fails as a user error
 - `failureOf` (`failure.ts`): tagged errors become user errors; anything else is 'unexpected' with a bug-report hint
 - `declaredSessionId` (`request.ts`): an invalid CONCIV_SESSION_ID throws a user failure
 - `servedOutcome` (`request.ts`): oRPC-defined errors and 4xx responses become user failures; network failures are offline and `runRpc` throws 'No conciv dev server on &lt;host&gt;'

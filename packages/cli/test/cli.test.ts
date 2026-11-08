@@ -889,8 +889,8 @@ describe('cli', () => {
       return {root, nested}
     }
 
-    const originFor = (cwd: string, env: NodeJS.ProcessEnv) =>
-      engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)
+    const originFor = async (cwd: string, env: NodeJS.ProcessEnv) =>
+      (await engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)).origin
 
     test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
@@ -983,10 +983,14 @@ describe('cli', () => {
   const pages = new AbortController()
   afterAll(() => pages.abort())
 
-  async function engineWithTab(home: string, shared?: {root: string; sessionId: string}) {
+  async function engineWithTab(
+    home: string,
+    shared?: {root: string; sessionId: string},
+    extensions?: Parameters<typeof startEngine>[0]['extensions'],
+  ) {
     const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
     const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
-    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home})
+    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home, extensions})
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -1008,7 +1012,6 @@ describe('cli', () => {
       const {engine, sessionId, page} = await engineWithTab(home)
       try {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
-        expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const viaTab = ['tools', 'tabs', '--tab', sessionId]
         const waiting = conciv(elsewhere, home, viaTab)
         await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
@@ -1018,6 +1021,7 @@ describe('cli', () => {
         expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
         expect(await waiting).toMatchObject(listed)
+        expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({
           ok: false,
@@ -1034,6 +1038,55 @@ describe('cli', () => {
         })
       } finally {
         await engine.stop()
+      }
+    })
+
+    it('a call that found its engine through the home db asks the tab like --tab does, and a deny refuses it', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied cli access/}})
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const lantern = defineTool({
+        name: 'page_lantern',
+        description: 'Light the lantern over the page.',
+        inputSchema: z.object({brightness: z.number().int().min(1)}),
+        outputSchema: z.object({lit: z.boolean()}),
+        meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
+      }).client()
+      const cwdEngine = await engineWithTab(home)
+      const holder = await engineWithTab(home, undefined, [defineExtension({name: 'lantern', tools: [lantern]})])
+      const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      mkdirSync(join(project, '.conciv'))
+      const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
+      writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify(recorded))
+      try {
+        const args = [bin, 'tools', 'page', 'lantern', '--tab', holder.sessionId, '--help']
+        const help = await new Promise<{failed: boolean; stdout: string}>((resolve) =>
+          execFile(process.execPath, args, {cwd: project, env: {CONCIV_HOME: home}}, (error, stdout) =>
+            resolve({failed: error !== null, stdout}),
+          ),
+        )
+        expect({failed: help.failed, mentions: help.stdout.includes('--brightness')}).toEqual({
+          failed: false,
+          mentions: true,
+        })
+      } finally {
+        await Promise.all([cwdEngine.engine.stop(), holder.engine.stop()])
       }
     })
 
