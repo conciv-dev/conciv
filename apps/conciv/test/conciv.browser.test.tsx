@@ -2566,6 +2566,18 @@ describe('panel header', () => {
     await expect.element(menu()).not.toBeInTheDocument()
     await expect.element(titleButton()).toHaveFocus()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    harness.dispose()
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}/options?open=true`])
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await switcher().click()
+    await page.getByRole('option', {name: new RegExp(`^${EARLIER},`)}).click()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
   }, 30_000)
 })
 

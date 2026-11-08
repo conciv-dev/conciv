@@ -493,7 +493,7 @@ function useSessionMenu(sessionId: () => string): {
   }
   const activate = (id: string) => {
     if (id === sessionId() && open()) return hide()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: openedInApp()})
+    void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: open()})
   }
   return {view, open, setOpen, activate}
 }
