@@ -3,7 +3,7 @@ import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import type {MessagePage} from '@tanstack/ai-persistence'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {ChatStores} from './chat-server.js'
-import {chatMessages, chatMetadata, chatRuns} from './chat-tables.js'
+import {chatMessages, chatMetadata, chatRuns} from '@conciv/db'
 
 type RunRecord = NonNullable<Awaited<ReturnType<ChatStores['runs']['get']>>>
 

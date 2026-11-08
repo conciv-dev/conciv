@@ -4,6 +4,7 @@ import {Collapsible, TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolRowMark, ToolRowProjection} from '../../tools/primitives/tool-row.js'
 import {FOCUS_INSET} from '../classes.js'
 import {OUTCOME_TONE} from '../../tools/primitives/tool-presentation.js'
+import {Chip} from '../../tools/styled/chip.js'
 
 export const TRACE_MICROLABEL =
   'uppercase text-chat-micro leading-none tracking-widest [font-family:var(--chat-mono)] flex-none'
@@ -136,8 +137,9 @@ export function TraceToolRow(props: {
   ring?: boolean
   body?: () => JSX.Element
   foldable?: boolean
+  tag?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable'])
+  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable', 'tag'])
   const running = () => local.projection.mark === 'run' && (local.ring ?? true)
   const body = () => local.projection.block ?? local.body
   const metaClass = () => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`
@@ -146,6 +148,7 @@ export function TraceToolRow(props: {
       {running() ? <TraceRing /> : <TraceMark mark={local.projection.mark} />}
       <span class={running() ? RUN_LABEL : LABEL}>{local.projection.label}</span>
       <TruncatedText class={TARGET} text={local.projection.target} />
+      {local.tag ? <Chip kind="pill" maxWidth="compact" value={local.tag ?? ''} /> : undefined}
       {local.projection.meta ? <TruncatedText class={metaClass()} text={local.projection.meta ?? ''} /> : undefined}
     </>
   )

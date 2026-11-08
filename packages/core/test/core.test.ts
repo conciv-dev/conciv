@@ -427,6 +427,7 @@ describe('chat plane', () => {
     return createChatPlane({
       db,
       stateRoot: options.root,
+      hubAccess: 'session',
       cwd: options.root,
       harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},
@@ -1003,6 +1004,7 @@ describe('runtime ambient session', () => {
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
       openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
     })
     primitives.registry.register(clicker, {owner: 'a fixture'})
     const runtime = makeCoreRuntime({

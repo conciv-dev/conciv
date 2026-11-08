@@ -162,7 +162,7 @@ the `claude` CLI on `PATH`). `gemini-cli` and `opencode` are also real, implemen
 opencode's own text adapter respectively (`packages/harness/src/gemini-cli/index.ts`,
 `packages/harness/src/opencode/index.ts`). Only `pi` is a stub: its `chatConfig` always returns a
 "not yet supported" error (`unsupportedChatConfig`, `packages/harness/src/_shared/stub.ts:10-17`,
-wired at `packages/harness/src/pi/index.ts:26`) even though its `history`/`connect` sidecars are real
+wired at `packages/harness/src/pi/index.ts:20`) even though its `history` sidecar is real
 (`packages/protocol/src/config-types.ts:35-36` for the `harness`/`harnessBin` fields):
 
 ```ts
@@ -173,6 +173,11 @@ conciv({harness: 'codex', harnessBin: '/usr/local/bin/codex'})
 `PATH` the dev server sees, or to pin a specific install. `claudePath`/`claudeSessionId` are
 deprecated aliases for `harnessBin`/`sessionId`
 (`apps/site/content/docs/configuration.mdx:54`, `packages/protocol/src/config-types.ts:44-45`).
+
+To drive a conciv tab from an agent session outside the browser (any directory), pick "Connect <harness>"
+in the composer's "Connect agents" menu: the engine runs that harness's own `mcp add` command to install
+the `conciv-hub` MCP server (`conciv mcp`, `packages/cli/src/hub.ts`). Claude Code, Codex, opencode and
+Gemini CLI are supported; pi has no MCP support.
 
 ## Minimal config surface
 
@@ -224,7 +229,7 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `mountConciv` called expecting a return value/handle to unmount later — it is fire-and-forget by
   design; use `createConciv` if you need lifecycle control.
 - `harness: 'pi'` picked for real use — its `chatConfig` is a stub that always errors
-  (`packages/harness/src/pi/index.ts:26`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
+  (`packages/harness/src/pi/index.ts:20`); `claude`, `codex`, `gemini-cli`, and `opencode` all have a
   real `chatConfig`.
 - Hand-rolling a `<script src=...>` injection for Vite/Next.js — both already inject the widget
   through the plugin; a second manual mount double-mounts.
@@ -254,3 +259,4 @@ conciv({widget: {quickTerminal: false}}) // corner modal only
 - `packages/harness/src/opencode/index.ts`
 - `packages/harness/src/pi/index.ts`
 - `packages/harness/src/_shared/stub.ts`
+- `packages/cli/src/hub.ts`

@@ -1,6 +1,7 @@
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
+import type {TabsListing} from '@conciv/protocol/chat-types'
 import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
@@ -17,6 +18,7 @@ export type SessionPrimitivesDeps = {
   storeCapture: CaptureSink
   bundler: () => BundlerBridge | undefined
   openInEditor: (file: string, line?: number) => void
+  listTabs: () => Promise<TabsListing>
 }
 
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
@@ -29,6 +31,11 @@ export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimi
   return {
     stream: createSessionBus(),
     page,
-    registry: makeBuiltinRegistry({page, bundler: deps.bundler, openInEditor: deps.openInEditor}),
+    registry: makeBuiltinRegistry({
+      page,
+      bundler: deps.bundler,
+      openInEditor: deps.openInEditor,
+      listTabs: deps.listTabs,
+    }),
   }
 }

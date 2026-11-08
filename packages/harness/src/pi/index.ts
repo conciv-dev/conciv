@@ -1,12 +1,6 @@
-import {join} from 'node:path'
 import {defineHarness} from '../_shared/contract.js'
 import {unsupportedChatConfig} from '../_shared/stub.js'
-import {piHistory, sessionsDir} from './history.js'
-
-function piSessionArgs(cwd: string, harnessSessionId: string | null): string[] {
-  if (!harnessSessionId) return []
-  return ['--session', join(sessionsDir(cwd), `${harnessSessionId}.jsonl`)]
-}
+import {piHistory} from './history.js'
 
 export const pi = defineHarness({
   id: 'pi',
@@ -25,11 +19,4 @@ export const pi = defineHarness({
   },
   chatConfig: unsupportedChatConfig('pi', 'pi'),
   history: piHistory,
-  connect: {
-    plan: (ctx) => ({
-      argv: ['pi', ...piSessionArgs(ctx.cwd, ctx.harnessSessionId), ...(ctx.model ? ['--model', ctx.model] : [])],
-      env: {},
-      files: [],
-    }),
-  },
 })
