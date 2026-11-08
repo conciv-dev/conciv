@@ -39,7 +39,7 @@ in, so you get a live page with the widget attached.
 | Path             | What's there                                                                                                                           |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/conciv`    | `@conciv/app`, the widget host app used for local dev                                                                                  |
-| `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`) that embed conciv                                                                  |
+| `apps/examples`  | Demo consumer apps (`tanstack-start`, `nextjs-app`, `ios`) that embed conciv                                                           |
 | `apps/site`      | conciv.dev, the marketing/docs site (React + TanStack Start)                                                                           |
 | `apps/storybook` | Component storybook for the Solid UI kits                                                                                              |
 | `native/swift`   | ConcivWidget iOS SDK, the ConcivDemo app, and the `ios-example` engine host (`pnpm exec turbo run dev --filter=ios-example`)           |

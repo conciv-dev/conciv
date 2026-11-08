@@ -982,12 +982,14 @@ describe('page dispatcher', () => {
 
   const widgetRefMaker = defineTool({
     name: 'probe_mark_widget',
-    description: 'adds a ref for a control inside the widget shadow root',
+    description: 'adds a ref for a control inside a conciv shadow root (widget or effects layer)',
     inputSchema: z.object({}),
     outputSchema: z.object({ref: z.string()}),
     meta: {summary: 'add a ref to a widget control', category: 'read'},
   }).client((_input, ctx) => {
-    const control = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('button')
+    const control = document
+      .querySelector('[data-conciv-root], [data-conciv-effects]')
+      ?.shadowRoot?.querySelector('button')
     if (!control) throw new Error('widget control missing')
     return {ref: ctx.addRef(control)}
   })
@@ -1086,20 +1088,23 @@ describe('page dispatcher', () => {
       })
     })
 
-    it('never resolves a ref to a control inside the widget shadow root', async () => {
-      const widget = document.createElement('div')
-      widget.setAttribute('data-conciv-root', '')
-      widget.attachShadow({mode: 'open'}).innerHTML = '<button>Send</button>'
-      document.body.append(widget)
-      onTestFinished(() => widget.remove())
-      const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark_widget', input: {}})
-      if (!marked.ok) throw new Error('mark failed')
-      const ref = String(marked.result.ref)
-      expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
-        ok: false,
-        error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
-      })
-    })
+    it.each(['data-conciv-root', 'data-conciv-effects'])(
+      'never resolves a ref to a control inside a %s shadow root',
+      async (marker) => {
+        const widget = document.createElement('div')
+        widget.setAttribute(marker, '')
+        widget.attachShadow({mode: 'open'}).innerHTML = '<button>Send</button>'
+        document.body.append(widget)
+        onTestFinished(() => widget.remove())
+        const marked = await driver.execute({agentId: 'test-agent', name: 'probe_mark_widget', input: {}})
+        if (!marked.ok) throw new Error('mark failed')
+        const ref = String(marked.result.ref)
+        expect(await driver.execute({agentId: 'test-agent', name: 'probe_text', input: {ref}})).toEqual({
+          ok: false,
+          error: {code: 'invalid-args', message: `stale ref ${ref}; re-run page snapshot`},
+        })
+      },
+    )
 
     it('carries a thrown toolError as a raised handler-error', async () => {
       expect(await driver.execute({agentId: 'test-agent', name: 'probe_raise', input: {}})).toEqual({
