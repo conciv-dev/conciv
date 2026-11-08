@@ -59,6 +59,7 @@ import {
   connectMcpClient,
   makeCallTool,
   approvePending,
+  type FixtureSession,
   type TestHarness,
   type RunEvents,
   type RunStream,
@@ -86,12 +87,7 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {
-  type HarnessChatDeps,
-  type HarnessListCursor,
-  type HarnessModel,
-  type HarnessSessionMeta,
-} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -646,7 +642,7 @@ describe('api harness switching', () => {
   const alpha = recorded(
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
-  const betaTranscripts: Omit<HarnessSessionMeta, 'cwd'>[] = [
+  const betaTranscripts: FixtureSession[] = [
     {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
@@ -851,6 +847,7 @@ describe('api harness switching', () => {
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
       updatedAt: Date.now() + 3_600_000,
+      text: 'a skua stole the catch',
     })
     const listings = async (includeHidden: boolean) => {
       const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
@@ -868,7 +865,23 @@ describe('api harness switching', () => {
         (await kit().rpc.sessions.search({term: 'owned transcript'})).sessions.some((meta) => meta.id === sessionId),
       {hangGuardMs: 5_000, intervalMs: 50},
     )
+    const skuaHit = async () => {
+      const {sessions: hits} = await kit().rpc.sessions.search({term: 'skua'})
+      return hits.find((meta) => meta.id === sessionId)
+    }
+    await until(async () => (await skuaHit()) !== undefined, {hangGuardMs: 5_000, intervalMs: 50})
+    const previewOfHit = async () => {
+      const preview = (await skuaHit())?.preview
+      if (!preview) throw new Error('the skua hit carries no transcript to preview')
+      const ask = {harness: preview.harnessKind, nativeId: preview.nativeId, cwd: preview.cwd, before: null}
+      const window = await kit().rpc.sessions.preview({...ask, limit: 10})
+      return window.messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+      )
+    }
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     const returned = await turn(sessionId, 'back on beta')
     expect(returned).toMatchObject({harness: 'beta', resumeSessionId: null})

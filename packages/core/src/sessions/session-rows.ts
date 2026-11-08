@@ -308,7 +308,7 @@ type PageEntry =
 
 type ListedSession = {row: SessionRecord; native: HarnessSessionMeta | undefined}
 
-type ListedHit = ListedSession & {found: Found}
+type ListedHit = ListedSession & {found: Found; preview: NativeSessionRef | null}
 
 export async function listSessionMetas(
   input: SessionListInput,
@@ -323,6 +323,7 @@ export async function listSessionMetas(
       ...rowMeta(session, input),
       cwd: sameCwd(session.row.cwd, input.cwd) ? null : session.row.cwd,
       ...session.found,
+      preview: session.preview,
     })),
     next: merged.next ?? frontier,
   }
@@ -385,7 +386,7 @@ async function listedSessions(entries: PageEntry[], input: SessionListInput): Pr
   const listed = await Promise.all(
     entries.map((entry) =>
       entry.kind === 'row'
-        ? {row: entry.row, native: undefined, found: NOT_FOUND}
+        ? {row: entry.row, native: undefined, found: NOT_FOUND, preview: nativeRefOf(entry.row)}
         : listedNative(entry.native, input, current.get(keyOf(entry.native)), earlier.get(keyOf(entry.native))),
     ),
   )
@@ -478,12 +479,13 @@ async function listedNative(
   owner: SessionRecord | undefined,
   earlierOwner: SessionRecord | undefined,
 ): Promise<ListedHit | null> {
-  if (owner) return {row: await visibleRow(owner, input), native: native.meta, found: native.found}
+  const preview = {harnessKind: native.harnessKind, cwd: homeOf(native, input), nativeId: native.meta.id}
+  if (owner) return {row: await visibleRow(owner, input), native: native.meta, found: native.found, preview}
   if (earlierOwner) {
     const row = await visibleRow(earlierOwner, input)
-    return input.search === null ? null : {row, native: undefined, found: native.found}
+    return input.search === null ? null : {row, native: undefined, found: native.found, preview}
   }
-  return {row: await materializedRow(native, input), native: native.meta, found: native.found}
+  return {row: await materializedRow(native, input), native: native.meta, found: native.found, preview}
 }
 
 async function visibleRow(row: SessionRecord, input: SessionListInput): Promise<SessionRecord> {

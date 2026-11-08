@@ -101,8 +101,9 @@ function matchedOf(session: PickerSession): string[] {
 }
 
 function previewOf(session: PickerSession | undefined) {
-  const native = session?.native
-  if (session === undefined || !native) return null
+  if (session === undefined) return null
+  const native = 'preview' in session ? session.preview : session.native
+  if (!native) return null
   const shared = {
     title: session.title,
     harness: native.harnessKind,

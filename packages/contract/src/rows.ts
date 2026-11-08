@@ -26,6 +26,7 @@ export const SessionHitSchema = SessionMetaSchema.extend({
   matched: z.array(z.string()),
   cwd: z.string().nullable(),
   resume: z.string().nullable(),
+  preview: NativeSessionRefSchema.nullable(),
 })
 export type SessionHit = z.infer<typeof SessionHitSchema>
 
