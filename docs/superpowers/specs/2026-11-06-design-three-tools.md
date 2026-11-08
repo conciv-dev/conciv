@@ -449,3 +449,39 @@ Homebrew node 25 while the repo asks for node 26; one `SIGSEGV` in V8's `JSON.pa
 second. The QuickJS thread is out of the server thread, memory-capped, and needs no native build: it becomes the only
 driver; `isolated-vm` and `@tanstack/ai-isolate-node` leave the dependency list. The note also reads the reflow widths: an
 edit that moved nothing at the design width but changed the reflow rows is not "changed no pixels".
+
+### Look is measured per node; assets come from Figma; tokens are named; the nodes are a table (2026-11-08)
+
+Layout holds on both models: with the tools the pages end at 0 to 2 layout rows against 30 to 91 without. Look has no
+measurement yet: the gate scores boxes, and a page of grey rectangles in the right places is `done`. Omri: the real app
+binds colors, padding, radius and fonts to variables, so the look rows must speak in token names even where the fixture
+does not; and a conciv id must answer with its FOM, expected fill and font included, to the agent and to us.
+
+- The design nodes are a table, `design_nodes`, one row per Figma node, flat: id, type, name, within, depth, box, fill
+  kind and hex, fill opacity, stroke hex and weight, radius, font family, weight, size, line height, text align, text,
+  opacity, `image`, `asset`, and one `token_*` column per bound field (fill, stroke, radius, font, gap, padding) carrying
+  the variable name, or its id when the variables endpoint is not open to the file. Written when `design_get` stores a
+  target. The `fom` source joins it, so one query answers "what should [1:371] look like".
+- Assets come from Figma through the tool. Every image node and every vector node (icons, logos) is exported once by the
+  REST images endpoint, PNG for pictures and SVG for vectors, written under the project's `public/design/`, and the node
+  carries `asset: '/design/<id>.svg'`. The rule "an image node is an empty div" goes; the rule becomes "a node with
+  `asset` shows that file and draws nothing else".
+- Look rows sit beside layout rows, magnitude `paint`, one kind per field: fill, text color, font family, font weight,
+  font size, line height, radius, border, opacity, and image. Expected comes from `design_nodes`, found from the cssom
+  the measurer already reads; comparison is on resolved values (hex, px), so the app may use tokens or literals. Image
+  rows compare the element's own paint (snapdom) against the export, through pixelmatch. The row names the token when the
+  field is bound: `wrong fill at [1:371]: color/brand/primary (#426BF2) expected, #4A6CF7 found`. Rows that share one
+  token are reported as one row naming the token and the ids; the table keeps them per node.
+- `paint` rows block `done` like `noticeably`, except font family, which reports without blocking: a family the page
+  cannot load is not the agent's fault.
+- `design_query` opens to the agent in one A/B arm, with `design_get` left whole; a smaller `design_get` lost twice.
+  Six runs an arm: look rows alone, look rows with the query, against the six hidden-progress runs of wave 13.
+- A blind judge (opus, page screenshot beside the design render, a score and one line) joins the table for every run,
+  so look has a number not tied to our rows.
+- Capture is a mode, like `comparator` and `segmenter`: `page` (the widget's own paths: region, snapdom live, snapdom
+  mirror; any browser the user has open) and `cdp` (the engine attaches to a browser over CDP through `playwright-core`,
+  takes true-pixel screenshots at a configured device scale, clipped per node). The engine never launches a browser; it
+  connects to the endpoint it is given: the trial's Playwright, a Playwright CLI, or a Chrome with a debugging port. The
+  config sets the default; `design_check({capture})` overrides it per call, so the agent can ask for a high-resolution
+  pass; the round stores the path that ran. Image rows and the whole-page compare read pixels through one capture
+  interface with one implementation per mode.
