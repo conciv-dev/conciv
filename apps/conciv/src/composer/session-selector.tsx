@@ -1,4 +1,4 @@
-import {createMemo, createSignal, createUniqueId, Show, type JSX} from 'solid-js'
+import {createMemo, createUniqueId, Show, type JSX} from 'solid-js'
 import {
   Button,
   ByteSize,
@@ -13,17 +13,16 @@ import {
 } from '@conciv/ui-kit-system'
 import {createDateNow} from '@solid-primitives/date'
 import {createDebouncedSignal} from '@tanstack/solid-pacer'
-import {keepPreviousData, useInfiniteQuery, useMutation, useQuery} from '@tanstack/solid-query'
+import {keepPreviousData, useInfiniteQuery, useQuery} from '@tanstack/solid-query'
 import {groupBy, uniqBy} from 'es-toolkit'
 import Check from 'lucide-solid/icons/check'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import Sparkles from 'lucide-solid/icons/sparkles'
-import SquarePen from 'lucide-solid/icons/square-pen'
 import Plus from 'lucide-solid/icons/plus'
 import X from 'lucide-solid/icons/x'
 import type {SessionMeta} from '@conciv/contract'
 import type {HarnessListCursor} from '@conciv/protocol/harness-types'
-import {useAnnounce, useAppData, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData} from '../app/context.js'
 import {useHarnesses} from '../data/harness-meta.js'
 
 const ACT =
@@ -80,7 +79,6 @@ export function SessionSelector(props: {
   onNewSession: () => void
 }): JSX.Element {
   const appData = useAppData()
-  const rpc = useRpc()
   const announce = useAnnounce()
   const [search, setSearch, searchDebouncer] = createDebouncedSignal('', {wait: SEARCH_WAIT_MS})
   const typed = (inputValue: string) => {
@@ -155,41 +153,6 @@ export function SessionSelector(props: {
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
-  const [renaming, setRenaming] = createSignal(false)
-  const [draft, setDraft] = createSignal('')
-  let searchEl: HTMLInputElement | undefined
-
-  const focusSearch = () => requestAnimationFrame(() => searchEl?.focus())
-  const rename = useMutation(() => ({
-    mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
-    onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
-    onError: () => announce('Rename failed', true),
-    onSettled: () => appData.invalidateSessions(),
-  }))
-  const startRename = () => {
-    const row = activeRow()
-    if (!row) return
-    setDraft(row.title)
-    setRenaming(true)
-  }
-  const cancelRename = () => {
-    setRenaming(false)
-    focusSearch()
-  }
-  const commitRename = () => {
-    if (!renaming()) return
-    setRenaming(false)
-    const row = activeRow()
-    const id = activeId()
-    const next = draft().trim()
-    if (!row || !id || !next || next === row.title) {
-      focusSearch()
-      return
-    }
-    rename.mutate({sessionId: id, title: next})
-    focusSearch()
-  }
-
   const select = (id: string) => {
     if (!id || id === activeId()) return
     const title = sessionsLoaded().find((s) => s.id === id)?.title ?? id
@@ -245,75 +208,40 @@ export function SessionSelector(props: {
       <Combobox.Positioner>
         <Combobox.Content class="p-1 border border-chat-line-2 rounded-chat-surface-md bg-chat-panel flex-col max-h-90 w-70 hidden shadow-chat-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
           <div class="mb-1 border-b border-b-chat-line-soft flex gap-1 items-center">
-            <Show
-              when={!renaming()}
-              fallback={
-                <input
-                  class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] focus:outline-none"
-                  aria-label="Rename session"
-                  aria-busy={rename.isPending}
-                  value={draft()}
-                  ref={(el) => requestAnimationFrame(() => el.focus())}
-                  onInput={(e) => setDraft(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      commitRename()
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      cancelRename()
-                    }
-                  }}
-                  onBlur={commitRename}
-                />
-              }
+            <Combobox.Input
+              class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
+              placeholder="Search sessions…"
+              onPointerDown={(event) => event.stopPropagation()}
+            />
+            <Presence
+              present={searching()}
+              lazyMount
+              unmountOnExit
+              class="flex shrink-0 size-7 items-center justify-center"
             >
-              <Combobox.Input
-                class="text-[0.8125rem] text-chat-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-chat-text-3 focus:outline-none"
-                placeholder="Search sessions…"
-                ref={(el) => (searchEl = el)}
-                onPointerDown={(event) => event.stopPropagation()}
-              />
-              <Presence
-                present={searching()}
-                lazyMount
-                unmountOnExit
-                class="flex shrink-0 size-7 items-center justify-center"
-              >
-                <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
-                  <Loader.Indicator class="size-4 text-chat-text-3" />
-                </Loader.Root>
-              </Presence>
-              <Combobox.Context>
-                {(api) => (
-                  <Presence present={api().inputValue !== ''} lazyMount unmountOnExit class="flex shrink-0">
-                    <TooltipIconButton
-                      tooltip="Clear search"
-                      class={ACT}
-                      onClick={() => {
-                        api().setInputValue('')
-                        api().focus()
-                      }}
-                    >
-                      <X class="size-5 block" aria-hidden="true" />
-                    </TooltipIconButton>
-                  </Presence>
-                )}
-              </Combobox.Context>
-              <TooltipIconButton
-                tooltip="Rename current session"
-                class={ACT}
-                aria-disabled={!canRename()}
-                onClick={() => canRename() && startRename()}
-              >
-                <SquarePen class="size-5 block" aria-hidden="true" />
-              </TooltipIconButton>
-              <TooltipIconButton tooltip="New session" class={ACT} onClick={() => props.onNewSession()}>
-                <Plus class="size-5 block" aria-hidden="true" />
-              </TooltipIconButton>
-            </Show>
+              <Loader.Root size="sm" class="p-0 gap-0" translations={{value: () => SEARCHING_LABEL}}>
+                <Loader.Indicator class="size-4 text-chat-text-3" />
+              </Loader.Root>
+            </Presence>
+            <Combobox.Context>
+              {(api) => (
+                <Presence present={api().inputValue !== ''} lazyMount unmountOnExit class="flex shrink-0">
+                  <TooltipIconButton
+                    tooltip="Clear search"
+                    class={ACT}
+                    onClick={() => {
+                      api().setInputValue('')
+                      api().focus()
+                    }}
+                  >
+                    <X class="size-5 block" aria-hidden="true" />
+                  </TooltipIconButton>
+                </Presence>
+              )}
+            </Combobox.Context>
+            <TooltipIconButton tooltip="New session" class={ACT} onClick={() => props.onNewSession()}>
+              <Plus class="size-5 block" aria-hidden="true" />
+            </TooltipIconButton>
           </div>
           <Show when={list.isLoading && sessionsLoaded().length === 0}>
             <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">

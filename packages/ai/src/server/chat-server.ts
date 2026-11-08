@@ -507,6 +507,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const stream = chat({
       adapter: guardedAdapter(plan.adapter, {
         ended: entry.ending.signal,
+        stopped: controller.signal,
         firstOutputMs: config.firstOutputTimeoutMs,
         onSilence: () =>
           entry.ending.abort({
