@@ -187,6 +187,27 @@ Shape (approved 2026-11-08):
 
 Opening a hit from another project: preview only (Q1). The hover preview is the whole interaction. The row's action reads "Open in <project>" and copies that harness's resume command; it never resumes the session here.
 
+## Components, verified against source (2026-11-08)
+
+Every UI piece comes from Ark or the ui-kit packages. Each line below was checked in Ark 5.39.3, zag 1.45 and our kit source.
+
+- **Highlighting.** Titles use Ark `Highlight` (`@ark-ui/solid/highlight`) with `query={matched}`, `ignoreCase`, `matchAll` and `exactMatch`. The markdown excerpt and the preview can't hold a component inside HAST, so the Streamdown rehype step uses the same engine, zag `highlightWord` (`@zag-js/highlight-word`, already installed through Ark), with the same options, and turns its chunks into `mark` nodes. The hand-rolled `highlightPattern` regex and the app's `MarkedText` are deleted.
+- **Escape cascade.** zag's own layer stack handles it, with no key handler of ours.
+  - The combobox content is a dismissable layer (`combobox.machine` `trackDismissableLayer`). Its `onEscapeKeyDown` closes the picker only when that layer is the topmost (`layerStack.isTopMost`).
+  - The preview `Popover` opens later, so it's pushed on top. The first Escape (captured on the document) dismisses the popover only. The second reaches the combobox layer and closes the picker.
+  - The combobox input's own `INPUT.ESCAPE` only reverts a custom value while closed, so it doesn't close anything here.
+  - Clicking or focusing inside the preview doesn't count as outside the picker: zag excludes targets inside a nested layer (`layerStack.isInNestedLayer`).
+  - The journey test asserts the cascade: Escape closes the preview and leaves the picker open, a second Escape closes the picker, and focus ends in the input.
+- **Preview keys.** Alt+ArrowRight and Alt+ArrowLeft are registered with Ark `useHotkeys` (`@ark-ui/solid/hotkeys`), only while the preview is open. No keydown listener of ours.
+- **Key hints.** Ark has no Kbd component. The repo already styles `<kbd>` three different ways (`ui-kit-system/src/tooltip-icon-button.tsx` KEYCAP, `apps/conciv/src/extensions/highlight.tsx`, `extensions/whiteboard/src/client/inbox.tsx`). ui-kit-system gains `Kbd`, the native `<kbd>` with the KEYCAP style, and those three places move onto it. The text comes from Ark `useFormatHotkey` ("Alt+ArrowRight" shows as ⌥→ on mac).
+- **Copy for another project's session (decided: both).**
+  - In the picker, selecting the row copies the resume command; the row has no nested button. The kit `Tooltip`, controlled (`open` for the copy's reset window, anchored to the row with `positioning.getAnchorElement`), shows "Copied" or "Copy failed". The app announce says the same thing.
+  - In the preview header, the kit `ClipboardCopyButton` copies the same command and shows its own Copied tooltip.
+  - Both read one `createClipboardCopy` per command, so the copied state agrees.
+- **Preview header.** `Popover.Title` with the title and project, through `TruncatedText`. No message count (dropped).
+- **Switch.** kit `Switch` (`Root`, `Control`, `Thumb`, `Label`, `HiddenInput`).
+- **Flagged, not in this work.** Ark ships a `Clipboard` machine (`useClipboard`, copied status, timeout), but the kit's `createClipboardCopy` is built on `@solid-primitives/clipboard`. Moving the kit onto Ark Clipboard is a separate change that needs Omri's yes.
+
 ## Decisions (2026-11-08)
 
 - **Q1. Opening a hit from another project.** The engine runs harness turns in this project's cwd and sandbox. A Claude session from repo B resumed in repo A would run its tools against A.
