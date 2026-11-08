@@ -10,14 +10,15 @@ Three tools for the page builder: `design_get` returns the design, `design_check
 fix with the verdict, and `design_status` reads the last check without measuring. Everything they say is said by mapping: a row names a design node and the
 conciv key of the element that renders it. The root exports pick a browser condition (dist/client.js) or an import
 condition (dist/server.js), with subpaths ./client, ./server and ./defs. The `build` script runs tsdown, vite build
-(client), vite build with vite.xray.config.ts (the x-ray page into dist/xray), then tsc declaration emit.
+(client), then tsc declaration emit. The package ships no CSS: the widget's Uno scan covers these sources and the
+x-ray overlay adopts the widget's stylesheet (`uno.config.ts` here only feeds the lint).
 
 ## Source tree
 
 ```text
 src/
   client.tsx           widget entry: the measure tool (live document or mirror at another width), the composer
-                       button and the Surface that mounts the x-ray pane in the tab
+                       button and the Surface that mounts the x-ray overlay on the page
   client/
     takumi.ts          the takumi second opinion over the mirror snapshot
   server.ts            extension entry: storages, store, adapters, measurer, voter, runner, differ, x-ray routes
@@ -40,7 +41,7 @@ src/
     verdict.ts         done, stalled or not yet with reasons
     measure.ts         the measurer: asks the widget's measure tool at a width and height
     raster.ts          pixel and box operations, compare and diff painting
-    xray-routes.ts     the x-ray RPC (targets, current, rounds) and its page, image and wasm routes
+    xray-routes.ts     the x-ray RPC (hotkeys, targets, current, rounds, layers) and its image and wasm routes
     pairers/           the voter: the calibrated vote that proposes a key for an unmapped node
     sources/
       figma.ts         createFigmaAdapter: link parsing, REST or pasted document, the collapse rule, the one tree
@@ -50,9 +51,12 @@ src/
       reflow-tags.ts   stack, wrap and scroll tags
       image.ts         createImageAdapter: OCR, segmentation, roles, regions
   xray/
-    entry.tsx          standalone mount
-    router.tsx         the in-tab pane
-    rounds.tsx         rounds view: counts, coverage, rows, reflow, live, diff and design images
+    state.ts           the overlay's toggles, picked id, round, width and Esc cascade, one store
+    data.ts            the stored design, rounds and layers over the x-ray RPC, polled while on
+    view.ts            the views over that data: widths, rows at the shown width, ids with their rows
+    overlay.tsx        the host element on document.body, its shadow root and the hotkeys
+    rail.tsx           the icon rail: on, pick, layers, magnitudes, panel
+    column.tsx         the content column: states, sliders, counts, rows and the round's images
 ```
 
 ## Tools

@@ -2,10 +2,8 @@ import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
 import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
 import {createRoot, onMount, Show, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
 import ScanSearch from 'lucide-solid/icons/scan-search'
 import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import type {HostWiring} from '@conciv/extension/host'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
@@ -14,7 +12,10 @@ import type {z} from 'zod'
 import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
 import {OVERLAYS} from './shared/overlays.js'
-import {XrayPane} from './xray/router.js'
+import {createXrayState} from './xray/state.js'
+import {XrayOverlay} from './xray/overlay.js'
+import {createXrayData} from './xray/data.js'
+import {createXrayView} from './xray/view.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
@@ -106,19 +107,13 @@ const region: {stream: MediaStream | null} = {stream: null}
 
 const CLIENT_TOOLS = [measureDef.client(measureStep)] as const
 
-type PaneState = {open: boolean; engaged: boolean; picking: boolean; grab: Grab | null}
-type Grab = HostWiring['grab']
-
 function Component(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
-  const grab = host.useGrab()
   const slot = host.useSlot()
-  const toggle = design.useContext((context) => context.toggle)
-  const registerGrab = design.useContext((context) => context.registerGrab)
-  onMount(() => registerGrab(grab))
+  const xray = design.useContext((context) => context.xray)
   return (
     <Show when={slot === 'composer'}>
-      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => toggle()}>
+      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => xray.toggleOn()}>
         <ScanSearch class="size-5 block" aria-hidden="true" />
       </ComposerActions.ActionButton>
     </Show>
@@ -127,29 +122,15 @@ function Component(): JSX.Element {
 
 function Surface(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
-  const {YieldFocus} = host
   const apiBase = host.useApiBase()
-  const sessionId = host.useSessionId()
-  const scheme = host.useColorScheme()
-  const pane = design.useContext((context) => context)
+  const session = host.useSessionId()
+  const xray = design.useContext((context) => context.xray)
+  const data = createXrayData({apiBase, session, round: () => xray.state.round, on: () => xray.state.on})
+  const view = createXrayView({xray, data})
   onMount(() => {
     engineBase.current = apiBase
   })
-  return (
-    <Show when={pane.state.engaged}>
-      <YieldFocus when={pane.state.open && !pane.state.picking}>
-        <Show when={pane.state.open}>
-          <XrayPane
-            apiBase={apiBase()}
-            session={sessionId()}
-            dark={scheme() === 'dark'}
-            hidden={pane.state.picking}
-            onClose={pane.close}
-          />
-        </Show>
-      </YieldFocus>
-    </Show>
-  )
+  return <XrayOverlay xray={xray} data={data} view={view} capture={capturePixels} />
 }
 
 export const design = defineExtension({
@@ -158,23 +139,7 @@ export const design = defineExtension({
   tools: CLIENT_TOOLS,
   Component,
   Surface,
-}).client(() =>
-  createRoot((dispose) => {
-    const [state, setState] = createStore<PaneState>({open: false, engaged: false, picking: false, grab: null})
-    const toggle = (): void => setState({engaged: true, picking: false, open: !state.open})
-    const close = (): void => setState({open: false, picking: false})
-    const registerGrab = (grab: Grab): void => setState('grab', grab)
-    const pick = async (): Promise<string | null> => {
-      const grab = state.grab
-      if (grab === null) return null
-      setState('picking', true)
-      const grabbed = await grab.comment().catch(() => null)
-      setState('picking', false)
-      return grabbed?.rect ? componentPathAt(grabbed.rect) : null
-    }
-    return {value: {capturePixels, state, toggle, close, registerGrab, pick}, dispose}
-  }),
-)
+}).client(() => createRoot((dispose) => ({value: {xray: createXrayState()}, dispose})))
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof design> {}
@@ -368,26 +333,6 @@ function mirrorLimits(doc: Document): MirrorLimits {
     (el) => el.closest(WIDGET_ROOT_SELECTOR) === null && (el.style.width !== '' || el.style.height !== ''),
   )
   return {canvases: document.querySelectorAll('canvas').length, fonts: uniq(fonts), inlineWidths: inline.length}
-}
-
-function componentPathAt(rect: {x: number; y: number; width: number; height: number}): string | null {
-  const hit = document
-    .elementsFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
-    .find((element) => element.closest(OVERLAY_SELECTOR) === null)
-  const owner = hit?.closest(`[${SOURCE_ATTR}]`)
-  return owner === null || owner === undefined ? null : componentPath(owner)
-}
-
-function componentPath(element: Element): string {
-  const parent = element.parentNode
-  if (element === document.documentElement || parent === null) return ''
-  if (parent instanceof ShadowRoot) return `${componentPath(parent.host)}/s/${childPosition({parent, element})}`
-  if (!(parent instanceof Element)) return ''
-  return `${componentPath(parent)}/${childPosition({parent, element})}`
-}
-
-function childPosition(input: {parent: ParentNode; element: Element}): number {
-  return [...input.parent.children].indexOf(input.element) + 1
 }
 
 function canvasBoxes(input: {root: Document; size: Size}): Box[] {

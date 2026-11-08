@@ -17,6 +17,10 @@ export const designConfig = Object.assign(
       .array(z.enum(['progress']))
       .default([])
       .describe('reply fields sent to the agent beyond the default; progress is computed and stored either way'),
+    hotkeys: z
+      .object({overlay: z.string(), pick: z.string()})
+      .default({overlay: 'Mod+Shift+X', pick: 'Mod+Shift+P'})
+      .describe('the x-ray overlay keys: overlay on and off, pick on and off'),
   }),
   {
     tolerances: {
@@ -113,7 +117,7 @@ export const designConfig = Object.assign(
     attributes: {
       source: 'data-conciv-source',
       placeholder: 'data-conciv-placeholder',
-      pane: 'data-conciv-design-pane',
+      overlay: 'data-conciv-overlay',
     },
     propertyAliases,
     folded,
