@@ -5,12 +5,26 @@ import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} 
 import type {Store} from '../shared/store.js'
 import {walk} from '../shared/tree.js'
 import {attached} from './attached.js'
+import {nodeLooks} from './node-look.js'
 import type {designTables} from './tables.js'
 
 export function createStore(input: {db: DesignDb; state: Storage; run: () => Promise<number | null>}): Store {
   const {state, run} = input
   const {orm, tables} = input.db
-  const {targets, rounds, rows, fom, votes, tool_calls: toolCalls, missing, candidates, widths, regions} = tables
+  const {
+    targets,
+    rounds,
+    rows,
+    fom,
+    votes,
+    nodes,
+    notes,
+    tool_calls: toolCalls,
+    missing,
+    candidates,
+    widths,
+    regions,
+  } = tables
 
   async function target(id: string): Promise<TargetRow | undefined> {
     const [found] = await orm.select().from(targets).where(eq(targets.target_id, id))
@@ -92,7 +106,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
   }
 
   return {
-    put: async ({design, image, session, route}) => {
+    put: async ({design, image, session, route, notes: told = []}) => {
       const path = `${design.id}/${TARGET_IMAGE}`
       await state.setItemRaw(path, image)
       const row = {
@@ -110,7 +124,15 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         unsettled: 0,
         at: Date.now(),
       }
-      await orm.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row})
+      orm.transaction((tx) => {
+        tx.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row}).run()
+        tx.delete(nodes).where(eq(nodes.target_id, design.id)).run()
+        for (const {gradient: _gradient, ...look} of nodeLooks(design))
+          tx.insert(nodes)
+            .values({...look, target_id: design.id, run_id: row.run_id})
+            .run()
+        for (const text of told) tx.insert(notes).values({target_id: design.id, run_id: row.run_id, text}).run()
+      })
       return recordOf(row)
     },
     design: async (id) => {
@@ -260,12 +282,12 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
               repeat: repeats.get(rowKey({...row, width: row.width ?? null})) ?? 0,
             })
             .run()
-        for (const [kind, nodes] of [
+        for (const [kind, listed] of [
           ['missing', coverage.missing],
           ['not_rendered', coverage.notRendered],
           ['dupe', coverage.dupes],
         ] as const)
-          for (const node of nodes)
+          for (const node of listed)
             tx.insert(missing)
               .values({...own, node, kind})
               .run()
@@ -310,7 +332,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         tx.delete(rows).where(eq(rows.target_id, id)).run()
         tx.delete(fom).where(eq(fom.target_id, id)).run()
         tx.delete(votes).where(eq(votes.target_id, id)).run()
-        for (const table of [missing, candidates, widths, regions])
+        for (const table of [missing, candidates, widths, regions, nodes])
           tx.delete(table).where(eq(table.target_id, id)).run()
       })
       await Promise.all((await state.getKeys(id)).map((key) => state.removeItem(key)))

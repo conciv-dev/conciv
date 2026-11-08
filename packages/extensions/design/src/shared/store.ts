@@ -1,7 +1,13 @@
 import type {Ballot, Design, IdTree, Mapping, Round, TargetRecord} from './defs.js'
 
 export type Store = {
-  put(input: {design: Design; image: Uint8Array; session: string; route?: string}): Promise<TargetRecord>
+  put(input: {
+    design: Design
+    image: Uint8Array
+    session: string
+    route?: string
+    notes?: string[]
+  }): Promise<TargetRecord>
   design(id: string): Promise<Design>
   image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
   mapping(id: string): Promise<Mapping>

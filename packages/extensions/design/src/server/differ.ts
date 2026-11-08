@@ -118,6 +118,7 @@ async function registered(input: {
     design: loaded.design,
     image: loaded.image,
     session,
+    notes: loaded.warnings,
     ...(route === undefined ? {} : {route}),
   })
 }

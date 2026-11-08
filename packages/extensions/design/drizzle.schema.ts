@@ -11,6 +11,7 @@ export const {
   rows,
   fom,
   votes,
+  nodes,
   tool_calls,
   runs,
   labels,

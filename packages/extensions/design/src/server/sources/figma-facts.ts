@@ -25,6 +25,7 @@ export function figmaFacts(input: {node: FigmaNode; origin: Origin; marks: {imag
     ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
     ...(marks.image ? {image: true} : {}),
     ...(marks.crop ? {crop: true} : {}),
+    ...tokensOf(node),
   }
   return {
     type: node.type,
@@ -58,6 +59,15 @@ function paints(list: FigmaPaint[]): Record<string, unknown>[] {
       },
     ]
   })
+}
+
+function tokensOf(node: FigmaNode): {tokens?: Record<string, string>} {
+  const bound = node.boundVariables ?? {}
+  const found = Object.entries(TOKEN_FIELDS).flatMap(([field, keys]) => {
+    const alias = keys.flatMap((key) => [bound[key] ?? []].flat())[0]
+    return alias === undefined ? [] : [[field, alias.id] as const]
+  })
+  return found.length === 0 ? {} : {tokens: Object.fromEntries(found)}
 }
 
 function fontOf(node: FigmaNode): Record<string, unknown> {
@@ -106,6 +116,14 @@ type Color = z.infer<typeof figmaSchemas.color>
 type Origin = {x: number; y: number; scale: number}
 type Facts = NonNullable<DesignNode['figma']>
 
+const TOKEN_FIELDS = {
+  fill: ['fills'],
+  stroke: ['strokes'],
+  radius: ['cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'],
+  font: ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight', 'letterSpacing'],
+  gap: ['itemSpacing', 'counterAxisSpacing'],
+  padding: ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'],
+}
 const FLOWS = new Set(['HORIZONTAL', 'VERTICAL', 'GRID'])
 const REGULAR_WEIGHT = 400
 const PERCENT = 100

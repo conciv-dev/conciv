@@ -10,6 +10,8 @@ const PaintSchema = z.looseObject({
   gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
   gradientHandlePositions: z.array(PointSchema).optional(),
 })
+const AliasSchema = z.looseObject({id: z.string()})
+const BoundSchema = z.record(z.string(), z.union([AliasSchema, z.array(AliasSchema)]))
 const BoundsSchema = z.looseObject({x: z.number(), y: z.number(), width: z.number(), height: z.number()})
 const FigmaNodeSchema = z.looseObject({
   id: z.string(),
@@ -61,6 +63,7 @@ const FigmaNodeSchema = z.looseObject({
   layoutSizingHorizontal: z.string().optional(),
   layoutSizingVertical: z.string().optional(),
   layoutGrow: z.number().optional(),
+  boundVariables: BoundSchema.optional().catch(undefined),
   get children() {
     return z.array(FigmaNodeSchema).optional()
   },

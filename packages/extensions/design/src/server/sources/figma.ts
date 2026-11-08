@@ -20,6 +20,7 @@ import {structured} from './structure.js'
 import {reflowTagged} from './reflow-tags.js'
 import {figmaSchemas} from './figma-schema.js'
 import {figmaFacts} from './figma-facts.js'
+import {namedTokens} from './figma-tokens.js'
 
 export function createFigmaAdapter(input: {token: string | null; config: DesignConfig}): TargetAdapter {
   const {token, config} = input
@@ -31,15 +32,18 @@ export function createFigmaAdapter(input: {token: string | null; config: DesignC
       if (link === null && !isJsonRef(ref)) throw toolError('figma-link', {message: FIGMA_LINK_MESSAGE})
       const fetched = await fetchedFigma({ref, link, scale, token, project, files, attachments})
       const frame = frameOf({document: fetched.document, nodeId: link?.nodeId ?? null})
-      const root = designRoot({frame: frame.node, scale, raster: createRaster(fetched.image), config})
+      const built = designRoot({frame: frame.node, scale, raster: createRaster(fetched.image), config})
+      const fileKey = link?.fileKey ?? null
+      const named = await namedTokens({root: built, fileKey, token})
       const design: Design = {
-        id: designId({link, ref, version: fetched.version, root}),
+        id: designId({link, ref, version: fetched.version, root: built}),
         source: {kind: 'figma', ref: link === null ? ref : `${link.fileKey}/${link.nodeId}`},
         viewport: frame.viewport,
         scale,
-        root,
+        root: hashed(named.root),
       }
-      return {design, image: fetched.image, warnings: [...frame.warnings, ...unmapped(frame.node)]}
+      const warnings = [...frame.warnings, ...unmapped(frame.node), named.line]
+      return {design, image: fetched.image, warnings}
     },
   }
 }
