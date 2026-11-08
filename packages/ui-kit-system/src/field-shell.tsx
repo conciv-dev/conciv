@@ -8,7 +8,7 @@ import {Button} from './button.js'
 
 const ROOT = 'flex min-w-0 m-0 p-0 [border:none] font-chat'
 const LAYOUT = {
-  row: 'flex-row items-center justify-between gap-4',
+  row: 'flex-row items-start justify-between gap-4',
   stack: 'flex-col gap-2',
 }
 const HEAD = 'flex flex-col gap-0.5 flex-1 min-w-0'

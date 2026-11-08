@@ -7,7 +7,7 @@ import {TooltipIconButton} from './tooltip-icon-button.js'
 
 const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-1 px-1.5`
 const ITEM_PREVIEW =
-  'inline-flex items-center gap-0.5 h-6 ps-2 pe-0.5 rounded-chat-chip bg-chat-fill-strong [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.6875rem] text-chat-text-hi data-[highlighted]:border-chat-accent data-[highlighted]:bg-chat-accent-20'
+  'inline-flex items-center gap-0.5 h-6 ps-2 pe-2 has-[button]:pe-0.5 rounded-chat-chip bg-chat-fill-strong [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.6875rem] text-chat-text-hi data-[highlighted]:border-chat-accent data-[highlighted]:bg-chat-accent-20'
 const INPUT =
   'flex-1 min-w-24 h-6 bg-transparent [border:none] px-1 text-inherit text-[0.8125rem] focus-visible:outline-none placeholder:text-chat-text-3 read-only:cursor-default'
 

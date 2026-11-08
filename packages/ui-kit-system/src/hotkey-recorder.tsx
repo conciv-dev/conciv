@@ -60,6 +60,7 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
   let capture: HTMLDivElement | undefined
   const returnFocus = () => changeButton?.focus()
   const recorder = createHotkeyRecorder({
+    recordBy: 'key',
     onRecord: (hotkey) => setState('draft', hotkey),
     onCancel: returnFocus,
     onClear: () => {

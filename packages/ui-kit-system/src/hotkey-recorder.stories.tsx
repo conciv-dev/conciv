@@ -96,7 +96,7 @@ export const SettingKeyboard: Story = {
     await userEvent.click(shift)
     await waitFor(() => expect(shift).toHaveAttribute('aria-pressed', 'true'))
     await userEvent.click(canvas.getByRole('button', {name: 'Save'}))
-    await expect(canvas.getByText(/^Committed/)).toHaveTextContent('Committed open: Mod+Shift+[KeyJ]')
+    await expect(canvas.getByText(/^Committed/)).toHaveTextContent('Committed open: Mod+Shift+J')
     await expect(change).toHaveFocus()
 
     await userEvent.click(canvas.getByRole('button', {name: 'Change Command palette'}))
