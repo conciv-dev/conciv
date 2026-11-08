@@ -59,6 +59,7 @@ src/
     boxes.tsx          the ids drawn on the page: DOM boxes by magnitude, Figma boxes dashed, changed regions
     column.tsx         the content column: states, sliders, counts, rows and the round's images
     card.tsx           the picked id: FOM, DOM, CSSOM and SRC, its rows, and the right and wrong pair labels
+    three-d.tsx        the planes SRC, CSSOM, DOM and FOM in perspective, row lines across, focus and orbit
 ```
 
 ## Tools

@@ -11,6 +11,7 @@ import type {createXrayState} from './state.js'
 import {Rail} from './rail.js'
 import {Column} from './column.js'
 import {Boxes} from './boxes.js'
+import {ThreeD} from './three-d.js'
 
 export function XrayOverlay(props: {
   xray: ReturnType<typeof createXrayState>
@@ -44,7 +45,9 @@ export function XrayOverlay(props: {
         <Portal mount={document.body} useShadow ref={setElement}>
           <EnvironmentProvider value={rootNode}>
             <div class="chat-density text-chat-text font-chat antialiased">
-              <Boxes xray={props.xray} view={props.view} />
+              <Show when={props.xray.state.threeD} fallback={<Boxes xray={props.xray} view={props.view} />}>
+                <ThreeD xray={props.xray} data={props.data} view={props.view} />
+              </Show>
               <nav
                 aria-label="Design x-ray"
                 class="border-e border-chat-line bg-chat-glass flex pointer-events-auto shadow-chat-lg start-0 inset-y-0 fixed"

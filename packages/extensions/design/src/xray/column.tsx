@@ -32,7 +32,7 @@ export function Column(props: {
     >
       <header class="px-3 py-1.5 border-b border-chat-line-soft flex gap-1 items-center">
         <h2 class="text-sm text-chat-text-hi font-medium m-0">Design x-ray</h2>
-        <span class="text-xs text-chat-text-3 flex-1 truncate">{props.view.target()?.ref}</span>
+        <span class="text-xs text-chat-text-3 flex-1 truncate">{shortRef(props.view.target()?.ref ?? '')}</span>
         <TooltipIconButton tooltip="Capture the page pixels" class="size-8" onClick={askCapture}>
           <Camera class="size-4 block" aria-hidden="true" />
         </TooltipIconButton>
@@ -74,6 +74,10 @@ export function Column(props: {
       </Switch>
     </section>
   )
+}
+
+function shortRef(ref: string): string {
+  return ref.startsWith('/') ? (ref.split('/').at(-1) ?? ref) : ref
 }
 
 const CAPTURE_LINES = {

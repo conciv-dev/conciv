@@ -1,6 +1,7 @@
 import {For, type JSX} from 'solid-js'
 import type {z} from 'zod'
 import AppWindow from 'lucide-solid/icons/app-window'
+import Box from 'lucide-solid/icons/box'
 import Frame from 'lucide-solid/icons/frame'
 import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
 import PanelLeft from 'lucide-solid/icons/panel-left'
@@ -26,6 +27,12 @@ export function Rail(props: {xray: ReturnType<typeof createXrayState>; keys: Key
         pressed={props.xray.state.pick}
         onClick={props.xray.togglePick}
         icon={<MousePointerClick class={ICON} aria-hidden="true" />}
+      />
+      <RailButton
+        tooltip="3D"
+        pressed={props.xray.state.threeD}
+        onClick={props.xray.toggleThreeD}
+        icon={<Box class={ICON} aria-hidden="true" />}
       />
       <Divider />
       <For each={LAYERS}>
