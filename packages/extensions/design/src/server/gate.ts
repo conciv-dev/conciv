@@ -393,7 +393,7 @@ function textRows(seen: Seen): Compared[] {
   const token = look.token_font
   const family = firstFamily(styles.fontFamily)
   const color = look.fill === null ? null : blended({color: look.fill, over: seen.under, alpha: look.fill_opacity ?? 1})
-  const shown = blended({color: styles.color, over: seen.under, alpha: styles.opacity})
+  const shown = blended({color: styles.color, over: seen.under, alpha: styles.opacity ?? 1})
   return [
     ...(color === null || near({a: shown, b: color})
       ? []
@@ -432,9 +432,10 @@ function opacityRows(seen: Seen): Compared[] {
   const own = look.opacity ?? 1
   const background = opaque(element.styles.background) ? element.styles.background : look.fill
   const expected = blended({color: look.fill, over: under, alpha: own * (look.fill_opacity ?? 1)})
-  const found = blended({color: background, over: under, alpha: element.styles.opacity})
-  if (near({a: expected, b: found}) || own === element.styles.opacity) return []
-  return [{kind: 'opacity', expected: `${own} ${expected}`, found: `${element.styles.opacity} ${found}`, token: null}]
+  const shown = element.styles.opacity ?? 1
+  const found = blended({color: background, over: under, alpha: shown})
+  if (near({a: expected, b: found}) || own === shown) return []
+  return [{kind: 'opacity', expected: `${own} ${expected}`, found: `${shown} ${found}`, token: null}]
 }
 
 function endsOf(input: {gradient: NonNullable<Look['gradient']>; under: string}): {from: string; to: string} {

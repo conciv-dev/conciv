@@ -27,7 +27,7 @@ export async function imageRowsOf(input: {
         token: null,
       })
       const expected = `wrong image at [${look.node}]: ${look.asset} expected`
-      if (element.styles.image === '')
+      if ((element.styles.image ?? '') === '')
         return [Promise.resolve({row: row(`${expected}, the element shows no image`), ratio: null})]
       return [
         captured({page, selector: named.selector, w: look.w, h: look.h, asset: look.asset}).then((ratio) => ({

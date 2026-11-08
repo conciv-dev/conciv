@@ -85,7 +85,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const counts = {
       ...gate.counts,
       reflow: failures.length,
-      paint: gate.counts.paint + images.rows.length,
+      paint: (gate.counts.paint ?? 0) + images.rows.length,
       rows: gate.counts.rows + images.rows.length + failures.length,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})

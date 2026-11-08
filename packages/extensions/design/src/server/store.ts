@@ -255,7 +255,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             pins: counts.pins,
             other: counts.other,
             reflow: counts.reflow,
-            paint: counts.paint,
+            paint: counts.paint ?? 0,
             rows_count: counts.rows,
             nodes: coverage.nodes,
             mapped: coverage.mapped,

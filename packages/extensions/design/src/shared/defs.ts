@@ -70,8 +70,8 @@ const LiveStylesSchema = z.object({
   sizing: z.object({width: SizingSchema, height: SizingSchema}).describe('fixed: own px rule, set: any other size'),
   border: z.object({width: z.number(), style: z.string(), color: z.string(), side: z.enum(BORDER_SIDES)}),
   gradient: z.object({from: z.string(), to: z.string()}).nullable().default(null),
-  opacity: z.number().default(1),
-  image: z.string().default('').describe('the src of an img, else the url of the background image'),
+  opacity: z.number().optional(),
+  image: z.string().optional().describe('the src of an img, else the url of the background image'),
 })
 
 const GlyphSchema = z.object({text: z.string(), boxes: z.array(BoxSchema)})
@@ -302,7 +302,7 @@ const CoverageSchema = z.object({
 
 const COUNTED = {much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count}
 
-const CountsSchema = z.object({...COUNTED, reflow: Count.default(0), paint: Count.default(0)})
+const CountsSchema = z.object({...COUNTED, reflow: Count.default(0), paint: Count.optional()})
 
 const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
 
