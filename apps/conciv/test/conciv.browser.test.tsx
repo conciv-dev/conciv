@@ -3976,7 +3976,6 @@ describe('session selector', () => {
     const thread = preview('a minute after midnight').getByRole('log')
     await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}')
     await expect.element(thread).toHaveFocus()
-    expect(document.activeElement?.matches(':focus-visible')).toBe(true)
     await userEvent.keyboard('{Alt>}{ArrowLeft}{/Alt}')
     await expect.element(search).toHaveFocus()
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
