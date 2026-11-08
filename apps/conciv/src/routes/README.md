@@ -11,7 +11,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `/panel` (`panel.tsx`): `PanelLayout`
 - `/panel/latest` (`panel.latest.tsx`): resolves the latest session through `rpc.sessions.resolve({})` and redirects
 - `/panel/connect` (`panel.connect.tsx`): `ConnectRoute`; binds an api base found by the `connect` extension slot, then opens the session
-- `/panel/$sessionId` (`panel.$sessionId.tsx`): `PanelSession`, search `{popOut?: 'lost'}`
+- `/panel/$sessionId` (`panel.$sessionId.tsx`): `PanelSession`, search `{popOut?: 'lost'}`; reads its session through `sessions.get`; clicking the header title (or Enter/Space on it) opens the session menu (`Popover`: Ark owns open state, focus, Escape and outside click, and returns focus to the title) hosting `SessionSelector`, context and refresh/pop-out/disconnect rows, and a pencil (`Editable`) renames in place through `rpc.sessions.rename`
 - `/panel/$sessionId/` (`panel.$sessionId.index.tsx`): `ChatPaneRoute`
 - `/panel/$sessionId/$view` (`panel.$sessionId.$view.tsx`): `PanelView`, an extension view
 - `/quick` (`quick.tsx`): quick terminal layer, search `QuickSearchSchema` (`panes`, `focus`)
@@ -24,6 +24,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false
+- `panel.$sessionId.tsx:SessionTitle`: no rename when the trimmed title is empty or unchanged
 - `pip.$sessionId.tsx:PipSession`: if the popup cannot open, returns inline with `popOut: 'lost'`; closing the popup (`pagehide`) returns inline
 - `routeTree.gen.ts` (in `../`) is regenerated from these files by `pnpm generate-routes`
 

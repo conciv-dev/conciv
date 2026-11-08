@@ -7,6 +7,7 @@ import {
   onMount,
   Show,
   splitProps,
+  untrack,
   useContext,
   type ComponentProps,
   type JSX,
@@ -187,11 +188,12 @@ function Content(props: ComponentProps<typeof Ark.Content>) {
   const binding = useContext(ContentRefContext)
   const api = useTooltipContext()
   const [local, rest] = splitProps(props, ['class', 'children', 'ref'])
-  const bindContent = (element: HTMLDivElement): void => {
-    binding?.bind(element)
-    if (api().open) binding?.pop(element)
-    if (typeof local.ref === 'function') local.ref(element)
-  }
+  const bindContent = (element: HTMLDivElement): void =>
+    untrack(() => {
+      binding?.bind(element)
+      if (api().open) binding?.pop(element)
+      if (typeof local.ref === 'function') local.ref(element)
+    })
   return (
     <Show
       when={useContext(MemberContext)}
