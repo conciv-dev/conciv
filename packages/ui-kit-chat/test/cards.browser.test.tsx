@@ -31,13 +31,11 @@ describe('card body nonempty', () => {
   const NO_SCHEMA_META: ToolViewMeta = {
     summary: 'run a bare tool with no declared inputs',
     mutating: false,
-    mirrors: false,
   }
 
   const FILL_META: ToolViewMeta = {
     summary: 'type a value into a form field',
     mutating: true,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, value: {type: 'string'}},
@@ -266,7 +264,6 @@ describe('meta tool card error', () => {
     label: {running: 'Filling the field', done: 'Filled the field'},
     positional: 'selector',
     mutating: true,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, value: {type: 'string'}},
@@ -283,7 +280,6 @@ describe('meta tool card error', () => {
     label: {running: 'Shipping the page', done: 'Shipped the page'},
     positional: 'selector',
     mutating: false,
-    mirrors: false,
     inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: ['selector']},
     outputSchema: {type: 'string'},
   }
@@ -411,7 +407,6 @@ describe('meta tool card object result', () => {
     label: {running: 'Measuring the element', done: 'Measured the element'},
     positional: 'selector',
     mutating: false,
-    mirrors: false,
     inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: ['selector']},
     outputSchema: {type: 'object', properties: {width: {type: 'number'}, height: {type: 'number'}}},
   }
@@ -472,7 +467,6 @@ describe('tool call card dispatch', () => {
     category: 'act',
     icon: 'pointer',
     mutating: false,
-    mirrors: false,
     inputSchema: {type: 'object', properties: {note: {type: 'string'}}},
   }
 

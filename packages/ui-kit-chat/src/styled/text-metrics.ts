@@ -10,6 +10,7 @@ import type {ChatPart} from '@conciv/protocol/chat-message-types'
 import {defaultGrouper, groupParts, type GroupNode, type Grouping, type Turn} from '../store/grouping.js'
 import type {TurnEstimate, TurnEstimator} from '../primitives/thread/turn-estimate.js'
 import {
+  ANSWER_ACTION_ROW_CLASS,
   ANSWER_CONTENT_SETTLED_CLASS,
   ANSWER_ROW_CLASS,
   ASSISTANT_ROOT_CLASS,
@@ -42,6 +43,7 @@ type Metrics = {
   assistant: RowStyle
   assistantRootY: number
   assistantGapY: number
+  assistantActionY: number
   paragraphGapY: number
   viewportPadX: number
 }
@@ -114,7 +116,9 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
   prose.append(firstParagraph, secondParagraph)
   answerContent.appendChild(prose)
   answerRow.appendChild(answerContent)
-  assistantRoot.appendChild(answerRow)
+  const actionRow = document.createElement('div')
+  actionRow.className = ANSWER_ACTION_ROW_CLASS
+  assistantRoot.append(answerRow, actionRow)
 
   probe.appendChild(userBubble)
   probe.appendChild(assistantRoot)
@@ -134,6 +138,7 @@ function resolveMetrics(viewport: HTMLElement): Metrics {
       num(rootStyle.borderTopWidth) +
       num(rootStyle.borderBottomWidth),
     assistantGapY: num(rootStyle.rowGap),
+    assistantActionY: actionRow.getBoundingClientRect().height,
     paragraphGapY: Math.max(0, proseHeight - 2 * assistant.lineHeight),
     viewportPadX: num(viewportStyle.paddingLeft) + num(viewportStyle.paddingRight),
   }
@@ -237,7 +242,7 @@ export function createTurnEstimator(
     const estimates = nodes.map((node) => estimateNode(node, turn.parts, resolved, containerWidth))
     const content = estimates.reduce((sum, estimate) => sum + estimate.height, 0)
     return {
-      height: resolved.assistantRootY + resolved.assistantGapY * (nodes.length - 1) + content,
+      height: resolved.assistantRootY + resolved.assistantGapY * nodes.length + resolved.assistantActionY + content,
       exact: nodes.length === 1 && estimates.every((estimate) => estimate.exact),
     }
   }

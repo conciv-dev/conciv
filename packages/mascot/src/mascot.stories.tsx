@@ -182,6 +182,13 @@ vertically, so the launch looks the same whichever style is running. The room is
 coordinates once per emitter start, not live on scroll or resize, and the whole curve scales with the same
 antenna factor as the rest of the emitter.
 
+**Avoid**: \`<Mascot.Binary avoid={rect}>\` names an \`EmitterRect\` in viewport pixels the digits must stay
+out of. The widget launcher passes the open chat panel. The digits rise until the nearest edge in their way (that
+rectangle or the top of the viewport), turn toward the nearer side with room on screen, round the corner and climb
+up along the outside of the rectangle; with no room beside it they run along the edge instead. A new value
+retargets the digits already in flight, at most once per animation frame, so dragging or resizing never restarts
+the stream.
+
 **Headroom**: a curve only bends when the room says it must, so with space above the robot every style
 degrades to the plain vertical rise. Drag \`headroomRatio\` down with \`working\` on to squeeze the emitter
 against the top of the frame and watch the curves appear, \`auto\` flip from straight to bent, and the bend

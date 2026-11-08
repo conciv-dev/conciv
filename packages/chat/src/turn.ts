@@ -188,7 +188,7 @@ export function turnHooks(
       const own = ownRow(harness, row)
       const model = own?.model ?? null
       const resumeSessionId = resumableToken(deps, harness, row)
-      const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, model})
+      const toolSet = chatToolSet(deps.capabilities(sessionId), {sessionId, agentId: sessionId, model})
       const config = harness.chatConfig({
         cwd: deps.cwd,
         sessionId,

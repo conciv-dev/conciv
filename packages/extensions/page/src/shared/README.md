@@ -2,7 +2,7 @@
 
 ## Overview
 
-defs.ts builds each tool with a private `pageTool` helper around `defineTool`. The helper names the tool `page_<verb>` and fills in metadata: category, icon, label, hint, mutating, mirrors, approval, capture mode and keywords. The client bodies and the server declarations both build from these defs, and package.json publishes defs.ts as `./defs`. grab-attachment.ts declares the attachment for `GRAB_MIME`; client.tsx and server/grab-attachment.ts add the card and the server handler to it.
+defs.ts builds each tool with a private `pageTool` helper around `defineTool`. The helper names the tool `page_<verb>` and fills in metadata: category, icon, label, hint, mutating, approval, capture mode and keywords. The client bodies and the server declarations both build from these defs, and package.json publishes defs.ts as `./defs`. grab-attachment.ts declares the attachment for `GRAB_MIME`; client.tsx and server/grab-attachment.ts add the card and the server handler to it.
 
 ## Interface
 

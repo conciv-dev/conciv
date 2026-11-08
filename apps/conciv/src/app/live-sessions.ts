@@ -14,6 +14,7 @@ export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
+  stop: (sessionId: string) => void
 }
 
 export type LiveSessionsDeps = {
@@ -24,6 +25,7 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
+  onRunEnd?: (sessionId: string) => void
 }
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
@@ -66,6 +68,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     const run = runOf(sessionId)
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
+    deps.onRunEnd?.(sessionId)
     deps.appData.invalidateSessions()
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
@@ -158,6 +161,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     reopen(sessionId) {
       const entry = chatOf(sessionId)
       if (entry) setState('retired', {[sessionId]: entry.chat()})
+    },
+    stop(sessionId) {
+      void chatOf(sessionId)?.chat().stop()
     },
   }
 }

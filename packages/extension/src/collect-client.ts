@@ -6,7 +6,6 @@ import type {AttachmentCardEntry, ClientEffect} from './types.js'
 
 export type ClientToolEntry = {
   name: string
-  mirrors: boolean
   capture: ToolCaptureMode
   execute: (input: unknown, ctx: ClientToolCtx) => Promise<unknown>
 }
@@ -26,7 +25,6 @@ export function collectClientTools(builders: AnyExtension[]): ClientToolEntry[] 
       seen.add(tool.name)
       entries.push({
         name: tool.name,
-        mirrors: tool.meta?.mirrors ?? false,
         capture: captureModeOf(tool.meta),
         execute,
       })

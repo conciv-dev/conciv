@@ -47,7 +47,6 @@ function serverTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
       summary: spec.summary,
       category,
       mutating: spec.mutating ?? false,
-      mirrors: false,
       keywords: spec.keywords ?? [],
       positional: spec.positional,
     },
@@ -168,7 +167,6 @@ export const BUILTIN_OPEN_TOOL = defineTool({
     summary: "open a source file in the user's editor",
     category: 'server',
     mutating: false,
-    mirrors: false,
     keywords: ['editor', 'source'],
   },
 }).server((input, ctx: OpenToolContext): {ok: true; file: string; line?: number} => {

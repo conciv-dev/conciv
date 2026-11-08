@@ -63,7 +63,7 @@ export function terminalPhaseOf(chunk: ChatEvent): RunPhase | null {
   return null
 }
 
-function endsTheRun(chunk: ChatEvent): boolean {
+export function endsTheRun(chunk: ChatEvent): boolean {
   if (terminalPhaseOf(chunk) !== null) return true
   const lifecycle = runLifecycleEvent.parse(chunk)
   return lifecycle !== null && isRunPhaseTerminal(lifecycle.phase)

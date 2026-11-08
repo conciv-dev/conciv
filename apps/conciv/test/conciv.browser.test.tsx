@@ -54,7 +54,7 @@ import {
   getExtensionApi,
   type RegisterExtension,
 } from '@conciv/extension'
-import {paneAttachments, returnUnsentToDraft} from '../src/pane/pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
@@ -78,6 +78,7 @@ import {
   createChat,
   createChatSession,
   type ChatSession,
+  type ChatSessionCallbacks,
   type ChatSessionConnection,
   type ChatSessionHydration,
 } from '@conciv/ai/client'
@@ -85,7 +86,7 @@ import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
 import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
-import {ChatEventType, type ChatEvent, type RunClockSource} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
@@ -169,18 +170,32 @@ describe('approval replay', () => {
     await expect.element(page.getByText('Understood, I will not force push.')).toBeVisible()
   }, 120_000)
 
-  test('a pane opened while the ask waits draws the card from hydrate', async () => {
+  test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
     const {rpc, sessionId} = await newSession()
     const first = await attachedPane(sessionId)
 
-    const askedId = await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
+    await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
     first.dispose()
 
-    keep(await attachedPane(sessionId))
+    const pane = await attachedPane(sessionId)
+    keep(pane)
+    const requests = page.getByRole('list', {name: 'Permission requests'})
+    const cardFits = async () => {
+      await expect.element(permissionRequest()).toBeInViewport({ratio: 1})
+      await expect.element(approveButton()).toBeInViewport({ratio: 1})
+      await expect.element(page.getByRole('button', {name: 'Deny'})).toBeInViewport({ratio: 1})
+    }
     await expect.element(permissionRequest(), {timeout: 15_000}).toBeVisible()
+    await expect.element(requests.getByRole('listitem').nth(1)).not.toBeInTheDocument()
+    await cardFits()
 
-    await rpc.chat.permissionDecision({approvalId: askedId, approved: false})
-    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('APPROVAL_DENIED')
+    await page.viewport(1000, 900)
+    pane.setWidth(960)
+    await cardFits()
+
+    await approveButton().click()
+    await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
+    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('NO_BUNDLER')
   }, 120_000)
 })
 
@@ -290,17 +305,7 @@ describe('chat pane', () => {
     sessionId: string,
     options: Pick<PaneMountOptions, 'grabProvider' | 'extensions' | 'transport'> = {},
   ): PaneMount {
-    const mount = mountPane({base: core(), sessionId, ...options}, (pane) => {
-      const queue = createMemo(() => pane.chat().queue())
-      return (
-        <>
-          <ChatProvider chat={pane.chat()}>
-            <QueueStrip queue={queue()} />
-          </ChatProvider>
-          <ChatPane sessionId={sessionId} />
-        </>
-      )
-    })
+    const mount = mountPane({base: core(), sessionId, ...options}, () => <ChatPane sessionId={sessionId} />)
     active.pane = mount
     return mount
   }
@@ -313,14 +318,15 @@ describe('chat pane', () => {
   const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
   const narration = () => page.getByText('Responding…', {exact: true})
 
-  async function startStreamingRun(): Promise<void> {
-    const {sessionId} = await newSession()
+  async function startStreamingRun(): Promise<{rpc: RpcClient; sessionId: string}> {
+    const session = await newSession()
     await coreControl.holdTurn()
-    mountChatPane(sessionId)
+    mountChatPane(session.sessionId)
     await input().fill('first turn')
     await userEvent.keyboard('{Enter}')
     await expect.element(stopButton()).toBeVisible()
     await expect.element(page.getByText(UNSCRIPTED_REPLY)).toBeVisible()
+    return session
   }
 
   test('restores the server-side draft text and staged grabs when the pane mounts', async () => {
@@ -486,22 +492,36 @@ describe('chat pane', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
   })
 
-  test('clicking stop with a queue interrupts the run and flushes every queued message, in order, as one turn', async () => {
-    await startStreamingRun()
+  test('clicking stop with a queue stops the run and puts the queued messages, in order, back in the composer unsent', async () => {
+    const {rpc, sessionId} = await startStreamingRun()
 
     await input().fill('alpha step')
     await userEvent.keyboard('{Enter}')
     await input().fill('bravo step')
     await userEvent.keyboard('{Enter}')
-
-    await expect.element(page.getByText('alpha step')).toBeVisible()
-    await expect.element(page.getByText('bravo step')).toBeVisible()
-    await expect.element(page.getByRole('button', {name: 'Remove from queue'}).first()).toBeVisible()
+    await expect.element(page.getByRole('button', {name: 'Remove from queue'}).nth(1)).toBeVisible()
+    const stopGate = await faults.install({kind: 'gate', path: ['chat', 'stop']})
 
     await stopButton().click()
 
-    await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
-    await expect.element(page.getByText(/alpha step[\s\S]*bravo step/)).toBeVisible()
+    await expect.element(input().filter({hasText: /alpha step\s*bravo step/})).toBeVisible()
+    await input().click()
+    await userEvent.keyboard('{Enter}')
+    await coreControl.releaseFault(stopGate)
+
+    await expect.element(stoppedLine()).toBeVisible()
+    await expect.element(stopButton()).not.toBeInTheDocument()
+    await expect.element(page.getByText('Queue', {exact: true})).not.toBeInTheDocument()
+    await expect.element(input().filter({hasText: /alpha step\s*bravo step/})).toBeVisible()
+    const asked = (await rpc.chat.hydrate({sessionId})).messages.filter((message) => message.role === 'user')
+    expect(asked).toHaveLength(1)
+
+    await page.getByRole('button', {name: 'Send message'}).click()
+
+    await expect.element(stopButton()).toBeVisible()
+    await expect.element(input().filter({hasText: /alpha step/})).not.toBeInTheDocument()
+    await coreControl.releaseTurn()
+    await expect.element(stopButton()).not.toBeInTheDocument()
   })
 
   test('a stopped turn ends with a Stopped line that a reload still shows', async () => {
@@ -522,7 +542,7 @@ describe('chat pane', () => {
     await expect.element(stoppedLine()).toBeVisible()
   })
 
-  test('Escape in the focused composer does what the stop button does and leaves the draft untouched', async () => {
+  test('Escape in the focused composer does what the stop button does and keeps the typed draft ahead of the queue', async () => {
     await startStreamingRun()
 
     await input().fill('queued while running')
@@ -532,11 +552,9 @@ describe('chat pane', () => {
     await input().fill('draft kept in place')
     await userEvent.keyboard('{Escape}')
 
+    await expect.element(stoppedLine()).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Remove from queue'})).not.toBeInTheDocument()
-    await expect.element(page.getByText('queued while running')).toBeVisible()
-    await expect.element(input()).toHaveTextContent('draft kept in place')
-    await expect.element(page.getByText(UNSCRIPTED_REPLY).nth(1)).toBeVisible()
-    await coreControl.releaseTurn()
+    await expect.element(input().filter({hasText: /draft kept in place\s*queued while running/})).toBeVisible()
     await expect.element(stopButton()).not.toBeInTheDocument()
   })
 
@@ -2842,58 +2860,32 @@ describe('queue strip', () => {
     })
   })
 
-  describe('a later Stop returns a superseded queued flush to the draft', () => {
+  describe('Stop returns the queue to the draft', () => {
     afterEach(() => {
       for (const dispose of disposers.splice(0)) dispose()
     })
 
-    it('appends the follow-up under typed text after a newer turn was started and stopped during the wait', async () => {
-      const heldRefresh = Promise.withResolvers<ChatSessionHydration>()
-      const refreshStarted = Promise.withResolvers<void>()
-      const held = () => {
-        refreshStarted.resolve()
-        return heldRefresh.promise
-      }
-      const {sent, session: create} = sessionOverHeldRuns([held])
-      const {session, cancel} = mountDraftPane(create)
-      void session.sendMessage('first turn')
-      await vi.waitFor(() => expect(sent).toEqual(['first turn']))
-      await session.sendMessage('queued follow-up')
-      const earlierCancel = cancel()
-      await refreshStarted.promise
-      void session.sendMessage('second turn')
-      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'second turn']))
-      await cancel()
-      await userEvent.click(page.getByRole('textbox', {name: 'Message'}))
-      await userEvent.keyboard('still typing')
-      await expect.element(draftOutput()).toHaveTextContent('"still typing"')
-      heldRefresh.resolve(EMPTY_HYDRATION)
-      await Promise.race([earlierCancel, vi.waitUntil(() => sent.length > 2)])
-      expect(sent).toEqual(['first turn', 'second turn'])
-      await expect.element(draftOutput()).toHaveTextContent('"still typing\\nqueued follow-up"')
-    })
-
-    it('returns only the unsent items, text in order and images as attachments, once a Stop lands mid-flush', async () => {
-      const {sent, session: create} = sessionOverHeldRuns([])
-      const {session, cancel, attached} = mountDraftPane(create)
+    it('puts every queued text, in order, in the draft and images back as attachments, and sends none of them', async () => {
+      const {sent, session: create} = sessionOverHeldRuns()
+      const {session, stop, attached} = mountDraftPane(create)
       const multipart = (text: string): ContentPart[] => [{type: 'text', content: text}]
       void session.sendMessage('first turn')
       await vi.waitFor(() => expect(sent).toEqual(['first turn']))
       await session.sendMessage({content: multipart('queued one')})
-      await session.sendMessage({content: multipart('queued two')})
+      await session.sendMessage('queued two')
       await session.sendMessage({
         content: [
           ...multipart('queued three'),
           {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_PIXEL}},
         ],
       })
-      const flush = cancel()
-      await vi.waitFor(() => expect(sent).toEqual(['first turn', 'queued one']))
-      await session.stop()
-      await Promise.race([flush, vi.waitUntil(() => sent.length > 2)])
-      expect(sent).toEqual(['first turn', 'queued one'])
-      await expect.element(draftOutput()).toHaveTextContent('"queued two\\nqueued three"')
+
+      await stop()
+
+      await expect.element(draftOutput()).toHaveTextContent('"queued one\\nqueued two\\nqueued three"')
       expect(attached.map((file) => file.type)).toEqual(['image/png'])
+      expect(session.queue()).toEqual([])
+      expect(sent).toEqual(['first turn'])
     })
   })
 
@@ -2910,7 +2902,7 @@ describe('queue strip', () => {
   const abortOf = (signal: AbortSignal | undefined): Promise<void> =>
     new Promise((resolve) => signal?.addEventListener('abort', () => resolve(), {once: true}))
 
-  function sessionOverHeldRuns(refreshes: Array<() => Promise<ChatSessionHydration>>) {
+  function sessionOverHeldRuns() {
     const sent: string[] = []
     const connection: ChatSessionConnection = {
       subscribe: async function* (signal) {
@@ -2921,7 +2913,7 @@ describe('queue strip', () => {
         sent.push(lastUserText(messages))
         await abortOf(signal)
       },
-      refresh: () => refreshes.shift()?.() ?? Promise.resolve(EMPTY_HYDRATION),
+      refresh: () => Promise.resolve(EMPTY_HYDRATION),
       close: () => undefined,
     }
     return {
@@ -2935,6 +2927,77 @@ describe('queue strip', () => {
         }),
     }
   }
+
+  describe('a run announced after it already ended', () => {
+    const ended = (runId: string, phase: RunLifecycle['phase'], startedAt = 1): RunLifecycle => ({
+      runId,
+      phase,
+      startedAt,
+      finishedAt: startedAt + 1,
+      serverNow: startedAt + 1,
+      error: null,
+    })
+
+    it('is not joined when this session saw it end, even mid-fetch, and still joined when the run is another client; a turn this session sent ends once another client stops it', async () => {
+      const announcements: ChatSessionCallbacks[] = []
+      const fetches: PromiseWithResolvers<void>[] = []
+      const hydration: ChatSessionHydration = {...EMPTY_HYDRATION, lastRun: ended('other-client-run', 'completed')}
+      const connection: ChatSessionConnection = {
+        subscribe: async function* (signal) {
+          await abortOf(signal)
+          yield* []
+        },
+        send: async (_messages, _data, signal) => abortOf(signal),
+        refresh: async () => {
+          await fetches.shift()?.promise
+          announcements[0]?.onHydrated(hydration)
+          return hydration
+        },
+        close: () => undefined,
+      }
+      const session = createRoot((dispose) => {
+        disposers.push(dispose)
+        return createChatSession({
+          sessionId: 'late-announcement',
+          connect: (callbacks) => {
+            announcements.push(callbacks)
+            return connection
+          },
+          stop: () => Promise.resolve(),
+          decide: () => Promise.resolve({startsTurn: false}),
+        })
+      })
+      const callbacks = announcements[0]
+      callbacks?.onLifecycle(ended('stopped-here', 'aborted'))
+      const stoppedHere = await callbacks?.joinsRun('stopped-here')
+      const otherClient = await callbacks?.joinsRun('other-client-run')
+      const fetching = Promise.withResolvers<void>()
+      fetches.push(fetching)
+      callbacks?.onLifecycle({...ended('stopped-mid-fetch', 'running', 5), finishedAt: null})
+      const midFetch = callbacks?.joinsRun('stopped-mid-fetch')
+      callbacks?.onLifecycle(ended('stopped-mid-fetch', 'aborted', 5))
+      fetching.resolve()
+      const stoppedMidFetch = await midFetch
+      void session.sendMessage('mine')
+      const sent = await vi.waitUntil(() => session.runId())
+      callbacks?.onLifecycle(ended('an-older-run', 'aborted', 7))
+      const afterAnOlderRunStopped = session.isLoading()
+      callbacks?.onLifecycle(ended(sent, 'aborted', 9))
+      const settled = await vi
+        .waitUntil(() => !session.isLoading())
+        .then(
+          () => 'settled',
+          () => 'still loading',
+        )
+      expect({stoppedHere, otherClient, stoppedMidFetch, afterAnOlderRunStopped, settled}).toEqual({
+        stoppedHere: false,
+        otherClient: true,
+        stoppedMidFetch: false,
+        afterAnOlderRunStopped: true,
+        settled: 'settled',
+      })
+    })
+  })
 
   const draftOutput = () => page.getByRole('status', {name: 'Draft'})
 
@@ -2973,8 +3036,11 @@ describe('queue strip', () => {
       insert: (text: string) => inputs[0]?.append(text),
       addFile: (file: File) => void attached.push(file),
     }
-    const cancel = () => session.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, sink))
-    return {session, cancel, attached}
+    const stop = () => {
+      returnQueueToDraft(session, sink)
+      return session.stop()
+    }
+    return {session, stop, attached}
   }
 })
 

@@ -40,7 +40,7 @@ import type {ChatSession} from '@conciv/client'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
@@ -67,6 +67,7 @@ import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
+import {QueueStrip} from './queue-strip.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -75,14 +76,13 @@ const PAGE_SESSION: PageSessionConfig = {
 }
 
 const ABOVE_COMPOSER =
-  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
-const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
-const NOW_ROW_UNDER_TURN = 'shrink-0 self-stretch min-w-0 pb-[6px] -mt-[13px]'
+  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden py-2 pe-5 ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug [&>*+*]:before:content-["·"] [&>*+*]:before:px-1 [&>*+*]:before:[color:var(--chat-separator)]'
+const NOW_ROW = 'shrink-0 self-stretch min-w-0'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
-  'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
-const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
+  'self-start ps-[var(--chat-trace-gutter)] text-chat-micro leading-loose [font-family:var(--chat-mono)] text-chat-faint'
+const ERROR = 'flex gap-2 items-center text-chat-danger text-chat-sm anim-msg'
 const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
@@ -239,9 +239,6 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
-  const narrationRowClass = createMemo(() =>
-    chat.messages().at(-1)?.role === 'assistant' ? NOW_ROW_UNDER_TURN : NOW_ROW,
-  )
   const activeCall = createMemo(() => activeToolCall(chat.messages()))
   const transcriptToolCallIds = createMemo(
     () =>
@@ -376,8 +373,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             value={{
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
-              onCancel: () =>
-                void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
+              onCancel: () => {
+                returnQueueToDraft(chat, {insert, addFile: attach})
+                void chat.stop()
+              },
             }}
           >
             <div class="contents">
@@ -424,7 +423,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                           <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
                         </Show>
                         <Show when={narrating()}>
-                          <div class={narrationRowClass()}>
+                          <div class={NOW_ROW}>
                             <NowLine title={narrationTitle()} />
                           </div>
                         </Show>
@@ -451,6 +450,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
                     </div>
+                    <QueueStrip queue={chat.queue()} />
                     <Suspense>
                       <PaneComposer
                         draftStorage={draftStorage.storage}

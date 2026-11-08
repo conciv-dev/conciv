@@ -11,6 +11,10 @@ export type EmitterBounds = {top: number; left: number; right: number}
 
 export type EmitterRoom = {rise: number; bend: number}
 
+export type EmitterRect = {top: number; left: number; right: number; bottom: number}
+
+export type EmitterFootprint = {reach: number; clearance: number}
+
 export type CurveStyle = 'straight' | 'arc' | 'hook' | 'fan' | 'auto'
 
 export type ResolvedCurveStyle = Exclude<CurveStyle, 'auto'>
@@ -25,6 +29,11 @@ const BEND_FACTOR = 1.4
 const ROUNDING_PRECISION = 1e9
 
 const CURVE_SAMPLE_COUNT = 60
+
+const DETOUR_CORNER_RADIUS = 8
+const DETOUR_CLIMB = MAX_RISE * 2
+const DETOUR_CORNER_STEPS = 6
+const DETOUR_CORNER_PROGRESS = Array.from({length: DETOUR_CORNER_STEPS + 1}, (_, index) => index / DETOUR_CORNER_STEPS)
 
 const CURVE_MEASUREMENT_RESOLUTION = 48
 
@@ -46,10 +55,130 @@ export function measureEmitterRoom(anchor: EmitterAnchor, bounds: EmitterBounds)
   return {rise, bend: -Math.min(wanted, sideRoom(leftRoom))}
 }
 
-export function stageViewportBounds(stage: HTMLElement, scale: number): EmitterBounds {
-  const box = stage.getBoundingClientRect()
-  const viewportWidth = document.documentElement.clientWidth
-  return {top: -box.top / scale, left: -box.left / scale, right: (viewportWidth - box.left) / scale}
+export function detourAround(
+  start: EmitterPoint,
+  bounds: EmitterBounds,
+  obstacle: EmitterRect | undefined,
+  footprint: EmitterFootprint,
+): EmitterPoint[] | undefined {
+  const blocking = [obstacle, viewportCeiling(bounds)].filter(
+    (candidate): candidate is EmitterRect => candidate !== undefined && blocksRise(start, candidate, footprint),
+  )
+  const nearest = blocking.toSorted((first, second) => second.bottom - first.bottom)[0]
+  if (nearest === undefined) return undefined
+  const runY = Math.min(start.y, Math.max(nearest.bottom + footprint.clearance, start.y - MAX_RISE))
+  const lane = nearestLane(start, bounds, nearest, footprint)
+  const corners =
+    lane === undefined
+      ? runUnder(start, bounds, runY, footprint)
+      : [start, {x: start.x, y: runY}, {x: lane, y: runY}, {x: lane, y: climbTop(runY, bounds, footprint)}]
+  return roundCorners(distinctPoints(corners)).map((point) => ({x: point.x - start.x, y: point.y - start.y}))
+}
+
+const viewportCeiling = (bounds: EmitterBounds): EmitterRect => ({
+  top: Number.NEGATIVE_INFINITY,
+  left: Number.NEGATIVE_INFINITY,
+  right: Number.POSITIVE_INFINITY,
+  bottom: bounds.top,
+})
+
+function blocksRise(start: EmitterPoint, obstacle: EmitterRect, footprint: EmitterFootprint): boolean {
+  const overhead = obstacle.left - footprint.clearance < start.x && start.x < obstacle.right + footprint.clearance
+  const withinReach = obstacle.top < start.y && start.y - MAX_RISE - footprint.clearance < obstacle.bottom
+  return overhead && withinReach
+}
+
+function nearestLane(
+  start: EmitterPoint,
+  bounds: EmitterBounds,
+  obstacle: EmitterRect,
+  footprint: EmitterFootprint,
+): number | undefined {
+  const left = obstacle.left - footprint.clearance
+  const right = obstacle.right + footprint.clearance
+  const lanes = [
+    {x: left, open: left - footprint.reach >= bounds.left},
+    {x: right, open: right + footprint.reach <= bounds.right},
+  ].filter((lane) => lane.open)
+  return lanes.toSorted((first, second) => Math.abs(first.x - start.x) - Math.abs(second.x - start.x))[0]?.x
+}
+
+function climbTop(runY: number, bounds: EmitterBounds, footprint: EmitterFootprint): number {
+  return Math.min(runY, Math.max(runY - DETOUR_CLIMB, bounds.top + footprint.clearance))
+}
+
+function runUnder(
+  start: EmitterPoint,
+  bounds: EmitterBounds,
+  runY: number,
+  footprint: EmitterFootprint,
+): EmitterPoint[] {
+  const run = MAX_RISE * BEND_FACTOR
+  const leftEnd = Math.max(start.x - run, bounds.left + footprint.reach)
+  const rightEnd = Math.min(start.x + run, bounds.right - footprint.reach)
+  const end = rightEnd - start.x >= start.x - leftEnd ? rightEnd : leftEnd
+  return [start, {x: start.x, y: runY}, {x: end, y: runY}]
+}
+
+function distinctPoints(points: EmitterPoint[]): EmitterPoint[] {
+  return points.filter((point, index) => {
+    const previous = points[index - 1]
+    return previous === undefined || previous.x !== point.x || previous.y !== point.y
+  })
+}
+
+function roundCorners(points: EmitterPoint[]): EmitterPoint[] {
+  return points.flatMap((point, index) => {
+    const previous = points[index - 1]
+    const next = points[index + 1]
+    if (previous === undefined || next === undefined) return [point]
+    return cornerArc(previous, point, next)
+  })
+}
+
+function cornerArc(previous: EmitterPoint, corner: EmitterPoint, next: EmitterPoint): EmitterPoint[] {
+  const before = distance(previous, corner)
+  const after = distance(corner, next)
+  const radius = Math.min(DETOUR_CORNER_RADIUS, before / 2, after / 2)
+  const entry = toward(corner, previous, radius / before)
+  const exit = toward(corner, next, radius / after)
+  return DETOUR_CORNER_PROGRESS.map((progress) => quadraticAt(entry, corner, exit, progress))
+}
+
+const distance = (from: EmitterPoint, to: EmitterPoint): number => Math.hypot(to.x - from.x, to.y - from.y)
+
+const toward = (from: EmitterPoint, to: EmitterPoint, fraction: number): EmitterPoint => ({
+  x: from.x + (to.x - from.x) * fraction,
+  y: from.y + (to.y - from.y) * fraction,
+})
+
+function quadraticAt(from: EmitterPoint, control: EmitterPoint, to: EmitterPoint, progress: number): EmitterPoint {
+  const rest = 1 - progress
+  return {
+    x: rest * rest * from.x + 2 * rest * progress * control.x + progress * progress * to.x,
+    y: rest * rest * from.y + 2 * rest * progress * control.y + progress * progress * to.y,
+  }
+}
+
+export function viewportBounds(): EmitterBounds {
+  return {top: 0, left: 0, right: document.documentElement.clientWidth}
+}
+
+export function stageLocalRect(box: DOMRect, scale: number, rect: EmitterRect): EmitterRect {
+  return {
+    top: (rect.top - box.top) / scale,
+    left: (rect.left - box.left) / scale,
+    right: (rect.right - box.left) / scale,
+    bottom: (rect.bottom - box.top) / scale,
+  }
+}
+
+export function stageLocalBounds(box: DOMRect, scale: number, bounds: EmitterBounds): EmitterBounds {
+  return {
+    top: (bounds.top - box.top) / scale,
+    left: (bounds.left - box.left) / scale,
+    right: (bounds.right - box.left) / scale,
+  }
 }
 
 type CurveShape = {curviness: number; anchors: (room: EmitterRoom, index: number) => EmitterPoint[]}
