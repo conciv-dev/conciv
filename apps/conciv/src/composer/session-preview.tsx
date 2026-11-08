@@ -96,7 +96,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
         </Popover.Title>
         <TruncatedText class="text-[0.6875rem] text-chat-text-3 max-w-2/5" text={props.target.project} />
       </header>
-      <div class="flex flex-1 flex-col min-h-0">
+      <div class="flex flex-1 flex-col min-h-0 [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark">
         <Suspense fallback={<PreviewLoading />}>
           <Switch>
             <Match when={pages.isError && pages.data === undefined}>
