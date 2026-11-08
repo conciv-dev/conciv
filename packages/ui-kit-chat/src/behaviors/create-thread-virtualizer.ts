@@ -21,6 +21,7 @@ import {
 } from '@tanstack/solid-virtual'
 
 export const SCROLL_END_THRESHOLD_PX = 1
+const NEAR_START_VIEWPORTS = 3
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
@@ -241,7 +242,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const liveNearStart = (): boolean => {
     const element = config.scrollElement()
-    return element?.isConnected === true && element.scrollTop <= element.clientHeight
+    return element?.isConnected === true && element.scrollTop <= element.clientHeight * NEAR_START_VIEWPORTS
   }
 
   const syncAtEnd = () => {

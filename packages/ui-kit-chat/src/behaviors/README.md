@@ -6,7 +6,7 @@ DOM-level behaviors used by primitives: the thread virtualizer with end-followin
 
 ## Interface
 
-- `create-thread-virtualizer.ts:createThreadVirtualizer` - returns `ThreadVirtualizer` (`items`, `totalSize`, `measured`, `atEnd`, `nearStart` (scrolled within one viewport height of the top), `landOnEnd`, `measureRow`, `remeasure`); `SCROLL_END_THRESHOLD_PX` (1); type `ThreadVirtualizerConfig`.
+- `create-thread-virtualizer.ts:createThreadVirtualizer` - returns `ThreadVirtualizer` (`items`, `totalSize`, `measured`, `atEnd`, `nearStart` (scrolled within three viewport heights of the top, so older history loads before the reader reaches it), `landOnEnd`, `measureRow`, `remeasure`); `SCROLL_END_THRESHOLD_PX` (1); type `ThreadVirtualizerConfig`.
 - `composer-draft-storage.ts:readComposerDraft`, `composer-draft-storage.ts:writeComposerDraft`, type `PersistedComposerDraft`.
 - `use-composer-draft.ts:useComposerDraftPersistence`, type `ComposerDraftPersistenceOptions`.
 - `use-scroll-lock.ts:useScrollLock`; `use-size-handle.ts:useSizeHandle`.

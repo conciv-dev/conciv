@@ -1322,7 +1322,7 @@ describe('chat history paging', () => {
   function mountPagedChat(sessionId: string): void {
     keep(
       mountPane({base: core(), sessionId, width: 460}, () => (
-        <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '400px'}}>
           <ChatPane sessionId={sessionId} />
         </div>
       )),
@@ -1363,6 +1363,27 @@ describe('chat history paging', () => {
     await expect.element(exchange(76)).toBeInViewport()
     expect(await hydrates()).toBe(opened + 1)
   })
+
+  test('scrolling up loads the page before well ahead of the top, and the messages in view stay where they were', async () => {
+    const opened = await openChat(long.sessionId)
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await userEvent.wheel(thread(), {delta: {y: -1000}})
+
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await expect.element(loadingOlder()).not.toBeInViewport()
+    await expectInViewOnly([87, 88], [86, 91])
+    await faults.releaseAll()
+
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expectInViewOnly([87, 88], [86, 91])
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
+  async function expectInViewOnly(shown: number[], hidden: number[]): Promise<void> {
+    for (const index of shown) await expect.element(exchange(index)).toBeInViewport()
+    for (const index of hidden) await expect.element(exchange(index)).not.toBeInViewport()
+  }
 
   test('an older page that fails waits for Retry instead of asking again, and Retry loads it', async () => {
     const opened = await openChat(long.sessionId)
