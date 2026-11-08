@@ -587,6 +587,8 @@ describe('home db', () => {
       const packageRequire = createRequire(workerData.packageJson)
       const {drizzle} = packageRequire('drizzle-orm/node-sqlite')
       const {migrateSync} = packageRequire('drizzle-orm/sqlite-core/async/session')
+      const lock = new DatabaseSync(workerData.lock, {timeout: 5000})
+      lock.exec('BEGIN EXCLUSIVE')
       const client = new DatabaseSync(workerData.file, {timeout: 5000})
       client.exec('PRAGMA journal_mode = WAL')
       const logger = {
@@ -598,20 +600,32 @@ describe('home db', () => {
       }
       migrateSync(workerData.migrations, drizzle({client, logger})._.session)
       client.close()
+      lock.close()
       `,
       {
         eval: true,
-        workerData: {packageJson: packageJsonPath, file: join(home, 'home.db'), migrations: homeMigrations},
+        workerData: {
+          packageJson: packageJsonPath,
+          file: join(home, 'home.db'),
+          lock: join(home, 'home.lock'),
+          migrations: homeMigrations,
+        },
       },
     )
-    await once(migrator, 'message')
-    const first = openHomeDb(home)
-    const second = openHomeDb(home)
-    expect(listEngines(first)).toEqual([])
-    expect(listEngines(second)).toEqual([])
-    closeHomeDb(first)
-    closeHomeDb(second)
-    await once(migrator, 'exit')
+    const signal = AbortSignal.timeout(10_000)
+    const exited = once(migrator, 'exit', {signal})
+    try {
+      await once(migrator, 'message', {signal})
+      const first = openHomeDb(home)
+      const second = openHomeDb(home)
+      expect(listEngines(first)).toEqual([])
+      expect(listEngines(second)).toEqual([])
+      closeHomeDb(first)
+      closeHomeDb(second)
+      await exited
+    } finally {
+      await migrator.terminate()
+    }
   })
 
   it('two connections opening a fresh db at the same instant both succeed', async () => {
@@ -679,9 +693,13 @@ describe('home db', () => {
       `,
       {eval: true, workerData: {module: homeDbModule, home, barrier}},
     )
-    const [message] = await once(worker, 'message')
-    await once(worker, 'exit')
-    return message
+    const signal = AbortSignal.timeout(10_000)
+    try {
+      const [[message]] = await Promise.all([once(worker, 'message', {signal}), once(worker, 'exit', {signal})])
+      return message
+    } finally {
+      await worker.terminate()
+    }
   }
 
   function captureThrow(run: () => unknown): unknown {
