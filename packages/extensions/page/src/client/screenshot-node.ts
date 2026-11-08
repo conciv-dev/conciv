@@ -11,13 +11,9 @@ export async function screenshotNode(
   const {snapdom} = await import('@zumer/snapdom')
   const captured = await snapdom(element, {dpr: input.scale, embedFonts: true})
   const canvas = await captured.toCanvas()
-  return {
-    image: await pngOf({source: canvas, width, height}),
-    reference:
-      input.reference === undefined ? null : await pngOf({source: await loaded(input.reference), width, height}),
-    width,
-    height,
-  }
+  const reference =
+    input.reference === undefined ? null : await pngOf({source: await loaded(input.reference), width, height})
+  return {image: await pngOf({source: canvas, width, height}), reference, mask: reference, width, height}
 }
 
 const DATA_URL_COMMA = ','

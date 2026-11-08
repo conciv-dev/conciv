@@ -76,7 +76,7 @@ async function drawBoth(input: {
   reference: string | null
   width: number
   height: number
-}): Promise<{image: string; reference: string | null}> {
+}): Promise<{image: string; reference: string | null; mask: string | null}> {
   const draw = async (urls: string[]): Promise<string> => {
     const canvas = document.createElement('canvas')
     canvas.width = input.width
@@ -93,5 +93,6 @@ async function drawBoth(input: {
   return {
     image: await draw([input.shot]),
     reference: input.reference === null ? null : await draw([input.behind, input.reference]),
+    mask: input.reference === null ? null : await draw([input.reference]),
   }
 }

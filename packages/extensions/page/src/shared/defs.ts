@@ -239,6 +239,7 @@ export const screenshotDef = pageTool({
 export const PageNodeShotSchema = z.object({
   image: z.string().describe('base64 png of the element alone, stretched to width by height'),
   reference: z.string().nullable().describe('base64 png of the reference url drawn at the same size'),
+  mask: z.string().nullable().describe('base64 png of the reference alone; its alpha marks the pixels compared'),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
 })

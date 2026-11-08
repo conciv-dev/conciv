@@ -61,14 +61,14 @@ async function captured(input: {
     .call(screenshotNodeDef.name, {selector: input.selector, width, height, scale: 1, reference: input.asset})
     .catch(() => null)
   const shot = PageNodeShotSchema.safeParse(reply)
-  if (!shot.success || shot.data.reference === null) return null
+  if (!shot.success || shot.data.reference === null || shot.data.mask === null) return null
   const live = createRaster(Buffer.from(shot.data.image, 'base64'))
   const reference = createRaster(Buffer.from(shot.data.reference, 'base64'))
+  const ink = createRaster(Buffer.from(shot.data.mask, 'base64')).pixels()
   const {mask} = live.compare({other: reference, comparator: 'pixelmatch'})
-  const ink = [live.pixels(), reference.pixels()]
   const painted = mask.reduce<{seen: number; wrong: number}>(
     (sums, wrong, index) => {
-      if (!ink.some((data) => (data[index * CHANNELS + ALPHA] ?? 0) > 0)) return sums
+      if ((ink[index * CHANNELS + ALPHA] ?? 0) === 0) return sums
       return {seen: sums.seen + 1, wrong: sums.wrong + wrong}
     },
     {seen: 0, wrong: 0},
