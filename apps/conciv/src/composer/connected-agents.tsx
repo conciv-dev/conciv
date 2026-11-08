@@ -45,7 +45,7 @@ export function ConnectedAgents(props: {sessionId: string; onDisconnected: () =>
 function AgentIcon(props: {harnessId: string}): JSX.Element {
   return (
     <Show when={props.harnessId === 'claude'} fallback={<Plug class="size-3 block shrink-0" aria-hidden="true" />}>
-      <Clawd class="h-2.5 w-auto block shrink-0" />
+      <Clawd class="h-3.5 w-auto block shrink-0" />
     </Show>
   )
 }
