@@ -2506,17 +2506,39 @@ describe('panel header', () => {
     await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
     await expect.element(menu()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(`/panel/${otherId}`)
+
+    const DRAFT = 'the draft that outlives the menu'
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer().click()
+    await userEvent.keyboard(DRAFT)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await switcher(OTHER).click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
   }, 30_000)
 
-  test('the session menu lives in the URL: back closes it and a reload reopens it', async () => {
+  test('the session menu lives in the URL: back closes it, closing leaves no extra entry, a reload reopens it', async () => {
     const TITLE = 'the session in the address'
-    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
+    const EARLIER = 'the session visited before'
+    const titleButton = (title = TITLE) =>
+      page.getByRole('banner').getByRole('button', {name: `${title}, session options`})
     const menu = () => page.getByRole('dialog', {name: 'Session options'})
     const switcher = () => menu().getByRole('button', {name: `Session: ${TITLE}`})
     const rpc = coreRpc(coreBase())
+    const earlierId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: earlierId, title: EARLIER})
     const sessionId = await createSession(rpc)
     await rpc.sessions.rename({sessionId, title: TITLE})
-    harness.mountShell(`/panel/${sessionId}?open=true`)
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}?open=true`])
 
     await expect.element(titleButton(), {timeout: 8000}).toBeVisible()
     await titleButton().click()
@@ -2526,6 +2548,15 @@ describe('panel header', () => {
     harness.back()
     await expect.element(menu()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
 
     harness.dispose()
     harness.mountShell(`/panel/${sessionId}/options?open=true`)

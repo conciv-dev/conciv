@@ -1,4 +1,12 @@
-import {Outlet, createFileRoute, redirect, useMatch, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useCanGoBack,
+  useMatch,
+  useMatchRoute,
+  useRouter,
+} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -278,7 +286,7 @@ function PanelSession(): JSX.Element {
       })
   }
 
-  const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
+  const activate = sessionMenu.activate
   const newSession = async () => {
     const {sessionId} = await rpc.sessions.create(undefined)
     appData.invalidateSessions()
@@ -436,31 +444,56 @@ function useSessionMenu(sessionId: () => string): {
   view: () => string | undefined
   open: () => boolean
   setOpen: (open: boolean) => void
+  activate: (id: string) => void
 } {
   const router = useRouter()
   const matchRoute = useMatchRoute()
+  const canGoBack = useCanGoBack()
   const view = useMatch({from: '/panel/$sessionId/$view', shouldThrow: false, select: (match) => match.params.view})
   const chatOptionsMatch = matchRoute({to: '/panel/$sessionId/options'})
   const viewOptionsMatch = matchRoute({to: '/panel/$sessionId/$view/options'})
   const open = () => [chatOptionsMatch(), viewOptionsMatch()].some(Boolean)
-  const setOpen = (next: boolean) => {
-    if (next === open()) return
+  const openedInApp = () => open() && canGoBack() && router.state.location.state.sessionMenuOpened === true
+  const show = () => {
     const activeView = view()
     if (activeView === undefined) {
       void router.navigate({
-        to: next ? '/panel/$sessionId/options' : '/panel/$sessionId',
+        to: '/panel/$sessionId/options',
         params: {sessionId: sessionId()},
         search: true,
-        replace: !next,
+        state: {sessionMenuOpened: true},
       })
       return
     }
     void router.navigate({
-      to: next ? '/panel/$sessionId/$view/options' : '/panel/$sessionId/$view',
+      to: '/panel/$sessionId/$view/options',
       params: {sessionId: sessionId(), view: activeView},
       search: true,
-      replace: !next,
+      state: {sessionMenuOpened: true},
     })
   }
-  return {view, open, setOpen}
+  const hide = () => {
+    if (openedInApp()) return router.history.back()
+    const activeView = view()
+    if (activeView === undefined) {
+      void router.navigate({to: '/panel/$sessionId', params: {sessionId: sessionId()}, search: true, replace: true})
+      return
+    }
+    void router.navigate({
+      to: '/panel/$sessionId/$view',
+      params: {sessionId: sessionId(), view: activeView},
+      search: true,
+      replace: true,
+    })
+  }
+  const setOpen = (next: boolean) => {
+    if (next === open()) return
+    if (next) return show()
+    hide()
+  }
+  const activate = (id: string) => {
+    if (id === sessionId() && open()) return hide()
+    void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}, replace: openedInApp()})
+  }
+  return {view, open, setOpen, activate}
 }

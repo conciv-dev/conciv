@@ -27,6 +27,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches; any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
+- `panel.$sessionId.tsx:useSessionMenu`: opening pushes the `options` child with history state `sessionMenuOpened`; closing an in-app opened menu (that mark and `useCanGoBack()`) goes back one entry, a menu loaded directly on `/options` replaces it with the parent; picking a session from an in-app opened menu replaces the `options` entry, and picking the active session closes the menu the same way, so no close leaves a duplicate history entry
 - the static `options` segment outranks `$view`, so no extension view can use the id `options`
 - `panel.$sessionId.$view.tsx:PanelView`: a locked view blocks leaving it, but not opening or closing its session menu
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false

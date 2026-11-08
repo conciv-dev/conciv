@@ -154,10 +154,11 @@ export function SessionSelector(props: {
   const canRename = () => activeRow() !== null
 
   const select = (id: string) => {
-    if (!id || id === activeId()) return
+    if (!id) return
+    const switching = id !== activeId()
     const title = sessionsLoaded().find((s) => s.id === id)?.title ?? id
     props.onActivate(id)
-    announce(`Switched to ${title}`)
+    if (switching) announce(`Switched to ${title}`)
   }
 
   const isPill = () => props.variant === 'pill'
@@ -169,10 +170,7 @@ export function SessionSelector(props: {
       translations={{loading: SEARCHING_LABEL}}
       value={valueArr()}
       scrollToIndexFn={(details) => scrollToItem(details.index)}
-      onValueChange={(d) => {
-        const id = d.value[0]
-        if (id) select(id)
-      }}
+      onSelect={(details) => select(details.itemValue)}
       onInputValueChange={(details) => typed(details.inputValue)}
       onOpenChange={(details) => {
         if (details.open) appData.invalidateSessions()
