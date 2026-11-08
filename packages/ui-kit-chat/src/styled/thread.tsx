@@ -84,6 +84,7 @@ export type ThreadMessagesProps = {
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
+  readOnly?: boolean
 }
 
 const PLAN_LABEL = 'plan'
@@ -140,6 +141,7 @@ function AssistantTurn(props: {
   const message = useMessage()
   const thread = useThread()
   const ctx = useToolCtx()
+  const config = useContext(ThreadConfigContext)
   const parts = () => message.message().parts
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
   const lastPartIndex = createMemo(() => parts().length - 1)
@@ -296,7 +298,7 @@ function AssistantTurn(props: {
       <Message.Error />
       <Show when={!runActive()}>
         <div class={ANSWER_ACTION_ROW_CLASS}>
-          <AssistantActionBar />
+          <AssistantActionBar readOnly={config.readOnly()} />
         </div>
       </Show>
     </Message.Root>
@@ -350,6 +352,7 @@ type ThreadConfig = {
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
   groupEntries: () => readonly GroupEntry[]
+  readOnly: () => boolean
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -361,6 +364,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   pageSession: () => undefined,
   grouping: () => undefined,
   groupEntries: () => [],
+  readOnly: () => false,
 })
 
 function TurnPrefix(): JSX.Element {
@@ -471,6 +475,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         pageSession: () => props.pageSession,
         grouping: () => props.grouping,
         groupEntries: () => props.groupEntries ?? [],
+        readOnly: () => props.readOnly ?? false,
       }}
     >
       <TurnEstimateProvider value={estimator}>

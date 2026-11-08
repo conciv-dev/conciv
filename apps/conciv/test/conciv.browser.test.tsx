@@ -3802,6 +3802,13 @@ describe('session selector', () => {
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
     await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
     await expect.element(search).toHaveFocus()
+    await expect.element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last()).toBeVisible()
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'Refresh'}))
+      .not.toBeInTheDocument()
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'More message actions'}))
+      .not.toBeInTheDocument()
 
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(option('older session 0')).toBeVisible()

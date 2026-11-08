@@ -181,7 +181,7 @@ function PreviewThread(props: {
               failed={props.failed}
               load={props.load}
             />
-            <Thread.Messages />
+            <Thread.Messages readOnly />
           </Thread.Viewport>
         </Thread>
       </ChatProvider>
