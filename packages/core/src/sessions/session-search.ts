@@ -36,6 +36,7 @@ type SessionSearch = {
   changes(signal: AbortSignal | undefined): AsyncIteratorObject<SessionsChange, unknown, void>
   pages(term: string, page: HarnessListPage, everywhere: boolean): Promise<NativePage[]>
   retitle(harnessKind: string, nativeId: HarnessSessionId, title: string): Promise<void>
+  cover(cwd: string): void
   dispose(): Promise<void>
 }
 
@@ -116,19 +117,19 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
 
   const titlePass = async (running: Running, source: Indexed, scope: HarnessListScope): Promise<TitlePass> => {
     const signal = running.stopped.signal
-    const inProject = 'cwd' in scope
-    const owned = (cwd: string): boolean => (cwd === deps.cwd) === inProject
+    const folder = 'cwd' in scope ? scope.cwd : null
+    const owned = (cwd: string): boolean => (folder === null ? cwd !== deps.cwd : cwd === folder)
     const statesOwned = async () =>
       (await running.index.states({harness: source.harness.id}, {signal})).filter((row) => owned(row.cwd))
     try {
       const metas = (await listedSessions(source.history, scope)).filter(
-        (meta) => inProject || !sameCwd(meta.cwd, deps.cwd),
+        (meta) => folder !== null || !sameCwd(meta.cwd, deps.cwd),
       )
       const titles = await rowTitles(deps.db, source.harness.id, metas)
       const states = keyBy(await statesOwned(), (row) => row.id)
       const listed = metas.map((meta): Listed => {
         const id = documentIdOf(source.harness.id, meta.id)
-        const cwd = inProject ? deps.cwd : meta.cwd
+        const cwd = folder ?? meta.cwd
         return {source, meta, cwd, title: titles.get(meta.id) ?? meta.derivedTitle, current: states[id]}
       })
       const listedIds = listed.map(({meta}) => documentIdOf(source.harness.id, meta.id))
@@ -251,6 +252,12 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
         {id: documentIdOf(harnessKind, nativeId), title},
         {signal: state.running.stopped.signal},
       )
+    },
+    cover(cwd) {
+      const covered = state.scopes.some((scope) => !('cwd' in scope) || sameCwd(scope.cwd, cwd))
+      if (covered) return
+      state.scopes.push({cwd})
+      refresh()
     },
     async dispose() {
       refreshes.stop()

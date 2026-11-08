@@ -45,7 +45,7 @@ const PAGE_SIZE = 30
 const SKEL = 'h-8 rounded-chat-surface-sm skel-bg [background-size:200%_100%] anim-skel'
 
 const SEARCH_WAIT_MS = 250
-const PREVIEW_WAIT_MS = 300
+const PREVIEW_WAIT_MS = 600
 const CLOCK_TICK_MS = 60_000
 
 const HEADER_ROW_SIZE = 26
@@ -62,7 +62,7 @@ type Bucket = (typeof BUCKETS)[number]
 
 type PickerSession = SessionMeta | SessionHit
 
-type Elsewhere = {project: string; resume: string | null}
+type Elsewhere = {cwd: string; project: string; resume: string | null}
 
 type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: PickerSession}
 
@@ -100,9 +100,23 @@ function matchedOf(session: PickerSession): string[] {
   return 'matched' in session ? session.matched : []
 }
 
+function previewOf(session: PickerSession | undefined) {
+  const native = session?.native
+  if (session === undefined || !native) return null
+  const shared = {
+    title: session.title,
+    harness: native.harnessKind,
+    nativeId: native.nativeId,
+    matched: matchedOf(session),
+  }
+  const elsewhere = elsewhereOf(session)
+  if (elsewhere === null) return {...shared, project: projectOf(native.cwd), cwd: null, resume: null}
+  return {...shared, project: elsewhere.project, cwd: elsewhere.cwd, resume: elsewhere.resume}
+}
+
 function elsewhereOf(session: PickerSession | undefined): Elsewhere | null {
   if (session === undefined || !('cwd' in session) || session.cwd === null) return null
-  return {project: projectOf(session.cwd), resume: session.resume}
+  return {cwd: session.cwd, project: projectOf(session.cwd), resume: session.resume}
 }
 
 export function SessionSelector(props: {
@@ -237,25 +251,7 @@ export function SessionSelector(props: {
     if (picker.open) return setPicker('previewed', value)
     settle.maybeExecute(value)
   }
-  const previewTarget = createMemo(
-    () => {
-      const session = sessionOf(picker.previewed)
-      const native = session?.native
-      if (session === undefined || native === null || native === undefined) return null
-      const elsewhere = elsewhereOf(session)
-      return {
-        title: session.title,
-        project: elsewhere?.project ?? projectOf(native.cwd),
-        harness: native.harnessKind,
-        nativeId: native.nativeId,
-        cwd: 'cwd' in session ? session.cwd : null,
-        matched: matchedOf(session),
-        resume: resumeCopyOf(session.id) ?? null,
-      }
-    },
-    null,
-    {equals: isEqual},
-  )
+  const previewTarget = createMemo(() => previewOf(sessionOf(picker.previewed)), null, {equals: isEqual})
 
   const isPill = () => props.variant === 'pill'
   return (

@@ -3886,12 +3886,12 @@ describe('session selector', () => {
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toMatchTextContent(/puffin notes \| Copied \| Copied$/)
     await expect.element(option('the gull census')).toBeVisible()
-    await expect.element(resumeCopy('Copied')).toBeVisible()
+    expect(resumeCopy('Copied').query()).toBeNull()
     await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
-    await expect.element(resumeCopy('Copy resume command')).toBeVisible()
     await navigator.clipboard.writeText('')
-    await userEvent.click(resumeCopy('Copy resume command'))
+    await userEvent.click(resumeCopy('Copy resume command'), {position: {x: -6, y: 14}})
     await expect.element(resumeCopy('Copied')).toBeVisible()
+    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
     await expect
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toMatchTextContent(/puffin notes \| Copied \| Copied \| Copied$/)
@@ -3932,6 +3932,9 @@ describe('session selector', () => {
     await expect
       .element(preview('a minute after midnight').getByRole('button', {name: 'More message actions'}))
       .not.toBeInTheDocument()
+    await typeKeyByKey(search, 'xy', 'tide')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+    await expect.element(anyPreview).not.toBeInTheDocument()
 
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(option('older session 0')).toBeVisible()

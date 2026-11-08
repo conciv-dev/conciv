@@ -8,13 +8,13 @@ import {
   TruncatedText,
   useFormatHotkey,
   useHotkeys,
-  type ClipboardCopy,
 } from '@conciv/ui-kit-system'
 import {ChatProvider, MarkdownHighlightProvider, Thread, useThreadViewport, type Chat} from '@conciv/ui-kit-chat'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
-import {useAppData} from '../app/context.js'
+import {useAnnounce, useAppData} from '../app/context.js'
 import {ConversationSkeleton} from '../pane/indicators.js'
+import {createResumeCopy} from './resume-copy.js'
 
 type PreviewTarget = {
   title: string
@@ -23,7 +23,7 @@ type PreviewTarget = {
   nativeId: HarnessSessionId
   cwd: string | null
   matched: string[]
-  resume: ClipboardCopy | null
+  resume: string | null
 }
 
 const PAGE_LIMIT = 40
@@ -108,9 +108,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
           <TruncatedText text={props.target.title} />
         </Popover.Title>
         <TruncatedText class="text-[0.6875rem] text-chat-text-3 max-w-2/5" text={props.target.project} />
-        <Show when={props.target.resume}>
-          {(resume) => <ClipboardCopyButton clipboard={resume()} tooltips={RESUME_TOOLTIPS} class="size-7 shrink-0" />}
-        </Show>
+        <Show when={props.target.resume}>{(command) => <ResumeCopyButton command={command()} />}</Show>
       </header>
       <div class="flex flex-1 flex-col min-h-0 [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark">
         <Suspense fallback={<PreviewLoading />}>
@@ -157,6 +155,18 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
         </span>
       </footer>
     </div>
+  )
+}
+
+function ResumeCopyButton(props: {command: string}): JSX.Element {
+  const announce = useAnnounce()
+  const resume = createResumeCopy(() => props.command, announce)
+  return (
+    <ClipboardCopyButton
+      clipboard={resume}
+      tooltips={RESUME_TOOLTIPS}
+      class="size-7 shrink-0 relative after:absolute after:-inset-2 after:content-['']"
+    />
   )
 }
 

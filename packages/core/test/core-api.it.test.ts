@@ -2912,6 +2912,43 @@ describe('rpc wire', () => {
           expect((await searchKit().rpc.sessions.list({limit: 100})).sessions).toHaveLength(listed.length)
         })
 
+        it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
+          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const transcriptIn = (nativeId: string, ask: string, answer: string) => {
+            const path = requireTranscriptPath(requireClaude())(folder, HarnessSessionId.parse(nativeId))
+            mkdirSync(dirname(path), {recursive: true})
+            writeFileSync(
+              path,
+              [
+                JSON.stringify({type: 'user', cwd: folder, message: {content: ask}}),
+                JSON.stringify({type: 'assistant', cwd: folder, message: {content: [{type: 'text', text: answer}]}}),
+              ].join('\n') + '\n',
+            )
+            const stamp = nextStamp() / 1000
+            utimesSync(path, stamp, stamp)
+          }
+          const previewed = claudeId('claude-plover-previewed')
+          const neighbour = claudeId('claude-plover-neighbour')
+          transcriptIn(previewed, 'a plover on the shingle', 'it ran the tideline')
+          transcriptIn(neighbour, 'a ringed plover nest', 'four speckled eggs')
+          const resident = claudeId('claude-plover-resident')
+          writeClaudeTurn(resident, 'a resident dunlin', 'it probed the sandbar')
+          await searchKit().rpc.sessions.list({limit: 100})
+          await foundOnceIndexed('sandbar', [resident])
+
+          const window = await searchKit().rpc.sessions.preview({
+            harness: 'claude',
+            nativeId: HarnessSessionId.parse(previewed),
+            cwd: folder,
+            before: null,
+            limit: 10,
+          })
+          expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await indexedChange()
+          expect(await found('ringed', true)).toEqual([neighbour])
+          rmSync(folder, {recursive: true, force: true})
+        })
+
         it('searches this project unless asked for every project, reading each session from its own folder', async () => {
           const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
           const home = claudeId('claude-avocet-home')

@@ -248,6 +248,7 @@ export function sessionsRouter(deps: RpcDeps) {
       const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd)
       const window = previewWindow(messages, input.before, input.limit)
       if (window === null) throw errors.NOT_FOUND()
+      if (input.cwd !== undefined) search.cover(input.cwd)
       return window
     }),
     create: os.sessions.create.handler(async () => {
