@@ -53,16 +53,18 @@ const groupSchema = z.object({
   cloud: z.array(z.string()),
 })
 
+const GROUP_DEFAULTS: z.input<typeof groupSchema> = {
+  capture: ['clicks', 'inputs'],
+  mask: ['inputs', 'network'],
+  upload: [],
+  pinned: ['clicks'],
+  cloud: ['clicks'],
+}
+
 function CheckboxGroupSettings() {
   const [log, setLog] = createStore({last: 'nothing yet'})
   const form = useSettingsForm(() => ({
-    defaultValues: {
-      capture: ['clicks', 'inputs'],
-      mask: ['inputs', 'network'],
-      upload: [],
-      pinned: ['clicks'],
-      cloud: ['clicks'],
-    },
+    defaultValues: GROUP_DEFAULTS,
     validators: {onMount: groupSchema, onBlur: groupSchema},
     listeners: {
       onBlur: ({fieldApi}) => {
