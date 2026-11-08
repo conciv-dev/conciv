@@ -3930,7 +3930,7 @@ describe('session selector', () => {
 
     const href = mounted.router.state.location.href
     mounted.pane.dispose()
-    mountPicker(mounted.activeId, href)
+    const remounted = mountPicker(mounted.activeId, href)
     await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
     await expect.element(labelled).toHaveValue('gull')
     await expect.element(allProjects).toBeChecked()
@@ -4000,6 +4000,36 @@ describe('session selector', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
     await expect.element(trigger).toHaveFocus()
+
+    remounted.pane.dispose()
+    const twin = pickerRouter('/', () => (
+      <Suspense>
+        <SessionSelector
+          variant="pill"
+          activeId={() => mounted.activeId}
+          onActivate={() => {}}
+          onNewSession={() => {}}
+        />
+        <SessionSelector
+          variant="pill"
+          activeId={() => mounted.activeId}
+          onActivate={() => {}}
+          onNewSession={() => {}}
+        />
+      </Suspense>
+    ))
+    keep(mountPane({base: core(), sessionId: mounted.activeId}, () => <RouterProvider router={twin} />))
+    const triggers = page.getByRole('button', {name: 'Session: the active session'})
+    await userEvent.click(triggers.first())
+    await expect.element(search).toHaveValue('')
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await userEvent.click(triggers.last())
+    await expect.element(search).toHaveValue('kiwi')
+    await expect.element(page.getByRole('button', {name: 'Clear search'})).toBeVisible()
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
   }, 45_000)
 
   test('a session past the first page shows its own title on the trigger', async () => {

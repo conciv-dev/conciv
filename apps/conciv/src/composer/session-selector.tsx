@@ -138,6 +138,7 @@ export function SessionSelector(props: {
   })
   const typed = (details: {inputValue: string; reason?: string}) => {
     if (details.reason !== 'input-change' && details.reason !== 'clear-trigger') return
+    setPicker('typed', details.inputValue)
     dismissPreview()
     searchWriter.maybeExecute(details.inputValue.trim())
     if (details.inputValue.trim() === '') searchWriter.flush()
@@ -236,11 +237,26 @@ export function SessionSelector(props: {
 
   let content: HTMLDivElement | undefined
   let input: HTMLInputElement | undefined
-  const [picker, setPicker] = createStore<{highlighted: string | null; previewed: string | null; open: boolean}>({
+  const [picker, setPicker] = createStore<{
+    highlighted: string | null
+    previewed: string | null
+    open: boolean
+    typed: string
+  }>({
     highlighted: null,
     previewed: null,
     open: false,
+    typed: search(),
   })
+  const shownInput = createMemo(
+    (previous: {term: string; text: string}) => {
+      const term = search()
+      const text = picker.typed
+      if (term !== previous.term && term !== text.trim()) return {term, text: term}
+      return {term, text}
+    },
+    {term: search(), text: search()},
+  )
   const settle = createDebouncer((value: string) => setPicker({previewed: value, open: true}), {wait: PREVIEW_WAIT_MS})
   const dismissPreview = () => {
     settle.cancel()
@@ -267,7 +283,7 @@ export function SessionSelector(props: {
         const id = d.value[0]
         if (id) select(id)
       }}
-      defaultInputValue={search()}
+      inputValue={shownInput().text}
       onInputValueChange={typed}
       onHighlightChange={(details) => highlighted(details.highlightedValue)}
       closeOnSelect={elsewhereOf(sessionOf(picker.highlighted)) === null}
