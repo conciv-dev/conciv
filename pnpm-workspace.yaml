@@ -4,6 +4,7 @@ packages:
   - apps/*
   - apps/examples/*
   - e2e/*
+  - native/swift
 
 syncInjectedDepsAfterScripts:
   - build
