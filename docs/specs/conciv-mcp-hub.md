@@ -280,7 +280,9 @@ the agent to warn the user when it is above 1.
   same engine. The engine enforces this on
   its RPC path too (decided 2026-11-07): the RPC mount (`packages/core/src/api/rpc/mount.ts`) reads the hub headers
   and runs the same `admitOutside` check before any procedure that names a session (session header or input
-  `sessionId`) from a hub-origin request; procedures that name no session (catalog, list, create, resolve) never prompt, and its tool chunks carry the
+  `sessionId`) from a hub-origin request; procedures that name no session (catalog, list, create, resolve) never prompt. A hub-origin
+  `chat.permissionDecision` or `chat.allowOutside` is always refused (decided 2026-11-08): only a click in the tab
+  answers a permission card, and its tool chunks carry the
   same `metadata.conciv` marker. Consent lives in the engine, never in a client.
 - `--tab` is declared on every route and command the way `envelopeFlag` is (router options belong to the segment
   that declares them).
