@@ -1,6 +1,8 @@
 import {createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {z} from 'zod'
+import {useSettingsForm} from './settings-form.js'
 import {Switch} from './switch.js'
 
 const meta: Meta = {title: 'ui-kit-system/Switch'}
@@ -62,5 +64,84 @@ export const Default: Story = {
     ])
     await waitFor(() => expect(toggle).not.toBeChecked())
     await expect(c.getByText('State: off')).toBeVisible()
+  },
+}
+
+const STACK = 'flex flex-col gap-5 w-120 max-w-full'
+
+const settingsSchema = z.object({
+  console: z.boolean(),
+  pause: z.boolean(),
+  consent: z.boolean().refine((value) => value, 'Turn this on to send crash reports.'),
+  network: z.boolean(),
+  upload: z.boolean(),
+})
+
+function SwitchSettings() {
+  const form = useSettingsForm(() => ({
+    defaultValues: {console: true, pause: true, consent: false, network: false, upload: false},
+    validators: {onMount: settingsSchema, onBlur: settingsSchema},
+  }))
+  const values = form.useStore((state) => state.values)
+  return (
+    <div class={STACK}>
+      <form.AppField name="console">
+        {(field) => (
+          <field.SwitchField label="Capture console" description="Console messages ride along with the replay." />
+        )}
+      </form.AppField>
+      <form.AppField name="pause">
+        {(field) => (
+          <field.SwitchField
+            label="Pause when the tab is hidden"
+            changed={values().pause}
+            onReset={() => form.setFieldValue('pause', false)}
+          />
+        )}
+      </form.AppField>
+      <form.AppField name="consent">
+        {(field) => <field.SwitchField label="Send crash reports" description="Required for the beta channel." />}
+      </form.AppField>
+      <form.AppField name="network">
+        {(field) => <field.SwitchField label="Record network" locked="Set in vite.config.ts" />}
+      </form.AppField>
+      <form.AppField name="upload">
+        {(field) => <field.SwitchField label="Upload replays" description="Needs a cloud project." disabled />}
+      </form.AppField>
+    </div>
+  )
+}
+
+export const SettingStates: Story = {render: () => <SwitchSettings />}
+
+export const SettingKeyboard: Story = {
+  render: () => <SwitchSettings />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const consoleSwitch = canvas.getByRole('switch', {name: 'Capture console'})
+    await expect(consoleSwitch).toHaveAccessibleDescription('Console messages ride along with the replay.')
+    await expect(canvas.getByRole('switch', {name: 'Send crash reports'})).toHaveAccessibleDescription(
+      /Turn this on to send crash reports\./,
+    )
+    const network = canvas.getByRole('switch', {name: 'Record network'})
+    await expect(network).toHaveAttribute('aria-readonly', 'true')
+    await expect(network).toHaveAccessibleDescription('Set in vite.config.ts')
+    await expect(canvas.getByRole('switch', {name: 'Upload replays'})).toBeDisabled()
+
+    await userEvent.tab()
+    await expect(consoleSwitch).toHaveFocus()
+    await expect(consoleSwitch.matches(':focus-visible')).toBe(true)
+    await userEvent.keyboard(' ')
+    await waitFor(() => expect(consoleSwitch).not.toBeChecked())
+
+    const pause = canvas.getByRole('switch', {name: 'Pause when the tab is hidden'})
+    await userEvent.tab()
+    await expect(canvas.getByRole('button', {name: 'Reset to default'})).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(pause).not.toBeChecked())
+    await expect(pause).toHaveFocus()
+    await expect(canvas.queryByRole('button', {name: 'Reset to default'})).toBeNull()
+    await userEvent.click(canvas.getByText('Record network'))
+    await expect(network).not.toBeChecked()
   },
 }

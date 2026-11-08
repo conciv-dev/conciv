@@ -68,7 +68,7 @@ function SettingTextField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string | undefined>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <TextField
         name={field().name}
         value={field().state.value ?? ''}
@@ -93,7 +93,12 @@ function SettingNumberField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<number | undefined>()
   return (
-    <FieldShell layout="row" {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell
+      layout="row"
+      {...shell}
+      onReset={resetHandler(shell, field)}
+      error={firstError(field().state.meta.errors)}
+    >
       <NumberInput
         value={field().state.value}
         min={own.min}
@@ -115,7 +120,7 @@ function SettingSliderField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<number>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <SliderControl
         value={field().state.value}
         min={own.min}
@@ -205,7 +210,12 @@ function SettingSwitchField(props: ShellProps): JSX.Element {
   const [shell] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<boolean>()
   return (
-    <FieldShell layout="row" {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell
+      layout="row"
+      {...shell}
+      onReset={resetHandler(shell, field)}
+      error={firstError(field().state.meta.errors)}
+    >
       <Switch.Root
         checked={field().state.value}
         onCheckedChange={(details) =>
@@ -218,7 +228,7 @@ function SettingSwitchField(props: ShellProps): JSX.Element {
         <Switch.Control>
           <Switch.Thumb />
         </Switch.Control>
-        <Switch.HiddenInput />
+        <Switch.HiddenInput aria-readonly={shell.locked ? 'true' : undefined} />
       </Switch.Root>
     </FieldShell>
   )
@@ -230,7 +240,7 @@ function SettingSegmentField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string>()
   return (
-    <FieldShell group {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell group {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <SegmentControl
         value={field().state.value}
         options={own.options}
@@ -293,7 +303,7 @@ function SettingRadioCardsField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string>()
   return (
-    <FieldShell group {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell group {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <RadioCards
         options={own.options}
         value={field().state.value}
@@ -315,7 +325,12 @@ function SettingSelectField(props: ShellProps & {options: Option[]; placeholder?
   const field = settingsFormContexts.useFieldContext<string | undefined>()
   const collection = createMemo(() => createListCollection({items: own.options}))
   return (
-    <FieldShell layout="row" {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell
+      layout="row"
+      {...shell}
+      onReset={resetHandler(shell, field)}
+      error={firstError(field().state.meta.errors)}
+    >
       <Select.Root
         class="min-w-48"
         collection={collection()}
@@ -361,7 +376,7 @@ function SettingComboboxField(
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string | undefined>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <ComboboxSelect
         options={own.options}
         value={field().state.value}
@@ -384,7 +399,7 @@ function SettingCheckboxGroupField(props: ShellProps & {options: Option[]}): JSX
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string[]>()
   return (
-    <FieldShell group {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell group {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <CheckboxGroup
         options={own.options}
         value={field().state.value}
@@ -404,7 +419,7 @@ function SettingTagsField(props: ShellProps & {placeholder?: string; max?: numbe
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string[]>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <TagsInput
         value={field().state.value}
         placeholder={own.placeholder}
@@ -426,7 +441,7 @@ function SettingPasswordField(props: ShellProps & {placeholder?: string; copyabl
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string | undefined>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <PasswordInput
         value={field().state.value ?? ''}
         placeholder={own.placeholder}
@@ -445,7 +460,7 @@ function SettingColorField(props: ShellProps & {presets?: string[]}): JSX.Elemen
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string>()
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <ColorPicker
         value={field().state.value}
         presets={own.presets}
@@ -462,7 +477,12 @@ function SettingHotkeyField(props: ShellProps & {conflict?: (hotkey: string) => 
   const [shell, own] = splitProps(props, SHELL_KEYS)
   const field = settingsFormContexts.useFieldContext<string | null>()
   return (
-    <FieldShell layout="row" {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell
+      layout="row"
+      {...shell}
+      onReset={resetHandler(shell, field)}
+      error={firstError(field().state.meta.errors)}
+    >
       <HotkeyRecorder
         value={field().state.value}
         conflict={own.conflict}
@@ -486,7 +506,7 @@ function SettingTextAreaField(
   const field = settingsFormContexts.useFieldContext<string | undefined>()
   const count = () => (field().state.value ?? '').length
   return (
-    <FieldShell {...shell} error={firstError(field().state.meta.errors)}>
+    <FieldShell {...shell} onReset={resetHandler(shell, field)} error={firstError(field().state.meta.errors)}>
       <TextArea
         value={field().state.value ?? ''}
         placeholder={own.placeholder}
@@ -507,6 +527,15 @@ function SettingTextAreaField(
 }
 
 const NUMBER_FORMAT = new Intl.NumberFormat()
+
+function resetHandler(shell: ShellProps, field: () => {handleBlur: () => void}): (() => void) | undefined {
+  const reset = shell.onReset
+  if (!reset) return undefined
+  return () => {
+    reset()
+    field().handleBlur()
+  }
+}
 
 function commit(change: () => void, blur: () => void): void {
   change()

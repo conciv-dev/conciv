@@ -68,6 +68,7 @@
     "@unocss/postcss": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "es-toolkit": "catalog:",
     "playwright": "catalog:",
     "postcss": "catalog:",
     "solid-js": "catalog:",
