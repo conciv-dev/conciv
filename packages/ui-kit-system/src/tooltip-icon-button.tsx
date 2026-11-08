@@ -1,5 +1,6 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import {Tooltip} from './tooltip.js'
+import {Kbd} from './kbd.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
 export type TooltipIconButtonSide = 'top' | 'bottom' | 'left' | 'right'
@@ -12,14 +13,11 @@ const VARIANT: Record<TooltipIconButtonVariant, string> = {
   solid: 'rounded-chat-surface-md bg-chat-accent text-chat-on-accent hover:bg-chat-accent-hi',
 }
 
-const KEYCAP =
-  'ms-[7px] inline-flex items-center h-[1.55em] px-[0.45em] rounded-[0.4em] text-[0.86em] font-medium tabular-nums tracking-[0.02em] [color:color-mix(in_oklch,currentColor_72%,transparent)] [background:color-mix(in_oklch,currentColor_9%,transparent)] [box-shadow:inset_0_-1px_0_color-mix(in_oklch,currentColor_12%,transparent)]'
-
 function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): JSX.Element {
   return (
     <>
       {props.tooltip}
-      <Show when={props.shortcut}>{(shortcut) => <kbd class={KEYCAP}>{shortcut()}</kbd>}</Show>
+      <Show when={props.shortcut}>{(shortcut) => <Kbd class="ms-[7px]">{shortcut()}</Kbd>}</Show>
     </>
   )
 }
