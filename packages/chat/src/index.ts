@@ -97,6 +97,7 @@ export type ChatPlane = {
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
+  pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
 }
@@ -220,6 +221,16 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
     admitCall,
+    pendingAsks: async (sessionId) =>
+      (await approvals.pending(sessionId)).map((ask) => ({
+        ...approvalRequestedEvent.create({
+          approvalId: ask.approvalId,
+          toolCallId: ask.toolCallId,
+          title: ask.toolName,
+          input: ask.input,
+        }),
+        timestamp: Date.now(),
+      })),
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     codeRunner: async (sessionId, publish, given) => {

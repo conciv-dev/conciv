@@ -6,7 +6,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Interface
 
-- `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `record`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`; `codeRunner(sessionId, publish, capabilities?)` runs the given capability set instead of the session's own when one is passed; `record(sessionId, chunks)` appends the assistant messages those chunks build to the session's thread (an outside call's mirror run, so it outlives a reload).
+- `index.ts:createChatPlane` - async factory returning a `ChatPlane` with `routes`, `hydrate`, `history`, `stop`, `compact`, `clear`, `endAllRuns`, `live`, `record`, `running`, `decide`, `answerUi`, `askUi`, `codeRunner`, `admitCall`, `pendingAsks`; `codeRunner(sessionId, publish, capabilities?)` runs the given capability set instead of the session's own when one is passed; `record(sessionId, chunks)` appends the assistant messages those chunks build to the session's thread (an outside call's mirror run, so it outlives a reload).
 - `index.ts:ChatPlane.routes` - a Hono app with `GET CHAT_WS_PATH` (WebSocket upgrade), `POST CHAT_SSE_PATH` (start events) and `GET CHAT_SSE_PATH` (resume; 400 `no resume offset` when there is none).
 - `index.ts:CodeTool` / `CodeRunner` (carries `capabilities`, the name and description of every sandboxed capability) / `ChatPlane` - exported types; also re-exports `AttachmentExpanders` and `SessionPort` from `turn.ts`.
 - `code-mode.ts:RESULT_CAP_CHARS` (50000), `cappedText`, `cappedValue`, `safeStringify`, `truncationEnvelope` - cap and serialize tool results.
@@ -19,6 +19,7 @@ The chat plane: `createChatPlane` builds on `@conciv/ai`'s chat server to run tu
 
 ## Invariants
 
+- `index.ts:pendingAsks` - the session's waiting asks as `approval-requested` events, which a new event subscriber receives first so an ask published before it subscribed still reaches it
 - `index.ts:admitCall` - returns null when the call may run, else `{reason, message}`: `missing` (`session "<id>" does not exist`, when `deps.sessions.row` is null), `denied`, or `asked` (the ask was just published). Given `until`, an ask holds the call until the user decides it (allowed: null, denied: `denied`) or `until` aborts (`asked`, the ask stays pending); every call waiting on the same approval resolves from one decision.
 - `index.ts:FIRST_OUTPUT_TIMEOUT_MS` - a turn with no first output for 30000 ms (or `firstOutputTimeoutMs`) is treated as silent by the chat server.
 - `approvals.ts:createApprovalStore.asked` - a pending approval with the same `approvalId` is not added twice.

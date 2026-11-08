@@ -69,7 +69,7 @@ import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, type ChatEvent, ChatEventType, sessionRunEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   CHAT_SSE_PATH,
@@ -3767,6 +3767,23 @@ describe('outside agent consent', () => {
     const allowed = hubCall(base, second)
     await decideOutside(base, second, true)
     expect(await allowed).toMatch(RAN)
+  })
+
+  it('a tab that subscribes after the ask was published still receives it on its event stream', async () => {
+    const base = await boot()
+    const sessionId = await newSession(base)
+    const waiting = hubCall(base, sessionId)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: AbortSignal.timeout(2000)})
+    const first = await events[Symbol.asyncIterator]()
+      .next()
+      .catch((error: unknown) => ({done: true, value: String(error)}))
+    expect(first.done === false ? approvalAskOf(first.value) : first.value).toMatchObject({
+      toolName: 'Allow codex to use this tab',
+      input: {client: 'codex'},
+    })
+    await decideOutside(base, sessionId, true)
+    expect(await waiting).toMatch(RAN)
   })
 
   it('an outside run lists every tab, picks one per block and forwards to its owner after allow', async () => {
