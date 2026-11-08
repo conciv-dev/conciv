@@ -43,6 +43,30 @@ const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
 
 export type SessionsChange = z.infer<typeof SessionsChangeSchema>
+
+const SettingsScopeSchema = z.enum(['global', 'project'])
+
+export type SettingsScope = z.infer<typeof SettingsScopeSchema>
+
+const SettingsNamespaceSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((namespace) => !namespace.includes('\0'), 'a settings namespace cannot contain a NUL character')
+  .refine(
+    (namespace) => !/^[\\/]|^[a-zA-Z]:/.test(namespace) && !namespace.split(/[\\/]/).includes('..'),
+    'a settings namespace must stay inside the settings folder',
+  )
+
+const SettingsSnapshotSchema = z.object({
+  version: z.number().int().nonnegative(),
+  value: z.record(z.string(), z.unknown()),
+})
+
+export type SettingsSnapshot = z.infer<typeof SettingsSnapshotSchema>
+
+const SettingsInput = z.object({scope: SettingsScopeSchema, namespace: SettingsNamespaceSchema})
+const SettingsKeyInput = SettingsInput.extend({key: z.string().max(200)})
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -201,6 +225,12 @@ export const contract = {
       })
       .input(SessionIdInput.extend({harnessId: z.string().min(1), model: z.string().min(1).optional()}))
       .output(z.object({harnessId: z.string()})),
+  },
+  settings: {
+    all: oc.input(SettingsInput).output(SettingsSnapshotSchema),
+    set: oc.input(SettingsKeyInput.extend({value: z.unknown()})).output(SettingsSnapshotSchema),
+    delete: oc.input(SettingsKeyInput).output(SettingsSnapshotSchema),
+    changes: oc.input(SettingsInput).output(eventIterator(SettingsSnapshotSchema)),
   },
   drafts: {
     get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),

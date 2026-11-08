@@ -8,6 +8,7 @@ import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
+import type {SettingsSnapshot} from '@conciv/contract'
 import type {UpgradeWebSocket} from './rpc-mount.js'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
@@ -98,8 +99,42 @@ export type ServerHarness = {
   transcriptMessages?: (token: HarnessSessionId) => Promise<ChatMessage[]>
 }
 
+export interface SettingsRegistry {}
+
+export type SettingsForNamespace<Namespace extends string> = Namespace extends keyof SettingsRegistry
+  ? SettingsRegistry[Namespace] extends object
+    ? SettingsRegistry[Namespace]
+    : Record<string, unknown>
+  : Record<string, unknown>
+
+export type SettingsStore<T extends object = Record<string, unknown>> = {
+  get: <K extends keyof T>(key: K) => Promise<T[K] | undefined>
+  set: <K extends keyof T>(key: K, value: T[K]) => Promise<void>
+  delete: <K extends keyof T>(key: K) => Promise<void>
+  all: () => Promise<Readonly<T>>
+  onChange: (fn: (value: Readonly<T>) => void) => Promise<() => void>
+}
+
+export type Settings<T extends object = Record<string, unknown>> = {
+  global: SettingsStore<T>
+  project: SettingsStore<T>
+}
+
+export type ExtensionScope<Namespace extends string = string> = {
+  readonly namespace: Namespace
+  settings: Settings<SettingsForNamespace<Namespace>>
+}
+
+export type SettingsState = {
+  read: () => Promise<SettingsSnapshot>
+  set: (key: string, value: unknown) => Promise<SettingsSnapshot>
+  delete: (key: string) => Promise<SettingsSnapshot>
+  subscribe: (listener: (snapshot: SettingsSnapshot) => void) => Promise<() => void>
+}
+
 export type ServerApi<Config> = {
   config: Config
+  scope: <Namespace extends string>(namespace: Namespace) => ExtensionScope<Namespace>
   cwd: string
   basePath: string
   stateDir: string

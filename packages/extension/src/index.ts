@@ -48,6 +48,7 @@ export type {
   ExtensionCommand,
   ExtensionCommandContext,
   ExtensionPromptContext,
+  ExtensionScope,
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
@@ -57,6 +58,11 @@ export type {
   ServerHarness,
   ServerSessions,
   ServerResult,
+  Settings,
+  SettingsForNamespace,
+  SettingsRegistry,
+  SettingsState,
+  SettingsStore,
   SystemPromptFactory,
   SystemPromptResolver,
   ToolCard,
@@ -67,6 +73,8 @@ export {MountedExtension, MountedSurface, MountedView} from './mount-extension.j
 export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'
 export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR, CONCIV_UI_SELECTOR} from './client-host.js'
 export {makeExtRpcClient} from './ext-rpc.js'
+export {createSettingsStore} from './settings-store.js'
+export {createClientSettings} from './settings-client.js'
 export type {ExtRpcContext} from './ext-rpc.js'
 export {subscriptionIterator} from './server-stream.js'
 export {pageVerbError, isPageVerbError} from './page-errors.js'
