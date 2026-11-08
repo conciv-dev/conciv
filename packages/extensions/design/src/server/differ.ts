@@ -78,8 +78,12 @@ export function createDiffer(input: {
       return {...judgedAll(variants), variants}
     },
     status: async ({session}) => {
-      const record = await currentTarget({runtime, session})
-      return statusOne(record)
+      const records = await store.variants(session)
+      if (records.length < 2) return statusOne(await currentTarget({runtime, session}))
+      const variants = await Promise.all(
+        records.map(async (record) => ({...(await statusOne(record)), target: record.id, width: record.width})),
+      )
+      return {...judgedAll(variants), variants}
     },
     dispose: edits.dispose,
   }

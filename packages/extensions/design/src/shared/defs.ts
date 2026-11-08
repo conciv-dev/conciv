@@ -375,6 +375,11 @@ const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: tru
   coverage: CoverageSchema.nullable(),
 })
 
+const StatusReplySchema = z.union([
+  StatusSchema,
+  z.object({...JUDGED, variants: z.array(StatusSchema.extend(VARIANT))}),
+])
+
 const MeasureResultSchema = z.object({
   image: z.string(),
   width: z.number(),
@@ -467,11 +472,11 @@ const checkDef = designTool({
 const statusDef = designTool({
   verb: 'status',
   summary:
-    'Says where the page stands without measuring it: the verdict, counts, coverage and rows of the last design_check, or that there is none yet.',
+    'Says where the page stands without measuring it: the verdict, counts, coverage and rows of the last design_check, or that there is none yet; with several frames, one per variant.',
   running: 'Reading the design status',
   done: 'Read the design status',
   input: z.object({}),
-  output: StatusSchema,
+  output: StatusReplySchema,
   keywords: ['design', 'status', 'verdict'],
 })
 
@@ -568,7 +573,7 @@ export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess})
 export type Differ = {
   get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<z.output<typeof GetReplySchema>>
   check(input: {nodes: string[] | undefined; session: string}): Promise<Checked>
-  status(input: {session: string}): Promise<Status>
+  status(input: {session: string}): Promise<z.output<typeof StatusReplySchema>>
   dispose(): void
 }
 
