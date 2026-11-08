@@ -505,3 +505,26 @@ checked by the tools that it shows. Omri: the hiding must be something a target 
   (the extension's own files are not the app's), the mapping is the selector, as the ruling of 2026-11-07 says.
 - No new tolerance or constant: the two values are a schema enum, the exclusion lists already exist and are read
   through one function that takes the target's `widget`.
+
+### Page verbs see through shadow roots; a press carries its modifiers; the extension's own markup is keyed (2026-11-09)
+
+The first x-ray rebuild run stopped before its first check: the agent could not open the overlay. `page_click` on the
+composer button answered "no element for selector" because a locator's selector goes through `document.querySelector`,
+which never enters a shadow root; the snapshot walks the light DOM only; `page_press` with `Mod+Shift+X` dispatched a
+bare key with no modifiers, so the host hotkey never fired; `page_eval` asks for an approval nobody answers in a trial,
+and that is right. The widget, the overlay and every web component on a page live behind shadow roots; the verbs must
+reach them without an eval.
+
+- A locator's `selector` is resolved by `document.querySelector` first and, when that finds nothing, by the same
+  selector inside every open shadow root of the document, depth first in document order. One function,
+  `locatorTarget`, holds the rule; `page_query`, `page_exists`, the wait, `screenshot_node` and the snapshot root go
+  through it. The snapshot lists the children of an open shadow root as children of its host. A closed shadow root
+  stays closed.
+- `page_press` takes a key or a binding in the host's own hotkey grammar (`Mod+Shift+X`, parsed with `parseHotkey`
+  from `@tanstack/hotkeys`) and dispatches `keydown` and `keyup` with `key`, `code` and the four modifier flags set as
+  the binding says, so a hotkey registered through `HostWiring.hotkeys` fires. Without a locator the key goes to the
+  focused element, else to `document.body`.
+- The design extension's own JSX is keyed the way an app's is: its vite build and its watch build run the same
+  `addSourceToJsx` stamping (`persist: true`), so every element of the overlay carries `data-conciv-key` from the
+  source file and pairs like any element on the page. Nobody writes a key by hand.
+- No new verb and no approval bypass: `page_eval` keeps asking.
