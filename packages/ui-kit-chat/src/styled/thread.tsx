@@ -256,7 +256,6 @@ function AssistantTurn(props: {
   const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
     const leafPart = () => turnParts.partAt(leafProps.node.index)
     const leafCall = createMemo(() => asToolCall(leafPart()))
-    const durationMs = createCallDuration(leafCall, ctx)
     return (
       <Switch>
         <Match when={asText(leafPart())}>
@@ -269,20 +268,25 @@ function AssistantTurn(props: {
           )}
         </Match>
         <Match when={leafCall()}>
-          {(part) => {
-            const callId = untrack(part).id
-            const result = createMemo(() => turnParts.resultFor(callId))
-            return (
-              <ToolCallCard
-                part={part()}
-                result={result()}
-                ctx={ctx}
-                durationMs={durationMs()}
-                tools={() => props.entries}
-                fallback={props.fallback}
-              />
-            )
-          }}
+          {(call) => (
+            <Key each={[call()]} by="id">
+              {(part) => {
+                const callId = untrack(part).id
+                const result = createMemo(() => turnParts.resultFor(callId))
+                const durationMs = createCallDuration(part, ctx)
+                return (
+                  <ToolCallCard
+                    part={part()}
+                    result={result()}
+                    ctx={ctx}
+                    durationMs={durationMs()}
+                    tools={() => props.entries}
+                    fallback={props.fallback}
+                  />
+                )
+              }}
+            </Key>
+          )}
         </Match>
       </Switch>
     )
