@@ -2,6 +2,7 @@ import {configDefaults, defineConfig} from 'vitest/config'
 import {coreCommands} from './test/commands/core-control.js'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
 import {TANSTACK_AI_SOLID_DEPS, browserOptimizeDeps, ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 
 const PERF_SUITE = 'test/calm-perf.browser.test.tsx'
@@ -31,7 +32,7 @@ export default defineConfig(({mode}) => ({
         },
       },
       {
-        plugins: [solidPlugin()],
+        plugins: [UnoCSS(), solidPlugin()],
         optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS]),
         test: {
           ...ciTestSolidBrowser(),
