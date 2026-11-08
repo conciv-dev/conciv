@@ -251,47 +251,24 @@ describe('cli', () => {
         expect(help.stdout).toMatch(/^\s+init\s/m)
       })
 
-      it('lists the built-in page verbs offline and says so on the last line', () => {
-        const help = conciv(['tools', 'page', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('snapshot')
-        expect(help.stdout).toContain('fill')
-        expect(help.stdout.trim().split('\n').at(-1)).toBe(
-          'offline: showing the built-in page capabilities; a running server may add more',
-        )
-      })
-
-      it('lists only the react verbs under react --help offline', () => {
-        const help = conciv(['tools', 'react', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('locate')
-        expect(help.stdout).not.toContain('fill')
-      })
-
-      it('derives the design verbs offline from the design tool declarations', () => {
-        const help = conciv(['tools', 'design', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('register a design image as the target')
-      })
-
-      it('shows a verb flags offline', () => {
-        const help = conciv(['tools', 'page', 'fill', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('--value')
-      })
-
-      it('running a page verb offline still fails, pointing at server.json and CONCIV_PORT', () => {
-        const run = conciv(['tools', 'page', 'snapshot'])
-        expect(run.status).toBe(1)
-        const document: unknown = JSON.parse(run.stdout)
-        expect(document).toMatchObject({
-          ok: false,
-          error: {
-            kind: 'user',
-            message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
-            hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
-          },
-        })
+      it('offline, group help and group verbs fail with the start-a-server envelope', () => {
+        for (const argv of [
+          ['tools', 'page', '--help'],
+          ['tools', 'design', '--help'],
+          ['tools', 'page', 'snapshot'],
+        ]) {
+          const run = conciv(argv)
+          expect(run.status).toBe(1)
+          const document: unknown = JSON.parse(run.stdout)
+          expect(document).toMatchObject({
+            ok: false,
+            error: {
+              kind: 'user',
+              message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
+              hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
+            },
+          })
+        }
       })
     })
   })
@@ -311,7 +288,7 @@ describe('cli', () => {
     }
 
     const beacon = defineTool({
-      name: 'page_beacon',
+      name: 'acme_beacon',
       description: 'Raise the acme beacon over the page.',
       inputSchema: z.object({height: z.number().int().min(1)}),
       outputSchema: z.object({raised: z.boolean()}),
@@ -325,6 +302,29 @@ describe('cli', () => {
     }).client()
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
+
+    const serverStatus = defineTool({
+      name: 'server_status',
+      description: 'Report the acme status board.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({green: z.boolean()}),
+      meta: {summary: 'report the acme status board', mutating: false},
+    }).client()
+
+    const paint = defineTool({
+      name: 'acme_paint',
+      description: 'Paint strokes and patch the acme canvas.',
+      inputSchema: z.object({
+        patch: z.record(z.string(), z.unknown()),
+        strokes: z.array(z.object({x: z.number()}).loose()),
+        parts: z.array(z.unknown()).optional(),
+        label: z.string().nullable().optional(),
+      }),
+      outputSchema: z.object({painted: z.boolean()}),
+      meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
+    }).client()
+
+    const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -382,10 +382,77 @@ describe('cli', () => {
         expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1}})
       })
 
-      it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
-        await bootCli(cleanups, {extensions: [beaconExtension]})
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).toContain('raise the acme beacon over the page')
+      it('serves a group from an extension the CLI has never heard of', async () => {
+        const kit = await bootCli(cleanups, {extensions: [beaconExtension]})
+        expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
+        const answer = await answerNextQuery(kit, {ok: true, result: {raised: true}})
+        expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
+      })
+
+      it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {green: true}})
+        expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'server_status'})
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {green: true}})
+      })
+
+      it('parses object and array-of-object flags as JSON before sending them', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{"color":"red"}',
+            '--strokes',
+            '{"x":1}',
+            '--strokes',
+            '{"x":2,"y":3}',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {patch: {color: 'red'}, strokes: [{x: 1}, {x: 2, y: 3}]},
+        })
+      })
+
+      it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--parts',
+            '{"type":"text","text":"Hello"}',
+            '--parts',
+            'plain words',
+            '--label',
+            '123',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words'], label: '123'},
+        })
+      })
+
+      it('rejects a flag that is not valid JSON with the flag named', async () => {
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining('--patch: expected a JSON object')},
+        })
       })
 
       it('sends the effect argument to the server instead of dropping it', async () => {
@@ -623,7 +690,7 @@ describe('cli', () => {
         expect(error.hint).toContain('CONCIV_PORT')
       })
 
-      it('a server whose catalog declares no page capabilities is reported, not silently shrunk', async () => {
+      it('a server whose catalog serves no page tools rejects page as a user error', async () => {
         process.env.CONCIV_PORT = String(
           await listen((_request, response) => {
             response.writeHead(200, {'content-type': 'application/json'})
@@ -634,7 +701,7 @@ describe('cli', () => {
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
-        expect(error.message).toContain('no page capabilities')
+        expect(error.message).toContain("'page' for conciv tools")
       })
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
@@ -938,13 +1005,9 @@ describe('cli', () => {
       expect(browser).toEqual([])
     })
 
-    test('the CLI reads the tool declarations without loading the extension package index', () => {
-      const external = runtimeClosure(cliEntry)
-      expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension')).toSorted()).toEqual([
-        '@conciv/extension-design/defs',
-        '@conciv/extension-page/defs',
-        '@conciv/extension/tool',
-      ])
+    test('the CLI loads no extension code; every tool group comes from the running engine', () => {
+      const external = [...runtimeClosure(cliEntry)]
+      expect(external.filter((specifier) => /^@conciv\/(extension|tools)/.test(specifier))).toEqual([])
     })
   })
 
@@ -1115,10 +1178,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never the harness package or an agent sdk', () => {
+    test('the CLI production closure carries harness-init but never an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(manifestOf)
       const names = manifests.map((manifest) => manifest.name)
       expect(names).toContain('@conciv/harness-init')
+      expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {
         const declared = Object.keys(manifest.dependencies).filter((name) => BANNED.includes(name))
