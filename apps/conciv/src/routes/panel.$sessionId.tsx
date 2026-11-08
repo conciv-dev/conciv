@@ -450,8 +450,8 @@ function useSessionMenu(sessionId: () => string): {
   const matchRoute = useMatchRoute()
   const canGoBack = useCanGoBack()
   const view = useMatch({from: '/panel/$sessionId/$view', shouldThrow: false, select: (match) => match.params.view})
-  const chatOptionsMatch = matchRoute({to: '/panel/$sessionId/options'})
-  const viewOptionsMatch = matchRoute({to: '/panel/$sessionId/$view/options'})
+  const chatOptionsMatch = matchRoute({to: '/panel/$sessionId/options', includeSearch: false})
+  const viewOptionsMatch = matchRoute({to: '/panel/$sessionId/$view/options', includeSearch: false})
   const open = () => [chatOptionsMatch(), viewOptionsMatch()].some(Boolean)
   const openedInApp = () => open() && canGoBack() && router.state.location.state.sessionMenuOpened === true
   const show = () => {
