@@ -53,12 +53,13 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     'class',
   ])
   const field = useFieldContext()
+  const invalid = () => local.invalid ?? field?.().invalid
   const picker = useColorPicker(() => ({
     value: HEX.test(local.value) ? parseColor(local.value) : undefined,
     format: 'hsba',
     disabled: local.disabled ?? field?.().disabled,
     readOnly: local.readOnly ?? field?.().readOnly,
-    invalid: local.invalid ?? field?.().invalid,
+    invalid: invalid(),
     positioning: {strategy: 'fixed', placement: 'bottom-start', gutter: 6},
     onValueChange: (details) => {
       local.onValueChange?.(toHex(details))
@@ -81,6 +82,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
             class={HEX_INPUT}
             aria-labelledby={field?.().ids.label}
             aria-describedby={field?.().ariaDescribedby}
+            aria-invalid={invalid() || undefined}
           />
         </div>
       </Ark.Control>
