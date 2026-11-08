@@ -1,4 +1,14 @@
-import {mkdtempSync, rmSync, readFileSync, statSync, writeFileSync, mkdirSync, utimesSync} from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  mkdirSync,
+  utimesSync,
+} from 'node:fs'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
@@ -18,7 +28,13 @@ import {
 } from '@conciv/chat'
 import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
-import {defineTool, defineExtension, makeExtRpcClient} from '@conciv/extension'
+import {
+  createClientSettings,
+  defineTool,
+  defineExtension,
+  makeExtRpcClient,
+  type ExtensionScope,
+} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
@@ -1418,6 +1434,147 @@ describe('engine version', () => {
     } finally {
       for (const websocket of sockets) websocket.close()
       await served.close()
+    }
+  })
+})
+
+describe('settings storage', () => {
+  async function bootSettings(root: string, home: string, namespace: string) {
+    const scopes: ((name: string) => ExtensionScope<string>)[] = []
+    const probe = defineExtension({name: 'settings probe'}).server((api) => {
+      scopes.push(api.scope)
+      return {context: {}}
+    })
+    const made = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      home,
+      openInEditor: () => {},
+      extensions: [probe],
+    })
+    const served = await serveHono({fetch: made.fetch, port: 0})
+    const scope = scopes[0]
+    if (scope === undefined) throw new Error('the probe extension did not mount')
+    return {
+      scope,
+      server: scope(namespace).settings,
+      rpc: makeRpcClient(`http://127.0.0.1:${served.port}/t/${made.agentToken}`),
+      stop: async () => {
+        await served.close()
+        await made.dispose()
+      },
+    }
+  }
+
+  const folders = () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-settings-root-'))
+    const home = mkdtempSync(join(tmpdir(), 'conciv-settings-home-'))
+    return {
+      root,
+      home,
+      project: join(root, '.conciv', 'settings'),
+      global: join(home, 'settings'),
+      remove: () => [root, home].forEach((folder) => rmSync(folder, {recursive: true, force: true})),
+    }
+  }
+
+  test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
+    const dirs = folders()
+    const engine = await bootSettings(dirs.root, dirs.home, 'probe')
+    const stream = new AbortController()
+    try {
+      const client = createClientSettings<{theme: string; size: number; tags: string[]}>(
+        engine.rpc,
+        'probe',
+        stream.signal,
+      )
+      const subscriber = await engine.rpc.settings.changes(
+        {scope: 'project', namespace: 'probe'},
+        {signal: stream.signal},
+      )
+      expect((await subscriber.next()).value).toMatchObject({value: {}})
+      const heard: unknown[] = []
+      const unsubscribe = await client.project.onChange((value) => heard.push(value))
+
+      await Promise.all([
+        engine.server.project.set('theme', 'dark'),
+        engine.server.project.set('size', 3),
+        engine.server.project.set('tags', ['a']),
+      ])
+      const projectFile = join(dirs.project, 'probe.json')
+      expect(existsSync(projectFile)).toBe(false)
+      await expect.poll(() => client.project.all(), {timeout: 2000}).toEqual({theme: 'dark', size: 3, tags: ['a']})
+      expect(await client.project.get('size')).toBe(3)
+      expect((await subscriber.next()).value).toMatchObject({value: {theme: 'dark'}})
+      await expect.poll(() => existsSync(projectFile), {timeout: 2000}).toBe(true)
+      expect(readFileSync(projectFile, 'utf8')).toBe(
+        `${JSON.stringify({theme: 'dark', size: 3, tags: ['a']}, null, 2)}\n`,
+      )
+      expect(readdirSync(dirs.project)).toEqual(['probe.json'])
+
+      await client.project.delete('size')
+      expect(await engine.server.project.get('size')).toBeUndefined()
+      await client.global.set('theme', 'light')
+      expect(await engine.server.global.all()).toEqual({theme: 'light'})
+      await expect
+        .poll(() => readFileSync(projectFile, 'utf8'), {timeout: 2000})
+        .toBe(`${JSON.stringify({theme: 'dark', tags: ['a']}, null, 2)}\n`)
+      await expect
+        .poll(
+          () => existsSync(join(dirs.global, 'probe.json')) && readFileSync(join(dirs.global, 'probe.json'), 'utf8'),
+          {
+            timeout: 2000,
+          },
+        )
+        .toBe(`${JSON.stringify({theme: 'light'}, null, 2)}\n`)
+      expect(heard).toContainEqual({theme: 'dark', size: 3, tags: ['a']})
+      expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
+      unsubscribe()
+      await engine.server.project.set('theme', 'blue')
+      await expect.poll(() => client.project.get('theme'), {timeout: 2000}).toBe('blue')
+      expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
+    } finally {
+      stream.abort()
+      await engine.stop()
+      dirs.remove()
+    }
+  })
+
+  test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
+    const dirs = folders()
+    mkdirSync(dirs.project, {recursive: true})
+    writeFileSync(join(dirs.project, 'saved.json'), '{"__proto__": {"polluted": true}, "theme": "dark"}')
+    writeFileSync(join(dirs.project, 'broken.json'), '{not json')
+    const first = await bootSettings(dirs.root, dirs.home, 'saved')
+    await first.server.global.set('size', 4)
+    await first.stop()
+    const engine = await bootSettings(dirs.root, dirs.home, 'saved')
+    try {
+      expect(await engine.server.global.all()).toEqual({size: 4})
+      expect(await engine.server.project.all()).toEqual({theme: 'dark'})
+      expect(Object.getPrototypeOf(await engine.server.project.all())).toBe(Object.prototype)
+      expect(await engine.rpc.settings.all({scope: 'project', namespace: 'broken'})).toMatchObject({value: {}})
+      expect(readFileSync(join(dirs.project, 'broken.json'), 'utf8')).toBe('{not json')
+      await engine.rpc.settings.set({scope: 'project', namespace: 'broken', key: 'fixed', value: true})
+      await expect
+        .poll(() => readFileSync(join(dirs.project, 'broken.json'), 'utf8'), {timeout: 2000})
+        .toBe(`${JSON.stringify({fixed: true}, null, 2)}\n`)
+      const refusal = (pattern: RegExp) => ({
+        code: 'BAD_REQUEST',
+        data: {issues: [expect.objectContaining({message: expect.stringMatching(pattern)})]},
+      })
+      await expect(engine.rpc.settings.all({scope: 'project', namespace: '../escape'})).rejects.toMatchObject(
+        refusal(/settings folder/),
+      )
+      await expect(engine.rpc.settings.all({scope: 'global', namespace: 'nul\0name'})).rejects.toMatchObject(
+        refusal(/NUL/),
+      )
+      const escaping = engine.scope('../../escape').settings.project
+      await expect(escaping.set('theme', 'dark')).rejects.toThrow(/leaves the settings folder/)
+      expect(existsSync(join(dirs.root, 'escape.json'))).toBe(false)
+    } finally {
+      await engine.stop()
+      dirs.remove()
     }
   })
 })

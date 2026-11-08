@@ -58,7 +58,8 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
-import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {createSettingsStorage} from './settings/settings-storage.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os} from '@orpc/server'
@@ -429,6 +430,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const systemPromptText = opts.systemPromptText ?? opts.cfg.systemPrompt
 
   const outsideTabs = createOutsideTabs(opts.home)
+  const settings = createSettingsStorage({
+    global: concivHome({homeDir: opts.home, env: process.env}),
+    project: stateDir,
+  })
   const primitives = makeSessionPrimitives({
     db,
     root: opts.cwd,
@@ -481,6 +486,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     try {
       const result = await extension.__server?.({
         stateDir,
+        scope: settings.scope,
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         basePath,
@@ -615,6 +621,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const rpcDeps: RpcDeps = {
     chat: chatDeps,
     search,
+    settings,
     tools: toolList,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     runtime,
@@ -697,7 +704,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = (): Promise<void> =>
     runInOrder(
-      [() => plane.endAllRuns(), ...disposers, search.dispose, () => browsers.close(), () => db.$client.close()],
+      [
+        () => plane.endAllRuns(),
+        ...disposers,
+        search.dispose,
+        settings.flush,
+        () => browsers.close(),
+        () => db.$client.close(),
+      ],
       'conciv: disposing the engine failed',
     )
 
