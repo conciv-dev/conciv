@@ -46,10 +46,13 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
     ...omit(row, ['text', 'messages']),
     cwd: row.cwd ?? cwd,
   })
+  const anotherProject = (cwd: string): boolean => rows.some((row) => row.cwd === cwd)
+  const listedIn = (row: FixtureSession, cwd: string): boolean =>
+    row.cwd === undefined ? !anotherProject(cwd) : row.cwd === cwd
   return {
     list: (scope, page) => {
       const listed = rows.flatMap((row) => {
-        if ('cwd' in scope) return row.cwd === undefined || row.cwd === scope.cwd ? [metaOf(row, scope.cwd)] : []
+        if ('cwd' in scope) return listedIn(row, scope.cwd) ? [metaOf(row, scope.cwd)] : []
         return row.cwd === undefined ? [] : [metaOf(row, row.cwd)]
       })
       const paged = pageAfter(listed, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))

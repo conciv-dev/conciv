@@ -115,15 +115,17 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
     refreshes.addItem('refresh')
   }
 
+  const folderScoped = (cwd: string): boolean => state.scopes.some((scope) => 'cwd' in scope && sameCwd(scope.cwd, cwd))
+
   const titlePass = async (running: Running, source: Indexed, scope: HarnessListScope): Promise<TitlePass> => {
     const signal = running.stopped.signal
     const folder = 'cwd' in scope ? scope.cwd : null
-    const owned = (cwd: string): boolean => (folder === null ? cwd !== deps.cwd : cwd === folder)
+    const owned = (cwd: string): boolean => (folder === null ? !folderScoped(cwd) : cwd === folder)
     const statesOwned = async () =>
       (await running.index.states({harness: source.harness.id}, {signal})).filter((row) => owned(row.cwd))
     try {
       const metas = (await listedSessions(source.history, scope)).filter(
-        (meta) => folder !== null || !sameCwd(meta.cwd, deps.cwd),
+        (meta) => folder !== null || !folderScoped(meta.cwd),
       )
       const titles = await rowTitles(deps.db, source.harness.id, metas)
       const states = keyBy(await statesOwned(), (row) => row.id)
@@ -254,8 +256,7 @@ export function createSessionSearch(deps: SessionSearchDeps): SessionSearch {
       )
     },
     cover(cwd) {
-      const covered = state.scopes.some((scope) => !('cwd' in scope) || sameCwd(scope.cwd, cwd))
-      if (covered) return
+      if (folderScoped(cwd)) return
       state.scopes.push({cwd})
       refresh()
     },

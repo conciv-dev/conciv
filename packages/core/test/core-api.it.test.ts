@@ -2721,6 +2721,7 @@ describe('rpc wire', () => {
           transcriptIn('pi-plover-previewed', 'a plover on the shingle', 'it ran the tideline')
           transcriptIn('pi-plover-neighbour', 'a ringed plover nest', 'four speckled eggs')
           await searchKit().rpc.sessions.list({limit: 100})
+          expect(await found('ringed', true)).toEqual([])
 
           const window = await searchKit().rpc.sessions.preview({
             harness: 'pi',
@@ -2731,7 +2732,18 @@ describe('rpc wire', () => {
           })
           expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
           await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
+
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const turnstone = claudeId('claude-turnstone-away')
+          writeWhole(
+            requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
+            JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'a turnstone away'}}) + '\n',
+            nextStamp(),
+          )
+          await foundOnceIndexed('turnstone', [turnstone], true)
+          expect(await found('ringed', true)).toEqual(['pi-plover-neighbour'])
           rmSync(folder, {recursive: true, force: true})
+          rmSync(elsewhere, {recursive: true, force: true})
         })
 
         it('searches this project unless asked for every project, reading each session from its own folder', async () => {
