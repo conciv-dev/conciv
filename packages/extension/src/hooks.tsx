@@ -34,6 +34,7 @@ const hostApi = {
   useSlot: () => use('slot', 'useSlot'),
   useConnect: () => use('connect', 'useConnect'),
   useColorScheme: () => use('colorScheme', 'useColorScheme'),
+  useStyles: () => use('styles', 'useStyles'),
   useHotkeys: () => hotkeysFor({hotkeys: use('hotkeys', 'useHotkeys'), owner: use('owner', 'useHotkeys')}),
   Suppress: layerComponent(true, 'Suppress'),
   YieldFocus: layerComponent(false, 'YieldFocus'),

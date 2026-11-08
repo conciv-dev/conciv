@@ -83,6 +83,17 @@ function keepSelectionInsideTheWidget(host: HTMLElement, root: ShadowRoot): () =
   }
 }
 
+const SHEETS = new WeakMap<Document, CSSStyleSheet>()
+
+function sheetFor(doc: Document): CSSStyleSheet {
+  const held = SHEETS.get(doc)
+  if (held !== undefined) return held
+  const sheet = new CSSStyleSheet()
+  sheet.replaceSync(styles)
+  SHEETS.set(doc, sheet)
+  return sheet
+}
+
 function placeHost(host: HTMLElement, surface: ConcivSurface): void {
   host.style.pointerEvents = 'none'
   if (surface === 'dock') {
@@ -106,9 +117,7 @@ export function createShadowRoot(
   registerSelectionContainment()
   placeHost(host, surface)
   const root = host.attachShadow({mode: 'open'})
-  const style = document.createElement('style')
-  style.textContent = styles
-  root.appendChild(style)
+  root.adoptedStyleSheets = [sheetFor(document)]
   const releaseKeys = keepEditableKeysOffTheHostPage(root)
   const releaseSelection = keepSelectionInsideTheWidget(host, root)
   return {

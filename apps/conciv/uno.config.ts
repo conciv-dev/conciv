@@ -15,6 +15,7 @@ export default defineConfig({
       '../../packages/extensions/page/src/**/*.{ts,tsx}',
       '../../packages/extensions/terminal/src/**/*.{ts,tsx}',
       '../../packages/extensions/whiteboard/src/**/*.{ts,tsx}',
+      '../../packages/extensions/design/src/**/*.{ts,tsx}',
     ],
   },
 

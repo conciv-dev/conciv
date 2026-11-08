@@ -37,6 +37,7 @@ export type HostWiring = {
   connect: ConnectHostApi
   colorScheme: () => ColorScheme
   hotkeys: HotkeyRegistry
+  styles: () => CSSStyleSheet[]
   owner: string
   value: object
 }

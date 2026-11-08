@@ -176,6 +176,7 @@ function RootComponent() {
               sessionId={activeSession}
               colorScheme={colorScheme}
               hotkeys={hotkeys}
+              styles={() => adoptedSheets(app.environment.rootNode)}
               owner={HOST_OWNER}
             >
               <RootChrome
@@ -429,4 +430,8 @@ function RootChrome(props: {
       </div>
     </div>
   )
+}
+
+function adoptedSheets(root: Node): CSSStyleSheet[] {
+  return root instanceof ShadowRoot ? [...root.adoptedStyleSheets] : []
 }
