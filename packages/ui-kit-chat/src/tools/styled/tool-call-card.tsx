@@ -1,5 +1,6 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {isEqual} from 'es-toolkit'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
   ToolCardEntry,
@@ -95,11 +96,15 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     setCardHeader(published)
     return () => setCardHeader((current) => (current === published ? undefined : current))
   }
-  const projection = createMemo<ToolRowProjection>(() => {
-    const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
-    const published = cardHeader()
-    return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
-  })
+  const projection = createMemo(
+    (): ToolRowProjection => {
+      const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
+      const published = cardHeader()
+      return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
+    },
+    undefined,
+    {equals: isEqual},
+  )
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
   const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
@@ -120,14 +125,15 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       />
     </CardChromeProvider>
   )
-  const framed = () =>
+  const framed = createMemo(() =>
     cardRendersEmbeddedBody({
       part: local.part,
       result: local.result,
       ctx: local.ctx,
       tools: local.tools?.() ?? [],
       fallback: local.fallback,
-    })
+    }),
+  )
   const cardBody = (): JSX.Element => (
     <TraceBodyFrame tone={bodyTone()} chrome={framed()}>
       {embeddedCard()}
