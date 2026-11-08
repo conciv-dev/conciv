@@ -62,12 +62,15 @@ async function exchangeMagicLink(trust: EngineTrust, code: string): Promise<bool
 }
 
 export async function startEngineLogin(login: EngineLogin): Promise<boolean> {
+  const trusted = await resolveEngineLogin(login)
+  if (trusted) forgetMagicLinkCode()
+  return trusted
+}
+
+async function resolveEngineLogin(login: EngineLogin): Promise<boolean> {
   const code = readMagicLinkCode()
   const trust = login.trust()
-  if (await trust.requestTrust()) {
-    forgetMagicLinkCode()
-    return true
-  }
+  if (await trust.requestTrust()) return true
   if (trust.status() === 'unreachable') return false
   if (code !== undefined && (await exchangeMagicLink(trust, code))) return true
   return login.requestTrust()

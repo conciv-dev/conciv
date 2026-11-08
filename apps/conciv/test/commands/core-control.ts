@@ -347,7 +347,7 @@ async function holdPosts(
   await ctx.page.route(matcher, handler)
   const open = async (): Promise<void> => {
     held.open = true
-    await Promise.all(held.routes.splice(0).map((route) => settle(route).catch(() => {})))
+    await Promise.all(held.routes.splice(0).map((route) => settle(route).catch(ignoreHandledRoute)))
   }
   return {
     pending: () => held.routes.length,
@@ -362,6 +362,11 @@ async function holdPosts(
       await ctx.page.unroute(matcher, handler)
     },
   }
+}
+
+function ignoreHandledRoute(error: unknown): void {
+  if (error instanceof Error && error.message.includes('Route is already handled')) return
+  throw error
 }
 
 function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {

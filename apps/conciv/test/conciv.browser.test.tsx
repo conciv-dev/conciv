@@ -3262,6 +3262,17 @@ describe('engine login', () => {
     expect(window.location.hash).toBe('')
   }, 30_000)
 
+  test('a magic link whose exchange fails leaves the URL once the host token source trusts the page', async () => {
+    const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+    if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+    openMagicLink(await coreControl.requestCode())
+    await faults.install({kind: 'fail', path: ['auth', 'exchange']})
+    harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource: async () => minted.token}})
+    await opener().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    expect(window.location.hash).toBe('')
+  }, 30_000)
+
   test('a magic link the engine already spent leaves the launcher locked, is dropped from the URL, and a fresh code still logs in', async () => {
     const code = await coreControl.requestCode()
     expect(await makeRpcClient(origin()).auth.exchange({code})).toHaveProperty('token')
