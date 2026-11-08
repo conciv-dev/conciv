@@ -357,9 +357,16 @@ const MeasuredSchema = RoundSchema.pick({
 
 const JUDGED = {verdict: z.enum(CHECK_VERDICTS), reasons: z.array(z.string())}
 
-const CheckResultSchema = z.union([
+const VARIANT = {target: z.string(), width: z.number()}
+
+const CheckedOneSchema = z.union([
   MeasuredSchema.extend(JUDGED),
   UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
+])
+
+const CheckResultSchema = z.union([
+  CheckedOneSchema,
+  z.object({...JUDGED, variants: z.array(z.intersection(CheckedOneSchema, z.object(VARIANT)))}),
 ])
 
 const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: true}).extend({
@@ -449,7 +456,7 @@ const getDef = designTool({
 const checkDef = designTool({
   verb: 'check',
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render or rendered under half the nodes of the last settled round; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round.',
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render or rendered under half the nodes of the last settled round; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round. With several frames each is measured at its width against its own nodes and the reply holds one result per frame in variants; done is every variant done.',
   running: 'Checking the page against the design',
   done: 'Checked the page against the design',
   input: z.object({nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only')}),

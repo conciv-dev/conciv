@@ -5,7 +5,17 @@ import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {Checked, DesignRuntime, Differ, GateRow, Got, RoundReply, Runner, TargetRecord} from '../shared/defs.js'
+import type {
+  Checked,
+  DesignRuntime,
+  Differ,
+  GateRow,
+  Got,
+  RoundReply,
+  Runner,
+  Status,
+  TargetRecord,
+} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
 import {verdictOf} from './verdict.js'
@@ -27,6 +37,17 @@ export function createDiffer(input: {
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
   const edits = watchEdits(input.bundler)
+  const checkedOne = async (asked: {record: TargetRecord; session: string; nodes: string[] | undefined}) => {
+    const {record, nodes} = asked
+    const measured = await runner({record, page: tab(asked.session)})
+    if (!('round' in measured))
+      return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
+    const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
+    const checked = shown({...measured, verdict, reasons})
+    return nodes === undefined ? checked : only({checked, nodes})
+  }
+  const statusOne = async (record: TargetRecord) =>
+    shown(verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}))
   return {
     get: async ({input: query, session, page: access}) => {
       const links = linksOf(query.figma)
@@ -45,19 +66,20 @@ export function createDiffer(input: {
     },
     check: async ({nodes, session}) => {
       await edits.quiet()
-      const record = await currentTarget({runtime, session})
-      const measured = await runner({record, page: tab(session)})
-      if (!('round' in measured)) return {...measured, verdict: 'unsettled', reasons: [unsettledReason(measured)]}
-      const {verdict, reasons} = verdictOf({
-        design: await store.design(record.id),
-        rounds: await store.rounds(record.id),
-      })
-      const checked = shown({...measured, verdict, reasons})
-      return nodes === undefined ? checked : only({checked, nodes})
+      const records = await store.variants(session)
+      if (records.length < 2) return checkedOne({record: await currentTarget({runtime, session}), session, nodes})
+      const variants = []
+      for (const record of records)
+        variants.push({
+          ...(await checkedOne({record, session, nodes})),
+          target: record.id,
+          width: record.width,
+        })
+      return {...judgedAll(variants), variants}
     },
     status: async ({session}) => {
       const record = await currentTarget({runtime, session})
-      return shown(verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}))
+      return statusOne(record)
     },
     dispose: edits.dispose,
   }
@@ -199,6 +221,16 @@ function at<Value>(input: {list: Value | Value[] | undefined; index: number}): V
   const {list, index} = input
   if (Array.isArray(list)) return list[index]
   return index === 0 ? list : undefined
+}
+
+function judgedAll<Variant extends {verdict: Status['verdict']; reasons: string[]; width: number}>(
+  variants: Variant[],
+): Pick<Status, 'verdict' | 'reasons'> {
+  const open = variants.filter((variant) => variant.verdict !== 'done')
+  const [first] = open
+  const reasons = variants.flatMap((variant) => variant.reasons.map((reason) => `at ${variant.width}: ${reason}`))
+  if (first === undefined) return {verdict: 'done', reasons}
+  return {verdict: (open.find((variant) => variant.verdict === 'not yet') ?? first).verdict, reasons}
 }
 
 async function currentTarget(input: {runtime: DesignRuntime; session: string}): Promise<TargetRecord> {
