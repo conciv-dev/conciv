@@ -1,6 +1,7 @@
 import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
 import {createStore, produce, unwrap} from 'solid-js/store'
 import {mapValues} from 'es-toolkit'
+import {Highlight} from '@conciv/ui-kit-system'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
@@ -284,6 +285,15 @@ const NO_LINK_PREFIXES: string[] = []
 const MarkdownHighlightContext = createContext<readonly string[]>([])
 
 export const MarkdownHighlightProvider = MarkdownHighlightContext.Provider
+
+export function HighlightedText(props: {text: string}): JSX.Element {
+  const words = useContext(MarkdownHighlightContext)
+  return (
+    <Show when={words.length > 0} fallback={props.text}>
+      <Highlight text={props.text} query={[...words]} ignoreCase matchAll exactMatch />
+    </Show>
+  )
+}
 
 export function Markdown(props: MarkdownProps): JSX.Element {
   const inherited = useContext(MarkdownHighlightContext)

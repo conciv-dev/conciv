@@ -3964,6 +3964,15 @@ describe('session selector', () => {
     await expect.element(anyPreview).not.toBeInTheDocument()
 
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await typeKeyByKey(search, 'question', '')
+    await userEvent.hover(option('a minute after midnight'))
+    await expect
+      .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
+      .toHaveTextContent('question')
+    await typeKeyByKey(search, 'xq', 'question')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(option('older session 0')).toBeVisible()
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()

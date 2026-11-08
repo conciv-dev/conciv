@@ -59,7 +59,7 @@ import {
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
-import {Markdown, warmHighlighter} from './markdown.js'
+import {HighlightedText, Markdown, warmHighlighter} from './markdown.js'
 import {codeTheme} from '../theme/code-theme.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
@@ -335,7 +335,9 @@ function UserTurn(): JSX.Element {
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
           </span>
-          <span class={PROMPT_TEXT_CLASS}>{promptText()}</span>
+          <span class={PROMPT_TEXT_CLASS}>
+            <HighlightedText text={promptText()} />
+          </span>
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Message.If>
