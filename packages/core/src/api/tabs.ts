@@ -77,7 +77,7 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
 }
 
 function probePage(bus: PageBus, sessionId: SessionId): Promise<Tabs['tabs'][number]['page']> {
-  const answered = bus.ask(sessionId, {name: 'page_route', input: {}}).then(
+  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
     () => null,
   )
