@@ -24,8 +24,12 @@ const CONTROL = {
   row: 'flex shrink-0 justify-end',
   stack: 'flex flex-col min-w-0',
 }
-const FOCUS_TARGET =
-  'input:checked:not([type=hidden]), [role=radio][aria-checked=true], input:not([type=hidden]):not(:disabled), textarea, button:not(:disabled), [role=slider], [tabindex="0"]'
+const FOCUS_TARGETS = [
+  'input[type=radio]:checked',
+  '[role=radio][aria-checked=true]',
+  'input:not([type=hidden]):not([hidden]):not(:disabled), textarea, [role=slider]',
+  'button:not(:disabled), [tabindex="0"]',
+]
 
 type FieldShellProps = {
   label: string
@@ -63,7 +67,7 @@ export function FieldShell(props: FieldShellProps): JSX.Element {
   const showReset = () => Boolean(local.changed && local.onReset && !local.locked && !local.disabled)
   const reset = () => {
     local.onReset?.()
-    const target = control?.querySelector<HTMLElement>(FOCUS_TARGET)
+    const target = FOCUS_TARGETS.map((selector) => control?.querySelector<HTMLElement>(selector)).find(Boolean)
     target?.focus()
   }
   const helper = (): JSX.Element => (

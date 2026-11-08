@@ -1,4 +1,5 @@
-import {For, splitProps, type JSX} from 'solid-js'
+import {For, Show, splitProps, type JSX} from 'solid-js'
+import {useFieldContext} from '@ark-ui/solid/field'
 import {TagsInput as Ark} from '@ark-ui/solid/tags-input'
 import X from 'lucide-solid/icons/x'
 import {INPUT_FRAME} from './input-frame.js'
@@ -32,6 +33,7 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
     'class',
     'aria-label',
   ])
+  const field = useFieldContext()
   return (
     <Ark.Root
       class={`min-w-0 ${local.class ?? ''}`}
@@ -51,23 +53,30 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
             <Ark.Item index={index()} value={tag}>
               <Ark.ItemPreview class={ITEM_PREVIEW}>
                 <Ark.ItemText>{tag}</Ark.ItemText>
-                <Ark.ItemDeleteTrigger
-                  asChild={(triggerProps) => (
-                    <TooltipIconButton
-                      {...triggerProps()}
-                      tooltip={`Remove ${tag}`}
-                      class="rounded-[0.1875rem] size-4.5"
-                    >
-                      <X class="size-3" aria-hidden="true" />
-                    </TooltipIconButton>
-                  )}
-                />
+                <Show when={!local.readOnly && !local.disabled}>
+                  <Ark.ItemDeleteTrigger
+                    asChild={(triggerProps) => (
+                      <TooltipIconButton
+                        {...triggerProps()}
+                        tooltip={`Remove ${tag}`}
+                        class="rounded-[0.1875rem] size-4.5"
+                      >
+                        <X class="size-3" aria-hidden="true" />
+                      </TooltipIconButton>
+                    )}
+                  />
+                </Show>
               </Ark.ItemPreview>
               <Ark.ItemInput class={INPUT} />
             </Ark.Item>
           )}
         </For>
-        <Ark.Input class={INPUT} placeholder={local.placeholder} aria-label={local['aria-label']} />
+        <Ark.Input
+          class={INPUT}
+          placeholder={local.placeholder}
+          aria-label={local['aria-label']}
+          aria-labelledby={local['aria-label'] ? undefined : field?.().ids.label}
+        />
       </Ark.Control>
       <Ark.HiddenInput />
     </Ark.Root>

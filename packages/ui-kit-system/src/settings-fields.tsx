@@ -171,7 +171,11 @@ function SliderControl(props: {
           <Slider.Track>
             <Slider.Range />
           </Slider.Track>
-          <Slider.Thumb index={0} aria-describedby={context?.().ariaDescribedby}>
+          <Slider.Thumb
+            index={0}
+            aria-describedby={context?.().ariaDescribedby}
+            aria-readonly={props.readOnly ? 'true' : undefined}
+          >
             <Slider.HiddenInput />
           </Slider.Thumb>
         </Slider.Control>
@@ -403,6 +407,7 @@ function SettingCheckboxGroupField(props: ShellProps & {options: Option[]}): JSX
       <CheckboxGroup
         options={own.options}
         value={field().state.value}
+        disabled={shell.disabled}
         readOnly={Boolean(shell.locked)}
         onValueChange={(value) =>
           commit(
