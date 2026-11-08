@@ -1258,6 +1258,7 @@ describe('grab staging', () => {
 describe('chat history paging', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const SEEDED_EXCHANGES = 100
+  const GLIDE_DRAG_WINDOW_MS = 1_500
   const core = bootedCore('history-paging', {
     displayName: 'Alpha',
     alternates: [{id: 'beta', displayName: 'Beta', text: 'Hello from beta'}],
@@ -1422,6 +1423,34 @@ describe('chat history paging', () => {
     await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
     await expectMarkersInPlace()
   })
+
+  test('Latest glides to the newest message from far up, and a wheel mid-glide leaves the reader where they scrolled', async () => {
+    const latest = () => page.getByRole('button', {name: 'Scroll to bottom'})
+    await openChat(long.sessionId)
+    for (const boundary of [74, 49]) {
+      await scrollToTop()
+      await expect.element(exchange(boundary)).toBeInTheDocument()
+    }
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await userEvent.click(latest())
+
+    await expect.element(latest()).toBeEnabled()
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).not.toBeInTheDocument()
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInViewport()
+    await expect.element(latest()).toBeDisabled()
+
+    await scrollToTop()
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await userEvent.click(latest())
+    await userEvent.wheel(thread(), {delta: {y: -400}})
+    await faults.releaseAll()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, GLIDE_DRAG_WINDOW_MS))
+
+    await expect.element(latest()).toBeEnabled()
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).not.toBeInTheDocument()
+  }, 60_000)
 
   test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {
     const sessionId = await seedExchanges()

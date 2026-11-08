@@ -11,6 +11,7 @@ import {
 import {createStore, reconcile} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {createMediaQuery} from '@solid-primitives/media'
 import {
   Virtualizer,
   elementScroll,
@@ -22,6 +23,7 @@ import {
 
 export const SCROLL_END_THRESHOLD_PX = 1
 const NEAR_START_VIEWPORTS = 3
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
@@ -83,12 +85,14 @@ export type ThreadVirtualizer = {
   atEnd: Accessor<boolean>
   nearStart: Accessor<boolean>
   landOnEnd: () => void
+  glideToEnd: () => void
   measureRow: (element: Element) => void
   remeasure: () => void
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   let landedOffset: number | undefined
+  const reducedMotion = createMediaQuery(REDUCED_MOTION)
 
   const writeScroll = (offset: number, behavior: ScrollBehavior | undefined): void => {
     elementScroll(offset, {adjustments: undefined, behavior}, instance)
@@ -113,6 +117,16 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     landOnEnd()
   }
 
+  const glideToEnd = (): void => {
+    if (reducedMotion()) {
+      returnToEnd()
+      return
+    }
+    if (readerInput !== 'holding') readerInput = 'untouched'
+    landedOffset = undefined
+    instance.scrollToEnd({behavior: 'smooth'})
+  }
+
   const stillOnTheLanding = (element: HTMLElement): boolean =>
     landedOffset !== undefined && Math.abs(element.scrollTop - landedOffset) < 1
 
@@ -130,12 +144,14 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   let readerInput: ReaderInput = 'untouched'
 
   const holdViewport = (): void => {
+    instance.cancelScroll()
     readerInput = 'holding'
   }
   const releaseViewport = (): void => {
     if (readerInput === 'holding') readerInput = 'touched'
   }
   const noteReaderInput = (): void => {
+    instance.cancelScroll()
     if (readerInput !== 'holding') readerInput = 'touched'
   }
 
@@ -169,6 +185,11 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     landedOffset = undefined
   }
 
+  const settleLanding = (element: HTMLElement): void => {
+    if (readerInput !== 'holding' && liveAtEnd()) landedOffset = element.scrollTop
+    if (!stillOnTheLanding(element)) releaseOrReland()
+  }
+
   const onScrolled = (): void => {
     if (recovery.phase === 'deferred-behind-gesture') {
       const {anchor} = recovery
@@ -179,7 +200,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       }
     }
     const element = config.scrollElement()
-    if (element && !stillOnTheLanding(element)) releaseOrReland()
+    if (element) settleLanding(element)
     syncAtEnd()
     if (element?.isConnected) rememberAnchor(element)
   }
@@ -350,6 +371,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     atEnd: () => edges.atEnd,
     nearStart: () => edges.nearStart,
     landOnEnd: returnToEnd,
+    glideToEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {
       instance.measureElement(null)

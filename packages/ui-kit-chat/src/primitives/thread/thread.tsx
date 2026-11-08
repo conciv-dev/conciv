@@ -52,7 +52,7 @@ function Root(props: DivProps): JSX.Element {
       value={{
         isAtBottom: () => scroller()?.atEnd() ?? true,
         isNearTop: () => scroller()?.nearStart() ?? false,
-        scrollToBottom: landOnEnd,
+        scrollToBottom: () => scroller()?.glideToEnd(),
         sendFromUser: (deliver) => {
           landOnEnd()
           return deliver()
@@ -194,6 +194,7 @@ function VirtualMessages(props: {
       atEnd: virtualizer.atEnd,
       nearStart: virtualizer.nearStart,
       landOnEnd: virtualizer.landOnEnd,
+      glideToEnd: virtualizer.glideToEnd,
     })
     onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
