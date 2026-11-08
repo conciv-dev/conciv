@@ -5,24 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/apps/conciv/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-chat/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-chat-tools/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-system/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-terminal/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/ui-kit-tap/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/tools/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/core/src/cards.tsx",
-        "$TURBO_ROOT$/packages/core/src/cards/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/page/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/terminal/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/whiteboard/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/recorder/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/try-it/src/**/*.{ts,tsx}",
-        "$TURBO_ROOT$/packages/extensions/tanstack/src/**/*.{ts,tsx}"
-      ]
+      "inputs": ["$TURBO_DEFAULT$"]
     }
   }
 }
