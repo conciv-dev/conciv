@@ -1,4 +1,4 @@
-import {range} from 'es-toolkit'
+import {isEqual, range} from 'es-toolkit'
 import type {Box, Design, GateRow, IdNode, Raster, Round} from '../shared/defs.js'
 import {box as boxes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
@@ -21,6 +21,7 @@ export function progressOf(input: {
     .filter((row) => earlier.has(rowKey(row)))
     .map((row) => ({node: row.node, id: row.id, text: row.text, repeat: repeatOf({rounds, key: rowKey(row)})}))
   const changed = changedOf(input)
+  const still = changed?.ratio === 0 && kept.length > 0 && reflowHeld({before: before.rows, now: now.rows})
   return {
     closed: before.rows.filter((row) => !present.has(rowKey(row))).length,
     opened: now.rows.filter((row) => !earlier.has(rowKey(row))).length,
@@ -31,7 +32,7 @@ export function progressOf(input: {
     },
     pixels: {now: now.pixels?.share ?? null, before: before.pixels?.share ?? null},
     changed,
-    note: changed?.ratio === 0 && kept.length > 0 ? UNCHANGED_NOTE : null,
+    note: still ? UNCHANGED_NOTE : null,
   }
 }
 
@@ -49,6 +50,15 @@ const RATIO_DIGITS = 1e6
 
 function rowKey(row: GateRow): string {
   return JSON.stringify([row.node, row.magnitude, row.text, row.width ?? null])
+}
+
+function reflowHeld(input: {before: GateRow[]; now: GateRow[]}): boolean {
+  const keys = (rows: GateRow[]) =>
+    rows
+      .filter((row) => row.magnitude === 'reflow')
+      .map(rowKey)
+      .toSorted()
+  return isEqual(keys(input.before), keys(input.now))
 }
 
 function repeatOf(input: {rounds: Round[]; key: string}): number {
