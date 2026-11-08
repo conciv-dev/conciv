@@ -17,6 +17,7 @@ import {TextArea} from '../src/text-field.js'
 import {Menu} from '../src/menu.js'
 import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
 import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
+import {Tooltip} from '../src/tooltip.js'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {VirtualJsonTree} from '../src/virtual-json-tree.js'
 
@@ -967,6 +968,14 @@ describe.each([
   {
     mode: 'shared group tooltip',
     Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
+  },
+  {
+    mode: 'shared group around an inner tooltip root',
+    Wrap: (props: {children: JSX.Element}) => (
+      <TruncatedTextGroup>
+        <Tooltip.Root>{props.children}</Tooltip.Root>
+      </TruncatedTextGroup>
+    ),
   },
 ])('truncated text with $mode', ({Wrap}) => {
   const LONG = 'I accept the terms and conditions. Required. Validation runs on submit and again on blur.'
