@@ -13,7 +13,6 @@ import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
 import {makeSessionOs, os, type RpcDeps} from './mount.js'
-import {createHubInstaller} from './hub.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {cappedText, safeStringify} from '@conciv/chat'
@@ -99,7 +98,6 @@ export function makeRpcRouter(deps: RpcDeps) {
   const db = chat.db
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
-  const hub = createHubInstaller()
   return os.router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
@@ -213,7 +211,7 @@ export function makeRpcRouter(deps: RpcDeps) {
           models,
           defaultModel: harness.defaultModel ?? models[0]?.id ?? null,
           harness: harnessMetaOf(harness),
-          hubInstalls: hub.installs(),
+          hubInstalls: deps.hub.installs(),
         }
       }),
       harnesses: os.meta.harnesses.handler(async () => ({
@@ -225,7 +223,7 @@ export function makeRpcRouter(deps: RpcDeps) {
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
-      connectHub: os.meta.connectHub.handler(({input}) => hub.connect(input.harness)),
+      connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
     },
   })
 }

@@ -3,6 +3,16 @@ import type {HarnessInitContribution} from '@conciv/protocol/harness-types'
 export const opencodeInit: HarnessInitContribution<'opencode'> = {
   harnessId: 'opencode',
   detection: {bin: 'opencode', configDir: ['.config', 'opencode']},
-  hub: {add: (command) => ['opencode', 'mcp', 'add', 'conciv-hub', '--', ...command]},
+  hub: {
+    add: (command, env) => [
+      'opencode',
+      'mcp',
+      'add',
+      'conciv-hub',
+      ...Object.entries(env).map(([name, value]) => `--env=${name}=${value}`),
+      '--',
+      ...command,
+    ],
+  },
   init: 'none',
 }

@@ -1,4 +1,4 @@
-import {execFileSync} from 'node:child_process'
+import {spawnSync} from 'node:child_process'
 import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
 import {harnessHome} from '@conciv/e2e-utils/config'
@@ -114,7 +114,9 @@ test('connect hub registers conciv-hub in the harness CLI config', async ({page}
 
   const home = harnessHome(projectName)
   const env = {...process.env, HOME: home, CODEX_HOME: join(home, '.codex')}
-  const listed = execFileSync(bin, args, {env, encoding: 'utf8', timeout: 60_000})
+  const run = spawnSync(bin, args, {env, encoding: 'utf8', timeout: 60_000})
+  expect(run.status).toBe(0)
+  const listed = `${run.stdout}${run.stderr}`
   expect(listed).toContain('conciv-hub')
   expect(listed).toContain('@conciv/cli@')
 })

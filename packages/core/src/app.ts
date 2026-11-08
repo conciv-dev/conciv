@@ -61,6 +61,7 @@ import type {ChatContext} from './api/rpc/mount.js'
 import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import mcpApp, {type McpVars} from './api/mcp.js'
+import {createHubInstaller} from './api/rpc/hub.js'
 import tabsApp, {type TabsVars} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
@@ -618,6 +619,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
     admitOutside,
+    hub: createHubInstaller(opts.home),
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,

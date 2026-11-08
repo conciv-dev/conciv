@@ -85,6 +85,7 @@ export type BootOverrides = {
   firstChunkTimeoutMs?: number
   harnesses?: HarnessAdapter[]
   systemPromptText?: string
+  home?: string
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -118,6 +119,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     harnesses: overrides.harnesses,
     systemPromptText: overrides.systemPromptText,
+    home: overrides.home,
   })
 }
 

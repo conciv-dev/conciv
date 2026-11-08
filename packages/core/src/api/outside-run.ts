@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {createMCPClient} from '@conciv/ai/server'
 import type {CodeCapability} from '@conciv/chat'
 import {toolError} from '@conciv/extension'
+import type {ContentPart} from '@conciv/protocol/chat-message-types'
 import {
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
@@ -24,10 +25,14 @@ const NO_TAB_MESSAGE = 'call external_use_tab({id}) first; external_tabs({}) lis
 
 const UseTabInputSchema = z.object({id: SessionId})
 
-const ReplySchema = z.object({
-  content: z.array(z.object({type: z.string(), text: z.string().optional()})),
-  isError: z.boolean().optional(),
+const ReplyPartSchema = z.object({
+  type: z.string(),
+  text: z.string().optional(),
+  data: z.string().optional(),
+  mimeType: z.string().optional(),
 })
+
+const ReplySchema = z.object({content: z.array(ReplyPartSchema), isError: z.boolean().optional()})
 
 const SuccessSchema = z.object({result: z.unknown()})
 
@@ -86,8 +91,19 @@ async function forward(tab: PickedTab, client: string | null, name: string, inpu
     const {code, message} = failure.data.error
     throw code === undefined ? new Error(message) : toolError(code, {message})
   }
+  if (reply.content.some((part) => part.type === 'image')) return reply.content.map(contentPart)
   const success = SuccessSchema.safeParse(parsed)
   return success.success ? success.data.result : text
+}
+
+function contentPart(part: z.infer<typeof ReplyPartSchema>): ContentPart {
+  if (part.type === 'image' && part.data !== undefined) {
+    return {
+      type: 'image',
+      source: {type: 'data', value: part.data, mimeType: part.mimeType ?? 'application/octet-stream'},
+    }
+  }
+  return {type: 'text', content: part.text ?? ''}
 }
 
 async function callOwner(tab: PickedTab, headers: Record<string, string>, typescriptCode: string) {

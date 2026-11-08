@@ -983,15 +983,15 @@ describe('cli', () => {
   const pages = new AbortController()
   afterAll(() => pages.abort())
 
-  async function engineWithTab(home: string) {
-    const root = mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+  async function engineWithTab(home: string, shared?: {root: string; sessionId: string}) {
+    const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
     const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
     const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home})
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-    const {sessionId} = await makeRpcClient(base).sessions.create(undefined)
+    const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
     await page.page.queries(undefined, {signal: pages.signal})
-    return {engine, sessionId, base, page}
+    return {engine, sessionId, base, page, root}
   }
 
   describe('conciv tools on any tab', () => {
@@ -1010,15 +1010,14 @@ describe('cli', () => {
         const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
         expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
         const viaTab = ['tools', 'tabs', '--tab', sessionId]
-        const refused = {
-          ok: false,
-          error: {code: 'APPROVAL_DENIED', message: expect.stringContaining('cli is waiting for the user to allow it')},
-        }
-        expect(await conciv(elsewhere, home, viaTab)).toMatchObject(refused)
+        const waiting = conciv(elsewhere, home, viaTab)
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
         const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
         expect(ask).toMatchObject({toolName: 'Allow cli to use this tab'})
         await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
-        expect(await conciv(elsewhere, home, viaTab)).toMatchObject(listed)
+        expect(await waiting).toMatchObject(listed)
         const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
         expect(await conciv(elsewhere, home, missing)).toMatchObject({
           ok: false,
@@ -1035,6 +1034,23 @@ describe('cli', () => {
         })
       } finally {
         await engine.stop()
+      }
+    })
+
+    it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home, first)
+      try {
+        expect(await conciv(tmpdir(), home, ['tools', 'tabs', '--tab', first.sessionId])).toMatchObject({
+          ok: false,
+          error: {
+            kind: 'user',
+            message: `tab ${first.sessionId} is open in 2 running conciv dev servers: ${first.root}, ${first.root}.`,
+          },
+        })
+      } finally {
+        await Promise.all([first.engine.stop(), second.engine.stop()])
       }
     })
   })

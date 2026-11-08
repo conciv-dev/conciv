@@ -56,11 +56,18 @@ async function liveEngines(env: NodeJS.ProcessEnv): Promise<EngineRow[]> {
 
 async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
   const answers = await Promise.allSettled(live.map((row) => holdsTab(row, tab)))
-  const owner = live.find((_row, index) => {
+  const owners = live.filter((_row, index) => {
     const answer = answers[index]
     return answer?.status === 'fulfilled' && answer.value
   })
-  if (owner !== undefined) return owner.apiBase
+  const [owner, ...others] = owners
+  if (owner !== undefined && others.length === 0) return owner.apiBase
+  if (owner !== undefined) {
+    const roots = owners.map((row) => row.root).join(', ')
+    throw userFailure(`tab ${tab} is open in ${owners.length} running conciv dev servers: ${roots}.`, {
+      hint: 'stop all but one of them, or reload the page so only one server holds the tab.',
+    })
+  }
   const silent = answers.filter((answer) => answer.status === 'rejected').length
   const unanswered = silent === 0 ? '' : ` (${silent} of them did not answer)`
   throw userFailure(`tab ${tab} is not open in any of the ${live.length} running conciv dev servers${unanswered}.`, {

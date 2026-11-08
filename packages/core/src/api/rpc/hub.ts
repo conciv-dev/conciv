@@ -20,28 +20,29 @@ const DetectionEnvSchema = z.object({
 
 type ConnectOutcome = {ok: true} | {ok: false; message: string}
 
-export function createHubInstaller() {
+export function createHubInstaller(homeDir: string | undefined) {
+  const home = (): string => concivHome({homeDir, env: process.env})
   return {
     installs: (): Array<{harnessId: InitHarnessId; name: string}> => {
-      const connected = readConnections(process.env)
+      const connected = readConnections(home())
       return detectHarnesses(DetectionEnvSchema.parse(process.env))
         .filter(({id}) => initContributions[id].hub !== undefined && !connected.includes(id))
         .map(({id}) => ({harnessId: id, name: getHarness(id)?.displayName ?? id}))
     },
     connect: async (harness: InitHarnessId): Promise<ConnectOutcome> => {
-      const argv = initContributions[harness].hub?.add(HUB_COMMAND) ?? []
+      const argv = initContributions[harness].hub?.add(HUB_COMMAND, {CONCIV_HOME: home()}) ?? []
       const [bin, ...args] = argv
       if (bin === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
       const ran = await run(bin, args, process.env)
       if (!ran.ok && !ALREADY_EXISTS.test(ran.output)) return {ok: false, message: ran.message}
-      return record(harness, process.env)
+      return record(harness, home())
     },
   }
 }
 
-function readConnections(env: NodeJS.ProcessEnv): string[] {
+function readConnections(home: string): string[] {
   try {
-    return withHomeDb(concivHome({env}), hubConnections)
+    return withHomeDb(home, hubConnections)
   } catch (error) {
     logError(`[core] the conciv home db could not be read: ${String(error)}`)
     return []
@@ -61,9 +62,9 @@ function run(
   })
 }
 
-function record(harness: InitHarnessId, env: NodeJS.ProcessEnv): ConnectOutcome {
+function record(harness: InitHarnessId, home: string): ConnectOutcome {
   try {
-    withHomeDb(concivHome({env}), (db) => recordHubConnection(db, harness, Date.now()))
+    withHomeDb(home, (db) => recordHubConnection(db, harness, Date.now()))
     return {ok: true}
   } catch (error) {
     return {ok: false, message: `conciv could not record the connection: ${String(error)}`}

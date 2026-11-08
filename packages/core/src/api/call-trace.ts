@@ -33,22 +33,29 @@ export function callTrace(header: (name: string) => string | null) {
       ...(hub?.forwarded === true ? [] : [resultChunk(callId, text, failed, marker)]),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
-    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, sink),
+    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
   }
 }
 
-function mirrorRun(run: CallRun, sink: MirrorSink) {
+function mirrorRun(run: CallRun, outside: boolean, sink: MirrorSink) {
   const recorded: ChatEvent[] = []
+  const kept = !run.live || outside
+  const save = (): Promise<void> =>
+    sink
+      .record(recorded.splice(0))
+      .catch((error: unknown) => logError(`[hub] saving an outside call to the chat failed: ${String(error)}`))
   return {
     publish: (chunks: readonly ChatEvent[]): void => {
-      if (!run.live) recorded.push(...chunks)
+      if (kept) recorded.push(...chunks)
       chunks.forEach((chunk) => sink.publish(chunk))
     },
     settle: async (): Promise<void> => {
-      if (run.live) return
-      await sink
-        .record(recorded.splice(0))
-        .catch((error: unknown) => logError(`[hub] saving an outside call to the chat failed: ${String(error)}`))
+      if (!kept) return
+      if (run.live) {
+        void save()
+        return
+      }
+      await save()
     },
   }
 }

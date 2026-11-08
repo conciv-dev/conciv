@@ -334,6 +334,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const persistence = defineAIPersistence({stores})
   const processLocks = new InMemoryLockStore()
   const locks = defineLock({withLock: (key, work) => processLocks.withLock(key, work)})
+  const savingShown = (threadId: string, work: () => Promise<void>): Promise<void> =>
+    processLocks.withLock(`conciv-shown:${threadId}`, work)
   const live = new Map<string, LiveRun>()
   const debug = silentCategories({
     debug: () => undefined,
@@ -465,8 +467,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
-        await saveStoppedTurn(stores.messages, turn.threadId, shown).catch((error: unknown) =>
-          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
+        await savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)).catch(
+          (error: unknown) => config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
         )
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
@@ -588,6 +590,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     hydrate: async (threadId, window = {}) => {
       const stopping = liveRunsOf(threadId).filter(([, entry]) => entry.controller.signal.aborted)
       await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
+      await savingShown(threadId, async () => undefined)
       const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
       const thread = ReconstructedSchema.parse(await response.json())
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
@@ -596,7 +599,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     record: async (threadId, chunks) => {
       const processor = new StreamProcessor({})
       for (const chunk of chunks) followRun(processor, chunk)
-      await saveShown(stores.messages, threadId, processor, (message) => message)
+      await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
+      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
     },
     codeRunner: (codeMode) => {
       if (driver === null) return null

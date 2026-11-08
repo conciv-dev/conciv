@@ -106,7 +106,7 @@ function AllowOutsideAgentsRow(props: {sessionId: string}): JSX.Element {
     onSuccess: appData.invalidateOutsideAccess,
   }))
   return (
-    <Show when={outsideAccess.data?.denied}>
+    <Show when={outsideAccess.isSuccess && outsideAccess.data.denied}>
       <button
         type="button"
         class={RAIL_MENU_ROW}

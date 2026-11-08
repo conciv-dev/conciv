@@ -473,9 +473,10 @@ describe('api installed harnesses', () => {
 })
 
 describe('connect hub', () => {
-  const kit = sharedKit(() => bootKit({}, createFakeHarness({id: 'fake-hub'})))
-  const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
   const root = join(realpathSync(tmpdir()), `conciv-connect-hub-${randomUUID()}`)
+  const engineHome = join(root, 'engine-home')
+  const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
+  const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
   const file = {argv: join(root, 'argv'), exists: join(root, 'exists'), fail: join(root, 'fail')}
   const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp']
 
@@ -505,7 +506,17 @@ describe('connect hub', () => {
     expect(existsSync(file.argv)).toBe(false)
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
     const argv = readFileSync(file.argv, 'utf8').trim().split('\n')
-    expect(argv).toEqual(['mcp', 'add', '-s', 'user', 'conciv-hub', '--', ...hubCommand])
+    expect(argv).toEqual([
+      'mcp',
+      'add',
+      '-s',
+      'user',
+      'conciv-hub',
+      '-e',
+      `CONCIV_HOME=${engineHome}`,
+      '--',
+      ...hubCommand,
+    ])
     expect(await hubInstalls()).toEqual([])
   })
 
@@ -1892,6 +1903,21 @@ describe('rpc wire', () => {
           [ChatEventType.RUN_STARTED, true],
           [ChatEventType.RUN_FINISHED, true],
         ])
+      })
+
+      it('an outside call made while the tab runs a turn is still in the chat after a reload', async () => {
+        const sessionId = await newSession()
+        const {turn} = await heldTurn(sessionId, 'hold for an outside call')
+        const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+        const call = executeOverMcp(chatKit().base, hub, 'return 1')
+        await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
+          timeout: 3000,
+        })
+        await call
+        script().release()
+        await turn.done(GUARD)
+        const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
+        expect(cards.map(cardMetadata)).toContainEqual({conciv: {origin: 'hub', client: 'codex'}})
       })
 
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
@@ -3669,9 +3695,9 @@ describe('outside agent consent', () => {
     const sessionId = await newSession(base)
     const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
     const replies = async () => {
-      for await (const {requestId} of queries) {
+      for await (const {requestId, query} of queries) {
         if (silent) silent()
-        else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: ROUTE}})
+        else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
     }
     replies().catch(() => {})
@@ -3681,6 +3707,11 @@ describe('outside agent consent', () => {
   }
 
   const outside = (base: string, code: string): Promise<string> => executeOverMcp(base, HUB, code).then(String, String)
+
+  const SCREENSHOT = {image: 'UklGRhYAAABXRUJQVlA4', width: 1, height: 1}
+
+  const pageAnswer = (query: unknown) =>
+    z.object({name: z.string()}).safeParse(query).data?.name === 'page_screenshot' ? SCREENSHOT : ROUTE
 
   const rpcOf = (base: string, sessionId: string) =>
     makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
@@ -3760,6 +3791,12 @@ describe('outside agent consent', () => {
     const forwarded = outside(runner, `${pick} return await external_page_route({})`)
     await decideOutside(owner, theirs, true)
     expect(await forwarded).toContain(ROUTE.href)
+    const screenshot = JSON.stringify(
+      await executeOverMcp(runner, HUB, `${pick} return await external_page_screenshot({})`),
+    )
+    expect(screenshot).toContain(
+      JSON.stringify({type: 'image', source: {type: 'data', value: SCREENSHOT.image, mimeType: 'image/webp'}}),
+    )
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
@@ -3833,6 +3870,12 @@ describe('outside agent consent', () => {
     expect(await hubCall(base, sessionId)).toMatch(RAN)
     expect(await starts()).toMatchObject([{metadata: {conciv: {origin: 'hub', client: 'codex'}}}])
     expect(await pendingOf(base, sessionId)).toEqual([])
+    const together = await Promise.all(Array.from({length: 12}, () => hubCall(base, sessionId)))
+    expect(together).toEqual(Array.from({length: 12}, () => expect.stringMatching(RAN)))
+    const saved = (await rpcOf(base, sessionId).chat.hydrate({sessionId})).messages.flatMap((message) =>
+      message.parts.filter((part) => part.type === 'tool-call'),
+    )
+    expect(saved).toHaveLength(13)
   })
 })
 
