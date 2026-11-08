@@ -1,11 +1,10 @@
 import type {record} from 'rrweb'
 import type {getRecordConsolePlugin} from '@rrweb/rrweb-plugin-console-record'
 import type {eventWithTime} from '@rrweb/types'
+import {CONCIV_UI_SELECTOR} from '@conciv/extension'
 import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 
 const CHECKOUT_MS = 60_000
-
-const CONCIV_UI_SELECTOR = '[data-conciv-root], [data-conciv-effects], [data-conciv-fonts], [data-conciv-properties]'
 
 function maskingOptions(masking: RecorderConfig['masking']): {
   maskAllInputs: boolean

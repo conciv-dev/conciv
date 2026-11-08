@@ -42,6 +42,7 @@ export type FaultSpec =
   | {kind: 'offline'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
+  | {kind: 'cut-on-release'; path: string[]}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
@@ -328,13 +329,16 @@ async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector
 
 type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
 
-async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+async function holdPosts(
+  ctx: BrowserCommandContext,
+  matcher: (url: URL) => boolean,
+  settle: (route: Route) => Promise<void>,
+): Promise<Fault> {
   const held: {open: boolean; routes: Route[]; waiters: {count: number; deliver: () => void}[]} = {
     open: false,
     routes: [],
     waiters: [],
   }
-  const matcher = (url: URL): boolean => url.pathname.endsWith(CHAT_SSE_PATH)
   const handler = async (route: Route): Promise<void> => {
     if (held.open || route.request().method() !== 'POST') return route.continue()
     held.routes.push(route)
@@ -343,7 +347,7 @@ async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   await ctx.page.route(matcher, handler)
   const open = async (): Promise<void> => {
     held.open = true
-    await Promise.all(held.routes.splice(0).map((route) => route.continue().catch(() => {})))
+    await Promise.all(held.routes.splice(0).map((route) => settle(route).catch(ignoreHandledRoute)))
   }
   return {
     pending: () => held.routes.length,
@@ -351,14 +355,35 @@ async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
       held.routes.length >= count
         ? Promise.resolve()
         : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () =>
-      Promise.reject(new Error('a chat-gate fault streams its answer, so it has no single call to await')),
+    answered: () => Promise.reject(new Error('a held request fault has no single call to await')),
     release: open,
     dispose: async () => {
       await open()
       await ctx.page.unroute(matcher, handler)
     },
   }
+}
+
+function ignoreHandledRoute(error: unknown): void {
+  if (error instanceof Error && error.message.includes('Route is already handled')) return
+  throw error
+}
+
+function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+  return holdPosts(
+    ctx,
+    (url) => url.pathname.endsWith(CHAT_SSE_PATH),
+    (route) => route.continue(),
+  )
+}
+
+function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
+  const httpPath = `/rpc/${path.join('/')}`
+  return holdPosts(
+    ctx,
+    (url) => url.pathname.endsWith(httpPath),
+    (route) => route.abort('aborted'),
+  )
 }
 
 function pathOptions(path: string[] | undefined): {path?: string[]} {
@@ -382,6 +407,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   const testkit = await testkitOf(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))

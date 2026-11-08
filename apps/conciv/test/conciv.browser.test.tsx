@@ -2449,7 +2449,7 @@ describe('panel escape', () => {
   }, 30_000)
 })
 
-describe('panel refresh', () => {
+describe('panel header', () => {
   const REPLY_TEXT = 'the transcript that outlives a refresh'
 
   const coreBase = bootedCore('panel-refresh')
@@ -2460,8 +2460,8 @@ describe('panel refresh', () => {
 
   const reply = () => page.getByText(REPLY_TEXT)
   const skeleton = () => page.getByRole('status', {name: 'Loading conversation'})
-  const sessionMenu = () => page.getByRole('button', {name: 'Session options'})
-  const refreshingMenu = () => page.getByRole('button', {name: 'Refreshing the conversation'})
+  const sessionMenu = () => page.getByRole('button', {name: /session options$/})
+  const refreshingMenu = () => page.getByRole('button', {name: /refreshing the conversation$/})
   const refreshRow = () => page.getByRole('button', {name: 'Refresh the conversation'})
 
   test('a session list still loading never hides the title or the view tabs behind skeletons', async () => {
@@ -2504,6 +2504,66 @@ describe('panel refresh', () => {
     await expect.element(sessionMenu(), {timeout: 8000}).toBeVisible()
     await expect.element(reply()).toBeVisible()
     await expect.element(skeleton()).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('a user opens the session menu by clicking the title, renames in place and switches sessions', async () => {
+    const TITLE = 'the titled session'
+    const RENAMED = 'renamed from the header'
+    const OTHER = 'the other session'
+    const header = () => page.getByRole('banner')
+    const titleButton = (title: string) =>
+      header().getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+    const pencil = () => header().getByRole('button', {name: 'Rename session'})
+    const titleInput = () => header().getByRole('textbox', {name: 'Session title'})
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const switcher = (title: string) => menu().getByRole('button', {name: `Session: ${title}`})
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(titleButton(TITLE), {timeout: 8000}).toBeVisible()
+    await titleButton(TITLE).hover()
+    await expect.element(menu()).not.toBeInTheDocument()
+    await titleButton(TITLE).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(switcher(TITLE)).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton(TITLE)).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(menu()).toBeVisible()
+    await expect.element(switcher(TITLE)).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(titleButton(TITLE)).toHaveFocus()
+
+    await pencil().click()
+    await expect.element(titleInput()).toHaveValue(TITLE)
+    await userEvent.type(titleInput(), ' discarded{Escape}')
+    await expect.element(titleInput()).not.toBeInTheDocument()
+    await expect.element(titleButton(TITLE)).toBeVisible()
+
+    await faults.install({kind: 'fail', path: ['sessions', 'rename']})
+    await pencil().click()
+    await userEvent.clear(titleInput())
+    await userEvent.type(titleInput(), `${RENAMED}{Enter}`)
+    await expect.element(page.getByRole('alert'), {timeout: 8000}).toHaveTextContent('Rename failed')
+    await expect.element(titleButton(TITLE)).toBeVisible()
+    await faults.releaseAll()
+
+    await pencil().click()
+    await userEvent.clear(titleInput())
+    await userEvent.type(titleInput(), `${RENAMED}{Enter}`)
+    await expect.element(titleButton(RENAMED), {timeout: 8000}).toBeVisible()
+    await expect.element(pencil()).toHaveFocus()
+
+    await titleButton(RENAMED).click()
+    await switcher(RENAMED).click()
+    await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
   }, 30_000)
 })
 
@@ -2618,7 +2678,7 @@ describe('panel view tabs', () => {
     const replied = () => page.getByText('conciv replied.')
     const option = (name: RegExp) => page.getByRole('option', {name})
     const openSessions = async (active: string) => {
-      await page.getByRole('button', {name: 'Session options'}).click()
+      await page.getByRole('button', {name: /session options$/}).click()
       await page.getByRole('button', {name: `Session: ${active}`}).click()
     }
     type Titles = {running: string; other: string}
@@ -3243,14 +3303,49 @@ describe('engine login', () => {
     await expect.element(dialog()).not.toBeInTheDocument()
   }, 30_000)
 
-  test('the magic link logs in on load and is removed from the URL', async () => {
-    const code = await coreControl.requestCode()
+  const openMagicLink = (code: string): void => {
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#conciv_otp=${code}`)
+  }
+
+  test('a reload while the magic link is being exchanged still logs in, and the link leaves the URL once trusted', async () => {
+    openMagicLink(await coreControl.requestCode())
+    const exchange = await faults.install({kind: 'cut-on-release', path: ['auth', 'exchange']})
     harness.mountShell('/', [], {login: {apiBase: origin()}})
-    await expect.poll(() => localStorage.getItem(storageKey())).not.toBeNull()
-    await expect.element(opener()).toBeVisible()
+    await coreControl.awaitFaultPending(exchange, 1)
+    harness.dispose()
+    await coreControl.releaseFault(exchange)
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await opener().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    expect(localStorage.getItem(storageKey())).not.toBeNull()
     expect(window.location.hash).toBe('')
-  })
+  }, 30_000)
+
+  test('a magic link whose exchange fails leaves the URL once the host token source trusts the page', async () => {
+    const minted = await makeRpcClient(origin()).auth.exchange({code: await coreControl.requestCode()})
+    if (!('token' in minted)) throw new Error(`the engine refused the test code: ${minted.refused}`)
+    openMagicLink(await coreControl.requestCode())
+    await faults.install({kind: 'fail', path: ['auth', 'exchange']})
+    harness.mountShell('/', [], {login: {apiBase: origin(), tokenSource: async () => minted.token}})
+    await opener().click()
+    await expect.element(editor(), {timeout: 8000}).toBeVisible()
+    expect(window.location.hash).toBe('')
+  }, 30_000)
+
+  test('a magic link the engine already spent leaves the launcher locked, is dropped from the URL, and a fresh code still logs in', async () => {
+    const code = await coreControl.requestCode()
+    expect(await makeRpcClient(origin()).auth.exchange({code})).toHaveProperty('token')
+    openMagicLink(code)
+    const exchange = await faults.install({kind: 'gate', path: ['auth', 'exchange']})
+    harness.mountShell('/', [], {login: {apiBase: origin()}})
+    await coreControl.awaitFaultPending(exchange, 1)
+    await coreControl.releaseFault(exchange)
+    await coreControl.awaitFaultAnswered(exchange)
+    await expect.element(locked()).toBeVisible()
+    await expect.element(dialog()).not.toBeInTheDocument()
+    await unlock()
+    expect(window.location.hash).toBe('')
+  }, 30_000)
 
   test('extension surfaces start only once the engine trusts the page, on the trusted base', async () => {
     harness.mountShell('/', [surfaceProbe], {login: {apiBase: origin()}})
@@ -3323,7 +3418,7 @@ describe('engine login', () => {
     harness.mountShell('/', [], {login: {apiBase: origin()}})
     await unlock()
     expect(await coreControl.revokeBrowsers()).toBeGreaterThan(0)
-    await page.getByRole('button', {name: 'Session options'}).click()
+    await page.getByRole('button', {name: /session options$/}).click()
     await page.getByRole('button', {name: 'Refresh the conversation'}).click()
     await expect.element(reloginNotice(), {timeout: 8000}).toBeVisible()
     await expect.element(editor()).toBeVisible()
@@ -3447,7 +3542,7 @@ describe('session picker after login', () => {
     await userEvent.type(page.getByRole('textbox', {name: 'Digit 1 of 6'}), await coreControl.printedCode())
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 8000}).toBeVisible()
 
-    await userEvent.click(page.getByRole('button', {name: 'Session options'}))
+    await userEvent.click(page.getByRole('button', {name: /session options$/}))
     await userEvent.click(page.getByRole('button', {name: /^Session: /}))
     const search = page.getByRole('combobox', {name: /search sessions/i})
     await userEvent.click(search)

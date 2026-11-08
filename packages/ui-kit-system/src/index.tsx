@@ -1,5 +1,6 @@
 export {Button, type ButtonVariant, type ButtonSize} from './button.js'
 export {Collapsible} from './collapsible.js'
+export {Editable} from './editable.js'
 export {HoverCard} from './hover-card.js'
 export {ScrollArea} from './scroll-area.js'
 export {Combobox} from './combobox.js'
