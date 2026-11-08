@@ -5,7 +5,17 @@ import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {Checked, DesignRuntime, Differ, GateRow, Got, RoundReply, Runner, TargetRecord} from '../shared/defs.js'
+import type {
+  Checked,
+  DesignRuntime,
+  Differ,
+  GateRow,
+  Got,
+  RoundReply,
+  Runner,
+  TargetRecord,
+  Widget,
+} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
 import {verdictOf} from './verdict.js'
@@ -30,7 +40,11 @@ export function createDiffer(input: {
   return {
     get: async ({input: query, session, page: access}) => {
       const known = await store.current(session)
-      if (known !== null && sameRef({record: known, query, cwd: runtime.cwd})) return stored({runtime, record: known})
+      if (known !== null && sameRef({record: known, query, cwd: runtime.cwd})) {
+        const widget = query.widget ?? known.widget
+        if (widget === known.widget) return stored({runtime, record: known})
+        return stored({runtime, record: await rewidgeted({runtime, record: known, widget})})
+      }
       const record = await registered({runtime, query, session, page: access})
       return stored({runtime, record})
     },
@@ -48,7 +62,8 @@ export function createDiffer(input: {
     },
     status: async ({session}) => {
       const record = await currentTarget({runtime, session})
-      return shown(verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}))
+      const status = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
+      return shown({...status, widget: record.widget})
     },
     dispose: edits.dispose,
   }
@@ -122,6 +137,25 @@ async function registered(input: {
     session,
     notes: loaded.warnings,
     ...(route === undefined ? {} : {route}),
+    ...(query.widget === undefined ? {} : {widget: query.widget}),
+  })
+}
+
+async function rewidgeted(input: {
+  runtime: DesignRuntime
+  record: TargetRecord
+  widget: Widget
+}): Promise<TargetRecord> {
+  const {runtime, record} = input
+  const {store} = runtime
+  const image = await store.image({id: record.id})
+  if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
+  return store.put({
+    design: await store.design(record.id),
+    image,
+    session: record.session,
+    widget: input.widget,
+    ...(record.route === undefined ? {} : {route: record.route}),
   })
 }
 

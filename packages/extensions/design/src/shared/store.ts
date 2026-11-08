@@ -1,5 +1,5 @@
 import type {designTables} from '../server/tables.js'
-import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord} from './defs.js'
+import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord, Widget} from './defs.js'
 
 export type Store = {
   put(input: {
@@ -7,6 +7,7 @@ export type Store = {
     image: Uint8Array
     session: string
     route?: string
+    widget?: Widget
     notes?: string[]
   }): Promise<TargetRecord>
   design(id: string): Promise<Design>

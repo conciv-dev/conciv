@@ -150,7 +150,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
   }
 
   return {
-    put: async ({design, image, session, route, notes: told = []}) => {
+    put: async ({design, image, session, route, widget = 'hidden', notes: told = []}) => {
       const path = `${design.id}/${TARGET_IMAGE}`
       await state.setItemRaw(path, image)
       const row = {
@@ -164,6 +164,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         scale: design.scale,
         design,
         image: path,
+        widget,
         unsettled: 0,
         at: Date.now(),
       }
@@ -412,6 +413,7 @@ function recordOf(row: TargetRow): TargetRecord {
     width: row.width,
     height: row.height,
     scale: row.scale,
+    widget: row.widget,
     createdAt: row.at,
   }
 }

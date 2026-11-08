@@ -25,7 +25,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
       store.unsettledCount(record.id),
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
-    const measured = await measurer.measure({page, width: record.width, height: record.height})
+    const {widget} = record
+    const oneWidth = widget === 'shown'
+    const measured = await measurer.measure({
+      page,
+      ...(oneWidth ? {} : {width: record.width}),
+      height: record.height,
+      widget,
+    })
     const count = streak + 1
     const error = measured.pageError === undefined ? {} : {error: measured.pageError}
     const blank = measured.pageError !== undefined || measured.live.children.length === 0
@@ -56,11 +63,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const {rendered} = coverage
     if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
-    const widths = widthsOf({design, styles: measured.queries})
+    const widths = oneWidth
+      ? [{width: measured.width, from: [WIDGET_SHOWN]}]
+      : widthsOf({design, styles: measured.queries})
     const results = []
     const failures = []
     for (const {width} of widths) {
-      const narrow = width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT})
+      const narrow =
+        width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT, widget})
       const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
       const measuredAt = reflowAt({
         root: design.root,
@@ -122,6 +132,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
         : {}),
       notes: [
         `capture ${measured.path}`,
+        ...(oneWidth ? [WIDGET_SHOWN] : []),
         ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
       ],
     })
@@ -131,6 +142,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
 }
 
 const REFLOW_HEIGHT = 900
+
+const WIDGET_SHOWN = 'widget shown: one width'
 
 const RATIO_DIGITS = 3
 

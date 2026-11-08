@@ -17,6 +17,12 @@ export const DESIGN_TOOL_PREFIX = 'design_'
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
 const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled'] as const
 
+export const WIDGETS = ['hidden', 'shown'] as const
+
+const WidgetSchema = z
+  .enum(WIDGETS)
+  .describe('hidden leaves the conciv widget and overlay out of every measurement; shown measures them as page')
+
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
@@ -218,6 +224,7 @@ export const TargetRecordSchema = z.object({
   width: z.number(),
   height: z.number(),
   scale: z.number(),
+  widget: WidgetSchema.default('hidden'),
   createdAt: z.number(),
 })
 
@@ -339,6 +346,7 @@ const GetInputSchema = z
     figma: z.url().optional().describe('the Figma frame link, with its node-id'),
     document: z.unknown().optional().describe('the frame as the Figma REST nodes document, when the engine has no key'),
     image: z.string().meta({format: 'path'}).optional().describe('path of the design PNG, or the PNG as base64'),
+    widget: WidgetSchema.optional().describe('hidden by default; shown when the widget itself is the design'),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
@@ -377,6 +385,7 @@ const CheckResultSchema = z.union([
 
 const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: true}).extend({
   ...JUDGED,
+  widget: WidgetSchema.optional(),
   counts: CountsSchema.nullable(),
   coverage: CoverageSchema.nullable(),
 })
@@ -405,6 +414,7 @@ const Width = z.number().int().positive()
 const MeasureInputSchema = z.object({
   width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
   height: Width.optional().describe('the height to capture'),
+  widget: WidgetSchema.default('hidden'),
   timeout: z.number().int().positive().optional(),
 })
 
@@ -504,6 +514,7 @@ export type Design = z.infer<typeof DesignSchema>
 export type DesignNode = z.infer<typeof DesignNodeSchema>
 export type Match = z.infer<typeof MatchSchema>
 export type TargetRecord = z.infer<typeof TargetRecordSchema>
+export type Widget = z.output<typeof WidgetSchema>
 export type LiveComponent = z.output<typeof LiveComponentSchema>
 export type Mapping = z.output<typeof MappingSchema>
 export type IdTree = z.output<typeof IdTreeSchema>

@@ -35,6 +35,7 @@ type Options = {
   image?: string
   figma?: string
   document?: string
+  widget: GetInput['widget']
   state?: string
   model?: string
   port: number
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       image: {type: 'string'},
       figma: {type: 'string'},
       document: {type: 'string'},
+      widget: {type: 'string'},
       state: {type: 'string'},
       model: {type: 'string'},
       port: {type: 'string', default: '0'},
@@ -101,6 +103,7 @@ async function main(): Promise<void> {
     noDesign: values['no-design'],
     browserDriver: values['browser-driver'],
     show: SHOWN.parse(values.show),
+    widget: getDef.inputSchema.shape.widget.parse(values.widget),
     open: OPENED.parse(values.open),
     width: Number(values.width),
     port: Number(values.port),
@@ -142,6 +145,11 @@ function debuggingArgs(endpoint: string | undefined): string[] {
 }
 
 async function targetInput(options: Options): Promise<GetInput> {
+  const widget = options.widget === undefined ? {} : {widget: options.widget}
+  return {...(await targetRef(options)), ...widget}
+}
+
+async function targetRef(options: Options): Promise<GetInput> {
   const {image, figma, document} = options
   if (document !== undefined) {
     if (figma === undefined || image === undefined) throw new Error('--document needs --figma and --image')

@@ -9,9 +9,9 @@ import {keepBodyMargins} from '@conciv/extension-page/body-margins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
-import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
+import {DESIGN_TOOLS, type Box, type LiveComponent, type Widget} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
-import {OVERLAYS} from './shared/overlays.js'
+import {hiddenOverlays} from './shared/overlays.js'
 import {XrayOverlay} from './xray/overlay.js'
 import {createXrayData} from './xray/data.js'
 import {secondOpinion} from './client/takumi.js'
@@ -68,13 +68,11 @@ type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
 type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 
-const [WIDGET_ROOT_SELECTOR] = OVERLAYS
-const OVERLAY_SELECTOR = OVERLAYS.join(', ')
+const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
-const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed`
+const MIRROR_BLOCKED = `${hiddenOverlays('hidden').join(', ')}, iframe, video, audio, object, embed`
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
-const LIVE_EXCLUDE = [...OVERLAYS, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
@@ -155,7 +153,7 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const pageError = overlayError()
   const measured = await frozen({
     doc: document,
-    run: () => (size.width === innerWidth ? measureLive({size}) : measureMirror({size})),
+    run: () => (size.width === innerWidth ? measureLive({size, widget: input.widget}) : measureMirror({size})),
   })
   const queried = {...measured, ...(await pageQueries(document))}
   return pageError === null ? queried : {...queried, pageError}
@@ -169,14 +167,14 @@ function overlayError(): string | null {
   return lines.find((line) => line !== '') ?? OVERLAY_FALLBACK
 }
 
-async function measureLive(input: {size: Size}): Promise<Measuring> {
-  const {size} = input
+async function measureLive(input: {size: Size; widget: Widget}): Promise<Measuring> {
+  const {size, widget} = input
   const longestTask = watchLongTasks()
-  const components = await collectComponents({root: document, size})
+  const components = await collectComponents({root: document, size, widget})
   const masks = canvasBoxes({root: document, size})
-  const shot = size.height <= innerHeight ? await regionShot(size) : null
-  const blob =
-    shot ?? (await snapdomShot({doc: document, size, exclude: LIVE_EXCLUDE, viewport: size.height <= innerHeight}))
+  const shot = size.height <= innerHeight ? await regionShot({size, widget}) : null
+  const exclude = [...hiddenOverlays(widget), `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
+  const blob = shot ?? (await snapdomShot({doc: document, size, exclude, viewport: size.height <= innerHeight}))
   const image = await base64(blob)
   const longest = longestTask()
   return {
@@ -217,7 +215,7 @@ async function measureMirror(input: {size: Size}): Promise<Measuring> {
 
 async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
   const {doc, size} = input
-  const measured = await collectComponents({root: doc, size})
+  const measured = await collectComponents({root: doc, size, widget: 'hidden'})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
   const blob = await snapdomShot({doc, size, exclude: MIRROR_EXCLUDE, viewport: false})
@@ -349,10 +347,12 @@ async function capturePixels(): Promise<boolean> {
   return true
 }
 
-async function regionShot(size: Size): Promise<Blob | null> {
+async function regionShot(input: {size: Size; widget: Widget}): Promise<Blob | null> {
+  const {size} = input
   const track = await croppedTrack()
   if (track === null) return null
-  const overlays = [...document.querySelectorAll<HTMLElement>(OVERLAY_SELECTOR)]
+  const hidden = hiddenOverlays(input.widget)
+  const overlays = hidden.length === 0 ? [] : [...document.querySelectorAll<HTMLElement>(hidden.join(', '))]
   const visibility = overlays.map((overlay) => overlay.style.visibility)
   overlays.forEach((overlay) => overlay.style.setProperty('visibility', 'hidden'))
   try {
@@ -448,14 +448,22 @@ function locationRoute(): string {
   return location.pathname + location.search
 }
 
-async function collectComponents(input: {root: Document; size: Size}): Promise<LiveComponent[]> {
+async function collectComponents(input: {root: Document; size: Size; widget: Widget}): Promise<LiveComponent[]> {
   const view = input.root.defaultView
   if (view === null) return []
   const scan = scanSheets({doc: input.root, view})
-  const keys = [...input.root.querySelectorAll(`[${KEY_ATTR}]`)].map((el) => el.getAttribute(KEY_ATTR))
+  const keyed = input.widget === 'shown' ? deepKeyed(input.root) : [...input.root.querySelectorAll(`[${KEY_ATTR}]`)]
+  const keys = keyed.map((el) => el.getAttribute(KEY_ATTR))
   const repeated = new Set(keys.filter((key, index) => key !== null && keys.indexOf(key) !== index))
   const el = input.root.documentElement
-  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated})
+  const marks = input.widget === 'shown' ? [SOURCE_ATTR, KEY_ATTR] : [SOURCE_ATTR]
+  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated, marks})
+}
+
+function deepKeyed(root: Document | ShadowRoot): Element[] {
+  const all = [...root.querySelectorAll('*')]
+  const own = all.filter((el) => el.hasAttribute(KEY_ATTR))
+  return own.concat(all.flatMap((el) => (el.shadowRoot === null ? [] : deepKeyed(el.shadowRoot))))
 }
 
 type Walk = {
@@ -466,6 +474,7 @@ type Walk = {
   scan: Scan
   walked: {count: number}
   repeated: Set<string | null>
+  marks: string[]
 }
 
 function collectUnder(input: Walk): Promise<LiveComponent[]> {
@@ -478,7 +487,7 @@ function collectUnder(input: Walk): Promise<LiveComponent[]> {
   return [...light, ...shadow].reduce<Promise<LiveComponent[]>>(async (done, {child, at}) => {
     const collected = await done
     await paced(input.walked)
-    const found = child.hasAttribute(SOURCE_ATTR)
+    const found = input.marks.some((mark) => child.hasAttribute(mark))
       ? [await componentTree({...input, el: child, path: at})]
       : await collectUnder({...input, el: child, path: at})
     return collected.concat(found)

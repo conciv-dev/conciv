@@ -1,6 +1,6 @@
 import {sql} from 'drizzle-orm'
 import {check, integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
-import {DESIGN_VERDICTS, type Design, type IdTree} from '../shared/defs.js'
+import {DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
 
 export function designTables(table: SQLiteTableFn) {
   return {
@@ -15,6 +15,7 @@ export function designTables(table: SQLiteTableFn) {
       scale: real().notNull(),
       design: text({mode: 'json'}).$type<Design>().notNull(),
       image: text().notNull(),
+      widget: text({enum: WIDGETS}).notNull().default('hidden'),
       unsettled: integer().notNull().default(0),
       at: integer().notNull(),
     }),
