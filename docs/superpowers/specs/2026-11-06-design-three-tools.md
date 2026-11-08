@@ -484,3 +484,19 @@ does not; and a conciv id must answer with its FOM, expected fill and font inclu
   CDP for Chromium now, WebDriver BiDi for Firefox and Chromium later, and takes true-pixel screenshots at a configured
   device scale, clipped per node. The engine lets an extension answer a page verb from the server before the browser is
   asked. Design calls the verbs and never learns who answered; the round stores the capture path that ran.
+
+### A design is a set of frames, one per width (2026-11-08)
+
+Real design files carry a page three times: desktop, laptop, mobile. Today a session holds one frame and the rows at
+every other width are inferred from that frame's layout tags. Omri: use the variants when the file has them.
+
+- `design_get` takes one link or several. Each frame becomes its own row in `targets`, in one session, with the width
+  the frame has. A single link keeps today's behaviour exactly.
+- At a variant's width, the page is measured against that variant's nodes: layout rows, paint rows, image rows, assets.
+  `design_nodes` holds every variant's nodes, keyed by target. A conciv id pairs per variant; the Figma node ids differ
+  across frames, the id in the page does not, so `getFOM(id)` answers per target.
+- Between two variant widths the reflow rows stay inferred, from the nearest variant above the measured width.
+- `design_status` shows the verdict per variant; `done` is every variant done. `design_check` reports rows grouped by
+  variant.
+- Assets are exported once per Figma node id; a picture shared by three frames is three node ids and three files.
+- The head names all the links. Six runs an arm against six controls on the agency Process page, sonnet.
