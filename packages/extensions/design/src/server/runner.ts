@@ -15,7 +15,7 @@ import {imageRowsOf} from './image-rows.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
-  return async ({record, page}) => {
+  return async ({record, page, variants}) => {
     const [design, stored, rounds, image, ids, streak] = await Promise.all([
       store.design(record.id),
       store.mapping(record.id),
@@ -63,7 +63,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
         round,
         revoted: mapped.reasons,
       })
-    const widths = widthsOf({design, styles: measured.queries})
+    const widths = widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
     const results = []
     const failures = []
     for (const {width} of widths) {

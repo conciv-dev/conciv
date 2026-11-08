@@ -37,9 +37,18 @@ export function createDiffer(input: {
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
   const edits = watchEdits(input.bundler)
-  const checkedOne = async (asked: {record: TargetRecord; session: string; nodes: string[] | undefined}) => {
+  const checkedOne = async (asked: {
+    record: TargetRecord
+    session: string
+    nodes: string[] | undefined
+    variants?: number[]
+  }) => {
     const {record, nodes} = asked
-    const measured = await runner({record, page: tab(asked.session)})
+    const measured = await runner({
+      record,
+      page: tab(asked.session),
+      ...(asked.variants === undefined ? {} : {variants: asked.variants}),
+    })
     if (!('round' in measured))
       return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
@@ -68,10 +77,11 @@ export function createDiffer(input: {
       await edits.quiet()
       const records = await store.variants(session)
       if (records.length < 2) return checkedOne({record: await currentTarget({runtime, session}), session, nodes})
+      const widths = records.map((record) => record.width)
       const variants = []
       for (const record of records)
         variants.push({
-          ...(await checkedOne({record, session, nodes})),
+          ...(await checkedOne({record, session, nodes, variants: widths})),
           target: record.id,
           width: record.width,
         })

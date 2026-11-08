@@ -568,7 +568,11 @@ export type Pairer = (input: {
   budget: number
 }) => Promise<{root: Match; partial: boolean; votes: Ballot[]}>
 
-export type Runner = (input: {record: TargetRecord; page: ServerToolPageAccess}) => Promise<RoundReply>
+export type Runner = (input: {
+  record: TargetRecord
+  page: ServerToolPageAccess
+  variants?: number[]
+}) => Promise<RoundReply>
 
 export type Differ = {
   get(input: {input: GetInput; session: string; page: ServerToolPageAccess}): Promise<z.output<typeof GetReplySchema>>
