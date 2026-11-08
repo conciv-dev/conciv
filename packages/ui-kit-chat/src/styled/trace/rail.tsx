@@ -6,7 +6,15 @@ const CORNER_RADIUS = 3
 const SVG_CLASS =
   'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] pointer-events-none rtl:-scale-x-100 origin-center'
 const PATH_CLASS = '[stroke:var(--chat-glyph)] stroke-1 fill-none'
-const RUN_SVG_CLASS = `${SVG_CLASS} [clip-path:polygon(0_var(--rail-top,0px),100%_var(--rail-top,0px),100%_var(--rail-bottom,0px),0_var(--rail-bottom,0px))] [transition:clip-path_var(--rail-travel,var(--chat-duration-slow))_var(--chat-ease),opacity_var(--chat-duration-slow)_var(--chat-ease)] motion-reduce:[transition:none]`
+const RUN_TRAVEL =
+  '[transition:translate_var(--rail-travel,var(--chat-duration-slow))_var(--chat-ease)] motion-reduce:[transition:none]'
+const RUN_FADE_CLASS =
+  'absolute [inset-block-start:0] [inset-inline-start:0] w-[var(--chat-trace-gutter)] h-0 pointer-events-none [transition:opacity_var(--chat-duration-slow)_var(--chat-ease)] motion-reduce:[transition:none]'
+const RUN_WINDOW =
+  'absolute [inset-inline-start:0] w-[var(--chat-trace-gutter)] h-[var(--rail-height,0px)] overflow-hidden'
+const RUN_BOTTOM_CLASS = `${RUN_WINDOW} [inset-block-end:0] [translate:0_var(--rail-bottom,0px)] ${RUN_TRAVEL}`
+const RUN_TOP_CLASS = `${RUN_WINDOW} [inset-block-start:100%] [translate:0_calc(var(--rail-top,0px)-var(--rail-bottom,0px))] ${RUN_TRAVEL}`
+const RUN_SHIFT_CLASS = `absolute [inset-block-start:0] [inset-inline-start:0] [translate:0_calc(-1*var(--rail-top,0px))] ${RUN_TRAVEL}`
 const RUN_PATH_CLASS = '[stroke:var(--chat-accent)] stroke-1 fill-none'
 
 function spineX(gutter: number): number {
@@ -51,7 +59,7 @@ function writeAttribute(element: Element, name: string, value: string): void {
   element.setAttribute(name, value)
 }
 
-function writeStyleProperty(element: SVGElement, name: string, value: string): void {
+function writeStyleProperty(element: HTMLElement, name: string, value: string): void {
   if (element.style.getPropertyValue(name) === value) return
   element.style.setProperty(name, value)
 }
@@ -91,6 +99,7 @@ export function TraceRail(props: {
   let railSvg: SVGSVGElement | undefined
   let spineLine: SVGPathElement | undefined
   let armTicks: SVGPathElement | undefined
+  let runFade: HTMLDivElement | undefined
   let runSvg: SVGSVGElement | undefined
   let runLine: SVGPathElement | undefined
   let pendingFrame: number | undefined
@@ -127,17 +136,18 @@ export function TraceRail(props: {
   }
 
   const drawRunSegment = (geometry: RailGeometry, paths: RailPaths): void => {
-    if (!runSvg || !runLine) return
+    if (!runFade || !runSvg || !runLine) return
     sizeSvg(runSvg, geometry)
     writeAttribute(runLine, 'd', paths.spine)
+    writeStyleProperty(runFade, '--rail-height', `${geometry.height}px`)
     const connector = inboundConnectorOfRunningRow(geometry)
     if (!connector) {
-      writeStyleProperty(runSvg, 'opacity', '0')
+      writeStyleProperty(runFade, 'opacity', '0')
       return
     }
-    writeStyleProperty(runSvg, '--rail-top', `${connector.from}px`)
-    writeStyleProperty(runSvg, '--rail-bottom', `${connector.to}px`)
-    writeStyleProperty(runSvg, 'opacity', '1')
+    writeStyleProperty(runFade, '--rail-top', `${connector.from}px`)
+    writeStyleProperty(runFade, '--rail-bottom', `${connector.to}px`)
+    writeStyleProperty(runFade, 'opacity', '1')
   }
 
   const draw = (beforeWrite?: () => void): void => {
@@ -161,11 +171,11 @@ export function TraceRail(props: {
   }
 
   const settleTravel = (): void => {
-    runSvg?.style.setProperty('--rail-travel', '0ms')
+    runFade?.style.setProperty('--rail-travel', '0ms')
     if (travelFrame !== undefined) return
     travelFrame = requestAnimationFrame(() => {
       travelFrame = undefined
-      runSvg?.style.removeProperty('--rail-travel')
+      runFade?.style.removeProperty('--rail-travel')
     })
   }
 
@@ -179,11 +189,13 @@ export function TraceRail(props: {
   })
 
   onMount(() => {
-    runSvg?.style.setProperty('transition', 'none')
+    runFade?.style.setProperty('transition', 'none')
+    runFade?.style.setProperty('--rail-travel', '0ms')
     draw()
-    runSvg?.getBoundingClientRect()
+    runFade?.getBoundingClientRect()
     requestAnimationFrame(() => {
-      runSvg?.style.removeProperty('transition')
+      runFade?.style.removeProperty('transition')
+      runFade?.style.removeProperty('--rail-travel')
     })
     createResizeObserver(() => [props.root(), props.list()], observeResize)
   })
@@ -204,9 +216,17 @@ export function TraceRail(props: {
         <path ref={(element) => (spineLine = element)} d="" class={PATH_CLASS} />
         <path ref={(element) => (armTicks = element)} d="" class={PATH_CLASS} />
       </svg>
-      <svg ref={(element) => (runSvg = element)} aria-hidden="true" class={RUN_SVG_CLASS} style={{opacity: 0}}>
-        <path ref={(element) => (runLine = element)} d="" class={RUN_PATH_CLASS} />
-      </svg>
+      <div ref={(element) => (runFade = element)} aria-hidden="true" class={RUN_FADE_CLASS} style={{opacity: 0}}>
+        <div class={RUN_BOTTOM_CLASS}>
+          <div class={RUN_TOP_CLASS}>
+            <div class={RUN_SHIFT_CLASS}>
+              <svg ref={(element) => (runSvg = element)} class={SVG_CLASS}>
+                <path ref={(element) => (runLine = element)} d="" class={RUN_PATH_CLASS} />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
     </>
   )
 }
