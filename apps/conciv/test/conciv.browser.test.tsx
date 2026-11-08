@@ -88,6 +88,14 @@ import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
+import {sessionPickerSearchSchema} from '../src/lib/session-search-schemas.js'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  stripSearchParams,
+} from '@tanstack/solid-router'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
@@ -1782,7 +1790,11 @@ describe('harness switching', () => {
     await rpc.sessions.switchHarness({sessionId: betaId, harnessId: 'beta'})
     keep(
       mountPane({base: core(), sessionId: activeId}, () => (
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <RouterProvider
+          router={pickerRouter('/', () => (
+            <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+          ))}
+        />
       )),
     )
 
@@ -3518,7 +3530,11 @@ describe('session picker after login', () => {
     resume: true,
     holdTranscripts: true,
     history: [
-      {id: HarnessSessionId.parse('gannet-notes'), derivedTitle: 'the gannet notes', updatedAt: Date.now() - DAY_MS},
+      {
+        id: HarnessSessionId.parse('gannet-notes'),
+        derivedTitle: 'the gannet notes',
+        updatedAt: Date.now() - DAY_MS,
+      },
       {
         id: HarnessSessionId.parse('cliff-survey'),
         derivedTitle: 'a cliff survey',
@@ -3596,11 +3612,31 @@ describe('session selector', () => {
     {id: `tide-entry-${turn}`, role: 'assistant', parts: [{type: 'text', content: `tide log entry ${turn}`}]},
   ]).flat()
 
+  const ELSEWHERE = '/elsewhere/gull-colony'
+
   const core = bootedCore('session-selector', {
     resume: true,
+    connect: true,
     holdTranscripts: true,
     history: [
-      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
+      {
+        id: HarnessSessionId.parse('gull-away'),
+        cwd: ELSEWHERE,
+        derivedTitle: 'the gull census',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 13) * DAY_MS,
+        text: 'forty gulls on the breakwater',
+      },
+      {
+        id: HarnessSessionId.parse('gull-home'),
+        derivedTitle: 'a gull at home',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 14) * DAY_MS,
+      },
+      {
+        id: EXTERNAL_ID,
+        derivedTitle: 'a session mid-run',
+        updatedAt: Date.now(),
+        sizeBytes: 2_400_000,
+      },
       {
         id: HarnessSessionId.parse('after-midnight'),
         derivedTitle: 'a minute after midnight',
@@ -3661,19 +3697,25 @@ describe('session selector', () => {
     return sessionId
   }
 
-  async function mountSelector(): Promise<void> {
+  type MountedPicker = {activeId: string; router: ReturnType<typeof pickerRouter>; pane: PaneMount}
+
+  async function mountSelector(): Promise<MountedPicker> {
     const rpc = coreRpc(core())
     const activeId = await activeSessionId(rpc)
     const externalId = await adoptNativeSession(rpc, EXTERNAL_ID)
     await coreControl.holdTurn()
     await sendTurn(core(), externalId, 'keep this session busy')
-    keep(
-      mountPane({base: core(), sessionId: activeId}, () => (
-        <Suspense>
-          <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
-        </Suspense>
-      )),
-    )
+    return mountPicker(activeId, '/')
+  }
+
+  function mountPicker(activeId: string, entry: string): MountedPicker {
+    const router = pickerRouter(entry, () => (
+      <Suspense>
+        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+      </Suspense>
+    ))
+    const pane = keep(mountPane({base: core(), sessionId: activeId}, () => <RouterProvider router={router} />))
+    return {activeId, router, pane}
   }
 
   async function typeKeyByKey(search: Locator, keys: string, typedBefore: string): Promise<void> {
@@ -3685,7 +3727,7 @@ describe('session selector', () => {
   }
 
   test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
-    await mountSelector()
+    const mounted = await mountSelector()
     const trigger = page.getByRole('button', {name: 'Session: the active session'})
     const search = page.getByRole('combobox', {name: /search sessions/i})
     const option = (title: string) => page.getByRole('option', {name: new RegExp(`^${title},`)})
@@ -3771,6 +3813,9 @@ describe('session selector', () => {
     await expect.element(trigger).toHaveFocus()
 
     await userEvent.click(trigger)
+    await expect.element(search).toHaveValue('kiwi')
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(search).toHaveValue('')
     await expect.element(option('older session 0')).toBeVisible()
     await userEvent.keyboard('{Escape}')
@@ -3794,6 +3839,84 @@ describe('session selector', () => {
     const preview = (title: string) => page.getByRole('dialog', {name: `Preview of ${title}`})
     const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true})
     await userEvent.click(trigger)
+    const searchArea = page.getByRole('search')
+    const labelled = searchArea.getByRole('combobox', {name: 'Search sessions'})
+    const allProjects = searchArea.getByRole('switch', {name: 'All projects'})
+    await expect.element(labelled).toHaveValue('puffin')
+    await expect.element(allProjects).not.toBeChecked()
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(labelled).toHaveFocus()
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('g')
+    expect(mounted.router.state.location.search).not.toHaveProperty('sessionSearch')
+    await typeKeyByKey(labelled, 'ull', 'g')
+    await expect.element(option('a gull at home')).toBeVisible()
+    expect(mounted.router.state.location.search.sessionSearch).toBe('gull')
+    await expect.element(option('the gull census')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.tab()
+    await expect.element(allProjects).toHaveFocus()
+    await userEvent.keyboard(' ')
+    await expect.element(allProjects).toBeChecked()
+    await expect.element(option('the gull census')).toBeVisible()
+    expect(mounted.router.state.location.search.allProjects).toBe(true)
+    await expect.element(option('the gull census')).toMatchTextContent(/· gull-colony$/)
+    await expect.element(option('a gull at home')).toBeVisible()
+
+    const copied = `cd '${ELSEWHERE}' && 'claude' '--resume' 'gull-away'`
+    await userEvent.click(option('the gull census'))
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+    await expect.element(page.getByRole('log', {name: 'Announcements'})).toMatchTextContent(/puffin notes \| Copied$/)
+    expect(await navigator.clipboard.readText()).toBe(copied)
+    await expect.element(option('the gull census')).toBeVisible()
+    await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
+
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(option('the gull census')).toHaveAttribute('data-highlighted')
+    await expect.element(entry('the gull census', 'forty gulls on the breakwater')).toBeVisible()
+    await expect.element(preview('the gull census').getByText('gull-colony', {exact: true})).toBeVisible()
+    const resumeCopy = (name: string) => preview('the gull census').getByRole('button', {name})
+    await expect.element(resumeCopy('Copy resume command')).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toMatchTextContent(/puffin notes \| Copied \| Copied$/)
+    await expect.element(option('the gull census')).toBeVisible()
+    await expect.element(resumeCopy('Copied')).toBeVisible()
+    await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
+    await expect.element(resumeCopy('Copy resume command')).toBeVisible()
+    await navigator.clipboard.writeText('')
+    await userEvent.click(resumeCopy('Copy resume command'))
+    await expect.element(resumeCopy('Copied')).toBeVisible()
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toMatchTextContent(/puffin notes \| Copied \| Copied \| Copied$/)
+    expect(await navigator.clipboard.readText()).toBe(copied)
+
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(anyPreview).not.toBeInTheDocument()
+    await expect.element(option('the gull census')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('the gull census')).not.toBeInTheDocument()
+    await userEvent.click(trigger)
+    await expect.element(labelled).toHaveValue('gull')
+    await expect.element(option('the gull census')).toBeVisible()
+
+    const href = mounted.router.state.location.href
+    mounted.pane.dispose()
+    mountPicker(mounted.activeId, href)
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(labelled).toHaveValue('gull')
+    await expect.element(allProjects).toBeChecked()
+    await expect.element(option('the gull census')).toBeVisible()
+    await expect.element(option('a gull at home')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(option('a minute after midnight')).toBeVisible()
     expect(anyPreview.query()).toBeNull()
     await typeKeyByKey(search, 'tide', '')
@@ -3845,7 +3968,11 @@ describe('session selector', () => {
     const sessionId = await adoptNativeSession(coreRpc(core()), HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`))
     keep(
       mountPane({base: core(), sessionId}, () => (
-        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+        <RouterProvider
+          router={pickerRouter('/', () => (
+            <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+          ))}
+        />
       )),
     )
 
@@ -4190,3 +4317,12 @@ describe('tool outcomes', () => {
     })
   }
 })
+
+function pickerRouter(entry: string, view: () => JSX.Element) {
+  const root = createRootRoute({
+    validateSearch: sessionPickerSearchSchema,
+    search: {middlewares: [stripSearchParams({sessionSearch: '', allProjects: false})]},
+    component: view,
+  })
+  return createRouter({routeTree: root, history: createMemoryHistory({initialEntries: [entry]})})
+}

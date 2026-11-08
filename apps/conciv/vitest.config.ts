@@ -43,7 +43,9 @@ export default defineConfig(({mode}) => ({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({contextOptions: {timezoneId: 'Pacific/Kiritimati'}}),
+            provider: playwright({
+              contextOptions: {timezoneId: 'Pacific/Kiritimati', permissions: ['clipboard-read', 'clipboard-write']},
+            }),
             instances: [{browser: 'chromium'}],
             commands: coreCommands,
           },

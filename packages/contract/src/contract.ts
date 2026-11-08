@@ -37,7 +37,10 @@ const SessionListInput = z.object({
   cursor: HarnessListCursorSchema.nullish(),
   limit: z.number().int().min(1).max(100).default(30),
 })
-const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
+const SessionSearchInput = SessionListInput.extend({
+  term: z.string().trim().min(1).max(200),
+  everywhere: z.boolean().default(false).catch(false),
+})
 const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
 const SessionSearchPageSchema = z.object({
   sessions: z.array(SessionHitSchema),
@@ -47,6 +50,7 @@ const SessionSearchPageSchema = z.object({
 const SessionPreviewInput = z.object({
   harness: z.string().min(1),
   nativeId: HarnessSessionId,
+  cwd: z.string().min(1).optional(),
   before: z.string().min(1).nullable(),
   limit: z.number().int().min(1).max(100),
 })

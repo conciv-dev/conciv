@@ -1,8 +1,8 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, untrack, type JSX} from 'solid-js'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {createClipboardCopy, writeClipboardText, type ClipboardCopyLabels} from './clipboard.js'
+import {createClipboardCopy, writeClipboardText, type ClipboardCopy, type ClipboardCopyLabels} from './clipboard.js'
 import {Swap} from './swap.js'
 import {TooltipIconButton, type TooltipIconButtonSide, type TooltipIconButtonVariant} from './tooltip-icon-button.js'
 
@@ -13,7 +13,6 @@ const DEFAULT_TOOLTIPS: ClipboardCopyTooltips = {idle: 'Copy', copied: 'Copied',
 const ICON = 'size-3.5 block'
 
 export type ClipboardCopyButtonProps = {
-  text: string
   tooltips?: Partial<ClipboardCopyTooltips>
   labels?: Partial<ClipboardCopyLabels>
   resetMs?: number
@@ -24,11 +23,12 @@ export type ClipboardCopyButtonProps = {
   writeText?: (text: string) => Promise<void>
   onCopied?: () => void
   onFailed?: () => void
-}
+} & ({text: string; clipboard?: undefined} | {clipboard: ClipboardCopy; text?: undefined})
 
 export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Element {
   const [local] = splitProps(props, [
     'text',
+    'clipboard',
     'tooltips',
     'labels',
     'resetMs',
@@ -40,14 +40,17 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
     'onCopied',
     'onFailed',
   ])
-  const clipboard = createClipboardCopy({
-    text: () => local.text,
-    resetMs: () => local.resetMs,
-    labels: () => local.labels,
-    writeText: (text) => (local.writeText ?? writeClipboardText)(text),
-    onCopied: () => local.onCopied?.(),
-    onFailed: () => local.onFailed?.(),
-  })
+  const shared = untrack(() => local.clipboard)
+  const clipboard =
+    shared ??
+    createClipboardCopy({
+      text: () => local.text ?? '',
+      resetMs: () => local.resetMs,
+      labels: () => local.labels,
+      writeText: (text) => (local.writeText ?? writeClipboardText)(text),
+      onCopied: () => local.onCopied?.(),
+      onFailed: () => local.onFailed?.(),
+    })
   const tooltip = () => {
     const tooltips = {...DEFAULT_TOOLTIPS, ...local.tooltips}
     if (clipboard.copied()) return tooltips.copied
@@ -76,9 +79,11 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
           </Swap.Indicator>
         </Swap.Root>
       </TooltipIconButton>
-      <span role="status" aria-live="polite" class="sr-only">
-        {clipboard.announcement()}
-      </span>
+      <Show when={shared === undefined}>
+        <span role="status" aria-live="polite" class="sr-only">
+          {clipboard.announcement()}
+        </span>
+      </Show>
     </>
   )
 }

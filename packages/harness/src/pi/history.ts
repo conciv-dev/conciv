@@ -1,4 +1,4 @@
-import {createReadStream, readdirSync} from 'node:fs'
+import {createReadStream, readdirSync, type Dirent} from 'node:fs'
 import {open, readdir, stat} from 'node:fs/promises'
 import {createInterface} from 'node:readline'
 import {homedir} from 'node:os'
@@ -9,6 +9,7 @@ import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
+  HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
   TranscriptHandle,
@@ -29,8 +30,12 @@ export function encodeSessionDir(cwd: string): string {
     .replace(/[/\\:]/g, '-')}--`
 }
 
+function sessionsRoot(): string {
+  return join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'), 'sessions')
+}
+
 export function sessionsDir(cwd: string): string {
-  return join(process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'), 'sessions', encodeSessionDir(cwd))
+  return join(sessionsRoot(), encodeSessionDir(cwd))
 }
 
 const EntrySchema = z
@@ -233,18 +238,21 @@ function startedAt(timestamp: string | undefined): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-type MetaHead = {createdAt: number | undefined; name: string | null; firstUser: string | null}
+type MetaHead = {cwd: string | null; createdAt: number | undefined; name: string | null; firstUser: string | null}
 
 async function sessionMeta(
   id: HarnessSessionId,
   path: string,
   stamp: TranscriptStamp,
+  projectCwd: string | null,
 ): Promise<HarnessSessionMeta | null> {
   const head = await metaHead(path).catch(whenMissing(null))
-  if (head === null) return null
+  const cwd = head?.cwd ?? projectCwd
+  if (head === null || cwd === null) return null
   const name = (await tailName(path, stamp.sizeBytes)) ?? head.name
   return {
     id,
+    cwd,
     derivedTitle: condense(name ?? head.firstUser ?? '', MAX_TITLE),
     updatedAt: stamp.updatedAt,
     sizeBytes: stamp.sizeBytes,
@@ -254,12 +262,15 @@ async function sessionMeta(
 
 async function metaHead(path: string): Promise<MetaHead> {
   const stream = createReadStream(path, {encoding: 'utf8'})
-  const head: MetaHead = {createdAt: undefined, name: null, firstUser: null}
+  const head: MetaHead = {cwd: null, createdAt: undefined, name: null, firstUser: null}
   try {
     for await (const line of createInterface({input: stream, crlfDelay: Number.POSITIVE_INFINITY})) {
       const record = parseJsonOrNull(line.trim())
       const header = HeaderSchema.safeParse(record)
-      if (header.success) head.createdAt = startedAt(header.data.timestamp)
+      if (header.success) {
+        head.cwd = header.data.cwd ?? null
+        head.createdAt = startedAt(header.data.timestamp)
+      }
       const info = SessionInfoSchema.safeParse(record)
       if (info.success) head.name = info.data.name
       head.firstUser = firstUserOf(record)
@@ -300,8 +311,18 @@ async function tailName(path: string, sizeBytes: number): Promise<string | null>
   }
 }
 
-function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
-  return transcriptPage(sessionsDir(cwd), page, transcriptId, sessionMeta)
+async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
+  const projectCwd = 'cwd' in scope ? scope.cwd : null
+  const dirs = projectCwd === null ? await projectDirs() : [sessionsDir(projectCwd)]
+  return transcriptPage(dirs, page, transcriptId, (id, path, stamp) => sessionMeta(id, path, stamp, projectCwd))
+}
+
+async function projectDirs(): Promise<string[]> {
+  const root = sessionsRoot()
+  const entries = await readdir(root, {withFileTypes: true}).catch(whenMissing<Dirent[]>([]))
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => containedPath(root, join(root, entry.name)) ?? [])
 }
 
 function transcriptId(name: string): HarnessSessionId | null {
@@ -315,7 +336,7 @@ async function storedMeta(cwd: string, sessionId: HarnessSessionId): Promise<Har
   if (path === null) return null
   const info = await stat(path).catch(whenMissing(null))
   if (!info) return null
-  return sessionMeta(sessionId, path, {updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size})
+  return sessionMeta(sessionId, path, {updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size}, cwd)
 }
 
 export const piHistory: HarnessHistory = {

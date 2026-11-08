@@ -1,6 +1,15 @@
 import {createMemo, createUniqueId, Match, Show, Suspense, Switch, untrack, type JSX} from 'solid-js'
 import {useInfiniteQuery, useQuery} from '@tanstack/solid-query'
-import {Button, Kbd, Popover, TruncatedText, useFormatHotkey, useHotkeys} from '@conciv/ui-kit-system'
+import {
+  Button,
+  ClipboardCopyButton,
+  Kbd,
+  Popover,
+  TruncatedText,
+  useFormatHotkey,
+  useHotkeys,
+  type ClipboardCopy,
+} from '@conciv/ui-kit-system'
 import {ChatProvider, MarkdownHighlightProvider, Thread, useThreadViewport, type Chat} from '@conciv/ui-kit-chat'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
@@ -12,7 +21,9 @@ type PreviewTarget = {
   project: string
   harness: string
   nativeId: HarnessSessionId
+  cwd: string | null
   matched: string[]
+  resume: ClipboardCopy | null
 }
 
 const PAGE_LIMIT = 40
@@ -22,6 +33,7 @@ const READ_ONLY = 'the session preview is read-only'
 const FOCUS_THREAD = 'Alt+ArrowRight'
 const BACK_TO_SEARCH = 'Alt+ArrowLeft'
 const CLOSE = 'Escape'
+const RESUME_TOOLTIPS = {idle: 'Copy resume command', copied: 'Copied', failed: 'Copy failed'}
 const FROM_THE_INPUT = {enableOnFormTags: true, preventDefault: true}
 const FAILED = 'flex items-center gap-2 px-3 py-2 text-chat-danger text-[0.75rem]'
 const EARLIER = 'absolute inset-inline-0 top-0 z-1 flex flex-col gap-2 px-5 pt-3 pb-2 bg-chat-panel'
@@ -68,6 +80,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
   const input = (before: string | null) => ({
     harness: props.target.harness,
     nativeId: props.target.nativeId,
+    ...(props.target.cwd === null ? {} : {cwd: props.target.cwd}),
     before,
     limit: PAGE_LIMIT,
   })
@@ -95,6 +108,9 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
           <TruncatedText text={props.target.title} />
         </Popover.Title>
         <TruncatedText class="text-[0.6875rem] text-chat-text-3 max-w-2/5" text={props.target.project} />
+        <Show when={props.target.resume}>
+          {(resume) => <ClipboardCopyButton clipboard={resume()} tooltips={RESUME_TOOLTIPS} class="size-7 shrink-0" />}
+        </Show>
       </header>
       <div class="flex flex-1 flex-col min-h-0 [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark">
         <Suspense fallback={<PreviewLoading />}>

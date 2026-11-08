@@ -15,6 +15,7 @@ DOM and browser helpers: api base resolution, shadow root creation with fonts, h
 - `hostFocusTarget`, `hostPageHasFocus` (`host-focus.ts`)
 - `elementAt(x, y)` (`element-at.ts`): top element at a point that is not inside `[data-conciv-effects]`
 - `toRawHotkey(binding)` (`hotkey.ts`): `parseHotkey` from `@tanstack/hotkeys`
+- `sessionPickerSearchSchema` (`session-search-schemas.ts`): the root route's search params, `open`, the session picker's `sessionSearch` term and its `allProjects` flag
 - `QuickSearchSchema`, `quickPaneIds`, `quickSearchFor` (`quick-search.ts`): `panes` (comma-separated session ids) and `focus` search params
 - `setShutter(router, open)` (`shutter.ts`): sets or clears the `open` search param with `replace: true`
 

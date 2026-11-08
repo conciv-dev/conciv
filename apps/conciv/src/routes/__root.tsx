@@ -2,6 +2,7 @@ import {
   Outlet,
   createRootRouteWithContext,
   retainSearchParams,
+  stripSearchParams,
   useMatchRoute,
   useParams,
   useRouter,
@@ -53,6 +54,7 @@ import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
+import {sessionPickerSearchSchema} from '../lib/session-search-schemas.js'
 import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
@@ -63,8 +65,13 @@ import 'virtual:uno.css'
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
-  validateSearch: (search: Record<string, unknown>): {open?: true} => (search.open === true ? {open: true} : {}),
-  search: {middlewares: [retainSearchParams(['open'])]},
+  validateSearch: sessionPickerSearchSchema,
+  search: {
+    middlewares: [
+      stripSearchParams({sessionSearch: '', allProjects: false}),
+      retainSearchParams(['open', 'sessionSearch', 'allProjects']),
+    ],
+  },
   component: RootComponent,
 })
 

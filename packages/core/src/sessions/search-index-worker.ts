@@ -9,6 +9,7 @@ import {z} from 'zod'
 const ListingSchema = z.object({
   id: z.string(),
   harness: z.string(),
+  cwd: z.string(),
   title: z.string(),
   updatedAt: z.number(),
   sizeBytes: z.number().optional(),
@@ -39,6 +40,7 @@ const WORD = /[\p{L}\p{N}_'-]+/gu
 const index = create({
   schema: {
     harness: 'enum',
+    cwd: 'enum',
     title: 'string',
     body: 'string',
     updatedAt: 'number',
@@ -56,6 +58,7 @@ const router = {
       const document = IndexedSchema.parse({...hit.document, id: hit.id})
       return {
         id: document.id,
+        cwd: document.cwd,
         title: document.title,
         updatedAt: document.updatedAt,
         sizeBytes: document.sizeBytes,
@@ -101,7 +104,15 @@ const router = {
     await upsert(index, {...current, title: input.title})
   }),
   search: os
-    .input(z.object({term: z.string(), tolerance: z.number(), after: CursorSchema.nullable(), limit: z.number()}))
+    .input(
+      z.object({
+        term: z.string(),
+        tolerance: z.number(),
+        cwd: z.string().nullable(),
+        after: CursorSchema.nullable(),
+        limit: z.number(),
+      }),
+    )
     .handler(async ({input}) => {
       const matches = (updatedAt: {eq: number} | {lte: number} | undefined, limit: number) =>
         search(index, {
@@ -109,7 +120,7 @@ const router = {
           properties: ['title', 'body'],
           tolerance: input.tolerance,
           threshold: 0,
-          where: updatedAt === undefined ? undefined : {updatedAt},
+          where: whereOf(input.cwd, updatedAt),
           sortBy: {property: 'updatedAt', order: 'DESC'},
           limit,
         })
@@ -126,6 +137,7 @@ const router = {
         return {
           id: document.id,
           harness: document.harness,
+          cwd: document.cwd,
           title: document.title,
           updatedAt: document.updatedAt,
           sizeBytes: document.sizeBytes,
@@ -141,6 +153,10 @@ const {port} = z.object({port: z.instanceof(MessagePort)}).parse(workerData)
 const handler = new RPCHandler(router)
 handler.upgrade(port)
 port.start()
+
+function whereOf(cwd: string | null, updatedAt: {eq: number} | {lte: number} | undefined) {
+  return {...(cwd === null ? {} : {cwd: {eq: cwd}}), ...(updatedAt === undefined ? {} : {updatedAt})}
+}
 
 function currentOf(id: string): z.infer<typeof IndexedSchema> | undefined {
   const found = getByID(index, id)

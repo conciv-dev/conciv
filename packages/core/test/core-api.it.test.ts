@@ -698,7 +698,7 @@ describe('api harness switching', () => {
   const alpha = recorded(
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
-  const betaTranscripts: HarnessSessionMeta[] = [
+  const betaTranscripts: Omit<HarnessSessionMeta, 'cwd'>[] = [
     {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
@@ -2633,8 +2633,8 @@ describe('rpc wire', () => {
           return rollout
         }
 
-        async function found(search: string): Promise<string[]> {
-          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+        async function found(search: string, everywhere = false): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100, everywhere})
           return listed.map((meta) => meta.native?.nativeId ?? meta.title)
         }
 
@@ -2652,10 +2652,10 @@ describe('rpc wire', () => {
           await searched.changes.next()
         }
 
-        async function foundOnceIndexed(search: string, expected: string[]): Promise<void> {
-          if (isEqual(await found(search), expected)) return
+        async function foundOnceIndexed(search: string, expected: string[], everywhere = false): Promise<void> {
+          if (isEqual(await found(search, everywhere), expected)) return
           await indexedChange()
-          return foundOnceIndexed(search, expected)
+          return foundOnceIndexed(search, expected, everywhere)
         }
 
         async function stampedOnceIndexed(search: string, expected: {nativeId: string; updatedAt: number}[]) {
@@ -2910,6 +2910,45 @@ describe('rpc wire', () => {
             },
           )
           expect((await searchKit().rpc.sessions.list({limit: 100})).sessions).toHaveLength(listed.length)
+        })
+
+        it('searches this project unless asked for every project, reading each session from its own folder', async () => {
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const home = claudeId('claude-avocet-home')
+          const away = claudeId('claude-avocet-away')
+          writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
+          const awayPath = requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(away))
+          mkdirSync(dirname(awayPath), {recursive: true})
+          writeFileSync(
+            awayPath,
+            [
+              JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'an avocet away'}}),
+              JSON.stringify({type: 'assistant', cwd: elsewhere, message: {content: [{type: 'text', text: 'stilts'}]}}),
+            ].join('\n') + '\n',
+          )
+          const stamp = nextStamp() / 1000
+          utimesSync(awayPath, stamp, stamp)
+          expect(await listedNativeIds()).toContain(home)
+
+          await foundOnceIndexed('avocet', [home])
+          expect(await found('stilts')).toEqual([])
+          await foundOnceIndexed('avocet', [away, home], true)
+          await foundOnceIndexed('stilts', [away], true)
+          expect(await found('avocet')).toEqual([home])
+
+          const {sessions: hits} = await searchKit().rpc.sessions.search({term: 'avocet', everywhere: true})
+          expect(hits.map(({native, cwd}) => ({nativeId: native?.nativeId, cwd}))).toEqual([
+            {nativeId: away, cwd: elsewhere},
+            {nativeId: home, cwd: null},
+          ])
+          expect(hits[0]?.resume).toContain(`cd '${elsewhere}' && 'claude' '--resume' '${away}'`)
+          expect(hits[1]?.resume).toBeNull()
+          expect(await listedNativeIds()).not.toContain(away)
+          const awayAsk = {harness: 'claude', nativeId: HarnessSessionId.parse(away), before: null, limit: 10}
+          const awayWindow = await searchKit().rpc.sessions.preview({...awayAsk, cwd: elsewhere})
+          expect(awayWindow.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await expect(searchKit().rpc.sessions.preview(awayAsk)).rejects.toMatchObject({code: 'NOT_FOUND'})
+          rmSync(elsewhere, {recursive: true, force: true})
         })
 
         it('tolerates typos only when every word has at least four characters', async () => {
