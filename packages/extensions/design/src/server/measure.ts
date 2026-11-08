@@ -3,6 +3,7 @@ import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {isPageVerbError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
+import {captureDef, PageCaptureSchema} from '@conciv/extension-page/defs'
 import {
   DESIGN_TOOLS,
   LiveComponentsSchema,
@@ -12,6 +13,7 @@ import {
   type Raster,
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
+import {OVERLAYS} from '../shared/overlays.js'
 import {createRaster} from './raster.js'
 
 export function createMeasurer(_input: {config: DesignConfig}): Measurer {
@@ -25,7 +27,7 @@ export function createMeasurer(_input: {config: DesignConfig}): Measurer {
     measure: async (request) => {
       await widgetConnected({page: request.page, tolerances})
       const reply = await askMeasure({...request, timeout: request.timeout ?? tolerances.measureTimeoutMs})
-      return measuredFrom(reply)
+      return measuredFrom(await captured({page: request.page, reply}))
     },
     dispose: () => undefined,
   }
@@ -95,6 +97,17 @@ async function askMeasure(input: {
       timeout,
     }),
   )
+}
+
+async function captured(input: {page: ServerToolPageAccess; reply: MeasureReply}): Promise<MeasureReply> {
+  const {page, reply} = input
+  if (reply.capturePath === 'snapdom-mirror') return reply
+  const shot = PageCaptureSchema.safeParse(
+    await page
+      .call(captureDef.name, {width: reply.width, height: reply.height, scale: 1, hide: [...OVERLAYS]})
+      .catch(() => null),
+  )
+  return shot.success ? {...reply, image: shot.data.image, capturePath: shot.data.path} : reply
 }
 
 function measuredFrom(reply: MeasureReply): Measured {

@@ -118,6 +118,7 @@ catalog:
   pngjs: ^7.0.0
   ppu-ocv: 4.0.0
   ppu-paddle-ocr: 6.6.1
+  puppeteer-core: 25.15.0
   postcss: '^8.5.32'
   preact: '^11.1.0'
   publint: '^0.3.25'

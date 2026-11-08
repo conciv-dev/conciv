@@ -124,7 +124,10 @@ export function createRunner(runtime: DesignRuntime): Runner {
       round: written,
       live: measured.raster.png(),
       diff: pixels.diff,
-      notes: images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
+      notes: [
+        `capture ${measured.path}`,
+        ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
+      ],
     })
     const reply = {round, rows, reflow, coverage: judged, counts, progress}
     return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}

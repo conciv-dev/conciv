@@ -18,7 +18,7 @@ export const DESIGN_VERDICTS = ['right', 'wrong'] as const
 const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled'] as const
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
-const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror'])
+const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
 const MirrorLimitsSchema = z.object({canvases: z.number(), fonts: z.array(z.string()), inlineWidths: z.number()})
 const BoxSchema = z.object({x: z.number(), y: z.number(), w: z.number(), h: z.number()})
 const SourceLocSchema = z.object({file: z.string(), line: z.number(), column: z.number()})

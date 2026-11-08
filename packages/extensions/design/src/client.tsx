@@ -13,6 +13,7 @@ import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
 import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
+import {OVERLAYS} from './shared/overlays.js'
 import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
@@ -38,7 +39,6 @@ const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const satisfies
 const TOLERANCES = designConfig.tolerances
 const SOURCE_ATTR = designConfig.attributes.source
 const PLACEHOLDER_ATTR = designConfig.attributes.placeholder
-const PANE_ATTR = designConfig.attributes.pane
 const propertyAliases = designConfig.propertyAliases
 
 type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
@@ -69,14 +69,13 @@ type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
 type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 
-const WIDGET_ROOT_SELECTOR = '[data-conciv-root]'
-const EFFECTS_SELECTOR = '[data-conciv-effects]'
-const OVERLAY_SELECTOR = `${WIDGET_ROOT_SELECTOR}, ${EFFECTS_SELECTOR}, [${PANE_ATTR}]`
+const [WIDGET_ROOT_SELECTOR] = OVERLAYS
+const OVERLAY_SELECTOR = OVERLAYS.join(', ')
 const MIRROR_ATTR = 'data-conciv-mirror'
 const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed`
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
-const LIVE_EXCLUDE = [WIDGET_ROOT_SELECTOR, EFFECTS_SELECTOR, `[${PANE_ATTR}]`, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
+const LIVE_EXCLUDE = [...OVERLAYS, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'

@@ -262,6 +262,31 @@ export const screenshotNodeDef = pageTool({
   output: PageNodeShotSchema,
 })
 
+export const PageCaptureSchema = z.object({
+  image: z.string().describe('base64 png of the page from its top left, width by height css pixels at scale'),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  path: z.enum(['cdp']).describe('the side that captured the page'),
+})
+
+export type PageCapture = z.infer<typeof PageCaptureSchema>
+
+export const captureDef = pageTool({
+  verb: 'capture',
+  summary: 'capture the page from its top left at a given size, answered by a browser driver when one is attached',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Capturing the page', done: 'Captured the page'},
+  catalog: false,
+  input: z.object({
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    scale: z.number().positive().default(1).describe('device pixels per css pixel'),
+    hide: z.array(z.string()).default([]).describe('selectors of overlays hidden while the page is captured'),
+  }),
+  output: PageCaptureSchema,
+})
+
 export const HOT_UPDATE_WAIT_MS = 5000
 
 export const HotUpdateWaitSchema = z.object({

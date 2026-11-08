@@ -24,6 +24,7 @@ const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const RUNS_COMMAND = 'design:runs'
+const LAUNCH_ARGS = ['--disable-features=LocalNetworkAccessChecks']
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
@@ -41,6 +42,7 @@ type Options = {
   noDesign: boolean
   show: Shown
   open: z.output<typeof OPENED>
+  browserDriver?: string
 }
 
 type Shown = z.output<typeof SHOWN>
@@ -89,12 +91,14 @@ async function main(): Promise<void> {
       'no-design': {type: 'boolean', default: false},
       show: {type: 'string', multiple: true, default: []},
       open: {type: 'string', multiple: true, default: []},
+      'browser-driver': {type: 'string'},
     },
   })
   if (values.render !== undefined) return render(resolve(values.render))
   const options = {
     ...values,
     noDesign: values['no-design'],
+    browserDriver: values['browser-driver'],
     show: SHOWN.parse(values.show),
     open: OPENED.parse(values.open),
     width: Number(values.width),
@@ -119,7 +123,7 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
   const dirs = await trialDirs(options.state)
   const printed: string[] = []
   const server = await hostServer({...dirs, ...options, printed})
-  const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
+  const browser = await chromium.launch({args: [...LAUNCH_ARGS, ...debuggingArgs(options.browserDriver)]})
   try {
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target, printed})
     print(`state ${dirs.stateRoot}`)
@@ -129,6 +133,11 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
     await server.close()
     await Promise.all(dirs.temporary.map((dir) => rm(dir, {recursive: true, force: true})))
   }
+}
+
+function debuggingArgs(endpoint: string | undefined): string[] {
+  if (endpoint === undefined) return []
+  return [`--remote-debugging-port=${new URL(endpoint).port}`]
 }
 
 async function targetInput(options: Options): Promise<GetInput> {
@@ -168,6 +177,7 @@ async function hostServer(input: {
   noDesign: boolean
   show: Shown
   open: z.output<typeof OPENED>
+  browserDriver?: string
   printed: string[]
 }): Promise<ViteDevServer> {
   const server = await createServer({
@@ -186,7 +196,10 @@ async function hostServer(input: {
         stateRoot: input.stateRoot,
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
-        extensions: {design: {blind: input.blind, show: input.show}},
+        extensions: {
+          design: {blind: input.blind, show: input.show},
+          ...(input.browserDriver === undefined ? {} : {'browser-driver': {endpoint: input.browserDriver}}),
+        },
         withhold: [
           ...(input.blind ? ['page_screenshot'] : []),
           ...(input.open.includes('query') ? [] : [`${DESIGN_TOOL_PREFIX}query`]),
