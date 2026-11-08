@@ -35,16 +35,21 @@ export function XrayOverlay(props: {
   })
   return (
     <>
-      <Show when={props.data.hotkeys()}>{(keys) => <Hotkeys keys={keys()} toggle={props.toggle} />}</Show>
-      <YieldFocus when={props.on()}>
-        <Portal mount={document.body} useShadow ref={setElement}>
-          <EnvironmentProvider value={rootNode}>
-            <div class="chat-density text-chat-text font-chat antialiased">
+      <Show when={props.data.hotkeys()} data-conciv-key="4lcxvw">
+        {(keys) => <Hotkeys keys={keys()} toggle={props.toggle} data-conciv-key="3LUKXQ" />}
+      </Show>
+      <YieldFocus when={props.on()} data-conciv-key="Pij9Wg">
+        <Portal mount={document.body} useShadow ref={setElement} data-conciv-key="fKABkw">
+          <EnvironmentProvider value={rootNode} data-conciv-key="ksOAwg">
+            <div class="chat-density text-chat-text font-chat antialiased" data-conciv-key="HxvEWg">
               <section
                 aria-label="Design x-ray"
                 class="p-3 border-e border-chat-line bg-chat-glass pointer-events-auto shadow-chat-lg start-0 inset-y-0 fixed"
+                data-conciv-key="Hq4lFA"
               >
-                <p class="text-sm text-chat-text-2 m-0">No design registered</p>
+                <p class="text-sm text-chat-text-2 m-0" data-conciv-key="6fEONQ">
+                  No design registered
+                </p>
               </section>
             </div>
           </EnvironmentProvider>

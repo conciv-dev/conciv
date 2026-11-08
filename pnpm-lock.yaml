@@ -2783,6 +2783,9 @@ importers:
       '@conciv/db':
         specifier: workspace:*
         version: link:../../db
+      '@conciv/extension-compiler':
+        specifier: workspace:*
+        version: link:../../extension-compiler
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset

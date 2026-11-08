@@ -91,6 +91,7 @@
   },
   "devDependencies": {
     "@conciv/db": "workspace:*",
+    "@conciv/extension-compiler": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@solid-primitives/event-listener": "catalog:",
     "@solid-primitives/timer": "catalog:",

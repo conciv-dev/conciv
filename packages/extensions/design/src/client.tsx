@@ -108,9 +108,14 @@ function Component(): JSX.Element {
   const slot = host.useSlot()
   const xray = design.useContext((context) => context.xray)
   return (
-    <Show when={slot === 'composer'}>
-      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => xray.toggle()}>
-        <ScanSearch class="size-5 block" aria-hidden="true" />
+    <Show when={slot === 'composer'} data-conciv-key="PGSUow">
+      <ComposerActions.ActionButton
+        priority={18}
+        tooltip="Design x-ray"
+        onClick={() => xray.toggle()}
+        data-conciv-key="3_HY4A"
+      >
+        <ScanSearch class="size-5 block" aria-hidden="true" data-conciv-key="C1OFbQ" />
       </ComposerActions.ActionButton>
     </Show>
   )
@@ -125,7 +130,7 @@ function Surface(): JSX.Element {
   onMount(() => {
     engineBase.current = apiBase
   })
-  return <XrayOverlay on={xray.on} toggle={xray.toggle} data={data} capture={capturePixels} />
+  return <XrayOverlay on={xray.on} toggle={xray.toggle} data={data} capture={capturePixels} data-conciv-key="-bgIwA" />
 }
 
 export const design = defineExtension({
