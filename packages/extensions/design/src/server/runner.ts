@@ -11,6 +11,7 @@ import {reflowAt} from './reflow.js'
 import {widthsOf} from './widths.js'
 import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
+import {imageRowsOf} from './image-rows.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
@@ -79,8 +80,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
       failures.push(...measuredAt.rows)
     }
     const reflow = {widths, results}
-    const rows = [...gate.rows, ...failures]
-    const counts = {...gate.counts, reflow: failures.length, rows: gate.counts.rows + failures.length}
+    const images = await imageRowsOf({design, reads: readIds({root: mapped.root, live: measured.live}), page})
+    const rows = [...gate.rows, ...images.rows, ...failures]
+    const counts = {
+      ...gate.counts,
+      reflow: failures.length,
+      paint: gate.counts.paint + images.rows.length,
+      rows: gate.counts.rows + images.rows.length + failures.length,
+    }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const earlier =
       previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
@@ -112,13 +119,21 @@ export function createRunner(runtime: DesignRuntime): Runner {
       unsettled === null
         ? {...measuredRound, verdict: verdictOf({design, rounds: [...rounds, measuredRound]}).verdict}
         : measuredRound
-    await store.writeRound({id: record.id, round: written, live: measured.raster.png(), diff: pixels.diff})
+    await store.writeRound({
+      id: record.id,
+      round: written,
+      live: measured.raster.png(),
+      diff: pixels.diff,
+      notes: images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
+    })
     const reply = {round, rows, reflow, coverage: judged, counts, progress}
     return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
   }
 }
 
 const REFLOW_HEIGHT = 900
+
+const RATIO_DIGITS = 3
 
 async function revotedOf(input: Omit<Parameters<typeof mappingOf>[0], 'built'> & {previous: IdTree | null}) {
   const {measured, stored, previous} = input

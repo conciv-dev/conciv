@@ -46,6 +46,7 @@ import {
   setstyleDef,
   settextDef,
   screenshotDef,
+  screenshotNodeDef,
   snapshotDef,
   submitDef,
   textDef,
@@ -65,6 +66,7 @@ import {reactCard} from './cards/react-card.js'
 import {readBulkCard} from './cards/read-bulk-card.js'
 import {readValueCard} from './cards/read-value-card.js'
 import {screenshot} from './screenshot.js'
+import {screenshotNode} from './screenshot-node.js'
 import {watchHotUpdates} from './hmr.js'
 
 function fail(message: string): never {
@@ -186,6 +188,8 @@ const snapshotTool = snapshotDef
   .render(readBulkCard)
 
 const screenshotTool = screenshotDef.client(screenshot).render(readValueCard)
+
+const screenshotNodeTool = screenshotNodeDef.client(screenshotNode).render(readValueCard)
 
 const waitForHotUpdate = watchHotUpdates(import.meta.hot)
 
@@ -495,6 +499,7 @@ export const PAGE_CLIENT_TOOLS: readonly AnyToolBuilder[] = [
   existsTool,
   snapshotTool,
   screenshotTool,
+  screenshotNodeTool,
   hmrTool,
   locateTool,
   treeTool,

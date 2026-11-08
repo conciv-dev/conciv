@@ -236,6 +236,32 @@ export const screenshotDef = pageTool({
   output: z.array(z.union([ImagePart, ImageDetailPart])),
 })
 
+export const PageNodeShotSchema = z.object({
+  image: z.string().describe('base64 png of the element alone, stretched to width by height'),
+  reference: z.string().nullable().describe('base64 png of the reference url drawn at the same size'),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+})
+
+export type PageNodeShot = z.infer<typeof PageNodeShotSchema>
+
+export const screenshotNodeDef = pageTool({
+  verb: 'screenshot_node',
+  summary: 'capture one element alone as a png at a given size, and draw a reference image at the same size',
+  category: 'read',
+  icon: 'read',
+  label: {running: 'Capturing an element', done: 'Captured an element'},
+  catalog: false,
+  input: z.object({
+    selector: z.string().describe('CSS selector of the element; the first match is captured'),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    scale: z.number().positive().default(1).describe('device pixels per css pixel'),
+    reference: z.string().optional().describe('url of an image to draw at the same size'),
+  }),
+  output: PageNodeShotSchema,
+})
+
 export const HOT_UPDATE_WAIT_MS = 5000
 
 export const HotUpdateWaitSchema = z.object({
@@ -691,6 +717,7 @@ export const PAGE_TOOL_DEFS = [
   existsDef,
   snapshotDef,
   screenshotDef,
+  screenshotNodeDef,
   hmrDef,
   locateDef,
   treeDef,

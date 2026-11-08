@@ -226,7 +226,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     writeUnsettledCount: async ({id, count}) => {
       await orm.update(targets).set({unsettled: count}).where(eq(targets.target_id, id))
     },
-    writeRound: async ({id, round, live, diff}) => {
+    writeRound: async ({id, round, live, diff, notes: told = []}) => {
       const written = RoundSchema.parse(round)
       const livePath = live.length > 0 ? `${id}/live/${round.round}.png` : null
       const diffPath = diff.length > 0 ? `${id}/diff/${round.round}.png` : null
@@ -240,6 +240,10 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       const repeats = new Map(earlier.map((row) => [rowKey(row), row.repeat + 1]))
       orm.transaction((tx) => {
         const own = {target_id: id, run_id: runId, round: written.round}
+        for (const text of told)
+          tx.insert(notes)
+            .values({...own, text})
+            .run()
         const {counts, coverage, progress} = written
         tx.insert(rounds)
           .values({

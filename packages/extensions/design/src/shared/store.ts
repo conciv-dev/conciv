@@ -17,7 +17,7 @@ export type Store = {
   writeIds(input: {id: string; ids: IdTree; round: number; revoted: Record<string, string>}): Promise<void>
   unsettledCount(id: string): Promise<number>
   writeUnsettledCount(input: {id: string; count: number}): Promise<void>
-  writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array}): Promise<Round>
+  writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array; notes?: string[]}): Promise<Round>
   round(input: {id: string; round: number}): Promise<Round | null>
   rounds(id: string): Promise<Round[]>
   clear(id: string): Promise<void>
