@@ -1,7 +1,7 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
 import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
-import {createRoot, onMount, Show, type JSX} from 'solid-js'
+import {createRoot, createSignal, onMount, Show, type JSX} from 'solid-js'
 import ScanSearch from 'lucide-solid/icons/scan-search'
 import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
@@ -12,10 +12,8 @@ import type {z} from 'zod'
 import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
 import {OVERLAYS} from './shared/overlays.js'
-import {createXrayState} from './xray/state.js'
 import {XrayOverlay} from './xray/overlay.js'
 import {createXrayData} from './xray/data.js'
-import {createXrayView} from './xray/view.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
@@ -113,7 +111,7 @@ function Component(): JSX.Element {
   const xray = design.useContext((context) => context.xray)
   return (
     <Show when={slot === 'composer'}>
-      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => xray.toggleOn()}>
+      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => xray.toggle()}>
         <ScanSearch class="size-5 block" aria-hidden="true" />
       </ComposerActions.ActionButton>
     </Show>
@@ -125,12 +123,11 @@ function Surface(): JSX.Element {
   const apiBase = host.useApiBase()
   const session = host.useSessionId()
   const xray = design.useContext((context) => context.xray)
-  const data = createXrayData({apiBase, session, round: () => xray.state.round, on: () => xray.state.on})
-  const view = createXrayView({xray, data})
+  const data = createXrayData({apiBase, session, round: () => null, on: xray.on})
   onMount(() => {
     engineBase.current = apiBase
   })
-  return <XrayOverlay xray={xray} data={data} view={view} capture={capturePixels} />
+  return <XrayOverlay on={xray.on} toggle={xray.toggle} data={data} capture={capturePixels} />
 }
 
 export const design = defineExtension({
@@ -139,13 +136,18 @@ export const design = defineExtension({
   tools: CLIENT_TOOLS,
   Component,
   Surface,
-}).client(() => createRoot((dispose) => ({value: {xray: createXrayState()}, dispose})))
+}).client(() => createRoot((dispose) => ({value: {xray: xraySwitch()}, dispose})))
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof design> {}
 }
 
 export default design
+
+function xraySwitch() {
+  const [on, setOn] = createSignal(false)
+  return {on, toggle: () => setOn(!on())}
+}
 
 async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}

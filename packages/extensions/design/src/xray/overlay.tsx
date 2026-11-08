@@ -1,4 +1,4 @@
-import {createRenderEffect, createSignal, onMount, Show, type JSX} from 'solid-js'
+import {createRenderEffect, createSignal, onMount, Show, type Accessor, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {z} from 'zod'
@@ -6,17 +6,11 @@ import {getExtensionApi} from '@conciv/extension'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {designConfig} from '../shared/tolerances.js'
 import type {createXrayData} from './data.js'
-import type {createXrayView} from './view.js'
-import type {createXrayState} from './state.js'
-import {Rail} from './rail.js'
-import {Column} from './column.js'
-import {Boxes} from './boxes.js'
-import {ThreeD} from './three-d.js'
 
 export function XrayOverlay(props: {
-  xray: ReturnType<typeof createXrayState>
+  on: Accessor<boolean>
+  toggle: () => void
   data: ReturnType<typeof createXrayData>
-  view: ReturnType<typeof createXrayView>
   capture: () => Promise<boolean>
 }): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
@@ -26,37 +20,32 @@ export function XrayOverlay(props: {
   const [element, setElement] = createSignal<HTMLDivElement>()
   const rootNode = (): ShadowRoot | Document => element()?.shadowRoot ?? document
   makeEventListener(document, 'keydown', (event) => {
-    if (event.key === ESCAPE && props.xray.escape()) event.preventDefault()
+    if (event.key !== ESCAPE || !props.on()) return
+    event.preventDefault()
+    props.toggle()
   })
   createRenderEffect(() => {
     const shown = element()
     if (shown === undefined) return
     prepareHost(shown)
     if (shown.shadowRoot !== null) shown.shadowRoot.adoptedStyleSheets = styles()
-    shown.hidden = !props.xray.state.on
-    shown.style.setProperty('display', props.xray.state.on ? 'block' : 'none')
+    shown.hidden = !props.on()
     shown.classList.toggle('dark', scheme() === 'dark')
     shown.classList.toggle('light', scheme() !== 'dark')
   })
   return (
     <>
-      <Show when={props.data.hotkeys()}>{(keys) => <Hotkeys keys={keys()} xray={props.xray} />}</Show>
-      <YieldFocus when={props.xray.state.on}>
+      <Show when={props.data.hotkeys()}>{(keys) => <Hotkeys keys={keys()} toggle={props.toggle} />}</Show>
+      <YieldFocus when={props.on()}>
         <Portal mount={document.body} useShadow ref={setElement}>
           <EnvironmentProvider value={rootNode}>
             <div class="chat-density text-chat-text font-chat antialiased">
-              <Show when={props.xray.state.threeD} fallback={<Boxes xray={props.xray} view={props.view} />}>
-                <ThreeD xray={props.xray} data={props.data} view={props.view} />
-              </Show>
-              <nav
+              <section
                 aria-label="Design x-ray"
-                class="border-e border-chat-line bg-chat-glass flex pointer-events-auto shadow-chat-lg start-0 inset-y-0 fixed"
+                class="p-3 border-e border-chat-line bg-chat-glass pointer-events-auto shadow-chat-lg start-0 inset-y-0 fixed"
               >
-                <Rail xray={props.xray} keys={props.data.hotkeys()} />
-                <Show when={props.xray.state.column}>
-                  <Column xray={props.xray} data={props.data} view={props.view} capture={props.capture} />
-                </Show>
-              </nav>
+                <p class="text-sm text-chat-text-2 m-0">No design registered</p>
+              </section>
             </div>
           </EnvironmentProvider>
         </Portal>
@@ -91,11 +80,10 @@ function prepareHost(host: HTMLDivElement): void {
   Object.entries(HUES).forEach(([name, value]) => host.style.setProperty(`--xray-${name}`, value))
 }
 
-function Hotkeys(props: {keys: Keys; xray: ReturnType<typeof createXrayState>}): JSX.Element {
+function Hotkeys(props: {keys: Keys; toggle: () => void}): JSX.Element {
   const hotkeys = getExtensionApi(DESIGN_EXTENSION_NAME).useHotkeys()
   onMount(() => {
-    hotkeys.register({binding: props.keys.overlay, label: 'Design x-ray', handler: props.xray.toggleOn})
-    hotkeys.register({binding: props.keys.pick, label: 'Design x-ray pick', handler: props.xray.togglePick})
+    hotkeys.register({binding: props.keys.overlay, label: 'Design x-ray', handler: props.toggle})
   })
   return null
 }
