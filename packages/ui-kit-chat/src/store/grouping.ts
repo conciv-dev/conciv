@@ -1,6 +1,12 @@
 import {isEqual, keyBy, range} from 'es-toolkit'
 import type {JSX} from 'solid-js'
-import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import {
+  CompactionMetadataSchema,
+  type ChatPart,
+  type ToolCallPart,
+  type ToolResultPart,
+  type ChatMessage,
+} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
@@ -39,13 +45,17 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   const bounds: TurnBounds[] = []
   messages.forEach((message, index) => {
     const last = bounds.at(-1)
-    if (last && message.role === 'assistant' && last.first.role === 'assistant') {
+    if (last && message.role === 'assistant' && last.first.role === 'assistant' && !opensTurn(message)) {
       last.end = index
       return
     }
     bounds.push({first: message, start: index, end: index})
   })
   return bounds
+}
+
+function opensTurn(message: ChatMessage): boolean {
+  return CompactionMetadataSchema.safeParse(message.metadata).success
 }
 
 function sameMessage(previous: ChatMessage | undefined, message: ChatMessage | undefined): boolean {

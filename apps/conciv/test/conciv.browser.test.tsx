@@ -1319,8 +1319,8 @@ describe('chat history paging', () => {
     long.sessionId = await seedLongChat()
   }, 120_000)
 
-  function mountPagedChat(sessionId: string): void {
-    keep(
+  function mountPagedChat(sessionId: string) {
+    return keep(
       mountPane({base: core(), sessionId, width: 460}, () => (
         <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
           <ChatPane sessionId={sessionId} />
@@ -1458,7 +1458,7 @@ describe('chat history paging', () => {
 
   test('a reply sent in the pane and then compacted keeps the compact line under it without reopening', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    mountPagedChat(sessionId)
+    const first = mountPagedChat(sessionId)
 
     await userEvent.click(input())
     await userEvent.keyboard('compact after this reply{Enter}')
@@ -1474,7 +1474,16 @@ describe('chat history paging', () => {
     await expect.element(compactedUnderReply).toBeVisible()
     await faults.releaseAll()
     await expect.element(page.getByRole('status', {name: 'Compacting context…'})).not.toBeInTheDocument()
-    await expect.element(compactedUnderReply).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv').nth(1)).toBeVisible()
+    const settled = page
+      .getByRole('log')
+      .filter({hasText: /compact after this reply.*Hello from conciv.*Context compacted.*Hello from conciv/})
+    await expect.element(settled).toBeVisible()
+
+    first.dispose()
+    mountPagedChat(sessionId)
+    await expect.element(page.getByText('Hello from conciv').nth(1)).toBeVisible()
+    await expect.element(settled).toBeVisible()
   })
 
   test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
