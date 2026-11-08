@@ -1,9 +1,15 @@
 import type {ReactNode} from 'react'
 import {useState} from 'react'
-import {createFileRoute} from '@tanstack/react-router'
+import {createFileRoute, redirect} from '@tanstack/react-router'
+import {hasSession} from '../lib/session'
 import {useForm} from '@tanstack/react-form'
 
-export const Route = createFileRoute('/form')({component: FormDemo})
+export const Route = createFileRoute('/form')({
+  beforeLoad: async () => {
+    if (!(await hasSession())) throw redirect({to: '/login'})
+  },
+  component: FormDemo,
+})
 
 type Submission = {
   fullName: string
