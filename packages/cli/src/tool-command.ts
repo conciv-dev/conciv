@@ -5,12 +5,14 @@ import {kebabCase} from 'es-toolkit'
 import {argument, cli, command, description, multiple, name, option, schema, toggle, type Schema} from '@bomb.sh/router'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
+import type {CliTarget} from './request.js'
+import {tabFlag} from './tab-flag.js'
 
 type WireToolSignature = {summary: string; positional?: string; inputSchema: unknown}
 
 type ToolCommandOptions = {
   name: string
-  run: (input: Record<string, unknown>) => Promise<CliOutcome>
+  run: (input: Record<string, unknown>, target: CliTarget) => Promise<CliOutcome>
 }
 
 const DeclaredTypes = z
@@ -48,12 +50,14 @@ export function wireToolCommand(signature: WireToolSignature, options: ToolComma
   const fields = declaredFields(signature.inputSchema ?? {})
   const positional = fields.some((field) => field.name === signature.positional) ? signature.positional : undefined
   const envelope: Element[] = fields.some((field) => field.name === 'json') ? [] : [envelopeFlag]
+  const tab: Element[] = fields.some((field) => field.name === 'tab') ? [] : [tabFlag]
   return command(
     name(options.name),
     description(signature.summary),
     ...fields.map((field) => fieldElement(field, positional)),
     ...envelope,
-    handler((model) => options.run(suppliedInput(fields, model))),
+    ...tab,
+    handler((model, target) => options.run(suppliedInput(fields, model), target)),
   )
 }
 

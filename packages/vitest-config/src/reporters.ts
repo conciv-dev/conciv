@@ -1,3 +1,7 @@
+import {mkdtempSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+
 type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boolean}}] | ['json', {outputFile: string}]
 
 type CiCoverage = {
@@ -25,8 +29,11 @@ export function ciTest(): {
   hookTimeout: number
   teardownTimeout: number
   maxWorkers?: number
+  env: {CONCIV_HOME: string}
 } {
   const maxWorkers = forkCap()
+  const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+  process.env.CONCIV_HOME = home
   return {
     reporters: ciReporters(),
     testTimeout: 30_000,
@@ -38,6 +45,7 @@ export function ciTest(): {
       reporter: ['json-summary'],
       reportsDirectory: 'coverage',
     },
+    env: {CONCIV_HOME: home},
     ...(maxWorkers === undefined ? {} : {maxWorkers}),
   }
 }
@@ -51,6 +59,7 @@ export function ciTestSolidBrowser(): {
   hookTimeout: number
   teardownTimeout: number
   maxWorkers?: number
+  env: {CONCIV_HOME: string}
   setupFiles: string[]
 } {
   return {

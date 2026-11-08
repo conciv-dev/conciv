@@ -15,11 +15,13 @@ const SHELL_DEPS = [
   'semver/functions/lt',
   'semver/functions/valid',
 ]
+const BUILT_PACKAGE = /\/packages\/.+\/dist\//
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
 export default defineConfig(({mode}) => ({
   test: {
     ...ciTest(),
+    server: {deps: {external: [BUILT_PACKAGE]}},
     projects: [
       {
         test: {

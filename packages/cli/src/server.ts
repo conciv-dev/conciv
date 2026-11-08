@@ -1,15 +1,16 @@
 import type {RpcClient, ToolCommandSignature} from '@conciv/contract'
 import type {CliOutcome} from './envelope.js'
-import {runRpc} from './request.js'
+import {runRpc, type CliTarget} from './request.js'
 
 type OperationCall = (input: unknown) => Promise<unknown>
 
 export function callServerOperation(
   signature: ToolCommandSignature,
   input: Record<string, unknown>,
+  target: CliTarget,
 ): Promise<CliOutcome> {
   const operation = signature.name.slice(signature.name.indexOf('_') + 1)
-  return runRpc((rpc) => callOperation(rpc, operation, input))
+  return runRpc(target, (rpc) => callOperation(rpc, operation, input))
 }
 
 function callOperation(rpc: RpcClient, operation: string, input: Record<string, unknown>): Promise<unknown> {

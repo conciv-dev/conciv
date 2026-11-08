@@ -32,6 +32,10 @@ as soon as the server mounts it; the CLI itself ships no extension code.
 - `conciv tools design` - match the live page to a design image (when the design extension is mounted)
 - `conciv tools server` - inspect and nudge the dev server; `--help` lists every capability
 - `conciv tools open` - open a file in the user's editor
+- `conciv tools tabs` - list every open conciv tab on this machine, from any folder
+
+Add `--tab <id>` (an id from `conciv tools tabs`) to any command to act on that tab, on whichever dev
+server holds it. The tab's page asks the user to allow the CLI the first time.
 
 These commands, and their `--help`, need the dev server running; without one they print the
 "No conciv dev server" error with how to start it. Every command prints one JSON document on stdout

@@ -102,7 +102,13 @@ export const routeDef = pageTool({
   label: {running: 'Reading the route', done: 'Read the route'},
   keywords: ['url', 'location'],
   input: noInput,
-  output: z.object({pathname: z.string(), search: z.string(), href: z.string()}),
+  output: z.object({
+    pathname: z.string(),
+    search: z.string(),
+    href: z.string(),
+    title: z.string(),
+    state: z.enum(['visible', 'hidden']),
+  }),
 })
 
 export const domDef = pageTool({
@@ -496,7 +502,7 @@ export const selectDef = pageTool({
   label: {running: 'Selecting an option', done: 'Selected'},
   mutating: true,
   keywords: ['option', 'dropdown'],
-  input: z.object({...ElementTarget, value: z.string().describe('the option value to choose')}),
+  input: z.object({...ElementTarget, value: z.string().describe('the option value, or its visible label, to choose')}),
   output: z.object({ok: z.literal(true), value: z.string()}),
 })
 

@@ -57,7 +57,15 @@ describe('reporters', () => {
       hookTimeout: 30_000,
       teardownTimeout: 30_000,
       coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
+      env: {CONCIV_HOME: expect.stringContaining(tmpdir())},
     })
+  })
+
+  test('every test config gets its own empty conciv home, also set for the main process', () => {
+    const homes = [ciTest().env.CONCIV_HOME, ciTest().env.CONCIV_HOME]
+    expect(new Set(homes).size).toBe(2)
+    expect(homes.map((home) => readdirSync(home))).toEqual([[], []])
+    expect(process.env.CONCIV_HOME).toBe(homes[1])
   })
 
   test('a fork cap in the environment caps the worker count', () => {

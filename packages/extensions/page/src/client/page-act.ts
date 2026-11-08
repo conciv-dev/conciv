@@ -1,3 +1,4 @@
+import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
 import {setNativeValue, simulateClick, simulateFill} from './simulator.js'
 
@@ -69,6 +70,7 @@ export async function fill(options: {element: Element; value: string; agent: str
   if (!isInput(element) && !isTextArea(element)) return 'That element is not a text field.'
   if (element.readOnly) return 'That field is read-only.'
   await simulateFill({element, value, agent})
+  if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
   return null
 }
 
@@ -77,7 +79,7 @@ export function select(options: {element: Element; value: string}): {value: stri
   if (!isSelect(element)) return 'That element is not a select.'
   const choices = Array.from(element.options)
   const option = choices.find((each) => each.value === value) ?? choices.find((each) => each.label.trim() === value)
-  if (!option) return `No option ${JSON.stringify(value)}.`
+  if (!option) return `No option ${shown({element, value})}; options: ${choices.map(described).join(', ')}.`
   setNativeValue({element, value: option.value})
   changed(element)
   return {value: element.value}
@@ -93,12 +95,26 @@ export async function setChecked(options: {
     if (element.checked === checked) return {checked}
     if (element.type === 'radio' && !checked) return 'A radio is unchecked by checking another one.'
     await simulateClick({element, agent})
-    return {checked: element.checked}
+    return reached({now: element.checked, checked})
   }
   const aria = element.getAttribute('aria-checked')
   if (aria === null) return 'That element is not a checkbox.'
   if ((aria === 'true') !== checked) await simulateClick({element, agent})
-  return {checked: element.getAttribute('aria-checked') === 'true'}
+  return reached({now: element.getAttribute('aria-checked') === 'true', checked})
+}
+
+function shown(options: {element: Element; value: string}): string {
+  return isSensitiveField(options.element) ? MASKED_VALUE : JSON.stringify(options.value)
+}
+
+function described(option: HTMLOptionElement): string {
+  return `${option.value} ${JSON.stringify(option.label)}`
+}
+
+function reached(options: {now: boolean; checked: boolean}): {checked: boolean} | string {
+  const {now, checked} = options
+  if (now === checked) return {checked}
+  return `The box is still ${now ? 'checked' : 'unchecked'}; the page prevented the change.`
 }
 
 function deepActive(element: Element): Element {

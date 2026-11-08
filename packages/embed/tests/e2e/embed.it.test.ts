@@ -531,8 +531,12 @@ test.describe('element capture', () => {
       page,
     }) => {
       test.setTimeout(180_000)
+      const fresh = await kit.rpc.sessions.create()
+      const title = `code mode turn ${fresh.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
       await openHostPage(page)
       await openPanel(page)
+      await switchToSessionByTitle(page, title)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })

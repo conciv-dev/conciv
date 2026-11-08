@@ -1,6 +1,6 @@
 ---
 name: conciv-harness
-description: Use when wiring a new coding-agent CLI into conciv as a harness adapter — implementing HarnessAdapter/defineHarness, HarnessCapabilities, connect.plan() launch args, chatConfig() text-adapter wiring, or the models/history/connect/tty/commands sidecars. Also use when a harness turn misbehaves around cwd, resume, or transcript history.
+description: Use when wiring a new coding-agent CLI into conciv as a harness adapter — implementing HarnessAdapter/defineHarness, HarnessCapabilities, chatConfig() text-adapter wiring, or the models/history/tty/commands sidecars. Also use when a harness turn misbehaves around cwd, resume, or transcript history.
 metadata:
   package: '@conciv/skills'
 ---
@@ -44,7 +44,6 @@ export const yourHarness = defineHarness({
   models: [{id: 'default', name: 'Default', group: 'Your CLI'}],
   defaultModel: 'default',
   history: yourHistory,
-  connect: {plan: yourConnectPlan},
 })
 ```
 
@@ -91,7 +90,7 @@ core branches on these values to decide what to even attempt.
 If your CLI genuinely has none of resume/history/commands/init, the minimal legal capabilities are
 `{resume: false, permissionGate: 'none', transcriptHistory: false, compaction: false, systemPrompt:
 'none', mcp: 'none', slashCommands: 'none', imageInput: false, init: 'none'}` and the adapter needs
-only `chatConfig` (+ optionally `connect`).
+only `chatConfig`.
 
 ## chatConfig(deps): the one required function
 
@@ -193,7 +192,7 @@ makes those decisions, and `chatConfig` receives no approval callback: a CLI's o
 by that CLI's native permission mode (`permissionMode: 'auto'` for Claude Code), set in `chatConfig`. Conciv
 keeps no command rules, so never add an "is this command risky" check to core or the widget.
 
-## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `connect.plan()` legitimately does
+## Sandbox-virtual workdir: `chatConfig` never passes a host `cwd`; `tty.command()` legitimately does
 
 `localProcessSandbox({dir})` (`packages/ai/src/server/chat-server.ts:234-247`, `dir` is the engine cwd) roots every process
 spawned **through the sandbox** at `deps.cwd` already — the sandbox root IS `deps.cwd`, not a
@@ -212,58 +211,13 @@ working directory: claude's chat config threads it through as `addDirs: [deps.cw
 (`packages/harness/src/claude/chat.ts:73`), an additional-directory permission grant for MCP/tool file
 access, not a `cwd` override.
 
-`connect.plan(ctx)` is a different seam — it builds the argv for the connected **host terminal**
-(attach flow), which runs the raw CLI directly, outside `chat()`'s sandbox middleware entirely. There,
-`ctx.cwd` is the ordinary, correct thing to pass straight through: pi's connect plan builds a
-session-file path from it (`packages/harness/src/pi/index.ts:6-9`, used at
-`packages/harness/src/pi/index.ts:30`), and claude's slash-command probe passes `cwd: ctx.cwd` straight
-into `@anthropic-ai/claude-agent-sdk`'s `query()` (`packages/harness/src/claude/sdk.ts:42`), which also
-runs outside the sandbox. Don't copy `connect.plan()`'s `ctx.cwd` habit into `chatConfig` — they're
-different processes with different rooting rules.
-
-## connect.plan(): the argv/env/files launch plan
-
-```ts
-export type HarnessConnectContext = {
-  cwd: string
-  stateDir: string
-  concivSessionId: SessionId
-  harnessSessionId: HarnessSessionId | null
-  resume: boolean
-  owned: boolean
-  model: string | null
-  mcpUrl: string | null
-  hookUrl: string | null
-}
-
-export type HarnessConnectPlan = {argv: string[]; env: Record<string, string>; files: HarnessConnectFile[]}
-export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
-```
-
-(`packages/protocol/src/harness-types.ts:41-61`.) `connect` is optional on `HarnessAdapterBase`
-(`packages/harness/src/_shared/contract.ts:27`) but every full adapter has one — it's how the connected
-terminal / attach flow launches the raw CLI process (as opposed to `chatConfig`, which drives the
-programmatic chat loop). `plan()` is synchronous and pure: given the context, return the argv, any env
-vars, and any files that must exist before spawn (`files` entries are `{path, contents, mode?}`).
-
-```ts
-connect: {
-  plan: (ctx) => ({
-    argv: [
-      'codex',
-      ...(ctx.resume && ctx.harnessSessionId ? ['resume', ctx.harnessSessionId] : []),
-      ...(ctx.model ? ['-m', ctx.model] : []),
-      ...(ctx.mcpUrl ? codexMcpArgs(ctx.mcpUrl, ctx.concivSessionId) : []),
-    ],
-    env: {},
-    files: [],
-  }),
-}
-```
-
-(`packages/harness/src/codex/index.ts:40-51`, MCP args built by `codexMcpArgs` in
-`packages/harness/src/codex/args.ts:7-10`.) `ctx.mcpUrl`/`ctx.hookUrl` are only present when the
-harness advertised `mcp !== 'none'`; branch on them rather than assuming they're always set.
+`tty.command(ctx)` is a different seam: it builds the argv for the CLI in the built-in terminal pane,
+which runs the raw CLI directly, outside `chat()`'s sandbox middleware entirely. There, `ctx.cwd`
+(`HarnessConnectContext` in `packages/protocol/src/harness-types.ts`) is the ordinary, correct thing to
+pass straight through, and claude's slash-command probe passes `cwd: ctx.cwd` straight into
+`@anthropic-ai/claude-agent-sdk`'s `query()` (`packages/harness/src/claude/sdk.ts`), which also runs
+outside the sandbox. Don't copy that `ctx.cwd` habit into `chatConfig`: they're different processes
+with different rooting rules.
 
 ## Sidecars
 
@@ -273,7 +227,12 @@ harness advertised `mcp !== 'none'`; branch on them rather than assuming they're
   `resolveHarnessModels(adapter)` (`packages/harness/src/registry.ts:25-29`), never by branching on
   `typeof adapter.models` yourself elsewhere.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
-  in the built-in terminal pane, separate from `connect.plan()`'s attach flow.
+  in the built-in terminal pane.
+- There is no connect/launch-plan sidecar. Outside sessions of a harness (any cwd) reach conciv through the
+  `conciv-hub` MCP server, `conciv mcp` from `@conciv/cli` (`packages/cli/src/hub.ts`), which the user installs
+  from the composer's "Connect agents" menu. That install argv lives on the harness's init contribution in
+  `@conciv/harness-init` as `hub: {add(command): string[]}` (`packages/harness-init/src/codex.ts`), not on the
+  `HarnessAdapter`; a harness with no MCP support (pi) omits `hub`.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
   (`packages/protocol/src/harness-types.ts:35-39`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for
@@ -321,14 +280,14 @@ fit in this file's budget.
   the capability contract is that core never special-cases a harness by name.
 - Threading `deps.cwd` into `chatConfig`'s adapter as an explicit `cwd`/`--cwd` value — the sandbox
   already roots the spawned process there; an explicit host-absolute value on top of that is what
-  nests the phantom `/workspace/Users/...` tree, not omitting it. (`connect.plan()`'s `ctx.cwd` is a
+  nests the phantom `/workspace/Users/...` tree, not omitting it. (`tty.command()`'s `ctx.cwd` is a
   different, unsandboxed seam where passing it through is correct — see above.)
 - Declaring `transcriptHistory: true`, `slashCommands: 'live' | 'files'`, or `init: 'files'` without
   the matching `history`/`commands`/`init` field — this is a type error, not a runtime bug, but if you
   see yourself reaching for `as HarnessAdapter` to silence it, the capability declaration is wrong,
   not the cast.
 - A capability flag set to unlock a sidecar you haven't actually implemented (e.g. `mcp: 'http'` when
-  `connect.plan()` never threads `ctx.mcpUrl` through) — core will attempt the capability and get
+  `chatConfig` never wires the conciv MCP server in) — core will attempt the capability and get
   nothing back.
 - Hand-rolling env var filtering instead of `definedEntries` from
   `packages/harness/src/_shared/env.ts`.
@@ -339,7 +298,8 @@ fit in this file's budget.
 - `packages/harness/src/_shared/contract.ts`
 - `packages/harness/src/registry.ts`
 - `packages/harness/src/codex/index.ts`
-- `packages/harness/src/codex/args.ts`
+- `packages/harness-init/src/codex.ts`
+- `packages/cli/src/hub.ts`
 - `packages/harness/src/codex/history.ts`
 - `packages/harness/src/claude/index.ts`
 - `packages/harness/src/claude/chat.ts`

@@ -1,0 +1,112 @@
+import {z} from 'zod'
+import {generateMessageId} from '@conciv/protocol/chat-message-types'
+import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, HUB_FORWARD_ORIGIN} from '@conciv/protocol/chat-types'
+import {safeStringify} from '@conciv/chat'
+import {logError} from '../lib/debug.js'
+
+const HubOriginSchema = z.object({
+  origin: z.enum(['hub', HUB_FORWARD_ORIGIN]).optional().catch(undefined),
+  client: z.string().max(64).optional().catch(undefined),
+})
+
+type HubOrigin = {client: string | null; forwarded: boolean}
+
+type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
+
+type CallRun = {threadId: string; live: boolean}
+
+type MirrorSink = {publish: (chunk: ChatEvent) => void; record: (chunks: readonly ChatEvent[]) => Promise<void>}
+
+export function callTrace(header: (name: string) => string | null) {
+  const hub = hubOrigin(header)
+  const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client}}
+  return {
+    hub,
+    shown: hub?.forwarded !== true,
+    mark: (chunk: ChatEvent): ChatEvent => marked(chunk, marker),
+    start: (run: CallRun, callId: string, toolName: string, input: unknown): ChatEvent[] => [
+      ...(run.live ? [] : [runStarted(run.threadId, callId)]),
+      ...(hub?.forwarded === true ? [] : startChunks(callId, toolName, input, marker)),
+    ],
+    result: (run: CallRun, callId: string, text: string, failed: boolean): ChatEvent[] => [
+      ...(hub?.forwarded === true ? [] : [resultChunk(callId, text, failed, marker)]),
+      ...(run.live ? [] : [runFinished(run.threadId, callId)]),
+    ],
+    mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
+  }
+}
+
+function mirrorRun(run: CallRun, outside: boolean, sink: MirrorSink) {
+  const recorded: ChatEvent[] = []
+  const kept = !run.live || outside
+  const save = (): Promise<void> =>
+    sink
+      .record(recorded.splice(0))
+      .catch((error: unknown) => logError(`[hub] saving an outside call to the chat failed: ${String(error)}`))
+  return {
+    publish: (chunks: readonly ChatEvent[]): void => {
+      if (kept) recorded.push(...chunks)
+      chunks.forEach((chunk) => sink.publish(chunk))
+    },
+    settle: async (): Promise<void> => {
+      if (!kept) return
+      if (run.live) {
+        void save()
+        return
+      }
+      await save()
+    },
+  }
+}
+
+function hubOrigin(header: (name: string) => string | null): HubOrigin | null {
+  const parsed = HubOriginSchema.parse({
+    origin: header(CONCIV_ORIGIN_HEADER) ?? undefined,
+    client: header(CONCIV_CLIENT_HEADER) ?? undefined,
+  })
+  if (parsed.origin === undefined) return null
+  return {client: parsed.client ?? null, forwarded: parsed.origin === HUB_FORWARD_ORIGIN}
+}
+
+function marked(chunk: ChatEvent, marker: CallMarker): ChatEvent {
+  if (marker === null) return chunk
+  if (chunk.type === ChatEventType.TOOL_CALL_START || chunk.type === ChatEventType.TOOL_CALL_END) {
+    return {...chunk, metadata: {...chunk.metadata, ...marker}}
+  }
+  if (chunk.type === ChatEventType.TOOL_CALL_RESULT) return {...chunk, metadata: {...chunk.metadata, ...marker}}
+  return chunk
+}
+
+function runStarted(threadId: string, callId: string): ChatEvent {
+  return {type: ChatEventType.RUN_STARTED, runId: mirrorRunId(callId), threadId}
+}
+
+function runFinished(threadId: string, callId: string): ChatEvent {
+  return {type: ChatEventType.RUN_FINISHED, runId: mirrorRunId(callId), threadId, finishReason: 'stop'}
+}
+
+function mirrorRunId(callId: string): string {
+  return `mirror-${callId}`
+}
+
+function startChunks(callId: string, toolName: string, input: unknown, marker: CallMarker): ChatEvent[] {
+  const metadata = marker === null ? {} : {metadata: marker}
+  return [
+    {type: ChatEventType.TOOL_CALL_START, toolCallId: callId, toolCallName: toolName, ...metadata},
+    {type: ChatEventType.TOOL_CALL_ARGS, toolCallId: callId, delta: safeStringify(input)},
+    {type: ChatEventType.TOOL_CALL_END, toolCallId: callId, ...metadata},
+  ]
+}
+
+function resultChunk(callId: string, text: string, failed: boolean, marker: CallMarker): ChatEvent {
+  const failure = failed ? {tanstack: {state: 'output-error'}} : null
+  const metadata = marker === null && failure === null ? {} : {metadata: {...marker, ...failure}}
+  return {
+    type: ChatEventType.TOOL_CALL_RESULT,
+    messageId: generateMessageId(),
+    toolCallId: callId,
+    content: text || JSON.stringify({result: 'non-text content'}),
+    ...metadata,
+  }
+}

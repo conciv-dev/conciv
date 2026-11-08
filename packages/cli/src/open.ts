@@ -11,10 +11,10 @@ export function openCommand(signature: ToolCommandSignature) {
     {...signature, positional: OPEN_POSITIONAL},
     {
       name: 'open',
-      run: (input) => {
+      run: (input, target) => {
         const parsed = EditorOpenInputSchema.safeParse(input)
         if (!parsed.success) throw userFailure(z.prettifyError(parsed.error))
-        return runRpc((rpc) => rpc.editor.open(parsed.data))
+        return runRpc(target, (rpc) => rpc.editor.open(parsed.data))
       },
     },
   )

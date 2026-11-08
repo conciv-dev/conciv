@@ -62,6 +62,13 @@ async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<Na
   return pages.filter((native) => native !== null)
 }
 
+export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): Promise<SessionMeta | null> {
+  const row = await rowById(chat.db, sessionId)
+  if (!row) return null
+  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => modelOf(chat.db, id)}
+  return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+}
+
 async function sessionPage(
   chat: ChatContext,
   input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
@@ -97,7 +104,6 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
     name: harness.displayName ?? harness.id,
-    canLaunch: Boolean(harness.connect),
     imageInput: harness.capabilities.imageInput,
   }
 }
@@ -176,10 +182,9 @@ export function sessionsRouter(deps: RpcDeps) {
       sessionPage(chat, input, input.term, (page) => search.pages(input.term, page)),
     ),
     get: os.sessions.get.handler(async ({input, errors}) => {
-      const row = await rowById(db, input.sessionId)
-      if (!row) throw errors.NOT_FOUND()
-      const context = {db, running: await chat.plane.running(), model: (sessionId: SessionId) => modelOf(db, sessionId)}
-      return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+      const meta = await rpcSessionMeta(chat, input.sessionId)
+      if (meta === null) throw errors.NOT_FOUND()
+      return meta
     }),
     create: os.sessions.create.handler(async () => {
       const sessionId = SessionId.parse(`conciv_${randomUUID()}`)

@@ -4,7 +4,6 @@ import type {
   HarnessCapabilities,
   HarnessChatDeps,
   HarnessCommands,
-  HarnessConnect,
   HarnessConnectContext,
   HarnessHistory,
   HarnessInit,
@@ -24,7 +23,6 @@ type HarnessAdapterBase = {
 
   displayName?: string
 
-  connect?: HarnessConnect
   chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
 
   models?: HarnessModels

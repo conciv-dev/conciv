@@ -5,8 +5,9 @@ import {contract, ToolCommandSignatureSchema, type ToolCommandSignature} from '@
 import {envelopeFlag} from './envelope.js'
 import {openCommand} from './open.js'
 import {pageChangesCommand} from './page.js'
-import {runRpc} from './request.js'
+import {runRpc, type CliTarget} from './request.js'
 import {callServerOperation} from './server.js'
+import {tabFlag} from './tab-flag.js'
 import {wireToolCommand} from './tool-command.js'
 import {toolGroupRoute} from './tool-group.js'
 
@@ -22,6 +23,7 @@ export const toolsRoute = route(
   name('tools'),
   description('inspect & drive the live dev server: every tool group it serves (page, react, server, ...)'),
   envelopeFlag,
+  tabFlag,
   dynamic(z.array(ToolCommandSignatureSchema), (catalog) => extend(...catalogRoutes(catalog))),
 )
 
@@ -57,20 +59,23 @@ function reactView(grouped: readonly ToolCommandSignature[]): AnyRoute[] {
 
 function singleCommand(signature: ToolCommandSignature): AnyRoute {
   if (signature.name === OPEN_TOOL) return openCommand(signature)
-  return wireToolCommand(signature, {name: signature.name, run: (input) => callRegistry(signature, input)})
+  return wireToolCommand(signature, {
+    name: signature.name,
+    run: (input, target) => callRegistry(signature, input, target),
+  })
 }
 
 function groupOf(signature: ToolCommandSignature): string {
   return signature.name.slice(0, signature.name.indexOf('_'))
 }
 
-function callServerTool(signature: ToolCommandSignature, input: Record<string, unknown>) {
+function callServerTool(signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) {
   if (Object.hasOwn(contract.server, signature.name.slice(SERVER_GROUP.length + 1))) {
-    return callServerOperation(signature, input)
+    return callServerOperation(signature, input, target)
   }
-  return callRegistry(signature, input)
+  return callRegistry(signature, input, target)
 }
 
-function callRegistry(signature: ToolCommandSignature, input: Record<string, unknown>) {
-  return runRpc((rpc) => rpc.registry.call({name: signature.name, input}))
+function callRegistry(signature: ToolCommandSignature, input: Record<string, unknown>, target: CliTarget) {
+  return runRpc(target, (rpc) => rpc.registry.call({name: signature.name, input}))
 }
