@@ -222,12 +222,13 @@ export function SessionSelector(props: {
   const resumeCopyOf = (id: string) => resumeCopies().find((entry) => entry?.id === id)?.copy
 
   const select = (id: string) => {
-    if (!id || id === activeId()) return
+    if (!id) return
     const session = sessionOf(id)
     const elsewhere = elsewhereOf(session)
     if (elsewhere !== null) return openElsewhere(id, elsewhere)
+    const switching = id !== activeId()
     props.onActivate(id)
-    announce(`Switched to ${session?.title ?? id}`)
+    if (switching) announce(`Switched to ${session?.title ?? id}`)
   }
 
   const openElsewhere = (id: string, elsewhere: Elsewhere) => {
@@ -280,10 +281,7 @@ export function SessionSelector(props: {
       translations={{loading: SEARCHING_LABEL}}
       value={valueArr()}
       scrollToIndexFn={(details) => scrollToItem(details.index)}
-      onValueChange={(d) => {
-        const id = d.value[0]
-        if (id) select(id)
-      }}
+      onSelect={(details) => select(details.itemValue)}
       inputValue={shownInput().text}
       onInputValueChange={typed}
       onHighlightChange={(details) => highlighted(details.highlightedValue)}

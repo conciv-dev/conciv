@@ -16,8 +16,11 @@ import { Route as PanelSessionIdRouteImport } from './routes/panel.$sessionId'
 import { Route as PanelConnectRouteImport } from './routes/panel.connect'
 import { Route as PanelLatestRouteImport } from './routes/panel.latest'
 import { Route as PipSessionIdRouteImport } from './routes/pip.$sessionId'
-import { Route as PanelSessionIdIndexRouteImport } from './routes/panel.$sessionId.index'
 import { Route as PanelSessionIdViewRouteImport } from './routes/panel.$sessionId.$view'
+import { Route as PanelSessionIdChatRouteImport } from './routes/panel.$sessionId._chat'
+import { Route as PanelSessionIdViewOptionsRouteImport } from './routes/panel.$sessionId.$view.options'
+import { Route as PanelSessionIdChatIndexRouteImport } from './routes/panel.$sessionId._chat.index'
+import { Route as PanelSessionIdChatOptionsRouteImport } from './routes/panel.$sessionId._chat.options'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -54,16 +57,32 @@ const PipSessionIdRoute = PipSessionIdRouteImport.update({
   path: '/pip/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PanelSessionIdIndexRoute = PanelSessionIdIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => PanelSessionIdRoute,
-} as any)
 const PanelSessionIdViewRoute = PanelSessionIdViewRouteImport.update({
   id: '/$view',
   path: '/$view',
   getParentRoute: () => PanelSessionIdRoute,
 } as any)
+const PanelSessionIdChatRoute = PanelSessionIdChatRouteImport.update({
+  id: '/_chat',
+  getParentRoute: () => PanelSessionIdRoute,
+} as any)
+const PanelSessionIdViewOptionsRoute =
+  PanelSessionIdViewOptionsRouteImport.update({
+    id: '/options',
+    path: '/options',
+    getParentRoute: () => PanelSessionIdViewRoute,
+  } as any)
+const PanelSessionIdChatIndexRoute = PanelSessionIdChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PanelSessionIdChatRoute,
+} as any)
+const PanelSessionIdChatOptionsRoute =
+  PanelSessionIdChatOptionsRouteImport.update({
+    id: '/options',
+    path: '/options',
+    getParentRoute: () => PanelSessionIdChatRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,18 +92,22 @@ export interface FileRoutesByFullPath {
   '/panel/connect': typeof PanelConnectRoute
   '/panel/latest': typeof PanelLatestRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
-  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
-  '/panel/$sessionId/': typeof PanelSessionIdIndexRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRouteWithChildren
+  '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
+  '/panel/$sessionId/options': typeof PanelSessionIdChatOptionsRoute
+  '/panel/$sessionId/': typeof PanelSessionIdChatIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/panel': typeof PanelRouteWithChildren
   '/quick': typeof QuickRoute
+  '/panel/$sessionId': typeof PanelSessionIdChatIndexRoute
   '/panel/connect': typeof PanelConnectRoute
   '/panel/latest': typeof PanelLatestRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
-  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
-  '/panel/$sessionId': typeof PanelSessionIdIndexRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRouteWithChildren
+  '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
+  '/panel/$sessionId/options': typeof PanelSessionIdChatOptionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -95,8 +118,11 @@ export interface FileRoutesById {
   '/panel/connect': typeof PanelConnectRoute
   '/panel/latest': typeof PanelLatestRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
-  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
-  '/panel/$sessionId/': typeof PanelSessionIdIndexRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRouteWithChildren
+  '/panel/$sessionId/_chat': typeof PanelSessionIdChatRouteWithChildren
+  '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
+  '/panel/$sessionId/_chat/options': typeof PanelSessionIdChatOptionsRoute
+  '/panel/$sessionId/_chat/': typeof PanelSessionIdChatIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -109,17 +135,21 @@ export interface FileRouteTypes {
     | '/panel/latest'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
+    | '/panel/$sessionId/$view/options'
+    | '/panel/$sessionId/options'
     | '/panel/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/panel'
     | '/quick'
+    | '/panel/$sessionId'
     | '/panel/connect'
     | '/panel/latest'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
-    | '/panel/$sessionId'
+    | '/panel/$sessionId/$view/options'
+    | '/panel/$sessionId/options'
   id:
     | '__root__'
     | '/'
@@ -130,7 +160,10 @@ export interface FileRouteTypes {
     | '/panel/latest'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
-    | '/panel/$sessionId/'
+    | '/panel/$sessionId/_chat'
+    | '/panel/$sessionId/$view/options'
+    | '/panel/$sessionId/_chat/options'
+    | '/panel/$sessionId/_chat/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -191,13 +224,6 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PipSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/panel/$sessionId/': {
-      id: '/panel/$sessionId/'
-      path: '/'
-      fullPath: '/panel/$sessionId/'
-      preLoaderRoute: typeof PanelSessionIdIndexRouteImport
-      parentRoute: typeof PanelSessionIdRoute
-    }
     '/panel/$sessionId/$view': {
       id: '/panel/$sessionId/$view'
       path: '/$view'
@@ -205,17 +231,69 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PanelSessionIdViewRouteImport
       parentRoute: typeof PanelSessionIdRoute
     }
+    '/panel/$sessionId/_chat': {
+      id: '/panel/$sessionId/_chat'
+      path: ''
+      fullPath: '/panel/$sessionId'
+      preLoaderRoute: typeof PanelSessionIdChatRouteImport
+      parentRoute: typeof PanelSessionIdRoute
+    }
+    '/panel/$sessionId/$view/options': {
+      id: '/panel/$sessionId/$view/options'
+      path: '/options'
+      fullPath: '/panel/$sessionId/$view/options'
+      preLoaderRoute: typeof PanelSessionIdViewOptionsRouteImport
+      parentRoute: typeof PanelSessionIdViewRoute
+    }
+    '/panel/$sessionId/_chat/': {
+      id: '/panel/$sessionId/_chat/'
+      path: '/'
+      fullPath: '/panel/$sessionId/'
+      preLoaderRoute: typeof PanelSessionIdChatIndexRouteImport
+      parentRoute: typeof PanelSessionIdChatRoute
+    }
+    '/panel/$sessionId/_chat/options': {
+      id: '/panel/$sessionId/_chat/options'
+      path: '/options'
+      fullPath: '/panel/$sessionId/options'
+      preLoaderRoute: typeof PanelSessionIdChatOptionsRouteImport
+      parentRoute: typeof PanelSessionIdChatRoute
+    }
   }
 }
 
+interface PanelSessionIdViewRouteChildren {
+  PanelSessionIdViewOptionsRoute: typeof PanelSessionIdViewOptionsRoute
+}
+
+const PanelSessionIdViewRouteChildren: PanelSessionIdViewRouteChildren = {
+  PanelSessionIdViewOptionsRoute: PanelSessionIdViewOptionsRoute,
+}
+
+const PanelSessionIdViewRouteWithChildren =
+  PanelSessionIdViewRoute._addFileChildren(PanelSessionIdViewRouteChildren)
+
+interface PanelSessionIdChatRouteChildren {
+  PanelSessionIdChatOptionsRoute: typeof PanelSessionIdChatOptionsRoute
+  PanelSessionIdChatIndexRoute: typeof PanelSessionIdChatIndexRoute
+}
+
+const PanelSessionIdChatRouteChildren: PanelSessionIdChatRouteChildren = {
+  PanelSessionIdChatOptionsRoute: PanelSessionIdChatOptionsRoute,
+  PanelSessionIdChatIndexRoute: PanelSessionIdChatIndexRoute,
+}
+
+const PanelSessionIdChatRouteWithChildren =
+  PanelSessionIdChatRoute._addFileChildren(PanelSessionIdChatRouteChildren)
+
 interface PanelSessionIdRouteChildren {
-  PanelSessionIdViewRoute: typeof PanelSessionIdViewRoute
-  PanelSessionIdIndexRoute: typeof PanelSessionIdIndexRoute
+  PanelSessionIdViewRoute: typeof PanelSessionIdViewRouteWithChildren
+  PanelSessionIdChatRoute: typeof PanelSessionIdChatRouteWithChildren
 }
 
 const PanelSessionIdRouteChildren: PanelSessionIdRouteChildren = {
-  PanelSessionIdViewRoute: PanelSessionIdViewRoute,
-  PanelSessionIdIndexRoute: PanelSessionIdIndexRoute,
+  PanelSessionIdViewRoute: PanelSessionIdViewRouteWithChildren,
+  PanelSessionIdChatRoute: PanelSessionIdChatRouteWithChildren,
 }
 
 const PanelSessionIdRouteWithChildren = PanelSessionIdRoute._addFileChildren(
