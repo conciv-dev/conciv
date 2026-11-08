@@ -8,7 +8,7 @@ export default meta
 type Story = StoryObj
 
 const TRIGGER =
-  'inline-flex items-center justify-center size-7 rounded-chat-surface-md bg-transparent [border:none] text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong focus-ring'
+  'inline-flex items-center justify-center size-7 rounded-chat-surface-md bg-transparent [border:none] text-chat-text-2 cursor-pointer hover:bg-chat-fill-strong focus-ring [&[hidden]]:hidden'
 
 function Demo() {
   return (

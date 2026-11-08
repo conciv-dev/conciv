@@ -105,7 +105,7 @@ function SessionTitle(props: {
     onSettled: () => appData.invalidateSessions(),
   }))
   const title = () => {
-    if (rename.isPending && rename.variables) return rename.variables.title
+    if (rename.isPending && rename.variables?.sessionId === props.sessionId) return rename.variables.title
     if (props.loading) return ''
     return props.savedTitle || 'New session'
   }
