@@ -296,7 +296,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
   )
 }
 
-function FullMarkdown(props: MarkdownProps): JSX.Element {
+function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   warmHighlighter()
   const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
   return (

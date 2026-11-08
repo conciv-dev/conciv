@@ -152,19 +152,14 @@
   overflow-wrap: anywhere;
 }
 
-.chat-markdown-compact :is(h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, pre, table, figure) {
+.chat-markdown-compact * {
   margin: 0;
   padding: 0;
   font-size: inherit;
   line-height: inherit;
 }
 
-.chat-markdown-compact :is(h1, h2, h3, h4, h5, h6, strong) {
-  font-weight: 600;
-  color: var(--chat-text-hi);
-}
-
-.chat-markdown-compact :is(ul, ol) {
+.chat-markdown-compact li {
   list-style-position: inside;
 }
 

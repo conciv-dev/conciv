@@ -157,15 +157,17 @@ function excerptOf(
   const first = firstMatchAt(body, queryTokens, tolerance)
   if (first === undefined) return {excerpt: null, matched: inTitle}
   const lineStart = body.lastIndexOf('\n', first - 1) + 1
-  const start =
-    first - lineStart > EXCERPT_LENGTH
-      ? Math.max(lineStart, body.lastIndexOf(' ', first - EXCERPT_LEAD) + 1)
-      : lineStart
+  const start = excerptStart(body, lineStart, first)
   const boundary = body.slice(start + EXCERPT_LENGTH).search(/\s/)
   const end = boundary < 0 ? body.length : start + EXCERPT_LENGTH + boundary
   const excerpt = body.slice(start, end).trimEnd()
   const matched = uniq([...inTitle, ...matchedWords(excerpt, 'body', queryTokens, tolerance)])
   return {excerpt: start > lineStart ? `…${excerpt}` : excerpt, matched}
+}
+
+function excerptStart(body: string, lineStart: number, first: number): number {
+  if (first - lineStart <= EXCERPT_LENGTH) return lineStart
+  return Math.max(lineStart, body.lastIndexOf(' ', first - EXCERPT_LEAD) + 1)
 }
 
 function matchedWords(text: string, property: Property, queryTokens: string[], tolerance: number): string[] {
