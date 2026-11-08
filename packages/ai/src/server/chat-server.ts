@@ -292,6 +292,15 @@ function silentCategories(logger: DebugConfig['logger']): DebugConfig {
   }
 }
 
+const LoggedError = z.object({message: z.string(), cause: z.unknown().optional()})
+
+function errorText(error: unknown): string {
+  const parsed = LoggedError.safeParse(error)
+  if (!parsed.success) return String(error)
+  const {message, cause} = parsed.data
+  return cause === undefined ? message : `${message}; cause: ${errorText(cause)}`
+}
+
 function throwRejected(outcomes: readonly PromiseSettledResult<unknown>[], message: string): void {
   const failures = outcomes.flatMap((outcome) => (outcome.status === 'rejected' ? [outcome.reason] : []))
   if (failures.length > 0) throw new AggregateError(failures, message)
@@ -307,7 +316,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     debug: () => undefined,
     info: () => undefined,
     warn: (message) => config.log(`[ai] ${message}`),
-    error: (message, meta) => config.log(`[ai] ${message}: ${String(meta?.error)}`),
+    error: (message, meta) => config.log(`[ai] ${message}: ${errorText(meta?.error)}`),
   })
   const sandbox = defineSandbox({
     id: 'conciv',

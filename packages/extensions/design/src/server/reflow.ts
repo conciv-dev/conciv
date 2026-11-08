@@ -1,4 +1,5 @@
 import type {Box, DesignNode, GateRow, LiveComponent, Reflow} from '../shared/defs.js'
+import {box as geometry} from '../shared/box.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
 
@@ -160,7 +161,7 @@ function failuresOf(input: {root: DesignNode; reads: Input['reads']; reflow: Ref
   const drawn = (a: string, b: string): boolean => {
     const one = boxes.get(a)
     const two = boxes.get(b)
-    return one !== undefined && two !== undefined && covers({a: one, b: two})
+    return one !== undefined && two !== undefined && geometry.intersection({a: one, b: two}) !== null
   }
   const failed = [...walk(root)].flatMap(({node}) => {
     const says = [
