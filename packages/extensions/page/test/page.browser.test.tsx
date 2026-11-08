@@ -385,6 +385,34 @@ describe('page tools', () => {
       expect(keys).toEqual(['down:Enter', 'up:Enter'])
     })
 
+    it('finds and clicks a button inside an open shadow root by selector', async () => {
+      const host = document.createElement('div')
+      container.appendChild(host)
+      const root = host.attachShadow({mode: 'open'})
+      const clicked: string[] = []
+      const button = document.createElement('button')
+      button.id = 'shadow-btn'
+      button.textContent = 'in the shadow'
+      button.addEventListener('click', () => clicked.push('clicked'))
+      root.appendChild(button)
+      onTestFinished(() => host.remove())
+      expect(await resultOf('exists', {selector: '#shadow-btn'})).toEqual({exists: true, count: 1})
+      expect(await resultOf('click', {selector: '#shadow-btn'})).toEqual({ok: true})
+      expect(clicked).toEqual(['clicked'])
+    })
+
+    it('presses a binding with its modifiers so a host-style hotkey listener fires', async () => {
+      const fired: string[] = []
+      const listener = (event: KeyboardEvent): void => {
+        if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'x')
+          fired.push(event.code)
+      }
+      document.addEventListener('keydown', listener)
+      onTestFinished(() => document.removeEventListener('keydown', listener))
+      expect(await resultOf('press', {key: 'Mod+Shift+X'})).toEqual({ok: true})
+      expect(fired).toEqual(['KeyX'])
+    })
+
     it('hovers with bubbling mouseover and mouseenter', async () => {
       const seen: string[] = []
       document.querySelector('#hovbtn')?.addEventListener('mouseover', () => seen.push('over'))

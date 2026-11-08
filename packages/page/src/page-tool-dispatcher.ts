@@ -9,6 +9,7 @@ import type {
 import {addRef, type Refs} from './page-snapshot.js'
 import type {ConsoleEntry} from './console-buffer.js'
 import {elementByName} from './react-bridge.js'
+import {selectDeep} from './select-deep.js'
 import {mirrorPageAction} from './page-mirror.js'
 import {badArgs, fail, unknownVerb} from './page-failure.js'
 import {isJsonSerializable, rethrow} from './page-tool-outcome.js'
@@ -24,7 +25,7 @@ function locatorTarget(locator: ClientToolLocator, refs: Refs): Element | null {
     const el = refs.map.get(locator.ref)?.deref()
     return el?.isConnected ? el : null
   }
-  if (locator.selector !== undefined) return document.querySelector(locator.selector)
+  if (locator.selector !== undefined) return selectDeep(locator.selector)[0] ?? null
   if (locator.name !== undefined) return elementByName(locator.name)
   return null
 }

@@ -1,3 +1,4 @@
+import {LETTER_KEYS, NUMBER_KEYS, PUNCTUATION_CODE_MAP, parseHotkey} from '@tanstack/hotkeys'
 import {pageFailure, ok, type PageResult} from '@conciv/protocol/page-types'
 import {toolError, type ClientEffect, type ClientToolCtx, type ClientToolLocator} from '@conciv/extension'
 import {
@@ -9,6 +10,7 @@ import {
   MASKED_VALUE,
   navigatePath,
   reactBridge,
+  selectDeep,
   startTracking,
   stopTracking,
   trackReport,
@@ -88,7 +90,7 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
   const deadline = Date.now() + timeout
   return new Promise((resolve, reject) => {
     const tick = (): void => {
-      const el = document.querySelector(selector)
+      const el = selectDeep(selector)[0]
       const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
       if (Date.now() > deadline) {
@@ -131,7 +133,7 @@ const INSERT_POS: Record<string, InsertPosition> = {
 }
 
 function rootOf(ctx: ClientToolCtx, selector: string | undefined): Element | null {
-  return selector ? ctx.document.querySelector(selector) : ctx.document.body
+  return selector ? (selectDeep(selector)[0] ?? null) : ctx.document.body
 }
 
 function hasLocator(input: ClientToolLocator): boolean {
@@ -165,15 +167,15 @@ const domTool = domDef
   .render(readBulkCard)
 
 const queryTool = queryDef
-  .client((input, ctx) => {
-    const matches = input.selector ? Array.from(ctx.document.querySelectorAll(input.selector)) : []
+  .client((input) => {
+    const matches = input.selector ? selectDeep(input.selector) : []
     return {count: matches.length, elements: matches.slice(0, 20).map(describeElement)}
   })
   .render(readBulkCard)
 
 const existsTool = existsDef
-  .client((input, ctx) => {
-    const matches = input.selector ? ctx.document.querySelectorAll(input.selector) : []
+  .client((input) => {
+    const matches = input.selector ? selectDeep(input.selector) : []
     return {exists: matches.length > 0, count: matches.length}
   })
   .render(readValueCard)
@@ -389,9 +391,10 @@ const uncheckTool = uncheckDef
 
 const pressTool = pressDef
   .client((input, ctx) => {
-    const el = ctx.target(input)
-    el.dispatchEvent(new KeyboardEvent('keydown', {key: input.key, bubbles: true}))
-    el.dispatchEvent(new KeyboardEvent('keyup', {key: input.key, bubbles: true}))
+    const el = hasLocator(input) ? ctx.target(input) : (ctx.document.activeElement ?? ctx.document.body)
+    const init = keyInit(input.key)
+    el.dispatchEvent(new KeyboardEvent('keydown', init))
+    el.dispatchEvent(new KeyboardEvent('keyup', init))
     return ok()
   })
   .render(actCard)
@@ -541,4 +544,30 @@ function watchFrames(): () => number | null {
   }
   requestAnimationFrame(tick)
   return () => (seen.at === null ? null : Math.round(performance.now() - seen.at))
+}
+
+function keyInit(binding: string): KeyboardEventInit {
+  const parsed = parseHotkey(binding)
+  const key = parsed.key ?? parsed.code
+  return {
+    key,
+    code: parsed.code ?? codeOf(key),
+    ctrlKey: parsed.ctrl,
+    shiftKey: parsed.shift,
+    altKey: parsed.alt,
+    metaKey: parsed.meta,
+    bubbles: true,
+    composed: true,
+    cancelable: true,
+  }
+}
+
+const LETTERS: ReadonlySet<string> = LETTER_KEYS
+const DIGITS: ReadonlySet<string> = NUMBER_KEYS
+
+function codeOf(key: string): string {
+  const upper = key.toUpperCase()
+  if (LETTERS.has(upper)) return `Key${upper}`
+  if (DIGITS.has(key)) return `Digit${key}`
+  return Object.entries(PUNCTUATION_CODE_MAP).find(([, character]) => character === key)?.[0] ?? key
 }

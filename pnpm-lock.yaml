@@ -2886,6 +2886,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@tanstack/hotkeys':
+        specifier: ^0.18.0
+        version: 0.18.0
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
