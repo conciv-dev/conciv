@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useMatch, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -215,8 +215,7 @@ function PanelSession(): JSX.Element {
   const {connectMode, disconnect} = useDisconnect()
   const grabProvider = useGrabProvider()
   const router = useRouter()
-  const matchRoute = useMatchRoute()
-  const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
+  const sessionMenu = useSessionMenu(() => params().sessionId)
   const search = Route.useSearch()
   const notices = useNotices()
   const popOut = () => {
@@ -255,10 +254,7 @@ function PanelSession(): JSX.Element {
   const running = () => row()?.running ?? chat().runInProgress()
 
   const views = createMemo(() => collectViews(instances))
-  const activeView = () => {
-    const match = viewMatch()
-    return match ? match.view : 'chat'
-  }
+  const activeView = () => sessionMenu.view() ?? 'chat'
   const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
   const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
@@ -354,7 +350,11 @@ function PanelSession(): JSX.Element {
   return (
     <PaneContext.Provider value={paneValue}>
       <header class={RAIL}>
-        <Popover.Root positioning={{placement: 'bottom-start'}}>
+        <Popover.Root
+          positioning={{placement: 'bottom-start'}}
+          open={sessionMenu.open()}
+          onOpenChange={(details) => sessionMenu.setOpen(details.open)}
+        >
           <div class={RAIL_LEFT}>
             <span class={RAIL_MICROLABEL}>
               <span class="chat-rail-context-full">
@@ -430,4 +430,37 @@ function PanelSession(): JSX.Element {
       />
     </PaneContext.Provider>
   )
+}
+
+function useSessionMenu(sessionId: () => string): {
+  view: () => string | undefined
+  open: () => boolean
+  setOpen: (open: boolean) => void
+} {
+  const router = useRouter()
+  const matchRoute = useMatchRoute()
+  const view = useMatch({from: '/panel/$sessionId/$view', shouldThrow: false, select: (match) => match.params.view})
+  const chatOptionsMatch = matchRoute({to: '/panel/$sessionId/options'})
+  const viewOptionsMatch = matchRoute({to: '/panel/$sessionId/$view/options'})
+  const open = () => [chatOptionsMatch(), viewOptionsMatch()].some(Boolean)
+  const setOpen = (next: boolean) => {
+    if (next === open()) return
+    const activeView = view()
+    if (activeView === undefined) {
+      void router.navigate({
+        to: next ? '/panel/$sessionId/options' : '/panel/$sessionId',
+        params: {sessionId: sessionId()},
+        search: true,
+        replace: !next,
+      })
+      return
+    }
+    void router.navigate({
+      to: next ? '/panel/$sessionId/$view/options' : '/panel/$sessionId/$view',
+      params: {sessionId: sessionId(), view: activeView},
+      search: true,
+      replace: !next,
+    })
+  }
+  return {view, open, setOpen}
 }

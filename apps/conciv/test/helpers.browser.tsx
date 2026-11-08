@@ -355,6 +355,8 @@ export type ShellMountOptions = {
 type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
+  pathname: () => string | undefined
+  back: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
@@ -411,7 +413,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     onlineManager.setOnline(true)
   }
 
-  return {mountShell, dispose}
+  return {
+    mountShell,
+    dispose,
+    pathname: () => mounted.router?.state.location.pathname,
+    back: () => mounted.router?.history.back(),
+  }
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'

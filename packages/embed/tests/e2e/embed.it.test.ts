@@ -109,6 +109,27 @@ test.describe('embed boot', () => {
       expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
     })
 
+    test('picking another session in the session menu closes the menu on that session', async ({page}) => {
+      test.setTimeout(120_000)
+      const other = await kit.rpc.sessions.create()
+      await kit.rpc.sessions.rename({sessionId: other.sessionId, title: 'the other session'})
+      await kit.rpc.sessions.create()
+      await openPage(page)
+      await openPanel(page)
+      await page.getByRole('button', {name: /session options$/}).click()
+      await page.getByRole('button', {name: /^Session: /}).click()
+      await page.getByRole('option', {name: /^the other session,/}).click()
+      await expect(page.getByRole('button', {name: 'the other session, session options'})).toBeVisible({
+        timeout: 30_000,
+      })
+      await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden()
+      await until(async () => (await currentHref(kit)).includes(other.sessionId), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+      expect(await currentHref(kit)).not.toContain('/options')
+    })
+
     test('sends a message and renders the assistant reply from the fake harness', async ({page}) => {
       test.setTimeout(120_000)
       await openPage(page)

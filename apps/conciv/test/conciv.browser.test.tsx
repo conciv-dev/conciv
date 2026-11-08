@@ -2504,6 +2504,37 @@ describe('panel header', () => {
     await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
     await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
     await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+  }, 30_000)
+
+  test('the session menu lives in the URL: back closes it and a reload reopens it', async () => {
+    const TITLE = 'the session in the address'
+    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const switcher = () => menu().getByRole('button', {name: `Session: ${TITLE}`})
+    const rpc = coreRpc(coreBase())
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+
+    await expect.element(titleButton(), {timeout: 8000}).toBeVisible()
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/options`)
+
+    harness.back()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}/options?open=true`)
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await expect.element(switcher()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton()).toHaveFocus()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
   }, 30_000)
 })
 
@@ -2636,6 +2667,25 @@ describe('panel view tabs', () => {
 
     await coreControl.releaseFault(gate)
     await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('the session menu opens over a view and a tab switch lands on the new view without it', async () => {
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    await mountSeededPanel()
+
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await notesTab().click()
+    await expect.element(notes(), {timeout: 8000}).toBeVisible()
+
+    await page.getByRole('button', {name: /session options$/}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(notes()).toBeVisible()
+    expect(harness.pathname()).toMatch(/\/notes\/options$/)
+
+    await chatTab().click()
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toMatch(/options$/)
   }, 30_000)
 
   describe('during a running turn', () => {
