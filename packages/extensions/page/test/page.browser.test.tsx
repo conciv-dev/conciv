@@ -754,11 +754,9 @@ describe('a capture in every engine', () => {
       header.remove()
       fontRule.remove()
     })
-    const outcome = await makeDomPageDriver({tools: collectClientTools([pageExtension])}).execute({
-      agentId: 'test-agent',
-      name: `${PAGE_TOOL_PREFIX}screenshot`,
-      input: {},
-    })
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
     if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
     const {image} = z.object({image: z.string().min(1)}).parse(outcome.result)
     const response = await fetch(`data:image/webp;base64,${image}`)
