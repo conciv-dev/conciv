@@ -36,16 +36,18 @@ export function createHubConnections(home: string, run: (argv: string[]) => Prom
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
+      const revokedBefore = readHomeDb(home, lastHubRevocation) ?? 0
+      const record = () => recordSince(home, harness, hub.name, revokedBefore)
       const add = hub.add(command, {CONCIV_HOME: home})
       const added = await run(add)
-      if (added.ok) return record(home, harness)
+      if (added.ok) return record()
       if (!ALREADY_EXISTS.test(added.output)) return {ok: false, message: added.message}
-      if (hub.remove === undefined) return record(home, harness)
+      if (hub.remove === undefined) return record()
       const removed = await run(hub.remove)
       if (!removed.ok) return {ok: false, message: removed.message}
       const replaced = await run(add)
       if (!replaced.ok) return {ok: false, message: replaced.message}
-      return record(home, harness)
+      return record()
     },
     disconnect: async (harness: InitHarnessId): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
@@ -99,10 +101,10 @@ function runFile(argv: string[]): Promise<RunOutcome> {
   })
 }
 
-function record(home: string, harness: InitHarnessId): HubOutcome {
+function recordSince(home: string, harness: InitHarnessId, name: string, revokedBefore: number): HubOutcome {
   try {
-    withHomeDb(home, (db) => recordHubConnection(db, harness, Date.now()))
-    return {ok: true}
+    if (withHomeDb(home, (db) => recordHubConnection(db, harness, Date.now(), revokedBefore))) return {ok: true}
+    return {ok: false, message: `${name} was disconnected while connecting; connect again`}
   } catch (error) {
     return {ok: false, message: `conciv could not record the connection: ${String(error)}`}
   }
@@ -110,7 +112,7 @@ function record(home: string, harness: InitHarnessId): HubOutcome {
 
 function forget(home: string, harness: InitHarnessId): HubOutcome {
   try {
-    withHomeDb(home, (db) => removeHubConnection(db, harness, Date.now()))
+    withHomeDb(home, (db) => removeHubConnection(db, harness))
     return {ok: true}
   } catch (error) {
     return {ok: false, message: `conciv could not forget the connection: ${String(error)}`}

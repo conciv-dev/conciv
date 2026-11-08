@@ -27,6 +27,7 @@ import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
+import {createHubConnections} from '@conciv/harness-init/hub'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1275,6 +1276,27 @@ describe('cli', () => {
 
     const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
       JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
+
+    it('a connect still waiting on the agent CLI never reconnects an agent disconnected meanwhile', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const adding = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const hub = createHubConnections(home, async (argv) => {
+        if (argv.includes('add')) {
+          adding.resolve()
+          await release.promise
+        }
+        return {ok: true, output: '', message: ''}
+      })
+      const connecting = hub.connect('claude', ['conciv'])
+      await adding.promise
+      expect(await hub.disconnect('claude')).toEqual({ok: true})
+      release.resolve()
+      expect(await connecting).toEqual({ok: false, message: 'Claude was disconnected while connecting; connect again'})
+      expect(hub.list()).toEqual([])
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+    })
 
     it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
       const {home, mcp} = fakeClaude()

@@ -581,10 +581,16 @@ describe('home db', () => {
         {harness: 'codex', connectedAt: 1},
       ])
       expect(lastHubRevocation(db)).toBe(0)
-      removeHubConnection(db, 'codex', 4)
+      const before = Date.now()
+      removeHubConnection(db, 'codex')
       expect(hubConnections(db)).toEqual([{harness: 'claude', connectedAt: 3}])
-      removeHubConnection(db, 'claude', 9)
-      expect(lastHubRevocation(db)).toBe(9)
+      expect(lastHubRevocation(db)).toBeGreaterThanOrEqual(before)
+      expect(recordHubConnection(db, 'codex', 5, before - 1)).toBe(false)
+      expect(recordHubConnection(db, 'codex', 5, lastHubRevocation(db))).toBe(true)
+      expect(hubConnections(db)).toEqual([
+        {harness: 'claude', connectedAt: 3},
+        {harness: 'codex', connectedAt: 5},
+      ])
     })
   })
 

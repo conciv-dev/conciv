@@ -68,14 +68,28 @@ export function listEngines(db: HomeDb): EngineRow[] {
     .all()
 }
 
-export function recordHubConnection(db: HomeDb, harness: string, now: number): void {
-  db.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
+export function recordHubConnection(
+  db: HomeDb,
+  harness: string,
+  now: number,
+  revokedBefore = Number.POSITIVE_INFINITY,
+): boolean {
+  return db.transaction((tx) => {
+    const revokedAt =
+      tx
+        .select({revokedAt: max(hubRevocations.revokedAt)})
+        .from(hubRevocations)
+        .get()?.revokedAt ?? 0
+    if (revokedAt > revokedBefore) return false
+    tx.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
+    return true
+  })
 }
 
-export function removeHubConnection(db: HomeDb, harness: string, now: number): void {
+export function removeHubConnection(db: HomeDb, harness: string): void {
   db.transaction((tx) => {
     tx.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
-    tx.insert(hubRevocations).values({revokedAt: now}).onConflictDoNothing().run()
+    tx.insert(hubRevocations).values({revokedAt: Date.now()}).onConflictDoNothing().run()
   })
 }
 

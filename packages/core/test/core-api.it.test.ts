@@ -4013,7 +4013,7 @@ describe('outside agent consent', () => {
   it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
     const home = connectedHome()
     const base = await boot(undefined, home)
-    const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex', Date.now()))
+    const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
     const sessionId = await newSession(base)
     const overMcp = hubCall(base, sessionId)
     await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
