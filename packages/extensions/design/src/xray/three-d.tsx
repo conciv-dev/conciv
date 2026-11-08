@@ -3,6 +3,7 @@ import {createStore} from 'solid-js/store'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {Button} from '@conciv/ui-kit-system'
 import type {Box} from '../shared/defs.js'
+import {StoredImage} from './stored-image.js'
 import type {createXrayData} from './data.js'
 import type {createXrayState} from './state.js'
 import type {createXrayView} from './view.js'
@@ -30,7 +31,6 @@ export function ThreeD(props: {
     focused()
       ? 'none'
       : `scale(${fit()}) rotateX(${props.xray.state.orbit.tilt}deg) rotateZ(${props.xray.state.orbit.turn}deg)`
-  const image = (path: string): string => props.data.file(`${path}/${props.view.target()?.id ?? ''}`)
   const round = (): number => props.data.shownRound()?.round ?? 0
   return (
     <div
@@ -69,14 +69,22 @@ export function ThreeD(props: {
                 onClick={() => props.xray.focusPlane(plane.key)}
               >
                 <Show when={plane.key === 'dom'}>
-                  <img
+                  <StoredImage
+                    load={props.data.file}
+                    path={`live/${props.view.target()?.id ?? ''}/${round()}`}
                     alt="live page"
-                    class="size-full inset-0 absolute object-cover object-top"
-                    src={props.data.file(`live/${props.view.target()?.id ?? ''}/${round()}`)}
+                    class={PLANE_IMAGE}
+                    missing={null}
                   />
                 </Show>
                 <Show when={plane.key === 'fom'}>
-                  <img alt="design" class="size-full inset-0 absolute object-cover object-top" src={image('target')} />
+                  <StoredImage
+                    load={props.data.file}
+                    path={`target/${props.view.target()?.id ?? ''}`}
+                    alt="design"
+                    class={PLANE_IMAGE}
+                    missing={null}
+                  />
                 </Show>
                 <For each={props.view.visible()}>
                   {(entry) => (
@@ -102,17 +110,9 @@ export function ThreeD(props: {
                     </For>
                   )}
                 </For>
-                <Button
-                  variant="panel"
-                  size="sm"
-                  class="start-2 top-2 absolute"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    props.xray.focusPlane(plane.key)
-                  }}
-                >
+                <span class="text-xs text-chat-text-2 font-chat-mono px-1 bg-chat-panel start-2 top-2 absolute">
                   {plane.label}
-                </Button>
+                </span>
               </section>
             </Show>
           )}
@@ -139,6 +139,25 @@ export function ThreeD(props: {
           </For>
         </Show>
       </div>
+      <div
+        role="toolbar"
+        aria-label="Planes"
+        class="p-1 border border-chat-line rounded-chat-surface-md bg-chat-glass flex gap-1 shadow-chat-lg start-1/2 bottom-4 fixed -translate-x-1/2"
+      >
+        <For each={PLANES}>
+          {(plane) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-pressed={props.xray.state.plane === plane.key}
+              class="aria-pressed:text-chat-accent aria-pressed:bg-chat-fill"
+              onClick={() => props.xray.focusPlane(props.xray.state.plane === plane.key ? null : plane.key)}
+            >
+              {plane.label}
+            </Button>
+          )}
+        </For>
+      </div>
     </div>
   )
 }
@@ -155,6 +174,8 @@ const PLANES: {key: PlaneKey; label: string}[] = [
 ]
 
 const PLANE_INDEX: Record<PlaneKey, number> = {src: 0, cssom: 1, dom: 2, fom: 3}
+
+const PLANE_IMAGE = 'size-full inset-0 absolute object-cover object-top'
 
 const STAGE_SHARE = 0.55
 

@@ -5,6 +5,7 @@ import X from 'lucide-solid/icons/x'
 import {Button, Slider, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {Round} from '../shared/defs.js'
 import {Card} from './card.js'
+import {StoredImage} from './stored-image.js'
 import type {createXrayData} from './data.js'
 import type {createXrayState} from './state.js'
 import type {createXrayView} from './view.js'
@@ -215,8 +216,7 @@ function Summary(props: {round: Round}): JSX.Element {
   )
 }
 
-function Images(props: {file: (path: string) => string; id: string; round: number}): JSX.Element {
-  const [failed, setFailed] = createStore<Record<string, boolean>>({})
+function Images(props: {file: (path: string) => Promise<Blob | null>; id: string; round: number}): JSX.Element {
   const images = (): {alt: string; path: string}[] => [
     {alt: 'live page', path: `live/${props.id}/${props.round}`},
     {alt: 'pixel difference', path: `diff/${props.id}/${props.round}`},
@@ -226,14 +226,13 @@ function Images(props: {file: (path: string) => string; id: string; round: numbe
     <div class="flex flex-col gap-2">
       <For each={images()}>
         {(image) => (
-          <Show when={!failed[image.path]} fallback={<Line>The {image.alt} image is not stored.</Line>}>
-            <img
-              alt={image.alt}
-              class="border border-chat-line-soft rounded-chat-surface-sm w-full"
-              src={props.file(image.path)}
-              onError={() => setFailed(image.path, true)}
-            />
-          </Show>
+          <StoredImage
+            load={props.file}
+            path={image.path}
+            alt={image.alt}
+            class="border border-chat-line-soft rounded-chat-surface-sm w-full"
+            missing={<Line>The {image.alt} image is not stored.</Line>}
+          />
         )}
       </For>
     </div>

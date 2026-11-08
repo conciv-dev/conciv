@@ -80,9 +80,8 @@ export function createXrayState() {
         animate: false,
       }),
     escape: (): boolean => {
-      const step = ESCAPES.find((candidate) => candidate.when(state))
-      if (step === undefined) return false
-      animate(step.apply)
+      if (!ESCAPES.some((candidate) => candidate.when(state))) return false
+      animate((draft) => ESCAPES.find((candidate) => candidate.when(draft))?.apply(draft))
       return true
     },
   }

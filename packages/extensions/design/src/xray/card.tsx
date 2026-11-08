@@ -118,7 +118,7 @@ export function Card(props: {
             <Button
               variant="link"
               size="bare"
-              class="font-chat-mono justify-start"
+              class="font-chat-mono self-start"
               onClick={() => openEditor(at().file, at().line)}
             >
               {`${at().file}:${at().line}`}

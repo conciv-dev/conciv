@@ -1,6 +1,6 @@
 import {createMemo, createResource} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
-import {makeBrowserRpcClient} from '@conciv/contract'
+import {engineHeaders, makeBrowserRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {XrayRouter} from '../server.js'
 
@@ -40,7 +40,10 @@ export function createXrayData(input: {
     },
     (key) => key.client.xray.layers({id: key.id, round: key.round}),
   )
-  const file = (path: string): string => `${input.apiBase()}/api/ext/${DESIGN_EXTENSION_NAME}/files/${path}`
+  const file = (path: string): Promise<Blob | null> =>
+    fetch(`${input.apiBase()}/api/ext/${DESIGN_EXTENSION_NAME}/files/${path}`, {
+      headers: engineHeaders(input.apiBase()),
+    }).then((response) => (response.ok ? response.blob() : null))
   const label = (written: Parameters<ReturnType<typeof client>['xray']['label']>[0]): Promise<void> =>
     client().xray.label(written)
   return {design, hotkeys, layers, shownRound, file, label}
