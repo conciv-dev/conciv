@@ -47,7 +47,7 @@ jobs:
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
-          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+          firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       # Validates every .changeset/*.md names a package that actually exists in
       # the workspace before `changeset version` ever runs (see conciv-publish
