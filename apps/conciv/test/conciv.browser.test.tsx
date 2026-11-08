@@ -72,7 +72,7 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {HostApiProvider} from '@conciv/extension/host'
+import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
 import {
   createChat,
@@ -2729,6 +2729,59 @@ describe('panel view tabs', () => {
     await expect.element(reply(), {timeout: 8000}).toBeVisible()
     await expect.element(menu()).not.toBeInTheDocument()
     expect(harness.pathname()).not.toMatch(/options$/)
+  }, 30_000)
+
+  test('a locked view opens and closes its own session menu, and a session pick never leaves it', async () => {
+    const LOCKED_BODY = 'the locked view body'
+    const TITLE = 'the locked session'
+    const OTHER = 'the session a lock keeps away'
+    function LockedView(): JSX.Element {
+      const lock = getHostApi().useViewLock()
+      onMount(() => lock(true))
+      return <p>{LOCKED_BODY}</p>
+    }
+    const lockedExtension = defineExtension({
+      name: 'panel-view-lock',
+      views: [{id: 'locked', label: 'Locked', Component: LockedView}],
+    })
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
+    const lockedBody = () => page.getByText(LOCKED_BODY)
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(
+      [`/panel/${otherId}?open=true`, `/panel/${sessionId}?open=true`, `/panel/${sessionId}/locked?open=true`],
+      [lockedExtension],
+    )
+
+    await expect.element(lockedBody(), {timeout: 8000}).toBeVisible()
+    await expect.element(chatTab()).toBeDisabled()
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${TITLE}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(lockedBody()).toBeVisible()
+    await expect.element(titleButton()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+    await expect.element(lockedBody()).toBeVisible()
   }, 30_000)
 
   describe('during a running turn', () => {

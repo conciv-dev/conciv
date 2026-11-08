@@ -43,10 +43,15 @@ function PanelView(): JSX.Element {
   })
 
   const newSession = () => {
-    void rpc.sessions.create(undefined).then(({sessionId}) => {
-      appData.invalidateSessions()
-      void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-    })
+    void rpc.sessions
+      .create(undefined)
+      .then(({sessionId}) => {
+        appData.invalidateSessions()
+        void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
+      })
+      .catch((error: unknown) => {
+        console.error('[conciv] could not create a session', error)
+      })
   }
 
   const [content, setContent] = createSignal<HTMLDivElement>()
@@ -58,7 +63,11 @@ function PanelView(): JSX.Element {
           <HostApiProvider
             sessionId={() => params().sessionId}
             grab={makePaneGrabApi(pane.grabStaging, pane.grabProvider)}
-            insert={(text) => void appendDraft(rpc, params().sessionId, text).catch(() => {})}
+            insert={(text) =>
+              void appendDraft(rpc, params().sessionId, text).catch((error: unknown) => {
+                console.error('[conciv] could not insert into the draft', error)
+              })
+            }
             attach={(file) => pane.attachments.enqueue(file)}
             newSession={newSession}
             viewLock={pane.setLockedFor(params().view)}
