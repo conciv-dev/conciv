@@ -40,7 +40,6 @@ The `conciv` CLI, routed with `@bomb.sh/router`. Three top-level commands: `init
 - `declaredSessionId` (`request.ts`): an invalid CONCIV_SESSION_ID throws a user failure
 - `servedOutcome` (`request.ts`): oRPC-defined errors and 4xx responses become user failures; network failures are offline and `runRpc` throws 'No conciv dev server on &lt;host&gt;'
 - `ServerStateSchema` (`engine-origin.ts`): port must be an integer 1-65535; lookup order: with `--tab` the live engine whose `/api/tabs?session=` says open (else a user failure naming the tab); otherwise CONCIV_PORT, .conciv/server.json in cwd or an ancestor, the most recently registered live engine in the home db (`CONCIV_HOME`), then 5173
-- `validInput` (`tool-command.ts`): zod tool input is validated again as a whole object with the tool's inputSchema
 - `callOperation` (`server.ts`): throws when rpc.server[op] is not a function
 
 ## Side Effects
