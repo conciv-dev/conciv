@@ -78,7 +78,6 @@
   --chat-glyph: light-dark(rgba(15, 18, 24, 0.28), #5f595d);
   --chat-target: light-dark(var(--chat-text-2), #ded8d4);
   --chat-code: light-dark(var(--chat-text-2), var(--chat-accent-hi));
-  --chat-highlight: color-mix(in oklch, var(--chat-accent) 45%, var(--chat-panel));
   --chat-summary: light-dark(var(--chat-text-2), #c4beba);
   --chat-microlabel: light-dark(var(--chat-text-3), #6b666b);
   --chat-faint: light-dark(var(--chat-text-3), #5f5a5f);

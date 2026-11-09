@@ -72,7 +72,12 @@ type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
-  hub?: {add: (command: string[], env: Readonly<Record<string, string>>) => string[]; remove?: string[]}
+  hub?: {
+    name: string
+    shellEnv: string
+    add: (command: string[], env: Readonly<Record<string, string>>) => string[]
+    remove?: string[]
+  }
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
@@ -111,6 +116,10 @@ export type HarnessSessionMeta = {
   lastMessage?: string | null
   createdAt?: number
 }
+
+export type HarnessResumeInput = {cwd: string; nativeId: HarnessSessionId}
+
+export type HarnessResume = {command(input: HarnessResumeInput): {bin: string; args: string[]}}
 
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 

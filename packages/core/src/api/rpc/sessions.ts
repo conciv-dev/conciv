@@ -13,7 +13,6 @@ import {
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
 import type {HarnessListCursor, HarnessListPage, HarnessSessionMeta} from '@conciv/protocol/harness-types'
-import {concivStateDir} from '@conciv/protocol/state-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -127,19 +126,9 @@ async function sessionPage(
 }
 
 function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
-  const tty = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.tty
-  if (hit.cwd === null || hit.native === null || tty === undefined) return null
-  const {bin, args} = tty.command({
-    cwd: hit.cwd,
-    stateDir: concivStateDir(hit.cwd),
-    concivSessionId: hit.id,
-    harnessSessionId: hit.native.nativeId,
-    resume: true,
-    owned: false,
-    model: null,
-    mcpUrl: null,
-    hookUrl: null,
-  })
+  const resume = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.resume
+  if (hit.cwd === null || hit.native === null || resume === undefined) return null
+  const {bin, args} = resume.command({cwd: hit.cwd, nativeId: hit.native.nativeId})
   const argv = [bin, ...args]
   if (platform() === 'win32') return `cd /d ${cmdQuote(hit.cwd)} && ${argv.map(cmdQuote).join(' ')}`
   return `cd ${shellQuote(hit.cwd)} && ${argv.map(shellQuote).join(' ')}`
