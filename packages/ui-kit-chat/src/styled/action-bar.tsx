@@ -71,7 +71,7 @@ const AUTOHIDE_VISIBILITY =
 
 const ASSISTANT_BAR_CLASS = `flex gap-0.5 pointer-events-auto ${AUTOHIDE_VISIBILITY}`
 
-export function AssistantActionBar(): JSX.Element {
+export function AssistantActionBar(props: {readOnly?: boolean}): JSX.Element {
   return (
     <ActionBar.Root
       hideWhenRunning
@@ -83,29 +83,31 @@ export function AssistantActionBar(): JSX.Element {
     >
       <Tooltip.Group>
         <ActionBar.Copy render={(props) => <CopyButton buttonProps={props} />} />
-        <ActionBar.Reload
-          render={(props) => (
-            <TooltipIconButton {...props} tooltip="Refresh" class="size-6">
-              <RefreshCw size={ICON} />
-            </TooltipIconButton>
-          )}
-        />
-        <ActionBarMore.Root>
-          <TooltipIconButtonSlot tooltip={MORE_LABEL}>
-            {(buttonProps) => (
-              <ActionBarMore.Trigger
-                asChild={(triggerProps) => (
-                  <button {...buttonProps()} {...triggerProps()} class={TRIGGER}>
-                    <MoreHorizontal size={ICON} />
-                  </button>
-                )}
-              />
+        <Show when={!props.readOnly}>
+          <ActionBar.Reload
+            render={(buttonProps) => (
+              <TooltipIconButton {...buttonProps} tooltip="Refresh" class="size-6">
+                <RefreshCw size={ICON} />
+              </TooltipIconButton>
             )}
-          </TooltipIconButtonSlot>
-          <ActionBarMore.Content class={MENU}>
-            <ExportMarkdownItem />
-          </ActionBarMore.Content>
-        </ActionBarMore.Root>
+          />
+          <ActionBarMore.Root>
+            <TooltipIconButtonSlot tooltip={MORE_LABEL}>
+              {(buttonProps) => (
+                <ActionBarMore.Trigger
+                  asChild={(triggerProps) => (
+                    <button {...buttonProps()} {...triggerProps()} class={TRIGGER}>
+                      <MoreHorizontal size={ICON} />
+                    </button>
+                  )}
+                />
+              )}
+            </TooltipIconButtonSlot>
+            <ActionBarMore.Content class={MENU}>
+              <ExportMarkdownItem />
+            </ActionBarMore.Content>
+          </ActionBarMore.Root>
+        </Show>
       </Tooltip.Group>
     </ActionBar.Root>
   )

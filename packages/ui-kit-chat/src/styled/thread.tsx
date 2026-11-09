@@ -63,7 +63,7 @@ import {
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 import {primeHighlightWorkerPool} from '@conciv/solid-diffs'
-import {Markdown, warmHighlighter} from './markdown.js'
+import {HighlightedText, Markdown, warmHighlighter} from './markdown.js'
 import {codeTheme} from '../theme/code-theme.js'
 import {toolFallbackCardView} from '../tools/styled/tool-fallback.js'
 import {ToolCallCard, ToolTraceRow} from '../tools/styled/tool-call-card.js'
@@ -90,6 +90,7 @@ export type ThreadMessagesProps = {
   pageSession?: PageSessionConfig
   grouping?: Grouping
   groupEntries?: readonly GroupEntry[]
+  readOnly?: boolean
 }
 
 const PLAN_LABEL = 'plan'
@@ -150,6 +151,7 @@ function AssistantTurn(props: {
   const message = useMessage()
   const thread = useThread()
   const ctx = useToolCtx()
+  const config = useContext(ThreadConfigContext)
   const parts = () => message.message().parts
   const turnParts = message.parts
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
@@ -315,7 +317,7 @@ function AssistantTurn(props: {
       <Message.Error />
       <Show when={!runActive()}>
         <div class={ANSWER_ACTION_ROW_CLASS}>
-          <AssistantActionBar />
+          <AssistantActionBar readOnly={config.readOnly()} />
         </div>
       </Show>
     </Message.Root>
@@ -351,7 +353,9 @@ function UserTurn(): JSX.Element {
           <span class={PROMPT_GUTTER_CLASS} aria-hidden="true">
             ❯
           </span>
-          <span class={PROMPT_TEXT_CLASS}>{promptText()}</span>
+          <span class={PROMPT_TEXT_CLASS}>
+            <HighlightedText text={promptText()} />
+          </span>
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Message.If>
@@ -368,6 +372,7 @@ type ThreadConfig = {
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
   groupEntries: () => readonly GroupEntry[]
+  readOnly: () => boolean
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -379,6 +384,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   pageSession: () => undefined,
   grouping: () => undefined,
   groupEntries: () => [],
+  readOnly: () => false,
 })
 
 function TurnPrefix(): JSX.Element {
@@ -493,6 +499,7 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
         pageSession: () => props.pageSession,
         grouping: () => props.grouping,
         groupEntries: () => props.groupEntries ?? [],
+        readOnly: () => props.readOnly ?? false,
       }}
     >
       <TurnEstimateProvider value={estimator}>

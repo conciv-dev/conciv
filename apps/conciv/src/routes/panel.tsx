@@ -49,7 +49,7 @@ function PanelLayout(): JSX.Element {
   const suppressed = useSuppressed()
   const panelChrome = usePanelChrome()
   const environment = useEnvironment()
-  const search = Route.useSearch()
+  const open = Route.useSearch({select: (search) => search.open ?? false})
   const phone = createMediaQuery(PHONE_MEDIA_QUERY)
   const settings = useSettings()
   const docked = settings.surface === 'dock'
@@ -57,7 +57,6 @@ function PanelLayout(): JSX.Element {
   const anchoredBottom = () => fabAnchor().corner.startsWith('bottom')
   const anchoredRight = () => fabAnchor().corner.endsWith('right')
   const close = () => panelChrome.close()
-  const open = () => search().open ?? false
 
   const [mounted, setMounted] = createSignal(false)
   createEffect(() => {

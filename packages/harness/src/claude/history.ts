@@ -7,6 +7,7 @@ import {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {
   HarnessHistory,
   HarnessListPage,
+  HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
   HarnessSessionSummary,
@@ -368,9 +369,10 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
-function metaFromFold(id: string, state: ClaudeFold, mtime: number, jsonl: string): HarnessSessionMeta {
+function metaFromFold(id: string, cwd: string, state: ClaudeFold, mtime: number, jsonl: string): HarnessSessionMeta {
   return {
     id: HarnessSessionId.parse(id),
+    cwd,
     derivedTitle: state.title ?? '',
     updatedAt: Math.round(mtime),
     sizeBytes: Buffer.byteLength(jsonl),
@@ -381,24 +383,28 @@ function metaFromFold(id: string, state: ClaudeFold, mtime: number, jsonl: strin
   }
 }
 
-export function parseSessionMeta(id: string, jsonl: string, mtime: number): HarnessSessionMeta {
-  return metaFromFold(id, foldTranscript(jsonl), mtime, jsonl)
+export function parseSessionMeta(id: string, cwd: string, jsonl: string, mtime: number): HarnessSessionMeta {
+  return metaFromFold(id, cwd, foldTranscript(jsonl), mtime, jsonl)
 }
 
 const SUMMARY_TAIL = 12
 
-async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
-  const listed = await listSdkSessions({dir: cwd, includeWorktrees: false})
-  const paged = pageAfter(listed.flatMap(metaOfInfo), page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
+async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
+  const projectCwd = 'cwd' in scope ? scope.cwd : null
+  const listed = await listSdkSessions(projectCwd === null ? {} : {dir: projectCwd, includeWorktrees: false})
+  const metas = listed.flatMap((info) => metaOfInfo(info, projectCwd))
+  const paged = pageAfter(metas, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
   return {sessions: paged.items, next: paged.next}
 }
 
-function metaOfInfo(info: SDKSessionInfo): HarnessSessionMeta[] {
+function metaOfInfo(info: SDKSessionInfo, projectCwd: string | null): HarnessSessionMeta[] {
   const id = HarnessSessionId.safeParse(info.sessionId)
-  if (!id.success) return []
+  const cwd = info.cwd ?? projectCwd
+  if (!id.success || cwd === null) return []
   return [
     {
       id: id.data,
+      cwd,
       derivedTitle: condense(info.summary, MAX_TITLE),
       updatedAt: info.lastModified,
       sizeBytes: info.fileSize,
@@ -415,13 +421,13 @@ export async function sessionSummary(cwd: string, sessionId: string): Promise<Ha
   const raw = await readFile(path, 'utf8').catch(whenMissing(''))
   if (!raw) return null
   const state = foldTranscript(raw)
-  return {meta: metaFromFold(sessionId, state, info.mtimeMs, raw), tail: state.messages.slice(-SUMMARY_TAIL)}
+  return {meta: metaFromFold(sessionId, cwd, state, info.mtimeMs, raw), tail: state.messages.slice(-SUMMARY_TAIL)}
 }
 
 export async function sessionMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
   if (!withinProject(cwd, sessionId)) return null
   const info = await getSessionInfo(sessionId, {dir: cwd})
-  return info === undefined ? null : (metaOfInfo(info).at(0) ?? null)
+  return info === undefined ? null : (metaOfInfo(info, cwd).at(0) ?? null)
 }
 
 function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
