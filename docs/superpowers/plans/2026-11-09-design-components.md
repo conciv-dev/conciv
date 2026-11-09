@@ -160,6 +160,31 @@
 - [ ] **Step 4: Run the tests.** Expected: PASS. Gates.
 - [ ] **Step 5: Commit** `design: a round records which components rendered which nodes, both ways`.
 
+### Task 5b: The token map and the drift row (spec section "Token drift")
+
+**Files:**
+
+- Create: `packages/extensions/design/src/server/catalog/token-source.ts` (export `createCssTokenSource`: a `TokenSource` reading CSS custom properties from a stylesheet file, `light-dark(a, b)` split into the two schemes)
+- Create: `packages/extensions/design/src/server/catalog/token-map.ts` (export `createTokenMap`: joins kit tokens to the design's variables by value, per scheme; `kitTokenFor({value, scheme})` and `designTokenFor(name)`)
+- Create: `packages/extensions/design/src/server/catalog/drift.ts` (export `classifyDrift`: turns the rows of one round into rows plus drift rows)
+- Modify: `shared/catalog-defs.ts` (`TokenSource = {name; read({cwd}): Promise<Token[]}`, `Token = {name; value; scheme: 'light' | 'dark' | 'any'; source}`; `CatalogConfig.tokens: string[]` default `['css']`, `CatalogConfig.tokenFiles: string[]` default `[]`: the stylesheets to read; empty means the kit's `exports` stylesheet when the kit tier has one, else nothing)
+- Modify: `shared/defs.ts` (`MagnitudeSchema` gains `'token-drift'`; `GateRowSchema` gains optional `component`, `kitToken`, `designToken`)
+- Modify: `server/differ.ts` (after `tokenGroups`, when the catalog is on, `classifyDrift`)
+- Modify: `server/document.ts` (one rule sentence: a `token-drift` row is a flag, change the kit token or the design variable or report it, never the element)
+- Modify: `server/xray-routes.ts` (drift rows reach the card as a flag line with both tokens)
+- Test: `design.it.test.ts`, `describe('token drift')`
+
+**Interfaces:**
+
+- Consumes: `relateRound` and `componentOf` (Task 5), `GateRow.token` (the Figma variable bound to the field), the paint row's page value and design value (already in `row.text`; expose them as fields `pageValue`, `designValue` on paint rows if not present).
+- Produces: `classifyDrift({rows, relation: Map<node, Component>, tokens: TokenMap}): GateRow[]`; a drift row has `magnitude: 'token-drift'`, `component`, `kitToken`, `designToken`, `text` exactly `"<Component> uses <kitToken> (<pageValue>); the design wants <designToken> (<designValue>)"`; one per component and kit token, the ordinary paint rows it replaces removed.
+
+- [ ] **Step 1: Write the failing tests**: the fixture host imports the kit's `tokens.css`; a frame whose Stat card is bound to a Figma variable `radius/lg` 12px while the kit renders `--chat-radius-md` 8px through SegmentGroup gives one `token-drift` row naming `SegmentGroup`, `--chat-radius-md`, `radius/lg`, and no paint row for that field on that element; a paint row on an element with no relation stays `paint`; `catalog.tokens: []` gives no drift rows and the paint rows back; the `fom` and votes tables are byte-equal with and without `tokens` (pairing untouched).
+- [ ] **Step 2: Run them.** Expected: FAIL.
+- [ ] **Step 3: Implement** the three files, the schema fields, the differ hook, the rule, the x-ray flag line.
+- [ ] **Step 4: Run the tests.** Expected: PASS. Gates.
+- [ ] **Step 5: Commit** `design: a token mismatch inside a known component is a drift flag, not a row to fix`.
+
 ### Task 6: Previews
 
 **Files:**
