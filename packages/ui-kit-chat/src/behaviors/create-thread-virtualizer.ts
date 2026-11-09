@@ -29,7 +29,7 @@ const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
-type ReaderInput = 'untouched' | 'holding' | 'touched' | 'aiming-at-end'
+type ReaderInput = 'untouched' | 'holding' | 'touched' | 'aiming-at-end' | 'gliding-to-end'
 
 type OffsetRecovery =
   | {phase: 'viewport-attached'}
@@ -115,6 +115,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   }
 
   const returnToEnd = (): void => {
+    instance.cancelScroll()
     if (readerInput !== 'holding') readerInput = 'untouched'
     landOnEnd()
   }
@@ -124,7 +125,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       returnToEnd()
       return
     }
-    if (readerInput !== 'holding') readerInput = 'untouched'
+    if (readerInput !== 'holding') readerInput = 'gliding-to-end'
     landedOffset = undefined
     jumpNearEnd()
     instance.scrollToEnd({behavior: 'smooth'})
@@ -206,8 +207,13 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   }
 
   const settleLanding = (element: HTMLElement): void => {
-    if (readerInput !== 'holding' && liveAtEnd()) landedOffset = element.scrollTop
+    if (readerInput !== 'holding' && liveAtEnd()) takeLanding(element)
     if (!stillOnTheLanding(element)) releaseOrReland()
+  }
+
+  const takeLanding = (element: HTMLElement): void => {
+    landedOffset = element.scrollTop
+    if (readerInput === 'gliding-to-end') readerInput = 'untouched'
   }
 
   const onScrolled = (): void => {
@@ -376,8 +382,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const firstKey = firstTurnKey()
     const lastKey = lastTurnKey()
     const sameThread = isSameThread(element, firstKey, lastKey)
+    const prependedMidGlide = readerInput === 'gliding-to-end' && landing.firstKey !== firstKey
     setLanding({element, firstKey, lastKey})
-    if (!sameThread) {
+    if (!sameThread || prependedMidGlide) {
       returnToEnd()
       return
     }
