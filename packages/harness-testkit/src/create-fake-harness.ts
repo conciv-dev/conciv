@@ -4,6 +4,7 @@ import {
   type HarnessConnectContext,
   type HarnessHistory,
   type HarnessModel,
+  type HarnessResume,
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
@@ -85,12 +86,14 @@ function buildAdapter(
   history: HarnessHistory | undefined,
   commands: HarnessCommand[] | undefined,
 ): HarnessAdapter {
+  const resume: HarnessResume = {command: ({nativeId}) => ({bin: shared.id, args: ['--resume', nativeId]})}
   const listCommands = commands ? () => Promise.resolve(commands) : undefined
   if (history && listCommands) {
     return defineHarness({
       ...shared,
       capabilities: {...base, transcriptHistory: true, slashCommands: 'live'},
       history,
+      resume,
       commands: listCommands,
     })
   }
@@ -99,6 +102,7 @@ function buildAdapter(
       ...shared,
       capabilities: {...base, transcriptHistory: true, slashCommands: 'none'},
       history,
+      resume,
     })
   }
   if (listCommands) {

@@ -335,6 +335,17 @@ describe('create fake harness', () => {
     })
   })
 
+  describe('createFakeHarness resume', () => {
+    it('resumes a history session as its own id with --resume, and has no resume without history', () => {
+      const harness = createFakeHarness({id: 'fake-codex', history: []})
+      expect(harness.resume?.command({cwd: '/elsewhere', nativeId: HarnessSessionId.parse('away-1')})).toEqual({
+        bin: 'fake-codex',
+        args: ['--resume', 'away-1'],
+      })
+      expect(createFakeHarness().resume).toBeUndefined()
+    })
+  })
+
   describe('createFakeHarness tty', () => {
     it('has no tty by default', () => {
       expect(createFakeHarness().tty).toBeUndefined()
