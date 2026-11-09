@@ -80,7 +80,12 @@ export function createRunner(runtime: DesignRuntime): Runner {
       failures.push(...measuredAt.rows)
     }
     const reflow = {widths, results}
-    const images = await imageRowsOf({design, reads: readIds({root: mapped.root, live: measured.live}), page})
+    const images = await imageRowsOf({
+      design,
+      reads: readIds({root: mapped.root, live: measured.live}),
+      page,
+      mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
+    })
     const rows = [...gate.rows, ...images.rows, ...failures]
     const counts = {
       ...gate.counts,

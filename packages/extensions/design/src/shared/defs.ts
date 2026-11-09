@@ -3,6 +3,7 @@ import type {Storage} from 'unstorage'
 import type {ToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {defineTool} from '@conciv/extension/tool'
+import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
 import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
@@ -491,7 +492,19 @@ const measureDef = designTool({
   catalog: false,
 })
 
-export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef] as const
+const shotsDef = designTool({
+  verb: 'shots',
+  summary:
+    'capture elements alone at a width, from the mirror when the width is not the tab width, each beside a reference',
+  running: 'Capturing elements',
+  done: 'Captured elements',
+  input: z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)}),
+  output: z.object({shots: z.array(PageNodeShotSchema.nullable())}),
+  keywords: ['design', 'image'],
+  catalog: false,
+})
+
+export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef, shotsDef] as const
 
 type Rgb = [number, number, number]
 type MeasureSource = z.output<typeof MeasureSourceSchema>

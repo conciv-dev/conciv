@@ -31,7 +31,7 @@ declare global {
   }
 }
 
-const [, , , measureDef] = DESIGN_TOOLS
+const [, , , measureDef, shotsDef] = DESIGN_TOOLS
 const DESIGN_EXTENSION_NAME = 'design'
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const satisfies readonly NonNullable<
   LiveComponent['placeholder']
@@ -42,6 +42,8 @@ const PLACEHOLDER_ATTR = designConfig.attributes.placeholder
 const propertyAliases = designConfig.propertyAliases
 
 type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
+type ShotsInput = z.output<(typeof shotsDef)['inputSchema']>
+type NodeShot = z.output<NonNullable<(typeof shotsDef)['outputSchema']>>['shots'][number]
 type MeasureResult = Omit<z.output<NonNullable<(typeof measureDef)['outputSchema']>>, 'components'> & {
   components: LiveComponent[]
 }
@@ -104,7 +106,7 @@ const mirrorSlot: {current: MirrorSlot | null} = {current: null}
 const engineBase: {current: (() => string) | null} = {current: null}
 const region: {stream: MediaStream | null} = {stream: null}
 
-const CLIENT_TOOLS = [measureDef.client(measureStep)] as const
+const CLIENT_TOOLS = [measureDef.client(measureStep), shotsDef.client(shotsStep)] as const
 
 type PaneState = {open: boolean; engaged: boolean; picking: boolean; grab: Grab | null}
 type Grab = HostWiring['grab']
@@ -267,6 +269,50 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
     overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
   }
+}
+
+async function shotsStep(input: ShotsInput): Promise<{shots: NodeShot[]}> {
+  const size = {width: input.width, height: input.height}
+  const doc = size.width === innerWidth ? document : mirrorDocument(await mirrorAt(size))
+  return frozen({
+    doc,
+    run: async () => {
+      const shots: NodeShot[] = []
+      for (const node of input.nodes) shots.push(await nodeShot({doc, node}).catch(() => null))
+      return {shots}
+    },
+  })
+}
+
+async function nodeShot(input: {doc: Document; node: ShotsInput['nodes'][number]}): Promise<NodeShot> {
+  const {node} = input
+  const element = input.doc.querySelector(node.selector)
+  if (element === null) return null
+  const width = Math.max(1, Math.round(node.width * node.scale))
+  const height = Math.max(1, Math.round(node.height * node.scale))
+  const captured = await snapdom(element, {dpr: node.scale, embedFonts: true})
+  const canvas = await captured.toCanvas()
+  const reference =
+    node.reference === undefined ? null : drawnAt({source: await imageAt(node.reference), width, height})
+  return {image: drawnAt({source: canvas, width, height}), reference, mask: reference, width, height}
+}
+
+function imageAt(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', () => reject(new Error(`the image ${url} did not load`)))
+    image.src = url
+  })
+}
+
+function drawnAt(input: {source: CanvasImageSource; width: number; height: number}): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = input.width
+  canvas.height = input.height
+  canvas.getContext('2d')?.drawImage(input.source, 0, 0, input.width, input.height)
+  const url = canvas.toDataURL('image/png')
+  return url.slice(url.indexOf(DATA_URL_COMMA) + 1)
 }
 
 function pageFramework(): Framework | null {
