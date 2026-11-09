@@ -8,6 +8,7 @@ import {
   PUBLIC_PACKAGES,
   assertBootstrappable,
   assertChangesetsResolve,
+  assertDeclarationExportsTyped,
   assertPublicDepsPublic,
   assertPublicSet,
   assertPublishedChangesCovered,
@@ -93,11 +94,24 @@ const checkCatalog = defineCommand({
   },
 })
 
-const check = defineCommand({
-  meta: {name: 'check', description: 'Validate every package: build + publint + attw'},
+const checkDts = defineCommand({
+  meta: {
+    name: 'check-dts',
+    description:
+      'Fail when a built published declaration file exports a value with "type" or a type-only declaration without it',
+  },
   async run() {
-    const {turbo} = await atRoot()
+    const {cwd} = await atRoot()
+    await assertDeclarationExportsTyped(cwd)
+  },
+})
+
+const check = defineCommand({
+  meta: {name: 'check', description: 'Validate every package: build + publint + attw + declaration exports'},
+  async run() {
+    const {cwd, turbo} = await atRoot()
     await turbo('build', 'publint', 'attw')
+    await assertDeclarationExportsTyped(cwd)
   },
 })
 
@@ -109,6 +123,7 @@ const release = defineCommand({
     await assertPublicDepsPublic(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw')
+    await assertDeclarationExportsTyped(cwd)
     await changeset('publish')
   },
 })
@@ -123,6 +138,7 @@ const snapshot = defineCommand({
     await assertPublicDepsPublic(cwd)
     await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
+    await assertDeclarationExportsTyped(cwd)
     await changeset('publish', '--tag', args.tag)
   },
 })
@@ -367,6 +383,7 @@ const main = defineCommand({
     version,
     'check-changesets': checkChangesets,
     'check-catalog': checkCatalog,
+    'check-dts': checkDts,
     check,
     release,
     snapshot,

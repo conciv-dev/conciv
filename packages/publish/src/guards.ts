@@ -3,6 +3,7 @@ import {join, relative} from 'node:path'
 import {parseChangesetFile} from '@changesets/parse'
 import {execa} from 'execa'
 import {qualifiesForCoverage} from './coverage-files.ts'
+import {declarationExportProblems} from './declaration-exports.ts'
 import {parseManifest} from './manifest.ts'
 import {buildDependencyGraph, readWorkspacePackages, transitiveDependents, type WorkspacePackage} from './workspace.ts'
 
@@ -320,6 +321,39 @@ export async function assertSharedDependenciesCatalogued(cwd: string): Promise<v
   if (violations.length > 0) {
     throw new Error(
       `dependencies shared by two or more workspace manifests must use "catalog:" and take their version from the catalog in pnpm-workspace.yaml:\n${violations.join('\n')}`,
+    )
+  }
+}
+
+const DECLARATION_FILE = /\.d\.[cm]?ts$/
+
+async function declarationFileProblems(cwd: string, pkg: WorkspacePackage): Promise<string[]> {
+  const dist = join(pkg.dir, 'dist')
+  if (!(await pathExists(dist))) {
+    throw new Error(`${pkg.relativeDir}: no dist/ to check - build the published packages first`)
+  }
+  const files = (await readdir(dist, {recursive: true})).filter((file) => DECLARATION_FILE.test(file)).toSorted()
+  const problems = await Promise.all(
+    files.map(async (file) => {
+      const path = join(dist, file)
+      const source = await readFile(path, 'utf8')
+      return declarationExportProblems(source).map((problem) => `${relative(cwd, path)}: ${problem}`)
+    }),
+  )
+  return problems.flat()
+}
+
+export async function assertDeclarationExportsTyped(cwd: string): Promise<void> {
+  const packages = (await readWorkspacePackages(cwd)).filter(
+    (pkg) =>
+      typeof pkg.manifest.name === 'string' &&
+      PUBLIC_PACKAGES.includes(pkg.manifest.name) &&
+      (pkg.manifest.files ?? []).includes('dist'),
+  )
+  const problems = (await Promise.all(packages.map((pkg) => declarationFileProblems(cwd, pkg)))).flat()
+  if (problems.length > 0) {
+    throw new Error(
+      `published declaration files mark a value export as type-only (consumers fail TS1362) or a type export as a value:\n${problems.join('\n')}`,
     )
   }
 }
