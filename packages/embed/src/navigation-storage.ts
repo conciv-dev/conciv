@@ -1,9 +1,6 @@
-import {Debouncer} from '@tanstack/pacer'
 import type {RpcClient} from '@conciv/contract'
 import type {WebStorage} from '@conciv/storage-history'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
-
-const WRITE_DELAY_MS = 300
 
 type NavigationRpc = Pick<RpcClient, 'navigation'>
 
@@ -30,13 +27,10 @@ export function makeNavigationStorage(
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
     return state.lastStamp
   }
-  const write = new Debouncer(
-    (navigation: NavigationState, updatedAt: number) => {
-      if (!trust.isTrusted()) return
-      void rpc.navigation.set({...navigation, updatedAt}).catch(() => {})
-    },
-    {wait: WRITE_DELAY_MS},
-  )
+  const write = (navigation: NavigationState, updatedAt: number): void => {
+    if (!trust.isTrusted()) return
+    void rpc.navigation.set({...navigation, updatedAt}).catch(() => {})
+  }
   const restored = trust.ready
     .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
     .catch(() => null)
@@ -53,12 +47,11 @@ export function makeNavigationStorage(
       state.wroteLocally = true
       state.cache = value
       const parsed = parseNavigation(value)
-      if (parsed) write.maybeExecute(parsed, stamp())
+      if (parsed) write(parsed, stamp())
     },
     restored,
     dispose: () => {
       state.cancelled = true
-      write.cancel()
     },
   }
 }
