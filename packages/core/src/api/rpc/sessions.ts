@@ -65,13 +65,15 @@ async function transcriptOf(
   harnessKind: string,
   nativeId: HarnessSessionId,
   cwd: string,
+  signal: AbortSignal | undefined,
 ): Promise<ChatMessage[]> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
   if (history === undefined) return []
   if (history.withinProject && !history.withinProject(cwd, nativeId)) return []
   try {
-    return await history.messages(cwd, nativeId)
+    return await history.messages(cwd, nativeId, {signal})
   } catch (error) {
+    if (signal?.aborted) throw error
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
     return []
   }
@@ -239,8 +241,8 @@ export function sessionsRouter(deps: RpcDeps) {
       if (meta === null) throw errors.NOT_FOUND()
       return meta
     }),
-    preview: os.sessions.preview.handler(async ({input, errors}) => {
-      const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd)
+    preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
+      const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, signal)
       const window = previewWindow(messages, input.before, input.limit)
       if (window === null) throw errors.NOT_FOUND()
       if (input.cwd !== undefined) search.cover(input.cwd)

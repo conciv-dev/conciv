@@ -267,7 +267,6 @@ export function SessionSelector(props: {
   const highlighted = (value: string | null) => {
     setPicker('highlighted', value)
     if (value === null) return settle.cancel()
-    if (picker.open) return setPicker('previewed', value)
     settle.maybeExecute(value)
   }
   const previewTarget = createMemo(() => previewOf(sessionOf(picker.previewed)), null, {equals: isEqual})

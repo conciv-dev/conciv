@@ -12,7 +12,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 - `unsupportedChatConfig(id, binName)` (`stub.ts`): TextAdapter that yields `RUN_STARTED` then `RUN_ERROR` "<binName> is not installed or not yet supported".
 - `defineStubHarness({id, binName, capabilities})` (`stub.ts`): `defineHarness` wrapper over `unsupportedChatConfig`; no non-test caller in `src`.
 - `containedPath(root, candidate)`, `transcriptPathWithin(history, cwd, sessionId)` (`contained-path.ts`).
-- `foldJsonlFile(path, initial, foldLine)` -> the fold over every line of a JSONL file, read through `readline` over `createReadStream`, so the event loop runs between chunks; a missing file rejects with ENOENT (`fold-jsonl-file.ts`).
+- `foldJsonlFile(path, initial, foldLine, {signal})` -> the fold over every line of a JSONL file, read through `readline` over `createReadStream`, so the event loop runs between chunks; a missing file rejects with ENOENT, and an abort of `signal` destroys the stream so the fold rejects with AbortError (`fold-jsonl-file.ts`).
 - `makeJsonlHandle(source)` -> TranscriptHandle `{revision(), read(), close()}` over `JsonlSource {parser, resolvePath, verifyHead?}`; types `JsonlParser<State>`, `JsonlSource<State>`; `transcriptFailure(reason, detail)` (`jsonl-handle.ts`).
 - `definedEntries(env)` (`env.ts`): drops env entries whose value is undefined.
 - `lastUserModelText(messages)`, `lastUserImages(messages)` (`text-adapter.ts`): newline-joined text and data images `{mediaType, dataBase64}` from the last user message.
