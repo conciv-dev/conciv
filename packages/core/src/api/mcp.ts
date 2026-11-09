@@ -275,6 +275,7 @@ type McpDeps = {
   outsideCapabilities: (sessionId: SessionId, client: string | null, signal: AbortSignal) => CodeCapability[]
   resolveSession: (header: SessionId | null, nativeId: HarnessSessionId | null) => Promise<SessionScope>
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
+  hubRefusal: (client: string | null) => string | null
   staleness: () => EngineStaleness
 }
 
@@ -292,8 +293,12 @@ type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
   const origin = caller.trace.hub
-  const admit = (): Promise<string | null> =>
-    origin === null || caller.outside ? Promise.resolve(null) : deps.admitOutside(scope, origin.client, caller.signal)
+  const admit = async (): Promise<string | null> => {
+    if (origin === null) return null
+    const refusal = deps.hubRefusal(origin.client)
+    if (refusal !== null || caller.outside) return refusal
+    return (await deps.admitOutside(scope, origin.client, caller.signal)) ?? deps.hubRefusal(origin.client)
+  }
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
   const runner = await deps.codeRunner(

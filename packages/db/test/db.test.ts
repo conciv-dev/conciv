@@ -2,7 +2,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {ElementCapture, ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {deleteSessionCaptures, sessionCaptures, writeToolCapture} from '../src/capture-queries.js'
-import {mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, symlinkSync} from 'node:fs'
 import {createServer, type Server} from 'node:http'
 import {Worker} from 'node:worker_threads'
 import {once} from 'node:events'
@@ -22,11 +22,16 @@ import {
   closeHomeDb,
   concivHome,
   hubConnections,
+  lastHubRevocation,
   isHomeFolderRefused,
   listEngines,
   openHomeDb,
   recordHubConnection,
   registerEngine,
+  endHubOperation,
+  readHomeDb,
+  takeHubOperation,
+  removeHubConnection,
   retireEngine,
   withHomeDb,
 } from '../src/home-db.js'
@@ -629,13 +634,72 @@ describe('home db', () => {
     }
   })
 
-  it('records hub connections once per harness', () => {
+  it('records hub connections once per harness and removes one harness on disconnect', () => {
     const home = freshHome()
     withHomeDb(home, (db) => {
       recordHubConnection(db, 'codex', 1)
       recordHubConnection(db, 'codex', 2)
-      expect(hubConnections(db)).toEqual(['codex'])
+      recordHubConnection(db, 'claude', 3)
+      expect(hubConnections(db)).toEqual([
+        {harness: 'claude', connectedAt: 3},
+        {harness: 'codex', connectedAt: 1},
+      ])
+      expect(lastHubRevocation(db)).toBe(0)
+      removeHubConnection(db, 'codex')
+      expect(hubConnections(db)).toEqual([{harness: 'claude', connectedAt: 3}])
+      expect(lastHubRevocation(db)).toBe(1)
+      const startedBetween = lastHubRevocation(db)
+      removeHubConnection(db, 'claude')
+      expect(lastHubRevocation(db)).toBe(2)
+      expect(recordHubConnection(db, 'codex', 5, 0)).toBe(false)
+      expect(recordHubConnection(db, 'codex', 5, startedBetween)).toBe(false)
+      expect(recordHubConnection(db, 'codex', 5, lastHubRevocation(db))).toBe(true)
+      expect(hubConnections(db)).toEqual([{harness: 'codex', connectedAt: 5}])
     })
+  })
+
+  it('leases one harness config change at a time, takes over a stale lease, and ends only its own', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      const first = {harness: 'claude', pid: 1, childPid: null, startedAt: 10}
+      const second = {harness: 'claude', pid: 2, childPid: null, startedAt: 20}
+      expect(takeHubOperation(db, first, () => false)).toBe(true)
+      expect(takeHubOperation(db, second, () => false)).toBe(false)
+      expect(takeHubOperation(db, {harness: 'codex', pid: 2, childPid: null, startedAt: 20}, () => false)).toBe(true)
+      expect(takeHubOperation(db, second, (held) => held.pid === 1)).toBe(true)
+      endHubOperation(db, first)
+      expect(takeHubOperation(db, first, () => false)).toBe(false)
+      endHubOperation(db, second)
+      expect(takeHubOperation(db, first, () => false)).toBe(true)
+    })
+  })
+
+  it('takes a lease in one immediate transaction, so another writer between its read and its write never breaks it', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      const other = new DatabaseSync(join(home, 'home.db'), {timeout: 0})
+      const raced: string[] = []
+      expect(takeHubOperation(db, {harness: 'claude', pid: 1, childPid: null, startedAt: 10}, () => false)).toBe(true)
+      const taken = takeHubOperation(db, {harness: 'claude', pid: 2, childPid: null, startedAt: 20}, () => {
+        try {
+          other.exec('INSERT INTO hub_revocations DEFAULT VALUES')
+          raced.push('written')
+        } catch {
+          raced.push('waited')
+        }
+        return true
+      })
+      other.close()
+      expect({taken, raced}).toEqual({taken: true, raced: ['waited']})
+    })
+  })
+
+  it('reads the home db only when it exists, so a lookup never creates the home folder', () => {
+    const home = join(freshHome(), 'not-yet')
+    expect(readHomeDb(home, hubConnections)).toBeNull()
+    expect(existsSync(home)).toBe(false)
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+    expect(readHomeDb(home, hubConnections)).toEqual([{harness: 'codex', connectedAt: 1}])
   })
 
   it('a connection opened while another is mid-migration waits and succeeds', async () => {

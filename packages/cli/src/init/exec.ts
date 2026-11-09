@@ -5,11 +5,22 @@ export type CommandOutcome = {code: number; output: string}
 export function execFileOutcome(
   bin: string,
   args: string[],
-  options: {cwd: string; env?: NodeJS.ProcessEnv},
+  options: {cwd: string; env?: NodeJS.ProcessEnv; timeout?: number; started?: (pid: number) => string | null},
   onLine: (line: string) => void,
 ): Promise<CommandOutcome> {
   return new Promise((settle, reject) => {
-    const child = spawn(bin, args, options)
+    const child = spawn(bin, args, {
+      cwd: options.cwd,
+      env: options.env,
+      timeout: options.timeout,
+      killSignal: 'SIGKILL',
+    })
+    const refused = child.pid === undefined ? null : (options.started?.(child.pid) ?? null)
+    if (refused !== null) {
+      child.kill('SIGKILL')
+      settle({code: 1, output: refused})
+      return
+    }
     let output = ''
     let pending = ''
     const consume = (chunk: Buffer): void => {

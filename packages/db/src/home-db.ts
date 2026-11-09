@@ -1,15 +1,16 @@
 import {chmodSync, lstatSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {isNull, eq} from 'drizzle-orm'
+import {and, eq, isNull, max} from 'drizzle-orm'
 import type {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
 import {openMigratedDb} from './migrated-db.js'
-import {engines, hubConnections as hubConnectionsTable} from './home-schema.js'
+import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
+const IMMEDIATE: {behavior: 'immediate'} = {behavior: 'immediate'}
 
 export type HomeDb = ReturnType<typeof drizzle>
 
@@ -42,6 +43,11 @@ export function withHomeDb<T>(home: string, run: (db: HomeDb) => T): T {
   }
 }
 
+export function readHomeDb<T>(home: string, run: (db: HomeDb) => T): T | null {
+  if (lstatSync(join(home, 'home.db'), {throwIfNoEntry: false}) === undefined) return null
+  return withHomeDb(home, run)
+}
+
 export function registerEngine(db: HomeDb, row: EngineRow): void {
   db.insert(engines).values(row).onConflictDoUpdate({target: engines.id, set: row}).run()
 }
@@ -58,16 +64,61 @@ export function listEngines(db: HomeDb): EngineRow[] {
     .all()
 }
 
-export function recordHubConnection(db: HomeDb, harness: string, now: number): void {
-  db.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
+export type HubOperation = {harness: string; pid: number; childPid: number | null; startedAt: number}
+
+export function recordHubConnection(
+  db: HomeDb,
+  harness: string,
+  now: number,
+  generation = Number.POSITIVE_INFINITY,
+): boolean {
+  return db.transaction((tx) => {
+    if (currentGeneration(tx) > generation) return false
+    tx.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
+    return true
+  }, IMMEDIATE)
 }
 
-export function hubConnections(db: HomeDb): string[] {
+export function removeHubConnection(db: HomeDb, harness: string): void {
+  db.transaction((tx) => {
+    tx.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
+    tx.insert(hubRevocations).values({}).run()
+  }, IMMEDIATE)
+}
+
+export function lastHubRevocation(db: HomeDb): number {
+  return currentGeneration(db)
+}
+
+export function takeHubOperation(db: HomeDb, operation: HubOperation, stale: (held: HubOperation) => boolean): boolean {
+  return db.transaction((tx) => {
+    const held = tx.select().from(hubOperations).where(eq(hubOperations.harness, operation.harness)).get()
+    if (held !== undefined && !stale(held)) return false
+    tx.insert(hubOperations)
+      .values(operation)
+      .onConflictDoUpdate({
+        target: hubOperations.harness,
+        set: {pid: operation.pid, childPid: operation.childPid, startedAt: operation.startedAt},
+      })
+      .run()
+    return true
+  }, IMMEDIATE)
+}
+
+export function markHubOperationChild(db: HomeDb, operation: HubOperation, childPid: number): boolean {
+  return Number(db.update(hubOperations).set({childPid}).where(sameOperation(operation)).run().changes) > 0
+}
+
+export function endHubOperation(db: HomeDb, operation: HubOperation): void {
+  db.delete(hubOperations).where(sameOperation(operation)).run()
+}
+
+export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt: number}> {
   return db
-    .select({harness: hubConnectionsTable.harness})
+    .select({harness: hubConnectionsTable.harness, connectedAt: hubConnectionsTable.connectedAt})
     .from(hubConnectionsTable)
+    .orderBy(hubConnectionsTable.harness)
     .all()
-    .map((row) => row.harness)
 }
 
 export function isHomeFolderRefused(error: unknown): error is Error {
@@ -89,4 +140,21 @@ function prepareFolder(home: string): void {
 
 function homeFolderRefused(home: string, reason: string): Error {
   return Object.assign(new Error(`conciv refuses the home folder ${home}: ${reason}`), {name: 'HomeFolderRefused'})
+}
+
+function currentGeneration(db: Pick<HomeDb, 'select'>): number {
+  return (
+    db
+      .select({generation: max(hubRevocations.generation)})
+      .from(hubRevocations)
+      .get()?.generation ?? 0
+  )
+}
+
+function sameOperation(operation: HubOperation) {
+  return and(
+    eq(hubOperations.harness, operation.harness),
+    eq(hubOperations.pid, operation.pid),
+    eq(hubOperations.startedAt, operation.startedAt),
+  )
 }

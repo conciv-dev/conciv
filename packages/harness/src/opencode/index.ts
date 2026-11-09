@@ -28,4 +28,5 @@ export const opencode = defineHarness({
   models: opencodeModels,
   defaultModel: 'opencode/claude-sonnet-4-5',
   history: opencodeHistory,
+  resume: {command: ({nativeId}) => ({bin: 'opencode', args: ['--session', nativeId]})},
 })
