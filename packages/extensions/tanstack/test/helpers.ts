@@ -4,7 +4,7 @@ import {afterAll, beforeAll} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {createServer, type ViteDevServer} from 'vite'
 import {getExtensionTestApi, serveDir, type ExtensionTestApi} from '@conciv/extension-testkit'
-import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
+import {pagePlaneWatchFor} from '@conciv/extension-testkit/page-plane'
 import type {FrameworkAdapter} from '@conciv/protocol/framework-types'
 import type {ServerToolRegistryAccess} from '@conciv/extension/registry'
 import tanstackExtension from '../src/server.js'
@@ -51,10 +51,8 @@ export function tanstackAdapter(api: ExtensionTestApi): FrameworkAdapter {
   return context.makeAdapter({call: (name, input) => api.callTool(name, input)})
 }
 
-export async function waitForWidget(page: Page): Promise<void> {
-  await awaitPagePlaneSubscribed(page, () =>
-    expectLocator(page.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000}),
-  )
+export async function waitForPagePlane(page: Page): Promise<void> {
+  await pagePlaneWatchFor(page).subscribed()
 }
 
 export async function gotoAbout(page: Page): Promise<void> {

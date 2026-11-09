@@ -2432,6 +2432,9 @@ importers:
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
+      '@conciv/extension-tanstack':
+        specifier: workspace:^
+        version: link:../extensions/tanstack
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
@@ -2626,6 +2629,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../browser-fixture
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../client
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -2647,6 +2653,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3094,15 +3103,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/browser-fixture':
-        specifier: workspace:*
-        version: link:../../browser-fixture
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
-      '@conciv/embed':
-        specifier: workspace:^
-        version: link:../../embed
       '@conciv/extension-compiler':
         specifier: workspace:^
         version: link:../../extension-compiler
@@ -3121,9 +3124,6 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@solid-primitives/event-listener':
-        specifier: 'catalog:'
-        version: 2.4.6(solid-js@1.9.17)
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
