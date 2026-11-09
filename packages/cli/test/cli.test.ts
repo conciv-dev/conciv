@@ -1359,6 +1359,30 @@ describe('cli', () => {
     })
 
     it.skipIf(process.getuid?.() === 0)(
+      'an agent CLI the lease cannot record is refused, so no untracked change outlives its owner',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+        const untracked = createHubConnections(home, async (argv, options) => {
+          chmodSync(join(home, 'home.db'), 0o000)
+          const refused = options.started(process.pid)
+          chmodSync(join(home, 'home.db'), 0o600)
+          if (refused === null) return {ok: true, output: '', message: ''}
+          return {ok: false, output: '', message: refused}
+        })
+        try {
+          expect(await untracked.connect('claude', ['conciv'])).toMatchObject({
+            ok: false,
+            message: expect.stringContaining('conciv could not record the claude process in its home db'),
+          })
+          expect(untracked.list()).toMatchObject([{harness: 'codex'}])
+        } finally {
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
+
+    it.skipIf(process.getuid?.() === 0)(
       'an unreadable home fails closed: no generation, and connect answers instead of throwing',
       async () => {
         const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))

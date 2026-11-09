@@ -28,7 +28,7 @@ type HubConnection = {harness: InitHarnessId; name: string; connectedAt: number}
 
 type RunOutcome = {ok: boolean; output: string; message: string}
 
-type RunOptions = {timeout: number; started: (pid: number) => void}
+type RunOptions = {timeout: number; started: (pid: number) => string | null}
 
 type Run = (argv: string[], options: RunOptions) => Promise<RunOutcome>
 
@@ -124,15 +124,18 @@ async function underLease(
   const operation = {harness, pid: process.pid, childPid: null, startedAt: Date.now()}
   const taken = leaseOf(home, operation)
   if (!taken.ok) return taken.outcome
-  const started = (pid: number): void => {
-    try {
-      withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))
-    } catch {
-      return
+  const started =
+    (bin: string | undefined) =>
+    (pid: number): string | null => {
+      try {
+        withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))
+        return null
+      } catch (error) {
+        return `conciv could not record the ${bin ?? 'agent CLI'} process in its home db: ${String(error)}`
+      }
     }
-  }
   try {
-    return await change((argv) => run(argv, {timeout: RUN_TIMEOUT_MS, started}))
+    return await change((argv) => run(argv, {timeout: RUN_TIMEOUT_MS, started: started(argv[0])}))
   } finally {
     release(home, operation)
   }
@@ -196,7 +199,10 @@ function runFile(argv: string[], options: RunOptions): Promise<RunOutcome> {
         resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
       },
     )
-    if (child.pid !== undefined) options.started(child.pid)
+    const refused = child.pid === undefined ? null : options.started(child.pid)
+    if (refused === null) return
+    child.kill('SIGKILL')
+    resolve({ok: false, output: '', message: refused})
   })
 }
 

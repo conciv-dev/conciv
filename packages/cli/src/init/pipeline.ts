@@ -69,7 +69,7 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
-type SpawnOptions = {timeout: number; started: (pid: number) => void}
+type SpawnOptions = {timeout: number; started: (pid: number) => string | null}
 
 export type SpawnBin = (
   bin: string,
