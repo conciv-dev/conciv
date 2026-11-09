@@ -78,9 +78,9 @@ public surface unchanged.
 
 ### TypeScript 6 holdouts
 
-| App        | Blocker                             | Upstream                                   | Unblock check                                                                                   |
-| ---------- | ----------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| e2e/svelte | svelte-check has no stable TS7 mode | sveltejs/language-tools#3063, #3185, #3174 | svelte-check release with TS7 peer or stable `--tsgo`; `pnpm --filter <app> check` green on TS7 |
+| App        | Blocker                                                                                                                                                                                                                                                                     | Upstream                                   | Unblock check                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| e2e/svelte | svelte-check 4.7.7 refuses TS7 alone: `svelte-check --tsconfig ./tsconfig.json` on TS7 throws `Error: TypeScript 7 support currently requires both TypeScript 7 and TypeScript 6 installed in your project, and requires using the --tsgo or --tsgo-experimental-api flag.` | sveltejs/language-tools#3063, #3185, #3174 | svelte-check release with TS7 peer or stable `--tsgo`; `pnpm --filter <app> check` green on TS7 |
 
 (Implementation adds rows only for proven failures, with the failing command and error line.)
 
