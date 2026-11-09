@@ -28,7 +28,7 @@ const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
-type ReaderInput = 'untouched' | 'holding' | 'touched'
+type ReaderInput = 'untouched' | 'holding' | 'touched' | 'aiming-at-end'
 
 type OffsetRecovery =
   | {phase: 'viewport-attached'}
@@ -167,6 +167,12 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     instance.cancelScroll()
     if (readerInput !== 'holding') readerInput = 'touched'
   }
+  const noteWheel = (event: WheelEvent): void => {
+    noteReaderInput()
+    const element = config.scrollElement()
+    if (!element || readerInput === 'holding') return
+    if (event.deltaY >= element.scrollHeight - element.clientHeight - element.scrollTop) readerInput = 'aiming-at-end'
+  }
 
   const rememberAnchor = (element: HTMLElement): void => {
     restingAnchor =
@@ -271,7 +277,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const followingReader = (): boolean => {
     const element = config.scrollElement()
-    return liveAtEnd() || (element !== undefined && stillOnTheLanding(element))
+    return liveAtEnd() || readerInput === 'aiming-at-end' || (element !== undefined && stillOnTheLanding(element))
   }
 
   const liveNearStart = (): boolean => {
@@ -315,7 +321,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
-      makeEventListener(element, 'wheel', noteReaderInput, {passive: true})
+      makeEventListener(element, 'wheel', noteWheel, {passive: true})
       makeEventListener(element, 'touchmove', noteReaderInput, {passive: true})
       makeEventListener(element, 'keydown', noteReaderInput, {passive: true})
       makeEventListener(element.ownerDocument, 'pointerup', releaseViewport, {passive: true})
