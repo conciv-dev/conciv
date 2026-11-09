@@ -71,7 +71,7 @@ export function XrayOverlay(props: {
                   onClick={() => props.data.setStack(!props.data.stack())}
                 />
                 <div class="grow w-8" data-conciv-key="Ia9KqA" />
-                <RailButton label="Panel" active icon={PanelLeft} />
+                <RailButton label="Panel" active={props.data.shownRound() !== null} icon={PanelLeft} />
               </nav>
               <Show when={props.data.shownRound() === null}>
                 <section

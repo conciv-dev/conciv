@@ -34,7 +34,7 @@
 
 .xp-layout {
   display: grid;
-  grid-template-columns: 16.667% 13.889% 83.333%;
+  grid-template-columns: 16.667% 1fr;
   flex: 1;
   overflow: hidden;
 }
@@ -65,7 +65,7 @@
 .xp-bar-f { --xp-width: 52.885%; --xp-ratio: 9.167; }
 
 .xp-main {
-  grid-column: 3;
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
