@@ -32,10 +32,11 @@
   color: #565b63;
 }
 
-.xp-body {
+.xp-layout {
   display: grid;
-  grid-template-columns: 16.667% 1fr;
+  grid-template-columns: 16.667% 13.889% 83.333%;
   flex: 1;
+  overflow: hidden;
 }
 
 .xp-sidebar {
@@ -64,6 +65,7 @@
 .xp-bar-f { --xp-width: 52.885%; --xp-ratio: 9.167; }
 
 .xp-main {
+  grid-column: 3;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -71,7 +73,7 @@
   padding: 32px;
 }
 
-.xp-title {
+.xp-greeting {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
@@ -85,14 +87,14 @@
   color: #565b63;
 }
 
-.xp-stats {
+.xp-figures {
   display: flex;
   flex-wrap: nowrap;
   gap: 20px;
   width: 72.183%;
 }
 
-.xp-stat {
+.xp-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -106,18 +108,18 @@
   box-sizing: border-box;
 }
 
-.xp-stat-value {
+.xp-card-value {
   font-size: 24px;
   font-weight: 700;
   color: #0b0d10;
 }
 
-.xp-stat-label {
+.xp-card-label {
   font-size: 14px;
   color: #565b63;
 }
 
-.xp-avatar {
+.xp-portrait {
   width: 4.93%;
   aspect-ratio: 1;
 }
