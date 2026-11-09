@@ -1,4 +1,3 @@
-import {stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
@@ -10,7 +9,6 @@ import type {
   HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
-  HarnessSessionSummary,
   TranscriptHandle,
   TranscriptPage,
   TranscriptTailOptions,
@@ -383,8 +381,6 @@ export function parseSessionMeta(id: string, cwd: string, jsonl: string, mtime: 
   return metaFromFold(id, cwd, foldTranscript(jsonl), mtime, jsonl)
 }
 
-const SUMMARY_TAIL = 12
-
 async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const projectCwd = 'cwd' in scope ? scope.cwd : null
   const listed = await listSdkSessions(projectCwd === null ? {} : {dir: projectCwd, includeWorktrees: false})
@@ -407,17 +403,6 @@ function metaOfInfo(info: SDKSessionInfo, projectCwd: string | null): HarnessSes
       createdAt: info.createdAt,
     },
   ]
-}
-
-export async function sessionSummary(cwd: string, sessionId: string): Promise<HarnessSessionSummary | null> {
-  if (!withinProject(cwd, sessionId)) return null
-  const path = transcriptPath(cwd, sessionId)
-  const info = await stat(path).catch(whenMissing(null))
-  if (!info) return null
-  const raw = await readFile(path, 'utf8').catch(whenMissing(''))
-  if (!raw) return null
-  const state = foldTranscript(raw)
-  return {meta: metaFromFold(sessionId, cwd, state, info.mtimeMs, raw), tail: state.messages.slice(-SUMMARY_TAIL)}
 }
 
 export async function sessionMeta(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null> {
@@ -500,5 +485,4 @@ export const claudeHistory: HarnessHistory = {
   contextTokens: contextTokensFromTranscript,
   list: listSessions,
   meta: sessionMeta,
-  summary: sessionSummary,
 }

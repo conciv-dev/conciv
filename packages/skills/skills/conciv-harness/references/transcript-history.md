@@ -16,7 +16,6 @@ export type HarnessHistory = {
   contextTokens?(raw: string): number | undefined
   list(cwd: string): Promise<HarnessSessionMeta[]>
   meta?(cwd: string, sessionId: string): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: string): Promise<HarnessSessionSummary | null>
 }
 ```
 
@@ -75,7 +74,7 @@ and it returns a `TranscriptHandle` (`revision()/read()/close()`) that:
 - resets to offset 0 and re-empties state if the file shrank (`found.info.size < state.offset`,
   `packages/harness/src/_shared/jsonl-handle.ts:120-123`) — handles log rotation/truncation;
 - calls your optional `verifyHead(head)` exactly once, on the first successful stat, against the head
-  bytes of the file (`HEAD_BYTES = 65_536`) — this is where you reject a transcript that belongs to a
+  bytes of the file (the first 64 KiB, `readHead` in `packages/harness/src/_shared/read-head.ts`) — this is where you reject a transcript that belongs to a
   different project.
 
 Codex's `observeTranscript` (`packages/harness/src/codex/history.ts:344-358`) wires the same

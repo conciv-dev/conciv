@@ -8,8 +8,8 @@ import type {
   TranscriptHandle,
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
+import {readHead} from './read-head.js'
 
-const HEAD_BYTES = 65_536
 const NEWLINE = 0x0a
 
 export type JsonlParser<State> = {
@@ -69,6 +69,14 @@ function completeLines(buffer: Buffer): {text: string; bytes: number} {
   return {text: buffer.toString('utf8', 0, lastBreak + 1), bytes: lastBreak + 1}
 }
 
+function headOf(path: string): string | TranscriptFailure {
+  try {
+    return readHead(path)
+  } catch (error) {
+    return statFailure(path, error)
+  }
+}
+
 function revisionOf(info: Stats): TranscriptRevision {
   return {rev: `${info.size}:${info.mtimeMs}`, changedAt: info.mtimeMs}
 }
@@ -97,12 +105,11 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
     return {path, info}
   }
 
-  const verify = async (path: string, size: number): Promise<TranscriptFailure | null> => {
+  const verify = (path: string): TranscriptFailure | null => {
     if (state.verified || !source.verifyHead) return null
-    const head = await readBytes(path, 0, Math.min(HEAD_BYTES, size))
-    if ('ok' in head) return head
-    const complete = completeLines(head)
-    const problem = source.verifyHead(complete.text)
+    const head = headOf(path)
+    if (typeof head !== 'string') return head
+    const problem = source.verifyHead(head)
     if (problem) return problem
     state.verified = true
     return null
@@ -112,14 +119,14 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
     async revision(): Promise<TranscriptRevision | TranscriptFailure> {
       const found = await located()
       if ('ok' in found) return found
-      const problem = await verify(found.path, found.info.size)
+      const problem = verify(found.path)
       if (problem) return problem
       return revisionOf(found.info)
     },
     async read(): Promise<TranscriptChunk | TranscriptFailure> {
       const found = await located()
       if ('ok' in found) return found
-      const problem = await verify(found.path, found.info.size)
+      const problem = verify(found.path)
       if (problem) return problem
       if (found.info.size < state.offset) {
         state.offset = 0

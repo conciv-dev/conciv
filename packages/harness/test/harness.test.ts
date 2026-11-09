@@ -2550,22 +2550,6 @@ describe('transcript handles', () => {
       expect(await foldLineByLine(handle, path, raw.split('\n').filter(Boolean))).toEqual(expected.messages)
       handle.close()
     })
-
-    it('summarises a transcript with one read: meta plus a message tail', async () => {
-      const raw = fixture('claude-transcript.jsonl')
-      seed('summary', raw)
-      const summary = await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('summary'))
-      if (!summary) throw new Error('expected a summary')
-      const expected = golden('claude-golden.json')
-      expect(summary.meta).toMatchObject({
-        id: 'summary',
-        derivedTitle: 'rename the settings panel',
-        sizeBytes: Buffer.byteLength(raw),
-        model: 'claude-opus-4-8',
-      })
-      expect(summary.tail).toEqual(expected.messages.slice(-12))
-      expect(await claudeHistory.summary?.(CLAUDE_CWD, HarnessSessionId.parse('absent'))).toBeNull()
-    })
   })
 
   const CODEX_CWD = '/workspace/demo'
@@ -3016,6 +3000,10 @@ describe('transcript tail reads', () => {
     const messages = await history.messages(cwd, sessionId)
     const opener = body.lastIndexOf('\n', body.indexOf('question 0')) + 1
     expect(messages[0]?.id).toBe(`${sessionId}:o${Buffer.byteLength(body.slice(0, opener))}`)
+    expect([history.withinProject?.(cwd, sessionId), history.withinProject?.('/workspace/other', sessionId)]).toEqual([
+      true,
+      false,
+    ])
     await expectTailPagesTheFold(history, cwd, sessionId)
     await expectAbortRejects(history, cwd, sessionId)
   })

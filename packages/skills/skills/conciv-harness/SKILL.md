@@ -256,7 +256,6 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   contextTokens?(raw: string): number | undefined
   list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
-  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }
 ```
 

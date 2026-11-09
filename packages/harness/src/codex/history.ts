@@ -1,6 +1,5 @@
-import {createReadStream, existsSync, readdirSync, readFileSync, type Dirent} from 'node:fs'
+import {existsSync, readdirSync, type Dirent} from 'node:fs'
 import {stat} from 'node:fs/promises'
-import {createInterface} from 'node:readline'
 import {join} from 'node:path'
 import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
 import {z} from 'zod'
@@ -24,6 +23,7 @@ import {whenMissing} from '../_shared/when-missing.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
 import {tailLines} from '../_shared/tail-lines.js'
+import {readHead} from '../_shared/read-head.js'
 import {codexHome} from './models.js'
 
 const MAX_TITLE = 80
@@ -321,25 +321,18 @@ export function rolloutPath(sessionId: string): string | null {
   return persistedRollout(sessionId) ?? scanForRollout(sessionId)
 }
 
-function readRollout(path: string): string {
+function recordedCwd(path: string): string | null {
   try {
-    return readFileSync(path, 'utf8')
+    return rolloutCwd(readHead(path))
   } catch (error) {
-    return whenMissing('')(error)
+    return whenMissing(null)(error)
   }
 }
 
-function projectRollout(cwd: string, sessionId: string): {path: string; raw: string} | null {
-  const path = rolloutPath(sessionId)
-  if (!path) return null
-  const raw = readRollout(path)
-  if (!raw) return null
-  const found = rolloutCwd(raw)
-  return found !== null && sameCwd(found, cwd) ? {path, raw} : null
-}
-
 function rolloutWithinProject(cwd: string, sessionId: string): boolean {
-  return projectRollout(cwd, sessionId) !== null
+  const path = rolloutPath(sessionId)
+  const found = path === null ? null : recordedCwd(path)
+  return found !== null && sameCwd(found, cwd)
 }
 
 type RolloutFold = {spine: CodexSpine; cwd: string | null | undefined}
@@ -428,19 +421,6 @@ function eventScanner(): (line: string, offset: number) => {line: EventLine; bou
   }
 }
 
-async function recordedCwd(path: string): Promise<string | null> {
-  const stream = createReadStream(path, {encoding: 'utf8'})
-  try {
-    for await (const line of createInterface({input: stream, crlfDelay: Number.POSITIVE_INFINITY})) {
-      const found = sessionMetaCwd(line)
-      if (found !== undefined) return found
-    }
-    return null
-  } finally {
-    stream.destroy()
-  }
-}
-
 const ByteCursorSchema = z.string().regex(/^\d+$/).transform(Number)
 
 const NO_PAGE: TranscriptPage = {messages: [], earlier: null}
@@ -452,7 +432,7 @@ async function rolloutTail(
   options: TranscriptTailOptions,
   end: number | null,
 ) {
-  const found = await recordedCwd(path)
+  const found = recordedCwd(path)
   if (found === null || !sameCwd(found, cwd)) return NO_PAGE
   return tailLines({
     path,
