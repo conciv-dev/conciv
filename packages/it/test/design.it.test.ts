@@ -1,7 +1,7 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {basename, join} from 'node:path'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
@@ -41,6 +41,8 @@ import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
+import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
+import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
 
@@ -578,5 +580,90 @@ describe('design_check capture', () => {
     const offset = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4
     const [red = 0, green = 0, blue = 0] = png.data.subarray(offset, offset + 3)
     expect(red > 200 && green < 60 && blue < 60).toBe(false)
+  })
+})
+
+describe('catalog walk', () => {
+  const source = createViteOxcSource()
+  const scans = new Map<string, Promise<Scan>>()
+
+  function scanOf(cwd: string): Promise<Scan> {
+    const known = scans.get(cwd)
+    if (known !== undefined) return known
+    const started = source.scan({cwd})
+    scans.set(cwd, started)
+    return started
+  }
+
+  async function named(name: string, cwd = HOST_ROOT): Promise<Component> {
+    const found = (await scanOf(cwd)).components.find((component) => component.names.includes(name))
+    if (found === undefined) throw new Error(`the walk found no component named ${name}`)
+    return found
+  }
+
+  it('walks from the fixture vite config', async () => {
+    const page = await named('XrayPage')
+    expect([page.renders, page.file.endsWith('src/XrayPage.tsx'), page.specifier, page.pkg]).toEqual([
+      true,
+      true,
+      './src/XrayPage.tsx',
+      null,
+    ])
+  })
+
+  it('resolves the workspace kit to source', async () => {
+    const segments = await named('SegmentGroup')
+    expect([segments.pkg, segments.file.endsWith('segment-group.tsx'), segments.renders, segments.specifier]).toEqual([
+      '@conciv/ui-kit-system',
+      true,
+      true,
+      '@conciv/ui-kit-system',
+    ])
+    expect(segments.sentence).not.toBeNull()
+    expect(segments.story?.endsWith('segment-group.stories.tsx')).toBe(true)
+  })
+
+  it('counts each edge once in a cycle', async () => {
+    const cycle = new Set(['cycle-a.ts', 'cycle-b.ts'])
+    const between = (await scanOf(HOST_ROOT)).edges.filter(
+      (edge) => cycle.has(basename(edge.from)) && cycle.has(basename(edge.to)),
+    )
+    expect(between.map((edge) => `${basename(edge.from)} > ${basename(edge.to)}`).toSorted()).toEqual([
+      'cycle-a.ts > cycle-b.ts',
+      'cycle-b.ts > cycle-a.ts',
+    ])
+  })
+
+  it('reports an unreadable config and continues', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'conciv-catalog-'))
+    await mkdir(join(root, 'broken'))
+    await mkdir(join(root, 'good', 'src'), {recursive: true})
+    await writeFile(join(root, 'broken', 'vite.config.ts'), "import 'not-installed-pkg'\nexport default {}\n")
+    await writeFile(join(root, 'good', 'vite.config.ts'), 'export default {}\n')
+    await writeFile(join(root, 'good', 'index.html'), '<script type="module" src="/src/main.tsx"></script>\n')
+    await writeFile(join(root, 'good', 'src', 'main.tsx'), 'export function Hello() {\n  return <p>hello</p>\n}\n')
+    try {
+      const scan = await scanOf(root)
+      expect(scan.unreadable).toEqual(['broken/vite.config.ts'])
+      expect(scan.components.map((component) => component.names)).toEqual([['Hello']])
+    } finally {
+      await rm(root, {recursive: true, force: true})
+    }
+  })
+
+  it('lists aliases once', async () => {
+    const stats = (await scanOf(HOST_ROOT)).components.filter((component) =>
+      component.names.some((name) => name === 'Stat' || name === 'StatCard'),
+    )
+    expect(stats.map((component) => component.names)).toEqual([['Stat', 'StatCard']])
+    expect(stats[0]?.props).toEqual([
+      {name: 'label', type: 'string', required: true, values: []},
+      {name: 'tone', type: "'up' | 'down'", required: false, values: ['up', 'down']},
+    ])
+    expect(stats[0]?.usage).toBe('<Stat label="Nodes" />')
+  })
+
+  it('props say see file when the type is out of reach', async () => {
+    expect((await named('Far')).props).toBe('see file')
   })
 })

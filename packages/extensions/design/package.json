@@ -78,6 +78,8 @@
     "lucide-solid": "catalog:",
     "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
+    "oxc-resolver": "catalog:",
+    "parse5": "catalog:",
     "pixelmatch": "catalog:",
     "pngjs": "catalog:",
     "postcss": "catalog:",
@@ -108,6 +110,7 @@
     "vite-plugin-solid": "catalog:"
   },
   "peerDependencies": {
-    "solid-js": "^1.9.13"
+    "solid-js": "^1.9.13",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
   }
 }
