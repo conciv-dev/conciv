@@ -1032,6 +1032,7 @@ describe('settings storage', () => {
     const home = tempDir()
     const one = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
     const two = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
+    await Promise.all([one.ready, two.ready])
     try {
       const mine = one.scope('probe').settings.global
       const theirs = two.scope('probe').settings.global
