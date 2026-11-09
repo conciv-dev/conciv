@@ -10,7 +10,6 @@ type Node = any
 const SOURCE_ATTR = 'data-conciv-source'
 const KEY_ATTR = 'data-conciv-key'
 const JSX_EXTENSIONS = ['.jsx', '.tsx']
-const FRAGMENTS = new Set(['', 'Fragment', 'React.Fragment'])
 
 type Disk = {openings: Node[]; locate: (offset: number) => {line: number; column: number}}
 
@@ -30,7 +29,7 @@ export function addSourceToJsx(input: {
   if (!openings || openings.length === 0) return null
   const onDisk = alignedDisk({file, text: readText(file), expected: openings.length})
   const stamps = openings.flatMap((node, index): Stamp[] => {
-    if (FRAGMENTS.has(elementName(node.name)) || attribute({node, name: SOURCE_ATTR}) !== undefined) return []
+    if (!hostElement(node.name) || attribute({node, name: SOURCE_ATTR}) !== undefined) return []
     if (attribute({node, name: KEY_ATTR}) !== undefined) return [{node, index, key: '', served: false, fresh: false}]
     const kept = literalKey(onDisk?.openings[index])
     return [{node, index, key: kept ?? randomBytes(4).toString('base64url'), served: true, fresh: kept === null}]
@@ -125,12 +124,9 @@ function makeLocator(code: string): (offset: number) => {line: number; column: n
   }
 }
 
-function elementName(name: Node): string {
-  if (!name) return ''
-  if (name.type === 'JSXIdentifier') return name.name ?? ''
-  if (name.type === 'JSXMemberExpression') return `${elementName(name.object)}.${name.property?.name ?? ''}`
-  if (name.type === 'JSXNamespacedName') return `${name.namespace?.name}:${name.name?.name}`
-  return name.name ?? ''
+function hostElement(name: Node): boolean {
+  const first = name?.type === 'JSXIdentifier' ? String(name.name ?? '').charAt(0) : ''
+  return first !== first.toUpperCase()
 }
 
 function collectOpenings(node: Node, out: Node[]): void {

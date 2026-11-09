@@ -41,25 +41,23 @@ export function XrayOverlay(props: {
   })
   return (
     <>
-      <Show when={props.data.hotkeys()} data-conciv-key="4lcxvw">
-        {(keys) => <Hotkeys keys={keys()} toggle={props.toggle} data-conciv-key="3LUKXQ" />}
-      </Show>
-      <YieldFocus when={props.on()} data-conciv-key="Pij9Wg">
-        <Portal mount={document.body} useShadow ref={setElement} data-conciv-key="fKABkw">
-          <EnvironmentProvider value={rootNode} data-conciv-key="ksOAwg">
+      <Show when={props.data.hotkeys()}>{(keys) => <Hotkeys keys={keys()} toggle={props.toggle} />}</Show>
+      <YieldFocus when={props.on()}>
+        <Portal mount={document.body} useShadow ref={setElement}>
+          <EnvironmentProvider value={rootNode}>
             <div class="chat-density text-chat-text font-chat antialiased" data-conciv-key="HxvEWg">
               <nav
                 aria-label="Design x-ray rail"
                 class="px-1 py-3 border border-chat-line bg-chat-glass flex flex-col gap-2 w-14 pointer-events-auto items-center start-0 inset-y-0 fixed"
                 data-conciv-key="g9eiGQ"
               >
-                <RailButton label="X-ray" active icon={Power} data-conciv-key="5EVN5Q" />
-                <RailButton label="Pick" icon={MousePointerClick} data-conciv-key="nYKvmg" />
-                <RailButton label="Stack" icon={Box} data-conciv-key="ZhPZUw" />
+                <RailButton label="X-ray" active icon={Power} />
+                <RailButton label="Pick" icon={MousePointerClick} />
+                <RailButton label="Stack" icon={Box} />
                 <div class="grow w-8" data-conciv-key="Ia9KqA" />
-                <RailButton label="Panel" icon={PanelLeft} data-conciv-key="2Oavvw" />
+                <RailButton label="Panel" icon={PanelLeft} />
               </nav>
-              <Show when={props.data.shownRound() === null} data-conciv-key="UCSTkA">
+              <Show when={props.data.shownRound() === null}>
                 <section
                   aria-label="Design x-ray"
                   class="px-3.5 py-3 border border-chat-line rounded-chat-surface-md bg-chat-glass flex flex-col gap-1 w-75 pointer-events-auto start-17 top-3 fixed"
@@ -122,7 +120,7 @@ function RailButton(props: {label: string; icon: Component<LucideProps>; active?
       class={`px-1 pb-1 pt-1.5 border-0 rounded-chat-surface-sm flex flex-col gap-0.5 w-12 cursor-pointer items-center ${props.active ? 'bg-chat-fill-strong text-chat-accent' : 'bg-transparent text-chat-text-3'}`}
       data-conciv-key="_04rZQ"
     >
-      <props.icon class="size-5 block" aria-hidden="true" data-conciv-key="kdCEQw" />
+      <props.icon class="size-5 block" aria-hidden="true" />
       <span
         class={`text-[length:var(--chat-text-xs)] leading-none ${props.active ? 'font-semibold' : 'font-normal'}`}
         data-conciv-key="P-ZisQ"
