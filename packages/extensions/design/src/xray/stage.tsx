@@ -11,7 +11,7 @@ export function Stage(props: {data: Data}): JSX.Element {
     <div
       role="group"
       aria-label="Design x-ray stage"
-      class="bg-chat-panel pointer-events-auto end-0 start-104 inset-y-0 fixed"
+      class="bg-chat-panel pointer-events-auto end-0 start-104 inset-y-0 fixed overflow-hidden"
       data-conciv-key="StgRt1"
     >
       <For each={PLANES}>
@@ -46,11 +46,15 @@ export function Stage(props: {data: Data}): JSX.Element {
               </Show>
             </div>
             <span
-              class="text-xs text-chat-text-hi font-semibold px-2 py-0.75 border border-chat-line rounded-full bg-chat-panel flex gap-1.5 whitespace-nowrap items-center start-50 absolute"
+              class="text-xs text-chat-text-hi font-semibold px-2 py-0.75 border border-chat-line rounded-chat-pill bg-chat-panel flex gap-1.5 whitespace-nowrap items-center start-50 absolute"
               style={{top: `calc(var(--chat-space) * (${LABEL_TOP} + ${PLANE_STEP} * ${index()}))`}}
               data-conciv-key="StgLb1"
             >
-              <span class="rounded-full shrink-0 size-2" style={{background: plane.hue}} data-conciv-key="StgDt1" />
+              <span
+                class="rounded-chat-pill shrink-0 size-2"
+                style={{background: plane.hue}}
+                data-conciv-key="StgDt1"
+              />
               <span data-conciv-key="StgTx1">{plane.label}</span>
             </span>
           </Show>
