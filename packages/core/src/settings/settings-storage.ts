@@ -1,5 +1,6 @@
-import {existsSync, mkdirSync, readFileSync, renameSync, writeFileSync} from 'node:fs'
-import {dirname, isAbsolute, join, relative, sep} from 'node:path'
+import {join} from 'node:path'
+import {createStorage, type Storage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs'
 import {EventPublisher} from '@orpc/server'
 import {Debouncer} from '@tanstack/pacer'
 import {omit} from 'es-toolkit'
@@ -16,12 +17,21 @@ const WRITE_DEBOUNCE_MS = 100
 
 const SavedSettingsSchema = z.record(z.string(), z.unknown())
 
-export function createSettingsStorage(folders: Record<SettingsScope, string>) {
+export type SettingsStorages = Record<SettingsScope, Storage>
+
+export function settingsOnDisk(folders: Record<SettingsScope, string>): SettingsStorages {
+  return {
+    global: createStorage({driver: fsDriver({base: join(folders.global, 'settings')})}),
+    project: createStorage({driver: fsDriver({base: join(folders.project, 'settings')})}),
+  }
+}
+
+export function createSettingsStorage(storages: SettingsStorages) {
   const files = new Map<string, ReturnType<typeof createSettingsFile>>()
   const file = (scope: SettingsScope, namespace: string) => {
-    const filepath = settingsPath(join(folders[scope], 'settings'), namespace)
-    const opened = files.get(filepath) ?? createSettingsFile(filepath)
-    files.set(filepath, opened)
+    const key = `${scope}:${settingsKey(namespace)}`
+    const opened = files.get(key) ?? createSettingsFile(storages[scope], settingsKey(namespace))
+    files.set(key, opened)
     return opened
   }
   return {
@@ -33,22 +43,29 @@ export function createSettingsStorage(folders: Record<SettingsScope, string>) {
         project: createSettingsStore<SettingsForNamespace<Namespace>>(async () => file('project', namespace)),
       },
     }),
-    flush: (): void => files.forEach((opened) => opened.flush()),
+    flush: (): Promise<void> => Promise.all([...files.values()].map((opened) => opened.flush())).then(() => undefined),
   }
 }
 
-function settingsPath(folder: string, namespace: string): string {
-  const filepath = join(folder, `${namespace}.json`)
-  const inside = relative(folder, filepath)
-  if (namespace.includes('\0') || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside))
+function settingsKey(namespace: string): string {
+  if (/[/\\:\0]|\.\./.test(namespace))
     throw new Error(`conciv: the settings namespace "${namespace}" leaves the settings folder`)
-  return filepath
+  return `${namespace}.json`
 }
 
-function createSettingsFile(filepath: string) {
-  const current: {snapshot: SettingsSnapshot} = {snapshot: {version: Date.now(), value: readSaved(filepath)}}
+function createSettingsFile(storage: Storage, key: string) {
+  const current: {snapshot: SettingsSnapshot} = {snapshot: {version: Date.now(), value: {}}}
+  const loaded = readSaved(storage, key).then((value) => {
+    current.snapshot = {...current.snapshot, value}
+  })
   const publisher = new EventPublisher<{changed: SettingsSnapshot}>()
-  const writer = new Debouncer(() => writeSaved(filepath, current.snapshot.value), {wait: WRITE_DEBOUNCE_MS})
+  const writes: {pending: Promise<void>} = {pending: Promise.resolve()}
+  const writer = new Debouncer(
+    () => {
+      writes.pending = writeSaved(storage, key, current.snapshot.value)
+    },
+    {wait: WRITE_DEBOUNCE_MS},
+  )
   const commit = (value: Record<string, unknown>): SettingsSnapshot => {
     current.snapshot = {version: current.snapshot.version + 1, value}
     publisher.publish('changed', current.snapshot)
@@ -56,52 +73,53 @@ function createSettingsFile(filepath: string) {
     return current.snapshot
   }
   const state: SettingsState = {
-    read: async () => current.snapshot,
-    set: async (key, value) => {
-      const saved = current.snapshot.value
-      if (Object.hasOwn(saved, key) && Object.is(saved[key], value)) return current.snapshot
-      return commit({...saved, [key]: value})
+    read: async () => {
+      await loaded
+      return current.snapshot
     },
-    delete: async (key) => {
-      if (!Object.hasOwn(current.snapshot.value, key)) return current.snapshot
-      return commit(omit(current.snapshot.value, [key]))
+    set: async (name, value) => {
+      await loaded
+      const saved = current.snapshot.value
+      if (Object.hasOwn(saved, name) && Object.is(saved[name], value)) return current.snapshot
+      return commit({...saved, [name]: value})
+    },
+    delete: async (name) => {
+      await loaded
+      if (!Object.hasOwn(current.snapshot.value, name)) return current.snapshot
+      return commit(omit(current.snapshot.value, [name]))
     },
     subscribe: async (listener) => publisher.subscribe('changed', listener),
   }
   return {
     ...state,
     async *changes(signal: AbortSignal | undefined): AsyncGenerator<SettingsSnapshot, void, void> {
+      await loaded
       const later = publisher.subscribe('changed', {signal})
       yield current.snapshot
       yield* later
     },
-    flush: (): void => writer.flush(),
+    flush: async (): Promise<void> => {
+      writer.flush()
+      await writes.pending
+    },
   }
 }
 
-function readSaved(filepath: string): Record<string, unknown> {
-  if (!existsSync(filepath)) return {}
+async function readSaved(storage: Storage, key: string): Promise<Record<string, unknown>> {
   try {
-    return SavedSettingsSchema.parse(JSON.parse(readFileSync(filepath, 'utf8'), withoutPrototypeKeys))
+    const saved = SavedSettingsSchema.safeParse((await storage.getItem(key)) ?? {})
+    if (saved.success) return saved.data
+    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, saved.error)
   } catch (error) {
-    console.warn(`conciv: the settings file ${filepath} is unreadable, starting empty until the next change`, error)
-    return {}
+    console.warn(`conciv: the settings file ${key} is unreadable, starting empty until the next change`, error)
   }
+  return {}
 }
 
-function withoutPrototypeKeys(key: string, value: unknown): unknown {
-  if (key === '__proto__') return undefined
-  if (key === 'constructor' && typeof value === 'object' && value !== null && 'prototype' in value) return undefined
-  return value
-}
-
-function writeSaved(filepath: string, value: Record<string, unknown>): void {
+async function writeSaved(storage: Storage, key: string, value: Record<string, unknown>): Promise<void> {
   try {
-    mkdirSync(dirname(filepath), {recursive: true})
-    const temporary = `${filepath}.${process.pid}.tmp`
-    writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`)
-    renameSync(temporary, filepath)
+    await storage.setItem(key, `${JSON.stringify(value, null, 2)}\n`)
   } catch (error) {
-    console.error(`conciv: writing the settings file ${filepath} failed`, error)
+    console.error(`conciv: writing the settings file ${key} failed`, error)
   }
 }

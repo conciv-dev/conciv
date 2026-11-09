@@ -89,6 +89,7 @@
     "es-toolkit": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
+    "unstorage": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
