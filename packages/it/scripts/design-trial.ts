@@ -32,6 +32,7 @@ const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 type Options = {
   route: string
   width: number
+  height: number
   image?: string
   figma?: string
   document?: string
@@ -81,6 +82,7 @@ async function main(): Promise<void> {
     options: {
       route: {type: 'string', default: '/'},
       width: {type: 'string', default: '1280'},
+      height: {type: 'string', default: String(TAB_HEIGHT)},
       image: {type: 'string'},
       figma: {type: 'string'},
       document: {type: 'string'},
@@ -106,6 +108,7 @@ async function main(): Promise<void> {
     widget: getDef.inputSchema.shape.widget.parse(values.widget),
     open: OPENED.parse(values.open),
     width: Number(values.width),
+    height: Number(values.height),
     port: Number(values.port),
   }
   return serve({options, commands: positionals})
@@ -241,7 +244,7 @@ async function open(input: {
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   if (input.options.model !== undefined) await rpc.sessions.model({sessionId: session, model: input.options.model})
-  const page = await input.browser.newPage({viewport: {width: input.options.width, height: TAB_HEIGHT}})
+  const page = await input.browser.newPage({viewport: {width: input.options.width, height: input.options.height}})
   const route = await magicLink(new URL(apiBase).origin, () => input.printed.join('\n'), input.options.route)
   await awaitPagePlaneSubscribed(page, async () => {
     await page.goto(new URL(route, new URL(local).origin).href, {waitUntil: 'domcontentloaded'})
