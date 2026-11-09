@@ -97,7 +97,6 @@ Used as `bg-*`, `text-*`, `border-*`.
 | `chat-accent-08` | `var(--chat-accent-08)` |
 | `chat-accent-20` | `var(--chat-accent-20)` |
 | `chat-accent-line` | `var(--chat-accent-line)` |
-| `chat-highlight` | `var(--chat-highlight)` |
 | `chat-panel` | `var(--chat-panel)` |
 | `chat-panel-sunk` | `var(--chat-panel-sunk)` |
 | `chat-glass` | `var(--chat-glass)` |
