@@ -31,6 +31,7 @@ const GrantsSchema = z.object({
   outside: z.array(z.string()).default([]),
   denied: z.array(z.string()).default([]),
   refused: z.array(z.string()).default([]),
+  outsideAllowedGeneration: z.number().nullable().default(null),
 })
 
 type Grants = z.infer<typeof GrantsSchema>
@@ -82,13 +83,19 @@ const PENDING_SUFFIX = ':pending-approvals'
 
 const pendingKey = (threadId: string): string => `${threadId}${PENDING_SUFFIX}`
 
-const grantsKey = (threadId: string): string => `${threadId}:grants`
+const GRANTS_SUFFIX = ':grants'
+
+const grantsKey = (threadId: string): string => `${threadId}${GRANTS_SUFFIX}`
 
 type ApprovalMetadata = ChatStores['metadata'] & {
   keysEndingWith: (namespace: string, suffix: string) => Promise<readonly string[]>
 }
 
-export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAccess): ApprovalStore {
+export function createApprovalStore(
+  metadata: ApprovalMetadata,
+  hubAccess: HubAccess,
+  hubGeneration: () => number | null,
+): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
   const holderOf = (threadId: string, approvalId: string): string =>
     approvalId === OUTSIDE_APPROVAL_ID ? outsideHolder(threadId) : threadId
@@ -105,6 +112,7 @@ export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAc
         outside: [],
         denied: [],
         refused: [],
+        outsideAllowedGeneration: null,
       },
     )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
@@ -129,7 +137,12 @@ export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAc
     await clearCoveredCards()
     const grants = await grantsOf(holder)
     const bucket = approved ? 'session' : 'refused'
-    await writeGrants(holder, {...grants, [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])]})
+    const allowedGeneration = approved ? hubGeneration() : grants.outsideAllowedGeneration
+    await writeGrants(holder, {
+      ...grants,
+      [bucket]: [...new Set([...grants[bucket], OUTSIDE_APPROVAL_ID])],
+      outsideAllowedGeneration: allowedGeneration,
+    })
     return {startsTurn: false}
   }
   const record = async (
@@ -160,6 +173,10 @@ export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAc
   }
   const outsideDenied = async (threadId: string): Promise<boolean> =>
     (await grantsOf(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
+  const outsideRevoked = (allowedGeneration: number | null): boolean => {
+    const current = hubGeneration()
+    return current === null || allowedGeneration !== current
+  }
   return {
     asked: async (threadId, ask) => {
       const pending = await pendingOf(threadId)
@@ -196,7 +213,8 @@ export function createApprovalStore(metadata: ApprovalMetadata, hubAccess: HubAc
     admit: async (threadId, approvalId) => {
       const holder = holderOf(threadId, approvalId)
       const grants = await grantsOf(holder)
-      if (grants.session.includes(approvalId)) return 'allowed'
+      const revoked = approvalId === OUTSIDE_APPROVAL_ID && outsideRevoked(grants.outsideAllowedGeneration)
+      if (grants.session.includes(approvalId) && !revoked) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'
       if (!grants.outside.includes(approvalId)) return 'ask'
       await writeGrants(holder, {...grants, outside: grants.outside.filter((id) => id !== approvalId)})

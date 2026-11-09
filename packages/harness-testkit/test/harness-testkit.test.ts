@@ -305,29 +305,52 @@ describe('create fake harness', () => {
       const rows = [
         {
           id: HarnessSessionId.parse('external-1'),
+          cwd: '/project',
           derivedTitle: 'An external session',
           updatedAt: 1_700,
           sizeBytes: 7,
         },
-        {id: HarnessSessionId.parse('external-2'), derivedTitle: 'Another one', updatedAt: 1_800},
+        {id: HarnessSessionId.parse('external-2'), cwd: '/project', derivedTitle: 'Another one', updatedAt: 1_800},
       ]
       const harness = createFakeHarness({history: rows})
 
       expect(harness.capabilities.transcriptHistory).toBe(true)
-      expect(await harness.history?.list('/project', {after: null, limit: 1})).toEqual({
+      expect(await harness.history?.list({cwd: '/project'}, {after: null, limit: 1})).toEqual({
         sessions: [rows[1]],
         next: {updatedAt: 1_800, id: 'external-2'},
       })
       expect(
-        await harness.history?.list('/project', {
-          after: {updatedAt: 1_800, id: HarnessSessionId.parse('external-2')},
-          limit: 1,
-        }),
+        await harness.history?.list(
+          {cwd: '/project'},
+          {
+            after: {updatedAt: 1_800, id: HarnessSessionId.parse('external-2')},
+            limit: 1,
+          },
+        ),
       ).toEqual({
         sessions: [rows[0]],
         next: null,
       })
       expect(await harness.history?.messages('/project', HarnessSessionId.parse('external-1'))).toEqual([])
+    })
+  })
+
+  describe('createFakeHarness resume', () => {
+    it('resumes a history session as its own id with --resume, and has no resume without history', () => {
+      const harness = createFakeHarness({id: 'fake-codex', history: []})
+      expect(harness.resume?.command({cwd: '/elsewhere', nativeId: HarnessSessionId.parse('away-1')})).toEqual({
+        bin: 'fake-codex',
+        args: ['--resume', 'away-1'],
+      })
+      expect(createFakeHarness().resume).toBeUndefined()
+    })
+
+    it('resumes with the bin a fixture names', () => {
+      const harness = createFakeHarness({id: 'fake-claude', history: [], resumeBin: 'claude'})
+      expect(harness.resume?.command({cwd: '/elsewhere', nativeId: HarnessSessionId.parse('away-1')})).toEqual({
+        bin: 'claude',
+        args: ['--resume', 'away-1'],
+      })
     })
   })
 

@@ -72,7 +72,12 @@ type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
-  hub?: {add: (command: string[], env: Readonly<Record<string, string>>) => string[]; remove?: string[]}
+  hub?: {
+    name: string
+    shellEnv: string
+    add: (command: string[], env: Readonly<Record<string, string>>) => string[]
+    remove?: string[]
+  }
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
@@ -102,6 +107,7 @@ export type HarnessChatDeps = {
 
 export type HarnessSessionMeta = {
   id: HarnessSessionId
+  cwd: string
   derivedTitle: string
   updatedAt: number
   sizeBytes?: number
@@ -111,11 +117,17 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
+export type HarnessResumeInput = {cwd: string; nativeId: HarnessSessionId}
+
+export type HarnessResume = {command(input: HarnessResumeInput): {bin: string; args: string[]}}
+
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
 export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
 
 export type HarnessListPage = {after: HarnessListCursor | null; limit: number}
+
+export type HarnessListScope = {cwd: string} | {everywhere: true}
 
 export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessListCursor | null}
 
@@ -159,7 +171,7 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 
   contextTokens?(raw: string): number | undefined
 
-  list(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage>
+  list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
 
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 

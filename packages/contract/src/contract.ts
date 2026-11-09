@@ -6,8 +6,10 @@ import {
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
+  HubAgentsSchema,
   ChatToolsSchema,
   HarnessListCursorSchema,
+  HarnessSessionId,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
@@ -27,7 +29,7 @@ import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-ty
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
-import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
+import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
@@ -37,8 +39,24 @@ const SessionListInput = z.object({
   cursor: HarnessListCursorSchema.nullish(),
   limit: z.number().int().min(1).max(100).default(30),
 })
-const SessionSearchInput = SessionListInput.extend({term: z.string().trim().min(1).max(200)})
+const SessionSearchInput = SessionListInput.extend({
+  term: z.string().trim().min(1).max(200),
+  everywhere: z.boolean().default(false).catch(false),
+})
 const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
+const SessionSearchPageSchema = z.object({
+  sessions: z.array(SessionHitSchema),
+  next: HarnessListCursorSchema.nullable(),
+})
+
+const SessionPreviewInput = z.object({
+  harness: z.string().min(1),
+  nativeId: HarnessSessionId,
+  cwd: z.string().min(1).optional(),
+  before: z.string().min(1).nullable(),
+  limit: z.number().int().min(1).max(100),
+})
+const SessionPreviewSchema = z.object({messages: ChatHistorySchema, earlier: z.string().min(1).nullable()})
 
 const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
 
@@ -81,6 +99,10 @@ const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean(
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
+const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
+const HubOutcome = z
+  .object({ok: z.literal(true), note: z.string().optional()})
+  .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
@@ -163,12 +185,13 @@ export const contract = {
     list: oc
       .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
       .output(SessionPageSchema),
-    search: oc.input(SessionSearchInput).output(SessionPageSchema),
+    search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
     changes: oc.output(eventIterator(SessionsChangeSchema)),
     get: oc
       .errors({...notFound, ...approvalDenied})
       .input(SessionIdInput)
       .output(SessionMetaSchema),
+    preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
@@ -296,8 +319,8 @@ export const contract = {
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
-    connectHub: oc
-      .input(z.object({harness: z.enum(INIT_HARNESS_IDS)}))
-      .output(z.object({ok: z.literal(true)}).or(z.object({ok: z.literal(false), message: z.string()}))),
+    hubAgents: oc.output(HubAgentsSchema),
+    connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+    disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
   },
 }

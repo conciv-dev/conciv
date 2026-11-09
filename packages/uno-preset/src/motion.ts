@@ -27,6 +27,7 @@ export const motion = {
   'anim-collapse-closed':
     'animate-chat-collapse-close animate-duration-[200ms] animate-ease-chat animate-fill-mode-forwards motion-reduce:animate-duration-[0.01ms]',
 
+  'anim-mark': 'animate-chat-mark-in animate-duration-chat-normal animate-ease-chat motion-reduce:animate-none',
   'anim-pop': 'animate-chat-fade-in-up animate-duration-[200ms] animate-ease-chat-expo motion-reduce:animate-none',
   'anim-presence-in':
     'animate-chat-presence-in animate-duration-[180ms] animate-ease-chat-expo motion-reduce:animate-none',

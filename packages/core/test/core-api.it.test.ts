@@ -11,6 +11,7 @@ import {
   utimesSync,
   symlinkSync,
   renameSync,
+  chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
 import {open, writeFile} from 'node:fs/promises'
@@ -35,12 +36,16 @@ import {
 } from '@conciv/extension'
 import {openSource} from '@conciv/extension/client'
 import {getHarness} from '@conciv/harness'
+import {createHubConnections} from '@conciv/harness-init/hub'
 import {
   anchorKey,
   chatMetadata,
   chatRuns,
+  concivHome,
   listEngines,
+  recordHubConnection,
   registerEngine,
+  removeHubConnection,
   sessions,
   TRANSCRIPT_NAMESPACE,
   withHomeDb,
@@ -59,6 +64,7 @@ import {
   connectMcpClient,
   makeCallTool,
   approvePending,
+  type FixtureSession,
   type TestHarness,
   type RunEvents,
   type RunStream,
@@ -86,12 +92,7 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {
-  type HarnessChatDeps,
-  type HarnessListCursor,
-  type HarnessModel,
-  type HarnessSessionMeta,
-} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -479,8 +480,13 @@ describe('connect hub', () => {
   const engineHome = join(root, 'engine-home')
   const kit = sharedKit(() => bootKit({home: engineHome}, createFakeHarness({id: 'fake-hub'})))
   const saved = {PATH: process.env.PATH, HOME: process.env.HOME, CONCIV_HOME: process.env.CONCIV_HOME}
-  const file = {argv: join(root, 'argv'), exists: join(root, 'exists'), fail: join(root, 'fail')}
-  const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp']
+  const file = {
+    argv: join(root, 'argv'),
+    exists: join(root, 'exists'),
+    fail: join(root, 'fail'),
+    missing: join(root, 'missing'),
+  }
+  const hubCommand = ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp', 'serve', '--agent', 'claude']
 
   beforeEach(() => {
     mkdirSync(join(root, 'bin'), {recursive: true})
@@ -489,6 +495,7 @@ describe('connect hub', () => {
       '#!/bin/sh',
       `printf '%s\\n' "$*" >> '${file.argv}'`,
       `if [ -f '${file.fail}' ]; then echo boom >&2; exit 2; fi`,
+      `if [ "$2" = remove ] && [ -f '${file.missing}' ]; then echo 'No MCP server found with name: conciv-hub' >&2; exit 1; fi`,
       `if [ "$2" = remove ]; then /bin/rm -f '${file.exists}'; exit 0; fi`,
       `if [ -f '${file.exists}' ]; then echo 'MCP server conciv-hub already exists in user config' >&2; exit 1; fi`,
     ]
@@ -502,7 +509,11 @@ describe('connect hub', () => {
     rmSync(root, {recursive: true, force: true})
   })
 
-  const hubInstalls = async () => (await kit().rpc.meta.models({sessionId: await kit().session()})).hubInstalls
+  const hubInstalls = async () => (await kit().rpc.meta.hubAgents()).installs
+
+  const hubConnections = async () => (await kit().rpc.meta.hubAgents()).connections
+
+  const claudeConnection = {harnessId: 'claude', name: 'Claude'}
 
   const invocations = () => readFileSync(file.argv, 'utf8').trim().split('\n')
 
@@ -537,6 +548,62 @@ describe('connect hub', () => {
     writeFileSync(file.fail, '')
     expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: false, message: 'boom'})
     expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
+  })
+
+  it('disconnectHub runs the harness remove command and the harness moves back from connected to the list', async () => {
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await hubConnections()).toEqual([claudeConnection])
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(invocations()).toEqual([addLine, 'mcp remove -s user conciv-hub'])
+    expect(await hubConnections()).toEqual([])
+    expect(await hubInstalls()).toEqual([{harnessId: 'claude', name: 'Claude'}])
+  })
+
+  it('disconnectHub forgets the connection before the CLI runs: a failing remove still disconnects with a note, a missing server counts as removed, opencode names its leftover entry', async () => {
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    writeFileSync(file.fail, '')
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({
+      ok: true,
+      note: 'Claude could not remove its conciv-hub entry (boom); conciv refuses it until you reconnect.',
+    })
+    expect(await hubConnections()).toEqual([])
+    rmSync(file.fail)
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    writeFileSync(file.missing, '')
+    expect(await kit().rpc.meta.disconnectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await hubConnections()).toEqual([])
+    expect(await kit().rpc.meta.disconnectHub({harness: 'opencode'})).toEqual({
+      ok: true,
+      note: 'OpenCode keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.',
+    })
+  })
+
+  it('an outside agent can neither connect nor disconnect agents, and the harness CLI never runs', async () => {
+    const outside = makeRpcClient(kit().base, {
+      headers: {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'terminal'},
+    })
+    const refusal = "outside agents can't connect or disconnect agents; do it in the tab"
+    expect(await outside.meta.connectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
+    expect(await outside.meta.disconnectHub({harness: 'claude'}).then(String, String)).toContain(refusal)
+    expect(existsSync(file.argv)).toBe(false)
+  })
+
+  it('a hub call from a harness with no connection is refused at both doors with the reconnect text, and passes once connected', async () => {
+    const as = (client: string) => ({[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: client})
+    const refusal =
+      'Claude is disconnected from conciv; reconnect it from the conciv widget or run `conciv mcp connect claude`'
+    const rpcAs = (client: string) =>
+      makeRpcClient(kit().base, {headers: as(client)})
+        .meta.harnesses()
+        .then(String, String)
+    const mcpAs = (client: string) => executeOverMcp(kit().base, as(client), 'return 21 * 2').then(String, String)
+    expect(await rpcAs('claude')).toContain(refusal)
+    expect(await mcpAs('claude')).toContain(refusal)
+    expect(await rpcAs('terminal')).not.toContain('disconnected')
+    expect(await mcpAs('terminal')).toContain('42')
+    expect(await kit().rpc.meta.connectHub({harness: 'claude'})).toEqual({ok: true})
+    expect(await rpcAs('claude')).not.toContain('disconnected')
+    expect(await mcpAs('claude')).toContain('42')
   })
 })
 
@@ -646,7 +713,7 @@ describe('api harness switching', () => {
   const alpha = recorded(
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
-  const betaTranscripts: HarnessSessionMeta[] = [
+  const betaTranscripts: FixtureSession[] = [
     {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
@@ -851,6 +918,7 @@ describe('api harness switching', () => {
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
       updatedAt: Date.now() + 3_600_000,
+      text: 'a skua stole the catch',
     })
     const listings = async (includeHidden: boolean) => {
       const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
@@ -868,7 +936,23 @@ describe('api harness switching', () => {
         (await kit().rpc.sessions.search({term: 'owned transcript'})).sessions.some((meta) => meta.id === sessionId),
       {hangGuardMs: 5_000, intervalMs: 50},
     )
+    const skuaHit = async () => {
+      const {sessions: hits} = await kit().rpc.sessions.search({term: 'skua'})
+      return hits.find((meta) => meta.id === sessionId)
+    }
+    await until(async () => (await skuaHit()) !== undefined, {hangGuardMs: 5_000, intervalMs: 50})
+    const previewOfHit = async () => {
+      const preview = (await skuaHit())?.preview
+      if (!preview) throw new Error('the skua hit carries no transcript to preview')
+      const ask = {harness: preview.harnessKind, nativeId: preview.nativeId, cwd: preview.cwd, before: null}
+      const window = await kit().rpc.sessions.preview({...ask, limit: 10})
+      return window.messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+      )
+    }
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     const returned = await turn(sessionId, 'back on beta')
     expect(returned).toMatchObject({harness: 'beta', resumeSessionId: null})
@@ -1916,6 +2000,7 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {turn} = await heldTurn(sessionId, 'hold for an outside call')
         const hub = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+        withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
         const call = executeOverMcp(chatKit().base, hub, 'return 1')
         await vi.waitFor(async () => expect(await approvePending(chatKit().base, sessionId)).toHaveLength(1), {
           timeout: 3000,
@@ -2356,8 +2441,7 @@ describe('rpc wire', () => {
           renameSync(written, path)
         }
 
-        function writeCodexTurn(nativeId: string, ask: string, answer: string): string {
-          const cwd = searched.cwd
+        function writeCodexTurn(nativeId: string, ask: string, answer: string, cwd = searched.cwd): string {
           const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
           writeWhole(
             rollout,
@@ -2394,8 +2478,8 @@ describe('rpc wire', () => {
           return rollout
         }
 
-        async function found(search: string): Promise<string[]> {
-          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+        async function found(search: string, everywhere = false): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100, everywhere})
           return listed.map((meta) => meta.native?.nativeId ?? meta.title)
         }
 
@@ -2413,10 +2497,10 @@ describe('rpc wire', () => {
           await searched.changes.next()
         }
 
-        async function foundOnceIndexed(search: string, expected: string[]): Promise<void> {
-          if (isEqual(await found(search), expected)) return
+        async function foundOnceIndexed(search: string, expected: string[], everywhere = false): Promise<void> {
+          if (isEqual(await found(search, everywhere), expected)) return
           await indexedChange()
-          return foundOnceIndexed(search, expected)
+          return foundOnceIndexed(search, expected, everywhere)
         }
 
         async function stampedOnceIndexed(search: string, expected: {nativeId: string; updatedAt: number}[]) {
@@ -2605,6 +2689,191 @@ describe('rpc wire', () => {
             return page.next === null ? ids : [...ids, ...(await paged(page.next))]
           }
           expect(await paged(null)).toEqual(tied)
+        })
+
+        it('carries an excerpt from the matching line and the words that matched it, by prefix or one typo', async () => {
+          const curlew = claudeId('claude-curlew')
+          writeClaudeTurn(curlew, 'a shore walk', 'first we packed\nthe Curlews jetted past the jetty')
+          expect(await listedNativeIds()).toContain(curlew)
+          await foundOnceIndexed('curl', [curlew])
+          const hitOf = async (term: string) => {
+            const {sessions: listed} = await searchKit().rpc.sessions.search({term, limit: 100})
+            return listed.map(({excerpt, matched}) => ({excerpt, matched}))
+          }
+
+          expect(await hitOf('curl')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['Curlews']}])
+          expect(await hitOf('jetti')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['jetty']}])
+          expect(await hitOf('packd')).toEqual([
+            {excerpt: 'first we packed\nthe Curlews jetted past the jetty', matched: ['packed']},
+          ])
+
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const owned = listed.find((meta) => meta.native?.nativeId === curlew)
+          if (owned === undefined) throw new Error('the curlew session was not listed')
+          await searchKit().rpc.sessions.rename({sessionId: owned.id, title: 'the godwit count'})
+          expect(await hitOf('godwit')).toEqual([{excerpt: null, matched: ['godwit']}])
+
+          const tabbed = claudeId('claude-tabbed')
+          writeClaudeTurn(tabbed, 'a tabbed tally', `${'alpha\t'.repeat(100)}phalarope`)
+          await foundOnceIndexed('phalarope', [tabbed])
+          const [phalarope] = await hitOf('phalarope')
+          expect(phalarope?.matched).toEqual(['phalarope'])
+          expect(phalarope?.excerpt).toMatch(/^….*phalarope$/s)
+        })
+
+        it('previews a native transcript newest window first, pages back by message, and refuses an unknown one', async () => {
+          const sanderling = claudeId('claude-sanderling')
+          writeClaudeLines(
+            sanderling,
+            [0, 1, 2]
+              .flatMap((turn) => [
+                JSON.stringify({type: 'user', message: {content: `sanderling question ${turn}`}}),
+                JSON.stringify({
+                  type: 'assistant',
+                  message: {content: [{type: 'text', text: `sanderling answer ${turn}`}]},
+                }),
+              ])
+              .join('\n') + '\n',
+            nextStamp(),
+          )
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const native = listed.find((meta) => meta.native?.nativeId === sanderling)?.native
+          if (!native) throw new Error('the sanderling session was not listed')
+          const textsIn = (window: {messages: ChatMessage[]}) =>
+            window.messages.map((message) =>
+              message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+            )
+          const ask = {harness: native.harnessKind, nativeId: native.nativeId, limit: 4}
+
+          const newest = await searchKit().rpc.sessions.preview({...ask, before: null})
+          expect(textsIn(newest)).toEqual([
+            ['sanderling question 1'],
+            ['sanderling answer 1'],
+            ['sanderling question 2'],
+            ['sanderling answer 2'],
+          ])
+          const earlier = await searchKit().rpc.sessions.preview({...ask, before: newest.earlier})
+          expect(textsIn(earlier)).toEqual([['sanderling question 0'], ['sanderling answer 0']])
+          expect(earlier.earlier).toBeNull()
+          const never = HarnessSessionId.parse(claudeId('claude-never'))
+          await expect(searchKit().rpc.sessions.preview({...ask, nativeId: never, before: null})).rejects.toMatchObject(
+            {
+              code: 'NOT_FOUND',
+            },
+          )
+          expect((await searchKit().rpc.sessions.list({limit: 100})).sessions).toHaveLength(listed.length)
+        })
+
+        it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
+          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const transcriptIn = (nativeId: string, ask: string, answer: string) => {
+            const id = HarnessSessionId.parse(nativeId)
+            const entries = [
+              {type: 'session', version: 3, id, timestamp: '2026-11-07T09:00:00.000Z'},
+              {
+                type: 'message',
+                id: 'u1',
+                parentId: null,
+                message: {role: 'user', content: [{type: 'text', text: ask}]},
+              },
+              {
+                type: 'message',
+                id: 'a1',
+                parentId: 'u1',
+                message: {role: 'assistant', content: [{type: 'text', text: answer}]},
+              },
+            ]
+            writeWhole(
+              requireTranscriptPath(piHarness)(folder, id),
+              entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''),
+              nextStamp(),
+            )
+          }
+          transcriptIn('pi-plover-previewed', 'a plover on the shingle', 'it ran the tideline')
+          transcriptIn('pi-plover-neighbour', 'a ringed plover nest', 'four speckled eggs')
+          await searchKit().rpc.sessions.list({limit: 100})
+          expect(await found('ringed', true)).toEqual([])
+
+          const window = await searchKit().rpc.sessions.preview({
+            harness: 'pi',
+            nativeId: HarnessSessionId.parse('pi-plover-previewed'),
+            cwd: folder,
+            before: null,
+            limit: 10,
+          })
+          expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
+
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const turnstone = claudeId('claude-turnstone-away')
+          writeWhole(
+            requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
+            JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'a turnstone away'}}) + '\n',
+            nextStamp(),
+          )
+          await foundOnceIndexed('turnstone', [turnstone], true)
+          expect(await found('ringed', true)).toEqual(['pi-plover-neighbour'])
+          rmSync(folder, {recursive: true, force: true})
+          rmSync(elsewhere, {recursive: true, force: true})
+        })
+
+        it('searches this project unless asked for every project, reading each session from its own folder', async () => {
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const home = claudeId('claude-avocet-home')
+          const away = claudeId('claude-avocet-away')
+          writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
+          const awayPath = requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(away))
+          mkdirSync(dirname(awayPath), {recursive: true})
+          writeFileSync(
+            awayPath,
+            [
+              JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'an avocet away'}}),
+              JSON.stringify({type: 'assistant', cwd: elsewhere, message: {content: [{type: 'text', text: 'stilts'}]}}),
+            ].join('\n') + '\n',
+          )
+          const stamp = nextStamp() / 1000
+          utimesSync(awayPath, stamp, stamp)
+          expect(await listedNativeIds()).toContain(home)
+
+          await foundOnceIndexed('avocet', [home])
+          expect(await found('stilts')).toEqual([])
+          await foundOnceIndexed('avocet', [away, home], true)
+          await foundOnceIndexed('stilts', [away], true)
+          expect(await found('avocet')).toEqual([home])
+
+          const {sessions: hits} = await searchKit().rpc.sessions.search({term: 'avocet', everywhere: true})
+          expect(hits.map(({native, cwd}) => ({nativeId: native?.nativeId, cwd}))).toEqual([
+            {nativeId: away, cwd: elsewhere},
+            {nativeId: home, cwd: null},
+          ])
+          expect(hits[0]?.resume).toBe(`cd '${elsewhere}' && 'claude' '--resume' '${away}'`)
+          expect(hits[1]?.resume).toBeNull()
+          writeCodexTurn('codex-avocet-away', 'a codex avocet away', 'it fed', elsewhere)
+          const piAway = HarnessSessionId.parse('pi-avocet-away')
+          writeWhole(
+            requireTranscriptPath(piHarness)(elsewhere, piAway),
+            [
+              {type: 'session', version: 3, id: piAway, timestamp: '2026-11-07T09:00:00.000Z', cwd: elsewhere},
+              {type: 'message', id: 'u1', parentId: null, message: {role: 'user', content: 'a pi avocet away'}},
+            ]
+              .map((entry) => `${JSON.stringify(entry)}\n`)
+              .join(''),
+            nextStamp(),
+          )
+          await foundOnceIndexed('avocet', [piAway, 'codex-avocet-away', away, home], true)
+          const {sessions: kinds} = await searchKit().rpc.sessions.search({term: 'avocet', everywhere: true})
+          expect(kinds.map(({harnessKind, resume}) => ({harnessKind, resume}))).toEqual([
+            {harnessKind: 'pi', resume: `cd '${elsewhere}' && 'pi' '--session' '${piAway}'`},
+            {harnessKind: 'codex', resume: `cd '${elsewhere}' && 'codex' 'resume' 'codex-avocet-away'`},
+            {harnessKind: 'claude', resume: `cd '${elsewhere}' && 'claude' '--resume' '${away}'`},
+            {harnessKind: 'claude', resume: null},
+          ])
+          expect(await listedNativeIds()).not.toContain(away)
+          const awayAsk = {harness: 'claude', nativeId: HarnessSessionId.parse(away), before: null, limit: 10}
+          const awayWindow = await searchKit().rpc.sessions.preview({...awayAsk, cwd: elsewhere})
+          expect(awayWindow.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await expect(searchKit().rpc.sessions.preview(awayAsk)).rejects.toMatchObject({code: 'NOT_FOUND'})
+          rmSync(elsewhere, {recursive: true, force: true})
         })
 
         it('tolerates typos only when every word has at least four characters', async () => {
@@ -3694,7 +3963,13 @@ describe('outside agent consent', () => {
     await Promise.allSettled(engines.map((engine) => engine.stop()))
   })
 
+  function connectedHome(home = tempDir('conciv-home-')): string {
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    return home
+  }
+
   async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+    connectedHome(home)
     const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
     engines.push(engine)
     return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
@@ -3878,7 +4153,7 @@ describe('outside agent consent', () => {
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
-      homeDir: tempDir('conciv-home-'),
+      homeDir: connectedHome(),
       extensions: [probe],
     })
     engines.push(engine)
@@ -3892,6 +4167,109 @@ describe('outside agent consent', () => {
     expect(touched).toEqual([])
     expect(await extOf({}).touch({sessionId})).toEqual({touched: true})
     expect(touched).toEqual([sessionId])
+  })
+
+  it('a terminal caller needs no connection and still gets the Allow card', async () => {
+    const base = await boot()
+    const sessionId = await newSession(base)
+    const terminal = {
+      [CONCIV_SESSION_HEADER]: sessionId,
+      [CONCIV_ORIGIN_HEADER]: 'hub',
+      [CONCIV_CLIENT_HEADER]: 'terminal',
+    }
+    const asked = executeOverMcp(base, terminal, 'return 1').then(String, String)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const [ask] = await pendingOf(base, sessionId)
+    expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab', input: {client: 'terminal'}})
+    await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+    expect(await asked).toContain('denied')
+  })
+
+  it('disconnecting an agent refuses it at once and clears the outside Allow, so after reconnecting the tab asks again', async () => {
+    const bin = tempDir('conciv-fake-codex-')
+    writeFileSync(join(bin, 'codex'), '#!/bin/sh\nexit 0\n', {mode: 0o755})
+    const savedPath = process.env.PATH
+    process.env.PATH = bin
+    try {
+      const base = await boot()
+      const sessionId = await newSession(base)
+      const allowed = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, true)
+      expect(await allowed).toMatch(RAN)
+      expect(await hubCall(base, sessionId)).toMatch(RAN)
+      expect(await makeRpcClient(base).meta.disconnectHub({harness: 'codex'})).toEqual({ok: true})
+      expect(await hubCall(base, sessionId)).toContain('Codex is disconnected from conciv')
+      expect(await makeRpcClient(base).meta.connectHub({harness: 'codex'})).toEqual({ok: true})
+      const asked = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, false)
+      expect(await asked).toContain(DENIED)
+    } finally {
+      process.env.PATH = savedPath
+    }
+  })
+
+  it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
+    const home = connectedHome()
+    const base = await boot(undefined, home)
+    const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
+    const sessionId = await newSession(base)
+    const overMcp = hubCall(base, sessionId)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    forget()
+    await decideOutside(base, sessionId, true)
+    expect(await overMcp).toContain('Codex is disconnected from conciv')
+    connectedHome(home)
+    const tab = await openTab(base)
+    const overRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: tab, ...HUB}})
+      .registry.call({name: 'page_route', input: {}})
+      .then(String, String)
+    await vi.waitFor(async () => expect(await pendingOf(base, tab)).toHaveLength(1), {timeout: 3000})
+    forget()
+    await decideOutside(base, tab, true)
+    expect(await overRpc).toContain('Codex is disconnected from conciv')
+  })
+
+  it.skipIf(process.getuid?.() === 0)(
+    'an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect',
+    async () => {
+      const home = connectedHome()
+      const base = await boot(undefined, home)
+      const sessionId = await newSession(base)
+      const waiting = hubCall(base, sessionId)
+      await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+      chmodSync(join(home, 'home.db'), 0o000)
+      try {
+        await decideOutside(base, sessionId, true)
+        expect(await waiting).toContain('waiting for the user to allow it in the conciv tab')
+      } finally {
+        chmodSync(join(home, 'home.db'), 0o600)
+      }
+      withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
+      connectedHome(home)
+      const asked = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, false)
+      expect(await asked).toContain(DENIED)
+    },
+  )
+
+  it('a disconnect from anything sharing the home, the terminal included, voids the outside Allow every engine holds', async () => {
+    const savedPath = process.env.PATH
+    process.env.PATH = tempDir('conciv-no-agents-')
+    try {
+      const home = connectedHome()
+      const base = await boot(undefined, home)
+      const sessionId = await newSession(base)
+      const allowed = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, true)
+      expect(await allowed).toMatch(RAN)
+      expect(await createHubConnections(home).disconnect('codex')).toMatchObject({ok: true})
+      connectedHome(home)
+      const asked = hubCall(base, sessionId)
+      await decideOutside(base, sessionId, false)
+      expect(await asked).toContain(DENIED)
+    } finally {
+      process.env.PATH = savedPath
+    }
   })
 
   it('an allowed outside agent still cannot answer permission requests: its decision and allow are refused and the card stays', async () => {

@@ -38,6 +38,8 @@ export const claudeInit: HarnessInit<'claude'> = {
   harnessId: 'claude',
   detection: {bin: 'claude', configDir: ['.claude']},
   hub: {
+    name: 'Claude',
+    shellEnv: 'CLAUDECODE',
     add: (command, env) => [
       'claude',
       'mcp',
