@@ -500,3 +500,25 @@ every other width are inferred from that frame's layout tags. Omri: use the vari
   variant.
 - Assets are exported once per Figma node id; a picture shared by three frames is three node ids and three files.
 - The head names all the links. Six runs an arm against six controls on the agency Process page, sonnet.
+
+### A frame with children keeps its image fill; a page may name an element `process` (2026-11-09)
+
+Wave 18 (agency page, three frames) is the first where the tools lose to control on the judge and the pixel share
+while winning on rows: every tool run paints the hero and the call-to-action as flat olive bands, control keeps the
+dark photo behind them. The cause is in the design reader: a frame with children and an image fill becomes a plain
+box, its image fills dropped, and `design_nodes` keeps only the solid overlay fill. The gate then calls flat bands done.
+Two runs also could not be measured at all: the page set `id="process"` on a section, `window.process` became that
+element, and a widget dependency that reads `process.env` threw, so the widget was gone from round 4 on.
+
+- A node with an image fill keeps it whether or not it has children. For a leaf the node is an image as today. For a
+  frame with children the node stays a box, `image` is true, and `asset` is the fill's own picture exported by its
+  `imageRef` through the file images endpoint, not a crop of the frame (a crop would carry the children). The row
+  reads `wrong image at [id]: /design/<id>.png expected as the background` when the element's `background-image`
+  does not reference the asset; its pixels are not compared, the children would drown them. The solid fill with a
+  blend mode over the picture is a fill row as today.
+- The widget never reads a global named `process`. Its build defines `process.env` away, so a page that names an
+  element `process` cannot break it; the same build rule applies on main.
+- A one-element list to `design_get` is one frame, exactly as a single link: no group, no `lead`, today's reply.
+- Image rows for a frame whose width is not the tab's are taken from the mirror at that frame's width, as layout rows
+  are; the live tab answers only its own width.
+- The width floor that drops reflow widths under the smallest `minChildWidth` never drops a frame's own width.
