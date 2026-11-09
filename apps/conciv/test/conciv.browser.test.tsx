@@ -3901,6 +3901,12 @@ describe('session selector', () => {
         updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS,
         text: 'a puffin colony nests on the cliff',
       },
+      ...['first', 'second'].map((ordinal, index) => ({
+        id: HarnessSessionId.parse(`puffin-diary-${ordinal}`),
+        derivedTitle: `the ${ordinal} puffin diary`,
+        updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS - (index + 1) * MINUTE_MS,
+        text: `the ${ordinal} puffin count started at dawn on the northern stack, where the burrows run along the grass above the cliff edge and every pair returns to the same hole each spring, so the tally walks the slope in rows, marks each occupied burrow with a flag, and repeats the walk at dusk to catch the birds that were out fishing in the morning`,
+      })),
     ],
   })
   const keep = keptPane()
@@ -4006,6 +4012,29 @@ describe('session selector', () => {
     await expect.element(option('a seabird survey').getByRole('mark')).toHaveTextContent('puffin')
     await expect.element(option('the puffin notes').getByRole('mark')).toHaveTextContent('puffin')
     await expect.element(option('the puffin notes')).not.toHaveAccessibleDescription()
+    await expect.element(option('the second puffin diary')).toBeVisible()
+    const boxOf = (locator: Locator) => coreControl.boxOf(locator.selector)
+    const shortExcerpt = await boxOf(page.getByText('a puffin colony nests on the cliff'))
+    const belowShortExcerpt = await boxOf(option('the first puffin diary'))
+    expect(belowShortExcerpt.y - (shortExcerpt.y + shortExcerpt.height)).toBeLessThan(28)
+    const results = ['the puffin notes', 'a seabird survey', 'the first puffin diary', 'the second puffin diary']
+    const boxes = await Promise.all(results.map((title) => boxOf(option(title))))
+    for (const [index, box] of boxes.slice(1).entries()) {
+      const above = boxes[index]
+      if (!above) throw new Error('every result row has a row above it')
+      expect(box.y).toBeGreaterThanOrEqual(above.y + above.height - 0.5)
+    }
+    for (const title of results) {
+      await userEvent.keyboard('{ArrowDown}')
+      await expect.element(option(title)).toHaveAttribute('data-highlighted')
+      await expect.element(option(title)).toBeInViewport({ratio: 1})
+    }
+    for (const title of results.toReversed().slice(1)) {
+      await userEvent.keyboard('{ArrowUp}')
+      await expect.element(option(title)).toHaveAttribute('data-highlighted')
+      await expect.element(option(title)).toBeInViewport({ratio: 1})
+    }
+    await expect.element(search).toHaveFocus()
 
     await userEvent.keyboard('{Backspace}')
     await expect.element(search).toHaveValue('puffi')

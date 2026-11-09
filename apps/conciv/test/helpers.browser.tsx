@@ -49,6 +49,7 @@ import type {WebStorage} from '@conciv/storage-history'
 declare module 'vitest/internal/browser' {
   interface BrowserCommands {
     bootCore: (input: BootCoreInput) => Promise<BootCoreResult>
+    boxOf: (selector: string) => Promise<{x: number; y: number; width: number; height: number}>
     dragButton: (drag: PointerDrag) => Promise<void>
     hoverButton: (hover: PointerHover) => Promise<void>
     closeCore: () => Promise<void>
