@@ -3959,6 +3959,11 @@ describe('session selector', () => {
         updatedAt: noon - (OLDER_SESSIONS + 14) * DAY_MS,
       },
       {
+        id: HarnessSessionId.parse('gulch-walk'),
+        derivedTitle: 'a walk down the gulch',
+        updatedAt: noon - (OLDER_SESSIONS + 15) * DAY_MS,
+      },
+      {
         id: EXTERNAL_ID,
         derivedTitle: 'a session mid-run',
         updatedAt: noon,
@@ -4191,10 +4196,9 @@ describe('session selector', () => {
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(labelled).toHaveFocus()
     await expect.element(option('older session 0')).toBeVisible()
-    await userEvent.keyboard('g')
-    expect(mounted.router.state.location.search).not.toHaveProperty('sessionSearch')
-    await typeKeyByKey(labelled, 'ull', 'g')
+    await typeKeyByKey(labelled, 'gull', '')
     await expect.element(option('a gull at home')).toBeVisible()
+    await expect.element(option('a walk down the gulch')).not.toBeInTheDocument()
     expect(mounted.router.state.location.search.sessionSearch).toBe('gull')
     await expect.element(option('the gull census')).not.toBeInTheDocument()
 
