@@ -496,7 +496,8 @@ function startFrameGapSampler(): FrameGapSampler {
   const gaps: number[] = []
   let previous = performance.now()
   let handle = 0
-  const tick = (now: number): void => {
+  const tick = (): void => {
+    const now = performance.now()
     gaps.push(now - previous)
     previous = now
     handle = requestAnimationFrame(tick)

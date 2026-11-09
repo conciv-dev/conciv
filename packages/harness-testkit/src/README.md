@@ -27,7 +27,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 ## Invariants
 
 - `until.ts:until` - throws `until: stall` after `hangGuardMs` (default 5000) and throws when `failWhen` returns true first.
-- `run-stream.ts:makeRunStream` - `waitFor`, `waitForToolCall` and `done` reject after 90000 ms by default, or when the run ends without a match.
+- `run-stream.ts:makeRunStream` - `waitFor` and `waitForToolCall` reject after 90000 ms by default, or when the run ends without a match; `done` has no timer and resolves on the terminal `RUN_FINISHED`/`RUN_ERROR` or when the source ends, so the test timeout bounds a real hang.
 - `call-tool.ts:makeRunTypescript` - rejects after `deadlineMs` (default 60000) and throws when `execute_typescript` is not listed on `/api/mcp`.
 - `mcp-client.ts:connectMcpClient` - a tool result with `isError: true` throws its text.
 - `harness-modes.ts:harnessModes` - the `real` mode runs only when `CI` is unset and the harness binary is on `PATH`.

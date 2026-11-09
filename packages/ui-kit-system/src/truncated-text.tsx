@@ -1,4 +1,18 @@
-import {createSignal, Show, splitProps, type Accessor, type JSX} from 'solid-js'
+import {
+  createContext,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+  onMount,
+  Show,
+  splitProps,
+  useContext,
+  type Accessor,
+  type JSX,
+} from 'solid-js'
+import {createStore, type SetStoreFunction} from 'solid-js/store'
+import {useTooltipContext} from '@ark-ui/solid/tooltip'
 import {Tooltip} from './tooltip.js'
 
 export type TruncatedTextSide = 'top' | 'bottom' | 'left' | 'right'
@@ -18,11 +32,15 @@ export type ClipReveal = {
   onOpenChange: (details: {open: boolean}) => void
 }
 
+function describedWhen<T extends {'aria-describedby'?: string | undefined}>(revealed: boolean, triggerProps: T): T {
+  return {...triggerProps, 'aria-describedby': revealed ? triggerProps['aria-describedby'] : undefined}
+}
+
 export function revealTriggerProps<T extends {'aria-describedby'?: string | undefined}>(
   reveal: ClipReveal,
   triggerProps: T,
 ): T {
-  return {...triggerProps, 'aria-describedby': reveal.clipped() ? triggerProps['aria-describedby'] : undefined}
+  return describedWhen(reveal.clipped(), triggerProps)
 }
 
 export function createClipReveal(): ClipReveal {
@@ -44,7 +62,138 @@ export type TruncatedTextProps = {
   children?: JSX.Element
 }
 
+type RevealTarget =
+  | {kind: 'clip'; text: Accessor<string>; element: Accessor<HTMLElement | undefined>}
+  | {kind: 'label'; render: () => JSX.Element; keepOpenOnClick?: boolean}
+
+export type SharedTooltip = {
+  side: () => TruncatedTextSide
+  owns: (api: ReturnType<typeof useTooltipContext>) => boolean
+  register: (value: string, target: RevealTarget) => void
+  release: (value: string) => void
+  describe: <T extends {'aria-describedby'?: string | undefined}>(value: string, triggerProps: T) => T
+}
+
+type Shown = {key: string; value: string; target: RevealTarget}
+
+type SharedRevealState = {targets: Record<string, RevealTarget | undefined>; current: string | null}
+
+const SharedTooltipContext = createContext<SharedTooltip>()
+
+export function useSharedTooltip(side: TruncatedTextSide | undefined): SharedTooltip | undefined {
+  const shared = useContext(SharedTooltipContext)
+  if (shared === undefined || (side ?? 'top') !== shared.side() || !shared.owns(useTooltipContext())) return undefined
+  return shared
+}
+
+export type TruncatedTextGroupProps = {side?: TruncatedTextSide; children?: JSX.Element}
+
+export function TruncatedTextGroup(props: TruncatedTextGroupProps): JSX.Element {
+  const [local] = splitProps(props, ['side', 'children'])
+  const [reveal, setReveal] = createStore<SharedRevealState>({targets: {}, current: null})
+  const keepsOpen = () => {
+    const target = reveal.current === null ? undefined : reveal.targets[reveal.current]
+    return target?.kind === 'label' && target.keepOpenOnClick === true
+  }
+  return (
+    <Tooltip.Root
+      positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}
+      closeOnPointerDown={!keepsOpen()}
+      closeOnClick={!keepsOpen()}
+      onTriggerValueChange={(details) => setReveal('current', details.value)}
+      lazyMount
+      unmountOnExit
+    >
+      <SharedReveal side={local.side ?? 'top'} reveal={reveal} setReveal={setReveal}>
+        {local.children}
+      </SharedReveal>
+    </Tooltip.Root>
+  )
+}
+
+function shownTarget(value: string, target: RevealTarget | undefined): Shown | undefined {
+  if (target?.kind === 'label') return {key: value, value, target}
+  if (target?.kind === 'clip' && isClipped(target.element())) return {key: 'clip', value, target}
+  return undefined
+}
+
+function revealedContent(shown: Shown | undefined): JSX.Element {
+  if (shown?.target.kind === 'label') return shown.target.render()
+  if (shown?.target.kind === 'clip') return shown.target.text()
+  return undefined
+}
+
+function SharedReveal(props: {
+  side: TruncatedTextSide
+  reveal: SharedRevealState
+  setReveal: SetStoreFunction<SharedRevealState>
+  children?: JSX.Element
+}): JSX.Element {
+  const api = useTooltipContext()
+  const shown = createMemo(() => {
+    const value = api().triggerValue
+    if (!api().open || value === null) return undefined
+    return shownTarget(value, props.reveal.targets[value])
+  })
+  const scope: SharedTooltip = {
+    side: () => props.side,
+    owns: (candidate) => candidate === api,
+    register: (value, target) => props.setReveal('targets', value, target),
+    release: (value) => props.setReveal('targets', value, undefined),
+    describe: (value, triggerProps) => describedWhen(shown()?.value === value, triggerProps),
+  }
+  return (
+    <SharedTooltipContext.Provider value={scope}>
+      {props.children}
+      <Show when={shown()?.key} keyed>
+        {(key) => (
+          <Tooltip.Positioner>
+            <Tooltip.Content class={key === 'clip' ? CLIP_REVEAL : undefined}>
+              {revealedContent(shown())}
+            </Tooltip.Content>
+          </Tooltip.Positioner>
+        )}
+      </Show>
+    </SharedTooltipContext.Provider>
+  )
+}
+
+function ScopedTruncatedText(props: TruncatedTextProps & {scope: SharedTooltip}): JSX.Element {
+  const [local] = splitProps(props, ['text', 'class', 'children', 'scope'])
+  const value = createUniqueId()
+  const node: {element?: HTMLElement} = {}
+  onMount(() => {
+    const scope = local.scope
+    scope.register(value, {kind: 'clip', text: () => local.text, element: () => node.element})
+    onCleanup(() => scope.release(value))
+  })
+  return (
+    <Tooltip.Trigger
+      value={value}
+      asChild={(triggerProps) => (
+        <span
+          {...local.scope.describe(value, triggerProps())}
+          ref={(element) => {
+            node.element = element
+          }}
+          class={`truncate ${local.class ?? ''}`}
+        >
+          {local.children ?? local.text}
+        </span>
+      )}
+    />
+  )
+}
+
 export function TruncatedText(props: TruncatedTextProps): JSX.Element {
+  return (
+    <Show when={useSharedTooltip(props.side)} fallback={<OwnTruncatedText {...props} />}>
+      {(scope) => <ScopedTruncatedText {...props} scope={scope()} />}
+    </Show>
+  )
+}
+
+function OwnTruncatedText(props: TruncatedTextProps): JSX.Element {
   const [local] = splitProps(props, ['text', 'class', 'side', 'children'])
   const reveal = createClipReveal()
   return (

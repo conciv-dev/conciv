@@ -1,11 +1,14 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {ChatPart} from '@conciv/protocol/chat-message-types'
-import type {ResultPairing, Turn} from '../../store/grouping.js'
+import type {Turn} from '../../store/grouping.js'
+import type {createTurnParts} from '../../store/turn-parts.js'
 
 export type MessageContextValue = {
+  key: string
+  role: Turn['role']
   message: Accessor<Turn>
   index: Accessor<number>
-  pairing: Accessor<ResultPairing>
+  parts: ReturnType<typeof createTurnParts>
   isLast: Accessor<boolean>
 }
 

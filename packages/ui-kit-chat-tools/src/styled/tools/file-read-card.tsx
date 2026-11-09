@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import type {JSX} from 'solid-js'
 import FileText from 'lucide-solid/icons/file-text'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
@@ -17,25 +17,25 @@ function lineCountMeta(contents: string): string | undefined {
 function Body(): JSX.Element {
   const view = useFileRead()
   return (
-    <Show
-      when={view.contents()}
-      fallback={
-        <Show when={view.path()} fallback={<p class={QUIET_TEXT_CLASS}>waiting for the file</p>}>
-          <Chip kind="pill" value={`${view.path()}${view.range() ?? ''}`} />
-        </Show>
-      }
-    >
-      <CodeBlock size="sm" maxHeight="log" file={{name: view.path() || 'file', contents: view.contents()}} />
-    </Show>
+    <>
+      {view.contents() ? (
+        <CodeBlock size="sm" maxHeight="log" file={{name: view.path() || 'file', contents: view.contents()}} />
+      ) : view.path() ? (
+        <Chip kind="pill" value={`${view.path()}${view.range() ?? ''}`} />
+      ) : (
+        <p class={QUIET_TEXT_CLASS}>waiting for the file</p>
+      )}
+    </>
   )
 }
 
 function CardBody(props: ToolCardProps): JSX.Element {
   const view = useFileRead()
+  const title = () => (view.path() ? `${view.verb()} ${view.path()}` : `${view.verb()} a file`)
   return (
     <ToolCard
       Icon={Icon}
-      title={view.path() ? `${view.verb()} ${view.path()}` : `${view.verb()} a file`}
+      title={title()}
       meta={view.range() ?? lineCountMeta(view.contents())}
       part={props.part}
       result={props.result}

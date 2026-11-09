@@ -44,7 +44,7 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
   - `project`: `<cwd>/.conciv/settings/<namespace>.json` (conciv's per-checkout private state dir, the same
     `stateDir` extensions already get).
   - `global`: `<concivHome>/settings/<namespace>.json` (`concivHome()` from `@conciv/db`).
-- Writes: debounced 100ms, then write `<file>.<pid>.tmp` and rename over the file (atomic), `mkdir -p` first;
+- Storage: unstorage (Omri, 2026-11-09). `createSettingsStorage` takes one unstorage `Storage` per scope; the engine passes the `fs` driver over `<folder>/settings` with `setItem` replaced the Devframe way (`atomicFsDriver`: write `<file>.<pid>.tmp`, rename it over the file, remove the temp on failure), and the key is `<namespace>.json`. A test or host can pass the `memory` or `null` driver instead. Reads go through unstorage's `destr` (drops `__proto__`); writes are debounced 100ms, then one `setItem` of the pretty JSON, chained after the previous write so two never share the temp file;
   pretty JSON with a trailing newline, like Devframe's `createStorage`.
 - Reads: `JSON.parse` with Devframe's reviver that drops `__proto__` / `constructor.prototype`. A corrupt file
   logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the next `set`.
@@ -75,8 +75,7 @@ Devframe's `connectionMeta.configs`.
 ## Tests
 
 - Core node test file: add a `describe` that boots the engine (existing helpers), writes through the server
-  store and through RPC, and asserts the JSON file contents, the debounce (one write for a burst), the atomic
-  rename (no `.tmp` left), `onChange` delivery to a second RPC subscriber, a corrupt file starting empty, and a
+  store and through RPC, and asserts the JSON file contents, the debounce (one write for a burst), `onChange` delivery to a second RPC subscriber, a corrupt file starting empty, and a
   traversal namespace rejected.
 - Tests use a temp `cwd` and temp `concivHome`; never the real home.
 - One journey per behaviour group, no test per edge case. No mocks.
