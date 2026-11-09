@@ -6,9 +6,9 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Interface
 
-- root `Route` (`__root.tsx`): `createRootRouteWithContext<ConcivRouterContext>()`, search `{open?: true}` retained across navigations; renders the outlet, `ShellFab` and polite/assertive live regions
+- root `Route` (`__root.tsx`): `createRootRouteWithContext<ConcivRouterContext>()`, search `sessionPickerSearchSchema` (`lib/session-search-schemas.ts`): `open?: true`, `sessionSearch` (the picker's search term, `''` by default) and `allProjects` (`false` by default), all retained across navigations and the defaults stripped from the URL; renders the outlet, `ShellFab` and polite/assertive live regions
 - `/` (`index.tsx`): `Closed` component, the panel is closed
-- `/panel` (`panel.tsx`): `PanelLayout`
+- `/panel` (`panel.tsx`): `PanelLayout`; reads only `open` from the search (a `select`), so a picker term or switch written to the URL never reruns the open-panel composer focus
 - `/panel/latest` (`panel.latest.tsx`): resolves the latest session through `rpc.sessions.resolve({})` and redirects
 - `/panel/connect` (`panel.connect.tsx`): `ConnectRoute`; binds an api base found by the `connect` extension slot, then opens the session
 - `/panel/$sessionId` (`panel.$sessionId.tsx`): `PanelSession`, search `{popOut?: 'lost'}`; reads its session through `sessions.get`; clicking the header title (or Enter/Space on it) opens the session menu (`Popover`: open while an `options` child route matches; Ark's open/close requests navigate to or from that child, Ark owns focus, Escape and outside click, and returns focus to the title) hosting `SessionSelector`, context and refresh/pop-out/disconnect rows, and a pencil (`Editable`) renames in place through `rpc.sessions.rename`
@@ -23,10 +23,10 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Invariants
 
-- `__root.tsx:Route.validateSearch`: `open` is either `true` or absent
+- `__root.tsx:Route.validateSearch`: `open` is either `true` or absent; a malformed `sessionSearch` or `allProjects` falls back to its default (zod `.catch`), and a digit-only term is coerced back to a string
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
-- the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches; any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
+- the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches by path alone (`matchRoute` with `includeSearch: false`, so a search write from inside the menu, such as `sessionSearch`, never closes it mid-navigation); any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
 - `panel.$sessionId.tsx:useSessionMenu`: opening pushes the `options` child with history state `sessionMenuOpened`; closing an in-app opened menu (that mark and `useCanGoBack()`) goes back one entry, a menu loaded directly on `/options` replaces it with the parent; picking a session while the menu is open (in-app or loaded directly) replaces the `options` entry, and picking the active session closes the menu the same way, so no close leaves a duplicate history entry
 - the static `options` segment outranks `$view`, so no extension view can use the id `options`
 - `panel.$sessionId.$view.tsx:PanelView`: a locked view blocks leaving it, but not opening or closing its session menu
