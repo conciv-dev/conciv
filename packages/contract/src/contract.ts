@@ -77,6 +77,7 @@ export const SettingsNamespaceSchema = z
   )
 
 const SettingsSnapshotSchema = z.object({
+  generation: z.string().min(1),
   version: z.number().int().nonnegative(),
   value: z.record(z.string(), z.unknown()),
 })

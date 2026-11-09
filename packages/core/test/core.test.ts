@@ -16,7 +16,8 @@ import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {text as bodyText} from 'node:stream/consumers'
-import {setImmediate} from 'node:timers/promises'
+import {randomUUID} from 'node:crypto'
+import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
@@ -29,7 +30,7 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {
   createClientSettings,
@@ -101,7 +102,12 @@ function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]
   return start({options, root, launchEditor: () => {}, ...overrides})
 }
 
-async function serveCore(root: string, extensions: AnyExtension[], overrides: Partial<Parameters<typeof makeApp>[0]>) {
+async function serveCore(
+  root: string,
+  extensions: AnyExtension[],
+  overrides: Partial<Parameters<typeof makeApp>[0]>,
+  port = 0,
+) {
   const made = await makeApp({
     cfg: resolveConfig({}, root),
     cwd: root,
@@ -109,7 +115,7 @@ async function serveCore(root: string, extensions: AnyExtension[], overrides: Pa
     extensions,
     ...overrides,
   })
-  const served = await serveHono({fetch: made.fetch, port: 0})
+  const served = await serveHono({fetch: made.fetch, port})
   const stop = async () => {
     await served.close()
     await made.dispose()
@@ -916,13 +922,18 @@ describe('settings storage', () => {
     return {reached: reached.promise.finally(unsubscribe)}
   }
 
-  async function bootSettings(root: string, home: string, namespace: string) {
+  async function bootSettings(
+    root: string,
+    home: string,
+    namespace: string,
+    fixed: {agentToken?: string; port?: number} = {},
+  ) {
     const scopes: ((name: string) => ExtensionScope<string>)[] = []
     const probe = defineExtension({name: 'settings probe'}).server((api) => {
       scopes.push(api.scope)
       return {context: {}}
     })
-    const {made, origin, stop} = await serveCore(root, [probe], {home})
+    const {made, origin, stop} = await serveCore(root, [probe], {home, agentToken: fixed.agentToken}, fixed.port)
     const scope = scopes[0]
     if (scope === undefined) throw new Error('the probe extension did not mount')
     return {scope, server: scope(namespace).settings, rpc: makeRpcClient(`${origin}/t/${made.agentToken}`), stop}
@@ -981,6 +992,40 @@ describe('settings storage', () => {
       await engine.stop()
     }
   })
+
+  test('a browser client keeps following a scope across an engine restart longer than the one-shot retry budget', async () => {
+    const [root, home] = [tempDir(), tempDir()]
+    const fixed = {agentToken: randomUUID(), port: await getPort()}
+    const project = {scope: 'project', namespace: 'probe'} as const
+    const first = await bootSettings(root, home, 'probe', fixed)
+    const browser = makeBrowserRpcClient(`http://127.0.0.1:${fixed.port}/t/${fixed.agentToken}`)
+    const stream = new AbortController()
+    const engines = {running: first}
+    try {
+      const client = createClientSettings<{theme: string; size: number}>(browser.rpc, 'probe', stream.signal)
+      const saved = await valueBecomes(client.project, {theme: 'dark', size: 3})
+      const restarted = await valueBecomes(client.project, {theme: 'light', size: 3})
+      await first.server.project.set('theme', 'dark')
+      await first.server.project.set('size', 3)
+      await saved.reached
+      const before = await first.rpc.settings.all(project)
+      expect(before).toMatchObject({version: 2})
+      await first.stop()
+      await wait(4000)
+      const second = await bootSettings(root, home, 'probe', fixed)
+      engines.running = second
+      const after = await second.rpc.settings.all(project)
+      expect(after).toMatchObject({version: 0, value: {theme: 'dark', size: 3}})
+      expect(after.generation).not.toBe(before.generation)
+      await second.server.project.set('theme', 'light')
+      await restarted.reached
+      expect(await client.project.all()).toEqual({theme: 'light', size: 3})
+    } finally {
+      stream.abort()
+      browser.close()
+      await engines.running.stop()
+    }
+  }, 30_000)
 
   test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]

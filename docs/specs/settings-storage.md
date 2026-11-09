@@ -63,6 +63,17 @@ In `packages/contract/src/contract.ts`, a `settings` group, every input zod-vali
 - `settings.changes({scope, namespace})`: `eventIterator` of full snapshots (first event = current snapshot),
   the same pattern as `sessions.changes`.
 
+Every snapshot is `{generation, version, value}`. Each engine picks a random `generation` id at boot, and
+`version` counts from 0 per file within that engine. The client keeps an incoming snapshot when its
+`generation` differs from the one it holds (a restarted engine, always taken) or when the generation matches and
+the `version` is higher.
+
+Reconnect: the browser fetch link's `ClientRetryPlugin` (`packages/contract/src/browser-transport.ts`) retries
+an event-iterator call (any contract procedure whose output is an `eventIterator`) without limit, 250ms doubling
+up to 5s, for as long as the caller's signal is not aborted and the connection is alive. One-shot calls keep 12
+retries at 250ms. An aborted follower never retries. This rule lives only in the retry plugin, so it goes away
+when oRPC moves onto one WebSocket.
+
 Behind the existing engine trust (same as every other procedure; untrusted callers get nothing). The client
 store keeps the latest snapshot from `changes` and resolves `get`/`all` from it after the first event, the way
 Devframe's client waits for the initial snapshot before the first read or write.

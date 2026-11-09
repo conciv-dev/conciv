@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto'
 import {mkdir, rename, rm, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {createStorage, type Driver, type Storage} from 'unstorage'
@@ -47,10 +48,11 @@ function atomicFsDriver(base: string): Driver {
 }
 
 export function createSettingsStorage(storages: SettingsStorages) {
+  const generation = randomUUID()
   const files = new Map<string, ReturnType<typeof createSettingsFile>>()
   const file = (scope: SettingsScope, namespace: string) => {
     const key = `${scope}:${settingsKey(namespace)}`
-    const opened = files.get(key) ?? createSettingsFile(storages[scope], settingsKey(namespace))
+    const opened = files.get(key) ?? createSettingsFile(storages[scope], settingsKey(namespace), generation)
     files.set(key, opened)
     return opened
   }
@@ -74,8 +76,8 @@ function settingsKey(namespace: string): string {
   return `${parsed.data}.json`
 }
 
-function createSettingsFile(storage: Storage, key: string) {
-  const current: {snapshot: SettingsSnapshot} = {snapshot: {version: Date.now(), value: {}}}
+function createSettingsFile(storage: Storage, key: string, generation: string) {
+  const current: {snapshot: SettingsSnapshot} = {snapshot: {generation, version: 0, value: {}}}
   const loaded = readSaved(storage, key).then((value) => {
     current.snapshot = {...current.snapshot, value}
   })
@@ -89,7 +91,7 @@ function createSettingsFile(storage: Storage, key: string) {
     {wait: WRITE_DEBOUNCE_MS},
   )
   const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-    current.snapshot = {version: current.snapshot.version + 1, value}
+    current.snapshot = {generation, version: current.snapshot.version + 1, value}
     publisher.publish('changed', current.snapshot)
     writer.maybeExecute()
     return current.snapshot

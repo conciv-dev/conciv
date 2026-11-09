@@ -22,11 +22,12 @@ function mirroredState(
 ): () => Promise<SettingsState> {
   const listeners = new Set<(snapshot: SettingsSnapshot) => void>()
   const mirror: {latest: SettingsSnapshot; following?: Promise<SettingsState>; queue: Promise<unknown>} = {
-    latest: {version: 0, value: {}},
+    latest: {generation: '', version: 0, value: {}},
     queue: Promise.resolve(),
   }
   const accept = (snapshot: SettingsSnapshot): SettingsSnapshot => {
-    if (snapshot.version <= mirror.latest.version) return mirror.latest
+    if (snapshot.generation === mirror.latest.generation && snapshot.version <= mirror.latest.version)
+      return mirror.latest
     mirror.latest = snapshot
     listeners.forEach((listener) => listener(snapshot))
     return snapshot

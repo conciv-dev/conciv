@@ -49,10 +49,10 @@ function memoryScope<Namespace extends string>(namespace: Namespace): ExtensionS
 }
 
 function memorySettings(): SettingsState {
-  const current: {snapshot: SettingsSnapshot} = {snapshot: {version: 0, value: {}}}
+  const current: {snapshot: SettingsSnapshot} = {snapshot: {generation: 'terminal-test', version: 0, value: {}}}
   const listeners = new Set<(snapshot: SettingsSnapshot) => void>()
   const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-    current.snapshot = {version: current.snapshot.version + 1, value}
+    current.snapshot = {...current.snapshot, version: current.snapshot.version + 1, value}
     listeners.forEach((listener) => listener(current.snapshot))
     return current.snapshot
   }
