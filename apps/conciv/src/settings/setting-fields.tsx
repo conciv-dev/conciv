@@ -125,8 +125,7 @@ export function SkinField(props: FieldProps & {skins: readonly SkinName[]}): JSX
   )
 }
 
-const SELECT_TRIGGER =
-  '!w-auto min-w-37.5 !min-h-8 !py-0 !ps-2.5 !pe-2.5 !rounded-[var(--chat-radius-sm)] !text-[0.75rem] !bg-chat-sunken'
+const SELECT_TRIGGER = '!w-37.5'
 
 export function SelectField(props: FieldProps & {options: readonly Option[]}): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'options'])
@@ -199,6 +198,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
   return (
     <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
       <NumberInput
+        class={CONTROL_WIDTH}
         value={field().state.value}
         min={local.min}
         max={local.max}
@@ -215,7 +215,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
   )
 }
 
-const TEXT_INPUT = 'w-37.5 min-w-0'
+const CONTROL_WIDTH = 'w-37.5'
 
 export function TextField(props: FieldProps): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock'])
@@ -223,7 +223,7 @@ export function TextField(props: FieldProps): JSX.Element {
   return (
     <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
       <TextInput
-        class={TEXT_INPUT}
+        class={CONTROL_WIDTH}
         name={field().name}
         value={field().state.value}
         onInput={(event) => field().handleChange(event.currentTarget.value)}
