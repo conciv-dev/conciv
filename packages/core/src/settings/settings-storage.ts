@@ -29,9 +29,14 @@ export function settingsOnDisk(folders: Record<SettingsScope, string>): Settings
 }
 
 function atomicFsDriver(base: string): Driver {
+  const files = fsDriver({base})
   return {
-    ...fsDriver({base}),
+    ...files,
     name: 'conciv-atomic-fs',
+    async watch(callback) {
+      await mkdir(base, {recursive: true})
+      return files.watch ? files.watch(callback) : async () => {}
+    },
     async setItem(key, value) {
       const path = join(base, ...key.split(':'))
       const temporary = `${path}.${process.pid}.tmp`
@@ -79,6 +84,7 @@ export function createSettingsStorage(storages: SettingsStorages) {
       },
     }),
     flush,
+    ready: watching.then(() => undefined),
     close: async (): Promise<void> => {
       await (
         await watching
