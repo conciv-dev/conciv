@@ -1,5 +1,6 @@
 import {claudeInit} from '@conciv/harness-init/claude'
 import {defineHarness} from '../_shared/contract.js'
+import {claudeSessionArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands, claudeSdkModels} from './sdk.js'
@@ -29,4 +30,5 @@ export const claude = defineHarness({
   commands: claudeSdkCommands,
   history: claudeHistory,
   tty: {command: claudeTtyCommand},
+  resume: {command: ({nativeId}) => ({bin: 'claude', args: claudeSessionArgs(nativeId, true)})},
 })

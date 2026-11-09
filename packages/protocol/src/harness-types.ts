@@ -112,6 +112,10 @@ export type HarnessSessionMeta = {
   createdAt?: number
 }
 
+export type HarnessResumeInput = {cwd: string; nativeId: HarnessSessionId}
+
+export type HarnessResume = {command(input: HarnessResumeInput): {bin: string; args: string[]}}
+
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
 
 export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>

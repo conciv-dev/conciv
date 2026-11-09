@@ -19,4 +19,5 @@ export const pi = defineHarness({
   },
   chatConfig: unsupportedChatConfig('pi', 'pi'),
   history: piHistory,
+  resume: {command: ({nativeId}) => ({bin: 'pi', args: ['--session', nativeId]})},
 })

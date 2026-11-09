@@ -9,8 +9,7 @@ import {makeApp} from '@conciv/core/app'
 import type {AnyExtension} from '@conciv/extension'
 import type {CoreRuntime, SessionScope} from '@conciv/core/runtime'
 import type {SessionId} from '@conciv/protocol/chat-types'
-import type {HarnessCommand, HarnessConnectContext, HarnessModel} from '@conciv/protocol/harness-types'
-import type {TtyCommand} from '@conciv/protocol/terminal-types'
+import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import type {EngineStaleness} from '@conciv/contract'
 import {procedurePathOf, samePath} from './rpc-payload.js'
 
@@ -37,7 +36,7 @@ export async function bootCoreKit(opts: {
   models?: HarnessModel[]
   commands?: HarnessCommand[]
   history?: FixtureSession[]
-  tty?: {command(ctx: HarnessConnectContext): TtyCommand}
+  resumeBin?: string
   alternates?: AlternateHarness[]
   allowedOrigins?: string[]
   staleness?: () => EngineStaleness
@@ -51,7 +50,7 @@ export async function bootCoreKit(opts: {
     models: opts.models,
     commands: opts.commands,
     history: opts.history,
-    tty: opts.tty,
+    resumeBin: opts.resumeBin,
   })
   const captured: {runtime?: CoreRuntime} = {}
   const served: (readonly string[])[] = []
