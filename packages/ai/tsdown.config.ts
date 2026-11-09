@@ -10,7 +10,6 @@ export default defineConfig([
     format: 'esm',
     fixedExtension: false,
     dts: false,
-    noExternal: [/^@tanstack\/ai-(acp|claude-code|code-mode|codex|opencode|sandbox|sandbox-local-process)(\/|$)/],
   },
   {
     entry: {client: 'src/client.ts'},
