@@ -9,7 +9,9 @@ import LayoutPanelTop from 'lucide-solid/icons/layout-panel-top'
 import Keyboard from 'lucide-solid/icons/keyboard'
 import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
+import Puzzle from 'lucide-solid/icons/puzzle'
 import {MICRO} from '../settings/settings-ui.js'
+import {extensionSettingsPage} from '../settings/extension-fields.js'
 import {writeLastTab, type SettingsTabId} from '../settings/last-tab.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
@@ -33,19 +35,21 @@ const FOOTER =
 const SAVED_DOT = 'inline-block size-1.5 me-1.5 rounded-chat-pill bg-chat-success'
 const ROUTE = `${MICRO} min-w-0 ps-3 truncate`
 
-type SettingsTab = {
-  id: SettingsTabId
+type TabFace = {
   label: string
   icon: Component<{class?: string}>
 }
 
-const MAIN_TABS: SettingsTab[] = [
+type BuiltinTab = TabFace & {id: SettingsTabId}
+
+type SettingsTab = TabFace & {id: string; selected: () => unknown; open: () => void}
+
+const MAIN_TABS: BuiltinTab[] = [
   {id: 'general', label: 'General', icon: SlidersHorizontal},
   {id: 'views', label: 'Views', icon: LayoutPanelTop},
   {id: 'shortcuts', label: 'Shortcuts', icon: Keyboard},
 ]
-const ADVANCED_TAB: SettingsTab = {id: 'advanced', label: 'Advanced', icon: Shield}
-const TABS = [...MAIN_TABS, ADVANCED_TAB]
+const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: Shield}
 
 type Placed = {element: Element; left: number; top: number}
 
@@ -84,22 +88,44 @@ function TabTrigger(props: {tab: SettingsTab}): JSX.Element {
 function SettingsLayout(): JSX.Element {
   const params = Route.useParams()
   const navigate = Route.useNavigate()
+  const context = Route.useRouteContext()
   const matchRoute = useMatchRoute()
   const [layout, setLayout] = createStore<{orientation: 'horizontal' | 'vertical'}>({orientation: 'horizontal'})
   let split: HTMLDivElement | undefined
   let rail: HTMLDivElement | undefined
   let placed: Placed[] = []
-  const matches = TABS.map((tab) => ({
-    id: tab.id,
-    match: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
-  }))
-  const current = () => matches.find((entry) => entry.match())?.id ?? 'general'
-  const select = (id: string) => {
-    const tab = TABS.find((candidate) => candidate.id === id)
-    if (!tab) return
-    writeLastTab(tab.id)
-    void navigate({to: `./${tab.id}`})
-  }
+  const builtin = (tab: BuiltinTab): SettingsTab => ({
+    ...tab,
+    selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
+    open: () => {
+      writeLastTab(tab.id)
+      void navigate({to: `./${tab.id}`})
+    },
+  })
+  const mainTabs = MAIN_TABS.map(builtin)
+  const advancedTab = builtin(ADVANCED_TAB)
+  const extensionTabs = context()
+    .extensions.filter((extension) => extension.settings)
+    .map((extension): SettingsTab => ({
+      id: `extensions/${extension.name}`,
+      label: extensionSettingsPage(extension).title,
+      icon: extension.icon ?? Puzzle,
+      selected: matchRoute({
+        to: '/panel/$sessionId/settings/extensions/$name',
+        params: {name: extension.name},
+        fuzzy: true,
+      }),
+      open: () => {
+        writeLastTab({extension: extension.name})
+        void navigate({
+          to: '/panel/$sessionId/settings/extensions/$name',
+          params: {sessionId: params().sessionId, name: extension.name},
+        })
+      },
+    }))
+  const tabs = [...mainTabs, ...extensionTabs, advancedTab]
+  const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
+  const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
   const close = () =>
     void navigate({
       to: '/panel/$sessionId',
@@ -149,9 +175,9 @@ function SettingsLayout(): JSX.Element {
           aria-label="Settings sections"
         >
           <Tabs.Indicator class={INDICATOR} />
-          <For each={MAIN_TABS}>{(tab) => <TabTrigger tab={tab} />}</For>
+          <For each={[...mainTabs, ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
           <span class={SPACER} aria-hidden="true" />
-          <TabTrigger tab={ADVANCED_TAB} />
+          <TabTrigger tab={advancedTab} />
         </Tabs.List>
         <Tabs.Content class={BODY} value={current()} data-glide="">
           <Outlet />
