@@ -1,5 +1,6 @@
-import {join} from 'node:path'
-import {createStorage, type Storage} from 'unstorage'
+import {mkdir, rename, rm, writeFile} from 'node:fs/promises'
+import {dirname, join} from 'node:path'
+import {createStorage, type Driver, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {EventPublisher} from '@orpc/server'
 import {Debouncer} from '@tanstack/pacer'
@@ -21,8 +22,27 @@ export type SettingsStorages = Record<SettingsScope, Storage>
 
 export function settingsOnDisk(folders: Record<SettingsScope, string>): SettingsStorages {
   return {
-    global: createStorage({driver: fsDriver({base: join(folders.global, 'settings')})}),
-    project: createStorage({driver: fsDriver({base: join(folders.project, 'settings')})}),
+    global: createStorage({driver: atomicFsDriver(join(folders.global, 'settings'))}),
+    project: createStorage({driver: atomicFsDriver(join(folders.project, 'settings'))}),
+  }
+}
+
+function atomicFsDriver(base: string): Driver {
+  return {
+    ...fsDriver({base}),
+    name: 'conciv-atomic-fs',
+    async setItem(key, value) {
+      const path = join(base, ...key.split(':'))
+      const temporary = `${path}.${process.pid}.tmp`
+      await mkdir(dirname(path), {recursive: true})
+      try {
+        await writeFile(temporary, value, 'utf8')
+        await rename(temporary, path)
+      } catch (error) {
+        await rm(temporary, {force: true})
+        throw error
+      }
+    },
   }
 }
 
@@ -62,7 +82,8 @@ function createSettingsFile(storage: Storage, key: string) {
   const writes: {pending: Promise<void>} = {pending: Promise.resolve()}
   const writer = new Debouncer(
     () => {
-      writes.pending = writeSaved(storage, key, current.snapshot.value)
+      const value = current.snapshot.value
+      writes.pending = writes.pending.then(() => writeSaved(storage, key, value))
     },
     {wait: WRITE_DEBOUNCE_MS},
   )

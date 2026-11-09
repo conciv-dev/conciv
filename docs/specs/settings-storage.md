@@ -44,7 +44,7 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
   - `project`: `<cwd>/.conciv/settings/<namespace>.json` (conciv's per-checkout private state dir, the same
     `stateDir` extensions already get).
   - `global`: `<concivHome>/settings/<namespace>.json` (`concivHome()` from `@conciv/db`).
-- Storage: unstorage (Omri, 2026-11-09). `createSettingsStorage` takes one unstorage `Storage` per scope; the engine passes the `fs` driver over `<folder>/settings` (`settingsOnDisk`), and the key is `<namespace>.json`. A test or host can pass the `memory` or `null` driver instead. Reads go through unstorage's `destr` (drops `__proto__`); writes are debounced 100ms, then one `setItem` of the pretty JSON (the fs driver creates the folder; the write is no longer a temp-file rename);
+- Storage: unstorage (Omri, 2026-11-09). `createSettingsStorage` takes one unstorage `Storage` per scope; the engine passes the `fs` driver over `<folder>/settings` with `setItem` replaced the Devframe way (`atomicFsDriver`: write `<file>.<pid>.tmp`, rename it over the file, remove the temp on failure), and the key is `<namespace>.json`. A test or host can pass the `memory` or `null` driver instead. Reads go through unstorage's `destr` (drops `__proto__`); writes are debounced 100ms, then one `setItem` of the pretty JSON, chained after the previous write so two never share the temp file;
   pretty JSON with a trailing newline, like Devframe's `createStorage`.
 - Reads: `JSON.parse` with Devframe's reviver that drops `__proto__` / `constructor.prototype`. A corrupt file
   logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the next `set`.
