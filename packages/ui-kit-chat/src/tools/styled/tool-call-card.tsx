@@ -1,5 +1,6 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {isEqual} from 'es-toolkit'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
@@ -10,7 +11,6 @@ import type {
   ToolViewCtx,
 } from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
-import {ToolDurationProvider} from '../primitives/tool-duration.js'
 import {
   genericRowProjection,
   headerRowProjection,
@@ -20,7 +20,7 @@ import {
 import {MetaToolCard, metaToolHasEmbeddedBody} from './meta-tool-card.js'
 import {toolFallbackHasEmbeddedBody} from './tool-fallback.js'
 import {PermissionCard} from './permission-card.js'
-import {CardChromeProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
+import {CardChromeProvider, ToolDurationProvider, useEmbeddedCard, type EmbeddedHeaderChannel} from './card-chrome.js'
 import {TraceToolRow} from '../../styled/trace/trace-row.js'
 import {TraceBodyFrame, type TraceOutputTone} from '../../styled/trace/output-block.js'
 import {TracePermissionBlock} from '../../styled/trace/permission-block.js'
@@ -48,32 +48,42 @@ export function cardRendersEmbeddedBody(query: CardBodyQuery): boolean {
 }
 
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
-  const matched = () => props.tools?.().find((entry) => entry.names.includes(props.part.name))
   const declared = () => props.ctx.catalog.meta(props.part.name)
-  const render = (): ToolUIComponent => {
-    const card = matched()?.render
-    if (card) return card
-    if (declared()) return MetaToolCard
-    return props.fallback?.render ?? ToolFallback
-  }
   const embedded = useEmbeddedCard()
+  const matched = () => matchedEntry(props.tools?.(), props.part.name)
   const ownsApproval = () => !embedded() && (matched() !== undefined || declared() !== undefined)
   const duration = (): number | undefined => props.durationMs
   return (
     <ToolDurationProvider value={duration}>
-      <Dynamic
-        component={render()}
-        part={props.part}
-        result={props.result}
-        ctx={props.ctx}
-        addResult={(value) => props.ctx.addResult(props.part.id, value)}
-        durationMs={props.durationMs}
-        capture={props.ctx.captureFor?.(props.part.id)}
-      />
+      <ToolCardView {...props} />
       <Show when={ownsApproval()}>
         <PermissionCard part={props.part} ctx={props.ctx} />
       </Show>
     </ToolDurationProvider>
+  )
+}
+
+function matchedEntry(tools: ToolCardEntry[] | undefined, name: string): ToolCardEntry | undefined {
+  return tools?.find((entry) => entry.names.includes(name))
+}
+
+function ToolCardView(props: ToolCallCardProps): JSX.Element {
+  const render = (): ToolUIComponent => {
+    const card = matchedEntry(props.tools?.(), props.part.name)?.render
+    if (card) return card
+    if (props.ctx.catalog.meta(props.part.name)) return MetaToolCard
+    return props.fallback?.render ?? ToolFallback
+  }
+  return (
+    <Dynamic
+      component={render()}
+      part={props.part}
+      result={props.result}
+      ctx={props.ctx}
+      addResult={(value) => props.ctx.addResult(props.part.id, value)}
+      durationMs={props.durationMs}
+      capture={props.ctx.captureFor?.(props.part.id)}
+    />
   )
 }
 
@@ -89,17 +99,27 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     setCardHeader(published)
     return () => setCardHeader((current) => (current === published ? undefined : current))
   }
-  const projection = createMemo<ToolRowProjection>(() => {
-    const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
-    const published = cardHeader()
-    return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
-  })
+  const projection = createMemo(
+    (): ToolRowProjection => {
+      const rowProps = {part: local.part, result: local.result, ctx: local.ctx}
+      const published = cardHeader()
+      return published ? headerRowProjection(published.read(), rowProps) : genericRowProjection(rowProps)
+    },
+    undefined,
+    {equals: isEqual},
+  )
+  const tag = createMemo(() => outsideTag(local.part))
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
   const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
   const embeddedCard = (): JSX.Element => (
-    <CardChromeProvider value="embedded" headerChannel={publishHeader} rowLine={rowLine}>
-      <ToolCallCard
+    <CardChromeProvider
+      value="embedded"
+      headerChannel={publishHeader}
+      rowLine={rowLine}
+      duration={() => local.durationMs}
+    >
+      <ToolCardView
         part={local.part}
         result={local.result}
         ctx={local.ctx}
@@ -109,14 +129,15 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       />
     </CardChromeProvider>
   )
-  const framed = () =>
+  const framed = createMemo(() =>
     cardRendersEmbeddedBody({
       part: local.part,
       result: local.result,
       ctx: local.ctx,
       tools: local.tools?.() ?? [],
       fallback: local.fallback,
-    })
+    }),
+  )
   const cardBody = (): JSX.Element => (
     <TraceBodyFrame tone={bodyTone()} chrome={framed()}>
       {embeddedCard()}
@@ -129,7 +150,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
         ring={local.ring ?? true}
         body={cardBody}
         foldable={framed()}
-        tag={outsideTag(local.part)}
+        tag={tag()}
       />
       <Show when={asked()}>
         <TracePermissionBlock

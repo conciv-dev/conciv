@@ -59,7 +59,7 @@ function Root(props: RootProps): JSX.Element {
     const autohide = local.autohide ?? 'never'
     return autohide === 'always' || (autohide === 'not-last' && !message.isLast())
   }
-  const visibleByInteraction = () => interactionCount() > 0 || chat.view.hovering === message.message().key
+  const visibleByInteraction = () => interactionCount() > 0 || chat.view.hovering === message.key
   const active = () => !autohideEnabled() || visibleByInteraction()
   const floating = () =>
     autohideEnabled() && (local.autohideFloat === 'always' || local.autohideFloat === 'single-branch')

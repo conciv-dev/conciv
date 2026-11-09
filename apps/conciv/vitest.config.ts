@@ -17,7 +17,17 @@ const SHELL_DEPS = [
 const BUILT_PACKAGE = /\/packages\/.+\/dist\//
 const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx']
 
-function browserProject(name: string, include: string[], exclude: string[]): TestProjectInlineConfiguration {
+type BrowserName = 'chromium' | 'firefox'
+
+const TIMEZONE = 'Pacific/Kiritimati'
+const PERMISSIONS: Record<BrowserName, string[]> = {chromium: ['clipboard-read', 'clipboard-write'], firefox: []}
+
+function browserProject(
+  name: string,
+  include: string[],
+  exclude: string[],
+  browsers: BrowserName[],
+): TestProjectInlineConfiguration {
   return {
     plugins: [UnoCSS(), solidPlugin()],
     optimizeDeps: browserOptimizeDeps([...TANSTACK_AI_SOLID_DEPS, ...MASCOT_DEPS, ...SHELL_DEPS]),
@@ -30,10 +40,11 @@ function browserProject(name: string, include: string[], exclude: string[]): Tes
       browser: {
         enabled: true,
         headless: true,
-        provider: playwright({
-          contextOptions: {timezoneId: 'Pacific/Kiritimati', permissions: ['clipboard-read', 'clipboard-write']},
-        }),
-        instances: [{browser: 'chromium'}],
+        provider: playwright({contextOptions: {timezoneId: TIMEZONE}}),
+        instances: browsers.map((browser) => ({
+          browser,
+          provider: playwright({contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]}}),
+        })),
         commands: coreCommands,
       },
     },
@@ -55,8 +66,8 @@ export default defineConfig({
           hookTimeout: ciTest().hookTimeout,
         },
       },
-      browserProject('browser', BROWSER_SUITES, [...configDefaults.exclude, PERF_SUITE]),
-      browserProject('perf', [PERF_SUITE], configDefaults.exclude),
+      browserProject('browser', BROWSER_SUITES, [...configDefaults.exclude, PERF_SUITE], ['chromium']),
+      browserProject('perf', [PERF_SUITE], configDefaults.exclude, ['chromium', 'firefox']),
     ],
   },
 })

@@ -18,7 +18,9 @@ export {
   createClipReveal,
   revealTriggerProps,
   TruncatedText,
+  TruncatedTextGroup,
   type ClipReveal,
+  type TruncatedTextGroupProps,
   type TruncatedTextProps,
   type TruncatedTextSide,
 } from './truncated-text.js'
