@@ -334,19 +334,19 @@ async function settleStep(step: InitStep, ctx: InitContext): Promise<LedgerEntry
     return {id: step.id, title: step.title, status: 'skipped', cards: [], detail: outcome.detail}
   if (outcome.status === 'manual')
     return {id: step.id, title: step.title, status: 'manual', cards: outcome.cards, detail: outcome.detail}
-  const verified = await step.verify(ctx).catch(() => false)
-  if (!verified)
-    return {
-      id: step.id,
-      title: step.title,
-      status: 'manual',
-      cards: [step.manualCard(ctx)],
-      detail: 'verification failed',
-    }
+  const failure = await step.verify(ctx).then(
+    (verified) => (verified ? null : 'verification failed'),
+    (error: unknown) => `verification failed: ${messageOf(error)}`,
+  )
+  if (failure !== null)
+    return {id: step.id, title: step.title, status: 'manual', cards: [step.manualCard(ctx)], detail: failure}
   return {id: step.id, title: step.title, status: 'done', cards: []}
 }
 
 function manualOutcome(step: InitStep, ctx: InitContext, error: unknown): StepOutcome {
-  const detail = error instanceof Error ? error.message : String(error)
-  return {status: 'manual', cards: [step.manualCard(ctx)], detail}
+  return {status: 'manual', cards: [step.manualCard(ctx)], detail: messageOf(error)}
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

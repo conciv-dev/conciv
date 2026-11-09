@@ -13,7 +13,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 - `renderPlan(rows, harnesses)` (`wizard.ts`): plan text with one row per step and a Harnesses line
 - `clackOutput` / `clackPrompts` / `interactiveTerminal` (`wizard.ts`): @clack/prompts output and prompts, and the TTY/CI check
 - `detectProject(cwd)` / `detectFramework(cwd)` / `Framework` (`detect.ts`): nextjs, astro, vite, webpack, rspack, rollup, esbuild or unknown
-- `execFileOutcome(bin, args, options, onLine)` (`exec.ts`): spawns a process (killed after `options.timeout` when given) and resolves {code, output}
+- `execFileOutcome(bin, args, options, onLine)` (`exec.ts`): spawns a process (SIGKILLed after `options.timeout` when given, so a child that ignores SIGTERM still settles) and resolves {code, output}
 - `harnessIds` / `harnessFileInits` / `harnessAgentsMdNote` (`harness-detect.ts`): from `@conciv/harness-init/registry`; installed-harness detection is `detectHarnesses` from `@conciv/harness-init/detect`
 - `captureFile` / `guardBackups` / `onInterrupt` (`interrupt.ts`): file backup and restore, and the SIGINT hook
 - `StepStatus`, `ManualCard`, `StepNote`, `StepPlan`, `StepOutcome`, `LedgerEntry` (`ledger.ts`)

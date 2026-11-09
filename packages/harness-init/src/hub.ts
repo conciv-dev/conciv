@@ -134,7 +134,15 @@ async function underLease(
   try {
     return await change((argv) => run(argv, {timeout: RUN_TIMEOUT_MS, started}))
   } finally {
+    release(home, operation)
+  }
+}
+
+function release(home: string, operation: HubOperation): void {
+  try {
     withHomeDb(home, (db) => endHubOperation(db, operation))
+  } catch {
+    return
   }
 }
 
@@ -179,10 +187,15 @@ function runFile(argv: string[], options: RunOptions): Promise<RunOutcome> {
   const [bin, ...args] = argv
   if (bin === undefined) return Promise.resolve({ok: false, output: '', message: 'the harness gave no command to run'})
   return new Promise((resolve) => {
-    const child = execFile(bin, args, {timeout: options.timeout, env: process.env}, (error, stdout, stderr) => {
-      const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
-      resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
-    })
+    const child = execFile(
+      bin,
+      args,
+      {timeout: options.timeout, killSignal: 'SIGKILL', env: process.env},
+      (error, stdout, stderr) => {
+        const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
+        resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
+      },
+    )
     if (child.pid !== undefined) options.started(child.pid)
   })
 }

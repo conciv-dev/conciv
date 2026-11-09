@@ -51,11 +51,7 @@ function connections(io: ConnectAgentIo, ctx: InitContext) {
 }
 
 function connected(io: ConnectAgentIo, agent: InitHarnessId): boolean {
-  try {
-    return createHubConnections(io.concivHome)
-      .list()
-      .some((connection) => connection.harness === agent)
-  } catch {
-    return false
-  }
+  return createHubConnections(io.concivHome)
+    .list()
+    .some((connection) => connection.harness === agent)
 }

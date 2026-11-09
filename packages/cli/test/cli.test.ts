@@ -1613,6 +1613,16 @@ describe('init', () => {
         expect(outcome.code).not.toBe(0)
         expect(outcome.output).toContain('terminated by SIGKILL')
       }, 5000)
+
+      it('a timeout settles even when the child ignores SIGTERM', async () => {
+        const outcome = await execFileOutcome(
+          'sh',
+          ['-c', 'trap "" TERM; exec sleep 30'],
+          {cwd: process.cwd(), timeout: 200},
+          () => {},
+        )
+        expect(outcome).toEqual({code: 1, output: 'terminated by SIGKILL'})
+      }, 5000)
     })
   })
 
@@ -2158,6 +2168,19 @@ describe('init', () => {
         expect(entries[0]?.cards[0]?.title).toBe('Wire X by hand')
         expect(entries[0]?.detail).toBe('verification failed')
         expect(events).toContain('settle:manual:X — needs a manual step: verification failed')
+      })
+
+      it('names why verify could not check the result', async () => {
+        const {output} = recorded()
+        const entries = await runSteps(
+          [step({verify: async () => Promise.reject(new Error('conciv could not read its home db'))})],
+          settings(),
+          output,
+        )
+        expect(entries[0]).toMatchObject({
+          status: 'manual',
+          detail: 'verification failed: conciv could not read its home db',
+        })
       })
 
       it('releases the interrupt handler for each step it finishes', async () => {

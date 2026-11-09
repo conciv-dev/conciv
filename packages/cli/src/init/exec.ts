@@ -9,7 +9,12 @@ export function execFileOutcome(
   onLine: (line: string) => void,
 ): Promise<CommandOutcome> {
   return new Promise((settle, reject) => {
-    const child = spawn(bin, args, {cwd: options.cwd, env: options.env, timeout: options.timeout})
+    const child = spawn(bin, args, {
+      cwd: options.cwd,
+      env: options.env,
+      timeout: options.timeout,
+      killSignal: 'SIGKILL',
+    })
     if (child.pid !== undefined) options.started?.(child.pid)
     let output = ''
     let pending = ''
