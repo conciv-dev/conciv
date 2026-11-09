@@ -6,13 +6,11 @@ Replaces the #592 layered-settings design; #592 is not ported.
 ## Goal
 
 A Devframe plugin's settings code works on conciv unchanged. We implement Devframe's settings contract
-(v1.3.2, `packages/devframe/src/{settings-store.ts,node/settings.ts,client/settings.ts,types/scope.ts}` in
-`/Users/omrikatz/Public/web/_ref/devframe`, read from `origin/main`) exactly: same surface, same semantics,
-same file layout. Only the wire differs: conciv syncs over its own oRPC instead of Devframe's shared-state RPC.
+(v1.3.2, `packages/devframe/src/{settings-store.ts,node/settings.ts,client/settings.ts,types/scope.ts}`)
+exactly: same surface, same semantics, same file layout. Only the wire differs: conciv syncs over its own oRPC instead of Devframe's shared-state RPC.
 No `devframe` dependency.
 
-Read those four Devframe files in full before writing code. Where this spec and Devframe disagree, Devframe
-wins; say so in the report.
+Where this spec and Devframe disagree, Devframe wins, except where a deviation is named below.
 
 ## The contract (identical to Devframe)
 
@@ -46,10 +44,14 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
   - `global`: `<concivHome>/settings/<namespace>.json` (`concivHome()` from `@conciv/db`).
 - Storage: unstorage (Omri, 2026-11-09). `createSettingsStorage` takes one unstorage `Storage` per scope; the engine passes the `fs` driver over `<folder>/settings` with `setItem` replaced the Devframe way (`atomicFsDriver`: write `<file>.<pid>.tmp`, rename it over the file, remove the temp on failure), and the key is `<namespace>.json`. A test or host can pass the `memory` or `null` driver instead. Reads go through unstorage's `destr` (drops `__proto__`); writes are debounced 100ms, then one `setItem` of the pretty JSON, chained after the previous write so two never share the temp file;
   pretty JSON with a trailing newline, like Devframe's `createStorage`.
-- Reads: `JSON.parse` with Devframe's reviver that drops `__proto__` / `constructor.prototype`. A corrupt file
-  logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the next `set`.
-- Namespace safety: reject a namespace containing `\0` or resolving outside the settings dir (Devframe's
-  `relative` check), plus zod-validate it at the RPC boundary.
+- Reads: `storage.getItem` parses through unstorage's `destr` (drops `__proto__`), then a zod record check. A
+  corrupt file logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the
+  next `set`. `get` returns only own keys, so `get('constructor')` on an empty store is `undefined`.
+- Namespace safety: one rule, `SettingsNamespaceSchema` in `@conciv/contract`, used both at the RPC boundary
+  and by the engine store: 1 to 200 characters, no `\0`, no `/`, `\`, `:` or `?`. A namespace is one file
+  name inside the settings dir, so `release..prefs` is fine. Deviation from Devframe: Devframe's `relative`
+  check also allows nested names like `acme/editor`; unstorage folds `/`, `\` and `:` into one key separator
+  and cuts keys at `?`, so conciv refuses those characters instead of mapping two names onto one file.
 - One in-memory store per (scope, namespace) on the engine, created lazily, shared by every caller.
 
 ## Wire (conciv oRPC)
@@ -85,8 +87,6 @@ Devframe's `connectionMeta.configs`.
 Functions, not classes. No IIFEs. Zero comments. No `any` / `as` / `!` / `@ts-ignore`. No em dashes. zod at
 every trust boundary. Handle every error (no floating promises). No new test files. Changeset (patch, the
 `@conciv/*` set). `pnpm exec fallow audit --changed-since main --format json --quiet`: nothing INTRODUCED.
-Commit locally on `feat/settings-storage` in `/Users/omrikatz/Public/web/aidx-wt-settings-storage`. Do NOT push.
-Do NOT open a PR.
 
 ## Out of scope
 

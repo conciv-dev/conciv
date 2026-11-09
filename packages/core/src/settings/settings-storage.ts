@@ -6,7 +6,7 @@ import {EventPublisher} from '@orpc/server'
 import {Debouncer} from '@tanstack/pacer'
 import {omit} from 'es-toolkit'
 import {z} from 'zod'
-import type {SettingsScope, SettingsSnapshot} from '@conciv/contract'
+import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/contract'
 import {
   createSettingsStore,
   type ExtensionScope,
@@ -68,9 +68,10 @@ export function createSettingsStorage(storages: SettingsStorages) {
 }
 
 function settingsKey(namespace: string): string {
-  if (/[/\\:\0]|\.\./.test(namespace))
-    throw new Error(`conciv: the settings namespace "${namespace}" leaves the settings folder`)
-  return `${namespace}.json`
+  const parsed = SettingsNamespaceSchema.safeParse(namespace)
+  if (!parsed.success)
+    throw new Error(`conciv: the settings namespace "${namespace}" is refused: ${z.prettifyError(parsed.error)}`)
+  return `${parsed.data}.json`
 }
 
 function createSettingsFile(storage: Storage, key: string) {
