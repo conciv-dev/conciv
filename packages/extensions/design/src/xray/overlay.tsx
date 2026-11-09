@@ -9,7 +9,7 @@ import type {Component} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {z} from 'zod'
 import {getExtensionApi} from '@conciv/extension'
-import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import {EnvironmentProvider, TooltipIconButton} from '@conciv/ui-kit-system'
 import {designConfig} from '../shared/tolerances.js'
 import {Boxes} from './boxes.js'
 import {Panel} from './panel.js'
@@ -146,22 +146,22 @@ function RailButton(props: {
   onClick?: () => void
 }): JSX.Element {
   return (
-    <button
-      type="button"
+    <TooltipIconButton
+      tooltip={props.label}
+      side="right"
       aria-pressed={props.onClick === undefined ? undefined : (props.active ?? false)}
+      data-active={props.active ? '' : undefined}
       onClick={() => props.onClick?.()}
-      class={`px-1 pb-1 pt-1.5 border-0 rounded-chat-surface-sm flex flex-col gap-0.5 w-12 cursor-pointer items-center ${props.active ? 'bg-chat-fill-strong text-chat-accent' : 'bg-transparent text-chat-text-3'}`}
+      class="px-1 pb-1 pt-1.5 flex-col gap-0.5 w-12 data-[active]:text-chat-accent data-[active]:bg-chat-fill-strong"
       data-conciv-key="_04rZQ"
     >
-      <span class="size-5 block" data-conciv-key="Mj0Whg">
-        <props.icon class="size-full block" aria-hidden="true" />
-      </span>
+      <props.icon class="size-5 block" aria-hidden="true" />
       <span
         class={`text-[length:var(--chat-text-xs)] leading-none ${props.active ? 'font-semibold' : 'font-normal'}`}
         data-conciv-key="P-ZisQ"
       >
         {props.label}
       </span>
-    </button>
+    </TooltipIconButton>
   )
 }
