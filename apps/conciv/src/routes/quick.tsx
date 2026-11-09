@@ -1,6 +1,6 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {createHotkeys} from '@tanstack/solid-hotkeys'
+import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
 import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -71,7 +71,12 @@ function onGutterDown(e: PointerEvent) {
   window.addEventListener('pointerup', up)
 }
 
-export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onClose: () => void}): JSX.Element {
+export function QuickTerminalHeader(props: {
+  splitShortcut: string | undefined
+  onPip: () => void
+  onSplit: () => void
+  onClose: () => void
+}): JSX.Element {
   return (
     <header class="px-4.5 py-3 border-b border-b-chat-line-soft flex shrink-0 gap-3 items-center">
       <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">
@@ -87,7 +92,7 @@ export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => vo
       <TooltipIconButton tooltip="Pop out to a window" class={CLOSE} onClick={props.onPip}>
         <PictureInPicture2 class="size-5 block" aria-hidden="true" />
       </TooltipIconButton>
-      <TooltipIconButton tooltip="Split pane (Mod+D)" class={CLOSE} onClick={props.onSplit}>
+      <TooltipIconButton tooltip="Split pane" shortcut={props.splitShortcut} class={CLOSE} onClick={props.onSplit}>
         <Columns2 class="size-5 block" aria-hidden="true" />
       </TooltipIconButton>
       <TooltipIconButton tooltip="Close quick terminal" class={CLOSE} onClick={props.onClose}>
@@ -201,6 +206,11 @@ function QuickLayer(): JSX.Element {
       .map((binding) => ({hotkey: toRawHotkey(binding), callback: () => addFreshPane()})),
   )
 
+  const splitBinding = () => {
+    const binding = preferences.shortcut('quickNewPane')[0]
+    return binding ? formatForDisplay(binding) : undefined
+  }
+
   let restoreFocus: HTMLElement | null = null
   onMount(() => {
     restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -222,6 +232,7 @@ function QuickLayer(): JSX.Element {
         <EngineStaleNotice />
         <EngineUnreachableNotice />
         <QuickTerminalHeader
+          splitShortcut={splitBinding()}
           onPip={() => {
             const id = paneIds()[focusedIndex()]
             if (!id) return

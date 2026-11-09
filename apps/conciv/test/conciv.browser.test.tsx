@@ -6,6 +6,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
+import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
   bootedCore,
@@ -3347,7 +3348,7 @@ describe('quick add pane', () => {
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const closePane = () => page.getByRole('button', {name: 'Close pane'})
-  const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
+  const splitPane = () => page.getByRole('button', {name: 'Split pane', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
   const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
@@ -4820,12 +4821,19 @@ describe('settings page', () => {
     await expect.element(clash()).not.toBeInTheDocument()
     await expect.element(command('New quick terminal pane')).toHaveFocus()
     expect(harness.pathname()).toBe(settingsPath('shortcuts'))
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}')
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
 
     await userEvent.keyboard('{Escape}')
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(gear()).toHaveFocus()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
     await expect.element(quickTerminal(), {timeout: 8000}).toBeVisible()
+    await quickTerminal().getByRole('button', {name: 'Split pane', exact: true}).hover()
+    await expect
+      .element(page.getByRole('tooltip'), {timeout: 3000})
+      .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
 
     harness.dispose()
     harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
