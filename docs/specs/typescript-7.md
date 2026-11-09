@@ -29,12 +29,19 @@ use original names and the output is correct.
 ## Decisions (approved by Omri, 2026-11-09)
 
 1. Catalog `typescript: ^7.0.2`. `bin` stays `tsc`; no script renames.
-2. `packages/core`, `packages/chat`, `packages/client`, `packages/contract`: drop
-   `dts: {resolver: 'tsc'}` (use `dts: true`) and turn off `minifyInternalExports` for their output.
-   These are Node-side packages; unminified internal chunk export names cost nothing.
-   Every other `dts: true` package with more than one entry gets the same setting if it emits a
-   shared d.ts chunk (the scan below decides; do not guess).
-3. A d.ts value-export guard: a `conciv-publish check-dts` command that walks every published
+2. (Revised 2026-11-09, Omri picked "plain tsc emit".) `packages/core`, `packages/chat`,
+   `packages/client`, `packages/contract` stop bundling declarations: tsdown `dts: false`, and
+   declarations come from `tsc -p tsconfig.build.json` exactly like the 20 packages that already
+   do it (brand, embed, protocol, ui-kit-*, most extensions). Copy their shape: tsconfig.build.json
+   layout, `build` script order, buildinfo placement (the #374 fix, see
+   `fix(build): stop the declaration build from losing its own output`), and point every
+   `exports[*].types` at the emitted per-file d.ts. No rolldown-plugin-dts in these four packages'
+   type path at all, so #295 cannot reach them. `minifyInternalExports` stays at its default.
+   This is a trial on four packages; the report says how it went (build time, d.ts diff, attw/publint,
+   consumer typecheck) and which of the remaining 14 tsdown `dts: true` packages emit a shared d.ts
+   chunk (check-dts tells), so Omri can decide on moving all of them.
+3. A d.ts value-export guard (stays while any package still bundles d.ts through tsdown; deleted
+   when none do): a `conciv-publish check-dts` command that walks every published
    package's `dist/**/*.d.{ts,mts,cts}`, and for each `export { type X as Y }` /
    `export { type X }` specifier fails when `X` is declared in that file as a value
    (`declare const|let|var|function|class|enum`, `declare namespace` with values). It also flags
@@ -77,8 +84,8 @@ rolldown-plugin-dts#295 ships, proven by `check-dts` staying green after removal
 
 ### TypeScript 6 holdouts
 
-| App | Blocker | Upstream | Unblock check |
-| --- | --- | --- | --- |
+| App        | Blocker                             | Upstream                                   | Unblock check                                                                                   |
+| ---------- | ----------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | e2e/svelte | svelte-check has no stable TS7 mode | sveltejs/language-tools#3063, #3185, #3174 | svelte-check release with TS7 peer or stable `--tsgo`; `pnpm --filter <app> check` green on TS7 |
 
 (Implementation adds rows only for proven failures, with the failing command and error line.)

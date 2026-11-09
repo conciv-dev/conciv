@@ -219,6 +219,9 @@ catalogs:
     '@types/ws':
       specifier: ^8.18.2
       version: 8.18.2
+    '@typescript/typescript6':
+      specifier: ^6.0.2
+      version: 6.0.2
     '@unocss/postcss':
       specifier: ^66.12.0
       version: 66.12.0
@@ -967,6 +970,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.3.0(@types/react@19.3.0)
+      '@typescript/typescript6':
+        specifier: 'catalog:'
+        version: 6.0.2
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 6.1.2(vite@8.3.5)
@@ -2587,6 +2593,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.156.0
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17

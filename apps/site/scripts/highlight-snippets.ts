@@ -1,7 +1,9 @@
 import {writeFile} from 'node:fs/promises'
+import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createHighlighter} from 'shiki'
-import {createTwoslasher} from 'twoslash'
+import {createTwoslasher} from 'twoslash/core'
+import typescript6 from '@typescript/typescript6'
 import {codeToKeyedTokens} from '@shikijs/magic-move/core'
 import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/components/landing/framework-snippets.ts'
 
@@ -27,7 +29,11 @@ const inlineHighlight = (code: string) =>
     .replace(/^<pre[^>]*><code>/, '')
     .replace(/<\/code><\/pre>$/, '')
 
-const twoslasher = createTwoslasher()
+const twoslasher = createTwoslasher({
+  vfsRoot: process.cwd(),
+  tsModule: typescript6,
+  tsLibDirectory: dirname(typescript6.getDefaultLibFilePath({})),
+})
 
 const hoverData = withCode.flatMap((snippet) => {
   if (snippet.twoslash !== true) return []

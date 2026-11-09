@@ -81,6 +81,7 @@
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "oxc-parser": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
