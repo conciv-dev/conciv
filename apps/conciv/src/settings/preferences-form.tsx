@@ -4,19 +4,16 @@ import {createFormHook, type AnyFieldApi} from '@tanstack/solid-form'
 import {Button, Loader} from '@conciv/ui-kit-system'
 import {useAnnounce, usePreferences} from '../app/context.js'
 import {fieldContext, formContext} from './form-context.js'
-import {ChoiceField} from './choice-field.js'
-import {HotkeyField} from './hotkey-field.js'
-import {VisibleViewsField} from './visible-views-field.js'
-import {ViewOrderField} from './view-order-field.js'
+import {SegmentField, SelectField, SkinField, SwitchField} from './setting-fields.js'
 import {PreferenceKeySchema, type Preferences} from './preferences-schema.js'
 
-const FORM = 'flex flex-col gap-5'
+const FORM = 'flex flex-col gap-3.5'
 const FAILED = 'flex flex-col items-start gap-2 text-[0.8125rem] text-chat-text-2'
 
 const {useAppForm} = createFormHook({
   fieldContext,
   formContext,
-  fieldComponents: {ChoiceField, HotkeyField, VisibleViewsField, ViewOrderField},
+  fieldComponents: {SegmentField, SelectField, SkinField, SwitchField},
   formComponents: {},
 })
 

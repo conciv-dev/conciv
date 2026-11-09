@@ -4159,18 +4159,19 @@ describe('settings page', () => {
 
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const gear = () => page.getByRole('link', {name: 'Settings'})
+  const back = () => page.getByRole('button', {name: 'Back to chat'})
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
-  const colorScheme = () => page.getByRole('group', {name: 'Color scheme'})
-  const radio = (name: string) => colorScheme().getByRole('radio', {name, exact: true})
-  const shownViews = () => page.getByRole('group', {name: 'Shown in the status bar'})
+  const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
   const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
   const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
-  const recorder = (label: string) => page.getByRole('button', {name: `Change ${label}`})
+  const notesShown = () => page.getByRole('checkbox', {name: /^Notes/})
+  const command = (label: string) => page.getByRole('button', {name: label, exact: true})
+  const clash = () => page.getByRole('status').getByText(/is also/)
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
-  const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all conciv settings?'})
 
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
+    localStorage.removeItem('conciv:settings-tab')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
@@ -4179,63 +4180,67 @@ describe('settings page', () => {
     await expect.element(notesTab()).toBeVisible()
 
     await gear().click()
-    await expect.element(tab('Appearance')).toHaveAttribute('aria-selected', 'true')
-    expect(harness.path()).toBe(settingsPath('appearance'))
+    await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.path()).toBe(settingsPath('general'))
 
     for (const name of ['Views', 'Shortcuts', 'Advanced']) {
       await tab(name).click()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.path()).toBe(settingsPath(name.toLowerCase()))
     }
-    for (const name of ['Shortcuts', 'Views', 'Appearance']) {
+    for (const name of ['Shortcuts', 'Views', 'General']) {
       await userEvent.keyboard('{ArrowLeft}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.path()).toBe(settingsPath(name.toLowerCase()))
     }
 
-    await colorScheme().getByText('Dark', {exact: true}).click()
-    await expect.element(probe('dark')).toBeInTheDocument()
-    await expect.element(page.getByRole('button', {name: 'Reset Color scheme to default'})).toBeVisible()
-
-    harness.dispose()
-    harness.mountShell(`${settingsPath('appearance')}?open=true`, [settingsProbe])
-    await expect.element(radio('Dark'), {timeout: 8000}).toBeChecked()
+    await colorMode().getByText('Dark', {exact: true}).click()
     await expect.element(probe('dark')).toBeInTheDocument()
 
     await tab('Views').click()
-    await expect.element(shownViews().getByRole('checkbox', {name: 'Notes'})).toBeChecked()
-    await shownViews().getByText('Notes', {exact: true}).click()
-    await expect.element(shownViews().getByRole('checkbox', {name: 'Notes'})).not.toBeChecked()
+    await expect.element(notesShown()).toBeChecked()
+    await page.getByText(/^Notes/).click()
+    await expect.element(notesShown()).not.toBeChecked()
 
-    await tab('Shortcuts').click()
-    await recorder('Open the quick terminal').click()
-    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
-    await page.getByRole('button', {name: 'Save', exact: true}).click()
-    await expect.element(recorder('Open the quick terminal')).toHaveFocus()
-    await recorder('Open a new quick terminal pane').click()
-    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
-    await expect.element(page.getByRole('status').getByText('Already used by Open the quick terminal')).toBeVisible()
-    await page.getByRole('button', {name: 'Cancel', exact: true}).click()
-
-    await tab('Shortcuts').click()
-    await userEvent.keyboard('{Escape}')
+    await back().click()
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(gear()).toHaveFocus()
     expect(harness.path()).toBe(`/panel/${sessionId}`)
     await expect.element(notesTab()).not.toBeInTheDocument()
 
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.path()).toBe(settingsPath('views'))
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await tab('Shortcuts').click()
+    await command('Quick terminal').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(command('Quick terminal')).toHaveFocus()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(clash()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(clash()).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+    expect(harness.path()).toBe(settingsPath('shortcuts'))
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
     await expect.element(quickTerminal(), {timeout: 8000}).toBeVisible()
 
     harness.dispose()
     harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
-    await page.getByRole('link', {name: 'Reset all settings'}).click()
-    await expect.element(resetDialog()).toBeVisible()
-    await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
-    await resetDialog().getByRole('button', {name: 'Reset all'}).click()
-    await expect.element(resetDialog()).not.toBeInTheDocument()
-    await expect.element(page.getByRole('status').getByText('conciv settings reset')).toBeInTheDocument()
+    await page.getByRole('button', {name: 'Reset all', exact: true}).click()
+    await page.getByRole('button', {name: 'Click again', exact: true}).click()
+    await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
     expect(harness.path()).toBe(settingsPath('advanced'))
     await expect.element(probe('light')).toBeInTheDocument()
 

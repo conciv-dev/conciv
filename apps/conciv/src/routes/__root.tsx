@@ -13,7 +13,7 @@ import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
 import {createHotkeys} from '@tanstack/solid-hotkeys'
-import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
+import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -259,7 +259,8 @@ function RootChrome(props: {
   const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
-  const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
+  const launcherVisible = () =>
+    preferences.launcher() === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
   const [panelElement, setPanelElement] = createSignal<HTMLElement>()
   const panelSize = createElementSize(panelElement)
   const digitObstacle = createMemo((): PanelFrame | undefined => {
@@ -284,7 +285,7 @@ function RootChrome(props: {
   let hostRestoreTarget: HTMLElement | null = null
 
   const mascotRect = (): {x: number; y: number; width: number; height: number} | null => {
-    if (settings.launcher !== 'mascot') return null
+    if (preferences.launcher() !== 'mascot') return null
     const rect = fabEl?.getBoundingClientRect()
     return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
   }
@@ -335,6 +336,16 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
+  const openStoredOnLoad = createReaction(() => {
+    if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
+  })
+  openStoredOnLoad(() => preferences.status() === 'success')
+  makeEventListener(document, 'pointerdown', (event: PointerEvent) => {
+    if (!preferences.stored().closeOnOutsideClick || !panelOpen() || settings.surface === 'dock') return
+    const root = rootEl?.getRootNode()
+    const widget = root instanceof ShadowRoot ? root.host : rootEl
+    if (widget && !event.composedPath().includes(widget)) closePanel()
+  })
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -447,11 +458,12 @@ function RootChrome(props: {
     })
   }
   const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
-  createHotkeys(() =>
-    settings.quickTerminal.enabled
+  createHotkeys(() => [
+    ...preferences.shortcut('togglePanel').map((binding) => ({hotkey: toRawHotkey(binding), callback: togglePanel})),
+    ...(settings.quickTerminal.enabled
       ? preferences.shortcut('quickTerminal').map((binding) => ({hotkey: toRawHotkey(binding), callback: toggleQuick}))
-      : [],
-  )
+      : []),
+  ])
 
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>

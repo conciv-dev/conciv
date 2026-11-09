@@ -79,3 +79,5 @@ export function RadioCards(props: RadioCardsProps): JSX.Element {
     </RadioGroup.Root>
   )
 }
+
+export const RadioGroupPrimitive = RadioGroup

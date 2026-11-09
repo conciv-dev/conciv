@@ -101,3 +101,5 @@ export function FieldShell(props: FieldShellProps): JSX.Element {
     </Show>
   )
 }
+
+export const FieldPrimitive = Field

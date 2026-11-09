@@ -86,6 +86,9 @@ README.md; this file is the non-obvious operational rules.
 - Solid: no raw `createSignal`/`createEffect` in new code; use `createMemo`, `createResource`, solid-query,
   or `@solid-primitives/*`; if none fits, say why in the PR and get maintainer sign-off. React (`apps/site`): no `useEffect`/`useLayoutEffect`. Full review laws:
   `.github/skills/code-review/SKILL.md`.
+- Styling is UnoCSS classes only, from the preset's existing tokens: no new `.css` files or rules, no arbitrary
+  values where a token exists (breakpoints use the named container variants `@xs`/`@sm`/`@md`/`@lg`, never
+  `@[360px]`; motion uses the preset `anim-*` shortcuts).
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
 ## TanStack Router

@@ -9,6 +9,7 @@ export type ConcivSettings = {
   quickTerminal: {enabled: boolean; hotkeys: string[] | null}
   defaultOpen: boolean
   launcher: Launcher
+  fromHost: {defaultOpen: boolean; launcher: boolean}
   surface: ConcivSurface
   transport: ChatTransportPreference
 }
@@ -64,6 +65,7 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
     defaultOpen: cfg.defaultOpen === true,
     launcher: launcherOf(cfg.launcher),
+    fromHost: {defaultOpen: Object.hasOwn(cfg, 'defaultOpen'), launcher: Object.hasOwn(cfg, 'launcher')},
     surface: cfg.surface === 'dock' ? 'dock' : 'page',
     transport: transportOf(cfg.transport),
   }
