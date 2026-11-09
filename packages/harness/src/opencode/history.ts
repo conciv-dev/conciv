@@ -148,7 +148,12 @@ export function buildMessages(
   })
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
+  options.signal?.throwIfAborted()
   return withDatabase<ChatMessage[]>([], (db) => {
     const session = sessionRow(db, sessionId)
     if (!session || !sameCwd(session.directory, cwd)) return []

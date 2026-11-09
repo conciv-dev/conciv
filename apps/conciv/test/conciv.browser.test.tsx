@@ -3959,6 +3959,11 @@ describe('session selector', () => {
         updatedAt: noon - (OLDER_SESSIONS + 14) * DAY_MS,
       },
       {
+        id: HarnessSessionId.parse('gulch-walk'),
+        derivedTitle: 'a walk down the gulch',
+        updatedAt: noon - (OLDER_SESSIONS + 15) * DAY_MS,
+      },
+      {
         id: EXTERNAL_ID,
         derivedTitle: 'a session mid-run',
         updatedAt: noon,
@@ -3998,6 +4003,12 @@ describe('session selector', () => {
         updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS,
         text: 'a puffin colony nests on the cliff',
       },
+      ...['first', 'second'].map((ordinal, index) => ({
+        id: HarnessSessionId.parse(`puffin-diary-${ordinal}`),
+        derivedTitle: `the ${ordinal} puffin diary`,
+        updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS - (index + 1) * MINUTE_MS,
+        text: `the ${ordinal} puffin count started at dawn on the northern stack, where the burrows run along the grass above the cliff edge and every pair returns to the same hole each spring, so the tally walks the slope in rows, marks each occupied burrow with a flag, and repeats the walk at dusk to catch the birds that were out fishing in the morning`,
+      })),
     ],
   })
   const keep = keptPane()
@@ -4103,6 +4114,17 @@ describe('session selector', () => {
     await expect.element(option('a seabird survey').getByRole('mark')).toHaveTextContent('puffin')
     await expect.element(option('the puffin notes').getByRole('mark')).toHaveTextContent('puffin')
     await expect.element(option('the puffin notes')).not.toHaveAccessibleDescription()
+    await expect.element(option('the second puffin diary')).toBeVisible()
+    const results = ['the puffin notes', 'a seabird survey', 'the first puffin diary', 'the second puffin diary']
+    for (const title of results) {
+      await userEvent.keyboard('{ArrowDown}')
+      await expect.element(option(title)).toBeInViewport({ratio: 1})
+    }
+    for (const title of results.toReversed().slice(1)) {
+      await userEvent.keyboard('{ArrowUp}')
+      await expect.element(option(title)).toBeInViewport({ratio: 1})
+    }
+    await expect.element(search).toHaveFocus()
 
     await userEvent.keyboard('{Backspace}')
     await expect.element(search).toHaveValue('puffi')
@@ -4174,10 +4196,9 @@ describe('session selector', () => {
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(labelled).toHaveFocus()
     await expect.element(option('older session 0')).toBeVisible()
-    await userEvent.keyboard('g')
-    expect(mounted.router.state.location.search).not.toHaveProperty('sessionSearch')
-    await typeKeyByKey(labelled, 'ull', 'g')
+    await typeKeyByKey(labelled, 'gull', '')
     await expect.element(option('a gull at home')).toBeVisible()
+    await expect.element(option('a walk down the gulch')).not.toBeInTheDocument()
     expect(mounted.router.state.location.search.sessionSearch).toBe('gull')
     await expect.element(option('the gull census')).not.toBeInTheDocument()
 
@@ -4286,8 +4307,12 @@ describe('session selector', () => {
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
     await expect.element(preview('a minute after midnight').getByRole('mark')).not.toBeInTheDocument()
-    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}')
+    expect(preview('older session 0').query()).toBeNull()
+    expect(preview('a minute before midnight').query()).toBeNull()
+    expect(entry('a minute after midnight', 'tide log entry 29').query()).not.toBeNull()
     await expect.element(entry('a minute before midnight', 'the evening ebb')).toBeVisible()
+    expect(preview('a minute after midnight').query()).toBeNull()
     await userEvent.keyboard('{ArrowUp}')
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
 

@@ -427,9 +427,15 @@ export function withinProject(cwd: string, sessionId: string): boolean {
   return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId)) !== null
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
   if (!withinProject(cwd, sessionId)) return []
-  const folded = await foldJsonlFile(transcriptPath(cwd, sessionId), emptyFold(), foldLine).catch(whenMissing(null))
+  const folded = await foldJsonlFile(transcriptPath(cwd, sessionId), emptyFold(), foldLine, options).catch(
+    whenMissing(null),
+  )
   return folded === null ? [] : folded.messages
 }
 

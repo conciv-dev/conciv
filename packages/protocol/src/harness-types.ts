@@ -166,7 +166,7 @@ export type TranscriptPage = {messages: ChatMessage[]; earlier: TranscriptCursor
 export type TranscriptTailOptions = {limit: number; before: TranscriptCursor | null; signal?: AbortSignal}
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
   tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
   observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 

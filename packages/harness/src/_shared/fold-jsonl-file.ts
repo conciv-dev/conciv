@@ -7,19 +7,24 @@ export async function foldJsonlFile<State>(
   path: string,
   initial: State,
   foldLine: (state: State, line: string, offset: number) => State,
+  options: {signal?: AbortSignal} = {},
 ): Promise<State> {
   const progress = {state: initial}
-  for await (const {line, offset} of readLinesForward(path)) progress.state = foldLine(progress.state, line, offset)
+  for await (const {line, offset} of readLinesForward(path, options.signal))
+    progress.state = foldLine(progress.state, line, offset)
   return progress.state
 }
 
-async function* readLinesForward(path: string): AsyncGenerator<{line: string; offset: number}> {
+async function* readLinesForward(
+  path: string,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<{line: string; offset: number}> {
   const file = await open(path, 'r')
   try {
     const carried: Buffer[] = []
     let lineStart = 0
     let position = 0
-    let chunk = await readChunk(file, position)
+    let chunk = await readChunk(file, position, signal)
     while (chunk.byteLength > 0) {
       let from = 0
       let newline = chunk.indexOf(NEWLINE, from)
@@ -32,7 +37,7 @@ async function* readLinesForward(path: string): AsyncGenerator<{line: string; of
       }
       carried.push(chunk.subarray(from))
       position += chunk.byteLength
-      chunk = await readChunk(file, position)
+      chunk = await readChunk(file, position, signal)
     }
     yield {line: Buffer.concat(carried).toString('utf8'), offset: lineStart}
   } finally {
@@ -40,7 +45,8 @@ async function* readLinesForward(path: string): AsyncGenerator<{line: string; of
   }
 }
 
-async function readChunk(file: FileHandle, position: number): Promise<Buffer> {
+async function readChunk(file: FileHandle, position: number, signal: AbortSignal | undefined): Promise<Buffer> {
+  signal?.throwIfAborted()
   const chunk = Buffer.allocUnsafe(CHUNK_BYTES)
   const {bytesRead} = await file.read(chunk, 0, CHUNK_BYTES, position)
   return chunk.subarray(0, bytesRead)

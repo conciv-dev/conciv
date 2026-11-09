@@ -343,11 +343,15 @@ function foldRolloutLine(state: RolloutFold, line: string, offset: number): Roll
   return state
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
   const path = rolloutPath(sessionId)
   if (!path) return []
   const empty: RolloutFold = {spine: emptySpine(sessionId), cwd: undefined}
-  const folded = await foldJsonlFile(path, empty, foldRolloutLine).catch(whenMissing(null))
+  const folded = await foldJsonlFile(path, empty, foldRolloutLine, options).catch(whenMissing(null))
   if (folded === null || typeof folded.cwd !== 'string' || !sameCwd(folded.cwd, cwd)) return []
   return folded.spine.messages
 }
