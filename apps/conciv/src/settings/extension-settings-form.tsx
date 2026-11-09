@@ -27,10 +27,12 @@ export function ExtensionSettingsForm(): JSX.Element {
     }),
     () => queryClient,
   )
+  const saved = () => (snapshot.isPending ? undefined : snapshot.data?.value)
+  const status = () => (snapshot.isPending ? 'pending' : saved() ? 'success' : 'error')
   const page = extensionSettingsPage(extension)
-  const form = createExtensionForm(extension, () => extension.parseSettings(snapshot.data?.value), page.fields)
+  const form = createExtensionForm(extension, () => extension.parseSettings(saved()), page.fields)
   return (
-    <SettingsLoad status={snapshot.data ? 'success' : snapshot.status} retry={() => void snapshot.refetch()}>
+    <SettingsLoad status={status()} retry={() => void snapshot.refetch()}>
       <form class={FORM} aria-label={page.title} onSubmit={(event) => event.preventDefault()}>
         <Group title={page.title}>
           <Show
