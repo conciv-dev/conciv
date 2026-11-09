@@ -33,6 +33,7 @@ type Options = {
   route: string
   width: number
   height: number
+  colorScheme: z.output<typeof COLOR_SCHEME>
   image?: string
   figma?: string
   document?: string
@@ -53,6 +54,8 @@ type Shown = z.output<typeof SHOWN>
 const SHOWN = z.array(z.enum(['progress']))
 
 const OPENED = z.array(z.enum(['query']))
+
+const COLOR_SCHEME = z.enum(['light', 'dark'])
 
 type Trial = {rpc: RpcClient; page: Page; id: string; session: SessionId}
 
@@ -83,6 +86,7 @@ async function main(): Promise<void> {
       route: {type: 'string', default: '/'},
       width: {type: 'string', default: '1280'},
       height: {type: 'string', default: String(TAB_HEIGHT)},
+      'color-scheme': {type: 'string', default: COLOR_SCHEME.enum.light},
       image: {type: 'string'},
       figma: {type: 'string'},
       document: {type: 'string'},
@@ -109,6 +113,7 @@ async function main(): Promise<void> {
     open: OPENED.parse(values.open),
     width: Number(values.width),
     height: Number(values.height),
+    colorScheme: COLOR_SCHEME.parse(values['color-scheme']),
     port: Number(values.port),
   }
   return serve({options, commands: positionals})
@@ -244,7 +249,10 @@ async function open(input: {
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   if (input.options.model !== undefined) await rpc.sessions.model({sessionId: session, model: input.options.model})
-  const page = await input.browser.newPage({viewport: {width: input.options.width, height: input.options.height}})
+  const page = await input.browser.newPage({
+    viewport: {width: input.options.width, height: input.options.height},
+    colorScheme: input.options.colorScheme,
+  })
   const route = await magicLink(new URL(apiBase).origin, () => input.printed.join('\n'), input.options.route)
   await awaitPagePlaneSubscribed(page, async () => {
     await page.goto(new URL(route, new URL(local).origin).href, {waitUntil: 'domcontentloaded'})
