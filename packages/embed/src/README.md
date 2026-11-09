@@ -10,7 +10,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:ConcivInit` - `extensions`, `settings`, `apiBase`, `grabProvider`; `ExtensionsInput` is an array or a `() => Promise<AnyExtension[]>` loader.
 - `mount.ts:mountConciv` - appends a `[data-conciv-script-root]` div to `document.body` and mounts the widget with the given extensions.
 - `mount-impl.tsx:mountImpl` - creates the `[data-conciv-root]` element and shadow root, boots the app, returns `{ready, teardown, rebind}`.
-- `navigation-storage.ts:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored` and `dispose`.
+- `navigation-storage.ts:makeNavigationStorage` - a `WebStorage` backed by `rpc.navigation.get`/`set`, with `restored`, `flush` and `dispose`.
 - `native-entry.ts` - mounts the widget with the iOS client extension on `[data-conciv-native-root]` (or `document.body`) and sets `window.__concivRebind`.
 
 ## Invariants
@@ -18,7 +18,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.
-- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; writes are debounced by 300 ms (`WRITE_DELAY_MS`) and stamped with a strictly increasing `updatedAt`.
+- `navigation-storage.ts:makeNavigationStorage` - the server value is not restored after a local write or after `dispose`; the server value is read only once the engine trusts the page, and a write while untrusted is dropped; writes are debounced by 300 ms (`WRITE_DELAY_MS`) and stamped with a strictly increasing `updatedAt`; the mount flushes the pending write when the document turns hidden, and `rpc.navigation.set` goes out as a keepalive fetch, so a reload or tab close right after a navigation still persists it.
 - `native-entry.ts:readLauncher` - the launcher is `mascot` only when the `launcher` query parameter says so, otherwise `native`.
 
 ## Side Effects

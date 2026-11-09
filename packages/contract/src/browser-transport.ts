@@ -5,7 +5,7 @@ import type {ContractRouterClient} from '@orpc/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 
-export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
+export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string; keepalive?: boolean}
 
 export type SessionAccessor = () => string | null
 
@@ -185,6 +185,7 @@ function fetchLink(
   return new FetchRpcLink<RpcClientContext>({
     url: `${key}/rpc`,
     headers: (options) => requestHeaders(state, options),
+    fetch: (request, init, options) => fetch(request, {...init, keepalive: options.context.keepalive ?? false}),
     interceptors: [
       (options) => {
         const sent = state.token

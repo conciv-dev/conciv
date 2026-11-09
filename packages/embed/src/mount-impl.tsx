@@ -226,8 +226,14 @@ function bootNormal(config: BootNormalConfig): BootResult {
     void router.navigate({href, replace: true})
   }
 
+  const flushNavigationWhenHidden = (): void => {
+    if (document.visibilityState === 'hidden') storage.flush()
+  }
+  document.addEventListener('visibilitychange', flushNavigationWhenHidden)
+
   const disposers = [
     unsubscribeNavigation,
+    () => document.removeEventListener('visibilitychange', flushNavigationWhenHidden),
     storage.dispose,
     activeSession.dispose,
     disposeApp,
