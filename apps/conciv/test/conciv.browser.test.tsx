@@ -75,7 +75,7 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {HostApiProvider} from '@conciv/extension/host'
+import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
 import {
   createChat,
@@ -92,6 +92,14 @@ import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
+import {sessionPickerSearchSchema} from '../src/lib/session-search-schemas.js'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  stripSearchParams,
+} from '@tanstack/solid-router'
 import {StatusBar} from '../src/pane/status-bar.jsx'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
@@ -1774,7 +1782,11 @@ describe('harness switching', () => {
     await rpc.sessions.switchHarness({sessionId: betaId, harnessId: 'beta'})
     keep(
       mountPane({base: core(), sessionId: activeId}, () => (
-        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+        <RouterProvider
+          router={pickerRouter('/', () => (
+            <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+          ))}
+        />
       )),
     )
 
@@ -2510,6 +2522,80 @@ describe('panel header', () => {
     await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
     await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
     await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+
+    const DRAFT = 'the draft that outlives the menu'
+    const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer().click()
+    await userEvent.keyboard(DRAFT)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+    await titleButton(OTHER).click()
+    await expect.element(menu()).toBeVisible()
+    await switcher(OTHER).click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${otherId}`)
+    await expect.element(composer()).toHaveTextContent(DRAFT)
+  }, 30_000)
+
+  test('the session menu lives in the URL: back closes it, closing leaves no extra entry, a reload reopens it', async () => {
+    const TITLE = 'the session in the address'
+    const EARLIER = 'the session visited before'
+    const titleButton = (title = TITLE) =>
+      page.getByRole('banner').getByRole('button', {name: `${title}, session options`})
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const switcher = () => menu().getByRole('button', {name: `Session: ${TITLE}`})
+    const rpc = coreRpc(coreBase())
+    const earlierId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: earlierId, title: EARLIER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}?open=true`])
+
+    await expect.element(titleButton(), {timeout: 8000}).toBeVisible()
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/options`)
+
+    harness.back()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}/options?open=true`)
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await expect.element(switcher()).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    await expect.element(titleButton()).toHaveFocus()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+
+    harness.dispose()
+    harness.mountShell([`/panel/${earlierId}?open=true`, `/panel/${sessionId}/options?open=true`])
+    await expect.element(menu(), {timeout: 8000}).toBeVisible()
+    await switcher().click()
+    await page.getByRole('option', {name: new RegExp(`^${EARLIER},`)}).click()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    harness.back()
+    await expect.element(titleButton(EARLIER), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${earlierId}`)
   }, 30_000)
 })
 
@@ -2642,6 +2728,78 @@ describe('panel view tabs', () => {
 
     await coreControl.releaseFault(gate)
     await expect.element(page.getByText('conciv replied.')).not.toBeInTheDocument()
+  }, 30_000)
+
+  test('the session menu opens over a view and a tab switch lands on the new view without it', async () => {
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    await mountSeededPanel()
+
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await notesTab().click()
+    await expect.element(notes(), {timeout: 8000}).toBeVisible()
+
+    await page.getByRole('button', {name: /session options$/}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(notes()).toBeVisible()
+    expect(harness.pathname()).toMatch(/\/notes\/options$/)
+
+    await chatTab().click()
+    await expect.element(reply(), {timeout: 8000}).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).not.toMatch(/options$/)
+  }, 30_000)
+
+  test('a locked view opens and closes its own session menu, and a session pick never leaves it', async () => {
+    const LOCKED_BODY = 'the locked view body'
+    const TITLE = 'the locked session'
+    const OTHER = 'the session a lock keeps away'
+    function LockedView(): JSX.Element {
+      const lock = getHostApi().useViewLock()
+      onMount(() => lock(true))
+      return <p>{LOCKED_BODY}</p>
+    }
+    const lockedExtension = defineExtension({
+      name: 'panel-view-lock',
+      views: [{id: 'locked', label: 'Locked', Component: LockedView}],
+    })
+    const menu = () => page.getByRole('dialog', {name: 'Session options'})
+    const titleButton = () => page.getByRole('banner').getByRole('button', {name: `${TITLE}, session options`})
+    const lockedBody = () => page.getByText(LOCKED_BODY)
+    const rpc = coreRpc(coreBase())
+    const otherId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId: otherId, title: OTHER})
+    const sessionId = await createSession(rpc)
+    await rpc.sessions.rename({sessionId, title: TITLE})
+    harness.mountShell(
+      [`/panel/${otherId}?open=true`, `/panel/${sessionId}?open=true`, `/panel/${sessionId}/locked?open=true`],
+      [lockedExtension],
+    )
+
+    await expect.element(lockedBody(), {timeout: 8000}).toBeVisible()
+    await expect.element(chatTab()).toBeDisabled()
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+
+    await titleButton().click()
+    await expect.element(menu()).toBeVisible()
+    await menu()
+      .getByRole('button', {name: `Session: ${TITLE}`})
+      .click()
+    await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
+    await expect.element(menu()).toBeVisible()
+    await expect.element(lockedBody()).toBeVisible()
+    await expect.element(titleButton()).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked/options`)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(menu()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}/locked`)
+    await expect.element(lockedBody()).toBeVisible()
   }, 30_000)
 
   describe('during a running turn', () => {
@@ -3542,7 +3700,11 @@ describe('session picker after login', () => {
     resume: true,
     holdTranscripts: true,
     history: [
-      {id: HarnessSessionId.parse('gannet-notes'), derivedTitle: 'the gannet notes', updatedAt: Date.now() - DAY_MS},
+      {
+        id: HarnessSessionId.parse('gannet-notes'),
+        derivedTitle: 'the gannet notes',
+        updatedAt: Date.now() - DAY_MS,
+      },
       {
         id: HarnessSessionId.parse('cliff-survey'),
         derivedTitle: 'a cliff survey',
@@ -3614,21 +3776,48 @@ describe('session selector', () => {
 
   const localMidnight = new Date().setHours(0, 0, 0, 0)
   const MINUTE_MS = 60_000
+  const TIDE_TURNS = 30
+  const tideLog = Array.from({length: TIDE_TURNS}, (_, turn): ChatMessage[] => [
+    {id: `tide-question-${turn}`, role: 'user', parts: [{type: 'text', content: `question ${turn}`}]},
+    {id: `tide-entry-${turn}`, role: 'assistant', parts: [{type: 'text', content: `tide log entry ${turn}`}]},
+  ]).flat()
+
+  const ELSEWHERE = '/elsewhere/gull-colony'
 
   const core = bootedCore('session-selector', {
     resume: true,
+    connect: true,
     holdTranscripts: true,
     history: [
-      {id: EXTERNAL_ID, derivedTitle: 'a session mid-run', updatedAt: Date.now(), sizeBytes: 2_400_000},
+      {
+        id: HarnessSessionId.parse('gull-away'),
+        cwd: ELSEWHERE,
+        derivedTitle: 'the gull census',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 13) * DAY_MS,
+        text: 'forty gulls on the breakwater',
+      },
+      {
+        id: HarnessSessionId.parse('gull-home'),
+        derivedTitle: 'a gull at home',
+        updatedAt: Date.now() - (OLDER_SESSIONS + 14) * DAY_MS,
+      },
+      {
+        id: EXTERNAL_ID,
+        derivedTitle: 'a session mid-run',
+        updatedAt: Date.now(),
+        sizeBytes: 2_400_000,
+      },
       {
         id: HarnessSessionId.parse('after-midnight'),
         derivedTitle: 'a minute after midnight',
         updatedAt: localMidnight + MINUTE_MS,
+        messages: tideLog,
       },
       {
         id: HarnessSessionId.parse('before-midnight'),
         derivedTitle: 'a minute before midnight',
         updatedAt: localMidnight - MINUTE_MS,
+        text: 'the evening ebb',
       },
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
@@ -3678,19 +3867,25 @@ describe('session selector', () => {
     return sessionId
   }
 
-  async function mountSelector(): Promise<void> {
+  type MountedPicker = {activeId: string; router: ReturnType<typeof pickerRouter>; pane: PaneMount}
+
+  async function mountSelector(): Promise<MountedPicker> {
     const rpc = coreRpc(core())
     const activeId = await activeSessionId(rpc)
     const externalId = await adoptNativeSession(rpc, EXTERNAL_ID)
     await coreControl.holdTurn()
     await sendTurn(core(), externalId, 'keep this session busy')
-    keep(
-      mountPane({base: core(), sessionId: activeId}, () => (
-        <Suspense>
-          <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
-        </Suspense>
-      )),
-    )
+    return mountPicker(activeId, '/')
+  }
+
+  function mountPicker(activeId: string, entry: string): MountedPicker {
+    const router = pickerRouter(entry, () => (
+      <Suspense>
+        <SessionSelector variant="pill" activeId={() => activeId} onActivate={() => {}} onNewSession={() => {}} />
+      </Suspense>
+    ))
+    const pane = keep(mountPane({base: core(), sessionId: activeId}, () => <RouterProvider router={router} />))
+    return {activeId, router, pane}
   }
 
   async function typeKeyByKey(search: Locator, keys: string, typedBefore: string): Promise<void> {
@@ -3702,7 +3897,7 @@ describe('session selector', () => {
   }
 
   test('a user opens, searches, pages, picks by keyboard and by pointer, and the search follows the index', async () => {
-    await mountSelector()
+    const mounted = await mountSelector()
     const trigger = page.getByRole('button', {name: 'Session: the active session'})
     const search = page.getByRole('combobox', {name: /search sessions/i})
     const option = (title: string) => page.getByRole('option', {name: new RegExp(`^${title},`)})
@@ -3747,12 +3942,24 @@ describe('session selector', () => {
     await coreControl.releaseTranscripts()
     await expect.element(option('a seabird survey')).toBeVisible()
     await expect.element(search).toHaveFocus()
+    await expect.element(option('a seabird survey')).toHaveAccessibleDescription('a puffin colony nests on the cliff')
+    await expect.element(option('a seabird survey').getByRole('mark')).toHaveTextContent('puffin')
+    await expect.element(option('the puffin notes').getByRole('mark')).toHaveTextContent('puffin')
+    await expect.element(option('the puffin notes')).not.toHaveAccessibleDescription()
+
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(search).toHaveValue('puffi')
+    await typeKeyByKey(search, 'm', 'puffi')
+    await expect.element(option('a seabird survey').getByRole('mark')).toHaveTextContent('puffin')
+    await expect.element(option('a seabird survey')).toHaveAccessibleDescription('a puffin colony nests on the cliff')
 
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(search).toHaveValue('')
     await expect.element(search).toHaveFocus()
     await expect.element(page.getByRole('button', {name: 'Clear search'})).not.toBeInTheDocument()
     await expect.element(option('older session 0')).toBeVisible()
+    await expect.element(page.getByRole('listbox').getByRole('mark')).not.toBeInTheDocument()
+    await expect.element(option('older session 0')).not.toHaveAccessibleDescription()
     await expect.element(option('the puffin notes')).not.toBeInTheDocument()
     await expect.element(page.getByRole('option', {name: /^the active session,/, selected: true})).toBeVisible()
 
@@ -3776,6 +3983,9 @@ describe('session selector', () => {
     await expect.element(trigger).toHaveFocus()
 
     await userEvent.click(trigger)
+    await expect.element(search).toHaveValue('kiwi')
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(search).toHaveValue('')
     await expect.element(option('older session 0')).toBeVisible()
     await userEvent.keyboard('{Escape}')
@@ -3794,13 +4004,195 @@ describe('session selector', () => {
     await expect
       .element(page.getByRole('log', {name: 'Announcements'}))
       .toHaveTextContent('Switched to the kiwi orchard plan | Switched to the puffin notes')
-  }, 30_000)
+
+    const anyPreview = page.getByRole('dialog', {name: /^Preview of /})
+    const preview = (title: string) => page.getByRole('dialog', {name: `Preview of ${title}`})
+    const entry = (title: string, text: string) => preview(title).getByText(text, {exact: true})
+    await userEvent.click(trigger)
+    const searchArea = page.getByRole('search')
+    const labelled = searchArea.getByRole('combobox', {name: 'Search sessions'})
+    const allProjects = searchArea.getByRole('switch', {name: 'All projects'})
+    await expect.element(labelled).toHaveValue('puffin')
+    await expect.element(allProjects).not.toBeChecked()
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(labelled).toHaveFocus()
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.keyboard('g')
+    expect(mounted.router.state.location.search).not.toHaveProperty('sessionSearch')
+    await typeKeyByKey(labelled, 'ull', 'g')
+    await expect.element(option('a gull at home')).toBeVisible()
+    expect(mounted.router.state.location.search.sessionSearch).toBe('gull')
+    await expect.element(option('the gull census')).not.toBeInTheDocument()
+
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.tab()
+    await expect.element(allProjects).toHaveFocus()
+    await userEvent.keyboard(' ')
+    await expect.element(allProjects).toBeChecked()
+    await expect.element(option('the gull census')).toBeVisible()
+    expect(mounted.router.state.location.search.allProjects).toBe(true)
+    await expect.element(option('the gull census')).toMatchTextContent(/· gull-colony$/)
+    await expect.element(option('a gull at home')).toBeVisible()
+
+    const copied = `cd '${ELSEWHERE}' && 'claude' '--resume' 'gull-away'`
+    await userEvent.click(option('the gull census'))
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+    await expect.element(page.getByRole('log', {name: 'Announcements'})).toMatchTextContent(/puffin notes \| Copied$/)
+    expect(await navigator.clipboard.readText()).toBe(copied)
+    await expect.element(option('the gull census')).toBeVisible()
+    await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
+
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(option('the gull census')).toHaveAttribute('data-highlighted')
+    await expect.element(entry('the gull census', 'forty gulls on the breakwater')).toBeVisible()
+    await expect.element(preview('the gull census').getByText('gull-colony', {exact: true})).toBeVisible()
+    const resumeCopy = (name: string) => preview('the gull census').getByRole('button', {name})
+    await expect.element(resumeCopy('Copy resume command')).toBeVisible()
+    await userEvent.keyboard('{Enter}')
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toMatchTextContent(/puffin notes \| Copied \| Copied$/)
+    await expect.element(option('the gull census')).toBeVisible()
+    expect(resumeCopy('Copied').query()).toBeNull()
+    await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
+    await navigator.clipboard.writeText('')
+    await userEvent.click(resumeCopy('Copy resume command'), {position: {x: -6, y: 14}})
+    await expect.element(resumeCopy('Copied')).toBeVisible()
+    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
+    await expect.element(preview('the gull census').getByRole('tooltip')).toHaveTextContent('Copied')
+    await expect.element(preview('the gull census').getByRole('tooltip')).toBeVisible()
+    expect(page.getByRole('listbox').getByRole('tooltip').query()).toBeNull()
+    await expect
+      .element(page.getByRole('log', {name: 'Announcements'}))
+      .toMatchTextContent(/puffin notes \| Copied \| Copied \| Copied$/)
+    expect(await navigator.clipboard.readText()).toBe(copied)
+
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{Escape}')
+    await expect.element(anyPreview).not.toBeInTheDocument()
+    await expect.element(option('the gull census')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('the gull census')).not.toBeInTheDocument()
+    await userEvent.click(trigger)
+    await expect.element(labelled).toHaveValue('gull')
+    await expect.element(option('the gull census')).toBeVisible()
+
+    const href = mounted.router.state.location.href
+    mounted.pane.dispose()
+    const remounted = mountPicker(mounted.activeId, href)
+    await userEvent.click(page.getByRole('button', {name: 'Session: the active session'}))
+    await expect.element(labelled).toHaveValue('gull')
+    await expect.element(allProjects).toBeChecked()
+    await expect.element(option('the gull census')).toBeVisible()
+    await expect.element(option('a gull at home')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(option('a minute after midnight')).toBeVisible()
+    expect(anyPreview.query()).toBeNull()
+    await typeKeyByKey(search, 'tide', '')
+    await expect.element(option('older session 0')).not.toBeInTheDocument()
+    await userEvent.hover(option('a minute after midnight'))
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await expect.element(preview('a minute after midnight').getByRole('mark').first()).toHaveTextContent('tide')
+    await expect.element(search).toHaveFocus()
+    await expect.element(preview('a minute after midnight').getByRole('button', {name: 'Copy'}).last()).toBeVisible()
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'Refresh'}))
+      .not.toBeInTheDocument()
+    await expect
+      .element(preview('a minute after midnight').getByRole('button', {name: 'More message actions'}))
+      .not.toBeInTheDocument()
+    await typeKeyByKey(search, 'x', 'tide')
+    await expect.element(option('a minute after midnight')).toBeVisible()
+    await expect.element(anyPreview).not.toBeInTheDocument()
+    await userEvent.hover(search)
+    await userEvent.hover(option('a minute after midnight'))
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await typeKeyByKey(search, 'y', 'tidex')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+    await expect.element(anyPreview).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await typeKeyByKey(search, 'question', '')
+    await userEvent.hover(option('a minute after midnight'))
+    await expect
+      .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
+      .toHaveTextContent('question')
+    await typeKeyByKey(search, 'xq', 'question')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
+    await expect.element(option('older session 0')).toBeVisible()
+    await userEvent.hover(option('a minute after midnight'))
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await expect.element(preview('a minute after midnight').getByRole('mark')).not.toBeInTheDocument()
+    await userEvent.keyboard('{ArrowDown}')
+    await expect.element(entry('a minute before midnight', 'the evening ebb')).toBeVisible()
+    await userEvent.keyboard('{ArrowUp}')
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+
+    const thread = preview('a minute after midnight').getByRole('log')
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    await expect.element(thread).toHaveFocus()
+    await userEvent.keyboard('{Alt>}{ArrowLeft}{/Alt}')
+    await expect.element(search).toHaveFocus()
+    await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}')
+    await expect.element(thread).toHaveFocus()
+    await userEvent.keyboard('{Home}')
+    await expect.element(entry('a minute after midnight', 'tide log entry 9')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(search).toHaveFocus()
+    await expect.element(anyPreview).not.toBeInTheDocument()
+    await expect.element(option('a minute after midnight')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveFocus()
+
+    remounted.pane.dispose()
+    const twin = pickerRouter('/', () => (
+      <Suspense>
+        <SessionSelector
+          variant="pill"
+          activeId={() => mounted.activeId}
+          onActivate={() => {}}
+          onNewSession={() => {}}
+        />
+        <SessionSelector
+          variant="pill"
+          activeId={() => mounted.activeId}
+          onActivate={() => {}}
+          onNewSession={() => {}}
+        />
+      </Suspense>
+    ))
+    keep(mountPane({base: core(), sessionId: mounted.activeId}, () => <RouterProvider router={twin} />))
+    const triggers = page.getByRole('button', {name: 'Session: the active session'})
+    await userEvent.click(triggers.first())
+    await expect.element(search).toHaveValue('')
+    await typeKeyByKey(search, 'kiwi', '')
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(option('the kiwi orchard plan')).not.toBeInTheDocument()
+    await userEvent.click(triggers.last())
+    await expect.element(search).toHaveValue('kiwi')
+    await expect.element(page.getByRole('button', {name: 'Clear search'})).toBeVisible()
+    await expect.element(option('the kiwi orchard plan')).toBeVisible()
+  }, 45_000)
 
   test('a session past the first page shows its own title on the trigger', async () => {
     const sessionId = await adoptNativeSession(coreRpc(core()), HarnessSessionId.parse(`older-${OLDER_SESSIONS - 1}`))
     keep(
       mountPane({base: core(), sessionId}, () => (
-        <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+        <RouterProvider
+          router={pickerRouter('/', () => (
+            <SessionSelector variant="pill" activeId={() => sessionId} onActivate={() => {}} onNewSession={() => {}} />
+          ))}
+        />
       )),
     )
 
@@ -4255,3 +4647,12 @@ describe('tool outcomes', () => {
     })
   }
 })
+
+function pickerRouter(entry: string, view: () => JSX.Element) {
+  const root = createRootRoute({
+    validateSearch: sessionPickerSearchSchema,
+    search: {middlewares: [stripSearchParams({sessionSearch: '', allProjects: false})]},
+    component: view,
+  })
+  return createRouter({routeTree: root, history: createMemoryHistory({initialEntries: [entry]})})
+}

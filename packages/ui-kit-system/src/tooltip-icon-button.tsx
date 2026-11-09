@@ -2,6 +2,7 @@ import {createUniqueId, onCleanup, onMount, Show, splitProps, type JSX} from 'so
 import {Tooltip} from './tooltip.js'
 import {useTooltipGroup} from './tooltip-group.js'
 import {useSharedTooltip, type SharedTooltip} from './truncated-text.js'
+import {Kbd} from './kbd.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
 export type TooltipIconButtonSide = 'top' | 'bottom' | 'left' | 'right'
@@ -14,14 +15,11 @@ const VARIANT: Record<TooltipIconButtonVariant, string> = {
   solid: 'rounded-chat-surface-md bg-chat-accent text-chat-on-accent hover:bg-chat-accent-hi',
 }
 
-const KEYCAP =
-  'ms-[7px] inline-flex items-center h-[1.55em] px-[0.45em] rounded-[0.4em] text-[0.86em] font-medium tabular-nums tracking-[0.02em] [color:color-mix(in_oklch,currentColor_72%,transparent)] [background:color-mix(in_oklch,currentColor_9%,transparent)] [box-shadow:inset_0_-1px_0_color-mix(in_oklch,currentColor_12%,transparent)]'
-
 function TooltipLabel(props: {tooltip: string; shortcut: string | undefined}): JSX.Element {
   return (
     <>
       {props.tooltip}
-      <Show when={props.shortcut}>{(shortcut) => <kbd class={KEYCAP}>{shortcut()}</kbd>}</Show>
+      <Show when={props.shortcut}>{(shortcut) => <Kbd class="ms-[7px]">{shortcut()}</Kbd>}</Show>
     </>
   )
 }
@@ -35,6 +33,7 @@ export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
   shortcut?: string
   side?: TooltipIconButtonSide
   variant?: TooltipIconButtonVariant
+  keepOpenOnClick?: boolean
 }
 
 function sharedTooltipFor(side: TooltipIconButtonSide | undefined): SharedTooltip | undefined {
@@ -57,6 +56,7 @@ function SharedTooltipIconButton(props: TooltipIconButtonProps & {shared: Shared
     'side',
     'variant',
     'class',
+    'keepOpenOnClick',
     'shared',
     'children',
     'ref',
@@ -66,6 +66,7 @@ function SharedTooltipIconButton(props: TooltipIconButtonProps & {shared: Shared
     const shared = local.shared
     shared.register(value, {
       kind: 'label',
+      keepOpenOnClick: local.keepOpenOnClick,
       render: () => <TooltipLabel tooltip={local.tooltip} shortcut={local.shortcut} />,
     })
     onCleanup(() => shared.release(value))
@@ -87,9 +88,13 @@ function SharedTooltipIconButton(props: TooltipIconButtonProps & {shared: Shared
 }
 
 function OwnTooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class'])
+  const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class', 'keepOpenOnClick'])
   return (
-    <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
+    <Tooltip.Root
+      positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}
+      closeOnPointerDown={!local.keepOpenOnClick}
+      closeOnClick={!local.keepOpenOnClick}
+    >
       <Tooltip.Trigger
         type="button"
         class={iconButtonClass(local.variant, local.class)}

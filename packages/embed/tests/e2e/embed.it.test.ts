@@ -109,6 +109,22 @@ test.describe('embed boot', () => {
       expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
     })
 
+    test('picking any session in the session menu closes the menu on that session', async ({page}) => {
+      test.setTimeout(120_000)
+      const other = await kit.rpc.sessions.create()
+      await kit.rpc.sessions.rename({sessionId: other.sessionId, title: 'the other session'})
+      await kit.rpc.sessions.create()
+      await openPage(page)
+      await openPanel(page)
+      await switchToSessionByTitle(page, 'the other session')
+      await until(async () => (await currentHref(kit)).includes(other.sessionId), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+      expect(await currentHref(kit)).not.toContain('/options')
+      await switchToSessionByTitle(page, 'the other session')
+    })
+
     test('sends a message and renders the assistant reply from the fake harness', async ({page}) => {
       test.setTimeout(120_000)
       await openPage(page)

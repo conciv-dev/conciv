@@ -159,4 +159,7 @@ declare module '@tanstack/solid-router' {
   interface Register {
     router: ReturnType<typeof createConcivRouter>
   }
+  interface HistoryState {
+    sessionMenuOpened?: true
+  }
 }
