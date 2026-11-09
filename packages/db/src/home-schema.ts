@@ -1,4 +1,4 @@
-import {integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import {integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
 
 export const engines = sqliteTable('engines', {
   id: text('id').primaryKey(),
@@ -23,3 +23,47 @@ export const hubConnections = sqliteTable('hub_connections', {
   harness: text('harness').primaryKey(),
   connectedAt: integer('connected_at').notNull(),
 })
+
+export const components = sqliteTable(
+  'components',
+  {
+    project: text('project').notNull(),
+    tree: text('tree').notNull(),
+    id: text('id').notNull(),
+    names: text('names', {mode: 'json'}).$type<string[]>().notNull(),
+    file: text('file').notNull(),
+    pkg: text('pkg'),
+    version: text('version'),
+    specifier: text('specifier').notNull(),
+    renders: integer('renders', {mode: 'boolean'}).notNull(),
+    sentence: text('sentence'),
+    props: text('props', {mode: 'json'}).$type<unknown>().notNull(),
+    usage: text('usage'),
+    story: text('story'),
+    lines: text('lines', {mode: 'json'}).$type<{start: number; end: number}>().notNull(),
+    imports: integer('imports').notNull(),
+    scannedAt: integer('scanned_at').notNull(),
+  },
+  (self) => [primaryKey({columns: [self.project, self.tree, self.id]})],
+)
+
+export const componentScans = sqliteTable('component_scans', {
+  seq: integer('seq').primaryKey({autoIncrement: true}),
+  project: text('project').notNull(),
+  tree: text('tree').notNull(),
+  fingerprint: text('fingerprint').notNull(),
+  modules: integer('modules').notNull(),
+  components: integer('components').notNull(),
+  at: integer('at').notNull(),
+})
+
+export const componentFlags = sqliteTable(
+  'component_flags',
+  {
+    project: text('project').notNull(),
+    componentId: text('component_id').notNull(),
+    flag: text('flag', {enum: ['prefer', 'do-not-use']}).notNull(),
+    at: integer('at').notNull(),
+  },
+  (self) => [primaryKey({columns: [self.project, self.componentId]})],
+)
