@@ -1,4 +1,4 @@
-import {Thing} from './gui/Thing'
+import {Thing} from '@app/gui/Thing.tsx'
 import {cycleA} from './cycle-a'
 import {XrayPage} from './XrayPage'
 

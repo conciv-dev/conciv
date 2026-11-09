@@ -150,6 +150,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
       },
     },
     server: {host: '127.0.0.1', port: 0},
+    resolve: {alias: {'@app': join(HOST_ROOT, 'src')}},
     plugins: [
       react(),
       unplugin.vite({
@@ -686,9 +687,26 @@ describe('catalog walk', () => {
     expect((await named('Slider')).pkg).toBe('@conciv/ui-kit-system')
   })
 
-  it('takes one sentence from a README line that names the component', async () => {
-    const sentence = (await named('Tooltip')).sentence ?? ''
-    expect([sentence.includes('. '), sentence.startsWith('Source of')]).toEqual([false, false])
+  it('takes a README line only when it starts with the component name', async () => {
+    const sentences = [(await named('Tooltip')).sentence ?? '', (await named('SegmentGroup')).sentence ?? '']
+    expect(
+      sentences.map((sentence) => [sentence.startsWith('Source of'), sentence.startsWith('Ark wrappers')]),
+    ).toEqual([
+      [false, false],
+      [false, false],
+    ])
+  })
+
+  it('writes a file outside the project absolute and a project file relative, as the compiler does', async () => {
+    expect([(await named('SegmentGroup')).file.startsWith('/'), (await named('Stat')).file]).toEqual([
+      true,
+      'src/Stat.tsx',
+    ])
+  })
+
+  it('lists a component imported through an alias inside the project as the project own', async () => {
+    const thing = await named('Thing')
+    expect([thing.file, thing.pkg, thing.specifier]).toEqual(['src/gui/Thing.tsx', null, './src/gui/Thing.tsx'])
   })
 
   it('gives every usage on one line without conciv stamps', async () => {

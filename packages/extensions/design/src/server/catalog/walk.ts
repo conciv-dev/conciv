@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {dirname, extname, join, relative} from 'node:path'
+import {dirname, extname, isAbsolute, join, relative} from 'node:path'
 import {minBy, uniqBy} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import {parse as parseHtml} from 'parse5'
@@ -36,6 +36,7 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
       ),
       visited,
       disk,
+      cwd,
     })
   }, Promise.resolve())
   const packages = new Map<string, Promise<PackageFacts>>()
@@ -45,18 +46,18 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
     Promise.all(found.map(({visit, definition}) => component({visit, definition, visited, packages, disk, cwd}))),
   )
   return {
-    modules: [...visited.keys()].map((file) => relative(cwd, file)),
+    modules: [...visited.keys()].map((file) => projectPath({cwd, file})),
     edges: uniqBy(
       [...visited.values()].flatMap((visit) =>
         [...visit.resolved.values()].map((target): ModuleEdge => ({
-          from: relative(cwd, visit.file),
-          to: relative(cwd, target.path),
+          from: projectPath({cwd, file: visit.file}),
+          to: projectPath({cwd, file: target.path}),
         })),
       ),
       (edge) => `${edge.from}>${edge.to}`,
     ),
     components,
-    unreadable: roots.flatMap((root) => root.unreadable).map((file) => relative(cwd, file)),
+    unreadable: roots.flatMap((root) => root.unreadable).map((file) => projectPath({cwd, file})),
   }
 }
 
@@ -96,25 +97,34 @@ const SENTENCE_END = '. '
 
 const PackageSchema = z.object({name: z.string().nullable().catch(null), version: z.string().nullable().catch(null)})
 
-async function crawl(input: {frontier: Item[]; visited: Map<string, Visit>; disk: Storage}): Promise<void> {
-  const {visited, disk} = input
+async function crawl(input: {
+  frontier: Item[]
+  visited: Map<string, Visit>
+  disk: Storage
+  cwd: string
+}): Promise<void> {
+  const {visited, disk, cwd} = input
   const fresh = uniqBy(input.frontier, (item) => item.file).filter((item) => !visited.has(item.file))
   if (fresh.length === 0) return
   const visits = await Promise.all(fresh.map(async (item) => follow(await read({item, disk}))))
   visits.forEach((visit) => visited.set(visit.file, visit))
   await crawl({
     frontier: visits.flatMap((visit) =>
-      [...visit.resolved].map(([request, target]) => ({
-        file: target.path,
-        via: bare(request) ? request : visit.via,
-        depth: bare(request) ? visit.depth + 1 : visit.depth,
-        root: visit.root,
-        resolver: visit.resolver,
-        packageJson: target.packageJson,
-      })),
+      [...visit.resolved].map(([request, target]) => {
+        const crossing = bare(request) && external({cwd, file: target.path})
+        return {
+          file: target.path,
+          via: crossing ? request : visit.via,
+          depth: crossing ? visit.depth + 1 : visit.depth,
+          root: visit.root,
+          resolver: visit.resolver,
+          packageJson: target.packageJson,
+        }
+      }),
     ),
     visited,
     disk,
+    cwd,
   })
 }
 
@@ -157,6 +167,15 @@ async function follow(reading: Read): Promise<Visit> {
 
 function rooted(request: string): string {
   return request.startsWith('/') ? `.${request}` : request
+}
+
+function external(input: {cwd: string; file: string}): boolean {
+  return input.file.includes(NODE_MODULES) || isAbsolute(projectPath(input))
+}
+
+function projectPath(input: {cwd: string; file: string}): string {
+  const inside = relative(input.cwd, input.file)
+  return inside.startsWith('..') || isAbsolute(inside) ? input.file : inside
 }
 
 function bare(request: string): boolean {
@@ -203,7 +222,7 @@ async function component(input: {
   const pkg = visit.via === null ? null : (facts?.name ?? null)
   const version = dependency ? (facts?.version ?? null) : null
   const [name = definition.local] = definition.names
-  const file = relative(cwd, visit.file)
+  const file = projectPath({cwd, file: visit.file})
   const story = await storyOf({file: visit.file, disk})
   const storyParsed = story === null ? null : parseModule(story)
   const sentence =
@@ -227,10 +246,10 @@ async function component(input: {
     sentence,
     props: await propsOf({visit, local: definition.local, visited}),
     usage: minBy(outermost(uses), (use) => use.text.length)?.text ?? null,
-    story: story === null ? null : relative(cwd, story.file),
+    story: story === null ? null : projectPath({cwd, file: story.file}),
     lines: parsed?.lines.get(definition.local) ?? {start: 0, end: 0},
     sites: uniqBy(
-      sites.map((site) => ({file: relative(cwd, site.file), line: site.line})),
+      sites.map((site) => ({file: projectPath({cwd, file: site.file}), line: site.line})),
       (site) => `${site.file}:${site.line}`,
     ),
   }
@@ -332,21 +351,20 @@ async function readmeLine(input: {dirs: string[]; names: string[]; disk: Storage
   const line = readmes
     .flatMap((readme) => (readme === null ? [] : readme.split('\n')))
     .map((candidate) => candidate.trim())
-    .find((candidate) => README_MARKS.some((mark) => candidate.startsWith(mark)) && namesWord(candidate, input.names))
+    .find((candidate) => README_MARKS.some((mark) => candidate.startsWith(mark)) && namedFirst(candidate, input.names))
   if (line === undefined) return null
   const marked = trimMarks(line)
   const end = marked.indexOf(SENTENCE_END)
   return end === -1 ? marked : marked.slice(0, end + 1)
 }
 
-function namesWord(line: string, names: string[]): boolean {
-  const words = new Set(
-    [...line]
-      .map((char) => (wordChar(char) ? char : ' '))
-      .join('')
-      .split(' '),
-  )
-  return names.some((name) => words.has(name))
+function namedFirst(line: string, names: string[]): boolean {
+  const [first = ''] = [...line]
+    .map((char) => (wordChar(char) ? char : ' '))
+    .join('')
+    .split(' ')
+    .filter(Boolean)
+  return names.includes(first)
 }
 
 function wordChar(char: string): boolean {
