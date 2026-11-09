@@ -13,7 +13,7 @@ export type ExtensionField =
 
 const SEGMENT_LIMIT = 3
 
-export type ExtensionSettingsPage = {title: string; fields: ExtensionField[]}
+type ExtensionSettingsPage = {title: string; fields: ExtensionField[]}
 
 export const extensionSettingsPage = memoize((extension: AnyExtension): ExtensionSettingsPage => {
   const entries = Object.entries(extension.settings?.shape ?? {})
