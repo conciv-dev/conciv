@@ -710,7 +710,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         () => plane.endAllRuns(),
         ...disposers,
         search.dispose,
-        settings.flush,
+        settings.close,
         () => browsers.close(),
         () => db.$client.close(),
       ],

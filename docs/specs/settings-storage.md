@@ -53,6 +53,15 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
   check also allows nested names like `acme/editor`; unstorage folds `/`, `\` and `:` into one key separator
   and cuts keys at `?`, so conciv refuses those characters instead of mapping two names onto one file.
 - One in-memory store per (scope, namespace) on the engine, created lazily, shared by every caller.
+- Two engines can share one home (two projects open at once), so the global scope is watched: the engine calls
+  unstorage's `watch()` on the global storage once (chokidar under the `fs` driver; `memory` and `null` drivers
+  do not watch) and, for a changed key with an open file, re-reads it through the same read path. A result
+  equal to the held value is ignored, which covers the engine's own write echoing back; a file with an unsaved
+  change skips the reload, since its own write is about to land. Otherwise the file takes the disk value as the
+  next version of its generation and publishes it, without writing it back. Engine dispose stops the watch.
+  Project files have one owning engine and are not watched.
+- Remaining race, accepted (no locks, by decision): two engines saving the same global file at nearly the same
+  moment each write their whole value, and the last write wins; the other engine then reloads that value.
 
 ## Wire (conciv oRPC)
 

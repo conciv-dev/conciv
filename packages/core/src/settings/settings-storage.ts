@@ -5,7 +5,7 @@ import {createStorage, type Driver, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {EventPublisher} from '@orpc/server'
 import {Debouncer} from '@tanstack/pacer'
-import {omit} from 'es-toolkit'
+import {isEqual, omit} from 'es-toolkit'
 import {z} from 'zod'
 import {SettingsNamespaceSchema, type SettingsScope, type SettingsSnapshot} from '@conciv/contract'
 import {
@@ -56,6 +56,19 @@ export function createSettingsStorage(storages: SettingsStorages) {
     files.set(key, opened)
     return opened
   }
+  const watching = storages.global
+    .watch((_event, key) => {
+      files
+        .get(`global:${key}`)
+        ?.reload()
+        .catch((error: unknown) => console.error(`conciv: reloading the global settings file ${key} failed`, error))
+    })
+    .catch((error: unknown) => {
+      console.error('conciv: watching the global settings folder failed', error)
+      return async () => {}
+    })
+  const flush = (): Promise<void> =>
+    Promise.all([...files.values()].map((opened) => opened.flush())).then(() => undefined)
   return {
     file,
     scope: <Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> => ({
@@ -65,7 +78,13 @@ export function createSettingsStorage(storages: SettingsStorages) {
         project: createSettingsStore<SettingsForNamespace<Namespace>>(async () => file('project', namespace)),
       },
     }),
-    flush: (): Promise<void> => Promise.all([...files.values()].map((opened) => opened.flush())).then(() => undefined),
+    flush,
+    close: async (): Promise<void> => {
+      await (
+        await watching
+      )()
+      await flush()
+    },
   }
 }
 
@@ -90,9 +109,13 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
     },
     {wait: WRITE_DEBOUNCE_MS},
   )
-  const commit = (value: Record<string, unknown>): SettingsSnapshot => {
+  const advance = (value: Record<string, unknown>): SettingsSnapshot => {
     current.snapshot = {generation, version: current.snapshot.version + 1, value}
     publisher.publish('changed', current.snapshot)
+    return current.snapshot
+  }
+  const commit = (value: Record<string, unknown>): SettingsSnapshot => {
+    advance(value)
     writer.maybeExecute()
     return current.snapshot
   }
@@ -121,6 +144,14 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
       const later = publisher.subscribe('changed', {signal})
       yield current.snapshot
       yield* later
+    },
+    reload: async (): Promise<void> => {
+      await loaded
+      if (writer.store.state.isPending) return
+      await writes.pending
+      const value = await readSaved(storage, key)
+      if (isEqual(value, current.snapshot.value)) return
+      advance(value)
     },
     flush: async (): Promise<void> => {
       writer.flush()

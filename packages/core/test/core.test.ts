@@ -62,6 +62,7 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makePageBus} from '../src/page-bus.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
+import {createSettingsStorage, settingsOnDisk} from '../src/settings/settings-storage.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
@@ -1026,6 +1027,31 @@ describe('settings storage', () => {
       await engines.running.stop()
     }
   }, 30_000)
+
+  test("two engines sharing one home hear each other's global changes and never echo their own write back", async () => {
+    const home = tempDir()
+    const one = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
+    const two = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
+    try {
+      const mine = one.scope('probe').settings.global
+      const theirs = two.scope('probe').settings.global
+      expect(await theirs.all()).toEqual({})
+      const heard = await valueBecomes(theirs, {theme: 'dark'})
+      await mine.set('theme', 'dark')
+      await one.flush()
+      await heard.reached
+      const echoed: unknown[] = []
+      const unsubscribe = await mine.onChange((value) => echoed.push(value))
+      const answered = await valueBecomes(mine, {theme: 'dark', size: 2})
+      await theirs.set('size', 2)
+      await two.flush()
+      await answered.reached
+      unsubscribe()
+      expect(echoed).toEqual([{theme: 'dark', size: 2}])
+    } finally {
+      await Promise.all([one.close(), two.close()])
+    }
+  })
 
   test('saved settings survive a restart, a corrupt file starts empty, and a namespace outside the folder is refused', async () => {
     const [root, home] = [tempDir(), tempDir()]
