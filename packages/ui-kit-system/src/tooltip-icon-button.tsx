@@ -1,5 +1,7 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {createUniqueId, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
 import {Tooltip} from './tooltip.js'
+import {useTooltipGroup} from './tooltip-group.js'
+import {useSharedTooltip, type SharedTooltip} from './truncated-text.js'
 import {Kbd} from './kbd.js'
 
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
@@ -34,7 +36,58 @@ export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
   keepOpenOnClick?: boolean
 }
 
+function sharedTooltipFor(side: TooltipIconButtonSide | undefined): SharedTooltip | undefined {
+  if (useTooltipGroup() !== undefined) return undefined
+  return useSharedTooltip(side)
+}
+
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
+  return (
+    <Show when={sharedTooltipFor(props.side)} fallback={<OwnTooltipIconButton {...props} />}>
+      {(shared) => <SharedTooltipIconButton {...props} shared={shared()} />}
+    </Show>
+  )
+}
+
+function SharedTooltipIconButton(props: TooltipIconButtonProps & {shared: SharedTooltip}): JSX.Element {
+  const [local, rest] = splitProps(props, [
+    'tooltip',
+    'shortcut',
+    'side',
+    'variant',
+    'class',
+    'keepOpenOnClick',
+    'shared',
+    'children',
+    'ref',
+  ])
+  const value = createUniqueId()
+  onMount(() => {
+    const shared = local.shared
+    shared.register(value, {
+      kind: 'label',
+      keepOpenOnClick: local.keepOpenOnClick,
+      render: () => <TooltipLabel tooltip={local.tooltip} shortcut={local.shortcut} />,
+    })
+    onCleanup(() => shared.release(value))
+  })
+  return (
+    <Tooltip.Trigger
+      value={value}
+      type="button"
+      class={iconButtonClass(local.variant, local.class)}
+      {...rest}
+      aria-label={local.tooltip}
+      asChild={(triggerProps) => (
+        <button {...local.shared.describe(value, triggerProps())} ref={local.ref}>
+          {local.children}
+        </button>
+      )}
+    />
+  )
+}
+
+function OwnTooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
   const [local, rest] = splitProps(props, ['tooltip', 'shortcut', 'side', 'variant', 'class', 'keepOpenOnClick'])
   return (
     <Tooltip.Root

@@ -14,6 +14,7 @@ import {
 } from 'solid-js'
 import {ActionBar} from '../src/primitives/action-bar/action-bar.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
+import {createTurnParts} from '../src/store/turn-parts.js'
 import type {Turn} from '../src/store/grouping.js'
 import {mountView, HARNESS_MODELS} from './helpers.js'
 import {createChat, type ConnectConnectionAdapter} from '@conciv/ai/client'
@@ -60,6 +61,8 @@ describe('action bar copy', () => {
     key: 'assistant-1',
     role: 'assistant',
     parts: [{type: 'text', content: 'copied text'}],
+    messages: [],
+    before: undefined,
     start: 0,
     end: 0,
   }
@@ -77,9 +80,11 @@ describe('action bar copy', () => {
     mountView((): JSX.Element => (
       <MessageProvider
         value={{
+          key: TURN.key,
+          role: TURN.role,
           message: () => TURN,
           index: () => 0,
-          pairing: () => ({byCallId: new Map(), hiddenResultIds: new Set()}),
+          parts: createTurnParts(() => TURN),
           isLast: () => true,
         }}
       >

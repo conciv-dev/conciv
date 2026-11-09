@@ -1,4 +1,4 @@
-import {splitProps, type ComponentProps} from 'solid-js'
+import {splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Swap as Ark} from '@ark-ui/solid/swap'
 
 const ROOT = 'inline-grid place-items-center'
@@ -16,4 +16,12 @@ function Indicator(props: ComponentProps<typeof Ark.Indicator>) {
   return <Ark.Indicator {...rest} class={`${INDICATOR}  ${local.class ?? ''}`} />
 }
 
-export const Swap = Object.assign({}, Ark, {Root, Indicator})
+function Resting(props: {children: JSX.Element}) {
+  return (
+    <span class={ROOT}>
+      <span class={INDICATOR}>{props.children}</span>
+    </span>
+  )
+}
+
+export const Swap = Object.assign({}, Ark, {Root, Indicator, Resting})
