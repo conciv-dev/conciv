@@ -4,6 +4,8 @@ export const geminiCliInit: HarnessInitContribution<'gemini-cli'> = {
   harnessId: 'gemini-cli',
   detection: {bin: 'gemini', configDir: ['.gemini']},
   hub: {
+    name: 'Gemini CLI',
+    shellEnv: 'GEMINI_CLI',
     add: (command, env) => [
       'gemini',
       'mcp',

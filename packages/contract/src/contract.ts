@@ -6,6 +6,7 @@ import {
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
+  HubAgentsSchema,
   ChatToolsSchema,
   HarnessListCursorSchema,
   HarnessSessionId,
@@ -98,6 +99,10 @@ const NavigationWriteResult = z.object({ok: z.literal(true), applied: z.boolean(
 const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
+const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
+const HubOutcome = z
+  .object({ok: z.literal(true), note: z.string().optional()})
+  .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
@@ -314,8 +319,8 @@ export const contract = {
     commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
-    connectHub: oc
-      .input(z.object({harness: z.enum(INIT_HARNESS_IDS)}))
-      .output(z.object({ok: z.literal(true)}).or(z.object({ok: z.literal(false), message: z.string()}))),
+    hubAgents: oc.output(HubAgentsSchema),
+    connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+    disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
   },
 }
