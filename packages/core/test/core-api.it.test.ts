@@ -14,6 +14,7 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
+import {EventEmitter, on} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
@@ -1585,7 +1586,7 @@ describe('rpc wire', () => {
           typescriptCode: "return await external_open({file: 'src/from-tool.ts'})",
         })
         const stream = await kit().turn('open the file', {session: sessionId, runId: 'wire-11'})
-        await stream.done({hangGuardMs: 10_000})
+        await stream.done()
         expect(opened.map((entry) => entry.file)).toEqual(['src/from-tool.ts'])
       })
     })
@@ -1599,7 +1600,7 @@ describe('rpc wire', () => {
       cleanups.push(() => kit.cleanup())
       const sessionId = await kit.session()
       const first = await kit.turn('first question', {session: sessionId, runId: 'wire-7'})
-      await first.done({hangGuardMs: 10_000})
+      await first.done()
       const transcript = requireTranscriptPath(noResume)(kit.stateRoot, HarnessSessionId.parse(`fake-${sessionId}`))
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
@@ -1610,7 +1611,7 @@ describe('rpc wire', () => {
         ].join('\n'),
       )
       const second = await kit.turn('second question', {session: sessionId, runId: 'wire-8'})
-      await second.done({hangGuardMs: 10_000})
+      await second.done()
       expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['first question', 'second question'])
     })
 
@@ -1833,7 +1834,7 @@ describe('rpc wire', () => {
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
         script().releaseResults()
-        await slowTurn.done(GUARD)
+        await slowTurn.done()
         expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
         expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
       })
@@ -1882,7 +1883,7 @@ describe('rpc wire', () => {
         const rejoin = chatKit().join('detached-run')
         script().release()
         await ended()
-        expect((await rejoin.done(GUARD)).text()).toBe('ok')
+        expect((await rejoin.done()).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({phase: 'completed'})
         expect(await assistantTexts(sessionId)).toEqual(['ok'])
         expect((await sessionMeta(sessionId)).usage).toMatchObject({inputTokens: 120})
@@ -1951,7 +1952,7 @@ describe('rpc wire', () => {
         const late = chatKit().join('live-run')
         await late.waitForText('ok')
         script().release()
-        const [sent, joined] = [await turn.done(GUARD), await late.done(GUARD)]
+        const [sent, joined] = [await turn.done(), await late.done()]
         expect(eventRunIdsOf(joined, ChatEventType.RUN_STARTED)).toEqual(['live-run'])
         expect(count(joined, ChatEventType.TEXT_MESSAGE_CONTENT)).toBe(1)
         expect(assistantView(joined)).toEqual(assistantView(sent))
@@ -1968,7 +1969,7 @@ describe('rpc wire', () => {
         const rejoin = chatKit().join('reloaded-run')
         script().release()
         await ended()
-        expect((await rejoin.done(GUARD)).text()).toBe('ok')
+        expect((await rejoin.done()).text()).toBe('ok')
         expect(await chatKit().hydrate(sessionId)).toMatchObject({
           activeRun: null,
           lastRun: {runId: 'reloaded-run', phase: 'completed'},
@@ -1979,7 +1980,7 @@ describe('rpc wire', () => {
       it('joining a finished turn replays it exactly once', async () => {
         const sessionId = await newSession()
         const sent = await finished(sessionId, 'replay me', {runId: 'replayed-run'})
-        const replay = await chatKit().join('replayed-run').done(GUARD)
+        const replay = await chatKit().join('replayed-run').done()
         expect(replay.text()).toBe('ok')
         expect(nonCustomTypes(replay)).toEqual(nonCustomTypes(sent))
       })
@@ -2016,7 +2017,7 @@ describe('rpc wire', () => {
         })
         await call
         script().release()
-        await turn.done(GUARD)
+        await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({conciv: {origin: 'hub', client: 'codex'}})
       })
@@ -2043,7 +2044,7 @@ describe('rpc wire', () => {
         script().hold()
         const sends = [await send(twin, 'twin', {runId: 'twin-run'}), await send(twin, 'twin', {runId: 'twin-run'})]
         script().release()
-        await Promise.all(sends.map((turn) => turn.done(GUARD)))
+        await Promise.all(sends.map((turn) => turn.done()))
         expect([runsOf(reused).length, runsOf(twin).length]).toEqual([1, 1])
         expect([await threadUserTexts(reused), await threadUserTexts(twin)]).toEqual([['original'], ['twin']])
       })
@@ -2066,7 +2067,7 @@ describe('rpc wire', () => {
         expect(JSON.stringify(asked.all)).toContain('needs the user')
         expect(asked.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([pendingAsk('ask-run')])
-        expect((await chatKit().join('ask-run').done(GUARD)).custom('approval-requested')).toHaveLength(1)
+        expect((await chatKit().join('ask-run').done()).custom('approval-requested')).toHaveLength(1)
         await expect(decide(sessionId, ASK_ID, false)).resolves.toEqual({ok: true, startsTurn: true})
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
         const refused = await askTurn(sessionId)
@@ -2271,7 +2272,7 @@ describe('rpc wire', () => {
         const {turn} = await heldTurn(sessionId, 'first in line')
         const second = await send(sessionId, 'second in line')
         script().release()
-        await Promise.all([turn.done(GUARD), second.done(GUARD)])
+        await Promise.all([turn.done(), second.done()])
         expect(overlapping(runsOf(sessionId))).toBe(false)
         expect(await threadUserTexts(sessionId)).toEqual(['first in line', 'second in line'])
       })
@@ -2280,9 +2281,9 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {turn} = await heldTurn(sessionId, 'interrupted', 'steer-first')
         const second = await send(sessionId, 'resent', {runId: 'steer-second'})
-        const first = await turn.done({hangGuardMs: 1_000}).finally(() => script().release())
+        const first = await turn.done().finally(() => script().release())
         expect(first.all.some((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).toBe(true)
-        expect(eventRunIdsOf(await second.done(GUARD), ChatEventType.RUN_STARTED)).toContain('steer-second')
+        expect(eventRunIdsOf(await second.done(), ChatEventType.RUN_STARTED)).toContain('steer-second')
       })
     })
 
@@ -3128,7 +3129,7 @@ return seen`
           chatKit().rpc.chat.uiReply({sessionId: app.mcpSession, toolCallId: 'no-such-call', value: 'yes'}),
         ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
         script().releaseResults()
-        await turn.done(GUARD)
+        await turn.done()
       })
     })
 
@@ -3469,7 +3470,7 @@ return seen`
   }
 
   async function finished(sessionId: string, input: TurnInput, opts: {runId?: string; messageId?: string} = {}) {
-    return (await send(sessionId, input, opts)).done(GUARD)
+    return (await send(sessionId, input, opts)).done()
   }
 
   async function heldTurn(sessionId: string, text: string, runId?: string) {
@@ -3780,7 +3781,7 @@ return seen`
     const lines = [...existingTranscript(nativeId), ...transcriptTurn(cliText, 'ok', index), ...extra]
     const path = writeTranscript(nativeId, lines)
     script().release()
-    await turn.done(GUARD)
+    await turn.done()
     return path
   }
 
@@ -3964,6 +3965,7 @@ describe('outside agent consent', () => {
   const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
   const RAN = /"result":1/
   const DENIED = 'The user denied codex access to the conciv tab'
+  const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
   const engines: Engine[] = []
   const pages = new AbortController()
@@ -4031,10 +4033,27 @@ describe('outside agent consent', () => {
     }
   }
 
+  async function askRaised(base: string, sessionId: string): Promise<ReturnType<typeof approvalAskOf>> {
+    const raised = new AbortController()
+    const signal = AbortSignal.any([raised.signal, pages.signal])
+    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal})
+    try {
+      for await (const chunk of events) {
+        const ask = approvalAskOf(chunk)
+        if (ask !== null) return ask
+      }
+      return null
+    } finally {
+      raised.abort()
+    }
+  }
+
   async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
-    const [ask] = await pendingOf(base, sessionId)
-    expect(ask).toMatchObject({toolName: 'Allow codex to use this tab', input: {client: 'codex'}, runId: null})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
+    const pending = await pendingOf(base, sessionId)
+    expect(pending).toHaveLength(1)
+    const [ask] = pending
+    expect(ask).toMatchObject({...OUTSIDE_ASK, runId: null})
     const decision = await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved})
     expect(decision.startsTurn).toBe(false)
   }
@@ -4068,7 +4087,7 @@ describe('outside agent consent', () => {
     const base = await boot()
     const sessionId = await newSession(base)
     const waiting = hubCall(base, sessionId)
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
     const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: AbortSignal.timeout(2000)})
     const first = await events[Symbol.asyncIterator]()
       .next()
@@ -4123,7 +4142,7 @@ describe('outside agent consent', () => {
     const leaving = await connectMcpClient(`${runner}/api/mcp`, HUB)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
     const cancelled = execute?.execute({typescriptCode: `${pick} return await external_page_screenshot({})`})
-    await vi.waitFor(async () => expect(await pendingOf(owner, theirs)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(owner, theirs)).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
     await decideOutside(owner, theirs, true)
@@ -4289,8 +4308,9 @@ describe('outside agent consent', () => {
     expect(await allowed).toMatch(RAN)
     const own = rpcOf(base, sessionId)
     const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const raised = await askRaised(base, sessionId)
     const [card] = await pendingOf(base, sessionId)
+    expect(card?.approvalId).toBe(raised?.approvalId)
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     const decision = {approvalId: card?.approvalId ?? '', approved: true}
     const refusal = "outside agents can't answer permission requests; decide it in the tab"
@@ -4304,13 +4324,14 @@ describe('outside agent consent', () => {
   it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('open', home)]
-    const asked: string[] = []
-    const silent = await openTab(owner, () => asked.push('query'))
+    const page = new EventEmitter()
+    const asked = on(page, 'query', {signal: pages.signal})
+    const silent = await openTab(owner, () => page.emit('query'))
     const listing = await outside(runner, 'return await external_tabs({})')
     expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
-    const seen = asked.length
+    expect((await asked.next()).done).toBe(false)
     const pending = outside(runner, `await external_use_tab({id: "${silent}"}); return await external_page_route({})`)
-    await vi.waitFor(() => expect(asked.length).toBeGreaterThan(seen), {timeout: 3000})
+    expect((await asked.next()).done).toBe(false)
     await engines.at(-1)?.stop()
     expect(await pending).toContain('stopped answering')
     expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
@@ -4327,7 +4348,7 @@ describe('outside agent consent', () => {
     expect(await pendingOf(base, sessionId)).toEqual([])
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
     leaving.abort()
     await expect(left).rejects.toThrow()
     expect(await pendingOf(base, sessionId)).toHaveLength(1)
@@ -4348,7 +4369,7 @@ describe('outside agent consent', () => {
     const [first, second] = [await newSession(base), await newSession(base)]
     const raise = async () => {
       const waiting = [hubCall(base, first), hubCall(base, second)]
-      await vi.waitFor(async () => expect(await pendingOf(base, second)).toHaveLength(1), {timeout: 3000})
+      expect(await askRaised(base, second)).toMatchObject(OUTSIDE_ASK)
       return waiting
     }
     const refused = await raise()

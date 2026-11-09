@@ -1,4 +1,5 @@
 import {Show, splitProps, untrack, type JSX} from 'solid-js'
+import {createEventSignal} from '@solid-primitives/event-listener'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
@@ -51,6 +52,9 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
       onCopied: () => local.onCopied?.(),
       onFailed: () => local.onFailed?.(),
     })
+  let button: HTMLButtonElement | undefined
+  const engagedBy = createEventSignal(() => button ?? [], ['pointerenter', 'focus', 'pointerdown'])
+  const engaged = () => engagedBy() !== undefined || clipboard.status() !== 'idle'
   const tooltip = () => {
     const tooltips = {...DEFAULT_TOOLTIPS, ...local.tooltips}
     if (clipboard.copied()) return tooltips.copied
@@ -67,18 +71,31 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
         keepOpenOnClick
         data-copied={clipboard.copied() ? '' : undefined}
         data-copy-failed={clipboard.failed() ? '' : undefined}
+        ref={(element) => (button = element)}
         onClick={clipboard.copy}
       >
-        <Swap.Root swap={clipboard.status() !== 'idle'}>
-          <Swap.Indicator type="on">
-            <Show when={clipboard.failed()} fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}>
-              <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
-            </Show>
-          </Swap.Indicator>
-          <Swap.Indicator type="off">
-            <Copy class={ICON} aria-hidden="true" />
-          </Swap.Indicator>
-        </Swap.Root>
+        <Show
+          when={engaged()}
+          fallback={
+            <Swap.Resting>
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Resting>
+          }
+        >
+          <Swap.Root swap={clipboard.status() !== 'idle'}>
+            <Swap.Indicator type="on">
+              <Show
+                when={clipboard.failed()}
+                fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}
+              >
+                <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
+              </Show>
+            </Swap.Indicator>
+            <Swap.Indicator type="off">
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Indicator>
+          </Swap.Root>
+        </Show>
       </TooltipIconButton>
       <Show when={shared === undefined}>
         <span role="status" aria-live="polite" class="sr-only">

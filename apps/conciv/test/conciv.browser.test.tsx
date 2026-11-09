@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -36,6 +36,9 @@ import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
   ChatProvider,
+  Thread,
+  ToolProvider,
+  useThread,
   Composer,
   ComposerHandlersProvider,
   useComposerContext,
@@ -55,7 +58,7 @@ import {
 } from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
 import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
@@ -81,7 +84,8 @@ import {
   type ChatSessionHydration,
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
-import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
+import {createToolDurations} from '../src/pane/tool-durations.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
@@ -95,7 +99,7 @@ import {
   stripSearchParams,
 } from '@tanstack/solid-router'
 import {StatusBar} from '../src/pane/status-bar.jsx'
-import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
@@ -1193,11 +1197,13 @@ describe('engine staleness', () => {
   test('an engine running outdated code says so, and says it is the server code that moved', async () => {
     await mountNotice(staleness(true, 'stamp-boot'))
 
+    const alert = page.getByRole('alert')
     await expect
-      .element(page.getByRole('alert'))
+      .element(alert)
       .toHaveTextContent(
-        'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.Dismiss',
+        'Engine is running outdated code: the server code on disk is newer than the running engine. Restart the dev server.',
       )
+    await expect.element(alert.getByRole('button', {name: 'Dismiss'})).toBeVisible()
   })
 
   test('a further rebuild speaks up again even after the earlier notice was dismissed', async () => {
@@ -1309,8 +1315,8 @@ describe('chat history paging', () => {
     long.sessionId = await seedLongChat()
   }, 120_000)
 
-  function mountPagedChat(sessionId: string): void {
-    keep(
+  function mountPagedChat(sessionId: string) {
+    return keep(
       mountPane({base: core(), sessionId, width: 460}, () => (
         <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
           <ChatPane sessionId={sessionId} />
@@ -1448,7 +1454,7 @@ describe('chat history paging', () => {
 
   test('a reply sent in the pane and then compacted keeps the compact line under it without reopening', async () => {
     const sessionId = await createSession(coreRpc(core()))
-    mountPagedChat(sessionId)
+    const first = mountPagedChat(sessionId)
 
     await userEvent.click(input())
     await userEvent.keyboard('compact after this reply{Enter}')
@@ -1464,7 +1470,16 @@ describe('chat history paging', () => {
     await expect.element(compactedUnderReply).toBeVisible()
     await faults.releaseAll()
     await expect.element(page.getByRole('status', {name: 'Compacting context…'})).not.toBeInTheDocument()
-    await expect.element(compactedUnderReply).toBeVisible()
+    await expect.element(page.getByText('Hello from conciv').nth(1)).toBeVisible()
+    const settled = page
+      .getByRole('log')
+      .filter({hasText: /compact after this reply.*Hello from conciv.*Context compacted.*Hello from conciv/})
+    await expect.element(settled).toBeVisible()
+
+    first.dispose()
+    mountPagedChat(sessionId)
+    await expect.element(page.getByText('Hello from conciv').nth(1)).toBeVisible()
+    await expect.element(settled).toBeVisible()
   })
 
   test('a refresh that lands past everything shown keeps the loaded messages and fills the gap', async () => {
@@ -3809,9 +3824,19 @@ describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
   const OLDER_SESSIONS = 40
   const DAY_MS = 86_400_000
+  const HOUR_MS = 3_600_000
 
-  const localMidnight = new Date().setHours(0, 0, 0, 0)
+  const noon = new Date(Date.now() - 12 * HOUR_MS).setHours(12, 0, 0, 0)
+  const localMidnight = new Date(noon).setHours(0, 0, 0, 0)
   const MINUTE_MS = 60_000
+
+  beforeAll(() => {
+    vi.useFakeTimers({toFake: ['Date'], now: noon, shouldAdvanceTime: true})
+  })
+
+  afterAll(() => {
+    vi.useRealTimers()
+  })
   const TIDE_TURNS = 30
   const tideLog = Array.from({length: TIDE_TURNS}, (_, turn): ChatMessage[] => [
     {id: `tide-question-${turn}`, role: 'user', parts: [{type: 'text', content: `question ${turn}`}]},
@@ -3829,18 +3854,18 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('gull-away'),
         cwd: ELSEWHERE,
         derivedTitle: 'the gull census',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 13) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 13) * DAY_MS,
         text: 'forty gulls on the breakwater',
       },
       {
         id: HarnessSessionId.parse('gull-home'),
         derivedTitle: 'a gull at home',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 14) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 14) * DAY_MS,
       },
       {
         id: EXTERNAL_ID,
         derivedTitle: 'a session mid-run',
-        updatedAt: Date.now(),
+        updatedAt: noon,
         sizeBytes: 2_400_000,
       },
       {
@@ -3858,23 +3883,23 @@ describe('session selector', () => {
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
         derivedTitle: `older session ${index}`,
-        updatedAt: Date.now() - (index + 1) * DAY_MS,
+        updatedAt: noon - (index + 1) * DAY_MS,
         sizeBytes: 1536,
       })),
       {
         id: HarnessSessionId.parse('kiwi-orchard'),
         derivedTitle: 'the kiwi orchard plan',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 10) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('puffin-notes'),
         derivedTitle: 'the puffin notes',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 11) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('seabird-survey'),
         derivedTitle: 'a seabird survey',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS,
         text: 'a puffin colony nests on the cliff',
       },
     ],
@@ -4511,6 +4536,116 @@ describe('run errors', () => {
       await typeTurn('second turn')
       await expect.element(runError('the model went away')).toBeVisible()
     })
+  })
+})
+
+describe('tool durations across row eviction', () => {
+  const EARLIER_EXCHANGES = 24
+  const PROBE_CALL = 'probe-call'
+
+  function ProbeCard(props: ToolCardProps): JSX.Element {
+    return <p>{`probe took ${formatDuration(props.durationMs) ?? 'no time yet'}`}</p>
+  }
+
+  const probeEntries: ToolCardEntry[] = [
+    {names: ['probe_tool'], render: ProbeCard, hasEmbeddedBody: () => true, display: 'standalone'},
+  ]
+
+  function earlierExchanges(): ChatMessage[] {
+    return Array.from({length: EARLIER_EXCHANGES}, (_, index): ChatMessage[] => [
+      {id: `earlier-u${index}`, role: 'user', parts: [{type: 'text', content: `earlier question ${index}`}]},
+      {
+        id: `earlier-a${index}`,
+        role: 'assistant',
+        parts: [{type: 'text', content: `earlier answer ${index} ${'with a long aside. '.repeat(30)}`}],
+      },
+    ]).flat()
+  }
+
+  function gatedProbeRun(resultGate: Promise<void>): ReturnType<typeof storyConnection> {
+    return {
+      async *connect(_messages, _data, _signal, runContext) {
+        const run = {threadId: runContext?.threadId ?? 'durations', runId: runContext?.runId ?? 'durations-run'}
+        yield {type: ChatEventType.RUN_STARTED, ...run}
+        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL})
+        await resultGate
+        yield createToolResultChunk(PROBE_CALL, 'probed')
+        yield* createTextChunks('probe finished')
+        yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
+      },
+    }
+  }
+
+  function RunPhase(): JSX.Element {
+    const thread = useThread()
+    return <span>{thread.isRunning ? 'probe run live' : 'probe run settled'}</span>
+  }
+
+  function mountProbeThread(resultGate: Promise<void>): void {
+    function ProbeThread(): JSX.Element {
+      const chat = createChat({threadId: 'tool-durations', connection: gatedProbeRun(resultGate)})
+      const ctx = {...INERT_TOOL_CTX, durationFor: createToolDurations(chat.messages, Date.now)}
+      onMount(() => {
+        chat.setMessages(earlierExchanges())
+        void chat.sendMessage('run the probe')
+      })
+      return (
+        <ChatProvider chat={chat}>
+          <ToolProvider value={ctx}>
+            <RunPhase />
+            <div style={{height: '360px', width: '520px', display: 'flex', 'flex-direction': 'column'}}>
+              <Thread>
+                <Thread.Viewport>
+                  <Thread.Messages tools={probeEntries} />
+                </Thread.Viewport>
+              </Thread>
+            </div>
+          </ToolProvider>
+        </ChatProvider>
+      )
+    }
+    render(() => <ProbeThread />)
+  }
+
+  const log = () => page.getByRole('log')
+  const probeTook = () => page.getByText(/^probe took \d+(\.\d)?s$/)
+  const probeCard = () => page.getByText(/^probe took/)
+
+  async function scrollAway(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: -1_000_000}})
+    await expect.element(page.getByText('earlier question 0'), {timeout: 3000}).toBeInViewport()
+    await expect.element(probeCard()).not.toBeInTheDocument()
+  }
+
+  async function scrollBack(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: 1_000_000}})
+    await expect.element(page.getByText('probe finished'), {timeout: 3000}).toBeInViewport()
+  }
+
+  it('keeps a finished tool duration after its message scrolls out of view and back', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+    gate.resolve()
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+  })
+
+  it('shows a duration for a tool that finished while its message was scrolled away', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    gate.resolve()
+    await expect.element(page.getByText('probe run settled'), {timeout: 3000}).toBeVisible()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
   })
 })
 

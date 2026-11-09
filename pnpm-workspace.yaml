@@ -21,6 +21,7 @@ catalog:
   '@orpc/standard-server': 1.16.1
   '@orpc/standard-server-peer': 1.16.1
   '@orpc/tanstack-query': 1.16.1
+  unstorage: 1.17.5
 
   # The @tanstack/ai family is single-sourced here so every manifest resolves "catalog:" to the
   # same release and pnpm never installs two copies of @tanstack/ai.
@@ -68,6 +69,7 @@ catalog:
   '@tanstack/react-start': 1.169.4
   '@tanstack/router-cli': 1.167.46
   '@tanstack/router-plugin': 1.168.48
+  '@tanstack/solid-hotkeys': ^0.17.0
   '@tanstack/solid-pacer': 0.24.0
   '@tanstack/solid-query': '^5.105.0'
   '@tanstack/solid-router': 1.170.43

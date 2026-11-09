@@ -3,7 +3,6 @@ export {ToolFallback, toolFallbackCardView, toolFallbackHasEmbeddedBody} from '.
 
 export {toolStatus, type ToolStatus} from './tools/primitives/tool-status.js'
 export {StatusVisual} from './tools/primitives/status-visual.js'
-export {ToolDurationProvider, useToolCallDuration} from './tools/primitives/tool-duration.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './tools/primitives/tool-fallback.js'
 export {Permission, usePermission} from './tools/primitives/permission.js'
 export {PermissionCard} from './tools/styled/permission-card.js'
@@ -51,7 +50,14 @@ export {
 } from './tools/primitives/tool-row.js'
 export {TraceMark, TraceRing, TraceRunRow, TraceToolRow} from './styled/trace/trace-row.js'
 export {TraceBodyFrame, TraceOutputBlock, type TraceOutputTone} from './styled/trace/output-block.js'
-export {CardChromeProvider, useCardChrome, useEmbeddedCard, type CardChrome} from './tools/styled/card-chrome.js'
+export {
+  CardChromeProvider,
+  ToolDurationProvider,
+  useCardChrome,
+  useEmbeddedCard,
+  useToolCallDuration,
+  type CardChrome,
+} from './tools/styled/card-chrome.js'
 export {TraceActionRow} from './styled/trace/action-row.js'
 export {TracePermissionBlock} from './styled/trace/permission-block.js'
 export {Trace, type TraceBranch, type TraceItem} from './styled/trace/trace.js'

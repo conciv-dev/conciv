@@ -37,6 +37,7 @@ import {
 } from '../src/home-db.js'
 import {engines} from '../src/home-schema.js'
 import {homeMigrations} from '../src/home-migrations.gen.js'
+import {migrations} from '../src/migrations.gen.js'
 import {checkEngines} from '../src/engine-check.js'
 
 function legacyHistoryRows(db: ConcivDb, sessionId: string) {
@@ -459,6 +460,12 @@ describe('db', () => {
       expect(second.select().from(sessions).where(eq(sessions.id, 'conciv_b')).all()[0]?.title).toBe('from-first')
     })
 
+    it('two connections opening a fresh project db at the same instant both succeed', async () => {
+      const dbModule = new URL('../src/db.ts', import.meta.url).href
+      const opened = await openTwiceAtOnce((folder) => ({module: dbModule, open: 'openDb', folder}))
+      expect(opened).toEqual(Array.from({length: 16}, () => ({migrations: migrations.length})))
+    })
+
     it('drizzle row type matches SessionRecord (id brand applied by zod parse)', () => {
       expectTypeOf<Omit<typeof sessions.$inferSelect, 'id'>>().toEqualTypeOf<Omit<SessionRecord, 'id'>>()
       expectTypeOf<(typeof sessions.$inferSelect)['id']>().toEqualTypeOf<string>()
@@ -694,14 +701,8 @@ describe('home db', () => {
   })
 
   it('two connections opening a fresh db at the same instant both succeed', async () => {
-    const rounds = await Promise.all(
-      Array.from({length: 8}, async () => {
-        const home = freshHome()
-        const barrier = new SharedArrayBuffer(4)
-        return Promise.all([openInWorker(home, barrier), openInWorker(home, barrier)])
-      }),
-    )
-    expect(rounds.flat()).toEqual(Array.from({length: 16}, () => ({engines: []})))
+    const opened = await openTwiceAtOnce((folder) => ({module: homeDbModule, open: 'openHomeDb', folder}))
+    expect(opened).toEqual(Array.from({length: 16}, () => ({migrations: homeMigrations.length})))
   })
 
   it.skipIf(process.platform === 'win32')('creates the folder 0700 and home.db 0600', () => {
@@ -728,45 +729,6 @@ describe('home db', () => {
     expect(concivHome({env: {CONCIV_HOME: ''}})).toBe(envPaths('conciv', {suffix: ''}).data)
   })
 
-  async function openInWorker(home: string, barrier: SharedArrayBuffer): Promise<unknown> {
-    const worker = new Worker(
-      `
-      const {existsSync} = require('node:fs')
-      const {registerHooks} = require('node:module')
-      const {fileURLToPath} = require('node:url')
-      const {parentPort, workerData} = require('node:worker_threads')
-      registerHooks({
-        resolve(specifier, context, next) {
-          const source = context.parentURL && specifier.startsWith('.') && new URL(specifier.replace(/\\.js$/, '.ts'), context.parentURL)
-          if (source && existsSync(fileURLToPath(source))) return next(source.href, context)
-          return next(specifier, context)
-        },
-      })
-      const gate = new Int32Array(workerData.barrier)
-      import(workerData.module).then((home) => {
-        Atomics.add(gate, 0, 1)
-        Atomics.notify(gate, 0)
-        for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
-        try {
-          const db = home.openHomeDb(workerData.home)
-          parentPort.postMessage({engines: home.listEngines(db)})
-          home.closeHomeDb(db)
-        } catch (error) {
-          parentPort.postMessage({error: String(error)})
-        }
-      })
-      `,
-      {eval: true, workerData: {module: homeDbModule, home, barrier}},
-    )
-    const signal = AbortSignal.timeout(10_000)
-    try {
-      const [[message]] = await Promise.all([once(worker, 'message', {signal}), once(worker, 'exit', {signal})])
-      return message
-    } finally {
-      await worker.terminate()
-    }
-  }
-
   function captureThrow(run: () => unknown): unknown {
     try {
       run()
@@ -776,3 +738,58 @@ describe('home db', () => {
     throw new Error('expected a throw')
   }
 })
+
+async function openInWorker(
+  opener: {module: string; open: string; folder: string},
+  barrier: SharedArrayBuffer,
+): Promise<unknown> {
+  const worker = new Worker(
+    `
+    const {existsSync} = require('node:fs')
+    const {registerHooks} = require('node:module')
+    const {fileURLToPath} = require('node:url')
+    const {parentPort, workerData} = require('node:worker_threads')
+    registerHooks({
+      resolve(specifier, context, next) {
+        const source = context.parentURL && specifier.startsWith('.') && new URL(specifier.replace(/\\.js$/, '.ts'), context.parentURL)
+        if (source && existsSync(fileURLToPath(source))) return next(source.href, context)
+        return next(specifier, context)
+      },
+    })
+    const gate = new Int32Array(workerData.barrier)
+    import(workerData.module).then((module) => {
+      Atomics.add(gate, 0, 1)
+      Atomics.notify(gate, 0)
+      for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
+      try {
+        const db = module[workerData.open](workerData.folder)
+        parentPort.postMessage({migrations: db.$client.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get().count})
+        db.$client.close()
+      } catch (error) {
+        parentPort.postMessage({error: String(error)})
+      }
+    })
+    `,
+    {eval: true, workerData: {...opener, barrier}},
+  )
+  const signal = AbortSignal.timeout(10_000)
+  try {
+    const [[message]] = await Promise.all([once(worker, 'message', {signal}), once(worker, 'exit', {signal})])
+    return message
+  } finally {
+    await worker.terminate()
+  }
+}
+
+async function openTwiceAtOnce(
+  opener: (folder: string) => {module: string; open: string; folder: string},
+): Promise<unknown[]> {
+  const rounds = await Promise.all(
+    Array.from({length: 8}, async () => {
+      const target = opener(join(mkdtempSync(join(tmpdir(), 'conciv-race-')), 'state'))
+      const barrier = new SharedArrayBuffer(4)
+      return Promise.all([openInWorker(target, barrier), openInWorker(target, barrier)])
+    }),
+  )
+  return rounds.flat()
+}

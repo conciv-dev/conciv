@@ -1,6 +1,6 @@
 import {keyBy} from 'es-toolkit'
-import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
-import {coalesceTurns} from './grouping.js'
+import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import type {Turn} from './grouping.js'
 import {toolStatus} from '../tools/primitives/tool-status.js'
 
 export function activeCallInParts(
@@ -11,16 +11,11 @@ export function activeCallInParts(
   return calls.findLast((call) => toolStatus(call, resultFor(call.id)) === 'running') ?? null
 }
 
-function resultsByCallId(messages: ReadonlyArray<ChatMessage>): Record<string, ToolResultPart> {
-  const results = messages
-    .flatMap((message) => message.parts)
-    .filter((part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0)
-  return keyBy(results, (part) => part.toolCallId)
-}
-
-export function activeToolCall(messages: ReadonlyArray<ChatMessage>): ToolCallPart | null {
-  const turn = coalesceTurns(messages).at(-1)
+export function activeToolCall(turn: Turn | undefined): ToolCallPart | null {
   if (!turn || turn.role !== 'assistant') return null
-  const results = resultsByCallId(messages)
+  const results = keyBy(
+    turn.parts.filter((part): part is ToolResultPart => part.type === 'tool-result' && part.toolCallId.length > 0),
+    (part) => part.toolCallId,
+  )
   return activeCallInParts(turn.parts, (toolCallId) => results[toolCallId])
 }
