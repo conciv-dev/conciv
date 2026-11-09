@@ -29,27 +29,20 @@ use original names and the output is correct.
 ## Decisions (approved by Omri, 2026-11-09)
 
 1. Catalog `typescript: ^7.0.2`. `bin` stays `tsc`; no script renames.
-2. (Revised 2026-11-09, Omri picked "plain tsc emit".) `packages/core`, `packages/chat`,
-   `packages/client`, `packages/contract` stop bundling declarations: tsdown `dts: false`, and
-   declarations come from `tsc -p tsconfig.build.json` exactly like the 20 packages that already
-   do it (brand, embed, protocol, ui-kit-*, most extensions). Copy their shape: tsconfig.build.json
-   layout, `build` script order, buildinfo placement (the #374 fix, see
+2. (Revised twice 2026-11-09; Omri: one way for every package.) No package bundles declarations.
+   Every tsdown config sets `dts: false` (today `dts: true` or `dts: {resolver: 'tsc'}`: ai, brand,
+   chat, client, contract, core, db, extension-compiler, extension, grab, harness-init, harness, it,
+   mascot, page, plugin, preact, react, serve, solid, storage-history, tools, try), and declarations
+   come from `tsc -p tsconfig.build.json` exactly like the 20 packages that already do it (brand,
+   embed, protocol, ui-kit-*, most extensions). Copy their shape: tsconfig.build.json layout,
+   `build` script order, buildinfo placement (the #374 fix, see
    `fix(build): stop the declaration build from losing its own output`), and point every
-   `exports[*].types` at the emitted per-file d.ts. No rolldown-plugin-dts in these four packages'
-   type path at all, so #295 cannot reach them. `minifyInternalExports` stays at its default.
-   This is a trial on four packages; the report says how it went (build time, d.ts diff, attw/publint,
-   consumer typecheck) and which of the remaining 14 tsdown `dts: true` packages emit a shared d.ts
-   chunk (check-dts tells), so Omri can decide on moving all of them.
-3. A d.ts value-export guard (stays while any package still bundles d.ts through tsdown; deleted
-   when none do): a `conciv-publish check-dts` command that walks every published
-   package's `dist/**/*.d.{ts,mts,cts}`, and for each `export { type X as Y }` /
-   `export { type X }` specifier fails when `X` is declared in that file as a value
-   (`declare const|let|var|function|class|enum`, `declare namespace` with values). It also flags
-   the false negative: a specifier without `type` whose local is only a `type`/`interface`
-   declaration in that file. Wired into `conciv-publish check` (release path) and into `ci.yml`
-   after the build, so a regression fails the PR, not the release. Upstream's issue suggests
-   exactly this oracle. Its tests: a describe in `packages/publish/test/publish.test.ts` with inline
-   d.ts strings (one value-as-type case, one type-without-type case, one clean case).
+   `exports[*].types` at the emitted per-file d.ts. rolldown-plugin-dts leaves every type path,
+   so #295 cannot reach any package. `minifyInternalExports` stays at its default.
+   Packages whose dist mixes bundled JS from several entries keep tsdown for JS only.
+3. No d.ts guard: with no bundled declarations there is nothing for it to catch. The
+   `check-dts` command from commit b54b5ea1d is deleted (revert it, including its ci.yml and
+   `conciv-publish check` wiring and its test describe).
 4. Code that needs the classic TS API:
    - `storybook-solidjs-vite` 10.7.4 already depends on and imports `@typescript/typescript6` itself
      (`dist/internal/docgen-worker.js`). Nothing to do; verify storybook still builds with docgen.
@@ -79,8 +72,9 @@ The "TypeScript 6 holdouts" table below is the single record. Each row: app, the
 the upstream issue, the check that unblocks it. Re-attempt = for each row, check the issue/changelog,
 switch `catalog:ts6` to `catalog:`, run that app's typecheck + e2e. When the table is empty, delete
 the `ts6` catalog. `@typescript/typescript6` goes when twoslash ships TS7 support (#93) or TS 7.1's
-stable API lands and twoslash adopts it. `minifyInternalExports: false` goes when
-rolldown-plugin-dts#295 ships, proven by `check-dts` staying green after removal.
+stable API lands and twoslash adopts it. Bundled d.ts (tsdown `dts: true`) may come back only after
+rolldown-plugin-dts#295 ships, and only for every package at once, with a d.ts export diff proving the
+public surface unchanged.
 
 ### TypeScript 6 holdouts
 
@@ -94,11 +88,11 @@ rolldown-plugin-dts#295 ships, proven by `check-dts` staying green after removal
 
 - No `typescript@6` in any `@conciv/*`, `apps/conciv`, `apps/storybook`, `apps/site` importer in
   `pnpm-lock.yaml`; `grep -r "catalog:ts6"` lists exactly the holdout table.
-- Core's shared-chunk d.ts: value exports carry no `type` (diff the export lines against today's
-  TS6 build); consumer probe `import {makeApp} from '@conciv/core'` + call typechecks under
+- Public type surface unchanged for every package moved off bundled d.ts: per package, every
+  `exports` subpath's exported names and kinds (value vs type) match main's TS6 build; list any
+  difference. Consumer probe: `import {makeApp} from '@conciv/core'` + call typechecks under
   `verbatimModuleSyntax`.
-- `check-dts` green on every published package; reverting the `minifyInternalExports` setting makes
-  it fail (fail-first proof).
+- No tsdown config with `dts` other than `false`; `rolldown-plugin-dts` absent from every type path.
 - typecheck + test for every changed package and its dependents, `pnpm release:check`
   (publint + attw), fallow audit clean, affected e2e green, storybook build, site snippet
   regeneration identical.

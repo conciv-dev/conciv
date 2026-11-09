@@ -14,7 +14,6 @@ import {
   assertWorkspaceRoot,
   assertPublishedChangesCovered,
 } from '../src/guards.ts'
-import {declarationExportProblems} from '../src/declaration-exports.ts'
 import {scaffoldWorkspaceRoot, writeManifest} from './fixtures.ts'
 import {tmpdir} from 'node:os'
 import {execa} from 'execa'
@@ -100,45 +99,6 @@ describe('catalog', () => {
   test('assertSharedDependenciesCatalogued passes on this repository', async () => {
     const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
     await expect(assertSharedDependenciesCatalogued(repoRoot)).resolves.toBeUndefined()
-  })
-})
-
-describe('declaration exports', () => {
-  test('a value exported with type is reported, the way rolldown-plugin-dts#295 emitted makeApp', () => {
-    const chunk = [
-      'type AppType = {routes: string[]};',
-      'declare function makeApp(): AppType;',
-      'export { type AppType as t, type makeApp as o };',
-    ].join('\n')
-    expect(declarationExportProblems(chunk)).toEqual([
-      '"o" is exported with "type" but "makeApp" is declared as a value',
-    ])
-  })
-
-  test('a type-only declaration exported without type is reported', () => {
-    const chunk = [
-      'interface MadeApp {fetch: () => void}',
-      'declare const slug: string;',
-      'export { MadeApp as i, slug as s };',
-    ].join('\n')
-    expect(declarationExportProblems(chunk)).toEqual([
-      '"i" is exported without "type" but "MadeApp" is declared only as a type',
-    ])
-  })
-
-  test('correctly marked exports, re-exports and a type-only namespace pass', () => {
-    const chunk = [
-      'type AppType = {routes: string[]};',
-      'declare class Engine {}',
-      'declare namespace Shapes {',
-      '  type Point = {x: number};',
-      '}',
-      'declare function makeApp(): AppType;',
-      'export { type AppType, Engine, type Shapes, makeApp as o };',
-      "export { Session } from './session.js';",
-      'export type { AppType as Alias };',
-    ].join('\n')
-    expect(declarationExportProblems(chunk)).toEqual([])
   })
 })
 
