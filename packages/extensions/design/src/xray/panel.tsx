@@ -15,7 +15,7 @@ export function Panel(props: {
   return (
     <section
       aria-label="Design x-ray"
-      class="border border-chat-line bg-chat-glass flex flex-col gap-4 w-90 pointer-events-auto start-12 inset-y-0 fixed"
+      class="border border-chat-line border-s-0 border-t-0 bg-chat-glass flex flex-col gap-4 w-90 pointer-events-auto start-12 inset-y-0 fixed"
       data-conciv-key="ovRJEQ"
     >
       <header
@@ -46,7 +46,10 @@ export function Panel(props: {
               <h2 class="text-xl text-chat-text-hi font-semibold m-0" data-conciv-key="zIz5eA">
                 {sum().matching ? 'Matching the design' : 'Not matching yet'}
               </h2>
-              <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0" data-conciv-key="GvjYag">
+              <p
+                class="text-[length:var(--chat-text-md)] text-chat-text-2 leading-[calc(var(--chat-space)*4.75)] m-0"
+                data-conciv-key="GvjYag"
+              >
                 {sum().problems} problems on {sum().elements} elements. {sum().matched} of {sum().total} elements match
                 the design.
               </p>
@@ -65,13 +68,13 @@ export function Panel(props: {
               )}
             </For>
           </div>
-          <span class="text-xs text-chat-text-2 grow" data-conciv-key="BVkMWA">
+          <span class="text-xs text-chat-text-2 leading-[calc(var(--chat-space)*4.25)] grow" data-conciv-key="BVkMWA">
             Check {props.data.shownRound()?.round} of {props.data.rounds().at(-1)?.round} ·{' '}
             {ago(props.data.shownRound()?.at ?? Date.now())}
           </span>
           <button
             type="button"
-            class="text-xs text-chat-text-3 p-0 border-0 bg-transparent"
+            class="text-xs text-chat-text-3 leading-[calc(var(--chat-space)*4.25)] p-0 border-0 bg-transparent"
             disabled={props.data.earlier() === null}
             onClick={() => props.data.pinRound(props.data.earlier()?.round ?? null)}
             data-conciv-key="AqJd5Q"
@@ -95,7 +98,7 @@ export function Panel(props: {
                 <button
                   type="button"
                   aria-pressed={width === props.data.viewport()}
-                  class={`text-xs px-2 py-0.75 border rounded-chat-surface-sm flex shrink grow-0 basis-1/3 items-center justify-center ${width === props.data.viewport() ? 'bg-chat-panel border-chat-line-soft text-chat-text-hi font-semibold' : 'bg-transparent border-transparent text-chat-text-3'}`}
+                  class={`text-xs leading-[calc(var(--chat-space)*4.25)] px-2 py-0.75 border rounded-chat-surface-sm flex shrink grow-0 basis-1/3 items-center justify-center ${width === props.data.viewport() ? 'bg-chat-panel border-chat-line-soft text-chat-text-hi font-semibold' : 'bg-transparent border-transparent text-chat-text-3'}`}
                   onClick={() => props.data.pickViewport(width)}
                   data-conciv-key="p1vejg"
                 >
@@ -139,7 +142,10 @@ export function Panel(props: {
                   </div>
                   <For each={problem.lines}>
                     {(line) => (
-                      <p class="text-[length:var(--chat-text-md)] text-chat-text m-0 w-74" data-conciv-key="xpnnRQ">
+                      <p
+                        class="text-[length:var(--chat-text-md)] text-chat-text leading-[calc(var(--chat-space)*4.75)] m-0 w-74"
+                        data-conciv-key="xpnnRQ"
+                      >
                         {line}
                       </p>
                     )}
@@ -177,7 +183,7 @@ export function Panel(props: {
                   </Show>
                 </span>
                 <span
-                  class={`text-[length:var(--chat-text-md)] ${props.data.shown(entry.layer) ? 'text-chat-text' : 'text-chat-text-2'}`}
+                  class={`text-[length:var(--chat-text-md)] leading-[calc(var(--chat-space)*4.75)] ${props.data.shown(entry.layer) ? 'text-chat-text' : 'text-chat-text-2'}`}
                   data-conciv-key="UQTc2A"
                 >
                   {entry.label}
