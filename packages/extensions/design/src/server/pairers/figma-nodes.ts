@@ -524,6 +524,7 @@ function dice(input: {a: string; b: string}): number {
   if (a === b) return 1
   const left = bigrams(a)
   const right = bigrams(b)
+  if (left.size + right.size === 0) return 0
   const shared = [...left].filter((pair) => right.has(pair)).length
   return (2 * shared) / (left.size + right.size)
 }
