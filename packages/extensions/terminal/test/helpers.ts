@@ -89,6 +89,7 @@ export async function startTerminalServer(
   const api: ServerApi<Record<never, never>> = {
     config: {},
     cwd: process.cwd(),
+    home: stateDir,
     basePath: opts.basePath ?? '',
     stateDir,
     sessions,

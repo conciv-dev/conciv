@@ -11,10 +11,10 @@ import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {createLogger, createServer} from 'vite'
-import {afterAll, afterEach, describe, expect, it, vi} from 'vitest'
+import {afterAll, afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {closeHomeDb, componentScans, concivHome, extensionTable, openDb, openHomeDb} from '@conciv/db'
+import {closeHomeDb, componentScans, extensionTable, openDb, openHomeDb} from '@conciv/db'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
@@ -130,6 +130,7 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
 async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
+  const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-home-'))
   const printed: string[] = []
   const server = await createServer({
     root: HOST_ROOT,
@@ -148,6 +149,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
         harnessBin: 'true',
         systemPrompt: false,
         devEndpointDir,
+        homeDir,
         extensions: {design: options.config ?? {}},
       }),
     ],
@@ -190,6 +192,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
       await server.close()
       await rm(stateRoot, {recursive: true, force: true})
       await rm(devEndpointDir, {recursive: true, force: true})
+      await rm(homeDir, {recursive: true, force: true})
       await rm(targetsDir, {recursive: true, force: true})
     },
   }
@@ -679,12 +682,11 @@ describe('catalog store', () => {
 
   afterEach(async () => {
     await Promise.all(opened.splice(0).map((close) => close()))
-    vi.unstubAllEnvs()
   })
 
   async function openCatalog() {
-    vi.stubEnv('CONCIV_HOME', await mkdtemp(join(tmpdir(), 'conciv-catalog-home-')))
-    const home = openHomeDb(concivHome({env: process.env}))
+    const homeDir = await mkdtemp(join(tmpdir(), 'conciv-catalog-home-'))
+    const home = openHomeDb(homeDir)
     const orm = openDb({
       stateRoot: await mkdtemp(join(tmpdir(), 'conciv-catalog-state-')),
       extensions: [{name: 'design', migrations}],
@@ -699,6 +701,7 @@ describe('catalog store', () => {
     opened.push(async () => {
       closeHomeDb(home)
       orm.$client.close()
+      await rm(homeDir, {recursive: true, force: true})
     })
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
     return {catalog, scans: () => home.select().from(componentScans).all()}
@@ -755,6 +758,11 @@ describe('catalog store', () => {
     const listed = await catalog.list({})
     const tierOf = (name: string) => listed.find((component) => component.names.includes(name))?.tier
     expect([tierOf('SegmentGroup'), tierOf('XrayPage')]).toEqual(['kit', 'app'])
+  })
+
+  it('names the component of a source line on a fresh home without a list first', async () => {
+    const {catalog} = await openCatalog()
+    expect((await catalog.componentOf('src/Stat.tsx:4:3'))?.names).toEqual(['Stat', 'StatCard'])
   })
 
   it('names the component whose export holds a source line', async () => {

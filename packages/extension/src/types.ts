@@ -140,6 +140,7 @@ type DbOf<Tables extends ExtensionTables> = [keyof Tables] extends [never]
 export type ServerApi<Config, Tables extends ExtensionTables = Record<never, never>> = DbOf<Tables> & {
   config: Config
   cwd: string
+  home: string
   basePath: string
   stateDir: string
   sessions: ServerSessions

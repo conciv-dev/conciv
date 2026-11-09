@@ -59,7 +59,7 @@ import {
 import {eq} from 'drizzle-orm'
 import {pushRoutes, type PushDeps} from './api/push.js'
 import {makeHubAdmission, type ChatContext, type RpcDeps} from './api/rpc/mount.js'
-import {drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
+import {concivHome, drafts, modelOf, openDb, sessions, writeToolCapture, type ConcivDb} from '@conciv/db'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os} from '@orpc/server'
@@ -500,6 +500,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         db: extensionDbs.get(extension.name),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
+        home: opts.home ?? concivHome({env: process.env}),
         basePath,
         sessions: serverSessions,
         harness: serverHarness,

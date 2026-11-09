@@ -1,5 +1,5 @@
 import {and, desc, eq} from 'drizzle-orm'
-import {chunk, countBy, minBy, takeRightWhile, uniq, uniqBy} from 'es-toolkit'
+import {countBy, minBy, takeRightWhile, uniq, uniqBy} from 'es-toolkit'
 import {componentFlags, components, componentScans, type HomeDb} from '@conciv/db'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {
@@ -42,18 +42,10 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
       tx.delete(components)
         .where(and(eq(components.project, key), eq(components.tree, cwd)))
         .run()
-      chunk(scan.components, INSERT_CHUNK).forEach((part) =>
+      scan.components.forEach((component) =>
         tx
           .insert(components)
-          .values(
-            part.map((component) => ({
-              ...component,
-              project: key,
-              tree: cwd,
-              imports: imports[component.file] ?? 0,
-              scannedAt: at,
-            })),
-          )
+          .values({...component, project: key, tree: cwd, imports: imports[component.file] ?? 0, scannedAt: at})
           .run(),
       )
       tx.insert(componentScans)
@@ -132,6 +124,7 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
         .run()
     },
     async componentOf(source) {
+      await scanIfStale()
       const {file, line} = located(source)
       const holding = (await rows())
         .map((row) => CatalogSchemas.Component.parse(row))
@@ -143,7 +136,6 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
 
 type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
 
-const INSERT_CHUNK = 500
 const CLEAR = 'clear'
 const SOURCE_SEPARATOR = ':'
 
