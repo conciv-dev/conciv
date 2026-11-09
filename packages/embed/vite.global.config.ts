@@ -4,7 +4,11 @@ import solid from 'vite-plugin-solid'
 
 export default defineConfig({
   plugins: [solid()],
-  define: {'define.amd': 'false', 'process.env.NODE_ENV': '"production"'},
+  define: {
+    'define.amd': 'false',
+    'process.env.NODE_ENV': '"production"',
+    'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined',
+  },
   build: {
     lib: {
       entry: fileURLToPath(new URL('tests/fixtures/global-entry.ts', import.meta.url)),

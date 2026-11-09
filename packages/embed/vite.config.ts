@@ -14,7 +14,7 @@ const isExternal = (id: string): boolean => {
 export default defineConfig({
   plugins: [solid()],
 
-  define: {'define.amd': 'false'},
+  define: {'define.amd': 'false', 'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined'},
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/mount.ts', import.meta.url)),
