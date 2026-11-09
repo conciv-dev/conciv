@@ -55,6 +55,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
+import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
@@ -454,6 +455,9 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
                   </Thread.Viewport>
                   <Thread.Composer>
                     <div class={ABOVE_COMPOSER}>
+                      <Suspense>
+                        <ConnectedAgents onDisconnected={focusInput} />
+                      </Suspense>
                       <ExtensionSurface name="status" instances={instances} />
                       <ExtensionSurface name="footer" instances={instances} />
                     </div>

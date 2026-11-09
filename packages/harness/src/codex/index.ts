@@ -70,4 +70,5 @@ export const codex = defineHarness({
   models: () => codexModels(),
   defaultModel: codexDefaultModel(),
   history: codexHistory,
+  resume: {command: ({nativeId}) => ({bin: 'codex', args: ['resume', nativeId]})},
 })

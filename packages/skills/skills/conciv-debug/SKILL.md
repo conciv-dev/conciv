@@ -114,7 +114,7 @@ by two different paths.
 The chat runtime deliberately has no single "settled" moment, and it is split across three surfaces
 rather than one subscribe call:
 
-- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:210`), served by
+- **The one-shot snapshot is `chat.hydrate`** (`packages/contract/src/contract.ts:244`), served by
   the plane's `hydrate` (`packages/chat/src/index.ts:114-127`). It resolves once with messages, the
   active run, the last run lifecycle, and any pending approvals; it never streams.
 - **The turn itself streams over the delivery routes**, WebSocket at `CHAT_WS_PATH` and Server-Sent

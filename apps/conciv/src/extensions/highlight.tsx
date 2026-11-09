@@ -3,6 +3,7 @@ import {makeEventListener} from '@solid-primitives/event-listener'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {getHostApi} from '@conciv/extension/host'
+import {Kbd} from '@conciv/ui-kit-system'
 import {openSource} from '@conciv/extension/client'
 import {addRef, describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
@@ -88,11 +89,7 @@ function HighlightInspector(props: {onExit: () => void; session: () => string | 
     <div aria-hidden="true" class="contents">
       <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
       <div class={HINT}>
-        Inspecting · click to open source ·{' '}
-        <kbd class="text-[0.6875rem] text-chat-text-hi px-1 py-px border border-chat-line-2 rounded-chat-surface-sm [font-family:inherit]">
-          Esc
-        </kbd>{' '}
-        to exit
+        Inspecting · click to open source · <Kbd>Esc</Kbd> to exit
       </div>
       <Show when={hovered()}>
         {(h) => (

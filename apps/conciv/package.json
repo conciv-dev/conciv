@@ -58,6 +58,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/db": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:*",

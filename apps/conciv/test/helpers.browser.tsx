@@ -72,7 +72,8 @@ declare module 'vitest/internal/browser' {
     scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
-    fakeHubCli: (outcome: 'ok' | 'fail' | null) => Promise<void>
+    fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
+    setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[]) => Promise<number>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
@@ -362,9 +363,10 @@ export type ShellMountOptions = {
 }
 
 type ShellHarness = {
-  mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
-  path: () => string
+  mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
+  pathname: () => string | undefined
+  back: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
@@ -380,7 +382,11 @@ export function createShellHarness(base: () => string): ShellHarness {
     apiBase: '',
   }
 
-  const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
+  const mountShell = (
+    entry: string | string[],
+    extensions: AnyExtension[] = [],
+    options: ShellMountOptions = {},
+  ): void => {
     const apiBase = options.login?.apiBase ?? base()
     mounted.apiBase = apiBase
     const loginOptions = options.login
@@ -394,7 +400,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     const activeSession: {read: () => string | null} = {read: () => null}
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
-      history: createMemoryHistory({initialEntries: [entry]}),
+      history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
       apiBase: options.apiBase ?? (() => apiBase),
@@ -421,9 +427,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     onlineManager.setOnline(true)
   }
 
-  const path = (): string => mounted.router?.state.location.pathname ?? ''
-
-  return {mountShell, path, dispose}
+  return {
+    mountShell,
+    dispose,
+    pathname: () => mounted.router?.state.location.pathname,
+    back: () => mounted.router?.history.back(),
+  }
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'

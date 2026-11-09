@@ -548,10 +548,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
   )
 
+  const hub = createHubInstaller(opts.home)
   const plane = await createChatPlane({
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
     hubAccess: opts.cfg.hubAccess,
+    hubGeneration: hub.generation,
     harnessFor,
     harnessEnv: opts.harnessEnv,
     systemPrompt: {
@@ -628,7 +630,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     allowedOrigins: new Set(opts.allowedOrigins),
     staleness,
     admitOutside,
-    hub: createHubInstaller(opts.home),
+    hub,
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -672,6 +674,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           }),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         admitOutside,
+        hubRefusal: hub.refusal,
         staleness,
       },
       tabs: {
