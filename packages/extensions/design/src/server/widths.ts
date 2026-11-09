@@ -14,7 +14,10 @@ export function widthsOf(input: {design: Design; styles: number[]; variants?: nu
         : pair({width: tag.breakpoint, from: `${tag.kind} ${tag.node.id}`}),
     ),
     ...input.styles.flatMap((width) => pair({width, from: `query ${width}`})),
-  ].filter((entry) => !(entry.width < floor) && nearestAbove({width: entry.width, variants, own}) === own)
+  ].filter(
+    (entry) =>
+      entry.width === own || (!(entry.width < floor) && nearestAbove({width: entry.width, variants, own}) === own),
+  )
   const grouped = new Map<number, string[]>()
   named.forEach((entry) => grouped.set(entry.width, [...(grouped.get(entry.width) ?? []), entry.from]))
   return [...grouped].toSorted(([a], [b]) => a - b).map(([width, from]) => ({width, from}))
