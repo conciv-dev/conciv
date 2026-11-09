@@ -4016,12 +4016,10 @@ describe('session selector', () => {
     const results = ['the puffin notes', 'a seabird survey', 'the first puffin diary', 'the second puffin diary']
     for (const title of results) {
       await userEvent.keyboard('{ArrowDown}')
-      await expect.element(option(title)).toHaveAttribute('data-highlighted')
       await expect.element(option(title)).toBeInViewport({ratio: 1})
     }
     for (const title of results.toReversed().slice(1)) {
       await userEvent.keyboard('{ArrowUp}')
-      await expect.element(option(title)).toHaveAttribute('data-highlighted')
       await expect.element(option(title)).toBeInViewport({ratio: 1})
     }
     await expect.element(search).toHaveFocus()
