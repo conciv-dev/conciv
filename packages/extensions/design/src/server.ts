@@ -3,6 +3,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
+import {closeHomeDb, concivHome, openHomeDb} from '@conciv/db'
 import {defineExtension} from '@conciv/extension'
 import {designConfig} from './shared/tolerances.js'
 import type {Design, DesignRuntime, Pairer} from './shared/defs.js'
@@ -46,6 +47,7 @@ const design = defineExtension({
   const measurer = createMeasurer({config})
   const runtime: DesignRuntime = {
     cwd: server.cwd,
+    home: openHomeDb(concivHome({env: process.env})),
     state,
     project,
     files,
@@ -83,6 +85,7 @@ const design = defineExtension({
       await Promise.all(runtime.adapters.map((adapter) => adapter.dispose?.()))
       differ.dispose()
       measurer.dispose()
+      closeHomeDb(runtime.home)
     },
   }
 })

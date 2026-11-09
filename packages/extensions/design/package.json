@@ -62,6 +62,7 @@
     "@blazediff/core": "catalog:",
     "@bramus/specificity": "catalog:",
     "@conciv/contract": "workspace:^",
+    "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
@@ -74,6 +75,7 @@
     "culori": "catalog:",
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
+    "execa": "^10.2.1",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
     "onnxruntime-web": "catalog:",
@@ -93,7 +95,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/db": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",

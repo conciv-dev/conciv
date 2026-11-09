@@ -9,9 +9,9 @@ const PropSketchSchema = z.object({
 })
 
 const ComponentSchema = z.object({
-  id: z.string().describe('sha256 of the repo-relative file and export name, or of package@version and export name'),
+  id: z.string().describe('sha256 of the project-relative file and export name, or of package@version and export name'),
   names: z.array(z.string()).min(1).describe('every name the defining module exports it under, the first is its own'),
-  file: z.string().describe('repo-relative path of the defining module'),
+  file: z.string().describe('path of the defining module, relative to the project root'),
   pkg: z.string().nullable().describe('the package a project file imports it from, null for the project own files'),
   version: z.string().nullable().describe('the installed version, for a dependency only'),
   specifier: z.string().describe('the import path a project file writes'),
@@ -19,17 +19,19 @@ const ComponentSchema = z.object({
   sentence: z.string().nullable(),
   props: z.union([z.array(PropSketchSchema), z.literal('see file')]),
   usage: z.string().nullable().describe('the shortest story or call site that renders it'),
-  story: z.string().nullable().describe('repo-relative path of its stories file'),
+  story: z.string().nullable().describe('path of its stories file, relative to the project root'),
+  lines: z.object({start: z.number(), end: z.number()}).describe('the 1-based lines of the defining statement'),
 })
 
 const ModuleEdgeSchema = z.object({from: z.string(), to: z.string()})
 
 const ScanSchema = z.object({
-  fingerprint: z.string(),
   modules: z.array(z.string()),
   edges: z.array(ModuleEdgeSchema),
   components: z.array(ComponentSchema),
-  unreadable: z.array(z.string()).describe('repo-relative paths of the vite configs that failed to load'),
+  unreadable: z
+    .array(z.string())
+    .describe('paths of the vite configs that failed to load, relative to the project root'),
 })
 
 const RankedSchema = ComponentSchema.extend({
@@ -39,6 +41,8 @@ const RankedSchema = ComponentSchema.extend({
   tier: z.enum(['kit', 'app', 'other']),
   flag: z.literal('prefer').nullable(),
 })
+
+const NodeRefSchema = z.object({target: z.string(), round: z.number(), node: z.string(), source: z.string()})
 
 const HintSchema = z.object({component: z.string(), specifier: z.string(), confidence: z.number()})
 
@@ -56,6 +60,7 @@ export const CatalogSchemas = {
   ModuleEdge: ModuleEdgeSchema,
   Scan: ScanSchema,
   Ranked: RankedSchema,
+  NodeRef: NodeRefSchema,
   Hint: HintSchema,
   CatalogConfig: CatalogConfigSchema,
 }
@@ -65,9 +70,31 @@ type Component = z.output<typeof ComponentSchema>
 type ModuleEdge = z.output<typeof ModuleEdgeSchema>
 type Scan = z.output<typeof ScanSchema>
 type Ranked = z.output<typeof RankedSchema>
+type NodeRef = z.output<typeof NodeRefSchema>
 type Hint = z.output<typeof HintSchema>
 type CatalogConfig = z.output<typeof CatalogConfigSchema>
+type CatalogFlag = 'prefer' | 'do-not-use' | 'clear'
+type Catalog = {
+  list(input: {live?: string[]}): Promise<Ranked[]>
+  show(name: string): Promise<Component & {nodes: NodeRef[]}>
+  flag(name: string, flag: CatalogFlag): Promise<void>
+  componentOf(source: string): Promise<Component | null>
+  scanIfStale(): Promise<void>
+}
 type ComponentSource = {name: string; scan(input: {cwd: string}): Promise<Scan>}
 type Hinter = {name: string; hint(input: {design: Design; ranked: Ranked[]; config: CatalogConfig}): Map<string, Hint>}
 
-export type {CatalogConfig, Component, ComponentSource, Hint, Hinter, ModuleEdge, PropSketch, Ranked, Scan}
+export type {
+  Catalog,
+  CatalogConfig,
+  CatalogFlag,
+  Component,
+  ComponentSource,
+  Hint,
+  Hinter,
+  ModuleEdge,
+  NodeRef,
+  PropSketch,
+  Ranked,
+  Scan,
+}

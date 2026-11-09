@@ -17,6 +17,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     runs,
     labels,
     notes,
+    node_components: nodeComponents,
   } = tables
   return {
     targets: {
@@ -314,6 +315,17 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         round: notes.round,
         text: notes.text,
         at: notes.at,
+      },
+    },
+    node_components: {
+      table: nodeComponents,
+      fields: {
+        seq: nodeComponents.seq,
+        target: nodeComponents.target_id,
+        round: nodeComponents.round,
+        node: nodeComponents.node,
+        component_id: nodeComponents.component_id,
+        source: nodeComponents.source,
       },
     },
   }

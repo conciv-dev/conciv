@@ -10,10 +10,9 @@ import type {Component, ModuleEdge, PropSketch, Scan} from '../../shared/catalog
 import {viteEntries} from './entries.js'
 import {parseModule} from './parse-module.js'
 
-export async function walkProject(input: {cwd: string; fingerprint: string}): Promise<Scan> {
-  const {cwd, fingerprint} = input
+export async function walkProject(input: {cwd: string}): Promise<Scan> {
+  const {cwd} = input
   const disk = createStorage({driver: fsDriver({base: DISK_ROOT, readOnly: true})})
-  const repo = await repoRoot({disk, dir: cwd, cwd})
   const roots = await viteEntries({cwd})
   const visited = new Map<string, Visit>()
   await roots.reduce(async (previous, root) => {
@@ -34,22 +33,21 @@ export async function walkProject(input: {cwd: string; fingerprint: string}): Pr
   const components = await Promise.all(
     [...visited.values()].flatMap((visit) => definedIn(visit).map((definition) => ({visit, definition}))),
   ).then((found) =>
-    Promise.all(found.map(({visit, definition}) => component({visit, definition, visited, packages, disk, repo}))),
+    Promise.all(found.map(({visit, definition}) => component({visit, definition, visited, packages, disk, cwd}))),
   )
   return {
-    fingerprint,
-    modules: [...visited.keys()].map((file) => relative(repo, file)),
+    modules: [...visited.keys()].map((file) => relative(cwd, file)),
     edges: uniqBy(
       [...visited.values()].flatMap((visit) =>
         [...visit.resolved.values()].map((target): ModuleEdge => ({
-          from: relative(repo, visit.file),
-          to: relative(repo, target.path),
+          from: relative(cwd, visit.file),
+          to: relative(cwd, target.path),
         })),
       ),
       (edge) => `${edge.from}>${edge.to}`,
     ),
     components,
-    unreadable: roots.flatMap((root) => root.unreadable).map((file) => relative(repo, file)),
+    unreadable: roots.flatMap((root) => root.unreadable).map((file) => relative(cwd, file)),
   }
 }
 
@@ -68,7 +66,6 @@ type Definition = {local: string; names: string[]}
 type PackageFacts = z.output<typeof PackageSchema>
 
 const DISK_ROOT = '/'
-const GIT_DIR = '.git'
 const README = 'README.md'
 const NODE_MODULES = '/node_modules/'
 const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts'])
@@ -176,9 +173,9 @@ async function component(input: {
   visited: Map<string, Visit>
   packages: Map<string, Promise<PackageFacts>>
   disk: Storage
-  repo: string
+  cwd: string
 }): Promise<Component> {
-  const {visit, definition, visited, packages, disk, repo} = input
+  const {visit, definition, visited, packages, disk, cwd} = input
   const parsed = visit.parsed
   const facts = visit.packageJson === null ? null : await packageFacts({file: visit.packageJson, packages, disk})
   const packageDir = visit.packageJson === null ? visit.root : dirname(visit.packageJson)
@@ -186,7 +183,7 @@ async function component(input: {
   const pkg = visit.via === null ? null : (facts?.name ?? null)
   const version = dependency ? (facts?.version ?? null) : null
   const [name = definition.local] = definition.names
-  const file = relative(repo, visit.file)
+  const file = relative(cwd, visit.file)
   const story = await storyOf({file: visit.file, disk})
   const storyParsed = story === null ? null : parseModule(story)
   const sentence =
@@ -209,7 +206,8 @@ async function component(input: {
     sentence,
     props: await propsOf({visit, local: definition.local, visited}),
     usage: minBy(outermost(uses), (use) => use.text.length)?.text ?? null,
-    story: story === null ? null : relative(repo, story.file),
+    story: story === null ? null : relative(cwd, story.file),
+    lines: parsed?.lines.get(definition.local) ?? {start: 0, end: 0},
   }
 }
 
@@ -323,11 +321,4 @@ function packageFacts(input: {
 async function text(input: {disk: Storage; file: string}): Promise<string | null> {
   const raw = await input.disk.getItemRaw<Uint8Array>(input.file).catch(() => null)
   return raw === null || raw === undefined ? null : new TextDecoder().decode(raw)
-}
-
-async function repoRoot(input: {disk: Storage; dir: string; cwd: string}): Promise<string> {
-  const {disk, dir, cwd} = input
-  if (await disk.hasItem(join(dir, GIT_DIR))) return dir
-  const parent = dirname(dir)
-  return parent === dir ? cwd : repoRoot({disk, dir: parent, cwd})
 }

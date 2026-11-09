@@ -268,6 +268,14 @@ export function designTables(table: SQLiteTableFn) {
       },
       (self) => [check('verdict', sql`${self.verdict} in ('right', 'wrong')`)],
     ),
+    node_components: table('node_components', {
+      seq: integer().primaryKey({autoIncrement: true}),
+      target_id: text().notNull(),
+      round: integer().notNull(),
+      node: text().notNull(),
+      component_id: text().notNull(),
+      source: text().notNull(),
+    }),
     notes: table('notes', {
       seq: integer().primaryKey({autoIncrement: true}),
       target_id: text().notNull(),

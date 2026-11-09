@@ -16,4 +16,5 @@ export const {
   runs,
   labels,
   notes,
+  node_components,
 } = designTables(extensionTable('design'))

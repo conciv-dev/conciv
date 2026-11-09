@@ -11,10 +11,10 @@ import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {createLogger, createServer} from 'vite'
-import {afterAll, describe, expect, it} from 'vitest'
+import {afterAll, afterEach, describe, expect, it, vi} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
-import {extensionTable, openDb} from '@conciv/db'
+import {closeHomeDb, componentScans, concivHome, extensionTable, openDb, openHomeDb} from '@conciv/db'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
@@ -42,6 +42,7 @@ import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
+import {createCatalog} from '../../extensions/design/src/server/catalog/catalog.js'
 import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
@@ -665,5 +666,102 @@ describe('catalog walk', () => {
 
   it('props say see file when the type is out of reach', async () => {
     expect((await named('Far')).props).toBe('see file')
+  })
+
+  it('keeps the line range of the defining export, relative to the project root', async () => {
+    const page = await named('XrayPage')
+    expect([page.file, page.lines]).toEqual(['src/XrayPage.tsx', {start: 5, end: 16}])
+  })
+})
+
+describe('catalog store', () => {
+  const opened: Array<() => Promise<void>> = []
+
+  afterEach(async () => {
+    await Promise.all(opened.splice(0).map((close) => close()))
+    vi.unstubAllEnvs()
+  })
+
+  async function openCatalog() {
+    vi.stubEnv('CONCIV_HOME', await mkdtemp(join(tmpdir(), 'conciv-catalog-home-')))
+    const home = openHomeDb(concivHome({env: process.env}))
+    const orm = openDb({
+      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-catalog-state-')),
+      extensions: [{name: 'design', migrations}],
+    })
+    const db = {
+      orm,
+      tables: designTables(extensionTable('design')),
+      sources: () => [],
+      read: async () => [],
+      write: async () => [],
+    }
+    opened.push(async () => {
+      closeHomeDb(home)
+      orm.$client.close()
+    })
+    const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
+    return {catalog, scans: () => home.select().from(componentScans).all()}
+  }
+
+  it('rescans when the fingerprint changes', async () => {
+    const {catalog, scans} = await openCatalog()
+    await catalog.list({})
+    const touched = join(HOST_ROOT, 'src', `catalog-touch-${process.pid}.txt`)
+    await writeFile(touched, 'touched\n')
+    try {
+      await catalog.list({})
+    } finally {
+      await rm(touched, {force: true})
+    }
+    const rows = scans()
+    expect(rows.length).toBe(2)
+    expect(new Set(rows.map((row) => row.fingerprint)).size).toBe(2)
+  })
+
+  it('does not rescan when nothing changed', async () => {
+    const {catalog, scans} = await openCatalog()
+    await catalog.list({})
+    await catalog.list({})
+    expect(scans().length).toBe(1)
+  })
+
+  it('ranks prefer first, then on page, then imports', async () => {
+    const {catalog} = await openCatalog()
+    await catalog.flag('Kbd', 'prefer')
+    const segments = await catalog.show('SegmentGroup')
+    const ranked = await catalog.list({live: [`${segments.file}:${segments.lines.start}:1`]})
+    expect(ranked.slice(0, 2).map((component) => [component.names[0], component.flag, component.onPage])).toEqual([
+      ['Kbd', 'prefer', 0],
+      ['SegmentGroup', null, 1],
+    ])
+    const rest = ranked.slice(2).map((component) => component.imports)
+    expect(rest).toEqual(rest.toSorted((left, right) => right - left))
+    expect(ranked.map((component) => component.rank)).toEqual(ranked.map((_, index) => index + 1))
+  })
+
+  it('do-not-use hides', async () => {
+    const {catalog} = await openCatalog()
+    await catalog.flag('Slider', 'do-not-use')
+    const listed = await catalog.list({})
+    expect(listed.some((component) => component.names.includes('Slider'))).toBe(false)
+    expect((await catalog.show('Slider')).names).toContain('Slider')
+    await catalog.flag('Slider', 'clear')
+    expect((await catalog.list({})).some((component) => component.names.includes('Slider'))).toBe(true)
+  })
+
+  it('tiers', async () => {
+    const {catalog} = await openCatalog()
+    const listed = await catalog.list({})
+    const tierOf = (name: string) => listed.find((component) => component.names.includes(name))?.tier
+    expect([tierOf('SegmentGroup'), tierOf('XrayPage')]).toEqual(['kit', 'app'])
+  })
+
+  it('names the component whose export holds a source line', async () => {
+    const {catalog} = await openCatalog()
+    await catalog.scanIfStale()
+    expect((await catalog.componentOf('src/XrayPage.tsx:9:9'))?.names).toEqual(['XrayPage'])
+    expect(await catalog.componentOf('src/XrayPage.tsx:2:1')).toBeNull()
+    expect(await catalog.componentOf('index.html:3:1')).toBeNull()
   })
 })

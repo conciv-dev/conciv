@@ -30,6 +30,7 @@ export function parseModule(input: {file: string; source: string}): ParsedModule
     rendering: new Set(values.filter((value) => marked(value, marks)).map((value) => value.name)),
   })
   const imports = program.body.flatMap((statement) => requests(statement))
+  const starts = lineStarts(source)
   return {
     imports: [...imports.filter((request) => !request.reexport).map((request) => request.value), ...marks.dynamic],
     reexports: imports.filter((request) => request.reexport).map((request) => request.value),
@@ -38,6 +39,12 @@ export function parseModule(input: {file: string; source: string}): ParsedModule
     renders: rendering,
     docs: new Map(values.flatMap((value) => docOf({value, comments: parsed.comments, source}))),
     props: new Map(values.map((value) => [value.name, value.props])),
+    lines: new Map(
+      values.map((value) => [
+        value.name,
+        {start: lineAt(starts, value.statement.start), end: lineAt(starts, value.statement.end - 1)},
+      ]),
+    ),
     types: new Map(statements.flatMap((statement) => statement.types)),
     elements: marks.elements,
     title: marks.title,
@@ -54,6 +61,7 @@ type ParsedModule = {
   renders: Set<string>
   docs: Map<string, string>
   props: Map<string, PropsFact>
+  lines: Map<string, {start: number; end: number}>
   types: Map<string, PropSketch[]>
   elements: JsxUse[]
   title: string | null
@@ -84,6 +92,20 @@ const MARKUP_TAGS = new Set(['html', 'svg'])
 const MARKUP_TYPE_SUFFIXES = ['Element', 'Component']
 const DEFAULT_EXPORT = 'default'
 const ALL_EXPORTS = '*'
+
+function lineStarts(source: string): number[] {
+  return source.split('\n').reduce(
+    (starts, line) => {
+      starts.push((starts.at(-1) ?? 0) + line.length + 1)
+      return starts
+    },
+    [0],
+  )
+}
+
+function lineAt(starts: number[], offset: number): number {
+  return starts.findLastIndex((start) => start <= offset) + 1
+}
 
 function collectMarks(input: {program: Program; source: string; declarations: boolean}): Marks {
   const marks: Marks = {markup: [], refs: [], elements: [], dynamic: [], title: null}

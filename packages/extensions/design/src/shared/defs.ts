@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import type {Storage} from 'unstorage'
+import type {HomeDb} from '@conciv/db'
 import type {ToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {defineTool} from '@conciv/extension/tool'
@@ -595,6 +596,7 @@ export type Differ = {
 
 export type DesignRuntime = {
   cwd: string
+  home: HomeDb
   state: Storage
   project: Storage
   files: Storage
