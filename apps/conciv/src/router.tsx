@@ -160,3 +160,9 @@ declare module '@tanstack/solid-router' {
     router: ReturnType<typeof createConcivRouter>
   }
 }
+
+declare module '@tanstack/history' {
+  interface HistoryState {
+    restoreFocus?: 'settings'
+  }
+}

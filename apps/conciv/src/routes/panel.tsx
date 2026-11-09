@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, useRouterState} from '@tanstack/solid-router'
 import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, createEffect, createSignal, type JSX} from 'solid-js'
 import {panelPlacement} from '../lib/draggable-position.js'
@@ -66,8 +66,10 @@ function PanelLayout(): JSX.Element {
 
   const composerFocus = makePanelComposerFocus()
   const keepTrapFromFocusing = (): false => false
+  const restoringFocus = useRouterState({select: (state) => state.location.state.restoreFocus !== undefined})
   createEffect(() => {
     if (!open()) return
+    if (restoringFocus()) return
     if (hostPageHasFocus(environment.rootNode)) return
     composerFocus.handle()?.focus()
   })

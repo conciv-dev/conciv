@@ -20,6 +20,8 @@ import {makeLiveSessions} from '../src/app/live-sessions.js'
 import {createWarmSession} from '../src/app/warm-session.js'
 import {makeAppData, type AppData} from '../src/data/app-data.js'
 import {parseConcivSettings} from '../src/data/settings.js'
+import {createPreferences} from '../src/settings/create-preferences.js'
+import {createClientSettings} from '@conciv/extension'
 import {makeLayerStack} from '../src/shell/dialogs.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 import {createRoot, createSignal, type JSX} from 'solid-js'
@@ -226,7 +228,14 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
     connectionGeneration: () => 0,
     apiBase: () => options.base,
     notifyInteractive: () => {},
-    theme: () => ({scheme: 'dark', skin: 'conciv'}),
+    theme: () => ({scheme: 'dark', skin: 'conciv', skinFromPage: false}),
+    preferences: createPreferences({
+      store: createClientSettings(rpc, 'conciv').project,
+      data,
+      queryClient,
+      connected,
+      host: parseConcivSettings(''),
+    }),
   }
 }
 
@@ -354,6 +363,7 @@ export type ShellMountOptions = {
 
 type ShellHarness = {
   mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
+  path: () => string
   dispose: () => void
 }
 
@@ -411,7 +421,9 @@ export function createShellHarness(base: () => string): ShellHarness {
     onlineManager.setOnline(true)
   }
 
-  return {mountShell, dispose}
+  const path = (): string => mounted.router?.state.location.pathname ?? ''
+
+  return {mountShell, path, dispose}
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'

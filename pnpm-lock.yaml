@@ -572,6 +572,9 @@ importers:
       '@tanstack/pacer':
         specifier: 'catalog:'
         version: 0.23.1
+      '@tanstack/solid-form':
+        specifier: ^1.33.5
+        version: 1.33.5(solid-js@1.9.17)
       '@tanstack/solid-hotkeys':
         specifier: ^0.17.0
         version: 0.17.0(solid-js@1.9.17)
@@ -624,6 +627,9 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
+      '@tanstack/history':
+        specifier: ^1.162.5
+        version: 1.162.5
       '@tanstack/query-core':
         specifier: 'catalog:'
         version: 5.105.0
@@ -10980,6 +10986,11 @@ packages:
     resolution: {integrity: sha512-RYwo1MUVVfOZs/ccClYWiEMZR24MBo4vDoFpHGZ7UBhnegp1UJd8rvP/mVKmCHCn6yfeU0UK1TCQUav6Xm52Dw==}
     peerDependencies:
       solid-js: '>=1.9.0'
+
+  '@tanstack/solid-form@1.33.5':
+    resolution: {integrity: sha512-azYHYzNwop64bedJRKgjCpi5w9cHu7cNz+dAdSXzaqy9M6JO+GlKNQn54VFhCLYJo45sgNjcdrnz4eyTmgzJ/w==}
+    peerDependencies:
+      solid-js: '>=1.9.9'
 
   '@tanstack/solid-hotkeys@0.17.0':
     resolution: {integrity: sha512-iV0x3TmJwSwFe7zXkijvlFs+TlosdFhSwobbSjVr2wPJO9UO/zPfa1NOf42fyPJkNTZyGA2MkZSto0SvztAPNQ==}
@@ -23854,6 +23865,12 @@ snapshots:
       solid-js: 1.9.17
     transitivePeerDependencies:
       - typescript
+
+  '@tanstack/solid-form@1.33.5(solid-js@1.9.17)':
+    dependencies:
+      '@tanstack/form-core': 1.33.5
+      '@tanstack/solid-store': 0.11.2(solid-js@1.9.17)
+      solid-js: 1.9.17
 
   '@tanstack/solid-hotkeys@0.17.0(solid-js@1.9.17)':
     dependencies:

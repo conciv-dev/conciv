@@ -1,6 +1,6 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {createHotkey} from '@tanstack/solid-hotkeys'
+import {createHotkeys} from '@tanstack/solid-hotkeys'
 import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -8,7 +8,8 @@ import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
 import type {RpcClient} from '@conciv/contract'
-import {useAppData, useConnectionGeneration, useRpc, useSuppressed} from '../app/context.js'
+import {useAppData, useConnectionGeneration, usePreferences, useRpc, useSuppressed} from '../app/context.js'
+import {toRawHotkey} from '../lib/hotkey.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
@@ -106,6 +107,7 @@ function QuickLayer(): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const suppressed = useSuppressed()
+  const preferences = usePreferences()
   const router = useRouter()
   const generation = useConnectionGeneration()
   const search = Route.useSearch()
@@ -193,7 +195,11 @@ function QuickLayer(): JSX.Element {
     onCollapse: () => router.history.back(),
   })
 
-  createHotkey({key: 'D', mod: true}, () => addFreshPane())
+  createHotkeys(() =>
+    preferences
+      .shortcut('quickNewPane')
+      .map((binding) => ({hotkey: toRawHotkey(binding), callback: () => addFreshPane()})),
+  )
 
   let restoreFocus: HTMLElement | null = null
   onMount(() => {

@@ -1,4 +1,4 @@
-import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Link, Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
@@ -11,12 +11,13 @@ import {
   type TurnRollup,
 } from '@conciv/ui-kit-chat'
 import X from 'lucide-solid/icons/x'
+import Settings from 'lucide-solid/icons/settings'
 import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
 import ShieldCheck from 'lucide-solid/icons/shield-check'
 import Unplug from 'lucide-solid/icons/unplug'
-import {Show, Suspense, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
+import {Show, Suspense, createEffect, createMemo, createSignal, on, onMount, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {
@@ -29,6 +30,7 @@ import {
   useInstances,
   useLiveSessions,
   usePaneChat,
+  usePreferences,
   useSettings,
 } from '../app/context.js'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../app/pane-context.js'
@@ -42,6 +44,7 @@ import {makeRefreshCoordinator} from '../pane/refresh-coordinator.js'
 import {SessionPillPending, UsagePending} from '../shell/pending.js'
 import {guardedComponent} from '../extension/extension-boundary.js'
 import {collectViews} from '../extension/extension-views.js'
+import {arrangeViews} from '../settings/arrange-views.js'
 import {useNotices} from '../shell/notice-context.js'
 import {openPipTarget} from '../shell/pip.js'
 
@@ -73,6 +76,7 @@ const RAIL_MENU_ROW =
   '!justify-start gap-2 px-1 py-1.5 rounded-[var(--chat-radius-sm)] text-[12.5px] [color:var(--chat-text-2)] w-full text-start focus-ring [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease)] hover:[background:var(--chat-fill)] hover:[color:var(--chat-text-hi)] disabled:opacity-40 disabled:cursor-default'
 
 const POP_OUT_LOST_KEY = 'pop-out-lost'
+const SLIDE_CLASS = {right: 'anim-tab-right', left: 'anim-tab-left', none: ''}
 
 const panelSessionSearchSchema = z.object({
   popOut: z.literal('lost').optional().catch(undefined),
@@ -167,6 +171,33 @@ function SessionTitle(props: {
   )
 }
 
+function SettingsLink(props: {sessionId: string}): JSX.Element {
+  const router = useRouter()
+  const restoring = router.state.location.state.restoreFocus === 'settings'
+  let link: HTMLAnchorElement | undefined
+  onMount(() => {
+    if (restoring) link?.focus()
+  })
+  return (
+    <TooltipIconButtonSlot tooltip="Settings" class={GHOST} side="bottom">
+      {(buttonProps) => (
+        <Link
+          class={buttonProps().class}
+          aria-label={buttonProps()['aria-label']}
+          aria-describedby={buttonProps()['aria-describedby']}
+          ref={(element) => {
+            link = element
+          }}
+          to="/panel/$sessionId/settings"
+          params={{sessionId: props.sessionId}}
+        >
+          <Settings class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
+        </Link>
+      )}
+    </TooltipIconButtonSlot>
+  )
+}
+
 function CloseChatButton(): JSX.Element {
   const panelChrome = usePanelChrome()
   const settings = useSettings()
@@ -205,6 +236,22 @@ function AllowOutsideAgentsRow(props: {sessionId: string}): JSX.Element {
   )
 }
 
+function showPopOutLost(lost: () => boolean, popOut: () => void): void {
+  const notices = useNotices()
+  createEffect(
+    on(lost, (isLost) => {
+      if (!isLost) {
+        notices.remove(POP_OUT_LOST_KEY)
+        return
+      }
+      notices.notify('The pop-out window could not be reopened.', {
+        key: POP_OUT_LOST_KEY,
+        action: {label: 'Pop out again', run: popOut},
+      })
+    }),
+  )
+}
+
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const appData = useAppData()
@@ -218,7 +265,6 @@ function PanelSession(): JSX.Element {
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
   const search = Route.useSearch()
-  const notices = useNotices()
   const popOut = () => {
     const sessionId = params().sessionId
     if (openPipTarget()) {
@@ -232,21 +278,7 @@ function PanelSession(): JSX.Element {
       replace: true,
     })
   }
-  createEffect(
-    on(
-      () => search().popOut,
-      (popOutState) => {
-        if (popOutState !== 'lost') {
-          notices.remove(POP_OUT_LOST_KEY)
-          return
-        }
-        notices.notify('The pop-out window could not be reopened.', {
-          key: POP_OUT_LOST_KEY,
-          action: {label: 'Pop out again', run: popOut},
-        })
-      },
-    ),
-  )
+  showPopOutLost(() => search().popOut === 'lost', popOut)
 
   const chat = usePaneChat(() => params().sessionId)
   const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: params().sessionId}}))
@@ -254,7 +286,8 @@ function PanelSession(): JSX.Element {
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? chat().runInProgress()
 
-  const views = createMemo(() => collectViews(instances))
+  const preferences = usePreferences()
+  const views = createMemo(() => arrangeViews(collectViews(instances), preferences.stored()))
   const activeView = () => {
     const match = viewMatch()
     return match ? match.view : 'chat'
@@ -265,7 +298,7 @@ function PanelSession(): JSX.Element {
 
   const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
-  const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
+  const slideClass = () => SLIDE_CLASS[slideDir() ?? 'none']
 
   const switchView = (next: string) => {
     if (next === activeView()) return
@@ -416,6 +449,7 @@ function PanelSession(): JSX.Element {
             </Popover.Content>
           </Popover.Positioner>
         </Popover.Root>
+        <SettingsLink sessionId={params().sessionId} />
         <CloseChatButton />
       </header>
       <Outlet />
