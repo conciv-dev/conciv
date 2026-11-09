@@ -19,6 +19,9 @@ const BROWSER_SUITES = ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx
 
 type BrowserName = 'chromium' | 'firefox'
 
+const TIMEZONE = 'Pacific/Kiritimati'
+const PERMISSIONS: Record<BrowserName, string[]> = {chromium: ['clipboard-read', 'clipboard-write'], firefox: []}
+
 function browserProject(
   name: string,
   include: string[],
@@ -37,8 +40,11 @@ function browserProject(
       browser: {
         enabled: true,
         headless: true,
-        provider: playwright({contextOptions: {timezoneId: 'Pacific/Kiritimati'}}),
-        instances: browsers.map((browser) => ({browser})),
+        provider: playwright({contextOptions: {timezoneId: TIMEZONE}}),
+        instances: browsers.map((browser) => ({
+          browser,
+          provider: playwright({contextOptions: {timezoneId: TIMEZONE, permissions: PERMISSIONS[browser]}}),
+        })),
         commands: coreCommands,
       },
     },

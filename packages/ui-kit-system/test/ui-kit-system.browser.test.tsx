@@ -15,7 +15,7 @@ import type {SchemePair, Skin} from '../src/skin-contract.js'
 import {contrastRatio, type SkinSchemeAnchorName} from './wcag.js'
 import {TextArea} from '../src/text-field.js'
 import {Menu} from '../src/menu.js'
-import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
+import {TooltipIconButton, TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
 import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
 import {Tooltip} from '../src/tooltip.js'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
@@ -210,6 +210,16 @@ describe('clipboard', () => {
 
     await expect.element(page.getByRole('button', {name: 'Copied'})).toBeVisible()
     expect(written).toEqual([TEXT])
+  })
+
+  it('keeps its tooltip open through the click so the pointer user sees Copied', async () => {
+    render(() => <ClipboardCopyButton text={TEXT} resetMs={RESET_MS * 10} writeText={accept([])} />)
+    await userEvent.hover(copyButton())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+    await userEvent.click(copyButton())
+
+    await expect.element(page.getByRole('tooltip')).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
   })
 
   it('renames the copy button to Copy failed when the clipboard refuses', async () => {
@@ -920,6 +930,9 @@ describe.each([
         <div class="p-10 flex gap-2">
           <ClipboardCopyButton text="first" writeText={accept} />
           <ClipboardCopyButton text="second" writeText={accept} tooltips={{idle: 'Copy second'}} />
+          <TooltipIconButton tooltip="Pin">
+            <span aria-hidden="true">P</span>
+          </TooltipIconButton>
         </div>
       </Wrap>
     ))
@@ -941,7 +954,7 @@ describe.each([
     await expect.element(first()).not.toHaveAttribute('aria-describedby')
   })
 
-  it('swaps to Copied on a press and takes the tooltip away', async () => {
+  it('swaps to Copied on a press and keeps the tooltip open to say so', async () => {
     mount()
     await userEvent.hover(first())
     await expect.element(page.getByRole('tooltip')).toBeVisible()
@@ -949,7 +962,14 @@ describe.each([
     await first().click()
 
     await expect.element(page.getByRole('button', {name: 'Copied'})).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+
+    const pin = page.getByRole('button', {name: 'Pin'})
+    await userEvent.hover(pin)
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Pin')
+    await pin.click()
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await userEvent.unhover(pin)
   })
 
   it('opens the tooltip for a keyboard user behind a visible focus ring', async () => {

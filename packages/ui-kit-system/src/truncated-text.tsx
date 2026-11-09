@@ -11,7 +11,7 @@ import {
   type Accessor,
   type JSX,
 } from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createStore, type SetStoreFunction} from 'solid-js/store'
 import {useTooltipContext} from '@ark-ui/solid/tooltip'
 import {Tooltip} from './tooltip.js'
 
@@ -64,7 +64,7 @@ export type TruncatedTextProps = {
 
 type RevealTarget =
   | {kind: 'clip'; text: Accessor<string>; element: Accessor<HTMLElement | undefined>}
-  | {kind: 'label'; render: () => JSX.Element}
+  | {kind: 'label'; render: () => JSX.Element; keepOpenOnClick?: boolean}
 
 export type SharedTooltip = {
   side: () => TruncatedTextSide
@@ -75,6 +75,8 @@ export type SharedTooltip = {
 }
 
 type Shown = {key: string; value: string; target: RevealTarget}
+
+type SharedRevealState = {targets: Record<string, RevealTarget | undefined>; current: string | null}
 
 const SharedTooltipContext = createContext<SharedTooltip>()
 
@@ -88,9 +90,23 @@ export type TruncatedTextGroupProps = {side?: TruncatedTextSide; children?: JSX.
 
 export function TruncatedTextGroup(props: TruncatedTextGroupProps): JSX.Element {
   const [local] = splitProps(props, ['side', 'children'])
+  const [reveal, setReveal] = createStore<SharedRevealState>({targets: {}, current: null})
+  const keepsOpen = () => {
+    const target = reveal.current === null ? undefined : reveal.targets[reveal.current]
+    return target?.kind === 'label' && target.keepOpenOnClick === true
+  }
   return (
-    <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}} lazyMount unmountOnExit>
-      <SharedReveal side={local.side ?? 'top'}>{local.children}</SharedReveal>
+    <Tooltip.Root
+      positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}
+      closeOnPointerDown={!keepsOpen()}
+      closeOnClick={!keepsOpen()}
+      onTriggerValueChange={(details) => setReveal('current', details.value)}
+      lazyMount
+      unmountOnExit
+    >
+      <SharedReveal side={local.side ?? 'top'} reveal={reveal} setReveal={setReveal}>
+        {local.children}
+      </SharedReveal>
     </Tooltip.Root>
   )
 }
@@ -107,19 +123,23 @@ function revealedContent(shown: Shown | undefined): JSX.Element {
   return undefined
 }
 
-function SharedReveal(props: {side: TruncatedTextSide; children?: JSX.Element}): JSX.Element {
+function SharedReveal(props: {
+  side: TruncatedTextSide
+  reveal: SharedRevealState
+  setReveal: SetStoreFunction<SharedRevealState>
+  children?: JSX.Element
+}): JSX.Element {
   const api = useTooltipContext()
-  const [targets, setTargets] = createStore<Record<string, RevealTarget | undefined>>({})
   const shown = createMemo(() => {
     const value = api().triggerValue
     if (!api().open || value === null) return undefined
-    return shownTarget(value, targets[value])
+    return shownTarget(value, props.reveal.targets[value])
   })
   const scope: SharedTooltip = {
     side: () => props.side,
     owns: (candidate) => candidate === api,
-    register: (value, target) => setTargets(value, target),
-    release: (value) => setTargets(value, undefined),
+    register: (value, target) => props.setReveal('targets', value, target),
+    release: (value) => props.setReveal('targets', value, undefined),
     describe: (value, triggerProps) => describedWhen(shown()?.value === value, triggerProps),
   }
   return (
