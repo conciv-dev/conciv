@@ -281,10 +281,10 @@ function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
         </div>
         <div class="h-3 relative" data-conciv-key="snH6Mw">
           <div
-            class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-line h-0.5 inset-x-0 top-1/2 absolute"
+            class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-line h-0.5 inset-x-0 top-1.25 absolute"
             data-conciv-key="yVZr5Q"
           />
-          <div class="h-0.5 inset-x-0 top-1/2 absolute" data-conciv-key="MuAjOQ">
+          <div class="h-0.5 inset-x-0 top-1.25 absolute" data-conciv-key="MuAjOQ">
             <div
               class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-accent h-full"
               style={{width: `${fraction() * 100}%`}}

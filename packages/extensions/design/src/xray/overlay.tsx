@@ -13,6 +13,7 @@ import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {designConfig} from '../shared/tolerances.js'
 import {Boxes} from './boxes.js'
 import {Panel} from './panel.js'
+import {Stage} from './stage.js'
 import type {createXrayData} from './data.js'
 
 export function XrayOverlay(props: {
@@ -48,9 +49,15 @@ export function XrayOverlay(props: {
       <YieldFocus when={props.on()}>
         <Portal mount={document.body} useShadow ref={setElement}>
           <EnvironmentProvider value={rootNode}>
-            <div class="chat-density text-chat-text font-chat antialiased" data-conciv-key="HxvEWg">
-              <Show when={props.data.shownRound() !== null}>
+            <div
+              class="chat-density text-chat-text font-chat pointer-events-none antialiased inset-0 fixed"
+              data-conciv-key="HxvEWg"
+            >
+              <Show when={props.data.shownRound() !== null && !props.data.stack()}>
                 <Boxes data={props.data} />
+              </Show>
+              <Show when={props.data.shownRound() !== null && props.data.stack()}>
+                <Stage data={props.data} />
               </Show>
               <nav
                 aria-label="Design x-ray rail"
