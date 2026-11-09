@@ -1,4 +1,5 @@
 import type {Accessor, Setter} from 'solid-js'
+import {z} from 'zod'
 import {defineExtension} from '../src/define-extension.js'
 import {getExtensionApi, type ExtensionApi} from '../src/extension-api.js'
 import {getHostApi, HostApiProvider} from '../src/host.js'
@@ -48,6 +49,33 @@ function ExtensionSurfaceProbe() {
   return {slot, toast, context}
 }
 
+const typedSettings = defineExtension({
+  name: 'typed-settings',
+  settings: z.object({
+    fontSize: z.number().default(13),
+    cursor: z.enum(['block', 'bar']).default('block'),
+  }),
+})
+
+function SettingsProbe() {
+  const settings = typedSettings.useSettings()
+  const fontSize: number = settings().fontSize
+  const cursor: 'block' | 'bar' = settings().cursor
+  return {fontSize, cursor}
+}
+
+async function ServerSettingsProbe() {
+  const reader = typedSettings.readSettings(getHostApi().useScope('typed-settings').settings.project)
+  const fontSize: number = (await reader.all()).fontSize
+  return fontSize
+}
+
+defineExtension({
+  name: 'settings-without-default',
+  // @ts-expect-error every settings field carries a .default()
+  settings: z.object({fontSize: z.number()}),
+})
+
 type Same<Left, Right> = [Left] extends [Right] ? ([Right] extends [Left] ? true : false) : false
 
 const extensionApiIsHostApiPlusContext: Same<keyof ExtensionApi, keyof ReturnType<typeof getHostApi> | 'useContext'> =
@@ -65,6 +93,8 @@ type RootHostWiringProbe = RootHostWiring
 type RootConnectHostApiProbe = RootConnectHostApi
 
 export {
+  SettingsProbe,
+  ServerSettingsProbe,
   ProbeComponent,
   ReversedProbe,
   HostSurfaceProbe,

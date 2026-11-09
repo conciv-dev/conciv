@@ -488,6 +488,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         stateDir,
         scope: settings.scope,
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
+        settings: extension.readSettings(settings.scope<string>(extension.name).settings.project),
         cwd: opts.cwd,
         basePath,
         sessions: serverSessions,

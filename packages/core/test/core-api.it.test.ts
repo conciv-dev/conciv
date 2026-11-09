@@ -378,10 +378,13 @@ describe('api extension router', () => {
 
 describe('api extension server surfaces', () => {
   test('extension server api exposes sessions + harness surfaces backed by the real store', async () => {
-    const captured: {server?: ServerApi<Record<never, never>>} = {}
+    const captured: {server?: ServerApi<Record<never, never>, {fontSize: number}>} = {}
     const runEnd = {resolve: (_sessionId: SessionId) => {}}
     const runEnded = new Promise<SessionId>((resolve) => (runEnd.resolve = resolve))
-    const probe = defineExtension({name: 'probe'}).server((server) => {
+    const probe = defineExtension({
+      name: 'probe',
+      settings: z.object({fontSize: z.number().default(13)}),
+    }).server((server) => {
       captured.server = server
       return {context: {}, turnEnd: (sessionId) => runEnd.resolve(sessionId)}
     })
@@ -391,6 +394,12 @@ describe('api extension server surfaces', () => {
       const server = captured.server
       if (!server) throw new Error('server api not captured')
       const sessionId = SessionId.parse(await kit.session())
+
+      expect(await server.settings.all()).toEqual({fontSize: 13})
+      await server.scope('probe').settings.project.set('fontSize', 18)
+      expect(await server.settings.all()).toEqual({fontSize: 18})
+      await server.scope('probe').settings.project.set('fontSize', 'large')
+      expect(await server.settings.all()).toEqual({fontSize: 13})
 
       expect(await server.sessions.resumeToken(sessionId)).toBeNull()
       await server.sessions.recordToken(sessionId, HarnessSessionId.parse('tok-round-trip'))
