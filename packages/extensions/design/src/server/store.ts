@@ -4,13 +4,20 @@ import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
+import type {Catalog} from '../shared/catalog-defs.js'
 import {walk} from '../shared/tree.js'
 import {attached} from './attached.js'
 import {nodeLooks} from './node-look.js'
+import {relateRound} from './catalog/relate.js'
 import type {designTables} from './tables.js'
 
-export function createStore(input: {db: DesignDb; state: Storage; run: () => Promise<number | null>}): Store {
-  const {state, run} = input
+export function createStore(input: {
+  db: DesignDb
+  state: Storage
+  run: () => Promise<number | null>
+  catalog: Catalog
+}): Store {
+  const {state, run, catalog} = input
   const {orm, tables} = input.db
   const {
     targets,
@@ -25,6 +32,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
     candidates,
     widths,
     regions,
+    node_components: nodeComponents,
   } = tables
 
   async function target(id: string): Promise<TargetRow | undefined> {
@@ -225,6 +233,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
           }
         }
       })
+      return relateRound({db: input.db, catalog, targetId: id, round})
     },
     unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
     writeUnsettledCount: async ({id, count}) => {
@@ -341,7 +350,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
         tx.delete(rows).where(eq(rows.target_id, id)).run()
         tx.delete(fom).where(eq(fom.target_id, id)).run()
         tx.delete(votes).where(eq(votes.target_id, id)).run()
-        for (const table of [missing, candidates, widths, regions, nodes])
+        for (const table of [missing, candidates, widths, regions, nodes, nodeComponents])
           tx.delete(table).where(eq(table.target_id, id)).run()
       })
       await Promise.all((await state.getKeys(id)).map((key) => state.removeItem(key)))

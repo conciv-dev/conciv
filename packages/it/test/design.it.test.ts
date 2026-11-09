@@ -45,6 +45,7 @@ import {createImageAdapter} from '../../extensions/design/src/server/sources/ima
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
 import {createCatalog} from '../../extensions/design/src/server/catalog/catalog.js'
+import {backfillRelation} from '../../extensions/design/src/server/catalog/backfill-relation.js'
 import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
@@ -423,7 +424,10 @@ describe('store', () => {
       read: async () => [],
       write: async () => [],
     }
-    const store = createStore({db, state: createStorage({driver: memoryDriver()}), run: async () => null})
+    const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-store-home-'))
+    const home = openHomeDb(homeDir)
+    const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
+    const store = createStore({db, state: createStorage({driver: memoryDriver()}), run: async () => null, catalog})
     const design: Design = {
       id: 'store-1',
       source: {kind: 'figma', ref: 'key/1:2'},
@@ -476,6 +480,8 @@ describe('store', () => {
     expect((await store.current('session-b'))?.id).toBe('store-1')
     await store.clear('store-1')
     expect(await store.rounds('store-1')).toEqual([])
+    closeHomeDb(home)
+    await rm(homeDir, {recursive: true, force: true})
   })
 })
 
@@ -928,6 +934,64 @@ describe('design_get components section', () => {
       expect((await bare.call('design_components', {})).components).toEqual([])
     } finally {
       await bare.dispose()
+    }
+  })
+})
+
+describe('node components', () => {
+  const RowsSchema = z.array(z.record(z.string(), z.unknown()))
+
+  async function query(input: {from: string; where: string}) {
+    return RowsSchema.parse(await kit.rpc.registry.call({name: 'design_query', input}))
+  }
+
+  it('records which component rendered each node of a round, and the component names its nodes', async () => {
+    await goto('target')
+    const got = await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    const related = await query({
+      from: 'node_components',
+      where: `target == "${got.target}" && round == ${checked.round}`,
+    })
+    const listed = (await call('design_components', {})).components ?? []
+    const names = new Map(listed.map((component) => [component.id, component.names[0]]))
+    expect([...new Set(related.map((row) => names.get(String(row.component_id))))]).toContain('Cards')
+    expect(related.every((row) => names.has(String(row.component_id)))).toBe(true)
+    expect((await call('design_components', {show: 'Cards'})).text).toContain('renders ')
+  })
+
+  it('backfills stored rounds once, skipping a source no component holds', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'conciv-relation-home-'))
+    const home = openHomeDb(homeDir)
+    const orm = openDb({
+      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-relation-state-')),
+      extensions: [{name: 'design', migrations}],
+    })
+    const db = {
+      orm,
+      tables: designTables(extensionTable('design')),
+      sources: () => [],
+      read: async () => [],
+      write: async () => [],
+    }
+    try {
+      const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
+      const stored = {target_id: 'stored-1', confidence: 1, margin: 1, round: 2, at: 1}
+      await orm.insert(db.tables.fom).values([
+        {...stored, id: 'stat', node: '7:1', source: 'src/XrayPage.tsx:11:7'},
+        {...stored, id: 'markup', node: '7:2', source: 'index.html:3:1'},
+      ])
+      expect(await backfillRelation({db, catalog})).toBe(1)
+      const rows = await orm.select().from(db.tables.node_components)
+      const stat = await catalog.componentOf('src/XrayPage.tsx:11:7')
+      expect(rows.map((row) => [row.target_id, row.round, row.node, row.component_id])).toEqual([
+        ['stored-1', 2, '7:1', stat?.id],
+      ])
+      expect(await backfillRelation({db, catalog})).toBe(0)
+    } finally {
+      closeHomeDb(home)
+      orm.$client.close()
+      await rm(homeDir, {recursive: true, force: true})
     }
   })
 })

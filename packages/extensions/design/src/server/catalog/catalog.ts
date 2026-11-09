@@ -103,6 +103,17 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
     return component
   }
 
+  async function componentsOf(lines: string[]): Promise<Map<string, Component>> {
+    await scanIfStale()
+    const found = await rows()
+    return new Map(
+      lines.flatMap((source) => {
+        const component = enclosing({found, at: located(source)})
+        return component === null ? [] : [[source, component]]
+      }),
+    )
+  }
+
   return {
     scanIfStale,
     async list(query) {
@@ -147,18 +158,9 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
         .run()
     },
     async componentOf(source) {
-      await scanIfStale()
-      const {file, line} = located(source)
-      const found = await rows()
-      const rendered = found.find((component) =>
-        component.sites.some((site) => site.file === file && site.line === line),
-      )
-      if (rendered !== undefined) return rendered
-      const holding = found.filter(
-        (component) => component.file === file && component.lines.start <= line && line <= component.lines.end,
-      )
-      return minBy(holding, (component) => component.lines.end - component.lines.start) ?? null
+      return (await componentsOf([source])).get(source) ?? null
     },
+    componentsOf,
   }
 }
 
@@ -191,4 +193,15 @@ function located(source: string): {file: string; line: number} {
     file: parts.slice(0, parts.length - position.length).join(SOURCE_SEPARATOR),
     line: Number(position[0] ?? Number.NaN),
   }
+}
+
+function enclosing(input: {found: Component[]; at: {file: string; line: number}}): Component | null {
+  const {found, at} = input
+  const {file, line} = at
+  const rendered = found.find((component) => component.sites.some((site) => site.file === file && site.line === line))
+  if (rendered !== undefined) return rendered
+  const holding = found.filter(
+    (component) => component.file === file && component.lines.start <= line && line <= component.lines.end,
+  )
+  return minBy(holding, (component) => component.lines.end - component.lines.start) ?? null
 }

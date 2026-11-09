@@ -1,4 +1,5 @@
 import type {Ballot, Design, IdTree, Mapping, Round, TargetRecord} from './defs.js'
+import type {Component} from './catalog-defs.js'
 
 export type Store = {
   put(input: {
@@ -15,7 +16,12 @@ export type Store = {
   writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
   writeToolCall(input: ToolCall & {session: string; round: number | null}): Promise<void>
   ids(id: string): Promise<IdTree | null>
-  writeIds(input: {id: string; ids: IdTree; round: number; revoted: Record<string, string>}): Promise<void>
+  writeIds(input: {
+    id: string
+    ids: IdTree
+    round: number
+    revoted: Record<string, string>
+  }): Promise<Map<string, Component>>
   unsettledCount(id: string): Promise<number>
   writeUnsettledCount(input: {id: string; count: number}): Promise<void>
   writeRound(input: {id: string; round: Round; live: Uint8Array; diff: Uint8Array; notes?: string[]}): Promise<Round>

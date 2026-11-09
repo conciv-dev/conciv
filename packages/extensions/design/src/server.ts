@@ -25,6 +25,7 @@ import {DESIGN_COMMANDS} from './server/commands.js'
 import {createCatalog} from './server/catalog/catalog.js'
 import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
 import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
+import {backfillRelation} from './server/catalog/backfill-relation.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -48,13 +49,22 @@ const design = defineExtension({
   const project = createStorage({driver: fsDriver({base: server.cwd, readOnly: true})})
   const files = createStorage({driver: fsDriver({base: FILES_ROOT, readOnly: true})})
   const measurer = createMeasurer({config})
+  const home = openHomeDb(server.home)
+  const componentSources = {'vite-oxc': createViteOxcSource()}
+  const catalog = createCatalog({
+    home,
+    db,
+    cwd: server.cwd,
+    sources: config.catalog.sources.map((source) => componentSources[source]),
+  })
+  const backfilled = backfillRelation({db, catalog}).catch(() => 0)
   const runtime: DesignRuntime = {
     cwd: server.cwd,
-    home: openHomeDb(server.home),
+    home,
     state,
     project,
     files,
-    store: createStore({db, state, run: createRuns(db).current}),
+    store: createStore({db, state, run: createRuns(db).current, catalog}),
     adapters: [
       createImageAdapter({config}),
       createFigmaAdapter({
@@ -80,13 +90,6 @@ const design = defineExtension({
     pageDir: fileURLToPath(new URL('xray/', import.meta.url)),
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
-  const componentSources = {'vite-oxc': createViteOxcSource()}
-  const catalog = createCatalog({
-    home: runtime.home,
-    db,
-    cwd: server.cwd,
-    sources: config.catalog.sources.map((source) => componentSources[source]),
-  })
   return {
     context: {
       design: runtime,
@@ -99,6 +102,7 @@ const design = defineExtension({
     router: xray.router,
     app: xray.app,
     dispose: async () => {
+      await backfilled
       await Promise.all(runtime.adapters.map((adapter) => adapter.dispose?.()))
       differ.dispose()
       measurer.dispose()
