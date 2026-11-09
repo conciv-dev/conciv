@@ -1577,7 +1577,7 @@ describe('rpc wire', () => {
           typescriptCode: "return await external_open({file: 'src/from-tool.ts'})",
         })
         const stream = await kit().turn('open the file', {session: sessionId, runId: 'wire-11'})
-        await stream.done({hangGuardMs: 10_000})
+        await stream.done()
         expect(opened.map((entry) => entry.file)).toEqual(['src/from-tool.ts'])
       })
     })
@@ -1591,7 +1591,7 @@ describe('rpc wire', () => {
       cleanups.push(() => kit.cleanup())
       const sessionId = await kit.session()
       const first = await kit.turn('first question', {session: sessionId, runId: 'wire-7'})
-      await first.done({hangGuardMs: 10_000})
+      await first.done()
       const transcript = requireTranscriptPath(noResume)(kit.stateRoot, HarnessSessionId.parse(`fake-${sessionId}`))
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
@@ -1602,7 +1602,7 @@ describe('rpc wire', () => {
         ].join('\n'),
       )
       const second = await kit.turn('second question', {session: sessionId, runId: 'wire-8'})
-      await second.done({hangGuardMs: 10_000})
+      await second.done()
       expect(userTexts(await hydratedSnapshot(kit, sessionId))).toEqual(['first question', 'second question'])
     })
 
@@ -1825,7 +1825,7 @@ describe('rpc wire', () => {
         await finished(quick, 'quick')
         expect((await chatKit().hydrate(slow)).activeRun).not.toBeNull()
         script().releaseResults()
-        await slowTurn.done(GUARD)
+        await slowTurn.done()
         expect((await sessionMeta(slow)).usage).toMatchObject({inputTokens: 11, contextWindow: 1_000_000})
         expect((await sessionMeta(quick)).usage).toMatchObject({inputTokens: 22, contextWindow: 1_000_000})
       })
@@ -1874,7 +1874,7 @@ describe('rpc wire', () => {
         const rejoin = chatKit().join('detached-run')
         script().release()
         await ended()
-        expect((await rejoin.done(GUARD)).text()).toBe('ok')
+        expect((await rejoin.done()).text()).toBe('ok')
         expect((await chatKit().hydrate(sessionId)).lastRun).toMatchObject({phase: 'completed'})
         expect(await assistantTexts(sessionId)).toEqual(['ok'])
         expect((await sessionMeta(sessionId)).usage).toMatchObject({inputTokens: 120})
@@ -1943,7 +1943,7 @@ describe('rpc wire', () => {
         const late = chatKit().join('live-run')
         await late.waitForText('ok')
         script().release()
-        const [sent, joined] = [await turn.done(GUARD), await late.done(GUARD)]
+        const [sent, joined] = [await turn.done(), await late.done()]
         expect(eventRunIdsOf(joined, ChatEventType.RUN_STARTED)).toEqual(['live-run'])
         expect(count(joined, ChatEventType.TEXT_MESSAGE_CONTENT)).toBe(1)
         expect(assistantView(joined)).toEqual(assistantView(sent))
@@ -1960,7 +1960,7 @@ describe('rpc wire', () => {
         const rejoin = chatKit().join('reloaded-run')
         script().release()
         await ended()
-        expect((await rejoin.done(GUARD)).text()).toBe('ok')
+        expect((await rejoin.done()).text()).toBe('ok')
         expect(await chatKit().hydrate(sessionId)).toMatchObject({
           activeRun: null,
           lastRun: {runId: 'reloaded-run', phase: 'completed'},
@@ -1971,7 +1971,7 @@ describe('rpc wire', () => {
       it('joining a finished turn replays it exactly once', async () => {
         const sessionId = await newSession()
         const sent = await finished(sessionId, 'replay me', {runId: 'replayed-run'})
-        const replay = await chatKit().join('replayed-run').done(GUARD)
+        const replay = await chatKit().join('replayed-run').done()
         expect(replay.text()).toBe('ok')
         expect(nonCustomTypes(replay)).toEqual(nonCustomTypes(sent))
       })
@@ -2008,7 +2008,7 @@ describe('rpc wire', () => {
         })
         await call
         script().release()
-        await turn.done(GUARD)
+        await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
         expect(cards.map(cardMetadata)).toContainEqual({conciv: {origin: 'hub', client: 'codex'}})
       })
@@ -2035,7 +2035,7 @@ describe('rpc wire', () => {
         script().hold()
         const sends = [await send(twin, 'twin', {runId: 'twin-run'}), await send(twin, 'twin', {runId: 'twin-run'})]
         script().release()
-        await Promise.all(sends.map((turn) => turn.done(GUARD)))
+        await Promise.all(sends.map((turn) => turn.done()))
         expect([runsOf(reused).length, runsOf(twin).length]).toEqual([1, 1])
         expect([await threadUserTexts(reused), await threadUserTexts(twin)]).toEqual([['original'], ['twin']])
       })
@@ -2058,7 +2058,7 @@ describe('rpc wire', () => {
         expect(JSON.stringify(asked.all)).toContain('needs the user')
         expect(asked.all.at(-1)?.type).toBe(ChatEventType.RUN_FINISHED)
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([pendingAsk('ask-run')])
-        expect((await chatKit().join('ask-run').done(GUARD)).custom('approval-requested')).toHaveLength(1)
+        expect((await chatKit().join('ask-run').done()).custom('approval-requested')).toHaveLength(1)
         await expect(decide(sessionId, ASK_ID, false)).resolves.toEqual({ok: true, startsTurn: true})
         expect((await chatKit().hydrate(sessionId)).pendingApprovals).toEqual([])
         const refused = await askTurn(sessionId)
@@ -2263,7 +2263,7 @@ describe('rpc wire', () => {
         const {turn} = await heldTurn(sessionId, 'first in line')
         const second = await send(sessionId, 'second in line')
         script().release()
-        await Promise.all([turn.done(GUARD), second.done(GUARD)])
+        await Promise.all([turn.done(), second.done()])
         expect(overlapping(runsOf(sessionId))).toBe(false)
         expect(await threadUserTexts(sessionId)).toEqual(['first in line', 'second in line'])
       })
@@ -2272,9 +2272,9 @@ describe('rpc wire', () => {
         const sessionId = await newSession()
         const {turn} = await heldTurn(sessionId, 'interrupted', 'steer-first')
         const second = await send(sessionId, 'resent', {runId: 'steer-second'})
-        const first = await turn.done({hangGuardMs: 1_000}).finally(() => script().release())
+        const first = await turn.done().finally(() => script().release())
         expect(first.all.some((chunk) => chunk.type === ChatEventType.RUN_FINISHED)).toBe(true)
-        expect(eventRunIdsOf(await second.done(GUARD), ChatEventType.RUN_STARTED)).toContain('steer-second')
+        expect(eventRunIdsOf(await second.done(), ChatEventType.RUN_STARTED)).toContain('steer-second')
       })
     })
 
@@ -3120,7 +3120,7 @@ return seen`
           chatKit().rpc.chat.uiReply({sessionId: app.mcpSession, toolCallId: 'no-such-call', value: 'yes'}),
         ).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
         script().releaseResults()
-        await turn.done(GUARD)
+        await turn.done()
       })
     })
 
@@ -3461,7 +3461,7 @@ return seen`
   }
 
   async function finished(sessionId: string, input: TurnInput, opts: {runId?: string; messageId?: string} = {}) {
-    return (await send(sessionId, input, opts)).done(GUARD)
+    return (await send(sessionId, input, opts)).done()
   }
 
   async function heldTurn(sessionId: string, text: string, runId?: string) {
@@ -3772,7 +3772,7 @@ return seen`
     const lines = [...existingTranscript(nativeId), ...transcriptTurn(cliText, 'ok', index), ...extra]
     const path = writeTranscript(nativeId, lines)
     script().release()
-    await turn.done(GUARD)
+    await turn.done()
     return path
   }
 
