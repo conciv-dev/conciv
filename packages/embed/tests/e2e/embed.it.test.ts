@@ -1677,7 +1677,7 @@ test.describe('virtualize threshold cliff', () => {
     const kit = suite.kit()
     for (let index = 0; index < exchanges; index += 1) {
       const turn = await kit.chat(`question number ${index} about the reconciliation logic`, sessionId)
-      await turn.done({hangGuardMs: 10_000})
+      await turn.done()
     }
   }
 

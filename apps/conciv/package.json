@@ -46,7 +46,7 @@
     "@solid-primitives/resize-observer": "catalog:",
     "@tanstack/hotkeys": "^0.18.0",
     "@tanstack/pacer": "catalog:",
-    "@tanstack/solid-hotkeys": "^0.17.0",
+    "@tanstack/solid-hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@tanstack/solid-query": "catalog:",
     "@tanstack/solid-router": "catalog:",

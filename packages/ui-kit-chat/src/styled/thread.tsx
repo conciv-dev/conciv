@@ -1,11 +1,12 @@
 import {
   createContext,
   createMemo,
-  indexArray,
+  mapArray,
   Match,
   onMount,
   Show,
   Switch,
+  untrack,
   useContext,
   type Accessor,
   type Component,
@@ -14,10 +15,12 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
+import {isEqual} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
+import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {ToolCardEntry, ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import {useChatContext, useThread} from '../store/chat-context.js'
+import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
@@ -26,6 +29,7 @@ import {
   CHAIN_GROUP_KEY,
   groupNodeIdentity,
   groupParts,
+  shareGroupNodes,
   lastGroupedIndex,
   type GroupEntry,
   type GroupKey,
@@ -74,12 +78,14 @@ export type ThreadComponents = {
   ToolFallback?: ToolCardView
 }
 
+export type TurnPrefixSource = {key: string; role: Turn['role']; turn: Accessor<Turn>}
+
 export type ThreadRootProps = ParentProps<{class?: string}>
 
 export type ThreadMessagesProps = {
   components?: ThreadComponents
   tools?: ToolCardEntry[]
-  turnPrefix?: (turn: Accessor<Turn>) => JSX.Element
+  turnPrefix?: (turn: TurnPrefixSource) => JSX.Element
   attachmentCards?: readonly AttachmentCardSlot[]
   pageSession?: PageSessionConfig
   grouping?: Grouping
@@ -122,13 +128,17 @@ function asPartNode(node: GroupNode): GroupNodePart | null {
 }
 
 function rollupOfParts(parts: readonly ChatPart[]): TurnRollup {
-  return turnRollup({key: 'segment', role: 'assistant', parts: [...parts], start: 0, end: 0})
+  return turnRollup({parts: [...parts]})
 }
 
 function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX.Element) | undefined {
   const text = part().content.trim()
   if (text.split('\n').length < 2 && text.length <= PLAN_INLINE_LENGTH) return undefined
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
+}
+
+function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
+  return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
 }
 
 function AssistantTurn(props: {
@@ -143,81 +153,81 @@ function AssistantTurn(props: {
   const ctx = useToolCtx()
   const config = useContext(ThreadConfigContext)
   const parts = () => message.message().parts
+  const turnParts = message.parts
   const grouping = createMemo(() => props.grouping ?? createGrouping(props.pageSession, props.entries))
-  const lastPartIndex = createMemo(() => parts().length - 1)
+  const lastPartIndex = createMemo(() => turnParts.items().length - 1)
   const runActive = () => thread.isRunning && message.isLast()
-  const nodes = createMemo(() => groupParts(parts(), grouping().grouper, {...grouping().context, live: runActive()}))
-  const runningPart = (index: number): boolean => {
-    const call = asToolCall(parts()[index])
-    return call !== null && rowMarkOf(call, message.pairing().byCallId.get(call.id)) === 'run'
-  }
-  const partLive = (index: number): boolean => {
-    const part = parts()[index]
+  const nodes = createMemo<readonly GroupNode[]>(
+    (previous) =>
+      shareGroupNodes(previous, groupParts(parts(), grouping().grouper, {...grouping().context, live: runActive()})),
+    [],
+  )
+  const liveAt = (index: number, part: ChatPart | undefined): boolean => {
     if (part === undefined || !runActive()) return false
-    if (part.type === 'tool-call') return runningPart(index)
+    if (part.type === 'tool-call') return rowMarkOf(part, turnParts.resultFor(part.id)) === 'run'
     return index === lastPartIndex()
   }
+  const partLive = (index: number): boolean => liveAt(index, turnParts.partAt(index))
   const lastGroupedPartIndex = createMemo(() => lastGroupedIndex(nodes()))
   const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
   const nodeLive = (node: GroupNode): boolean =>
     node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
   const folded = () => !message.isLast()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
-    const segmentParts = createMemo<ChatPart[]>(() =>
-      groupProps.node.indices.flatMap((partIndex) => {
-        const part = groupProps.parts()[partIndex]
-        return part ? [part] : []
-      }),
+    const segmentItems = createMemo(() =>
+      groupProps.node.indices.flatMap((partIndex) => turnParts.items()[partIndex] ?? []),
     )
-    const segmentRollup = createMemo(() => rollupOfParts(segmentParts()))
+    const segmentParts = createMemo<ChatPart[]>(() => segmentItems().map((item) => item.part()))
+    const segmentRollup = createMemo(() => rollupOfParts(segmentParts()), undefined, {equals: isEqual})
     const segmentActive = () => groupProps.node.indices.some(partLive) || segmentRollup().awaitingApproval
-    const items = indexArray(
-      () => groupProps.node.indices,
-      (partIndex, position): TraceItem => {
-        const live = createMemo(() => runningPart(partIndex()))
+    const items = createMemo(
+      mapArray(segmentItems, (item): TraceItem => {
+        const callId = untrack(() => asToolCall(item.part())?.id)
+        const call = createMemo(() => asToolCall(item.part()))
+        const result = createMemo(() => (callId === undefined ? undefined : turnParts.resultFor(callId)))
+        const live = createMemo(() => {
+          const current = call()
+          return current !== null && rowMarkOf(current, result()) === 'run'
+        })
+        const durationMs = createCallDuration(callId, ctx)
         return {
-          key: `p${position}`,
+          key: item.key,
           get live() {
             return live()
           },
-          render: (branch: TraceBranch): JSX.Element => (
-            <Switch>
-              <Match when={asThinking(groupProps.parts()[partIndex()])}>
+          render: (branch: TraceBranch): JSX.Element =>
+            callId === undefined ? (
+              <Show when={asThinking(item.part())}>
                 {(thinkingPart) => (
                   <TraceRunRow
                     label={PLAN_LABEL}
                     text={firstLine(thinkingPart().content)}
-                    live={partLive(partIndex())}
+                    live={liveAt(item.index(), thinkingPart())}
                     ring={branch.ring}
                     body={planBody(thinkingPart)}
                   />
                 )}
-              </Match>
-              <Match when={asToolCall(groupProps.parts()[partIndex()])}>
-                {(callPart) => {
-                  const result = createMemo(() => message.pairing().byCallId.get(callPart().id))
-                  const durationMs = createMemo(() => ctx.durationFor?.(callPart().id))
-                  return (
-                    <ToolTraceRow
-                      part={callPart()}
-                      result={result()}
-                      ctx={ctx}
-                      durationMs={durationMs()}
-                      tools={() => props.entries}
-                      fallback={props.fallback}
-                      ring={branch.ring}
-                    />
-                  )
-                }}
-              </Match>
-            </Switch>
-          ),
+              </Show>
+            ) : (
+              <Show when={call()}>
+                {(callPart) => (
+                  <ToolTraceRow
+                    part={callPart()}
+                    result={result()}
+                    ctx={ctx}
+                    durationMs={durationMs()}
+                    tools={() => props.entries}
+                    fallback={props.fallback}
+                    ring={branch.ring}
+                  />
+                )}
+              </Show>
+            ),
         }
-      },
+      }),
     )
     const reasoned = () => segmentParts().some((part) => asThinking(part) !== null)
-    const activeCall = () =>
-      activeCallInParts(segmentParts(), (toolCallId) => message.pairing().byCallId.get(toolCallId))
+    const activeCall = () => activeCallInParts(segmentParts(), turnParts.resultFor)
     const summary = () => summaryLine(segmentRollup()) || REASONING_LABEL
     const compactLine = () => {
       const call = segmentActive() ? activeCall() : null
@@ -235,35 +245,44 @@ function AssistantTurn(props: {
     return [chain, ...(config ? [config.entry] : []), ...(props.groupEntries ?? [])]
   })
   const entryFor = (key: GroupKey) => groupEntries().find((entry) => entry.key === key)
-  const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => (
-    <Switch>
-      <Match when={asText(parts()[leafProps.node.index])}>
-        {(part) => (
-          <div class={ANSWER_ROW_CLASS}>
-            <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
-              <Markdown content={part().content} streaming={partLive(leafProps.node.index)} />
+  const PartLeaf = (leafProps: {node: GroupNodePart}): JSX.Element => {
+    const leafPart = () => turnParts.partAt(leafProps.node.index)
+    const leafCall = createMemo(() => asToolCall(leafPart()))
+    return (
+      <Switch>
+        <Match when={asText(leafPart())}>
+          {(part) => (
+            <div class={ANSWER_ROW_CLASS}>
+              <div class={message.isLast() ? ANSWER_CONTENT_CLASS : ANSWER_CONTENT_SETTLED_CLASS}>
+                <Markdown content={part().content} streaming={liveAt(leafProps.node.index, part())} />
+              </div>
             </div>
-          </div>
-        )}
-      </Match>
-      <Match when={asToolCall(parts()[leafProps.node.index])}>
-        {(part) => {
-          const result = createMemo(() => message.pairing().byCallId.get(part().id))
-          const durationMs = createMemo(() => ctx.durationFor?.(part().id))
-          return (
-            <ToolCallCard
-              part={part()}
-              result={result()}
-              ctx={ctx}
-              durationMs={durationMs()}
-              tools={() => props.entries}
-              fallback={props.fallback}
-            />
-          )
-        }}
-      </Match>
-    </Switch>
-  )
+          )}
+        </Match>
+        <Match when={leafCall()}>
+          {(call) => (
+            <Key each={[call()]} by="id">
+              {(part) => {
+                const callId = untrack(part).id
+                const result = createMemo(() => turnParts.resultFor(callId))
+                const durationMs = createCallDuration(callId, ctx)
+                return (
+                  <ToolCallCard
+                    part={part()}
+                    result={result()}
+                    ctx={ctx}
+                    durationMs={durationMs()}
+                    tools={() => props.entries}
+                    fallback={props.fallback}
+                  />
+                )
+              }}
+            </Key>
+          )}
+        </Match>
+      </Switch>
+    )
+  }
   const NodeView = (nodeProps: {node: GroupNode}): JSX.Element => (
     <Switch>
       <Match when={asGroupNode(nodeProps.node)}>
@@ -274,7 +293,7 @@ function AssistantTurn(props: {
                 component={entry().render}
                 node={group()}
                 parts={parts}
-                resultFor={(toolCallId: string) => message.pairing().byCallId.get(toolCallId)}
+                resultFor={turnParts.resultFor}
                 streaming={nodeLive(group())}
                 folded={folded()}
               >
@@ -318,10 +337,9 @@ function promptTextOf(turn: Turn): string {
 function UserTurn(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
-  const chat = useChatContext()
   const AttachmentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   const promptText = createMemo(() => promptTextOf(message.message()))
-  const timeLabel = createMemo(() => promptTimeLabel(chat.messages()[message.message().start]?.createdAt))
+  const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
     <>
       <TurnPrefix />
@@ -349,7 +367,7 @@ type ThreadConfig = {
   entries: () => ToolCardEntry[]
   fallback: () => ToolCardView
   assistant: () => Component | undefined
-  turnPrefix: () => ((turn: Accessor<Turn>) => JSX.Element) | undefined
+  turnPrefix: () => ((turn: TurnPrefixSource) => JSX.Element) | undefined
   attachmentCards: () => readonly AttachmentCardSlot[]
   pageSession: () => PageSessionConfig | undefined
   grouping: () => Grouping | undefined
@@ -372,7 +390,11 @@ const ThreadConfigContext = createContext<ThreadConfig>({
 function TurnPrefix(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
-  return <Show when={config.turnPrefix()}>{(prefix) => prefix()(message.message)}</Show>
+  return (
+    <Show when={config.turnPrefix()}>
+      {(prefix) => prefix()({key: message.key, role: message.role, turn: message.message})}
+    </Show>
+  )
 }
 
 function AssistantMessageView(): JSX.Element {
@@ -481,7 +503,9 @@ function ThreadMessages(props: ThreadMessagesProps): JSX.Element {
       }}
     >
       <TurnEstimateProvider value={estimator}>
-        <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+        <TruncatedTextGroup>
+          <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+        </TruncatedTextGroup>
       </TurnEstimateProvider>
     </ThreadConfigContext.Provider>
   )

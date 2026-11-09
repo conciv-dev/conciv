@@ -200,7 +200,7 @@ export function createChatSession(options: CreateChatSessionOptions): ChatSessio
     return source !== null && !isRunPhaseTerminal(source.lifecycle.phase)
   })
   const runInProgress = createMemo(() => chatBusy(chat) || sessionRunning())
-  const loadFailed = createMemo(() => chat.messages().length === 0 && chat.error() !== undefined)
+  const loadFailed = createMemo(() => chat.error() !== undefined && chat.messages().length === 0)
   const seenRunIds = (): string[] => {
     const source = runSource()
     const lifecycleRunIds = source && !isRunPhaseTerminal(source.lifecycle.phase) ? [source.lifecycle.runId] : []

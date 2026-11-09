@@ -10,6 +10,7 @@ type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
 const NOTE = 'text-[0.75rem] text-chat-text-2'
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Meta' : 'Control'
 
 function HotkeyStates() {
   const [state, setState] = createStore<{search: string | null; save: string | null; print: string | null}>({
@@ -59,7 +60,7 @@ export const Keyboard: Story = {
 
     await userEvent.keyboard('{Enter}')
     await expect(canvas.getByText('Press a shortcut. Esc cancels.')).toBeVisible()
-    await userEvent.keyboard('{Meta>}j{/Meta}')
+    await userEvent.keyboard(`{${MOD}>}j{/${MOD}}`)
     const shift = canvas.getByRole('button', {name: /Shift/})
     await expect(shift).toHaveAttribute('aria-pressed', 'false')
     await userEvent.click(shift)
@@ -69,7 +70,7 @@ export const Keyboard: Story = {
     await expect(change).toHaveFocus()
 
     await userEvent.click(canvas.getByRole('button', {name: 'Change Save'}))
-    await userEvent.keyboard('{Meta>}{Shift>}j{/Shift}{/Meta}')
+    await userEvent.keyboard(`{${MOD}>}{Shift>}j{/Shift}{/${MOD}}`)
     await expect(canvas.getByRole('status')).toHaveTextContent('Already used by Search.')
     await userEvent.click(canvas.getByRole('button', {name: 'Cancel'}))
     await expect(canvas.getByRole('button', {name: 'Change Save'})).toHaveFocus()

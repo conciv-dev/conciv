@@ -501,7 +501,7 @@ describe('chat refresh', () => {
       expect(userTexts((await connection.refresh()).messages)).toBe('[]')
 
       const elsewhere = await kit.turn('led from the server', {session: sessionId, runId: 'refresh-1'})
-      await elsewhere.done({hangGuardMs: 20_000})
+      await elsewhere.done()
 
       expect(userTexts((await connection.refresh()).messages)).toContain('led from the server')
     }, 60_000)
@@ -511,7 +511,7 @@ describe('chat refresh', () => {
       const sessionId = await kit.session()
       for (const [index, text] of ['first', 'second'].entries()) {
         const turn = await kit.turn(text, {session: sessionId, runId: `paged-${index}`})
-        await turn.done({hangGuardMs: 20_000})
+        await turn.done()
       }
       const connection = chatConnection(makeRpcClient(kit.base), kit.base, sessionId)
 
