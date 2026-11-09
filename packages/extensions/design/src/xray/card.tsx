@@ -1,6 +1,7 @@
 import {For, type JSX} from 'solid-js'
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import {formatHex} from 'culori'
+import {Button, ClipboardCopyButton, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {createXrayData} from './data.js'
 
 export function Card(props: {
@@ -36,30 +37,32 @@ export function Card(props: {
       same: whole(look()?.x) === whole(dom()?.box.x) && whole(look()?.y) === whole(dom()?.box.y),
     },
   ]
-  const verdict = (right: boolean) => {
+  const wrong = () => {
     const target = props.data.design.latest?.target.id
     const round = props.data.shownRound()?.round
     if (target === undefined || round === undefined) return
-    void props.data.label({
-      target,
-      round,
-      node: props.card.node,
-      id: props.card.layer.id,
-      verdict: right ? 'right' : 'wrong',
-    })
+    void props.data.label({target, round, node: props.card.node, id: props.card.layer.id, verdict: 'wrong'})
   }
+  const brief = () =>
+    [
+      `${props.card.name}, Figma node ${props.card.node}`,
+      props.card.source === null ? '' : `In code: ${props.card.source}`,
+      ...props.card.lines,
+    ]
+      .filter((line) => line !== '')
+      .join('\n')
   return (
     <div class="px-6 flex flex-col gap-5" data-conciv-key="il7bKQ">
       <div class="flex gap-2 items-center" data-conciv-key="ZMn3Vg">
-        <button
-          type="button"
-          aria-label="All problems"
-          class="text-chat-text-3 p-1 border-0 rounded-chat-surface-sm bg-transparent flex size-6 items-center"
+        <TooltipIconButton
+          tooltip="All problems"
+          side="bottom"
+          class="p-1 size-6"
           onClick={() => props.data.pickNode(null)}
           data-conciv-key="0C0BjA"
         >
           <ArrowLeft class="size-full block" aria-hidden="true" />
-        </button>
+        </TooltipIconButton>
         <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="Vwb8Fg">
           All problems
         </span>
@@ -145,8 +148,16 @@ export function Card(props: {
         </div>
       </div>
       <div class="flex gap-2 w-fit items-center" data-conciv-key="6bynCg">
-        <CardButton label="Copy for the agent" onClick={() => verdict(true)} />
-        <CardButton label="Wrong element?" onClick={() => verdict(false)} />
+        <label
+          class="text-xs text-chat-text-hi font-semibold pe-2.5 border border-chat-line rounded-chat-surface-sm bg-chat-fill-soft inline-flex cursor-pointer items-center"
+          data-conciv-key="cyFXOg"
+        >
+          <ClipboardCopyButton text={brief()} tooltips={{idle: 'Copy for the agent'}} class="size-6.5" />
+          <span data-conciv-key="kFgDbw">Copy for the agent</span>
+        </label>
+        <Button variant="outline" size="sm" class="font-semibold" onClick={wrong} data-conciv-key="cyFXOh">
+          Wrong element?
+        </Button>
       </div>
     </div>
   )
@@ -166,19 +177,6 @@ function hexOf(color: string | undefined): string {
 
 function plain(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : `${Math.round(value * 10) / 10}`
-}
-
-function CardButton(props: {label: string; onClick: () => void}): JSX.Element {
-  return (
-    <button
-      type="button"
-      class="text-xs text-chat-text-hi font-semibold px-2.5 py-1.25 border border-chat-line rounded-chat-surface-sm bg-chat-fill-soft"
-      onClick={() => props.onClick()}
-      data-conciv-key="cyFXOg"
-    >
-      <span data-conciv-key="kFgDbw">{props.label}</span>
-    </button>
-  )
 }
 
 function whereCode(source: string | null): string {
