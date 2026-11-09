@@ -37,7 +37,7 @@ export function XrayPage() {
               </div>
             ))}
           </section>
-          <img className="xp-portrait" src="/design/4-30.svg" alt="" data-conciv-key="arzcgA" />
+          <img className="xp-portrait" src="/design/5-78.svg" alt="" data-conciv-key="arzcgA" />
           <section className="xp-table" data-conciv-key="6sFMzA">
             {TABLE_BARS.map((bar, index) => (
               <div key={index} className={`xp-row ${bar}`} data-conciv-key="lJbIow" />

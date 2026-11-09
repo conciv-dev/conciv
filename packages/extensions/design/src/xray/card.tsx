@@ -112,7 +112,7 @@ export function Card(props: {
           )}
         </For>
       </div>
-      <div class="flex flex-col gap-1.5 items-start" data-conciv-key="P0aYRg">
+      <div class="flex flex-col gap-1.5 w-fit items-start" data-conciv-key="P0aYRg">
         <span
           class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
           data-conciv-key="K6-tuw"
@@ -176,7 +176,7 @@ function CardButton(props: {label: string; onClick: () => void}): JSX.Element {
       onClick={() => props.onClick()}
       data-conciv-key="cyFXOg"
     >
-      {props.label}
+      <span data-conciv-key="kFgDbw">{props.label}</span>
     </button>
   )
 }

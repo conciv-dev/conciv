@@ -89,7 +89,11 @@ function BoxFrame(props: {entry: Entry; data: Data; class: string; at?: JSX.CSSP
   const filled = () => FILLED.has(props.entry.magnitude ?? '')
   const pickable = () => (props.data.pick() ? 'pointer-events-auto cursor-pointer' : '')
   const size = () => ({width: px(props.entry.box.w), height: px(props.entry.box.h)})
-  const pick = () => props.data.pick() && props.data.pickNode(props.entry.node)
+  const pick = () => {
+    if (!props.data.pick()) return
+    props.data.pickNode(props.entry.node)
+    props.data.setPick(false)
+  }
   return (
     <Show
       when={filled()}
@@ -128,7 +132,7 @@ function BoxFrame(props: {entry: Entry; data: Data; class: string; at?: JSX.CSSP
           ...props.at,
           ...size(),
           background: `color-mix(in oklch, ${hue()} 10%, transparent)`,
-          'border-width': STROKE,
+          'border-width': FILLED_STROKE,
           'border-style': 'solid',
           'border-color': hue(),
         }}
@@ -165,6 +169,8 @@ function partsOf(entries: Entry[]): Entry[][] {
 const FILLED = new Set(['noticeably', 'paint'])
 
 const STROKE = 'calc(var(--chat-space) * 0.375)'
+
+const FILLED_STROKE = 'calc(var(--chat-space) * 0.5)'
 
 const LIFT = 'translateY(calc(-100% - var(--chat-space) * 0.5))'
 
