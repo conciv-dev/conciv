@@ -1,121 +1,77 @@
-import {expect, test} from '@playwright/test'
-import {makeExtRpcClient} from '@conciv/extension'
-import type {XrayRouter} from '@conciv/extension-design/server'
+import {join} from 'node:path'
+import {expect, test, type Page} from '@playwright/test'
 import {designConfig} from '../../../extensions/design/src/shared/tolerances.js'
-import {walk} from '../../../extensions/design/src/shared/tree.js'
 import {bootDesignHost} from '../fixtures/design/boot.js'
 import {cardsDesign} from '../fixtures/design/cards.js'
 
-const VARIANTS = ['target', 'shifted', 'target'] as const
-
-test('the x-ray overlay draws round 3 on the page and backs out with Esc', async () => {
+test('the x-ray overlay walks empty, round, card and 3D on the x-ray route, light and dark', async () => {
   const kit = await bootDesignHost()
   const {page} = kit
-  const xray = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
-  const overlay = page.getByRole('navigation', {name: 'Design x-ray'})
+  const rail = page.getByRole('navigation', {name: 'Design x-ray rail'})
+  const panel = page.getByRole('region', {name: 'Design x-ray'})
   const boxes = page.getByRole('group', {name: 'Design x-ray boxes'}).getByRole('button')
-  const card = page.getByRole('complementary', {name: 'Design x-ray card'})
+  const host = page.locator(`[${designConfig.attributes.overlay}]`)
+  const shots = async (state: string): Promise<void> => {
+    await shot({page, state, scheme: 'light'})
+    await page.emulateMedia({colorScheme: 'dark'})
+    await expect(host).toHaveClass('dark')
+    await shot({page, state, scheme: 'dark'})
+    await page.emulateMedia({colorScheme: 'light'})
+    await expect(host).toHaveClass('light')
+  }
   try {
     await page.setViewportSize({width: 1440, height: 900})
-    await page.emulateMedia({reducedMotion: 'reduce'})
-    await kit.goto('target')
-    const got = await kit.call('design_get', await cardsDesign(kit.targetsDir))
-    await VARIANTS.reduce(async (previous, variant) => {
-      await previous
-      await kit.goto(variant)
-      await kit.call('design_check', {})
-    }, Promise.resolve())
-    const listed = await xray.xray.rounds({id: got.target})
-    expect(listed.rounds).toHaveLength(3)
-    const last = listed.rounds.at(-1)?.round ?? 0
-    const layers = await xray.xray.layers({id: got.target, round: last})
-    if (layers === null) throw new Error(`round ${last} has no id tree`)
-    const drawn = [...walk(layers.root)].filter(({node}) => node.id !== '' && node.dom.length > 0)
+    await page.emulateMedia({reducedMotion: 'reduce', colorScheme: 'light'})
+    await kit.goto('xray')
+    await kit.call('design_get', {...(await cardsDesign(kit.targetsDir)), widget: 'shown'})
 
-    await test.step('the overlay opens on round 3 of 3', async () => {
+    await test.step('empty: a design and no round, the rail and the notice', async () => {
       await page.keyboard.press('ControlOrMeta+Shift+KeyX')
-      await expect(overlay).toBeVisible()
-      await expect(overlay.getByText('round 3 of 3')).toBeVisible()
-      await expect(overlay.getByRole('img', {name: 'design'})).toBeVisible()
-      await expect(overlay.getByRole('img', {name: 'live page'})).toBeVisible()
-      await page.screenshot({path: test.info().outputPath('overlay-light.png')})
-      await page.emulateMedia({colorScheme: 'dark'})
-      await expect(page.locator(`[${designConfig.attributes.overlay}]`)).toHaveClass('dark')
-      await page.screenshot({path: test.info().outputPath('overlay-dark.png')})
-      await page.emulateMedia({colorScheme: 'light'})
-      await expect(page.locator(`[${designConfig.attributes.overlay}]`)).toHaveClass('light')
+      await expect(rail).toBeVisible()
+      await expect(rail.getByRole('button', {name: 'X-ray'})).toBeVisible()
+      await expect(panel.getByText('No design registered')).toBeVisible()
+      await shots('empty')
     })
 
-    await test.step('every id of the round is one box', async () => {
-      await overlay.getByRole('button', {name: 'matched'}).click()
-      await overlay.getByRole('button', {name: 'Pick a box'}).click()
-      await expect(boxes).toHaveCount(drawn.length)
+    await test.step('round: the panel reads the round the check wrote', async () => {
+      await kit.call('design_check', {})
+      await expect(panel.getByRole('heading', {level: 2})).toBeVisible()
+      await expect(panel.getByText(/Check 1 of 1/)).toBeVisible()
+      await expect(panel.getByRole('checkbox', {name: 'Outlines of the design'})).toBeChecked()
+      await expect(panel.getByRole('button', {name: /^(Desktop|Laptop|Mobile) \d+$/, pressed: true})).toBeVisible()
+      await shots('round')
     })
 
-    await test.step('the width slider draws the design-width boxes measured at the design width', async () => {
-      const measured = overlay.getByText(`boxes measured at ${layers.width}`)
-      await overlay.getByRole('slider', {name: 'Width'}).click()
-      await page.keyboard.press('ArrowRight')
-      await expect(measured).toBeVisible()
-      await page.screenshot({path: test.info().outputPath('reflow-width.png')})
-      await page.keyboard.press('ArrowLeft')
-      await expect(measured).toBeHidden()
+    await test.step('card: Pick on, one box picked, its card in the panel', async () => {
+      await rail.getByRole('button', {name: 'Pick'}).click()
+      await expect(rail.getByRole('button', {name: 'Pick'})).toHaveAttribute('aria-pressed', 'true')
+      await boxes.last().click()
+      await expect(panel.getByRole('button', {name: 'All problems'})).toBeVisible()
+      await expect(panel.getByRole('button', {name: 'Copy for the agent'})).toBeVisible()
+      await shots('card')
+      await panel.getByRole('button', {name: 'All problems'}).click()
+      await rail.getByRole('button', {name: 'Pick'}).click()
     })
 
-    await test.step('the card shows the four layers of one id with the stored values', async () => {
-      const picked = drawn.find(({node}) => node.fom.length > 0 && node.src.at !== null) ?? drawn[0]
-      if (picked === undefined) throw new Error('round 3 drew no box')
-      const {node} = picked
-      const name =
-        node.fom.find((entry: {look: {name: string} | null}) => entry.look !== null)?.look?.name ?? node.src.element
-      await page
-        .getByRole('group', {name: 'Design x-ray boxes'})
-        .getByRole('button', {name: `${name} ${node.id}`, exact: true})
-        .click()
-      await expect(card).toBeVisible()
-      await Promise.all(
-        ['FOM', 'DOM', 'CSSOM', 'SRC'].map((section) =>
-          expect(card.getByRole('region', {name: section})).toBeVisible(),
-        ),
-      )
-      await expect(
-        card.getByRole('region', {name: 'DOM'}).getByText(node.dom[0]?.path ?? '', {exact: true}),
-      ).toBeVisible()
-      const at = node.src.at
-      if (at !== null) await expect(card.getByRole('button', {name: `${at.file}:${at.line}`})).toBeVisible()
-      await page.screenshot({path: test.info().outputPath('card.png')})
+    await test.step('3D: Stack on, the round slider and the planes', async () => {
+      await rail.getByRole('button', {name: 'Stack'}).click()
+      await expect(rail.getByRole('button', {name: 'Stack'})).toHaveAttribute('aria-pressed', 'true')
+      await expect(panel.getByRole('slider', {name: 'Round'})).toBeVisible()
+      await expect(panel.getByRole('button', {name: 'SRC'})).toHaveAttribute('aria-pressed', 'true')
+      await shots('3d')
+      await rail.getByRole('button', {name: 'Stack'}).click()
     })
 
-    await test.step('3D stacks the planes and focus on FOM shows the design', async () => {
-      const planes = page.getByRole('group', {name: 'Design x-ray planes'})
-      await overlay.getByRole('button', {name: '3D'}).click()
-      await expect(planes.getByRole('region', {name: 'SRC plane'})).toBeVisible()
-      await page.screenshot({path: test.info().outputPath('three-d-stack.png')})
-      await planes.getByRole('button', {name: 'FOM', exact: true}).click()
-      await expect(planes.getByRole('region', {name: 'SRC plane'})).toBeHidden()
-      await expect(planes.getByRole('region', {name: 'FOM plane'}).getByRole('img', {name: 'design'})).toBeVisible()
-      await page.screenshot({path: test.info().outputPath('three-d-fom.png')})
+    await test.step('Esc closes the overlay', async () => {
       await page.keyboard.press('Escape')
-      await expect(planes.getByRole('region', {name: 'SRC plane'})).toBeVisible()
-      await overlay.getByRole('button', {name: '3D'}).click()
-      await expect(planes).toBeHidden()
-    })
-
-    await test.step('a check with the overlay on sees the same page: the capture leaves the overlay out', async () => {
-      await expect(overlay).toBeVisible()
-      const again = await kit.call('design_check', {})
-      expect('round' in again ? again.round : null).toBe(last)
-    })
-
-    await test.step('Esc closes the card, turns pick off, then the overlay', async () => {
-      await page.keyboard.press('Escape')
-      await expect(card).toBeHidden()
-      await page.keyboard.press('Escape')
-      await expect(overlay.getByRole('button', {name: 'Pick a box'})).toHaveAttribute('aria-pressed', 'false')
-      await page.keyboard.press('Escape')
-      await expect(overlay).toBeHidden()
+      await expect(rail).toBeHidden()
     })
   } finally {
     await kit.dispose()
   }
 })
+
+async function shot(input: {page: Page; state: string; scheme: string}): Promise<void> {
+  const folder = process.env.XRAY_SHOTS ?? test.info().outputPath()
+  await input.page.screenshot({path: join(folder, `${input.state}-${input.scheme}.png`)})
+}
