@@ -32,12 +32,16 @@ export function createXrayData(input: {
     round: number | null
     width: number | null
     pick: boolean
+    stack: boolean
+    planes: Record<Plane, boolean>
     picked: string | null
     shown: Record<Layer, boolean>
   }>({
     round: null,
     width: null,
     pick: false,
+    stack: false,
+    planes: {src: true, cssom: true, dom: false},
     picked: null,
     shown: {design: true, page: false, moved: false},
   })
@@ -86,6 +90,13 @@ export function createXrayData(input: {
       at: round.at,
     }
   })
+  const legend = createMemo(() =>
+    LEGEND_KINDS.map((kind) => ({
+      kind,
+      count:
+        kind === 'matched' ? (summary()?.matched ?? 0) : problems().filter((entry) => entry.magnitude === kind).length,
+    })),
+  )
   const moved = createMemo(() => shownRound()?.progress?.changed?.count ?? 0)
   const targetId = createMemo(() => design.latest?.target.id)
   const roundNumber = createMemo(() => shownRound()?.round)
@@ -156,6 +167,11 @@ export function createXrayData(input: {
     moved,
     card,
     pick: () => ui.pick,
+    legend,
+    plane: (plane: Plane) => ui.planes[plane],
+    setPlane: (plane: Plane, on: boolean) => setUi('planes', plane, on),
+    stack: () => ui.stack,
+    setStack: (on: boolean) => setUi('stack', on),
     picked: () => ui.picked,
     setPick: (on: boolean) => setUi('pick', on),
     pickNode: (node: string | null) => setUi('picked', node),
@@ -175,6 +191,10 @@ const POLL_MS = 2000
 const HISTORY_LENGTH = 6
 
 const SEVERITY: GateRow['magnitude'][] = ['much', 'noticeably', 'paint', 'slightly', 'reflow', 'pin', 'other']
+
+const LEGEND_KINDS = ['much', 'noticeably', 'paint', 'matched'] as const
+
+type Plane = 'src' | 'cssom' | 'dom'
 
 type Layer = 'design' | 'page' | 'moved'
 

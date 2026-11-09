@@ -59,7 +59,12 @@ export function XrayOverlay(props: {
                   icon={MousePointerClick}
                   onClick={() => props.data.setPick(!props.data.pick())}
                 />
-                <RailButton label="Stack" icon={Box} />
+                <RailButton
+                  label="Stack"
+                  active={props.data.stack()}
+                  icon={Box}
+                  onClick={() => props.data.setStack(!props.data.stack())}
+                />
                 <div class="grow w-8" data-conciv-key="Ia9KqA" />
                 <RailButton label="Panel" active icon={PanelLeft} />
               </nav>

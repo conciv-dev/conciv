@@ -22,17 +22,24 @@ export function Panel(props: {
         class="px-4 py-2.5 border-b border-chat-line-soft border-solid flex gap-2 items-center"
         data-conciv-key="56E44A"
       >
-        <span class="text-sm text-chat-text-hi font-semibold" data-conciv-key="8YCz8Q">
+        <span class="text-sm text-chat-text-hi font-semibold shrink-0 whitespace-nowrap" data-conciv-key="8YCz8Q">
           Design x-ray
         </span>
-        <span class="text-xs text-chat-text-3 grow" data-conciv-key="UZ5gFg">
+        <span class="text-xs text-chat-text-3 font-chat-mono grow min-w-0 truncate" data-conciv-key="UZ5gFg">
           {props.data.design.latest?.target.ref}
         </span>
         <HeaderButton label="Capture the page" icon={Camera} onClick={() => void props.capture()} />
         <HeaderButton label="Close" icon={X} onClick={props.close} />
       </header>
       <Show when={props.data.card()}>{(card) => <Card card={card()} data={props.data} />}</Show>
-      <div class="px-6 flex flex-col gap-5" hidden={props.data.card() !== null} data-conciv-key="H800hA">
+      <Show when={props.data.stack()}>
+        <StackBody data={props.data} />
+      </Show>
+      <div
+        class="px-6 flex flex-col gap-5"
+        hidden={props.data.card() !== null || props.data.stack()}
+        data-conciv-key="H800hA"
+      >
         <Show when={summary()}>
           {(sum) => (
             <div class="flex flex-col gap-1 items-stretch" data-conciv-key="OR53IQ">
@@ -234,11 +241,126 @@ function HeaderButton(props: {label: string; icon: Component<LucideProps>; onCli
     <button
       type="button"
       aria-label={props.label}
-      class="text-chat-text-3 p-1.5 border-0 rounded-chat-surface-sm bg-transparent flex size-7 items-center"
+      class="text-chat-text-2 p-1.5 border-0 rounded-chat-surface-sm bg-transparent flex size-7 items-center"
       onClick={() => props.onClick()}
       data-conciv-key="ogyHWg"
     >
       <props.icon class="size-full block" aria-hidden="true" />
     </button>
+  )
+}
+
+const PLANES = [
+  {plane: 'src', label: 'SRC'},
+  {plane: 'cssom', label: 'CSSOM'},
+  {plane: 'dom', label: 'DOM'},
+] as const
+
+function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Element {
+  const first = () => props.data.rounds()[0]?.round ?? 0
+  const last = () => props.data.rounds().at(-1)?.round ?? 0
+  const shown = () => props.data.shownRound()?.round ?? last()
+  const fraction = () => (last() === first() ? 1 : (shown() - first()) / (last() - first()))
+  return (
+    <div class="px-6 flex flex-col gap-5" data-conciv-key="DuzQ6A">
+      <div class="flex flex-col gap-1.5 items-stretch" data-conciv-key="GtxBag">
+        <div class="flex gap-2 items-center" data-conciv-key="ZJTIiQ">
+          <span class="text-xs text-chat-text-2 grow" data-conciv-key="dvPxEw">
+            Round
+          </span>
+          <span class="text-xs text-chat-text-hi font-chat-mono" data-conciv-key="2Uh1Mg">
+            {shown()} / {last()}
+          </span>
+        </div>
+        <div class="h-3 relative" data-conciv-key="snH6Mw">
+          <div
+            class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-line h-0.5 inset-x-0 top-1/2 absolute"
+            data-conciv-key="yVZr5Q"
+          />
+          <div class="h-0.5 inset-x-0 top-1/2 absolute" data-conciv-key="MuAjOQ">
+            <div
+              class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-accent h-full"
+              style={{width: `${fraction() * 100}%`}}
+              data-conciv-key="tvUdxA"
+            />
+          </div>
+          <svg
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            class="size-3 top-0 absolute"
+            style={{left: `calc((100% - var(--chat-space) * 3) * ${fraction()})`}}
+            data-conciv-key="SlOPPw"
+          >
+            <circle cx="6" cy="6" r="5.5" class="fill-chat-panel stroke-chat-accent" data-conciv-key="Y0sG0A" />
+          </svg>
+          <input
+            type="range"
+            aria-label="Round"
+            class="m-0 opacity-0 size-full inset-0 absolute"
+            min={first()}
+            max={last()}
+            step={1}
+            value={shown()}
+            onInput={(event) => props.data.pinRound(Number(event.currentTarget.value))}
+            data-conciv-key="zthYHQ"
+          />
+        </div>
+      </div>
+      <div class="flex flex-col gap-2" data-conciv-key="usjwxA">
+        <span
+          class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
+          data-conciv-key="-6pWaA"
+        >
+          PLANES
+        </span>
+        <div class="p-0.5 rounded-chat-surface-md bg-chat-fill-soft flex gap-0.5 items-center" data-conciv-key="x0BqaA">
+          <For each={PLANES}>
+            {(entry) => (
+              <button
+                type="button"
+                aria-pressed={props.data.plane(entry.plane)}
+                class={`text-xs px-2 py-0.75 border rounded-chat-surface-sm flex grow basis-0 items-center justify-center ${props.data.plane(entry.plane) ? 'bg-chat-panel border-chat-line-soft text-chat-text-hi font-semibold' : 'bg-transparent border-transparent text-chat-text-3'}`}
+                onClick={() => props.data.setPlane(entry.plane, !props.data.plane(entry.plane))}
+                data-conciv-key="_UEdTg"
+              >
+                <span data-conciv-key="tCHV6g">{entry.label}</span>
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+      <div class="flex flex-col gap-0.5" data-conciv-key="aUSh_Q">
+        <span
+          class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
+          data-conciv-key="8kQgpQ"
+        >
+          SHOWN ON THE DOM PLANE
+        </span>
+        <For each={props.data.legend()}>
+          {(entry) => (
+            <div
+              class={`text-[length:var(--chat-text-md)] px-2 py-1 rounded-chat-surface-sm flex gap-2 items-center ${entry.kind === 'matched' ? '' : 'bg-chat-fill-soft'}`}
+              data-conciv-key="1fVprA"
+            >
+              <svg
+                viewBox="0 0 8 8"
+                aria-hidden="true"
+                class="shrink-0 size-2"
+                style={{fill: `var(--xray-${entry.kind})`}}
+                data-conciv-key="iaxJLw"
+              >
+                <circle cx="4" cy="4" r="4" data-conciv-key="St4B5w" />
+              </svg>
+              <span class="text-chat-text grow" data-conciv-key="cF5nVQ">
+                {entry.kind}
+              </span>
+              <span class="text-chat-text-3 font-chat-mono" data-conciv-key="Bm85iA">
+                {entry.count}
+              </span>
+            </div>
+          )}
+        </For>
+      </div>
+    </div>
   )
 }
