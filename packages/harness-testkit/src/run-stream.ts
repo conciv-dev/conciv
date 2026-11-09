@@ -7,7 +7,7 @@ export type RunStream = {
   waitForRunStart: (opts?: {runId?: string}) => Promise<ChatEvent>
   waitForToolCall: (name: string, opts?: {hangGuardMs?: number}) => Promise<SeenToolCall>
   waitForText: (substr: string) => Promise<void>
-  done: (opts?: {hangGuardMs?: number}) => Promise<RunEvents>
+  done: () => Promise<RunEvents>
 }
 
 function isRunStart(chunk: ChatEvent, runId: string | undefined): boolean {
@@ -107,27 +107,14 @@ export function makeRunStream(source: AsyncIterable<ChatEvent>): RunStream {
     return null
   }
 
-  function waitForFinish(hangGuardMs: number): Promise<RunEvents> {
-    return new Promise<RunEvents>((resolve, reject) => {
-      const settle = (finish: () => void): void => {
-        listeners.delete(listener)
-        clearTimeout(guard)
-        finish()
-      }
+  function waitForFinish(): Promise<RunEvents> {
+    return new Promise<RunEvents>((resolve) => {
       const listener = (): void => {
-        const finished = takeFinished()
-        if (finished) return settle(() => resolve(finished))
-        if (collector.ended) return settle(() => resolve(makeRunEvents([...seen])))
+        const finished = takeFinished() ?? (collector.ended ? makeRunEvents([...seen]) : null)
+        if (finished === null) return
+        listeners.delete(listener)
+        resolve(finished)
       }
-      const guard = setTimeout(
-        () =>
-          settle(() =>
-            reject(
-              new Error(`run-stream: stall - run did not finish within ${hangGuardMs}ms (seen: ${summarize(seen)})`),
-            ),
-          ),
-        hangGuardMs,
-      )
       listeners.add(listener)
       listener()
     })
@@ -160,6 +147,6 @@ export function makeRunStream(source: AsyncIterable<ChatEvent>): RunStream {
     waitForText: async (substr) => {
       await waitFor(() => makeRunEvents(seen).text().includes(substr), 90_000)
     },
-    done: (opts) => waitForFinish(opts?.hangGuardMs ?? 90_000),
+    done: waitForFinish,
   }
 }

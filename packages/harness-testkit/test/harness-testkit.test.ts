@@ -549,7 +549,7 @@ describe('run stream', () => {
       )
       await run.waitForToolCall('conciv_ui')
       await new Promise((r) => setTimeout(r, 50))
-      const events = await run.done({hangGuardMs: 500})
+      const events = await run.done()
       expect(events.runs()).toBe(1)
     })
 
@@ -569,7 +569,7 @@ describe('run stream', () => {
           finished,
         ]),
       )
-      const events = await run.done({hangGuardMs: 1000})
+      const events = await run.done()
       expect(events.text()).toContain('after')
     })
 

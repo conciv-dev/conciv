@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
-import {createSignal, For, createRoot} from 'solid-js'
+import {createSignal, For, createRoot, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -15,8 +15,9 @@ import type {SchemePair, Skin} from '../src/skin-contract.js'
 import {contrastRatio, type SkinSchemeAnchorName} from './wcag.js'
 import {TextArea} from '../src/text-field.js'
 import {Menu} from '../src/menu.js'
-import {TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
-import {TruncatedText} from '../src/truncated-text.js'
+import {TooltipIconButton, TooltipIconButtonSlot} from '../src/tooltip-icon-button.js'
+import {TruncatedText, TruncatedTextGroup} from '../src/truncated-text.js'
+import {Tooltip} from '../src/tooltip.js'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {VirtualJsonTree} from '../src/virtual-json-tree.js'
 
@@ -914,7 +915,89 @@ describe('tooltip icon button', () => {
   })
 })
 
-describe('truncated text', () => {
+describe.each([
+  {mode: 'own tooltip', Wrap: (props: {children: JSX.Element}) => <>{props.children}</>},
+  {
+    mode: 'shared group tooltip',
+    Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
+  },
+])('copy button with $mode', ({Wrap}) => {
+  const accept = (): Promise<void> => Promise.resolve()
+
+  function mount(): void {
+    const {unmount} = render(() => (
+      <Wrap>
+        <div class="p-10 flex gap-2">
+          <ClipboardCopyButton text="first" writeText={accept} />
+          <ClipboardCopyButton text="second" writeText={accept} tooltips={{idle: 'Copy second'}} />
+          <TooltipIconButton tooltip="Pin">
+            <span aria-hidden="true">P</span>
+          </TooltipIconButton>
+        </div>
+      </Wrap>
+    ))
+    onTestFinished(unmount)
+  }
+
+  const first = () => page.getByRole('button', {name: 'Copy', exact: true})
+
+  it('names the hovered button by the tooltip it shows', async () => {
+    mount()
+    const second = page.getByRole('button', {name: 'Copy second'})
+    await userEvent.hover(first())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+
+    await userEvent.hover(second)
+
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy second')
+    await expect.element(second).toHaveAccessibleDescription('Copy second')
+    await expect.element(first()).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('swaps to Copied on a press and keeps the tooltip open to say so', async () => {
+    mount()
+    await userEvent.hover(first())
+    await expect.element(page.getByRole('tooltip')).toBeVisible()
+
+    await first().click()
+
+    await expect.element(page.getByRole('button', {name: 'Copied'})).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+
+    const pin = page.getByRole('button', {name: 'Pin'})
+    await userEvent.hover(pin)
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Pin')
+    await pin.click()
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+    await userEvent.unhover(pin)
+  })
+
+  it('opens the tooltip for a keyboard user behind a visible focus ring', async () => {
+    mount()
+
+    await userEvent.tab()
+
+    await expect.element(first()).toHaveFocus()
+    expect(first().element().matches(':focus-visible')).toBe(true)
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+  })
+})
+
+describe.each([
+  {mode: 'own tooltip', Wrap: (props: {children: JSX.Element}) => <>{props.children}</>},
+  {
+    mode: 'shared group tooltip',
+    Wrap: (props: {children: JSX.Element}) => <TruncatedTextGroup>{props.children}</TruncatedTextGroup>,
+  },
+  {
+    mode: 'shared group around an inner tooltip root',
+    Wrap: (props: {children: JSX.Element}) => (
+      <TruncatedTextGroup>
+        <Tooltip.Root>{props.children}</Tooltip.Root>
+      </TruncatedTextGroup>
+    ),
+  },
+])('truncated text with $mode', ({Wrap}) => {
   const LONG = 'I accept the terms and conditions. Required. Validation runs on submit and again on blur.'
   const SHORT = 'Submit'
 
@@ -923,14 +1006,16 @@ describe('truncated text', () => {
 
   function mount(): Element {
     const {container, unmount} = render(() => (
-      <ul class="m-0 p-0 list-none flex flex-row gap-2">
-        <li class={ROW} aria-label="clipped row">
-          <TruncatedText class={TEXT} text={LONG} />
-        </li>
-        <li class={ROW} aria-label="fitting row">
-          <TruncatedText class={TEXT} text={SHORT} />
-        </li>
-      </ul>
+      <Wrap>
+        <ul class="m-0 p-0 list-none flex flex-row gap-2">
+          <li class={ROW} aria-label="clipped row">
+            <TruncatedText class={TEXT} text={LONG} />
+          </li>
+          <li class={ROW} aria-label="fitting row">
+            <TruncatedText class={TEXT} text={SHORT} />
+          </li>
+        </ul>
+      </Wrap>
     ))
     onTestFinished(unmount)
     return container
