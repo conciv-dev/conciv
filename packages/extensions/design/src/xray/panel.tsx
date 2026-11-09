@@ -25,7 +25,7 @@ export function Panel(props: {
         <span class="text-sm text-chat-text-hi font-semibold shrink-0 whitespace-nowrap" data-conciv-key="8YCz8Q">
           Design x-ray
         </span>
-        <span class="text-xs text-chat-text-3 font-chat-mono grow min-w-0 truncate" data-conciv-key="UZ5gFg">
+        <span class="text-xs text-chat-text-hi grow min-w-0 truncate" data-conciv-key="UZ5gFg">
           {props.data.design.latest?.target.ref}
         </span>
         <HeaderButton label="Capture the page" icon={Camera} onClick={() => void props.capture()} />
@@ -99,13 +99,13 @@ export function Panel(props: {
                   onClick={() => props.data.pickViewport(width)}
                   data-conciv-key="p1vejg"
                 >
-                  {viewportName(width)}
+                  <span data-conciv-key="ZOXU_A">{viewportName(width)}</span>
                 </button>
               )}
             </For>
           </div>
         </div>
-        <div class="bg-chat-line-soft h-px" data-conciv-key="GkIjPA" />
+        <div class="bg-chat-line-soft shrink-0 h-px" data-conciv-key="GkIjPA" />
         <div class="flex flex-col gap-3.5 h-71.5" data-conciv-key="FoJVLQ">
           <span
             class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
@@ -118,10 +118,15 @@ export function Panel(props: {
               {(problem) => (
                 <div class="flex flex-col gap-1 items-stretch" data-conciv-key="vBKgIg">
                   <div class="flex gap-2 items-center" data-conciv-key="QnDGfQ">
-                    <span
-                      class={`rounded-full size-2 ${HUE_FILL[TAGS[problem.magnitude]?.hue ?? 'dim']}`}
-                      data-conciv-key="xdPyEg"
-                    />
+                    <svg
+                      viewBox="0 0 8 8"
+                      aria-hidden="true"
+                      class="shrink-0 size-2"
+                      style={{fill: `var(--chat-${TAGS[problem.magnitude]?.hue ?? 'dim'})`}}
+                      data-conciv-key="OJP1Vw"
+                    >
+                      <circle cx="4" cy="4" r="4" data-conciv-key="TomoEw" />
+                    </svg>
                     <span class="text-sm text-chat-text-hi font-semibold grow" data-conciv-key="VD8MhA">
                       {problem.name}
                     </span>
@@ -129,12 +134,12 @@ export function Panel(props: {
                       class={`text-[length:var(--chat-text-xs)] font-semibold px-1.5 py-px rounded-chat-chip bg-chat-fill-soft flex items-center ${HUE_TEXT[TAGS[problem.magnitude]?.hue ?? 'dim']}`}
                       data-conciv-key="h6-uHQ"
                     >
-                      {TAGS[problem.magnitude]?.label}
+                      <span data-conciv-key="OVHJHQ">{TAGS[problem.magnitude]?.label}</span>
                     </span>
                   </div>
                   <For each={problem.lines}>
                     {(line) => (
-                      <p class="text-[length:var(--chat-text-md)] text-chat-text m-0" data-conciv-key="xpnnRQ">
+                      <p class="text-[length:var(--chat-text-md)] text-chat-text m-0 w-74" data-conciv-key="xpnnRQ">
                         {line}
                       </p>
                     )}
@@ -144,7 +149,7 @@ export function Panel(props: {
             </For>
           </div>
         </div>
-        <div class="bg-chat-line-soft h-px" data-conciv-key="04XpPA" />
+        <div class="bg-chat-line-soft shrink-0 h-px" data-conciv-key="04XpPA" />
         <div class="flex flex-col gap-1.5 w-50 items-start" data-conciv-key="Qn54kQ">
           <span
             class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
@@ -218,14 +223,6 @@ function viewportName(width: number): string {
 
 function ago(at: number): string {
   return AGO.format(-Math.max(Math.round((Date.now() - at) / MINUTE_MS), 0), 'minute')
-}
-
-const HUE_FILL: Record<string, string> = {
-  danger: 'bg-chat-danger',
-  accent: 'bg-chat-accent',
-  warn: 'bg-chat-warn',
-  agent: 'bg-chat-agent',
-  dim: 'bg-chat-dim',
 }
 
 const HUE_TEXT: Record<string, string> = {

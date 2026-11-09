@@ -34,7 +34,8 @@
 
 .xp-layout {
   display: grid;
-  grid-template-columns: 16.667% 1fr;
+  grid-template-columns: 16.667% 83.333%;
+  column-gap: 13.889%;
   flex: 1;
   overflow: hidden;
 }
