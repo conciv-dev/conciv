@@ -1,12 +1,12 @@
 import {chmodSync, lstatSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {DatabaseSync} from 'node:sqlite'
 import {isNull, eq} from 'drizzle-orm'
-import {drizzle} from 'drizzle-orm/node-sqlite'
+import type {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import envPaths from 'env-paths'
 import {z} from 'zod'
 import {homeMigrations} from './home-migrations.gen.js'
+import {openMigratedDb} from './migrated-db.js'
 import {engines, hubConnections as hubConnectionsTable} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
@@ -21,14 +21,12 @@ export function concivHome(options: {homeDir?: string; env: NodeJS.ProcessEnv}):
 
 export function openHomeDb(home: string): HomeDb {
   prepareFolder(home)
-  const db = drizzle({client: openPrivateDatabase(home, 'home.db')})
-  try {
-    whileMigrationLockHeld(home, () => migrate(db))
-  } catch (error) {
-    closeHomeDb(db)
-    throw error
-  }
-  return db
+  return openMigratedDb({
+    file: join(home, 'home.db'),
+    lock: join(home, 'home.lock'),
+    mode: 0o600,
+    migrate: (db) => migrateSync(homeMigrations, db._.session),
+  })
 }
 
 export function closeHomeDb(db: HomeDb): void {
@@ -91,31 +89,4 @@ function prepareFolder(home: string): void {
 
 function homeFolderRefused(home: string, reason: string): Error {
   return Object.assign(new Error(`conciv refuses the home folder ${home}: ${reason}`), {name: 'HomeFolderRefused'})
-}
-
-function openPrivateDatabase(home: string, name: string): DatabaseSync {
-  const file = join(home, name)
-  const client = new DatabaseSync(file, {timeout: 5000})
-  try {
-    chmodSync(file, 0o600)
-  } catch (error) {
-    client.close()
-    throw error
-  }
-  return client
-}
-
-function whileMigrationLockHeld(home: string, run: () => void): void {
-  const lock = openPrivateDatabase(home, 'home.lock')
-  try {
-    lock.exec('BEGIN EXCLUSIVE')
-    run()
-  } finally {
-    lock.close()
-  }
-}
-
-function migrate(db: HomeDb): void {
-  db.$client.exec('PRAGMA journal_mode = WAL')
-  migrateSync(homeMigrations, db._.session)
 }
