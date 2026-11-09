@@ -58,7 +58,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.cards.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.cards.build.json && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cards.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
