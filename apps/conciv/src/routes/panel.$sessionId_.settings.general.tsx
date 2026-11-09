@@ -4,6 +4,7 @@ import {SKIN_NAMES} from '@conciv/ui-kit-system'
 import {useHostTheme, usePreferences} from '../app/context.js'
 import {PreferencesForm} from '../settings/preferences-form.js'
 import {Group} from '../settings/settings-ui.js'
+import {writeLastTab} from '../settings/last-tab.js'
 
 const COLOR_MODES = [
   {value: 'page', label: 'Auto'},
@@ -16,7 +17,10 @@ const WEB_LAUNCHERS = [
   {value: 'hidden', label: 'Hidden'},
 ]
 
-export const Route = createFileRoute('/panel/$sessionId_/settings/general')({component: GeneralSettings})
+export const Route = createFileRoute('/panel/$sessionId_/settings/general')({
+  onEnter: () => writeLastTab('general'),
+  component: GeneralSettings,
+})
 
 function GeneralSettings(): JSX.Element {
   const theme = useHostTheme()
@@ -43,6 +47,7 @@ function GeneralSettings(): JSX.Element {
                   label="Skin"
                   hint="Shapes, type and accent of the panel."
                   skins={SKIN_NAMES}
+                  shown={theme().skinFromPage ? theme().skin : undefined}
                   lock={theme().skinFromPage ? 'Set by the page in --conciv-skin' : undefined}
                 />
               )}

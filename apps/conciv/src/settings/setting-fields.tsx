@@ -89,15 +89,16 @@ function SkinPreview(props: {name: SkinName}): JSX.Element {
   )
 }
 
-export function SkinField(props: FieldProps & {skins: readonly SkinName[]}): JSX.Element {
-  const [local] = splitProps(props, ['label', 'hint', 'lock', 'skins'])
+export function SkinField(props: FieldProps & {skins: readonly SkinName[]; shown?: SkinName}): JSX.Element {
+  const [local] = splitProps(props, ['label', 'hint', 'lock', 'skins', 'shown'])
   const field = useFieldContext<SkinName>()
   return (
     <SettingRow label={local.label} hint={local.hint} lock={local.lock} layout="stack">
       <RadioGroup.Root
         class={SKINS}
+        aria-label={local.label}
         name={field().name}
-        value={field().state.value}
+        value={local.shown ?? field().state.value}
         readOnly={Boolean(local.lock)}
         onValueChange={(details) => {
           const next = local.skins.find((name) => name === details.value)

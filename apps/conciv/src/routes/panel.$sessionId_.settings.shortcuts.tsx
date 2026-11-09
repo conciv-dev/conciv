@@ -3,6 +3,7 @@ import type {JSX} from 'solid-js'
 import {PreferencesForm} from '../settings/preferences-form.js'
 import {Group} from '../settings/settings-ui.js'
 import {ShortcutsList, type ShortcutEntry} from '../settings/shortcuts-list.js'
+import {writeLastTab} from '../settings/last-tab.js'
 
 const COMMANDS: ShortcutEntry[] = [
   {command: 'togglePanel', label: 'Open or close conciv'},
@@ -10,7 +11,10 @@ const COMMANDS: ShortcutEntry[] = [
   {command: 'quickNewPane', label: 'New quick terminal pane'},
 ]
 
-export const Route = createFileRoute('/panel/$sessionId_/settings/shortcuts')({component: ShortcutsSettings})
+export const Route = createFileRoute('/panel/$sessionId_/settings/shortcuts')({
+  onEnter: () => writeLastTab('shortcuts'),
+  component: ShortcutsSettings,
+})
 
 function ShortcutsSettings(): JSX.Element {
   return (

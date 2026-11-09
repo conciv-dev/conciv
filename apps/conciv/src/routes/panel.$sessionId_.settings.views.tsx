@@ -6,10 +6,14 @@ import {collectViews} from '../extension/extension-views.js'
 import {PreferencesForm} from '../settings/preferences-form.js'
 import {Group, TEXT_LINK} from '../settings/settings-ui.js'
 import {ViewRow, ViewsList} from '../settings/views-list.js'
+import {writeLastTab} from '../settings/last-tab.js'
 
 const CHAT_VIEW = {id: 'chat', label: 'Chat', icon: MessageSquare}
 
-export const Route = createFileRoute('/panel/$sessionId_/settings/views')({component: ViewsSettings})
+export const Route = createFileRoute('/panel/$sessionId_/settings/views')({
+  onEnter: () => writeLastTab('views'),
+  component: ViewsSettings,
+})
 
 function ViewsSettings(): JSX.Element {
   const instances = useInstances()

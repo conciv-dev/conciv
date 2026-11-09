@@ -4724,6 +4724,7 @@ describe('settings page', () => {
   const harness = createShellHarness(coreBase)
 
   afterEach(harness.dispose)
+  afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
 
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const gear = () => page.getByRole('link', {name: 'Settings'})
@@ -4736,6 +4737,8 @@ describe('settings page', () => {
   const command = (label: string) => page.getByRole('button', {name: label, exact: true})
   const clash = () => page.getByRole('status').getByText(/is also/)
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
+  const skin = (name: string) => page.getByRole('radio', {name, exact: true})
+  const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
 
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
@@ -4780,11 +4783,27 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('views'))
+    await tab('Shortcuts').click()
+    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
+    harness.back()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+    await back().click()
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
 
     harness.dispose()
+    document.documentElement.style.setProperty('--conciv-skin', 'terminal')
     harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
     await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
     await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
+    await expect.element(skin('Terminal')).toBeChecked()
+    document.documentElement.style.removeProperty('--conciv-skin')
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
+    await expect.element(skin('Conciv')).toBeChecked()
 
     await tab('Shortcuts').click()
     await command('Quick terminal').click()
@@ -4793,6 +4812,8 @@ describe('settings page', () => {
     await command('New quick terminal pane').click()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
     await expect.element(clash()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(saveClash()).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     await expect.element(clash()).not.toBeInTheDocument()
     await expect.element(command('New quick terminal pane')).toHaveFocus()
@@ -4816,6 +4837,19 @@ describe('settings page', () => {
     await userEvent.keyboard('{Escape}')
     await expect.element(gear()).toHaveFocus()
     await expect.element(notesTab()).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [settingsProbe], {
+      host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
+    })
+    await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).toBeVisible()
+    await expect.element(saveClash()).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
   }, 60_000)
 })
 

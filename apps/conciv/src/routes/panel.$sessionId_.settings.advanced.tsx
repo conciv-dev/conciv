@@ -7,6 +7,7 @@ import TriangleAlert from 'lucide-solid/icons/triangle-alert'
 import {useAnnounce, usePreferences} from '../app/context.js'
 import type {PreferenceKey} from '../settings/preferences-schema.js'
 import {ActionRow, BUTTON_DANGER_ARMED, BUTTON_DANGER_FILL, BUTTON_WARN, Group} from '../settings/settings-ui.js'
+import {writeLastTab} from '../settings/last-tab.js'
 
 const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[]}[] = [
   {
@@ -18,7 +19,10 @@ const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[
   {label: 'Shortcuts', hint: 'Back to the default keys.', action: 'Reset shortcuts', keys: ['commandShortcuts']},
 ]
 
-export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({component: AdvancedSettings})
+export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({
+  onEnter: () => writeLastTab('advanced'),
+  component: AdvancedSettings,
+})
 
 function AdvancedSettings(): JSX.Element {
   const preferences = usePreferences()

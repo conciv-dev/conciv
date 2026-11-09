@@ -148,14 +148,19 @@ function ShortcutRow(props: ShortcutRowProps): JSX.Element {
       </div>
       <Show when={clash()}>
         {(other) => (
-          <div class={WARN} role="status">
+          <div class={WARN} role="status" onKeyDown={onKeyDown}>
             <TriangleAlert class="mt-px size-3.5 shrink-0" aria-hidden="true" />
             <span class="flex-1">
               {formatForDisplay(state.draft ?? '')} is also <b class="font-medium text-chat-text-hi">{other().label}</b>
-              . Saving moves it here.{' '}
-              <button type="button" class={WARN_ACTION} onClick={() => save(state.draft, other())}>
-                Save
-              </button>
+              <Show
+                when={!preferences.shortcutLock(other().command)}
+                fallback=", set by this project, so it cannot move. Pick other keys."
+              >
+                . Saving moves it here.{' '}
+                <button type="button" class={WARN_ACTION} onClick={() => save(state.draft, other())}>
+                  Save
+                </button>
+              </Show>
             </span>
           </div>
         )}

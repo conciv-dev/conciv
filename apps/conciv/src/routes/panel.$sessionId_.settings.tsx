@@ -10,7 +10,7 @@ import Keyboard from 'lucide-solid/icons/keyboard'
 import Shield from 'lucide-solid/icons/shield'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import {MICRO} from '../settings/settings-ui.js'
-import {writeLastTab, type SettingsTabId} from '../settings/last-tab.js'
+import type {SettingsTabId} from '../settings/last-tab.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -97,7 +97,6 @@ function SettingsLayout(): JSX.Element {
   const select = (id: string) => {
     const tab = TABS.find((candidate) => candidate.id === id)
     if (!tab) return
-    writeLastTab(tab.id)
     void navigate({to: `./${tab.id}`})
   }
   const close = () =>
