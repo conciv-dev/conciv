@@ -20,6 +20,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `image-tool-results.ts:imageToolProvisioner` - a `ToolBridgeProvisioner` that serves an MCP JSON-RPC bridge at `/mcp`.
 - `image-tool-results.ts:imagesIn` / `withoutImages` / `imageBlocks` - find image parts, replace them with a stub, or convert them to MCP image blocks.
 - `child-cards.ts:childCardChunks` / `childCards` - turn `code_mode:external_call/result/error` custom events into TOOL_CALL_* chunks linked to the parent `execute_typescript` call.
+- `compaction-stamp.ts:compactionStamp` - middleware added only to `kind: 'compact'` runs: merges `compaction: true` into `metadata.conciv` (`CompactionMetadataSchema`, other `conciv` keys kept) on TEXT_MESSAGE_START, REASONING_MESSAGE_START and RUN_FINISHED chunks so the live message carries it, and on finish writes it onto the stored assistant messages of that run (`metadata.tanstack.run.id`; no write when the run stored none), so a reload carries it too.
 - `code-mode.ts:loadIsolateDriver` / `codeModeTools` / `secretRefusalOf` - pick an isolate driver, build code-mode tools, detect secret refusals.
 - `code-mode.ts:stoppedWith` - wraps a driver so aborting the signal disposes the running context; a turn passes its run signal, so stopping the turn stops its program; a failed dispose is logged.
 - `quickjs-thread.ts:quickJSThreadDriver` - an `IsolateDriver` that runs `createQuickJSIsolateDriver` in a `node:worker_threads` worker (entry `quickjs-worker.ts`, built as `dist/quickjs-worker.js`), one worker per context.

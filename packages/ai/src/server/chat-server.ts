@@ -41,6 +41,7 @@ import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-type
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
+import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
@@ -548,6 +549,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           },
         }),
         childCards(config.codeModeResult),
+        ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
         withSandbox(sandbox, {
           runs: stores.runs,
           locks,

@@ -1,12 +1,14 @@
 import {once} from 'node:events'
 import {z} from 'zod'
-import {command, description, name} from '@bomb.sh/router'
+import {command, description, name, option, schema} from '@bomb.sh/router'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
-import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
+import {createMCPServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
+import type {InitHarnessId} from '@conciv/protocol/harness-types'
+import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
 import type {CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
@@ -16,8 +18,6 @@ const EXECUTE_TOOL_NAME = 'execute_typescript'
 const DISCOVER_TOOL_NAME = 'discover_tools'
 
 const PROBE_MS = 2000
-
-const CLIENT_NAME_MAX = 64
 
 const ExecuteInputSchema = z.object({
   typescriptCode: z
@@ -41,20 +41,16 @@ type Runner = {apiBase: string; root: string; client: MCPClient}
 
 type Reply = {content: {type: 'text'; text: string}[]; isError: true}
 
-async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
+async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
-  const held: {runner: Runner | null; server: McpServer | null} = {runner: null, server: null}
-
-  function clientHeaders(): Record<string, string> {
-    const client = held.server?.server.getClientVersion()?.name.slice(0, CLIENT_NAME_MAX)
-    return {[CONCIV_ORIGIN_HEADER]: 'hub', ...(client ? {[CONCIV_CLIENT_HEADER]: client} : {})}
-  }
+  const held: {runner: Runner | null} = {runner: null}
+  const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
 
   async function runnerClient(row: EngineRow): Promise<MCPClient> {
     if (held.runner?.apiBase === row.apiBase) return held.runner.client
     await dropRunner()
     const client = await createMCPClient({
-      transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers: clientHeaders()},
+      transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers},
       name: 'conciv-hub',
     })
     held.runner = {apiBase: row.apiBase, root: row.root, client}
@@ -98,9 +94,6 @@ async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
         inputSchema: DiscoverInputSchema,
       }).server((input) => forward(DISCOVER_TOOL_NAME, input)),
     ],
-    setup: (mcp) => {
-      held.server = mcp
-    },
   })
   const served = serveMCPStdio(server)
   await once(process.stdin, 'end')
@@ -109,10 +102,17 @@ async function runHub(env: NodeJS.ProcessEnv): Promise<CliOutcome> {
   return {report: 'none', code: 0}
 }
 
-export const mcpCommand = command(
-  name('mcp'),
+const ServeModelSchema = z.object({agent: HubAgentSchema})
+
+export const serveCommand = command(
+  name('serve'),
   description('Serve conciv to an outside agent over MCP stdio, through the running conciv dev server.'),
-  handler(() => runHub(process.env)),
+  option(
+    name('agent'),
+    description('the agent this server answers for (claude, codex, gemini-cli, opencode)'),
+    schema(HubAgentSchema),
+  ),
+  handler((model) => runHub(process.env, ServeModelSchema.parse(model).agent)),
 )
 
 async function startupDescriptions(home: string): Promise<Record<ToolName, string>> {

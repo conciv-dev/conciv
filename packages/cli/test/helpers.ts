@@ -159,7 +159,7 @@ export function recorderPrompts(events: string[]): PlanPrompts {
   return {
     selections: async (found) => {
       events.push('selections')
-      return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+      return {framework: true, harnesses: found.harnesses.map((one) => one.id), agents: found.agents, docsPack: false}
     },
     confirmRun: async () => {
       events.push('confirmRun')
@@ -265,6 +265,7 @@ export function fixture(options: FixtureOptions = {}): Fixture {
       return {code: 0, output: ''}
     },
     env: {PATH: binDir, HOME: home},
+    concivHome: join(home, 'conciv'),
     prompts: recorderPrompts(events),
     ...(injectInteractive ? {interactive: () => true} : {}),
     exit: (code) => {

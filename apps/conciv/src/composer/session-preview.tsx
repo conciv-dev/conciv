@@ -110,7 +110,7 @@ function PreviewBody(props: {target: PreviewTarget; input: () => HTMLElement | n
         <TruncatedText class="text-[0.6875rem] text-chat-text-3 max-w-2/5" text={props.target.project} />
         <Show when={props.target.resume}>{(command) => <ResumeCopyButton command={command()} />}</Show>
       </header>
-      <div class="flex flex-1 flex-col min-h-0 [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark">
+      <div class="flex flex-1 flex-col min-h-0 [&_mark]:bg-chat-accent-20 [&_mark]:text-chat-text [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark">
         <Suspense fallback={<PreviewLoading />}>
           <Switch>
             <Match when={pages.isError && pages.data === undefined}>

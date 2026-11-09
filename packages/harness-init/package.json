@@ -24,6 +24,10 @@
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js"
     },
+    "./hub": {
+      "types": "./dist/hub.d.ts",
+      "import": "./dist/hub.js"
+    },
     "./detect": {
       "types": "./dist/detect.d.ts",
       "import": "./dist/detect.js"
@@ -93,6 +97,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "zod": "catalog:"
   },
