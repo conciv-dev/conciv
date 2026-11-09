@@ -7,6 +7,7 @@ import {
   RelativeTime,
   ScrollArea,
   SegmentGroup,
+  Slider,
   StatusDot,
   Switch as Toggle,
   TooltipIconButton,
@@ -270,7 +271,6 @@ function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
   const first = () => props.data.rounds()[0]?.round ?? 0
   const last = () => props.data.rounds().at(-1)?.round ?? 0
   const shown = () => props.data.shownRound()?.round ?? last()
-  const fraction = () => (last() === first() ? 1 : (shown() - first()) / (last() - first()))
   return (
     <div class="px-6 flex flex-col gap-5" data-conciv-key="DuzQ6A">
       <div class="flex flex-col gap-1.5 items-stretch" data-conciv-key="GtxBag">
@@ -282,39 +282,24 @@ function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
             {shown()} / {last()}
           </span>
         </div>
-        <div class="h-3 relative" data-conciv-key="snH6Mw">
-          <div
-            class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-line h-0.5 inset-x-0 top-1.25 absolute"
-            data-conciv-key="yVZr5Q"
-          />
-          <div class="h-0.5 inset-x-0 top-1.25 absolute" data-conciv-key="MuAjOQ">
-            <div
-              class="rounded-[calc(var(--chat-space)*0.25)] bg-chat-accent h-full"
-              style={{width: `${fraction() * 100}%`}}
-              data-conciv-key="tvUdxA"
-            />
-          </div>
-          <svg
-            viewBox="0 0 12 12"
-            aria-hidden="true"
-            class="size-3 top-0 absolute"
-            style={{left: `calc((100% - var(--chat-space) * 3) * ${fraction()})`}}
-            data-conciv-key="SlOPPw"
-          >
-            <circle cx="6" cy="6" r="5.5" class="fill-chat-panel stroke-chat-accent" data-conciv-key="Y0sG0A" />
-          </svg>
-          <input
-            type="range"
-            aria-label="Round"
-            class="m-0 opacity-0 size-full inset-0 absolute"
-            min={first()}
-            max={last()}
-            step={1}
-            value={shown()}
-            onInput={(event) => props.data.pinRound(Number(event.currentTarget.value))}
-            data-conciv-key="zthYHQ"
-          />
-        </div>
+        <Slider.Root
+          aria-label={['Round']}
+          min={first()}
+          max={last()}
+          step={1}
+          value={[shown()]}
+          onValueChange={(details) => props.data.pinRound(details.value[0] ?? null)}
+          data-conciv-key="snH6Mw"
+        >
+          <Slider.Control>
+            <Slider.Track>
+              <Slider.Range />
+            </Slider.Track>
+            <Slider.Thumb index={0}>
+              <Slider.HiddenInput />
+            </Slider.Thumb>
+          </Slider.Control>
+        </Slider.Root>
       </div>
       <div class="flex flex-col gap-2" data-conciv-key="usjwxA">
         <span
@@ -323,18 +308,24 @@ function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
         >
           PLANES
         </span>
-        <div class="p-0.5 rounded-chat-surface-md bg-chat-fill-soft flex gap-0.5 items-center" data-conciv-key="x0BqaA">
+        <div
+          role="group"
+          aria-label="Planes"
+          class="p-0.5 rounded-chat-surface-md bg-chat-fill-soft flex gap-0.5 items-center"
+          data-conciv-key="x0BqaA"
+        >
           <For each={PLANES}>
             {(entry) => (
-              <button
-                type="button"
+              <Button
+                variant={props.data.plane(entry.plane) ? 'panel' : 'plain'}
+                size="sm"
                 aria-pressed={props.data.plane(entry.plane)}
-                class={`text-xs px-2 py-0.75 border rounded-chat-surface-sm flex grow basis-0 items-center justify-center ${props.data.plane(entry.plane) ? 'bg-chat-panel border-chat-line-soft text-chat-text-hi font-semibold' : 'bg-transparent border-transparent text-chat-text-3'}`}
+                class={`grow basis-0 ${props.data.plane(entry.plane) ? 'font-semibold' : 'text-chat-text-3'}`}
                 onClick={() => props.data.setPlane(entry.plane, !props.data.plane(entry.plane))}
                 data-conciv-key="_UEdTg"
               >
-                <span data-conciv-key="tCHV6g">{entry.label}</span>
-              </button>
+                {entry.label}
+              </Button>
             )}
           </For>
         </div>
@@ -352,15 +343,7 @@ function StackBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
               class={`text-[length:var(--chat-text-md)] px-2 py-1 rounded-chat-surface-sm flex gap-2 items-center ${entry.kind === 'matched' ? '' : 'bg-chat-fill-soft'}`}
               data-conciv-key="1fVprA"
             >
-              <svg
-                viewBox="0 0 8 8"
-                aria-hidden="true"
-                class="shrink-0 size-2"
-                style={{fill: `var(--xray-${entry.kind})`}}
-                data-conciv-key="iaxJLw"
-              >
-                <circle cx="4" cy="4" r="4" data-conciv-key="St4B5w" />
-              </svg>
+              <StatusDot tone={DOTS[entry.kind] ?? 'dim'} />
               <span class="text-chat-text grow" data-conciv-key="cF5nVQ">
                 {entry.kind}
               </span>
