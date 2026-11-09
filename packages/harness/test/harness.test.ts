@@ -2,11 +2,13 @@ import {describe, expect, it, beforeAll, afterAll, afterEach, test} from 'vitest
 import type {
   HarnessChatDeps,
   HarnessConnectContext,
+  HarnessHistory,
   HarnessListPage,
   HarnessSessionPage,
   TranscriptHandle,
   TranscriptChunk,
   TranscriptFailure,
+  TranscriptPage,
   TranscriptRevision,
 } from '@conciv/protocol/harness-types'
 import {HarnessSessionId, SessionId, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
@@ -72,6 +74,12 @@ import {pi} from '../src/pi/index.js'
 import {encodeSessionDir, sessionsDir, piHistory} from '../src/pi/history.js'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
 import {execFileSync} from 'node:child_process'
+
+const OPENCODE_TABLES = [
+  `create table if not exists session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
+  `create table if not exists message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+  `create table if not exists part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
+]
 
 const FIRST_PAGE: HarnessListPage = {after: null, limit: 30}
 
@@ -1036,6 +1044,7 @@ describe('codex history', () => {
   ]
 
   const rollout = (lines: unknown[]): string => `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
+  const offsetOf = (index: number): number => Buffer.byteLength(rollout(ROLLOUT_LINES.slice(0, index)))
 
   async function seedRollout(name: string, lines: unknown[]): Promise<string> {
     const dir = join(sessionsRoot(), '2026', '07', '30')
@@ -1098,9 +1107,9 @@ describe('codex history', () => {
   describe('codex rollout parsing', () => {
     it('builds a user/assistant spine with tool calls and their outputs', async () => {
       expect(await history().messages(PROJECT, SESSION)).toEqual([
-        {id: `${SESSION}:h1`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
+        {id: `${SESSION}:o${offsetOf(2)}`, role: 'user', parts: [{type: 'text', content: 'list the files'}]},
         {
-          id: `${SESSION}:h2`,
+          id: `${SESSION}:o${offsetOf(3)}`,
           role: 'assistant',
           parts: [
             {
@@ -1503,12 +1512,13 @@ describe('native record ids', () => {
       ])
     })
 
-    it('falls back to positional ids when the records carry no uuid', () => {
+    it('falls back to the byte offset of the opening record when the records carry no uuid', () => {
       const jsonl = [
         line({type: 'user', message: {role: 'user', content: [{type: 'text', text: 'no uuid here'}]}}),
         line({type: 'assistant', message: {id: 'msg_1', role: 'assistant', content: [{type: 'text', text: 'ok'}]}}),
       ].join('\n')
-      expect(parseHistory(jsonl).map((message) => message.id)).toEqual(['h1', 'h2'])
+      const opener = jsonl.split('\n')[0] ?? ''
+      expect(parseHistory(jsonl).map((message) => message.id)).toEqual(['o0', `o${opener.length + 1}`])
     })
   })
 })
@@ -1751,15 +1761,7 @@ describe('opencode history', () => {
 
   function seed(sessionId: HarnessSessionId, directory: string, rowSuffix: string): void {
     const db = new DatabaseSync(storagePath())
-    db.exec(
-      `create table if not exists session (id text primary key, project_id text not null default '', directory text not null, title text not null, time_created integer not null, time_updated integer not null, time_archived integer, model text, tokens_input integer not null default 0, tokens_output integer not null default 0)`,
-    )
-    db.exec(
-      `create table if not exists message (id text primary key, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
-    )
-    db.exec(
-      `create table if not exists part (id text primary key, message_id text not null, session_id text not null, time_created integer not null, time_updated integer not null, data text not null)`,
-    )
+    OPENCODE_TABLES.forEach((table) => db.exec(table))
     const session = db.prepare(
       'insert into session (id, directory, title, time_created, time_updated, time_archived, model, tokens_input, tokens_output) values (?,?,?,?,?,?,?,?,?)',
     )
@@ -2320,6 +2322,7 @@ describe('registry', () => {
         chatConfig: () => ({adapter: fakeText()}),
         history: {
           messages: () => Promise.resolve([]),
+          tail: () => Promise.resolve({messages: [], earlier: null}),
           observe: () => handle,
           list: () => Promise.resolve({sessions: [], next: null}),
           meta: () => Promise.resolve(null),
@@ -2424,7 +2427,7 @@ describe('transcript handles', () => {
       const handle = observe('incremental')
 
       const one = chunk(await handle.read())
-      expect(one.messages).toEqual([{id: 'h1', role: 'user', parts: [{type: 'text', content: 'aaa'}]}])
+      expect(one.messages).toEqual([{id: 'o0', role: 'user', parts: [{type: 'text', content: 'aaa'}]}])
       expect(one.replaced).toBe(true)
 
       expect(Buffer.byteLength(rewritten)).toBe(Buffer.byteLength(first))
@@ -2434,8 +2437,8 @@ describe('transcript handles', () => {
       const two = chunk(await handle.read())
       expect(two.replaced).toBe(false)
       expect(two.messages).toEqual([
-        {id: 'h1', role: 'user', parts: [{type: 'text', content: 'aaa'}]},
-        {id: 'h2', role: 'user', parts: [{type: 'text', content: 'bbb'}]},
+        {id: 'o0', role: 'user', parts: [{type: 'text', content: 'aaa'}]},
+        {id: `o${Buffer.byteLength(first) + 1}`, role: 'user', parts: [{type: 'text', content: 'bbb'}]},
       ])
       expect(two.rev).not.toBe(one.rev)
 
@@ -2455,13 +2458,13 @@ describe('transcript handles', () => {
 
       appendFileSync(path, complete.slice(0, 20))
       const partial = chunk(await handle.read())
-      expect(partial.messages).toEqual([{id: 'h1', role: 'user', parts: [{type: 'text', content: 'aaa'}]}])
+      expect(partial.messages).toEqual([{id: 'o0', role: 'user', parts: [{type: 'text', content: 'aaa'}]}])
       expect(partial.replaced).toBe(false)
 
       appendFileSync(path, `${complete.slice(20)}\n`)
       expect(chunk(await handle.read()).messages).toEqual([
-        {id: 'h1', role: 'user', parts: [{type: 'text', content: 'aaa'}]},
-        {id: 'h2', role: 'user', parts: [{type: 'text', content: 'bbb'}]},
+        {id: 'o0', role: 'user', parts: [{type: 'text', content: 'aaa'}]},
+        {id: `o${Buffer.byteLength(userLine('aaa')) + 1}`, role: 'user', parts: [{type: 'text', content: 'bbb'}]},
       ])
       handle.close()
     })
@@ -2474,7 +2477,7 @@ describe('transcript handles', () => {
       writeFileSync(path, `${userLine('one')}\n`)
       const after = chunk(await handle.read())
       expect(after.replaced).toBe(true)
-      expect(after.messages).toEqual([{id: 'h1', role: 'user', parts: [{type: 'text', content: 'one'}]}])
+      expect(after.messages).toEqual([{id: 'o0', role: 'user', parts: [{type: 'text', content: 'one'}]}])
       handle.close()
     })
 
@@ -2527,9 +2530,10 @@ describe('transcript handles', () => {
         }),
         '',
       ].join('\n')
+      const answerAt = Buffer.byteLength(jsonl.split('\n').slice(0, 3).join('\n')) + 1
       expect(claudeParse(jsonl)).toEqual([
-        {id: 'h1', role: 'user', parts: [{type: 'text', content: 'main prompt'}]},
-        {id: 'h2', role: 'assistant', parts: [{type: 'text', content: 'main answer'}]},
+        {id: 'o0', role: 'user', parts: [{type: 'text', content: 'main prompt'}]},
+        {id: `o${answerAt}`, role: 'assistant', parts: [{type: 'text', content: 'main answer'}]},
       ])
     })
 
@@ -2795,6 +2799,292 @@ describe('transcript handles', () => {
       expect(openFileCount()).toBe(before)
       expect(failure(await first.read()).reason).toBe('unreadable')
     })
+  })
+})
+
+describe('transcript tail reads', () => {
+  const CHUNK_EDGE = 262_144
+  const RUN = '€'.repeat(CHUNK_EDGE / 2)
+  const FILLER = 'the tern dives for sand eels '.repeat(80)
+  const TURNS = 240
+  const LIMIT = 20
+  const record = (value: unknown): string => JSON.stringify(value)
+
+  function straddled(build: (padding: string) => string[]): string {
+    const body = ['', 'x', 'xx']
+      .map((padding) => `${build(padding).join('\n')}\n`)
+      .find((candidate) => {
+        const bytes = Buffer.from(candidate, 'utf8')
+        return ((bytes[bytes.byteLength - CHUNK_EDGE] ?? 0) & 0xc0) === 0x80
+      })
+    if (body === undefined) throw new Error('no padding puts a multibyte character across the last 256 KiB edge')
+    return body
+  }
+
+  async function pagesFrom(
+    read: (before: string | null) => Promise<TranscriptPage>,
+    before: string | null = null,
+  ): Promise<TranscriptPage[]> {
+    const page = await read(before)
+    if (page.earlier === null) return [page]
+    return [...(await pagesFrom(read, page.earlier)), page]
+  }
+
+  async function expectTailPagesTheFold(history: HarnessHistory, cwd: string, sessionId: HarnessSessionId) {
+    const pages = await pagesFrom((before) => history.tail(cwd, sessionId, {limit: LIMIT, before}))
+    const later = pages.slice(1)
+    expect(pages.length).toBeGreaterThan(5)
+    expect(pages.flatMap((page) => page.messages)).toEqual(await history.messages(cwd, sessionId))
+    expect(later.map((page) => page.messages[0]?.role)).toEqual(later.map(() => 'user'))
+    expect(later.every((page) => page.messages.length >= LIMIT)).toBe(true)
+    expect(pages[0]?.earlier).toBeNull()
+  }
+
+  async function expectAbortRejects(history: HarnessHistory, cwd: string, sessionId: HarnessSessionId) {
+    const controller = new AbortController()
+    const reading = history.tail(cwd, sessionId, {limit: TURNS * 10, before: null, signal: controller.signal})
+    controller.abort()
+    await expect(reading).rejects.toMatchObject({name: 'AbortError'})
+  }
+
+  function claudeTurn(turn: number, padding: string): string[] {
+    const anchored = turn % 7 !== 0
+    return [
+      record({
+        type: 'user',
+        ...(anchored ? {uuid: `user-${turn}`} : {}),
+        message: {role: 'user', content: `question ${turn}`},
+      }),
+      ...(turn % 11 === 5
+        ? [
+            record({
+              type: 'user',
+              uuid: `late-${turn}`,
+              message: {content: [{type: 'tool_result', tool_use_id: `tool-${turn - 1}`, content: 'a late result'}]},
+            }),
+          ]
+        : []),
+      record({
+        type: 'assistant',
+        uuid: `think-${turn}`,
+        message: {id: `msg-${turn}`, content: [{type: 'thinking', thinking: `thinking ${turn}`}]},
+      }),
+      record({
+        type: 'assistant',
+        uuid: `call-${turn}`,
+        message: {
+          id: `msg-${turn}`,
+          content: [
+            {type: 'text', text: `reading ${turn}`},
+            {type: 'tool_use', id: `tool-${turn}`, name: 'Read', input: {file_path: `/src/${turn}.ts`}},
+          ],
+        },
+      }),
+      record({
+        type: 'assistant',
+        isSidechain: true,
+        uuid: `side-${turn}`,
+        message: {id: `side-${turn}`, content: [{type: 'text', text: 'a sidechain aside'}]},
+      }),
+      record({
+        type: 'user',
+        uuid: `result-${turn}`,
+        message: {content: [{type: 'tool_result', tool_use_id: `tool-${turn}`, content: `${turn} ${FILLER}`}]},
+      }),
+      record({
+        type: 'assistant',
+        ...(anchored ? {uuid: `answer-${turn}`} : {}),
+        message: {
+          id: `answer-${turn}`,
+          content: [{type: 'text', text: turn === TURNS - 1 ? `${RUN}${padding}` : `answer ${turn}`}],
+        },
+      }),
+    ]
+  }
+
+  function codexTurn(turn: number, padding: string): string[] {
+    const envelope = (type: string, payload: unknown) => record({timestamp: '2026-07-30T13:23:06.744Z', type, payload})
+    return [
+      envelope('event_msg', {type: 'user_message', message: `question ${turn}`}),
+      ...(turn % 11 === 5
+        ? [envelope('response_item', {type: 'function_call_output', call_id: `call-${turn - 1}`, output: 'late'})]
+        : []),
+      envelope('response_item', {type: 'function_call', name: 'search', arguments: '{}', call_id: `call-${turn}`}),
+      envelope('response_item', {type: 'message', role: 'assistant', content: []}),
+      envelope('response_item', {type: 'function_call_output', call_id: `call-${turn}`, output: `${turn} ${FILLER}`}),
+      envelope('response_item', {type: 'custom_tool_call', name: 'apply_patch', input: 'x', call_id: `edit-${turn}`}),
+      envelope('response_item', {type: 'custom_tool_call_output', call_id: `edit-${turn}`, output: 'Exit code: 0'}),
+      envelope('event_msg', {
+        type: 'agent_message',
+        message: turn === TURNS - 1 ? `${RUN}${padding}` : `answer ${turn}`,
+      }),
+      envelope('event_msg', {type: 'token_count', info: {total_token_usage: {total_tokens: turn}}}),
+    ]
+  }
+
+  type PiEntry = {type: string; id: string; parentId: string | null; message?: unknown}
+
+  function piTurn(turn: number, parentId: string, padding: string): PiEntry[] {
+    const entry = (id: string, parent: string, message: unknown): PiEntry => ({
+      type: 'message',
+      id,
+      parentId: parent,
+      message,
+    })
+    return [
+      entry(`user-${turn}`, parentId, {role: 'user', content: [{type: 'text', text: `question ${turn}`}]}),
+      entry(`call-${turn}`, `user-${turn}`, {
+        role: 'assistant',
+        content: [
+          {type: 'thinking', thinking: `thinking ${turn}`},
+          {type: 'toolCall', id: `tool-${turn}`, name: 'bash', arguments: {command: 'ls'}},
+        ],
+      }),
+      entry(`result-${turn}`, `call-${turn}`, {
+        role: 'toolResult',
+        toolCallId: `tool-${turn}`,
+        content: [{type: 'text', text: `${turn} ${FILLER}`}],
+      }),
+      {type: 'thinking_level_change', id: `level-${turn}`, parentId: `result-${turn}`},
+      entry(`answer-${turn}`, `level-${turn}`, {
+        role: 'assistant',
+        content: [{type: 'text', text: turn === TURNS - 1 ? `${RUN}${padding}` : `answer ${turn}`}],
+      }),
+    ]
+  }
+
+  function piEntries(padding: string): PiEntry[] {
+    const turns = Array.from({length: TURNS}, (_, turn) => turn)
+    return turns.reduce<PiEntry[]>(
+      (entries, turn) => {
+        const parent = entries.at(-1)?.id.startsWith('branch-') ? `answer-${turn - 1}` : (entries.at(-1)?.id ?? 'model')
+        const branch: PiEntry[] =
+          turn === 100
+            ? [
+                {
+                  type: 'message',
+                  id: 'branch-user',
+                  parentId: `answer-${turn}`,
+                  message: {role: 'user', content: 'a dropped branch'},
+                },
+                {
+                  type: 'message',
+                  id: 'branch-answer',
+                  parentId: 'branch-user',
+                  message: {role: 'assistant', content: [{type: 'text', text: 'ABANDONED'}]},
+                },
+              ]
+            : []
+        return [...entries, ...piTurn(turn, parent, padding), ...branch]
+      },
+      [{type: 'model_change', id: 'model', parentId: null}],
+    )
+  }
+
+  it('claude pages back from the end to the start, equal to the whole fold, and stops on abort', async () => {
+    const cwd = '/workspace/tail.claude'
+    const sessionId = HarnessSessionId.parse('00000000-0000-4000-8000-0000000007a1')
+    const turns = Array.from({length: TURNS}, (_, turn) => turn)
+    const body = straddled((padding) => [
+      record({type: 'summary', summary: 'tail reads'}),
+      record({type: 'system', model: 'claude-opus-4-8'}),
+      ...turns.flatMap((turn) => claudeTurn(turn, padding)),
+    ])
+    const path = transcriptPath(cwd, sessionId)
+    await mkdir(dirname(path), {recursive: true})
+    await writeFile(path, body, 'utf8')
+    const messages = await claudeHistory.messages(cwd, sessionId)
+    const unanchored = body.indexOf(record({type: 'user', message: {role: 'user', content: 'question 7'}}))
+    expect(messages.map((message) => message.id)).toContain(`o${Buffer.byteLength(body.slice(0, unanchored))}`)
+    await expectTailPagesTheFold(claudeHistory, cwd, sessionId)
+    await expectAbortRejects(claudeHistory, cwd, sessionId)
+  })
+
+  it('codex pages back from the end to the start, equal to the whole fold, and stops on abort', async () => {
+    const cwd = '/workspace/tail.codex'
+    const sessionId = HarnessSessionId.parse('019fb331-4da4-7960-8197-0000000007a1')
+    const turns = Array.from({length: TURNS}, (_, turn) => turn)
+    const body = straddled((padding) => [
+      record({timestamp: '2026-07-30T13:23:05.125Z', type: 'session_meta', payload: {id: sessionId, cwd}}),
+      record({timestamp: '2026-07-30T13:23:05.200Z', type: 'turn_context', payload: {cwd, model: 'gpt-5.5'}}),
+      ...turns.flatMap((turn) => codexTurn(turn, padding)),
+    ])
+    const dir = join(sessionsRoot(), '2026', '07', '31')
+    await mkdir(dir, {recursive: true})
+    await writeFile(join(dir, `rollout-2026-07-31T10-00-00-${sessionId}.jsonl`), body, 'utf8')
+    const history = codex.history
+    const messages = await history.messages(cwd, sessionId)
+    const opener = body.lastIndexOf('\n', body.indexOf('question 0')) + 1
+    expect(messages[0]?.id).toBe(`${sessionId}:o${Buffer.byteLength(body.slice(0, opener))}`)
+    await expectTailPagesTheFold(history, cwd, sessionId)
+    await expectAbortRejects(history, cwd, sessionId)
+  })
+
+  it('pi pages back along the active branch to the start, equal to the whole fold, and stops on abort', async () => {
+    const cwd = '/workspace/tail.pi'
+    const sessionId = HarnessSessionId.parse('39a461cc-ceb9-495a-891b-0000000007a1')
+    const body = straddled((padding) => [
+      record({type: 'session', version: 3, id: sessionId, timestamp: '2026-07-30T09:45:14.653Z', cwd}),
+      ...piEntries(padding).map(record),
+    ])
+    const dir = sessionsDir(cwd)
+    await mkdir(dir, {recursive: true})
+    await writeFile(join(dir, `2026-07-30T09-45-14-653Z_${sessionId}.jsonl`), body, 'utf8')
+    const history = pi.history
+    expect((await history.messages(cwd, sessionId)).some((message) => message.id.startsWith('branch-'))).toBe(false)
+    await expectTailPagesTheFold(history, cwd, sessionId)
+    await expectAbortRejects(history, cwd, sessionId)
+  })
+
+  it('opencode pages back by row from the newest message to the first, equal to the whole read', async () => {
+    const cwd = '/workspace/tail.opencode'
+    const sessionId = HarnessSessionId.parse('ses_tailreads')
+    await mkdir(dirname(storagePath()), {recursive: true})
+    const db = new DatabaseSync(storagePath())
+    OPENCODE_TABLES.forEach((table) => db.exec(table))
+    db.prepare('insert into session (id, directory, title, time_created, time_updated) values (?,?,?,?,?)').run(
+      sessionId,
+      cwd,
+      'Tail reads',
+      1,
+      2,
+    )
+    const message = db.prepare(
+      'insert into message (id, session_id, time_created, time_updated, data) values (?,?,?,?,?)',
+    )
+    const part = db.prepare(
+      'insert into part (id, message_id, session_id, time_created, time_updated, data) values (?,?,?,?,?,?)',
+    )
+    Array.from({length: TURNS}, (_, turn) => turn).forEach((turn) => {
+      const stamp = 1_000 + Math.floor(turn / 3)
+      const role = turn % 2 === 0 ? 'user' : 'assistant'
+      message.run(`msg_${String(turn).padStart(4, '0')}`, sessionId, stamp, stamp, record({role}))
+      part.run(
+        `prt_${turn}_a`,
+        `msg_${String(turn).padStart(4, '0')}`,
+        sessionId,
+        stamp,
+        stamp,
+        record({type: 'text', text: `${role} ${turn}`}),
+      )
+      if (turn % 5 !== 0)
+        part.run(
+          `prt_${turn}_b`,
+          `msg_${String(turn).padStart(4, '0')}`,
+          sessionId,
+          stamp,
+          stamp,
+          record({type: 'reasoning', text: `why ${turn}`}),
+        )
+    })
+    db.close()
+    const history = opencode.history
+    const pages = await pagesFrom((before) => history.tail(cwd, sessionId, {limit: LIMIT, before}))
+    expect(pages).toHaveLength(TURNS / LIMIT)
+    expect(pages.flatMap((page) => page.messages)).toEqual(await history.messages(cwd, sessionId))
+    await expect(
+      history.tail(cwd, sessionId, {limit: LIMIT, before: null, signal: AbortSignal.abort()}),
+    ).rejects.toMatchObject({name: 'AbortError'})
   })
 })
 

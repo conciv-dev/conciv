@@ -12,6 +12,8 @@ import type {
   HarnessSessionPage,
   HarnessSessionSummary,
   TranscriptHandle,
+  TranscriptPage,
+  TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {getSessionInfo, listSessions as listSdkSessions, type SDKSessionInfo} from '@anthropic-ai/claude-agent-sdk'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
@@ -22,6 +24,7 @@ import {realpathOrSelf} from '../_shared/cwd.js'
 import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
+import {tailLines} from '../_shared/tail-lines.js'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 function encodeProjectDir(cwd: string): string {
@@ -175,7 +178,6 @@ const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
 type ClaudeFold = {
   messages: ChatMessage[]
   openAssistantId: string | null
-  count: number
   title: string | null
   lastText: string | null
   model: string | null
@@ -187,7 +189,6 @@ function emptyFold(): ClaudeFold {
   return {
     messages: [],
     openAssistantId: null,
-    count: 0,
     title: null,
     lastText: null,
     model: null,
@@ -232,22 +233,11 @@ function foldPreview(state: ClaudeFold, spoken: ChatPart[] | null, fromUser: boo
   state.lastText = condense(text, MAX_PREVIEW)
 }
 
-function pushMessage(
-  state: ClaudeFold,
-  role: 'user' | 'assistant',
-  parts: ChatPart[],
-  nativeId: string | undefined,
-): void {
-  state.count += 1
-  state.messages.push({id: nativeId ?? `h${state.count}`, role, parts})
+function pushMessage(state: ClaudeFold, role: 'user' | 'assistant', parts: ChatPart[], nativeId: string): void {
+  state.messages.push({id: nativeId, role, parts})
 }
 
-function foldUserTurn(
-  state: ClaudeFold,
-  parts: ChatPart[],
-  human: ChatPart[] | null,
-  nativeId: string | undefined,
-): void {
+function foldUserTurn(state: ClaudeFold, parts: ChatPart[], human: ChatPart[] | null, nativeId: string): void {
   const results = parts.filter((p) => p.type === 'tool-result')
   const lastAssistant = state.messages.findLast((m) => m.role === 'assistant')
   if (lastAssistant) lastAssistant.parts.push(...results)
@@ -256,12 +246,7 @@ function foldUserTurn(
   pushMessage(state, 'user', human, nativeId)
 }
 
-function foldAssistantTurn(
-  state: ClaudeFold,
-  claudeId: string | undefined,
-  parts: ChatPart[],
-  nativeId: string | undefined,
-): void {
+function foldAssistantTurn(state: ClaudeFold, claudeId: string | undefined, parts: ChatPart[], nativeId: string): void {
   const open = state.messages.at(-1)
   if (claudeId && claudeId === state.openAssistantId && open?.role === 'assistant') {
     open.parts.push(...parts)
@@ -271,30 +256,36 @@ function foldAssistantTurn(
   pushMessage(state, 'assistant', parts, nativeId)
 }
 
-function foldUserRecord(state: ClaudeFold, record: TranscriptRecord): void {
+function foldUserRecord(state: ClaudeFold, record: TranscriptRecord, offset: number): void {
   const parts = partsFrom(record.message?.content)
   const human = humanMessageParts(record, parts)
   foldPreview(state, human, true)
   if (parts.length === 0 || isInternal(parts)) return
-  foldUserTurn(state, parts, human, record.uuid)
+  foldUserTurn(state, parts, human, record.uuid ?? `o${offset}`)
 }
 
-function foldAssistantRecord(state: ClaudeFold, record: TranscriptRecord): void {
+function foldAssistantRecord(state: ClaudeFold, record: TranscriptRecord, offset: number): void {
   const parts = partsFrom(record.message?.content)
   foldPreview(state, parts, false)
   if (parts.length === 0 || isInternal(parts)) return
-  foldAssistantTurn(state, record.message?.id, parts, record.uuid)
+  foldAssistantTurn(state, record.message?.id, parts, record.uuid ?? `o${offset}`)
 }
 
-function foldRecord(state: ClaudeFold, record: TranscriptRecord): void {
+function foldRecord(state: ClaudeFold, record: TranscriptRecord, offset: number): void {
   if (record.type === 'user') {
-    foldUserRecord(state, record)
+    foldUserRecord(state, record, offset)
     return
   }
-  if (record.type === 'assistant') foldAssistantRecord(state, record)
+  if (record.type === 'assistant') foldAssistantRecord(state, record, offset)
 }
 
-function foldLine(state: ClaudeFold, line: string): ClaudeFold {
+function conversationRecord(raw: unknown): TranscriptRecord | null {
+  const parsed = TranscriptRecordSchema.safeParse(raw)
+  if (!parsed.success || parsed.data.isSidechain === true) return null
+  return parsed.data
+}
+
+function foldLine(state: ClaudeFold, line: string, offset: number): ClaudeFold {
   const trimmed = line.trim()
   if (!trimmed) return state
   const raw = parseJsonOrNull(trimmed)
@@ -302,12 +293,17 @@ function foldLine(state: ClaudeFold, line: string): ClaudeFold {
   const parsed = TranscriptRecordSchema.safeParse(raw)
   if (parsed.success && parsed.data.isSidechain === true) return state
   foldFacts(state, raw)
-  if (parsed.success) foldRecord(state, parsed.data)
+  if (parsed.success) foldRecord(state, parsed.data, offset)
   return state
 }
 
 function foldTranscript(jsonl: string): ClaudeFold {
-  return jsonl.split('\n').reduce(foldLine, emptyFold())
+  const folded = {state: emptyFold(), offset: 0}
+  for (const line of jsonl.split('\n')) {
+    folded.state = foldLine(folded.state, line, folded.offset)
+    folded.offset += Buffer.byteLength(line) + 1
+  }
+  return folded.state
 }
 
 function foldMessages(state: ClaudeFold): ChatMessage[] {
@@ -452,8 +448,50 @@ async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatM
   return folded === null ? [] : folded.messages
 }
 
+type TurnLine = {line: string; offset: number; human: boolean; results: boolean; assistant: boolean}
+
+function turnLine(line: string, offset: number): TurnLine | null {
+  const record = conversationRecord(parseJsonOrNull(line.trim()))
+  if (record === null || (record.type !== 'user' && record.type !== 'assistant')) return null
+  const parts = partsFrom(record.message?.content)
+  if (parts.length === 0 || isInternal(parts)) return null
+  if (record.type === 'assistant') return {line, offset, human: false, results: false, assistant: true}
+  const results = parts.some((part) => part.type === 'tool-result')
+  return {line, offset, human: humanMessageParts(record, parts) !== null, results, assistant: false}
+}
+
+function turnScanner(): (line: string, offset: number) => {line: TurnLine; boundary: boolean; first: false} | null {
+  const later = {orphanResults: false}
+  return (line, offset) => {
+    const turn = turnLine(line, offset)
+    if (turn === null) return null
+    const boundary = turn.human && !turn.results && !later.orphanResults
+    if (turn.assistant) later.orphanResults = false
+    if (turn.results) later.orphanResults = true
+    return {line: turn, boundary, first: false}
+  }
+}
+
+const ByteCursorSchema = z.string().regex(/^\d+$/).transform(Number)
+
+async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+  const end = options.before === null ? null : ByteCursorSchema.safeParse(options.before)
+  if (!withinProject(cwd, sessionId) || end?.success === false) return {messages: [], earlier: null}
+  const page = tailLines({
+    path: transcriptPath(cwd, sessionId),
+    end: end?.data ?? null,
+    limit: options.limit,
+    signal: options.signal,
+    scan: turnScanner(),
+    fold: (lines) => lines.reduce((state, turn) => foldLine(state, turn.line, turn.offset), emptyFold()).messages,
+    cursor: (turn) => String(turn.offset),
+  })
+  return page.catch(whenMissing({messages: [], earlier: null}))
+}
+
 export const claudeHistory: HarnessHistory = {
   messages: transcriptMessages,
+  tail: transcriptTail,
   observe: observeTranscript,
   transcriptPath,
   transcriptRoot,

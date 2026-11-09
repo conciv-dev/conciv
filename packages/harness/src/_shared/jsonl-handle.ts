@@ -14,7 +14,7 @@ const NEWLINE = 0x0a
 
 export type JsonlParser<State> = {
   empty(): State
-  foldLine(state: State, line: string): State
+  foldLine(state: State, line: string, offset: number): State
   messages(state: State): ChatMessage[]
 }
 
@@ -129,7 +129,10 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
       const buffer = await readBytes(found.path, state.offset, found.info.size - state.offset)
       if ('ok' in buffer) return buffer
       const complete = completeLines(buffer)
-      for (const line of complete.text.split('\n')) state.fold = source.parser.foldLine(state.fold, line)
+      complete.text.split('\n').reduce((offset, line) => {
+        state.fold = source.parser.foldLine(state.fold, line, offset)
+        return offset + Buffer.byteLength(line) + 1
+      }, state.offset)
       state.offset += complete.bytes
       return {ok: true, ...revisionOf(found.info), messages: source.parser.messages(state.fold), replaced}
     },

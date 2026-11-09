@@ -14,7 +14,9 @@ import type {
   TranscriptChunk,
   TranscriptFailure,
   TranscriptHandle,
+  TranscriptPage,
   TranscriptRevision,
+  TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
@@ -52,6 +54,7 @@ const SessionRowSchema = z
   .loose()
 
 const DataRowSchema = z.object({id: z.string(), data: z.string()}).loose()
+const StampedRowSchema = DataRowSchema.extend({time_created: z.number()})
 const PartRowSchema = z.object({message_id: z.string(), data: z.string()}).loose()
 const StatRowSchema = z.object({latest: z.number().nullish(), parts: z.number().nullish()}).loose()
 
@@ -112,6 +115,10 @@ const LIST_SESSIONS =
   'select * from session where (? is null or directory = ?) and time_archived is null and (? is null or (coalesce(time_updated, 0), id) < (?, ?)) order by coalesce(time_updated, 0) desc, id desc limit ?'
 const MESSAGES_OF = 'select id, data from message where session_id = ? order by time_created asc, id asc'
 const PARTS_OF = 'select message_id, data from part where session_id = ? order by time_created asc, id asc'
+const TAIL_MESSAGES =
+  'select id, data, time_created from message where session_id = ? and (? is null or (time_created, id) < (?, ?)) order by time_created desc, id desc limit ?'
+const TAIL_PARTS =
+  'select message_id, data from part where session_id = ? and message_id in (select value from json_each(?)) order by time_created asc, id asc'
 const STAT_OF =
   'select (select max(time_updated) from message where session_id = ?) as latest, (select count(*) from part where session_id = ?) as parts'
 
@@ -148,6 +155,38 @@ async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatM
     const messageRows = rowsOf(DataRowSchema, db.prepare(MESSAGES_OF).all(sessionId))
     const partRows = rowsOf(PartRowSchema, db.prepare(PARTS_OF).all(sessionId))
     return buildMessages(messageRows, partRows)
+  })
+}
+
+const RowCursorSchema = z
+  .string()
+  .regex(/^\d+:.+$/)
+  .transform((cursor) => {
+    const separator = cursor.indexOf(':')
+    return {created: Number(cursor.slice(0, separator)), id: cursor.slice(separator + 1)}
+  })
+
+async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+  options.signal?.throwIfAborted()
+  const cursor = options.before === null ? null : RowCursorSchema.safeParse(options.before)
+  return withDatabase<TranscriptPage>({messages: [], earlier: null}, (db) => {
+    const session = sessionRow(db, sessionId)
+    if (!session || !sameCwd(session.directory, cwd) || cursor?.success === false) return {messages: [], earlier: null}
+    const created = cursor?.data.created ?? null
+    const rows = rowsOf(
+      StampedRowSchema,
+      db.prepare(TAIL_MESSAGES).all(sessionId, created, created, cursor?.data.id ?? null, options.limit + 1),
+    )
+    const kept = rows.slice(0, options.limit).toReversed()
+    const oldest = kept.at(0)
+    const partRows = rowsOf(
+      PartRowSchema,
+      db.prepare(TAIL_PARTS).all(sessionId, JSON.stringify(kept.map((row) => row.id))),
+    )
+    return {
+      messages: buildMessages(kept, partRows),
+      earlier: rows.length > options.limit && oldest !== undefined ? `${oldest.time_created}:${oldest.id}` : null,
+    }
   })
 }
 
@@ -278,6 +317,7 @@ function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
 
 export const opencodeHistory: HarnessHistory = {
   messages: transcriptMessages,
+  tail: transcriptTail,
   observe: observeTranscript,
   list: listSessions,
   meta: storedMeta,

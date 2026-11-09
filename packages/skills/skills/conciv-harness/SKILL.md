@@ -243,12 +243,13 @@ with different rooting rules.
 ## HarnessHistory: reading the CLI's own transcript
 
 Required whenever `capabilities.transcriptHistory: true`. The contract
-(`packages/protocol/src/harness-types.ts:151-166`) has three required methods, several optional
+(`packages/protocol/src/harness-types.ts:151-166`) has five required methods, several optional
 refinements, and one all-or-nothing pair:
 
 ```ts
 export type HarnessHistory = HarnessTranscriptPaths & {
   messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
   observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
   nameFromTranscript?(raw: string): string | null
@@ -259,8 +260,11 @@ export type HarnessHistory = HarnessTranscriptPaths & {
 }
 ```
 
-`messages()`, `observe()`, and `list()` are the required minimum: parse the CLI's own on-disk
-transcript into `ChatMessage[]`, return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
+`messages()`, `tail()`, `observe()`, and `list()` are the required minimum: parse the CLI's own on-disk
+transcript into `ChatMessage[]`, read one page back from the end (`{limit, before, signal}` to
+`{messages, earlier}`, with an opaque cursor; build it on `tailLines` from
+`packages/harness/src/_shared/tail-lines.ts` for a JSONL transcript, so a page costs its own size
+and its ids match `messages()`), return a live-tailing `TranscriptHandle` (`revision()/read()/close()`)
 for streaming updates into an open chat pane, and enumerate past sessions for a cwd. `HarnessTranscriptPaths`
 (`packages/protocol/src/harness-types.ts:143-149`) is a union, not two loose optionals: declare BOTH
 `transcriptPath` and `transcriptRoot` or neither, because core resolves one against the other and

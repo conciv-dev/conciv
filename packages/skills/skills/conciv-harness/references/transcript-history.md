@@ -55,7 +55,7 @@ this `(cwd, sessionId)`, read it, `raw.split('\n').reduce(foldLine, emptySpine()
 ```ts
 export type JsonlParser<State> = {
   empty(): State
-  foldLine(state: State, line: string): State
+  foldLine(state: State, line: string, offset: number): State
   messages(state: State): UIMessage[]
 }
 export type JsonlSource<State> = {

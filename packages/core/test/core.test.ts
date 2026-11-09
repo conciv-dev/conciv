@@ -376,6 +376,7 @@ describe('chat plane', () => {
           native.reads += 1
           return native.messages
         },
+        tail: async () => ({messages: native.messages, earlier: null}),
         observe: () => ({
           revision: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
           read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
