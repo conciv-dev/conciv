@@ -127,11 +127,12 @@ async function underLease(
   const started =
     (bin: string | undefined) =>
     (pid: number): string | null => {
+      const name = bin ?? 'agent CLI'
       try {
-        withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))
-        return null
+        if (withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))) return null
+        return `conciv lost the ${name} lease to another connect or disconnect; try again`
       } catch (error) {
-        return `conciv could not record the ${bin ?? 'agent CLI'} process in its home db: ${String(error)}`
+        return `conciv could not record the ${name} process in its home db: ${String(error)}`
       }
     }
   try {

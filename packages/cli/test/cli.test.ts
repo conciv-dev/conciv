@@ -1382,6 +1382,23 @@ describe('cli', () => {
       },
     )
 
+    it('an agent CLI whose lease was taken over meanwhile is refused, so it never runs untracked', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const overtaken = createHubConnections(home, async (argv, options) => {
+        withHomeDb(home, (db) =>
+          takeHubOperation(db, {harness: 'claude', pid: process.pid, childPid: null, startedAt: 1}, () => true),
+        )
+        const refused = options.started(process.pid)
+        if (refused === null) return {ok: true, output: '', message: ''}
+        return {ok: false, output: '', message: refused}
+      })
+      expect(await overtaken.connect('claude', ['conciv'])).toEqual({
+        ok: false,
+        message: 'conciv lost the claude lease to another connect or disconnect; try again',
+      })
+      expect(overtaken.list()).toEqual([])
+    })
+
     it.skipIf(process.getuid?.() === 0)(
       'an unreadable home fails closed: no generation, and connect answers instead of throwing',
       async () => {

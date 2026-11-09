@@ -107,8 +107,8 @@ export function takeHubOperation(db: HomeDb, operation: HubOperation, stale: (he
   }, IMMEDIATE)
 }
 
-export function markHubOperationChild(db: HomeDb, operation: HubOperation, childPid: number): void {
-  db.update(hubOperations).set({childPid}).where(sameOperation(operation)).run()
+export function markHubOperationChild(db: HomeDb, operation: HubOperation, childPid: number): boolean {
+  return Number(db.update(hubOperations).set({childPid}).where(sameOperation(operation)).run().changes) > 0
 }
 
 export function endHubOperation(db: HomeDb, operation: HubOperation): void {
