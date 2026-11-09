@@ -23,7 +23,7 @@ export type BootCoreInput = {
   text?: string
   resume?: boolean
   displayName?: string
-  connect?: boolean
+  resumeBin?: string
   history?: FixtureSession[]
   holdTranscripts?: boolean
   commands?: HarnessCommand[]
@@ -139,13 +139,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     alternates: input.alternates,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
-    ...(input.connect
-      ? {
-          tty: {
-            command: (context) => ({bin: 'claude', args: ['--resume', context.harnessSessionId ?? 'new'], env: {}}),
-          },
-        }
-      : {}),
+    resumeBin: input.resumeBin,
   })
   holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit

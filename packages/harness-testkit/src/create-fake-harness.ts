@@ -85,8 +85,8 @@ function buildAdapter(
   base: Omit<typeof BASE_CAPABILITIES, 'resume'> & {resume: boolean},
   history: HarnessHistory | undefined,
   commands: HarnessCommand[] | undefined,
+  resume: HarnessResume,
 ): HarnessAdapter {
-  const resume: HarnessResume = {command: ({nativeId}) => ({bin: shared.id, args: ['--resume', nativeId]})}
   const listCommands = commands ? () => Promise.resolve(commands) : undefined
   if (history && listCommands) {
     return defineHarness({
@@ -128,6 +128,7 @@ export function createFakeHarness(
     commands?: HarnessCommand[]
     history?: FixtureSession[]
     tty?: {command(ctx: HarnessConnectContext): TtyCommand}
+    resumeBin?: string
   } = {},
 ): FakeHarness {
   const id = opts.id ?? 'fake-harness'
@@ -147,6 +148,7 @@ export function createFakeHarness(
     capabilities,
     opts.history ? fixtureHistory(opts.history, transcripts) : undefined,
     opts.commands,
+    {command: ({nativeId}) => ({bin: opts.resumeBin ?? id, args: ['--resume', nativeId]})},
   )
   return Object.assign(adapter, {script: scripted, transcripts})
 }

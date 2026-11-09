@@ -344,6 +344,14 @@ describe('create fake harness', () => {
       })
       expect(createFakeHarness().resume).toBeUndefined()
     })
+
+    it('resumes with the bin a fixture names', () => {
+      const harness = createFakeHarness({id: 'fake-claude', history: [], resumeBin: 'claude'})
+      expect(harness.resume?.command({cwd: '/elsewhere', nativeId: HarnessSessionId.parse('away-1')})).toEqual({
+        bin: 'claude',
+        args: ['--resume', 'away-1'],
+      })
+    })
   })
 
   describe('createFakeHarness tty', () => {
