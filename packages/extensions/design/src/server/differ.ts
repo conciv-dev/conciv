@@ -67,9 +67,12 @@ export function createDiffer(input: {
         image: at({list: query.image, index: 0}),
         document: at({list: query.document, index: 0}),
       }
-      const known = await store.current(session)
-      if (known !== null && sameRef({record: known, query: one, cwd: runtime.cwd}))
-        return stored({runtime, record: known})
+      const held = (await store.list()).filter((record) => record.session === session)
+      const current = await store.current(session)
+      const known = [...(current === null ? [] : [current]), ...held].find((record) =>
+        sameRef({record, query: one, cwd: runtime.cwd}),
+      )
+      if (known !== undefined) return stored({runtime, record: known})
       const record = await registered({runtime, query: one, session, page: access})
       return stored({runtime, record})
     },
