@@ -44,61 +44,6 @@ function legacyHistoryRows(db: ConcivDb, sessionId: string) {
   return db.select().from(sessionHistory).where(eq(sessionHistory.sessionId, sessionId)).all()
 }
 
-async function openInWorker(
-  opener: {module: string; open: string; folder: string},
-  barrier: SharedArrayBuffer,
-): Promise<unknown> {
-  const worker = new Worker(
-    `
-    const {existsSync} = require('node:fs')
-    const {registerHooks} = require('node:module')
-    const {fileURLToPath} = require('node:url')
-    const {parentPort, workerData} = require('node:worker_threads')
-    registerHooks({
-      resolve(specifier, context, next) {
-        const source = context.parentURL && specifier.startsWith('.') && new URL(specifier.replace(/\\.js$/, '.ts'), context.parentURL)
-        if (source && existsSync(fileURLToPath(source))) return next(source.href, context)
-        return next(specifier, context)
-      },
-    })
-    const gate = new Int32Array(workerData.barrier)
-    import(workerData.module).then((module) => {
-      Atomics.add(gate, 0, 1)
-      Atomics.notify(gate, 0)
-      for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
-      try {
-        const db = module[workerData.open](workerData.folder)
-        parentPort.postMessage({migrations: db.$client.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get().count})
-        db.$client.close()
-      } catch (error) {
-        parentPort.postMessage({error: String(error)})
-      }
-    })
-    `,
-    {eval: true, workerData: {...opener, barrier}},
-  )
-  const signal = AbortSignal.timeout(10_000)
-  try {
-    const [[message]] = await Promise.all([once(worker, 'message', {signal}), once(worker, 'exit', {signal})])
-    return message
-  } finally {
-    await worker.terminate()
-  }
-}
-
-async function openTwiceAtOnce(
-  opener: (folder: string) => {module: string; open: string; folder: string},
-): Promise<unknown[]> {
-  const rounds = await Promise.all(
-    Array.from({length: 8}, async () => {
-      const target = opener(join(mkdtempSync(join(tmpdir(), 'conciv-race-')), 'state'))
-      const barrier = new SharedArrayBuffer(4)
-      return Promise.all([openInWorker(target, barrier), openInWorker(target, barrier)])
-    }),
-  )
-  return rounds.flat()
-}
-
 describe('capture queries', () => {
   function side(kind: ElementCaptureKind, name: string, cssBundleId = 'cssabc'): ElementCapture {
     return {
@@ -793,3 +738,58 @@ describe('home db', () => {
     throw new Error('expected a throw')
   }
 })
+
+async function openInWorker(
+  opener: {module: string; open: string; folder: string},
+  barrier: SharedArrayBuffer,
+): Promise<unknown> {
+  const worker = new Worker(
+    `
+    const {existsSync} = require('node:fs')
+    const {registerHooks} = require('node:module')
+    const {fileURLToPath} = require('node:url')
+    const {parentPort, workerData} = require('node:worker_threads')
+    registerHooks({
+      resolve(specifier, context, next) {
+        const source = context.parentURL && specifier.startsWith('.') && new URL(specifier.replace(/\\.js$/, '.ts'), context.parentURL)
+        if (source && existsSync(fileURLToPath(source))) return next(source.href, context)
+        return next(specifier, context)
+      },
+    })
+    const gate = new Int32Array(workerData.barrier)
+    import(workerData.module).then((module) => {
+      Atomics.add(gate, 0, 1)
+      Atomics.notify(gate, 0)
+      for (let seen = Atomics.load(gate, 0); seen < 2; seen = Atomics.load(gate, 0)) Atomics.wait(gate, 0, seen)
+      try {
+        const db = module[workerData.open](workerData.folder)
+        parentPort.postMessage({migrations: db.$client.prepare('SELECT count(*) AS count FROM __drizzle_migrations').get().count})
+        db.$client.close()
+      } catch (error) {
+        parentPort.postMessage({error: String(error)})
+      }
+    })
+    `,
+    {eval: true, workerData: {...opener, barrier}},
+  )
+  const signal = AbortSignal.timeout(10_000)
+  try {
+    const [[message]] = await Promise.all([once(worker, 'message', {signal}), once(worker, 'exit', {signal})])
+    return message
+  } finally {
+    await worker.terminate()
+  }
+}
+
+async function openTwiceAtOnce(
+  opener: (folder: string) => {module: string; open: string; folder: string},
+): Promise<unknown[]> {
+  const rounds = await Promise.all(
+    Array.from({length: 8}, async () => {
+      const target = opener(join(mkdtempSync(join(tmpdir(), 'conciv-race-')), 'state'))
+      const barrier = new SharedArrayBuffer(4)
+      return Promise.all([openInWorker(target, barrier), openInWorker(target, barrier)])
+    }),
+  )
+  return rounds.flat()
+}

@@ -5,7 +5,7 @@ import type {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {migrations} from './migrations.gen.js'
 import {importLegacyThreads} from './chat-thread-import.js'
-import {openMigratedDb} from './migrated-db.js'
+import {openMigratedDb} from './open/migrated-db.js'
 import {importLegacyRuns, markRunningRunsDetached} from './run-migrations.js'
 
 export type ConcivDb = ReturnType<typeof drizzle>
