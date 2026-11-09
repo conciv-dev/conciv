@@ -13,14 +13,16 @@ from the previous PR (`useScope('conciv').settings`). Everything settings-specif
 Layout reference: `docs/specs/settings-page-variant-a.html` (top tabs, all options of a tab visible together,
 no drill-in). Behaviour reference: Devframe's built-in settings view
 (`packages/hub-ui/src/client/components/views-builtin/ViewBuiltinSettings.vue` and its `Settings*.vue` tabs in
-`/Users/omrikatz/Public/web/_ref/devframe`, read via `git show origin/main:<path>`), but with routes instead of
+`_ref/devframe`, read via `git show origin/main:<path>`), but with routes instead of
 local tab state.
 
 ## Routes
 
 - `/panel/$sessionId/settings` layout route: header (title, close back to chat), the tab list, `<Outlet />`.
-- `/panel/$sessionId/settings/` index redirects (replace) to the first tab.
-- One child route per tab: `settings/appearance`, `settings/views`, `settings/shortcuts`, `settings/advanced`.
+- `/panel/$sessionId/settings/` index redirects (replace) to the tab last entered in this browser
+  (`readLastTab()`, written by each tab route's `onEnter`), falling back to `general`.
+- One child route per tab: `settings/general`, `settings/views`, `settings/shortcuts`, `settings/advanced`, plus
+  `settings/advanced/reset` for the Reset all confirm dialog.
 - The tab list is the kit `Tabs` driven by the route: `value` = matched child route, selecting a tab navigates
   (the same pattern as the view tabs in `apps/conciv/src/pane/status-bar.tsx`). Arrow keys move between tabs;
   Back/Forward walk tab history; a reload lands on the same tab.
