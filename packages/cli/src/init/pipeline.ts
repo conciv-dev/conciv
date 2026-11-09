@@ -69,12 +69,14 @@ export type InitResult =
   | {outcome: 'planned'; plan: string}
   | {outcome: 'completed'; steps: LedgerEntry[]; next: string[]}
 
+type SpawnOptions = {timeout: number; started: (pid: number) => void}
+
 export type SpawnBin = (
   bin: string,
   args: string[],
   cwd: string,
   onLine: (line: string) => void,
-  timeout?: number,
+  options?: SpawnOptions,
 ) => Promise<{code: number; output: string}>
 
 export type InitRuntime = {
@@ -95,9 +97,9 @@ function spawnBin(
   args: string[],
   cwd: string,
   onLine: (line: string) => void,
-  timeout?: number,
+  options?: SpawnOptions,
 ): Promise<CommandOutcome> {
-  return execFileOutcome(bin, args, {cwd, timeout}, onLine)
+  return execFileOutcome(bin, args, {cwd, timeout: options?.timeout, started: options?.started}, onLine)
 }
 
 function defaultRuntime(): InitRuntime {

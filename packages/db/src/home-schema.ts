@@ -15,6 +15,7 @@ export const hubRevocations = sqliteTable('hub_revocations', {
 export const hubOperations = sqliteTable('hub_operations', {
   harness: text('harness').primaryKey(),
   pid: integer('pid').notNull(),
+  childPid: integer('child_pid'),
   startedAt: integer('started_at').notNull(),
 })
 

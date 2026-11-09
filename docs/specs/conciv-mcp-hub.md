@@ -370,8 +370,8 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   - opencode: `opencode mcp add conciv-hub --env=K=V -- <command>`
 - `hub.remove` (argv, optional): when the add reports the entry already exists, the installer runs remove then add so
   the entry pins this engine's home. claude `claude mcp remove -s user conciv-hub`, codex `codex mcp remove conciv-hub`,
-  gemini-cli `gemini mcp remove -s user conciv-hub`; opencode has no non-interactive remove, so an existing opencode
-  entry still counts as connected.
+  gemini-cli `gemini mcp remove -s user conciv-hub`; opencode has no non-interactive remove, so a connect that finds
+  an existing opencode entry keeps it and records the connection.
   - pi: no `hub` field.
 - Which harnesses to list: `detectHarnesses` (`packages/harness-init/src/detect.ts`, bin on PATH or config dir)
   minus those with a `hub_connections` row. Served by its own procedure `meta.hubAgents` as `{installs, connections}`
@@ -409,7 +409,8 @@ engine answering them and makes the user click Allow again.
 - Disconnect: delete the row FIRST (the gate then refuses the agent, whatever its config says) and, in the same
   home db transaction, bump the home's hub generation (an autoincrement row in `hub_revocations`); then run
   `hub.remove` best-effort. Every agent CLI change (add, remove) runs under a per-harness `hub_operations` lease
-  (pid + start time, stale after 60 s or when the pid is gone); a connect that finds a live lease answers "<Name>
+  (owner pid + start time, plus the pid of the agent CLI it spawned; stale after 10 minutes, or once both pids are
+  gone, so a remove orphaned by a killed owner still holds the lease until it exits); a connect that finds a live lease answers "<Name>
   is still being (dis)connected; try again in a moment", and a connect only records its row when the generation
   has not moved since it started, so neither a slow remove nor a slow add can undo a later change.
   Revocation is lazy and home-wide (decided 2026-11-08, PR #775 review): an Allow is kept per tab (or per

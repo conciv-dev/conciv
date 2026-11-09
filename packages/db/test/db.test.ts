@@ -599,11 +599,11 @@ describe('home db', () => {
   it('leases one harness config change at a time, takes over a stale lease, and ends only its own', () => {
     const home = freshHome()
     withHomeDb(home, (db) => {
-      const first = {harness: 'claude', pid: 1, startedAt: 10}
-      const second = {harness: 'claude', pid: 2, startedAt: 20}
+      const first = {harness: 'claude', pid: 1, childPid: null, startedAt: 10}
+      const second = {harness: 'claude', pid: 2, childPid: null, startedAt: 20}
       expect(takeHubOperation(db, first, () => false)).toBe(true)
       expect(takeHubOperation(db, second, () => false)).toBe(false)
-      expect(takeHubOperation(db, {harness: 'codex', pid: 2, startedAt: 20}, () => false)).toBe(true)
+      expect(takeHubOperation(db, {harness: 'codex', pid: 2, childPid: null, startedAt: 20}, () => false)).toBe(true)
       expect(takeHubOperation(db, second, (held) => held.pid === 1)).toBe(true)
       endHubOperation(db, first)
       expect(takeHubOperation(db, first, () => false)).toBe(false)
@@ -617,8 +617,8 @@ describe('home db', () => {
     withHomeDb(home, (db) => {
       const other = new DatabaseSync(join(home, 'home.db'), {timeout: 0})
       const raced: string[] = []
-      expect(takeHubOperation(db, {harness: 'claude', pid: 1, startedAt: 10}, () => false)).toBe(true)
-      const taken = takeHubOperation(db, {harness: 'claude', pid: 2, startedAt: 20}, () => {
+      expect(takeHubOperation(db, {harness: 'claude', pid: 1, childPid: null, startedAt: 10}, () => false)).toBe(true)
+      const taken = takeHubOperation(db, {harness: 'claude', pid: 2, childPid: null, startedAt: 20}, () => {
         try {
           other.exec('INSERT INTO hub_revocations DEFAULT VALUES')
           raced.push('written')

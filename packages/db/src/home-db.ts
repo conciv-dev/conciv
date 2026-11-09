@@ -1,4 +1,4 @@
-import {chmodSync, existsSync, lstatSync, mkdirSync} from 'node:fs'
+import {chmodSync, lstatSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {and, eq, isNull, max} from 'drizzle-orm'
@@ -46,7 +46,7 @@ export function withHomeDb<T>(home: string, run: (db: HomeDb) => T): T {
 }
 
 export function readHomeDb<T>(home: string, run: (db: HomeDb) => T): T | null {
-  if (!existsSync(join(home, 'home.db'))) return null
+  if (lstatSync(join(home, 'home.db'), {throwIfNoEntry: false}) === undefined) return null
   return withHomeDb(home, run)
 }
 
@@ -66,7 +66,7 @@ export function listEngines(db: HomeDb): EngineRow[] {
     .all()
 }
 
-export type HubOperation = {harness: string; pid: number; startedAt: number}
+export type HubOperation = {harness: string; pid: number; childPid: number | null; startedAt: number}
 
 export function recordHubConnection(
   db: HomeDb,
@@ -98,22 +98,21 @@ export function takeHubOperation(db: HomeDb, operation: HubOperation, stale: (he
     if (held !== undefined && !stale(held)) return false
     tx.insert(hubOperations)
       .values(operation)
-      .onConflictDoUpdate({target: hubOperations.harness, set: {pid: operation.pid, startedAt: operation.startedAt}})
+      .onConflictDoUpdate({
+        target: hubOperations.harness,
+        set: {pid: operation.pid, childPid: operation.childPid, startedAt: operation.startedAt},
+      })
       .run()
     return true
   }, IMMEDIATE)
 }
 
+export function markHubOperationChild(db: HomeDb, operation: HubOperation, childPid: number): void {
+  db.update(hubOperations).set({childPid}).where(sameOperation(operation)).run()
+}
+
 export function endHubOperation(db: HomeDb, operation: HubOperation): void {
-  db.delete(hubOperations)
-    .where(
-      and(
-        eq(hubOperations.harness, operation.harness),
-        eq(hubOperations.pid, operation.pid),
-        eq(hubOperations.startedAt, operation.startedAt),
-      ),
-    )
-    .run()
+  db.delete(hubOperations).where(sameOperation(operation)).run()
 }
 
 export function hubConnections(db: HomeDb): Array<{harness: string; connectedAt: number}> {
@@ -178,5 +177,13 @@ function currentGeneration(db: Pick<HomeDb, 'select'>): number {
       .select({generation: max(hubRevocations.generation)})
       .from(hubRevocations)
       .get()?.generation ?? 0
+  )
+}
+
+function sameOperation(operation: HubOperation) {
+  return and(
+    eq(hubOperations.harness, operation.harness),
+    eq(hubOperations.pid, operation.pid),
+    eq(hubOperations.startedAt, operation.startedAt),
   )
 }

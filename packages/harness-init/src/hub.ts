@@ -4,6 +4,7 @@ import {
   endHubOperation,
   hubConnections,
   lastHubRevocation,
+  markHubOperationChild,
   readHomeDb,
   recordHubConnection,
   removeHubConnection,
@@ -27,7 +28,11 @@ type HubConnection = {harness: InitHarnessId; name: string; connectedAt: number}
 
 type RunOutcome = {ok: boolean; output: string; message: string}
 
-type Run = (argv: string[], timeout: number) => Promise<RunOutcome>
+type RunOptions = {timeout: number; started: (pid: number) => void}
+
+type Run = (argv: string[], options: RunOptions) => Promise<RunOutcome>
+
+type LeasedRun = (argv: string[]) => Promise<RunOutcome>
 
 type Hub = {remove?: string[]}
 
@@ -42,21 +47,19 @@ export function createHubConnections(home: string, run: Run = runFile) {
   return {
     list,
     generation: (): number | null => {
-      try {
-        return readHomeDb(home, lastHubRevocation) ?? 0
-      } catch {
-        return null
-      }
+      const current = generationOf(home)
+      return current.ok ? current.generation : null
     },
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
-      const generation = readHomeDb(home, lastHubRevocation) ?? 0
-      const install = () =>
-        installHub(hub, hub.add(command, {CONCIV_HOME: home}), run, () =>
-          recordSince(home, harness, hub.name, generation),
+      const current = generationOf(home)
+      if (!current.ok) return current
+      const install = (leased: LeasedRun) =>
+        installHub(hub, hub.add(command, {CONCIV_HOME: home}), leased, () =>
+          recordSince(home, harness, hub.name, current.generation),
         )
-      const outcome = await underLease(home, harness, install)
+      const outcome = await underLease(home, harness, run, install)
       return outcome === BUSY ? {ok: false, message: `${busy(hub.name)}; try again in a moment`} : outcome
     },
     disconnect: async (harness: InitHarnessId): Promise<HubOutcome> => {
@@ -71,7 +74,7 @@ export function createHubConnections(home: string, run: Run = runFile) {
           note: `${hub.name} keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.`,
         }
       }
-      const outcome = await underLease(home, harness, () => uninstallHub(hub.name, remove, run))
+      const outcome = await underLease(home, harness, run, (leased) => uninstallHub(hub.name, remove, leased))
       if (outcome !== BUSY) return outcome
       return {
         ok: true,
@@ -91,20 +94,20 @@ export function createHubConnections(home: string, run: Run = runFile) {
   }
 }
 
-async function installHub(hub: Hub, add: string[], run: Run, record: () => HubOutcome): Promise<HubOutcome> {
-  const added = await run(add, RUN_TIMEOUT_MS)
+async function installHub(hub: Hub, add: string[], run: LeasedRun, record: () => HubOutcome): Promise<HubOutcome> {
+  const added = await run(add)
   if (added.ok) return record()
   if (!ALREADY_EXISTS.test(added.output)) return {ok: false, message: added.message}
   if (hub.remove === undefined) return record()
-  const removed = await run(hub.remove, RUN_TIMEOUT_MS)
+  const removed = await run(hub.remove)
   if (!removed.ok) return {ok: false, message: removed.message}
-  const replaced = await run(add, RUN_TIMEOUT_MS)
+  const replaced = await run(add)
   if (!replaced.ok) return {ok: false, message: replaced.message}
   return record()
 }
 
-async function uninstallHub(name: string, remove: string[], run: Run): Promise<HubOutcome> {
-  const removed = await run(remove, RUN_TIMEOUT_MS)
+async function uninstallHub(name: string, remove: string[], run: LeasedRun): Promise<HubOutcome> {
+  const removed = await run(remove)
   if (removed.ok || ALREADY_REMOVED.test(removed.output)) return {ok: true}
   return {
     ok: true,
@@ -115,13 +118,21 @@ async function uninstallHub(name: string, remove: string[], run: Run): Promise<H
 async function underLease(
   home: string,
   harness: InitHarnessId,
-  change: () => Promise<HubOutcome>,
+  run: Run,
+  change: (leased: LeasedRun) => Promise<HubOutcome>,
 ): Promise<HubOutcome | typeof BUSY> {
-  const operation = {harness, pid: process.pid, startedAt: Date.now()}
+  const operation = {harness, pid: process.pid, childPid: null, startedAt: Date.now()}
   const taken = leaseOf(home, operation)
   if (!taken.ok) return taken.outcome
+  const started = (pid: number): void => {
+    try {
+      withHomeDb(home, (db) => markHubOperationChild(db, operation, pid))
+    } catch {
+      return
+    }
+  }
   try {
-    return await change()
+    return await change((argv) => run(argv, {timeout: RUN_TIMEOUT_MS, started}))
   } finally {
     withHomeDb(home, (db) => endHubOperation(db, operation))
   }
@@ -137,7 +148,8 @@ function leaseOf(home: string, operation: HubOperation): {ok: true} | {ok: false
 }
 
 function staleFor(now: number): (held: HubOperation) => boolean {
-  return (held) => !alive(held.pid) || now - held.startedAt > LEASE_CEILING_MS
+  return (held) =>
+    now - held.startedAt > LEASE_CEILING_MS || (!alive(held.pid) && (held.childPid === null || !alive(held.childPid)))
 }
 
 function alive(pid: number): boolean {
@@ -163,15 +175,24 @@ function readable(
   }
 }
 
-function runFile(argv: string[], timeout: number): Promise<RunOutcome> {
+function runFile(argv: string[], options: RunOptions): Promise<RunOutcome> {
   const [bin, ...args] = argv
   if (bin === undefined) return Promise.resolve({ok: false, output: '', message: 'the harness gave no command to run'})
   return new Promise((resolve) => {
-    execFile(bin, args, {timeout, env: process.env}, (error, stdout, stderr) => {
+    const child = execFile(bin, args, {timeout: options.timeout, env: process.env}, (error, stdout, stderr) => {
       const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
       resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
     })
+    if (child.pid !== undefined) options.started(child.pid)
   })
+}
+
+function generationOf(home: string): {ok: true; generation: number} | {ok: false; message: string} {
+  try {
+    return {ok: true, generation: readHomeDb(home, lastHubRevocation) ?? 0}
+  } catch (error) {
+    return {ok: false, message: `conciv could not reach its home db: ${String(error)}`}
+  }
 }
 
 function recordSince(home: string, harness: InitHarnessId, name: string, generation: number): HubOutcome {

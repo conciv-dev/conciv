@@ -1,7 +1,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
-import {execFile, execFileSync, spawnSync} from 'node:child_process'
+import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
@@ -28,7 +28,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
-import {takeHubOperation, withHomeDb} from '@conciv/db'
+import {recordHubConnection, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1334,24 +1334,51 @@ describe('cli', () => {
       expect(hub.list()).toMatchObject([{harness: 'claude'}])
     })
 
-    it('a lease lasts as long as the process holding it, up to a ten minute ceiling against pid reuse', async () => {
+    it('a lease lasts as long as its process or the agent CLI it spawned, up to a ten minute ceiling against pid reuse', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const leased = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
-      const lease = (pid: number, age: number) =>
+      const lease = (pid: number, childPid: number | null, age: number) =>
         withHomeDb(home, (db) =>
-          takeHubOperation(db, {harness: 'claude', pid, startedAt: Date.now() - age}, () => true),
+          takeHubOperation(db, {harness: 'claude', pid, childPid, startedAt: Date.now() - age}, () => true),
         )
+      const busy = {ok: false, message: 'Claude is still being (dis)connected; try again in a moment'}
       const exited = spawnSync('true').pid
-      lease(process.pid, 5 * 60_000)
-      expect(await leased.connect('claude', ['conciv'])).toEqual({
-        ok: false,
-        message: 'Claude is still being (dis)connected; try again in a moment',
-      })
-      lease(exited, 0)
-      expect(await leased.connect('claude', ['conciv'])).toEqual({ok: true})
-      lease(process.pid, 11 * 60_000)
-      expect(await leased.disconnect('claude')).toEqual({ok: true})
+      const orphan = spawn('sleep', ['60'])
+      try {
+        lease(process.pid, null, 5 * 60_000)
+        expect(await leased.connect('claude', ['conciv'])).toEqual(busy)
+        lease(exited, orphan.pid ?? exited, 0)
+        expect(await leased.connect('claude', ['conciv'])).toEqual(busy)
+        lease(exited, exited, 0)
+        expect(await leased.connect('claude', ['conciv'])).toEqual({ok: true})
+        lease(process.pid, orphan.pid ?? exited, 11 * 60_000)
+        expect(await leased.disconnect('claude')).toEqual({ok: true})
+      } finally {
+        orphan.kill()
+      }
     })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable home fails closed: no generation, and connect answers instead of throwing',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+        const unreadable = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
+        try {
+          chmodSync(join(home, 'home.db'), 0o000)
+          expect(await unreadable.connect('claude', ['conciv'])).toMatchObject({
+            ok: false,
+            message: expect.stringContaining('conciv could not reach its home db'),
+          })
+          chmodSync(join(home, 'home.db'), 0o600)
+          chmodSync(home, 0o000)
+          expect(unreadable.generation()).toBeNull()
+        } finally {
+          chmodSync(home, 0o700)
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
 
     it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
       const {home, mcp} = fakeClaude()
