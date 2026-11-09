@@ -98,3 +98,26 @@ public surface unchanged.
   (publint + attw), fallow audit clean, affected e2e green, storybook build, site snippet
   regeneration identical.
 - Before/after wall time of the full typecheck recorded in the PR body.
+
+## Results
+
+Same machine (12 cores), cold: every `*.tsbuildinfo` and `packages/**/dist` deleted, and turbo pointed
+at an empty `TURBO_CACHE_DIR` per run (no `--force`). The set is
+`--filter='./packages/*' --filter='./packages/extensions/*' --filter='./apps/*'` at
+`TURBO_CONCURRENCY=70%`, measured with `/usr/bin/time -l`. The typecheck run includes the
+dependency builds it waits on (all 96 tasks were cache misses in both runs). RSS is the largest
+single process.
+
+Caveat: other worktrees were running suites the whole time. Load average was about 64 when sampled
+during the TS6 runs and 87 to 137 during the TS7 runs, so wall time is not comparable between the
+two columns. User CPU and RSS are the reliable comparison.
+
+| Measure                                                          | TS6 (main toolchain)                     | TS7 (this branch)                     |
+| ---------------------------------------------------------------- | ---------------------------------------- | ------------------------------------- |
+| Build, 47 tasks: wall / user / max RSS                           | 465.2 s / 363.0 s / 3.61 GB              | 1154.5 s / 247.8 s / 1.51 GB          |
+| Typecheck incl. builds, 96 tasks: wall / user / max RSS          | 618.0 s / 777.2 s / 3.10 GB              | 1131.1 s / 369.7 s / 1.30 GB          |
+| `tsc -p packages/core/tsconfig.json --noEmit`, 3 cold runs: wall | 26.5 s, 20.2 s, 25.4 s                   | 17.8 s, 24.9 s, 24.1 s                |
+| same: user / max RSS                                             | 11.4, 10.2, 10.6 s / 0.88, 0.72, 0.74 GB | 6.9, 6.7, 6.8 s / 0.98, 0.81, 0.90 GB |
+
+The TS7 typecheck run had one failing task (`site#typecheck`, see the twoslash note in the report);
+it ran to completion with `--continue`.
