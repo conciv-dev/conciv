@@ -104,7 +104,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsdown --config tsdown.react.config.ts",
+    "build": "tsdown && tsdown --config tsdown.solid-source.config.ts && tsdown --config tsdown.react.config.ts && tsc -p tsconfig.build.json && tsc -p tsconfig.react.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p src/react/tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests && playwright test",

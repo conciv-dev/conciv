@@ -4,7 +4,7 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: false,
   external: [/^@conciv\//, 'react'],
   banner: {js: "'use client';"},
 })

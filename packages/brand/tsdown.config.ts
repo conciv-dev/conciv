@@ -5,7 +5,7 @@ export default defineConfig({
   tsconfig: 'tsconfig.react.json',
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: false,
   clean: false,
   external: [/^@conciv\//, 'react', /^motion/],
   banner: {js: "'use client';"},

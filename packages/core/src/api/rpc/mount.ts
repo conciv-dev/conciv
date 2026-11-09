@@ -1,4 +1,4 @@
-import {implement, ORPCError, os as plainOs} from '@orpc/server'
+import {implement, ORPCError, os as plainOs, type Implementer} from '@orpc/server'
 import {contract} from '@conciv/contract'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, isSessionId, SessionId} from '@conciv/protocol/chat-types'
@@ -45,7 +45,7 @@ export type RpcDeps = {
   assist: (sessionId: SessionId) => readonly ConcivServerTool[]
 }
 
-export const os = implement(contract).$context<RpcContext>()
+export const os: Implementer<typeof contract, RpcContext, RpcContext> = implement(contract).$context<RpcContext>()
 
 function headerSessionId(context: RpcContext): SessionId | null {
   const raw = rpcHeader(context, CONCIV_SESSION_HEADER)?.trim()
@@ -70,7 +70,7 @@ export function callerScope(deps: RpcDeps, context: RpcContext): SessionScope {
 
 const NamedSessionSchema = z.object({sessionId: SessionId})
 
-export function makeSessionOs(deps: RpcDeps) {
+export function makeSessionOs(deps: RpcDeps): SessionOs {
   return os.use(async ({context, next, signal}) => {
     const scope = callerScope(deps, context)
     await admitHubCaller(deps, context, scope, signal)
@@ -116,6 +116,6 @@ async function admitHubCaller(
   if (refusal !== null) throw new ORPCError('APPROVAL_DENIED', {message: refusal})
 }
 
-export type SessionOs = ReturnType<typeof makeSessionOs>
+export type SessionOs = ReturnType<typeof os.use<{session: SessionScope}>>
 
 export type CompositeRpcRouter = CompositeRouterOf<ReturnType<typeof makeRpcRouter>>

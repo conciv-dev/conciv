@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && chmod +x dist/bin.js",
+    "build": "tsdown && chmod +x dist/bin.js && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",

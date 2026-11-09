@@ -73,14 +73,14 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
     })
     .get('/xray/list', servePage)
     .get('/xray/capture', servePage)
-    .get('/xray/:asset{.+}', (c) => {
+    .get('/xray/:asset{.+}', async (c) => {
       const asset = NonEmptySchema.safeParse(c.req.param('asset'))
       if (!asset.success) return c.text('not found', 404)
       const path = resolve(root, asset.data)
       if (!inside({dir: root, path})) return c.text('not found', 404)
       return fileResponse(path)
     })
-    .get('/files/:file{.+}', (c) => {
+    .get('/files/:file{.+}', async (c) => {
       const file = NonEmptySchema.safeParse(c.req.param('file'))
       if (!file.success) return c.text('not found', 404)
       const path = resolve(cwd, file.data)

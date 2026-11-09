@@ -26,7 +26,7 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   unbundle: true,
-  dts: true,
+  dts: false,
   plugins: [solidPlugin()],
   external: ['solid-js', /^solid-js\//],
 })

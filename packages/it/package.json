@@ -23,33 +23,33 @@
   "type": "module",
   "exports": {
     "./plugin/vite": {
-      "types": "./dist/vite.d.ts",
+      "types": "./dist/plugin/vite.d.ts",
       "import": "./dist/vite.js"
     },
     "./plugin/webpack": {
-      "types": "./dist/webpack.d.ts",
+      "types": "./dist/plugin/webpack.d.ts",
       "import": "./dist/webpack.js"
     },
     "./plugin/rspack": {
-      "types": "./dist/rspack.d.ts",
+      "types": "./dist/plugin/rspack.d.ts",
       "import": "./dist/rspack.js"
     },
     "./plugin/rollup": {
-      "types": "./dist/rollup.d.ts",
+      "types": "./dist/plugin/rollup.d.ts",
       "import": "./dist/rollup.js"
     },
     "./plugin/esbuild": {
-      "types": "./dist/esbuild.d.ts",
+      "types": "./dist/plugin/esbuild.d.ts",
       "import": "./dist/esbuild.js"
     },
     "./plugin/nextjs": {
-      "types": "./dist/nextjs.d.ts",
+      "types": "./dist/plugin/nextjs.d.ts",
       "edge-light": "./dist/nextjs-edge.js",
       "import": "./dist/nextjs.js",
       "default": "./dist/nextjs.js"
     },
     "./plugin/nextjs/widget": {
-      "types": "./dist/nextjs-widget.d.ts",
+      "types": "./dist/plugin/nextjs-widget.d.ts",
       "import": "./dist/nextjs-widget.js",
       "default": "./dist/nextjs-widget.js"
     }
@@ -58,7 +58,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint --ignore-pattern 'test/fixtures/design/host/**' --ignore-pattern 'test/fixtures/design/provenance/**'",
     "publint": "publint",

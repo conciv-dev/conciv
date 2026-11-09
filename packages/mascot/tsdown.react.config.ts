@@ -6,7 +6,7 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   unbundle: true,
-  dts: true,
+  dts: false,
   clean: false,
   tsconfig: 'src/react/tsconfig.json',
   external: ['react', /^react\//, /^react-dom/, /^\.\.\//],

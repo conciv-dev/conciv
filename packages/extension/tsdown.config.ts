@@ -13,6 +13,6 @@ export default defineConfig({
   ],
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: false,
   plugins: [Solid()],
 })
