@@ -258,7 +258,7 @@ function anchorOf(input: {node: DesignNode; vote: Vote; from?: DesignNode}): Anc
 }
 
 function underAnchor(input: {vote: Vote; element: Element; anchor: Anchor}): boolean {
-  if (directlyUnder(input)) return true
+  if (input.vote.parents.get(input.anchor.node.id) === null || directlyUnder(input)) return true
   const above = twinAbove({vote: input.vote, anchor: input.anchor})
   return above !== null && underAnchor({...input, anchor: above})
 }
