@@ -680,6 +680,25 @@ describe('catalog walk', () => {
     expect((await named('Far')).props).toBe('see file')
   })
 
+  it('lists no component reached through two bare imports', async () => {
+    const {components} = await scanOf(HOST_ROOT)
+    expect(components.filter((component) => component.specifier.startsWith('@ark-ui'))).toEqual([])
+    expect((await named('Slider')).pkg).toBe('@conciv/ui-kit-system')
+  })
+
+  it('takes one sentence from a README line that names the component', async () => {
+    const sentence = (await named('Tooltip')).sentence ?? ''
+    expect([sentence.includes('. '), sentence.startsWith('Source of')]).toEqual([false, false])
+  })
+
+  it('gives every usage on one line without conciv stamps', async () => {
+    const usages = (await scanOf(HOST_ROOT)).components.flatMap((component) =>
+      component.usage === null ? [] : [component.usage],
+    )
+    expect(usages.length).toBeGreaterThan(0)
+    expect(usages.filter((usage) => usage.includes('data-conciv-') || usage.includes('\n'))).toEqual([])
+  })
+
   it('keeps the line range of the defining export, relative to the project root', async () => {
     const page = await named('XrayPage')
     expect([page.file, page.lines]).toEqual(['src/XrayPage.tsx', {start: 5, end: 16}])
@@ -741,8 +760,7 @@ describe('catalog store', () => {
   it('ranks prefer first, then on page, then imports', async () => {
     const {catalog} = await openCatalog()
     await catalog.flag('Kbd', 'prefer')
-    const segments = await catalog.show('SegmentGroup')
-    const ranked = await catalog.list({live: [`${segments.file}:${segments.lines.start}:1`]})
+    const ranked = await catalog.list({live: ['src/XrayPage.tsx:8:7']})
     expect(ranked.slice(0, 2).map((component) => [component.names[0], component.flag, component.onPage])).toEqual([
       ['Kbd', 'prefer', 0],
       ['SegmentGroup', null, 1],
@@ -769,6 +787,20 @@ describe('catalog store', () => {
     expect([tierOf('SegmentGroup'), tierOf('XrayPage')]).toEqual(['kit', 'app'])
   })
 
+  it('tiers a folder whose name only contains ui as app', async () => {
+    const {catalog} = await openCatalog()
+    expect((await catalog.list({})).find((component) => component.names.includes('Thing'))?.tier).toBe('app')
+  })
+
+  it('names the component rendered at a source line and counts it on the page', async () => {
+    const {catalog} = await openCatalog()
+    const stat = 'src/XrayPage.tsx:11:7'
+    expect((await catalog.componentOf(stat))?.names).toEqual(['Stat', 'StatCard'])
+    const ranked = await catalog.list({live: [stat]})
+    expect(ranked.find((component) => component.names.includes('Stat'))?.onPage).toBe(1)
+    expect(ranked.find((component) => component.names.includes('XrayPage'))?.onPage).toBe(0)
+  })
+
   it('names the component of a source line on a fresh home without a list first', async () => {
     const {catalog} = await openCatalog()
     expect((await catalog.componentOf('src/Stat.tsx:4:3'))?.names).toEqual(['Stat', 'StatCard'])
@@ -777,7 +809,7 @@ describe('catalog store', () => {
   it('names the component whose export holds a source line', async () => {
     const {catalog} = await openCatalog()
     await catalog.scanIfStale()
-    expect((await catalog.componentOf('src/XrayPage.tsx:9:9'))?.names).toEqual(['XrayPage'])
+    expect((await catalog.componentOf('src/XrayPage.tsx:7:5'))?.names).toEqual(['XrayPage'])
     expect(await catalog.componentOf('src/XrayPage.tsx:2:1')).toBeNull()
     expect(await catalog.componentOf('index.html:3:1')).toBeNull()
   })
@@ -807,11 +839,11 @@ describe('design_components', () => {
   it('leaves a do-not-use component out of the list', async () => {
     const slider = "import {Slider} from '@conciv/ui-kit-system'"
     expect((await call('design_components', {})).text).toContain(slider)
-    await call('design_components', {flag: {name: 'Slider', flag: 'do-not-use'}})
+    await call('design_components', {doNotUse: 'Slider'})
     try {
       expect((await call('design_components', {})).text).not.toContain(slider)
     } finally {
-      await call('design_components', {flag: {name: 'Slider', flag: 'clear'}})
+      await call('design_components', {clear: 'Slider'})
     }
   })
 

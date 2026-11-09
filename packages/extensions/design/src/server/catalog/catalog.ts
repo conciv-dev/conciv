@@ -1,6 +1,6 @@
 import {and, desc, eq} from 'drizzle-orm'
-import {countBy, minBy, takeRightWhile, uniq, uniqBy} from 'es-toolkit'
-import {componentFlags, components, componentScans, type HomeDb} from '@conciv/db'
+import {countBy, groupBy, minBy, takeRightWhile, uniq, uniqBy} from 'es-toolkit'
+import {componentFlags, components, componentScans, componentSites, type HomeDb} from '@conciv/db'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {
   CatalogSchemas,
@@ -42,12 +42,20 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
       tx.delete(components)
         .where(and(eq(components.project, key), eq(components.tree, cwd)))
         .run()
-      scan.components.forEach((component) =>
-        tx
-          .insert(components)
+      tx.delete(componentSites)
+        .where(and(eq(componentSites.project, key), eq(componentSites.tree, cwd)))
+        .run()
+      scan.components.forEach(({sites, ...component}) => {
+        tx.insert(components)
           .values({...component, project: key, tree: cwd, imports: imports[component.file] ?? 0, scannedAt: at})
-          .run(),
-      )
+          .run()
+        sites.forEach((site) =>
+          tx
+            .insert(componentSites)
+            .values({project: key, tree: cwd, componentId: component.id, ...site})
+            .run(),
+        )
+      })
       tx.insert(componentScans)
         .values({
           project: key,
@@ -61,18 +69,33 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
     })
   }
 
-  async function rows() {
+  async function rows(): Promise<Counted[]> {
     const key = await project
+    const sites = groupBy(
+      home
+        .select()
+        .from(componentSites)
+        .where(and(eq(componentSites.project, key), eq(componentSites.tree, cwd)))
+        .all(),
+      (site) => site.componentId,
+    )
     return home
       .select()
       .from(components)
       .where(and(eq(components.project, key), eq(components.tree, cwd)))
       .all()
+      .map((row) => ({
+        ...CatalogSchemas.Component.parse({
+          ...row,
+          sites: (sites[row.id] ?? []).map((site) => ({file: site.file, line: site.line})),
+        }),
+        imports: row.imports,
+      }))
   }
 
   async function named(name: string): Promise<Component> {
     await scanIfStale()
-    const found = (await rows()).map((row) => CatalogSchemas.Component.parse(row))
+    const found = await rows()
     const component =
       found.find((candidate) => candidate.names[0] === name) ??
       found.find((candidate) => candidate.names.includes(name))
@@ -87,9 +110,9 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
       const key = await project
       const flags = home.select().from(componentFlags).where(eq(componentFlags.project, key)).all()
       return rankComponents({
-        components: (await rows()).map((row) => ({...CatalogSchemas.Component.parse(row), imports: row.imports})),
+        components: await rows(),
         flags: new Map(flags.map((flag) => [flag.componentId, flag.flag])),
-        live: (query.live ?? []).map((source) => located(source).file),
+        live: (query.live ?? []).map(located),
       })
     },
     async show(name) {
@@ -126,15 +149,22 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
     async componentOf(source) {
       await scanIfStale()
       const {file, line} = located(source)
-      const holding = (await rows())
-        .map((row) => CatalogSchemas.Component.parse(row))
-        .filter((component) => component.file === file && component.lines.start <= line && line <= component.lines.end)
+      const found = await rows()
+      const rendered = found.find((component) =>
+        component.sites.some((site) => site.file === file && site.line === line),
+      )
+      if (rendered !== undefined) return rendered
+      const holding = found.filter(
+        (component) => component.file === file && component.lines.start <= line && line <= component.lines.end,
+      )
       return minBy(holding, (component) => component.lines.end - component.lines.start) ?? null
     },
   }
 }
 
 type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
+
+type Counted = Component & {imports: number}
 
 const CLEAR = 'clear'
 const SOURCE_SEPARATOR = ':'

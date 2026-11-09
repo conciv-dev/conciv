@@ -21,7 +21,13 @@ export function parseModule(input: {file: string; source: string}): ParsedModule
   const {file, source} = input
   const parsed = parseSync(file, source, {sourceType: 'module'})
   const program = parsed.program
-  const marks = collectMarks({program, source, declarations: file.endsWith('.d.ts') || file.endsWith('.d.mts')})
+  const starts = lineStarts(source)
+  const marks = collectMarks({
+    program,
+    source,
+    starts,
+    declarations: file.endsWith('.d.ts') || file.endsWith('.d.mts'),
+  })
   const statements = program.body.flatMap((statement) => topLevel({statement, source}))
   const values = statements.flatMap((statement) => statement.values)
   const rendering = spread({
@@ -30,7 +36,6 @@ export function parseModule(input: {file: string; source: string}): ParsedModule
     rendering: new Set(values.filter((value) => marked(value, marks)).map((value) => value.name)),
   })
   const imports = program.body.flatMap((statement) => requests(statement))
-  const starts = lineStarts(source)
   return {
     imports: [...imports.filter((request) => !request.reexport).map((request) => request.value), ...marks.dynamic],
     reexports: imports.filter((request) => request.reexport).map((request) => request.value),
@@ -71,7 +76,7 @@ type Binding = {local: string; imported: string; request: string}
 
 type ExportFact = {name: string; local: string | null; request: string | null; imported: string | null}
 
-type JsxUse = {tag: string; start: number; end: number; text: string}
+type JsxUse = {tag: string; start: number; end: number; line: number; text: string}
 
 type Marks = {
   markup: number[]
@@ -92,6 +97,7 @@ const MARKUP_TAGS = new Set(['html', 'svg'])
 const MARKUP_TYPE_SUFFIXES = ['Element', 'Component']
 const DEFAULT_EXPORT = 'default'
 const ALL_EXPORTS = '*'
+const STAMP_PREFIX = 'data-conciv-'
 
 function lineStarts(source: string): number[] {
   return source.split('\n').reduce(
@@ -107,14 +113,18 @@ function lineAt(starts: number[], offset: number): number {
   return starts.findLastIndex((start) => start <= offset) + 1
 }
 
-function collectMarks(input: {program: Program; source: string; declarations: boolean}): Marks {
+function collectMarks(input: {program: Program; source: string; starts: number[]; declarations: boolean}): Marks {
   const marks: Marks = {markup: [], refs: [], elements: [], dynamic: [], title: null}
+  const tagged: {tag: string; start: number; end: number}[] = []
+  const stamps: Span[] = []
   new Visitor({
     JSXElement: (node) => {
       marks.markup.push(node.start)
       const tag = tagRoot(node.openingElement.name)
-      if (tag !== null)
-        marks.elements.push({tag, start: node.start, end: node.end, text: input.source.slice(node.start, node.end)})
+      if (tag !== null) tagged.push({tag, start: node.start, end: node.end})
+    },
+    JSXAttribute: (node) => {
+      if (node.name.type === 'JSXIdentifier' && node.name.name.startsWith(STAMP_PREFIX)) stamps.push(node)
     },
     JSXFragment: (node) => {
       marks.markup.push(node.start)
@@ -141,7 +151,26 @@ function collectMarks(input: {program: Program; source: string; declarations: bo
       if (node.value.type === 'Literal' && typeof node.value.value === 'string') marks.title = node.value.value
     },
   }).visit(input.program)
+  marks.elements = tagged.map((element) => ({
+    ...element,
+    line: lineAt(input.starts, element.start),
+    text: usageText({source: input.source, element, stamps}),
+  }))
   return marks
+}
+
+function usageText(input: {source: string; element: Span; stamps: Span[]}): string {
+  const {source, element} = input
+  const inside = input.stamps.filter((stamp) => stamp.start >= element.start && stamp.end <= element.end)
+  const pieces = [element.start, ...inside.flatMap((stamp) => [stamp.start, stamp.end]), element.end]
+  const kept = pieces.flatMap((start, index) => (index % 2 === 0 ? [source.slice(start, pieces[index + 1])] : []))
+  const joined = kept.map((piece, index) => (index === kept.length - 1 ? piece : piece.trimEnd())).join('')
+  return [...joined]
+    .map((char) => (char.trim() === '' ? ' ' : char))
+    .join('')
+    .split(' ')
+    .filter(Boolean)
+    .join(' ')
 }
 
 function topLevel(input: {statement: Statement; source: string}): TopLevel[] {

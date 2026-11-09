@@ -47,6 +47,15 @@ export const components = sqliteTable(
   (self) => [primaryKey({columns: [self.project, self.tree, self.id]})],
 )
 
+export const componentSites = sqliteTable('component_sites', {
+  seq: integer('seq').primaryKey({autoIncrement: true}),
+  project: text('project').notNull(),
+  tree: text('tree').notNull(),
+  componentId: text('component_id').notNull(),
+  file: text('file').notNull(),
+  line: integer('line').notNull(),
+})
+
 export const componentScans = sqliteTable('component_scans', {
   seq: integer('seq').primaryKey({autoIncrement: true}),
   project: text('project').notNull(),

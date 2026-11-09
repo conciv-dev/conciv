@@ -21,6 +21,9 @@ const ComponentSchema = z.object({
   usage: z.string().nullable().describe('the shortest story or call site that renders it'),
   story: z.string().nullable().describe('path of its stories file, relative to the project root'),
   lines: z.object({start: z.number(), end: z.number()}).describe('the 1-based lines of the defining statement'),
+  sites: z
+    .array(z.object({file: z.string(), line: z.number()}))
+    .describe('where the walked modules render it: the file relative to the project root and the 1-based line'),
 })
 
 const ModuleEdgeSchema = z.object({from: z.string(), to: z.string()})

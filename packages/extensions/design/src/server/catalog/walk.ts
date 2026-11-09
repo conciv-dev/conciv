@@ -23,7 +23,16 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
       frontier: starts.flatMap((start) =>
         start.path === undefined
           ? []
-          : [{file: start.path, via: null, root: root.root, resolver, packageJson: start.packageJsonPath ?? null}],
+          : [
+              {
+                file: start.path,
+                via: null,
+                depth: 0,
+                root: root.root,
+                resolver,
+                packageJson: start.packageJsonPath ?? null,
+              },
+            ],
       ),
       visited,
       disk,
@@ -53,7 +62,14 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
 
 type Parsed = ReturnType<typeof parseModule>
 
-type Item = {file: string; via: string | null; root: string; resolver: ResolverFactory; packageJson: string | null}
+type Item = {
+  file: string
+  via: string | null
+  depth: number
+  root: string
+  resolver: ResolverFactory
+  packageJson: string | null
+}
 
 type Visit = Item & {parsed: Parsed | null; resolved: Map<string, Resolved>}
 
@@ -74,6 +90,9 @@ const HTML_EXTENSION = '.html'
 const STORY_SUFFIXES = ['.stories.tsx', '.stories.ts', '.stories.jsx', '.stories.js']
 const SEE_FILE = 'see file'
 const ALL_EXPORTS = '*'
+const LISTED_DEPTH = 1
+const README_MARKS = ['#', '-', '*', '|']
+const SENTENCE_END = '. '
 
 const PackageSchema = z.object({name: z.string().nullable().catch(null), version: z.string().nullable().catch(null)})
 
@@ -88,6 +107,7 @@ async function crawl(input: {frontier: Item[]; visited: Map<string, Visit>; disk
       [...visit.resolved].map(([request, target]) => ({
         file: target.path,
         via: bare(request) ? request : visit.via,
+        depth: bare(request) ? visit.depth + 1 : visit.depth,
         root: visit.root,
         resolver: visit.resolver,
         packageJson: target.packageJson,
@@ -159,7 +179,7 @@ function attribute(node: HtmlNode, name: string): string | null {
 
 function definedIn(visit: Visit): Definition[] {
   const parsed = visit.parsed
-  if (parsed === null) return []
+  if (parsed === null || visit.depth > LISTED_DEPTH) return []
   return [...parsed.renders].flatMap((local) => {
     const names = parsed.exports.filter((fact) => fact.local === local).map((fact) => fact.name)
     if (names.length === 0) return []
@@ -192,7 +212,8 @@ async function component(input: {
     storyParsed?.title ??
     null
   const storyUses = (storyParsed?.elements ?? []).filter((element) => definition.names.includes(element.tag))
-  const uses = storyUses.length > 0 ? storyUses : callSites({file: visit.file, local: definition.local, visited})
+  const sites = callSites({file: visit.file, local: definition.local, visited})
+  const uses = storyUses.length > 0 ? storyUses : sites
   return {
     id: createHash('sha256')
       .update(dependency && pkg !== null ? `${pkg}@${version ?? ''}:${name}` : `${file}:${name}`)
@@ -208,6 +229,10 @@ async function component(input: {
     usage: minBy(outermost(uses), (use) => use.text.length)?.text ?? null,
     story: story === null ? null : relative(cwd, story.file),
     lines: parsed?.lines.get(definition.local) ?? {start: 0, end: 0},
+    sites: uniqBy(
+      sites.map((site) => ({file: relative(cwd, site.file), line: site.line})),
+      (site) => `${site.file}:${site.line}`,
+    ),
   }
 }
 
@@ -229,15 +254,19 @@ async function propsOf(input: {
   return types ?? SEE_FILE
 }
 
-function callSites(input: {file: string; local: string; visited: Map<string, Visit>}): Use[] {
+function callSites(input: {file: string; local: string; visited: Map<string, Visit>}): Site[] {
   const {file, local, visited} = input
   const key = definitionKey(file, local)
   return [...visited.values()].flatMap((visit) =>
-    (visit.parsed?.elements ?? []).filter((element) => elementTarget({visit, tag: element.tag, visited}) === key),
+    (visit.parsed?.elements ?? [])
+      .filter((element) => elementTarget({visit, tag: element.tag, visited}) === key)
+      .map((element) => ({...element, file: visit.file})),
   )
 }
 
-type Use = {start: number; end: number; text: string}
+type Use = {start: number; end: number; line: number; text: string}
+
+type Site = Use & {file: string}
 
 function elementTarget(input: {visit: Visit; tag: string; visited: Map<string, Visit>}): string | null {
   const {visit, tag, visited} = input
@@ -302,8 +331,33 @@ async function readmeLine(input: {dirs: string[]; names: string[]; disk: Storage
   )
   const line = readmes
     .flatMap((readme) => (readme === null ? [] : readme.split('\n')))
-    .find((candidate) => input.names.some((name) => candidate.includes(name)))
-  return line === undefined ? null : line.trim()
+    .map((candidate) => candidate.trim())
+    .find((candidate) => README_MARKS.some((mark) => candidate.startsWith(mark)) && namesWord(candidate, input.names))
+  if (line === undefined) return null
+  const marked = trimMarks(line)
+  const end = marked.indexOf(SENTENCE_END)
+  return end === -1 ? marked : marked.slice(0, end + 1)
+}
+
+function namesWord(line: string, names: string[]): boolean {
+  const words = new Set(
+    [...line]
+      .map((char) => (wordChar(char) ? char : ' '))
+      .join('')
+      .split(' '),
+  )
+  return names.some((name) => words.has(name))
+}
+
+function wordChar(char: string): boolean {
+  return char.toLowerCase() !== char.toUpperCase() || (char >= '0' && char <= '9') || char === '_' || char === '$'
+}
+
+function trimMarks(line: string): string {
+  const chars = [...line]
+  const start = chars.findIndex((char) => !README_MARKS.includes(char) && char.trim() !== '')
+  const end = chars.findLastIndex((char) => !README_MARKS.includes(char) && char.trim() !== '')
+  return start === -1 ? '' : chars.slice(start, end + 1).join('')
 }
 
 function packageFacts(input: {

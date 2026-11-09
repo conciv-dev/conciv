@@ -11,4 +11,5 @@ export const DESIGN_ERRORS = {
       'no way to read the Figma frame: set FIGMA_API_KEY for the engine, or fetch the frame with your Figma MCP and pass it as document together with its image',
   },
   'figma-request': {message: 'Figma did not answer the request'},
+  'no-component': {message: 'no component by that name in the catalog'},
 } satisfies ToolErrors

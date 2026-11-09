@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
-import type {Catalog, CatalogConfig, Component, NodeRef, PropSketch} from '../shared/catalog-defs.js'
+import type {Catalog, CatalogConfig, CatalogFlag, Component, NodeRef, PropSketch} from '../shared/catalog-defs.js'
 import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
 import {renderComponents} from './catalog/render-list.js'
 import {figmaRef} from './figma-ref.js'
@@ -123,7 +123,12 @@ type ComponentsInput = z.output<typeof componentsDef.inputSchema>
 
 async function listed(asked: {input: ComponentsInput; ctx: DesignContext; session: string}) {
   const {input, ctx, session} = asked
-  if (input.flag !== undefined) await ctx.catalog.flag(input.flag.name, input.flag.flag)
+  const marks = [
+    {name: input.prefer, flag: 'prefer'},
+    {name: input.doNotUse, flag: 'do-not-use'},
+    {name: input.clear, flag: 'clear'},
+  ] satisfies {name: string | undefined; flag: CatalogFlag}[]
+  await Promise.all(marks.flatMap((mark) => (mark.name === undefined ? [] : [ctx.catalog.flag(mark.name, mark.flag)])))
   if (input.show !== undefined) {
     const component = await ctx.catalog.show(input.show)
     return {text: shownText(component), component}

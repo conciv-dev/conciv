@@ -1,20 +1,16 @@
 import {z} from 'zod'
 import type {Storage} from 'unstorage'
 import type {HomeDb} from '@conciv/db'
-import type {ToolBuilder} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {defineTool} from '@conciv/extension/tool'
 import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
 import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
-import {DESIGN_ERRORS} from './errors.js'
+import {designTool} from './design-tool.js'
 import {componentsDef} from './components-def.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
-const DESIGN_EXTENSION_NAME = 'design'
-
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
@@ -410,47 +406,8 @@ const MeasureInputSchema = z.object({
   timeout: z.number().int().positive().optional(),
 })
 
-type DesignToolDef<Shape extends z.ZodRawShape, Out extends z.ZodType> = ToolBuilder<
-  string,
-  z.ZodObject<Shape>,
-  Out,
-  typeof DESIGN_ERRORS,
-  undefined,
-  unknown
->
-
-function designTool<Shape extends z.ZodRawShape, Out extends z.ZodType>(spec: {
-  verb: string
-  summary: string
-  running: string
-  done: string
-  input: z.ZodObject<Shape>
-  output: Out
-  keywords: readonly string[]
-  catalog?: boolean
-}): DesignToolDef<Shape, Out> {
-  return defineTool({
-    name: `${DESIGN_TOOL_PREFIX}${spec.verb}`,
-    description: spec.summary,
-    inputSchema: spec.input,
-    outputSchema: spec.output,
-    errors: DESIGN_ERRORS,
-    meta: {
-      summary: spec.summary,
-      category: DESIGN_EXTENSION_NAME,
-      icon: 'read',
-      label: {running: spec.running, done: spec.done},
-      hint: spec.summary,
-      mutating: false,
-      capture: 'none',
-      keywords: spec.keywords,
-      ...(spec.catalog === undefined ? {} : {catalog: spec.catalog}),
-    },
-  })
-}
-
 const getDef = designTool({
-  verb: 'get',
+  name: `${DESIGN_TOOL_PREFIX}get`,
   summary:
     'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design. With several links, one frame per width, each frame is registered and the reply holds one design per frame in variants.',
   running: 'Reading the design',
@@ -461,7 +418,7 @@ const getDef = designTool({
 })
 
 const checkDef = designTool({
-  verb: 'check',
+  name: `${DESIGN_TOOL_PREFIX}check`,
   summary:
     'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render or rendered under half the nodes of the last settled round; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round. With several frames each is measured at its width against its own nodes and the reply holds one result per frame in variants; done is every variant done.',
   running: 'Checking the page against the design',
@@ -472,7 +429,7 @@ const checkDef = designTool({
 })
 
 const statusDef = designTool({
-  verb: 'status',
+  name: `${DESIGN_TOOL_PREFIX}status`,
   summary:
     'Says where the page stands without measuring it: the verdict, counts, coverage and rows of the last design_check, or that there is none yet; with several frames, one per variant.',
   running: 'Reading the design status',
@@ -483,7 +440,7 @@ const statusDef = designTool({
 })
 
 const measureDef = designTool({
-  verb: 'measure',
+  name: `${DESIGN_TOOL_PREFIX}measure`,
   summary: 'measure the page at a width: components, pixels and how they were taken',
   running: 'Measuring the page',
   done: 'Measured the page',
@@ -494,7 +451,7 @@ const measureDef = designTool({
 })
 
 const shotsDef = designTool({
-  verb: 'shots',
+  name: `${DESIGN_TOOL_PREFIX}shots`,
   summary:
     'capture elements alone at a width, from the mirror when the width is not the tab width, each beside a reference',
   running: 'Capturing elements',
