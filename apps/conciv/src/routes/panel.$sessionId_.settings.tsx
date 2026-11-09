@@ -13,8 +13,8 @@ const HEADER = 'flex h-13 shrink-0 items-center gap-2 ps-5 pe-3 [border-block-en
 const TITLE =
   'flex-1 m-0 [font-family:var(--chat-font-display)] text-[0.9375rem] leading-[1.25] font-semibold tracking-[-0.012em] text-chat-text-hi'
 const CLOSE = 'size-8'
-const TAB_LIST = 'shrink-0 px-3 overflow-x-auto [scrollbar-width:none]'
-const TAB = 'min-h-10'
+const TAB_LIST = 'shrink-0 px-2 overflow-x-auto [scrollbar-width:none]'
+const TAB = 'min-h-10 !px-2'
 const PANEL = 'flex-1 min-h-0 overflow-y-auto p-4 !pt-4'
 
 type SettingsTab = {
@@ -36,7 +36,10 @@ function SettingsLayout(): JSX.Element {
   const params = Route.useParams()
   const navigate = Route.useNavigate()
   const matchRoute = useMatchRoute()
-  const matches = TABS.map((tab) => ({id: tab.id, match: matchRoute({from: Route.fullPath, to: `./${tab.id}`})}))
+  const matches = TABS.map((tab) => ({
+    id: tab.id,
+    match: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
+  }))
   const current = () => matches.find((entry) => entry.match())?.id ?? 'appearance'
   const select = (id: string) => {
     const tab = TABS.find((candidate) => candidate.id === id)
