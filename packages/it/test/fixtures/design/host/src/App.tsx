@@ -3,6 +3,7 @@ import {Cards} from './Cards'
 import {Stripe} from './Stripe'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
+import {XrayPage} from './XrayPage'
 
 const TARGET_ALIASES = new Set([
   'badge',
@@ -31,7 +32,7 @@ export function App() {
   document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
-  if (requested === 'xray') return <main className="xray" data-conciv-key="xRaYpG" />
+  if (requested === 'xray') return <XrayPage data-conciv-key="8prgZg" />
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
   if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />
