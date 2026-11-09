@@ -7,6 +7,7 @@ const PaintSchema = z.looseObject({
   visible: z.boolean().optional(),
   color: ColorSchema.optional(),
   opacity: z.number().optional(),
+  imageRef: z.string().optional(),
   gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
   gradientHandlePositions: z.array(PointSchema).optional(),
 })

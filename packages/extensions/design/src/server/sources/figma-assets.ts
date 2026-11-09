@@ -19,7 +19,11 @@ export async function figmaAssets(input: {
   const cached = await fromCache({...input, wanted})
   const fetched = cached === null ? await fromRest({...input, wanted}) : null
   const exported = cached ?? fetched?.files ?? new Map<string, Uint8Array>()
-  const crops = cropped({design, image: input.image, wanted: wanted.filter((entry) => !exported.has(entry.id))})
+  const crops = cropped({
+    design,
+    image: input.image,
+    wanted: wanted.filter((entry) => entry.ref === null && !exported.has(entry.id)),
+  })
   const files = new Map(
     wanted.flatMap((entry) => {
       const bytes = exported.get(entry.id)
@@ -44,7 +48,7 @@ export async function figmaAssets(input: {
   }
 }
 
-type Wanted = {id: string; ext: 'png' | 'svg'; box: DesignNode['box']}
+type Wanted = {id: string; ext: 'png' | 'svg'; box: DesignNode['box']; ref: string | null}
 
 const VECTORS = new Set(['VECTOR', 'BOOLEAN_OPERATION', 'STAR', 'LINE', 'ELLIPSE', 'REGULAR_POLYGON'])
 const GROUPS = new Set(['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT'])
@@ -52,19 +56,27 @@ const FIGMA_API = 'https://api.figma.com/v1'
 const PUBLIC_PREFIX = '/design/'
 const URI_TOO_LONG = 414
 const ImagesSchema = z.looseObject({images: z.record(z.string(), z.string().nullable())})
+const FillsSchema = z.looseObject({meta: z.looseObject({images: z.record(z.string(), z.string())})})
 
 function assetNodes(root: DesignNode): Wanted[] {
   const covered = new Set<string>()
-  return [...walk(root)].flatMap(({node, parent}) => {
+  return [...walk(root)].flatMap(({node, parent}): Wanted[] => {
     if (parent !== null && covered.has(parent.id)) {
       covered.add(node.id)
       return []
     }
+    const ref = backgroundOf(node)
+    if (ref !== null) return [{id: node.id, ext: 'png', box: node.figma?.box ?? node.box, ref}]
     const kind = assetKind(node)
     if (kind === null) return []
     covered.add(node.id)
-    return [{id: node.id, ext: kind, box: node.figma?.box ?? node.box}]
+    return [{id: node.id, ext: kind, box: node.figma?.box ?? node.box, ref: null}]
   })
+}
+
+function backgroundOf(node: DesignNode): string | null {
+  const ref = node.figma?.fields.imageRef
+  return typeof ref === 'string' && node.children.length > 0 ? ref : null
 }
 
 function assetKind(node: DesignNode): Wanted['ext'] | null {
@@ -119,9 +131,17 @@ async function fromRest(input: {
   if (fileKey === null) return {files: new Map(), reason: 'the design has no Figma file key'}
   if (token === null) return {files: new Map(), reason: 'no FIGMA_API_KEY'}
   const headers = {'X-Figma-Token': token}
-  const urls = new Map<string, string>()
+  const backgrounds = input.wanted.filter((entry) => entry.ref !== null)
+  const fills = backgrounds.length === 0 ? new Map<string, string>() : await fillUrls({fileKey, headers})
+  if (typeof fills === 'string') return {files: new Map(), reason: fills}
+  const urls = new Map(
+    backgrounds.flatMap((entry) => {
+      const url = entry.ref === null ? undefined : fills.get(entry.ref)
+      return url === undefined ? [] : [[entry.id, url] as const]
+    }),
+  )
   for (const ext of ['png', 'svg'] as const) {
-    const ids = input.wanted.filter((entry) => entry.ext === ext).map((entry) => entry.id)
+    const ids = input.wanted.filter((entry) => entry.ext === ext && entry.ref === null).map((entry) => entry.id)
     if (ids.length === 0) continue
     const query = ext === 'png' ? `format=png&scale=${design.scale}` : 'format=svg'
     const answer = await imageUrls({fileKey, ids, size: ids.length, query, headers})
@@ -160,6 +180,20 @@ async function imageUrls(input: {
   return found
 }
 
+async function fillUrls(input: {
+  fileKey: string
+  headers: Record<string, string>
+}): Promise<Map<string, string> | string> {
+  const response = await fetch(`${FIGMA_API}/files/${input.fileKey}/images`, {headers: input.headers}).catch(
+    (cause: unknown) => String(cause),
+  )
+  if (typeof response === 'string') return `Figma did not answer: ${response}`
+  if (!response.ok) return `Figma answered ${response.status} for the image fills`
+  const parsed = FillsSchema.safeParse(await response.json())
+  if (!parsed.success) return 'Figma answered the image fills in an unexpected shape'
+  return new Map(Object.entries(parsed.data.meta.images))
+}
+
 function cropped(input: {design: Design; image: Uint8Array; wanted: Wanted[]}): Map<string, Uint8Array> {
   const {design, wanted} = input
   if (wanted.length === 0) return new Map()
@@ -179,7 +213,10 @@ function withAssets(input: {node: DesignNode; paths: Map<string, string>}): Desi
   const {node, paths} = input
   const asset = paths.get(node.id)
   const facts = node.figma
-  if (asset === undefined || facts === undefined)
-    return {...node, children: node.children.map((child) => withAssets({node: child, paths}))}
-  return {...node, children: [], figma: {...facts, fields: {...facts.fields, asset}}}
+  const children = node.children.map((child) => withAssets({node: child, paths}))
+  if (facts === undefined) return {...node, children}
+  const {imageRef, ...fields} = facts.fields
+  if (asset === undefined) return {...node, children, figma: {...facts, fields}}
+  const kept = imageRef === undefined ? [] : children
+  return {...node, children: kept, figma: {...facts, fields: {...fields, asset}}}
 }

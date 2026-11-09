@@ -305,7 +305,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
       : LEAF_SHAPES.has(typed) && element.kids === 0
         ? PAIR.leafShapeBonus
         : 0
-  const image = node.figma?.fields.image === true && element.img ? PAIR.imageBonus : 0
+  const image = pictured(node) && element.img ? PAIR.imageBonus : 0
   const parent = anchor === null ? 0 : PAIR.parentBonus
   const dom = PAIR.overlapWeight * geo + textual + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
@@ -322,10 +322,13 @@ function kindOf(input: {node: DesignNode; element: Element}): number {
   const {node, element} = input
   const fit = (yes: boolean): number => (yes ? PAIR.elementKindWeight : -PAIR.elementKindWeight)
   if (node.kind === 'text') return fit(element.text !== '')
-  if (node.kind === 'image' || node.figma?.fields.image === true)
-    return fit(element.img || (element.kids === 0 && element.text === ''))
+  if (pictured(node)) return fit(element.img || (element.kids === 0 && element.text === ''))
   if (node.children.some((child) => child.implied !== true)) return fit(element.kids > 0 || element.text !== '')
   return 0
+}
+
+function pictured(node: DesignNode): boolean {
+  return node.kind === 'image' || (node.figma?.fields.image === true && node.children.length === 0)
 }
 
 function namedAs(input: {node: DesignNode; element: Element}): number {

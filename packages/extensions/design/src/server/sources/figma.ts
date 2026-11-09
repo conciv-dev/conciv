@@ -468,13 +468,14 @@ function boxNode(input: {node: FigmaNode; box: Box; origin: Origin; children: De
   const {node, box, origin, children} = input
   const {scale} = origin
   const paint = paintOf(node.fills ?? [])
+  const imageRef = children.length === 0 ? null : backgroundRef(node)
   const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
   const color = stroke?.color
   return {
     id: node.id,
     box,
     hash: '',
-    figma: figmaFacts({node, origin, marks: {image: imageFilled(node), crop: false}}),
+    figma: figmaFacts({node, origin, marks: {image: imageFilled(node) || imageRef !== null, crop: false, imageRef}}),
     kind: 'box',
     ...(paint === null ? {} : {paint}),
     ...autoLayout({node, scale}),
@@ -545,6 +546,11 @@ function cropped(node: FigmaNode): boolean {
 function imageFilled(node: FigmaNode): boolean {
   const fills = (node.fills ?? []).filter((paint) => paint.visible !== false)
   return fills.some((paint) => paint.type === 'IMAGE') && !fills.some((paint) => paint.type === 'SOLID')
+}
+
+function backgroundRef(node: FigmaNode): string | null {
+  const fill = (node.fills ?? []).find((paint) => paint.visible !== false && paint.type === 'IMAGE')
+  return fill?.imageRef ?? null
 }
 
 function solidFilled(node: FigmaNode): boolean {

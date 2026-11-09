@@ -3,7 +3,11 @@ import type {DesignNode} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {figmaSchemas} from './figma-schema.js'
 
-export function figmaFacts(input: {node: FigmaNode; origin: Origin; marks: {image: boolean; crop: boolean}}): Facts {
+export function figmaFacts(input: {
+  node: FigmaNode
+  origin: Origin
+  marks: {image: boolean; crop: boolean; imageRef?: string | null}
+}): Facts {
   const {node, origin, marks} = input
   const bounds = node.absoluteBoundingBox ?? {x: origin.x, y: origin.y, width: 0, height: 0}
   const mode = FLOWS.has(node.layoutMode ?? '') ? (node.layoutMode ?? null) : null
@@ -25,6 +29,7 @@ export function figmaFacts(input: {node: FigmaNode; origin: Origin; marks: {imag
     ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
     ...(marks.image ? {image: true} : {}),
     ...(marks.crop ? {crop: true} : {}),
+    ...(marks.imageRef === undefined || marks.imageRef === null ? {} : {imageRef: marks.imageRef}),
     ...tokensOf(node),
   }
   return {

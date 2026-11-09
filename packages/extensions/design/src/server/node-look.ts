@@ -109,7 +109,7 @@ function lookOf(input: {
     within: input.within,
     depth: input.depth,
     ...facts.box,
-    fill_kind: fillKind({image, type: fill?.type}),
+    fill_kind: fillKind({image: image && node.children.length === 0, type: fill?.type}),
     fill: fill?.color ?? first?.color ?? null,
     fill_opacity: fill?.opacity ?? null,
     stroke: stroke?.color ?? null,

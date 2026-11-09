@@ -25,12 +25,13 @@ export function documentOf(input: {target: string; design: Design; ids: IdTree |
 type Tagged = Got['nodes'][number]
 
 const NODE_FIELDS =
-  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node.'
+  'Every node has its id, type, name, within (the node it sits in), absolute box, fills, strokes, text, font and auto-layout fields, tokens: the design variables its fields are bound to, and asset: the file to show for an image or vector node, or the background picture of a frame that has children.'
 
 const RULES = [
   'The dev server stamps data-conciv-key attributes into your JSX as you save; keep them, never strip or rewrite them, and edit around them.',
   'Lay the page out with normal flow, flex and grid: no position absolute, no px width or height on containers or text; sizes come from content, gaps and flex/grid rules, percentages and ratios, so the page stays a page and reflows at other widths.',
-  'A node with asset renders that file (an <img src> for a png, an inline svg or an <img> for an svg) sized by its box ratio, and draws nothing else; never a data url, emoji or CSS shape.',
+  'A node with asset and no children renders that file (an <img src> for a png, an inline svg or an <img> for an svg) sized by its box ratio, and draws nothing else; never a data url, emoji or CSS shape.',
+  'A node with asset and children (image: true) is a box whose background-image is that file, covering the box: its children stay inside it and its fills paint over the picture.',
   'Every asset element gets its size from an aspect-ratio and a percentage width or flex-basis, never px.',
   'A node not marked image is a box: when it has a solid fill, that fill is its background, whether it is an icon, a logo, a dot or a drawing.',
   'A row whose auto-layout says wrap: WRAP keeps all its children on one line at the design width, exactly as the Figma frame shows them; it may wrap only when the viewport is narrower than the row is in the design, never at the design width.',

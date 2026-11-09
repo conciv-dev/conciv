@@ -28,9 +28,11 @@ export async function imageRowsOf(input: {
         magnitude: 'paint',
         token: null,
       })
-      const expected = `wrong image at [${look.node}]: ${look.asset} expected`
-      if (!references({shown: element.styles.image ?? '', asset: look.asset}))
-        return [Promise.resolve({row: row(`${expected}, ${foundIn(element)}`), ratio: null})]
+      const background = look.image && look.fill_kind !== IMAGE
+      const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
+      const shown = references({shown: element.styles.image ?? '', asset: look.asset})
+      if (!shown) return [Promise.resolve({row: row(`${expected}, ${foundIn(element)}`), ratio: null})]
+      if (background) return []
       return [
         captured({page, selector: named.selector, w: look.w, h: look.h, asset: look.asset}).then((ratio) => ({
           row: ratio === null || ratio > GATE ? row(expected) : null,
