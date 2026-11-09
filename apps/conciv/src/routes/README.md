@@ -18,7 +18,8 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `/panel/$sessionId/$view` (`panel.$sessionId.$view.tsx`): `PanelView`, an extension view plus its outlet
 - `/panel/$sessionId/$view/options` (`panel.$sessionId.$view.options.tsx`): the view with the session menu open; renders nothing
 - `/panel/$sessionId/settings` (`panel.$sessionId_.settings.tsx`): `SettingsLayout`, outside the session layout; header with a Back to chat button, kit `Tabs` driven by the matched child route (selecting a tab navigates and remembers the tab), top tabs on a narrow panel and a left rail from the `@lg` container size, with the tabs gliding between the two; footer shows the route; the index redirects to the last opened tab
-- `/panel/$sessionId/settings/general`, `/views`, `/shortcuts`, `/advanced` (`panel.$sessionId_.settings.<tab>.tsx`): one route per settings tab, each a `PreferencesForm`
+- `/panel/$sessionId/settings/general`, `/views`, `/shortcuts`, `/advanced` (`panel.$sessionId_.settings.<tab>.tsx`): one route per settings tab, each a `PreferencesForm`; Advanced also resets every extension's settings
+- `/panel/$sessionId/settings/extensions/$name` (`panel.$sessionId_.settings.extensions.$name.tsx`): the generated settings page of an extension that declares `settings`; its tab sits after Shortcuts with the extension's `icon` (else `Puzzle`)
 - `/quick` (`quick.tsx`): quick terminal layer, search `QuickSearchSchema` (`panes`, `focus`)
 - `/pip/$sessionId` (`pip.$sessionId.tsx`): `PipSession`, renders the session into a popup window
 - `panelHeightCap`, `defaultPanelHeight` (`panel-height.ts`): panel height from viewport, at most 750 px
@@ -28,6 +29,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `__root.tsx:Route.validateSearch`: `open` is either `true` or absent; a malformed `sessionSearch` or `allProjects` falls back to its default (zod `.catch`), and a digit-only term is coerced back to a string
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
+- `panel.$sessionId_.settings.extensions.$name.tsx:Route.beforeLoad`: an unknown extension, or one without `settings`, redirects to `/panel/$sessionId/settings/general` with `replace`
 - `__root.tsx:onKeyDown`: Escape on a settings route navigates to the chat route with `replace` and history state `restoreFocus: 'settings'`, which focuses the settings link in the session header and keeps `panel.tsx` from focusing the composer
 - the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches by path alone (`matchRoute` with `includeSearch: false`, so a search write from inside the menu, such as `sessionSearch`, never closes it mid-navigation); any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
 - `panel.$sessionId.tsx:useSessionMenu`: opening pushes the `options` child with history state `sessionMenuOpened`; closing an in-app opened menu (that mark and `useCanGoBack()`) goes back one entry, a menu loaded directly on `/options` replaces it with the parent; picking a session while the menu is open (in-app or loaded directly) replaces the `options` entry, and picking the active session closes the menu the same way, so no close leaves a duplicate history entry

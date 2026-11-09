@@ -6,7 +6,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 
 ## Interface
 
-- `defineExtension` / `ExtensionBuilder` / `AnyExtension` / `ExtensionMeta` / `RegisterExtension` (`define-extension.ts`): chainable .client(factory) / .server(factory), parseConfig, useContext
+- `defineExtension` / `ExtensionBuilder` / `AnyExtension` / `ExtensionMeta` / `RegisterExtension` (`define-extension.ts`): chainable .client(factory) / .server(factory), parseConfig, useContext; optional `icon` (the extension's settings tab) and `settings`, a `z.object` of user settings (every field `.default()`, titled with `.meta({title, description})`), stored in the `project` scope under the extension's name: `parseSettings(raw)`, `readSettings(store)` (`{all, onChange}` over a `SettingsStore`, parsed) and the client hook `useSettings()` (an accessor that follows the stored values live)
 - `defineTool` / `toolDefinition` (`define-tool.ts`): .server(execute), .client(execute?), .render(card)
 - `toolError` / `isToolError` / `ToolError` (`define-tool.ts`)
 - `ToolMeta`, `ToolDefinition`, `ToolBuilder`, `ToolBinding`, `ClientToolCtx`, `RegisteredTools`, `ToolNameProblem` (`define-tool.ts`)
@@ -15,6 +15,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `imageResult` (`image-result.ts`)
 - `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `captureModeOf` (`collect-client.ts`)
 - `getExtensionApi` (`extension-api.ts`)
+- `useScope` (`use-scope.ts`): an `ExtensionScope` whose `settings` follow the engine over `settings.changes`; the stream closes on owner cleanup
 - `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
@@ -28,11 +29,13 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client
 - `createClientSettings(rpc, namespace, signal?)` (`settings-client.ts`): `{global, project}` stores that follow `settings.changes`, answer reads from the latest snapshot after the first one, run each store's calls in order, and ignore a snapshot older than the one held
-- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract), `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
+- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract, its `settings` reads the extension's own parsed settings), `ExtensionSettingsSchema`, `NoSettings`, `SettingsOf`, `SettingsReader`, `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
 
 ## Invariants
 
 - `parseExtensionConfig` (`define-extension.ts`): schema.parse(raw ?? {}) throws on invalid config; `makeSystemPrompt` gives no prompt when config fails
+- `lenientSettings` (`define-extension.ts`): settings parsing never throws; a missing or malformed field reads as its default, unknown keys drop, a non-object reads as all defaults
+- `ExtensionSettingsSchema` (`types.ts`): a settings field without `.default()` is a type error
 - `assertToolMeta` (`define-tool.ts`): meta.summary must be non-empty and differ from the tool name
 - `assertUnbound` (`define-tool.ts`): binding a tool twice throws
 - `assertToolName` (`define-tool.ts`): names must match /^[a-z][a-z0-9_]*$/
