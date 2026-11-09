@@ -496,7 +496,7 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
     <Combobox.Item
       ref={(element) => setRow('element', element)}
       item={props.session}
-      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-highlight [&_mark]:text-inherit [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
+      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-accent-20 [&_mark]:text-chat-text [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
       aria-labelledby={labelId}
       aria-describedby={excerpt() === null ? undefined : excerptId}
     >

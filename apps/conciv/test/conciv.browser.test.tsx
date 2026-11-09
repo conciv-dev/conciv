@@ -42,8 +42,6 @@ import {
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
-  ComposerActions as ComposerActionsPrimitive,
-  ComposerActionsHost,
   type SessionStatus,
   useComposer,
   createTextAttachmentAdapter,
@@ -65,7 +63,7 @@ import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
 import pageExtension from '@conciv/extension-page/client'
 import {GRAB_FILE_NAME} from '@conciv/grab/grab-attachment'
-import type {Grab, GrabApi} from '@conciv/grab'
+import type {Grab} from '@conciv/grab'
 import {QueueStrip} from '../src/pane/queue-strip.js'
 import {RunErrorRow} from '../src/pane/run-error-row.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -75,8 +73,7 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {HostApiProvider, getHostApi} from '@conciv/extension/host'
-import {ComposerActions} from '../src/composer/actions.js'
+import {getHostApi} from '@conciv/extension/host'
 import {
   createChat,
   createChatSession,
@@ -1806,58 +1803,102 @@ describe('harness switching', () => {
   })
 })
 
+const STATUS_PROBE_NAME = 'status-probe'
+
+const statusProbe = defineExtension({
+  name: STATUS_PROBE_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(STATUS_PROBE_NAME).useSlot() === 'status'}>
+      <span>env: staging</span>
+    </Show>
+  ),
+})
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof statusProbe> {}
+}
+
 describe('connect agents', () => {
   const core = bootedCore('connect-agents')
-  const keep = keptPane()
-  const grabApi: GrabApi = {
-    pick: async () => null,
-    comment: async () => null,
-    cancel: () => {},
-    isActive: () => false,
-    stage: () => {},
-    staged: () => [],
-    clear: () => {},
-  }
+  const harness = createShellHarness(core)
 
-  afterEach(() => coreControl.fakeHubCli(null))
+  afterEach(async () => {
+    harness.dispose()
+    await coreControl.fakeHubCli(null)
+  })
 
-  async function mountActions(): Promise<void> {
-    const sessionId = await createSession(coreRpc(core()))
-    keep(
-      mountPane({base: core(), sessionId}, () => (
-        <HostApiProvider grab={grabApi} toast={() => {}}>
-          <ComposerActionsHost>
-            <ComposerActionsPrimitive.Trigger>
-              <span aria-hidden="true" class="size-5 block" />
-            </ComposerActionsPrimitive.Trigger>
-            <ComposerActions
-              sessionId={sessionId}
-              compacting={false}
-              onCompact={() => {}}
-              onNewSession={() => {}}
-              onStageGrab={() => {}}
-            />
-          </ComposerActionsHost>
-        </HostApiProvider>
-      )),
-    )
-  }
-
-  const menu = () => page.getByRole('button', {name: 'Connect agents'})
+  const more = () => page.getByRole('button', {name: 'More composer actions'})
   const item = () => page.getByRole('menuitem', {name: 'Connect Claude'})
+  const agents = () => page.getByRole('group', {name: 'Connected agents'})
+  const disconnect = () => page.getByRole('button', {name: 'Disconnect Claude'})
+  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  test('a detected harness connects from the menu: a failure shows the CLI message, a success removes it', async () => {
+  test('a harness connects from the menu with a pending chip, shows in the connected row, and disconnects from it', async () => {
+    await page.viewport(1000, 900)
     await coreControl.fakeHubCli('fail')
-    await mountActions()
-    await menu().click()
+    const sessionId = await createSession(coreRpc(core()))
+    harness.mountShell(`/panel/${sessionId}?open=true`, [statusProbe])
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByText('env: staging')).toBeVisible()
+    await expect.element(agents()).not.toBeInTheDocument()
+
+    await coreControl.setHubConnection('codex', true)
+    await expect.element(agents().getByText('Codex', {exact: true}), {timeout: 8000}).toBeVisible()
+    await coreControl.setHubConnection('codex', false)
+    await expect.element(agents(), {timeout: 8000}).not.toBeInTheDocument()
+
+    await more().click()
     await item().click()
     await expect.element(page.getByText('claude: could not add conciv-hub')).toBeVisible()
-    await coreControl.fakeHubCli('ok')
-    await menu().click()
+    await expect.element(agents()).not.toBeInTheDocument()
+
+    await coreControl.fakeHubCli('hold')
+    await more().click()
     await item().click()
+    await expect.element(agents().getByRole('status')).toHaveTextContent('Connecting Claude…')
+    await more().click()
+    await expect.element(item()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
+
+    await coreControl.fakeHubCli('ok')
     await expect.element(page.getByText('Claude connected. Ask any Claude session for your conciv tab.')).toBeVisible()
-    await expect.element(menu()).not.toBeInTheDocument()
-  })
+    await expect.element(agents().getByText('Claude', {exact: true})).toBeVisible()
+    await more().click()
+    await expect.element(page.getByRole('menuitem', {name: 'Start a new session'})).toBeVisible()
+    await expect.element(item()).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+
+    await coreControl.fakeHubCli('hold-remove')
+    await disconnect().click()
+    await expect.element(agents().getByRole('status')).toHaveTextContent('Disconnecting Claude…')
+    await more().click()
+    await page.getByRole('menuitem', {name: 'Connect OpenCode'}).click()
+    await expect
+      .element(page.getByText('OpenCode connected. Ask any OpenCode session for your conciv tab.'))
+      .toBeVisible()
+    await expect.element(agents().getByRole('status')).toHaveTextContent('Disconnecting Claude…')
+    await more().click()
+    await expect.element(item()).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
+    await coreControl.fakeHubCli('ok')
+    await expect.element(page.getByText('Claude disconnected.')).toBeVisible()
+    await expect.element(agents().getByText('OpenCode', {exact: true})).toBeVisible()
+    await expect.element(composer()).toHaveFocus()
+    await more().click()
+    await expect.element(item()).not.toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{Escape}')
+
+    await page.getByRole('button', {name: 'Disconnect OpenCode'}).click()
+    await expect
+      .element(
+        page.getByText(
+          'OpenCode disconnected. OpenCode keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.',
+        ),
+      )
+      .toBeVisible()
+    await expect.element(agents()).not.toBeInTheDocument()
+    await expect.element(composer()).toHaveFocus()
+  }, 30_000)
 })
 
 describe('launcher activity', () => {
@@ -3795,7 +3836,7 @@ describe('session selector', () => {
 
   const core = bootedCore('session-selector', {
     resume: true,
-    connect: true,
+    resumeBin: 'claude',
     holdTranscripts: true,
     history: [
       {

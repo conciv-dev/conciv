@@ -3,7 +3,7 @@ import cliManifest from '../package.json' with {type: 'json'}
 import {authRoute} from './auth.js'
 import {envelopeFlag} from './envelope.js'
 import {initCommand} from './init.js'
-import {mcpCommand} from './hub.js'
+import {mcpRoute} from './mcp.js'
 import {tabFlag} from './tab-flag.js'
 import {toolsRoute} from './tools.js'
 
@@ -16,5 +16,5 @@ export const main = route(
   toolsRoute,
   initCommand,
   authRoute,
-  mcpCommand,
+  mcpRoute,
 )

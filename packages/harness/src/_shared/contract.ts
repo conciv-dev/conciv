@@ -8,6 +8,7 @@ import type {
   HarnessHistory,
   HarnessInit,
   HarnessModels,
+  HarnessResume,
 } from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 
@@ -33,8 +34,8 @@ type HarnessAdapterBase = {
 
 export type HarnessAdapter = HarnessAdapterBase &
   (
-    | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory}
-    | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined}
+    | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory; resume: HarnessResume}
+    | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined; resume?: undefined}
   ) &
   (
     | {capabilities: HarnessCapabilities & {slashCommands: 'live' | 'files'}; commands: HarnessCommands}
