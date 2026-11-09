@@ -18,7 +18,7 @@ export function Stage(props: {data: Data}): JSX.Element {
         {(plane, index) => (
           <Show when={plane.always || props.data.plane(plane.key)}>
             <div
-              class="border border-solid bg-chat-fill-soft h-65 w-202.5 start-65 absolute"
+              class="border border-solid bg-chat-fill-soft h-65 w-160.25 start-65 absolute"
               style={{
                 top: `calc(var(--chat-space) * (${PLANE_TOP} + ${PLANE_STEP} * ${index()}))`,
                 'border-color': plane.hue,
