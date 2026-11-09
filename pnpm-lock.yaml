@@ -639,9 +639,6 @@ importers:
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
-      '@tanstack/history':
-        specifier: ^1.162.5
-        version: 1.162.5
       '@tanstack/query-core':
         specifier: 'catalog:'
         version: 5.105.0
