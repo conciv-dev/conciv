@@ -186,3 +186,33 @@ elements the selected component renders. The Pick view gains "In a component" wi
 Rerun the x-ray round state with the catalog in the reply: the agent's first commit imports from the kit, counted
 as "kit imports in the final source" against the 2026-11-09 run (one, `EnvironmentProvider`). Then six a side on
 figma5 with and without the catalog section: done, rows, cost, and kit imports.
+
+## Token drift (2026-11-09)
+
+The x-ray rebuild showed the failure this section prevents: three of six agents removed kit components because the
+mockup's radius and font disagreed with the kit's tokens, and a kit component used correctly could never reach zero
+rows. The agent was graded against a design that contradicts the design system, with no signal that the element it
+was editing belonged to a component.
+
+Rulings:
+
+- Pairing is untouched. The pairer never reads the catalog or the tokens; the relation and the token map only
+  classify the rows of an element that is already paired.
+- Tokens are mapped, not only named. The catalog gains a token map per project: the kit's design tokens (CSS custom
+  properties and the theme values behind them, read from the kit's token source or its emitted CSS) joined to the
+  design's variables (Figma variable names and values the look rows already name). A `TokenSource` adapter beside
+  `ComponentSource` does the reading; the first implementation reads CSS custom properties from the kit's stylesheet
+  and the Figma variables from the design.
+- A row on an element rendered by a known component, whose differing property is token-valued on both sides, is a
+  `token-drift` row, not a `paint` or `geometry` row: "SegmentGroup uses radius/md (8px); the design wants radius/lg
+  (12px)". It names the component, both tokens and both values. The rows of one component collapse to one drift row
+  per token.
+- A drift row is never the agent's to fix by editing the element. Its remedy text says so: change the token in the
+  kit, or the variable in the design, or report the drift. The agent's reply and the x-ray card show it as a flag,
+  and the score counts drift rows apart from the rows the agent can clear.
+- A row on a known component that is not token-valued (a missing child, a wrong text) stays an ordinary row.
+- Confidence gates the classification: the relation must have resolved the element to a component through a render
+  site; a guess from the name hint is not enough to turn a row into drift.
+
+Plan: the token map and the drift classification land with the relation (Task 5), measured in Task 8 as "kit
+imports kept" and "drift rows" beside "rows cleared".
