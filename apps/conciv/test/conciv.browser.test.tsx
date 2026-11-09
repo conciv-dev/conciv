@@ -72,7 +72,7 @@ import {EngineOutdatedNotice, EngineStaleNotice} from '../src/shell/engine-notic
 import {RefreshButton} from '../src/shell/refresh-button.js'
 import {makePaneGrabApi} from '../src/extension/pane-grab.js'
 import {createNoticeStore, type Notify} from '../src/shell/notices.js'
-import {HostApiProvider} from '@conciv/extension/host'
+import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {ComposerActions} from '../src/composer/actions.js'
 import {
   createChat,
@@ -4138,4 +4138,110 @@ describe('tool outcomes', () => {
       await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
     })
   }
+})
+
+describe('settings page', () => {
+  function SchemeProbe(): JSX.Element {
+    const scheme = getHostApi().useColorScheme()
+    return <p>Widget colors: {scheme()}</p>
+  }
+
+  const settingsProbe = defineExtension({
+    name: 'settings-probe',
+    Surface: SchemeProbe,
+    views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
+  }).client(() => ({value: {}}))
+
+  const coreBase = bootedCore('settings-page')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+
+  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const gear = () => page.getByRole('link', {name: 'Settings'})
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const colorScheme = () => page.getByRole('group', {name: 'Color scheme'})
+  const radio = (name: string) => colorScheme().getByRole('radio', {name, exact: true})
+  const shownViews = () => page.getByRole('group', {name: 'Shown in the status bar'})
+  const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
+  const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
+  const recorder = (label: string) => page.getByRole('button', {name: `Change ${label}`})
+  const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
+  const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all conciv settings?'})
+
+  test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
+    await page.viewport(1000, 900)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(notesTab()).toBeVisible()
+
+    await gear().click()
+    await expect.element(tab('Appearance')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.path()).toBe(settingsPath('appearance'))
+
+    for (const name of ['Views', 'Shortcuts', 'Advanced']) {
+      await tab(name).click()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.path()).toBe(settingsPath(name.toLowerCase()))
+    }
+    for (const name of ['Shortcuts', 'Views', 'Appearance']) {
+      await userEvent.keyboard('{ArrowLeft}')
+      await expect.element(tab(name)).toHaveFocus()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.path()).toBe(settingsPath(name.toLowerCase()))
+    }
+
+    await colorScheme().getByText('Dark', {exact: true}).click()
+    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: 'Reset Color scheme to default'})).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('appearance')}?open=true`, [settingsProbe])
+    await expect.element(radio('Dark'), {timeout: 8000}).toBeChecked()
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await tab('Views').click()
+    await expect.element(shownViews().getByRole('checkbox', {name: 'Notes'})).toBeChecked()
+    await shownViews().getByText('Notes', {exact: true}).click()
+    await expect.element(shownViews().getByRole('checkbox', {name: 'Notes'})).not.toBeChecked()
+
+    await tab('Shortcuts').click()
+    await recorder('Open the quick terminal').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await page.getByRole('button', {name: 'Save', exact: true}).click()
+    await expect.element(recorder('Open the quick terminal')).toHaveFocus()
+    await recorder('Open a new quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('status').getByText('Already used by Open the quick terminal')).toBeVisible()
+    await page.getByRole('button', {name: 'Cancel', exact: true}).click()
+
+    await tab('Shortcuts').click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
+    expect(harness.path()).toBe(`/panel/${sessionId}`)
+    await expect.element(notesTab()).not.toBeInTheDocument()
+
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(quickTerminal(), {timeout: 8000}).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
+    await page.getByRole('link', {name: 'Reset all settings'}).click()
+    await expect.element(resetDialog()).toBeVisible()
+    await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
+    await resetDialog().getByRole('button', {name: 'Reset all'}).click()
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    await expect.element(page.getByRole('status').getByText('conciv settings reset')).toBeInTheDocument()
+    expect(harness.path()).toBe(settingsPath('advanced'))
+    await expect.element(probe('light')).toBeInTheDocument()
+
+    await tab('Advanced').click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(gear()).toHaveFocus()
+    await expect.element(notesTab()).toBeVisible()
+  }, 60_000)
 })
