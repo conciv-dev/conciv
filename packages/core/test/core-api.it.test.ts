@@ -13,6 +13,7 @@ import {
   renameSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
+import {EventEmitter, on} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
@@ -3864,6 +3865,7 @@ describe('outside agent consent', () => {
   const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
   const RAN = /"result":1/
   const DENIED = 'The user denied codex access to the conciv tab'
+  const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
   const engines: Engine[] = []
   const pages = new AbortController()
@@ -3925,10 +3927,27 @@ describe('outside agent consent', () => {
     }
   }
 
+  async function askRaised(base: string, sessionId: string): Promise<ReturnType<typeof approvalAskOf>> {
+    const raised = new AbortController()
+    const signal = AbortSignal.any([raised.signal, pages.signal])
+    const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal})
+    try {
+      for await (const chunk of events) {
+        const ask = approvalAskOf(chunk)
+        if (ask !== null) return ask
+      }
+      return null
+    } finally {
+      raised.abort()
+    }
+  }
+
   async function decideOutside(base: string, sessionId: string, approved: boolean): Promise<void> {
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
-    const [ask] = await pendingOf(base, sessionId)
-    expect(ask).toMatchObject({toolName: 'Allow codex to use this tab', input: {client: 'codex'}, runId: null})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
+    const pending = await pendingOf(base, sessionId)
+    expect(pending).toHaveLength(1)
+    const [ask] = pending
+    expect(ask).toMatchObject({...OUTSIDE_ASK, runId: null})
     const decision = await rpcOf(base, sessionId).chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved})
     expect(decision.startsTurn).toBe(false)
   }
@@ -3962,7 +3981,7 @@ describe('outside agent consent', () => {
     const base = await boot()
     const sessionId = await newSession(base)
     const waiting = hubCall(base, sessionId)
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
     const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: AbortSignal.timeout(2000)})
     const first = await events[Symbol.asyncIterator]()
       .next()
@@ -4017,7 +4036,7 @@ describe('outside agent consent', () => {
     const leaving = await connectMcpClient(`${runner}/api/mcp`, HUB)
     const execute = (await leaving.tools()).find((entry) => entry.name === 'execute_typescript')
     const cancelled = execute?.execute({typescriptCode: `${pick} return await external_page_screenshot({})`})
-    await vi.waitFor(async () => expect(await pendingOf(owner, theirs)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(owner, theirs)).toMatchObject(OUTSIDE_ASK)
     await leaving.close()
     await expect(cancelled).rejects.toThrow()
     await decideOutside(owner, theirs, true)
@@ -4080,8 +4099,9 @@ describe('outside agent consent', () => {
     expect(await allowed).toMatch(RAN)
     const own = rpcOf(base, sessionId)
     const waiting = own.registry.call({name: 'server_restart', input: {}}).then(String, String)
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    const raised = await askRaised(base, sessionId)
     const [card] = await pendingOf(base, sessionId)
+    expect(card?.approvalId).toBe(raised?.approvalId)
     const hubRpc = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
     const decision = {approvalId: card?.approvalId ?? '', approved: true}
     const refusal = "outside agents can't answer permission requests; decide it in the tab"
@@ -4095,13 +4115,14 @@ describe('outside agent consent', () => {
   it('an owner that stops mid call fails clearly and leaves the listing, and a corrupt home db names the folder', async () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('open', home)]
-    const asked: string[] = []
-    const silent = await openTab(owner, () => asked.push('query'))
+    const page = new EventEmitter()
+    const asked = on(page, 'query', {signal: pages.signal})
+    const silent = await openTab(owner, () => page.emit('query'))
     const listing = await outside(runner, 'return await external_tabs({})')
     expect([listing.includes(`"tab":"${silent}"`), listing.includes('href')]).toEqual([true, false])
-    const seen = asked.length
+    expect((await asked.next()).done).toBe(false)
     const pending = outside(runner, `await external_use_tab({id: "${silent}"}); return await external_page_route({})`)
-    await vi.waitFor(() => expect(asked.length).toBeGreaterThan(seen), {timeout: 3000})
+    expect((await asked.next()).done).toBe(false)
     await engines.at(-1)?.stop()
     expect(await pending).toContain('stopped answering')
     expect(await outside(runner, 'return await external_tabs({})')).toContain('{"tabs":[],"unreachable":[]}')
@@ -4118,7 +4139,7 @@ describe('outside agent consent', () => {
     expect(await pendingOf(base, sessionId)).toEqual([])
     const leaving = new AbortController()
     const left = hubRpc.registry.call(route, {signal: leaving.signal})
-    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    expect(await askRaised(base, sessionId)).toMatchObject(OUTSIDE_ASK)
     leaving.abort()
     await expect(left).rejects.toThrow()
     expect(await pendingOf(base, sessionId)).toHaveLength(1)
@@ -4139,7 +4160,7 @@ describe('outside agent consent', () => {
     const [first, second] = [await newSession(base), await newSession(base)]
     const raise = async () => {
       const waiting = [hubCall(base, first), hubCall(base, second)]
-      await vi.waitFor(async () => expect(await pendingOf(base, second)).toHaveLength(1), {timeout: 3000})
+      expect(await askRaised(base, second)).toMatchObject(OUTSIDE_ASK)
       return waiting
     }
     const refused = await raise()
