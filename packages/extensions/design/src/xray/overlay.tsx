@@ -9,7 +9,7 @@ import type {Component} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import type {z} from 'zod'
 import {getExtensionApi} from '@conciv/extension'
-import {EnvironmentProvider, TooltipIconButton} from '@conciv/ui-kit-system'
+import {EnvironmentProvider, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import {designConfig} from '../shared/tolerances.js'
 import {Boxes} from './boxes.js'
 import {Panel} from './panel.js'
@@ -53,50 +53,52 @@ export function XrayOverlay(props: {
               class="chat-density text-chat-text font-chat pointer-events-none antialiased inset-0 fixed"
               data-conciv-key="HxvEWg"
             >
-              <Show when={props.data.shownRound() !== null && !props.data.stack()}>
-                <Boxes data={props.data} />
-              </Show>
-              <Show when={props.data.shownRound() !== null && props.data.stack()}>
-                <Stage data={props.data} />
-              </Show>
-              <nav
-                aria-label="Design x-ray rail"
-                class="px-1 py-3 border border-chat-line bg-chat-glass flex flex-col gap-2 w-14 pointer-events-auto items-center start-0 inset-y-0 fixed"
-                data-conciv-key="g9eiGQ"
-              >
-                <RailButton label="X-ray" active icon={Power} />
-                <RailButton
-                  label="Pick"
-                  active={props.data.pick()}
-                  icon={MousePointerClick}
-                  onClick={() => props.data.setPick(!props.data.pick())}
-                />
-                <RailButton
-                  label="Stack"
-                  active={props.data.stack()}
-                  icon={Box}
-                  onClick={() => props.data.setStack(!props.data.stack())}
-                />
-                <div class="grow w-8" data-conciv-key="Ia9KqA" />
-                <RailButton label="Panel" active={props.data.shownRound() !== null} icon={PanelLeft} />
-              </nav>
-              <Show when={props.data.shownRound() === null}>
-                <section
-                  aria-label="Design x-ray"
-                  class="px-3.5 py-3 border border-chat-line rounded-chat-surface-md bg-chat-glass flex flex-col gap-1 w-75 pointer-events-auto start-17 top-3 fixed"
-                  data-conciv-key="Hq4lFA"
+              <Tooltip.Group>
+                <Show when={props.data.shownRound() !== null && !props.data.stack()}>
+                  <Boxes data={props.data} />
+                </Show>
+                <Show when={props.data.shownRound() !== null && props.data.stack()}>
+                  <Stage data={props.data} />
+                </Show>
+                <nav
+                  aria-label="Design x-ray rail"
+                  class="px-1 py-3 border border-chat-line bg-chat-glass flex flex-col gap-2 w-14 pointer-events-auto items-center start-0 inset-y-0 fixed"
+                  data-conciv-key="g9eiGQ"
                 >
-                  <p class="text-sm text-chat-text-hi font-semibold m-0" data-conciv-key="6fEONQ">
-                    No design registered
-                  </p>
-                  <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0" data-conciv-key="Y3iA1g">
-                    Ask the agent to call design_get with the Figma link. The rail stays until a round exists.
-                  </p>
-                </section>
-              </Show>
-              <Show when={props.data.shownRound() !== null}>
-                <Panel data={props.data} close={props.toggle} capture={props.capture} />
-              </Show>
+                  <RailButton label="X-ray" active icon={Power} />
+                  <RailButton
+                    label="Pick"
+                    active={props.data.pick()}
+                    icon={MousePointerClick}
+                    onClick={() => props.data.setPick(!props.data.pick())}
+                  />
+                  <RailButton
+                    label="Stack"
+                    active={props.data.stack()}
+                    icon={Box}
+                    onClick={() => props.data.setStack(!props.data.stack())}
+                  />
+                  <div class="grow w-8" data-conciv-key="Ia9KqA" />
+                  <RailButton label="Panel" active={props.data.shownRound() !== null} icon={PanelLeft} />
+                </nav>
+                <Show when={props.data.shownRound() === null}>
+                  <section
+                    aria-label="Design x-ray"
+                    class="px-3.5 py-3 border border-chat-line rounded-chat-surface-md bg-chat-glass flex flex-col gap-1 w-75 pointer-events-auto start-17 top-3 fixed"
+                    data-conciv-key="Hq4lFA"
+                  >
+                    <p class="text-sm text-chat-text-hi font-semibold m-0" data-conciv-key="6fEONQ">
+                      No design registered
+                    </p>
+                    <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0" data-conciv-key="Y3iA1g">
+                      Ask the agent to call design_get with the Figma link. The rail stays until a round exists.
+                    </p>
+                  </section>
+                </Show>
+                <Show when={props.data.shownRound() !== null}>
+                  <Panel data={props.data} close={props.toggle} capture={props.capture} />
+                </Show>
+              </Tooltip.Group>
             </div>
           </EnvironmentProvider>
         </Portal>
