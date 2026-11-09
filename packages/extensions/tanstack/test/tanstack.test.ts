@@ -13,7 +13,7 @@ import {start, type Engine, type StartOpts} from '@conciv/core/start'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
-import {makeViteBridge} from '@conciv/plugin/vite'
+import {makeViteBridge} from '@conciv/extension/vite'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import tanstackExtension from '../src/server.js'
 import {

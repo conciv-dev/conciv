@@ -2556,6 +2556,9 @@ importers:
       unplugin-solid:
         specifier: ^2.0.0
         version: 2.0.0(@testing-library/jest-dom@6.9.1)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(solid-js@1.9.17)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(patch_hash=7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd)(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -3115,9 +3118,6 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
-      '@conciv/plugin':
-        specifier: workspace:^
-        version: link:../../plugin
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
