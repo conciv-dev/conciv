@@ -8,14 +8,16 @@ import {
   writeFileSync,
   mkdirSync,
   utimesSync,
+  watch,
 } from 'node:fs'
 import {once} from 'node:events'
 import {request as httpRequest} from 'node:http'
 import {createServer} from 'node:net'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {text as bodyText} from 'node:stream/consumers'
-import {setImmediate} from 'node:timers/promises'
+import {randomUUID} from 'node:crypto'
+import {setImmediate, setTimeout as wait} from 'node:timers/promises'
 import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
@@ -28,7 +30,7 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
+import {makeBrowserRpcClient, makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {
   createClientSettings,
@@ -37,6 +39,7 @@ import {
   makeExtRpcClient,
   type AnyExtension,
   type ExtensionScope,
+  type SettingsStore,
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
@@ -45,6 +48,7 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
+import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
 import {z} from 'zod'
@@ -58,6 +62,7 @@ import {statePaths} from '../src/lib/state-paths.js'
 import {makePageBus} from '../src/page-bus.js'
 import {makeCoreRuntime} from '../src/runtime/core-runtime.js'
 import {makeSessionPrimitives} from '../src/runtime/primitives.js'
+import {createSettingsStorage, settingsOnDisk} from '../src/settings/settings-storage.js'
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
@@ -98,7 +103,12 @@ function bootEngine(root: string, overrides: Partial<Parameters<typeof start>[0]
   return start({options, root, launchEditor: () => {}, ...overrides})
 }
 
-async function serveCore(root: string, extensions: AnyExtension[], overrides: Partial<Parameters<typeof makeApp>[0]>) {
+async function serveCore(
+  root: string,
+  extensions: AnyExtension[],
+  overrides: Partial<Parameters<typeof makeApp>[0]>,
+  port = 0,
+) {
   const made = await makeApp({
     cfg: resolveConfig({}, root),
     cwd: root,
@@ -106,7 +116,7 @@ async function serveCore(root: string, extensions: AnyExtension[], overrides: Pa
     extensions,
     ...overrides,
   })
-  const served = await serveHono({fetch: made.fetch, port: 0})
+  const served = await serveHono({fetch: made.fetch, port})
   const stop = async () => {
     await served.close()
     await made.dispose()
@@ -896,14 +906,35 @@ describe('engine login', () => {
 describe('settings storage', () => {
   const pretty = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`
   const fileText = (path: string) => (existsSync(path) ? readFileSync(path, 'utf8') : null)
+  const fileBecomes = (path: string, text: string) =>
+    new Promise<void>((resolve, reject) => {
+      const watcher = watch(dirname(path), () => {
+        if (fileText(path) !== text) return
+        watcher.close()
+        resolve()
+      })
+      watcher.on('error', reject)
+    })
+  async function valueBecomes<T extends object>(store: SettingsStore<T>, expected: Partial<T>) {
+    const reached = Promise.withResolvers<void>()
+    const unsubscribe = await store.onChange((value) => {
+      if (isEqual(value, expected)) reached.resolve()
+    })
+    return {reached: reached.promise.finally(unsubscribe)}
+  }
 
-  async function bootSettings(root: string, home: string, namespace: string) {
+  async function bootSettings(
+    root: string,
+    home: string,
+    namespace: string,
+    fixed: {agentToken?: string; port?: number} = {},
+  ) {
     const scopes: ((name: string) => ExtensionScope<string>)[] = []
     const probe = defineExtension({name: 'settings probe'}).server((api) => {
       scopes.push(api.scope)
       return {context: {}}
     })
-    const {made, origin, stop} = await serveCore(root, [probe], {home})
+    const {made, origin, stop} = await serveCore(root, [probe], {home, agentToken: fixed.agentToken}, fixed.port)
     const scope = scopes[0]
     if (scope === undefined) throw new Error('the probe extension did not mount')
     return {scope, server: scope(namespace).settings, rpc: makeRpcClient(`${origin}/t/${made.agentToken}`), stop}
@@ -911,6 +942,10 @@ describe('settings storage', () => {
 
   test('the server store, the rpc client store and a second subscriber share one debounced file per scope', async () => {
     const [root, home] = [tempDir(), tempDir()]
+    const projectFolder = join(root, '.conciv', 'settings')
+    const globalFolder = join(home, 'settings')
+    mkdirSync(projectFolder, {recursive: true})
+    mkdirSync(globalFolder, {recursive: true})
     const engine = await bootSettings(root, home, 'probe')
     const stream = new AbortController()
     try {
@@ -921,36 +956,100 @@ describe('settings storage', () => {
       expect((await subscriber.next()).value).toMatchObject({value: {}})
       const heard: unknown[] = []
       const unsubscribe = await client.project.onChange((value) => heard.push(value))
+      const full = {theme: 'dark', size: 3, tags: ['a']}
+      const projectFile = join(projectFolder, 'probe.json')
+      const mirrored = await valueBecomes(client.project, full)
+      const written = fileBecomes(projectFile, pretty(full))
       await Promise.all([
         engine.server.project.set('theme', 'dark'),
         engine.server.project.set('size', 3),
         engine.server.project.set('tags', ['a']),
       ])
-      const projectFile = join(root, '.conciv', 'settings', 'probe.json')
       expect(existsSync(projectFile)).toBe(false)
-      await expect.poll(() => client.project.all(), {timeout: 2000}).toEqual({theme: 'dark', size: 3, tags: ['a']})
+      await mirrored.reached
+      expect(await client.project.all()).toEqual(full)
       expect(await client.project.get('size')).toBe(3)
       expect((await subscriber.next()).value).toMatchObject({value: {theme: 'dark'}})
-      await expect
-        .poll(() => fileText(projectFile), {timeout: 2000})
-        .toBe(pretty({theme: 'dark', size: 3, tags: ['a']}))
-      expect(readdirSync(join(root, '.conciv', 'settings'))).toEqual(['probe.json'])
+      await written
+      expect(readdirSync(projectFolder)).toEqual(['probe.json'])
+      const globalFile = join(globalFolder, 'probe.json')
+      const projectRewritten = fileBecomes(projectFile, pretty({theme: 'dark', tags: ['a']}))
+      const globalWritten = fileBecomes(globalFile, pretty({theme: 'light'}))
       await client.project.delete('size')
       expect(await engine.server.project.get('size')).toBeUndefined()
       await client.global.set('theme', 'light')
       expect(await engine.server.global.all()).toEqual({theme: 'light'})
-      await expect.poll(() => fileText(projectFile), {timeout: 2000}).toBe(pretty({theme: 'dark', tags: ['a']}))
-      const globalFile = join(home, 'settings', 'probe.json')
-      await expect.poll(() => fileText(globalFile), {timeout: 2000}).toBe(pretty({theme: 'light'}))
-      expect(heard).toContainEqual({theme: 'dark', size: 3, tags: ['a']})
+      await Promise.all([projectRewritten, globalWritten])
+      expect(heard).toContainEqual(full)
       expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
       unsubscribe()
+      const blue = await valueBecomes(client.project, {theme: 'blue', tags: ['a']})
       await engine.server.project.set('theme', 'blue')
-      await expect.poll(() => client.project.get('theme'), {timeout: 2000}).toBe('blue')
+      await blue.reached
+      expect(await client.project.get('theme')).toBe('blue')
       expect(heard.at(-1)).toEqual({theme: 'dark', tags: ['a']})
     } finally {
       stream.abort()
       await engine.stop()
+    }
+  })
+
+  test('a browser client keeps following a scope across an engine restart longer than the one-shot retry budget', async () => {
+    const [root, home] = [tempDir(), tempDir()]
+    const fixed = {agentToken: randomUUID(), port: await getPort()}
+    const project = {scope: 'project', namespace: 'probe'} as const
+    const first = await bootSettings(root, home, 'probe', fixed)
+    const browser = makeBrowserRpcClient(`http://127.0.0.1:${fixed.port}/t/${fixed.agentToken}`)
+    const stream = new AbortController()
+    const engines = {running: first}
+    try {
+      const client = createClientSettings<{theme: string; size: number}>(browser.rpc, 'probe', stream.signal)
+      const saved = await valueBecomes(client.project, {theme: 'dark', size: 3})
+      const restarted = await valueBecomes(client.project, {theme: 'light', size: 3})
+      await first.server.project.set('theme', 'dark')
+      await first.server.project.set('size', 3)
+      await saved.reached
+      const before = await first.rpc.settings.all(project)
+      expect(before).toMatchObject({version: 2})
+      await first.stop()
+      await wait(4000)
+      const second = await bootSettings(root, home, 'probe', fixed)
+      engines.running = second
+      const after = await second.rpc.settings.all(project)
+      expect(after).toMatchObject({version: 0, value: {theme: 'dark', size: 3}})
+      expect(after.generation).not.toBe(before.generation)
+      await second.server.project.set('theme', 'light')
+      await restarted.reached
+      expect(await client.project.all()).toEqual({theme: 'light', size: 3})
+    } finally {
+      stream.abort()
+      browser.close()
+      await engines.running.stop()
+    }
+  }, 30_000)
+
+  test("two engines sharing one home hear each other's global changes and never echo their own write back", async () => {
+    const home = tempDir()
+    const one = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
+    const two = createSettingsStorage(settingsOnDisk({global: home, project: tempDir()}))
+    try {
+      const mine = one.scope('probe').settings.global
+      const theirs = two.scope('probe').settings.global
+      expect(await theirs.all()).toEqual({})
+      const heard = await valueBecomes(theirs, {theme: 'dark'})
+      await mine.set('theme', 'dark')
+      await one.flush()
+      await heard.reached
+      const echoed: unknown[] = []
+      const unsubscribe = await mine.onChange((value) => echoed.push(value))
+      const answered = await valueBecomes(mine, {theme: 'dark', size: 2})
+      await theirs.set('size', 2)
+      await two.flush()
+      await answered.reached
+      unsubscribe()
+      expect(echoed).toEqual([{theme: 'dark', size: 2}])
+    } finally {
+      await Promise.all([one.close(), two.close()])
     }
   })
 
@@ -968,15 +1067,24 @@ describe('settings storage', () => {
       expect(await engine.server.global.all()).toEqual({size: 4})
       expect(await engine.server.project.all()).toEqual({theme: 'dark'})
       expect(Object.getPrototypeOf(await engine.server.project.all())).toBe(Object.prototype)
+      expect(await engine.server.project.get('__proto__')).toBeUndefined()
+      expect(await engine.server.global.get('constructor')).toBeUndefined()
       const broken = {scope: 'project', namespace: 'broken'} as const
       expect(await engine.rpc.settings.all(broken)).toMatchObject({value: {}})
       expect(fileText(join(folder, 'broken.json'))).toBe('{not json')
+      const fixed = fileBecomes(join(folder, 'broken.json'), pretty({fixed: true}))
       await engine.rpc.settings.set({...broken, key: 'fixed', value: true})
-      await expect.poll(() => fileText(join(folder, 'broken.json')), {timeout: 2000}).toBe(pretty({fixed: true}))
+      await fixed
       const refusal = (pattern: RegExp) => ({
         code: 'BAD_REQUEST',
         data: {issues: [expect.objectContaining({message: expect.stringMatching(pattern)})]},
       })
+      expect(
+        await engine.rpc.settings.set({scope: 'project', namespace: 'release..prefs', key: 'on', value: true}),
+      ).toMatchObject({value: {on: true}})
+      await expect(engine.rpc.settings.all({scope: 'project', namespace: 'acme/editor'})).rejects.toMatchObject(
+        refusal(/settings folder/),
+      )
       await expect(engine.rpc.settings.all({scope: 'project', namespace: '../escape'})).rejects.toMatchObject(
         refusal(/settings folder/),
       )
@@ -984,7 +1092,7 @@ describe('settings storage', () => {
         refusal(/NUL/),
       )
       await expect(engine.scope('../../escape').settings.project.set('theme', 'dark')).rejects.toThrow(
-        /leaves the settings folder/,
+        /settings folder/,
       )
       expect(existsSync(join(root, 'escape.json'))).toBe(false)
     } finally {
