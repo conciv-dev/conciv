@@ -1,4 +1,5 @@
 import {Show, splitProps, type JSX} from 'solid-js'
+import {useFieldContext} from '@ark-ui/solid/field'
 import {PasswordInput as Ark} from '@ark-ui/solid/password-input'
 import Eye from 'lucide-solid/icons/eye'
 import EyeOff from 'lucide-solid/icons/eye-off'
@@ -16,11 +17,11 @@ type PasswordInputProps = {
   value: string
   onValueChange?: (value: string) => void
   onBlur?: () => void
-  onEnter?: () => void
   copyable?: boolean
   placeholder?: string
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
   'aria-label'?: string
 }
@@ -30,19 +31,22 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
     'value',
     'onValueChange',
     'onBlur',
-    'onEnter',
     'copyable',
     'placeholder',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
     'aria-label',
   ])
+  const field = useFieldContext()
+  const disabled = () => local.disabled ?? field?.().disabled
   return (
     <Ark.Root
       class={`min-w-0 ${local.class ?? ''}`}
-      disabled={local.disabled}
-      readOnly={local.readOnly}
+      disabled={disabled()}
+      readOnly={local.readOnly ?? field?.().readOnly}
+      invalid={local.invalid ?? field?.().invalid}
       autoComplete="new-password"
       ignorePasswordManagers
     >
@@ -54,9 +58,6 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
           aria-label={local['aria-label']}
           onInput={(event) => local.onValueChange?.(event.currentTarget.value)}
           onBlur={() => local.onBlur?.()}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.isComposing) local.onEnter?.()
-          }}
         />
         <span class={ACTIONS}>
           <Ark.Context>
@@ -67,7 +68,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
                     {...triggerProps()}
                     class={BUTTON}
                     tooltip={api().visible ? 'Hide secret' : 'Show secret'}
-                    disabled={local.disabled}
+                    disabled={disabled()}
                   >
                     <Show when={api().visible} fallback={<Eye class={ICON} aria-hidden="true" />}>
                       <EyeOff class={ICON} aria-hidden="true" />
@@ -78,7 +79,7 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
             )}
           </Ark.Context>
           <Show when={local.copyable}>
-            <ClipboardCopyButton text={local.value} class={BUTTON} disabled={local.disabled || local.value === ''} />
+            <ClipboardCopyButton text={local.value} class={BUTTON} disabled={disabled() || local.value === ''} />
           </Show>
         </span>
       </Ark.Control>

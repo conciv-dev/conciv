@@ -5,7 +5,7 @@ import X from 'lucide-solid/icons/x'
 import {INPUT_FRAME} from './input-frame.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'
 
-const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-1 px-1.5`
+const CONTROL = `${INPUT_FRAME} flex-wrap items-center gap-1 py-1 px-1.5 data-[readonly]:!opacity-100 data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2`
 const ITEM_PREVIEW =
   'inline-flex items-center gap-0.5 h-6 ps-2 pe-2 has-[button]:pe-0.5 rounded-chat-chip bg-chat-fill-strong [border:1px_solid_var(--chat-line-2)] font-chat-mono text-[0.6875rem] text-chat-text-hi data-[highlighted]:border-chat-accent data-[highlighted]:bg-chat-accent-20'
 const INPUT =
@@ -18,6 +18,7 @@ type TagsInputProps = {
   max?: number
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
   'aria-label'?: string
 }
@@ -30,10 +31,13 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
     'max',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
     'aria-label',
   ])
   const field = useFieldContext()
+  const disabled = () => local.disabled ?? field?.().disabled
+  const readOnly = () => local.readOnly ?? field?.().readOnly
   return (
     <Ark.Root
       class={`min-w-0 ${local.class ?? ''}`}
@@ -43,8 +47,9 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
       addOnPaste
       blurBehavior="add"
       max={local.max}
-      disabled={local.disabled}
-      readOnly={local.readOnly}
+      disabled={disabled()}
+      readOnly={readOnly()}
+      invalid={local.invalid ?? field?.().invalid}
       translations={{deleteTagTriggerLabel: (value) => `Remove ${value}`}}
     >
       <Ark.Control class={CONTROL}>
@@ -53,7 +58,7 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
             <Ark.Item index={index()} value={tag}>
               <Ark.ItemPreview class={ITEM_PREVIEW}>
                 <Ark.ItemText>{tag}</Ark.ItemText>
-                <Show when={!local.readOnly && !local.disabled}>
+                <Show when={!readOnly() && !disabled()}>
                   <Ark.ItemDeleteTrigger
                     asChild={(triggerProps) => (
                       <TooltipIconButton

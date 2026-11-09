@@ -68,7 +68,8 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
       returnFocus()
     },
   })
-  const editable = () => !local.disabled && !local.readOnly
+  const disabled = () => local.disabled ?? field?.().disabled
+  const editable = () => !disabled() && !(local.readOnly ?? field?.().readOnly)
   const editing = () => recorder.isRecording() || state.draft !== null
   const parsedDraft = createMemo(() => (state.draft === null ? undefined : parseHotkey(state.draft)))
   const warning = () => (state.draft === null ? undefined : local.conflict?.(state.draft))
@@ -101,7 +102,7 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
   }
   return (
     <div class="flex flex-col gap-2 min-w-0">
-      <div class={ROW}>
+      <div class={ROW} classList={{'opacity-50': Boolean(disabled())}}>
         <Show when={local.value} fallback={<span class={EMPTY}>Not set</span>}>
           {(value) => <Keys hotkey={value()} />}
         </Show>

@@ -1,89 +1,73 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {useSettingsForm} from './settings-form.js'
+import {ColorPicker} from './color-picker.js'
+import {FieldShell} from './field-shell.js'
 
 const meta: Meta = {title: 'ui-kit-system/ColorPicker'}
 export default meta
 type Story = StoryObj
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
+const NOTE = 'text-[0.75rem] text-chat-text-2'
 const PRESETS = ['#7c5cff', '#2f80ed', '#27ae60', '#f2994a', '#eb5757']
 
-function validateColors({value}: {value: {marker: string}}) {
-  return {
-    fields: {marker: value.marker.toLowerCase() === '#ffffff' ? 'White markers vanish on light pages.' : undefined},
-  }
-}
-
-function ColorSettings() {
-  const [log, setLog] = createStore({last: 'nothing yet'})
-  const form = useSettingsForm(() => ({
-    defaultValues: {accent: '#7c5cff', highlight: '#f2994a', marker: '#ffffff', brand: '#2f80ed', cursor: '#27ae60'},
-    validators: {onMount: validateColors, onBlur: validateColors},
-    listeners: {
-      onBlur: ({fieldApi}) => {
-        if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)
-      },
-    },
-  }))
-  const values = form.useStore((state) => state.values)
+function ColorStates() {
+  const [state, setState] = createStore({background: '#7c5cff', text: '#ffffff', committed: 'nothing yet'})
+  const textError = () =>
+    state.text.toLowerCase() === '#ffffff' ? 'White text disappears on light backgrounds.' : undefined
   return (
     <div class={STACK}>
-      <form.AppField name="accent">
-        {(field) => <field.ColorField label="Accent" description="Buttons, links and focus rings." presets={PRESETS} />}
-      </form.AppField>
-      <form.AppField name="highlight">
-        {(field) => (
-          <field.ColorField
-            label="Grab highlight"
-            presets={PRESETS}
-            changed={values().highlight !== '#2f80ed'}
-            onReset={() => form.setFieldValue('highlight', '#2f80ed')}
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="marker">{(field) => <field.ColorField label="Marker" />}</form.AppField>
-      <form.AppField name="brand">
-        {(field) => <field.ColorField label="Brand" locked="Set by your organization" />}
-      </form.AppField>
-      <form.AppField name="cursor">
-        {(field) => <field.ColorField label="Replay cursor" description="Needs replay on." disabled />}
-      </form.AppField>
-      <p class="text-[0.75rem] text-chat-text-2">Committed {log.last}</p>
+      <FieldShell label="Background" description="Fills the card behind the text.">
+        <ColorPicker
+          value={state.background}
+          presets={PRESETS}
+          onValueChange={(value) => setState('background', value)}
+          onValueCommit={(value) => setState('committed', value)}
+        />
+      </FieldShell>
+      <FieldShell label="Text color" error={textError()}>
+        <ColorPicker value={state.text} onValueChange={(value) => setState('text', value)} />
+      </FieldShell>
+      <FieldShell label="Brand color" readOnly>
+        <ColorPicker value="#2f80ed" />
+      </FieldShell>
+      <FieldShell label="Border color" description="Turn on borders first." disabled>
+        <ColorPicker value="#27ae60" />
+      </FieldShell>
+      <p class={NOTE}>Committed {state.committed}</p>
     </div>
   )
 }
 
-export const SettingStates: Story = {render: () => <ColorSettings />}
+export const States: Story = {render: () => <ColorStates />}
 
-export const SettingKeyboard: Story = {
-  render: () => <ColorSettings />,
+export const Keyboard: Story = {
+  render: () => <ColorStates />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const accent = canvas.getByRole('textbox', {name: 'Accent'})
-    await expect(accent).toHaveValue('#7C5CFF')
-    await expect(accent).toHaveAccessibleDescription('Buttons, links and focus rings.')
-    await expect(canvas.getByRole('textbox', {name: 'Marker'})).toHaveAccessibleDescription(
-      /White markers vanish on light pages\./,
-    )
+    const background = canvas.getByRole('textbox', {name: 'Background'})
+    await expect(background).toHaveValue('#7C5CFF')
+    await expect(background).toHaveAccessibleDescription('Fills the card behind the text.')
+    const text = canvas.getByRole('textbox', {name: 'Text color'})
+    await expect(text).toHaveAccessibleDescription(/White text disappears on light backgrounds\./)
 
-    await userEvent.clear(accent)
-    await userEvent.type(accent, '#112233{Enter}')
-    await expect(canvas.getByText('Committed accent: #112233')).toBeVisible()
+    await userEvent.clear(background)
+    await userEvent.type(background, '#112233{Enter}')
+    await expect(canvas.getByText('Committed #112233')).toBeVisible()
+    await expect(background).toHaveFocus()
 
     const [green] = canvas.getAllByRole('button', {name: 'select #27AE60 as the color'})
-    if (!green) throw new Error('the accent field renders no green preset')
+    if (!green) throw new Error('the background picker renders no green preset')
     await userEvent.click(green)
-    await waitFor(() => expect(accent).toHaveValue('#27AE60'))
-    await expect(canvas.getByText('Committed accent: #27AE60')).toBeVisible()
+    await waitFor(() => expect(background).toHaveValue('#27AE60'))
+    await expect(canvas.getByText('Committed #27AE60')).toBeVisible()
 
-    await userEvent.click(canvas.getByRole('button', {name: 'Reset to default'}))
-    const highlight = canvas.getByRole('textbox', {name: 'Grab highlight'})
-    await waitFor(() => expect(highlight).toHaveValue('#2F80ED'))
-    await expect(canvas.getByText('Committed highlight: #2f80ed')).toBeVisible()
+    await userEvent.clear(text)
+    await userEvent.type(text, '#222222{Enter}')
+    await expect(canvas.queryByText('White text disappears on light backgrounds.')).toBeNull()
 
-    await expect(canvas.getByRole('textbox', {name: 'Brand'})).toHaveAttribute('readonly')
-    await expect(canvas.getByRole('textbox', {name: 'Replay cursor'})).toBeDisabled()
+    await expect(canvas.getByRole('textbox', {name: 'Brand color'})).toHaveAttribute('readonly')
+    await expect(canvas.getByRole('textbox', {name: 'Border color'})).toBeDisabled()
   },
 }

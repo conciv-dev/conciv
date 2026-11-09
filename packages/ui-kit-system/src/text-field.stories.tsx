@@ -1,9 +1,10 @@
-import {createSignal} from 'solid-js'
+import {createSignal, Show} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
-import {useSettingsForm} from './settings-form.js'
-import {TextArea} from './text-field.js'
+import {ClipboardCopyButton} from './clipboard-copy-button.js'
+import {FieldShell} from './field-shell.js'
+import {TextArea, TextField} from './text-field.js'
 
 const meta: Meta = {title: 'ui-kit-system/TextField'}
 export default meta
@@ -60,127 +61,105 @@ export const Autosize: Story = {
 }
 
 const STACK = 'flex flex-col gap-5 w-120 max-w-full'
+const COUNTER = 'self-end pt-1 font-chat-mono text-[0.6875rem] text-chat-text-3 tabular-nums'
+const NOTE_LIMIT = 80
+const COUNT_FORMAT = new Intl.NumberFormat()
 
-function validateTexts({value}: {value: {name: string; bundleId: string; notes: string}}) {
-  return {
-    fields: {
-      name: value.name.length === 0 ? 'Give the project a name.' : undefined,
-      bundleId: /^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$/i.test(value.bundleId)
-        ? undefined
-        : 'Use reverse-DNS, like dev.conciv.app.',
-      notes: value.notes.length > 80 ? 'Keep it under 80 characters.' : undefined,
-    },
-  }
-}
-
-function TextSettings() {
-  const [log, setLog] = createStore({last: 'nothing yet'})
-  const form = useSettingsForm(() => ({
-    defaultValues: {
-      name: 'checkout',
-      baseUrl: 'localhost:5173/app',
-      bundleId: 'conciv app',
-      apiHost: 'api.internal',
-      remote: '',
-      notes: '',
-    },
-    validators: {onMount: validateTexts, onBlur: validateTexts},
-    listeners: {
-      onBlur: ({fieldApi}) => {
-        if (fieldApi.state.meta.errors.length === 0) setLog('last', `${fieldApi.name}: ${String(fieldApi.state.value)}`)
-      },
-    },
-  }))
-  const values = form.useStore((state) => state.values)
+function TextStates() {
+  const [state, setState] = createStore({
+    name: 'Ada Lovelace',
+    website: 'example.com',
+    username: 'ada lovelace',
+    bio: '',
+  })
+  const nameError = () => (state.name.trim() === '' ? 'Enter your name.' : undefined)
+  const usernameError = () =>
+    /^[a-z0-9_]+$/.test(state.username) ? undefined : 'Use lowercase letters, digits and underscores.'
+  const bioError = () => (state.bio.length > NOTE_LIMIT ? `Keep it under ${NOTE_LIMIT} characters.` : undefined)
   return (
     <div class={STACK}>
-      <form.AppField name="name">
-        {(field) => <field.TextField label="Project name" description="Shown in the tab title." />}
-      </form.AppField>
-      <form.AppField name="baseUrl">
-        {(field) => (
-          <field.TextField
-            label="Base URL"
-            addonStart="http://"
-            mono
-            changed={values().baseUrl !== 'localhost:5173'}
-            onReset={() => form.setFieldValue('baseUrl', 'localhost:5173')}
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="bundleId">{(field) => <field.TextField label="Bundle id" mono />}</form.AppField>
-      <form.AppField name="apiHost">
-        {(field) => <field.TextField label="API host" addonEnd=":443" mono locked="Set by CONCIV_API_HOST" />}
-      </form.AppField>
-      <form.AppField name="remote">
-        {(field) => (
-          <field.TextField
-            label="Remote origin"
-            placeholder="git@github.com:org/repo.git"
-            description="Needs git."
-            disabled
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="notes">
-        {(field) => (
-          <field.TextAreaField
-            label="Notes for the agent"
-            description="Sent with every turn."
-            placeholder="Prefer small commits."
-            maxLength={80}
-          />
-        )}
-      </form.AppField>
-      <p class="text-[0.75rem] text-chat-text-2">Committed {log.last}</p>
+      <FieldShell label="Full name" description="Shown on your profile." error={nameError()}>
+        <TextField value={state.name} onInput={(event) => setState('name', event.currentTarget.value)} />
+      </FieldShell>
+      <FieldShell label="Website">
+        <TextField
+          value={state.website}
+          addonStart="https://"
+          mono
+          action={
+            <ClipboardCopyButton text={`https://${state.website}`} tooltips={{idle: 'Copy link'}} class="size-8" />
+          }
+          onInput={(event) => setState('website', event.currentTarget.value)}
+        />
+      </FieldShell>
+      <FieldShell label="Username" error={usernameError()}>
+        <TextField value={state.username} mono onInput={(event) => setState('username', event.currentTarget.value)} />
+      </FieldShell>
+      <FieldShell label="Account id" readOnly>
+        <TextField value="acct_8f2c" addonEnd=".id" mono />
+      </FieldShell>
+      <FieldShell label="Company" description="Join an organization first." disabled>
+        <TextField value="" placeholder="Not set" />
+      </FieldShell>
+      <FieldShell label="Bio" description="A few words about you." error={bioError()}>
+        <TextArea
+          value={state.bio}
+          placeholder="Write something short."
+          minRows={3}
+          maxRows={10}
+          onInput={(event) => setState('bio', event.currentTarget.value)}
+        />
+        <Show when={state.bio.length > 0}>
+          <span class={COUNTER} classList={{'text-chat-danger': state.bio.length > NOTE_LIMIT}}>
+            {`${COUNT_FORMAT.format(state.bio.length)} / ${COUNT_FORMAT.format(NOTE_LIMIT)}`}
+          </span>
+        </Show>
+      </FieldShell>
     </div>
   )
 }
 
-export const SettingStates: Story = {render: () => <TextSettings />}
+export const States: Story = {render: () => <TextStates />}
 
-export const SettingKeyboard: Story = {
-  render: () => <TextSettings />,
+export const Keyboard: Story = {
+  render: () => <TextStates />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    const name = canvas.getByRole('textbox', {name: 'Project name'})
-    await expect(name).toHaveAccessibleDescription('Shown in the tab title.')
-    const bundle = canvas.getByRole('textbox', {name: 'Bundle id'})
-    await expect(bundle).toHaveAccessibleDescription(/Use reverse-DNS, like dev\.conciv\.app\./)
-    await expect(bundle).toHaveAttribute('aria-invalid', 'true')
+    const name = canvas.getByRole('textbox', {name: 'Full name'})
+    await expect(name).toHaveAccessibleDescription('Shown on your profile.')
+    const username = canvas.getByRole('textbox', {name: 'Username'})
+    await expect(username).toHaveAccessibleDescription(/Use lowercase letters, digits and underscores\./)
+    await expect(username).toHaveAttribute('aria-invalid', 'true')
 
     await userEvent.click(name)
-    await userEvent.type(name, '-web')
-    await expect(canvas.getByText('Committed nothing yet')).toBeVisible()
-    await userEvent.keyboard('{Enter}')
-    await expect(canvas.getByText('Committed name: checkout-web')).toBeVisible()
-    await expect(name).toHaveFocus()
-
     await userEvent.clear(name)
-    await userEvent.tab()
-    await expect(canvas.getByText('Give the project a name.')).toBeVisible()
+    await expect(canvas.getByText('Enter your name.')).toBeVisible()
     await expect(name).toHaveAttribute('aria-invalid', 'true')
-    await expect(canvas.getByText('Committed name: checkout-web')).toBeVisible()
+    await userEvent.type(name, 'Grace')
+    await waitFor(() => expect(name).not.toHaveAttribute('aria-invalid', 'true'))
+    await expect(name).toHaveValue('Grace')
 
-    await userEvent.clear(bundle)
-    await userEvent.type(bundle, 'dev.conciv.app')
     await userEvent.tab()
-    await waitFor(() => expect(bundle).not.toHaveAttribute('aria-invalid', 'true'))
-    await expect(canvas.getByText('Committed bundleId: dev.conciv.app')).toBeVisible()
-
-    await userEvent.click(canvas.getByRole('button', {name: 'Reset to default'}))
-    const baseUrl = canvas.getByRole('textbox', {name: 'Base URL'})
-    await waitFor(() => expect(baseUrl).toHaveValue('localhost:5173'))
-    await expect(baseUrl).toHaveFocus()
-    await expect(canvas.getByText('Committed baseUrl: localhost:5173')).toBeVisible()
-
-    await expect(canvas.getByRole('textbox', {name: 'API host'})).toHaveAttribute('readonly')
-    await expect(canvas.getByRole('textbox', {name: 'Remote origin'})).toBeDisabled()
-
-    const notes = canvas.getByRole('textbox', {name: 'Notes for the agent'})
-    await userEvent.type(notes, 'Run the tests before every commit, and keep each commit small and focused please.')
-    await expect(canvas.getByText('81 / 80')).toBeVisible()
+    const website = canvas.getByRole('textbox', {name: 'Website'})
+    await expect(website).toHaveFocus()
     await userEvent.tab()
+    await expect(canvas.getByRole('button', {name: 'Copy link'})).toHaveFocus()
+    await userEvent.tab()
+    await expect(username).toHaveFocus()
+    await userEvent.clear(username)
+    await userEvent.type(username, 'grace_h')
+    await waitFor(() => expect(username).not.toHaveAttribute('aria-invalid', 'true'))
+
+    await expect(canvas.getByRole('textbox', {name: 'Account id'})).toHaveAttribute('readonly')
+    await expect(canvas.getByRole('textbox', {name: 'Company'})).toBeDisabled()
+
+    const bio = canvas.getByRole('textbox', {name: 'Bio'})
+    await userEvent.type(
+      bio,
+      'Writes compilers, teaches maths, and walks the dog twice a day without fail, rain or shine.',
+    )
+    await expect(canvas.getByText('91 / 80')).toBeVisible()
     await expect(canvas.getByText('Keep it under 80 characters.')).toBeVisible()
+    await expect(bio).toHaveAttribute('aria-invalid', 'true')
   },
 }

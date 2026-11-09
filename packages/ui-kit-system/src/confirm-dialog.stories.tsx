@@ -8,51 +8,51 @@ const meta: Meta = {title: 'ui-kit-system/ConfirmDialog'}
 export default meta
 type Story = StoryObj
 
-function ResetAll() {
-  const [state, setState] = createStore({open: false, resets: 0})
+function DeleteProject() {
+  const [state, setState] = createStore({open: false, deletions: 0})
   return (
     <div class="flex flex-col gap-2 items-start">
       <Button variant="outline-danger" onClick={() => setState('open', true)}>
-        Reset all settings
+        Delete project
       </Button>
-      <span class="text-[0.75rem] text-chat-text-2">Resets: {state.resets}</span>
+      <span class="text-[0.75rem] text-chat-text-2">Deletions: {state.deletions}</span>
       <ConfirmDialog
         open={state.open}
         onOpenChange={(open) => setState('open', open)}
-        title="Reset all settings?"
-        description="Every setting on this page goes back to its default. Locked settings stay as they are."
-        confirmLabel="Reset all"
-        onConfirm={() => setState('resets', (resets) => resets + 1)}
+        title="Delete this project?"
+        description="The project and its files are removed for good. This cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={() => setState('deletions', (deletions) => deletions + 1)}
       />
     </div>
   )
 }
 
 export const Default: Story = {
-  render: () => <ResetAll />,
+  render: () => <DeleteProject />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
-    const trigger = canvas.getByRole('button', {name: 'Reset all settings'})
+    const trigger = canvas.getByRole('button', {name: 'Delete project'})
 
     await userEvent.click(trigger)
-    const dialog = await page.findByRole('alertdialog', {name: 'Reset all settings?'})
-    await expect(dialog).toHaveAccessibleDescription(/Every setting on this page goes back to its default\./)
+    const dialog = await page.findByRole('alertdialog', {name: 'Delete this project?'})
+    await expect(dialog).toHaveAccessibleDescription(/The project and its files are removed for good\./)
     const cancel = within(dialog).getByRole('button', {name: 'Cancel'})
     await waitFor(() => expect(cancel).toHaveFocus())
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(page.queryByRole('alertdialog')).toBeNull())
     await expect(trigger).toHaveFocus()
-    await expect(canvas.getByText('Resets: 0')).toBeVisible()
+    await expect(canvas.getByText('Deletions: 0')).toBeVisible()
 
     await userEvent.keyboard('{Enter}')
-    const again = await page.findByRole('alertdialog', {name: 'Reset all settings?'})
+    const again = await page.findByRole('alertdialog', {name: 'Delete this project?'})
     await waitFor(() => expect(within(again).getByRole('button', {name: 'Cancel'})).toHaveFocus())
     await userEvent.tab()
-    await expect(within(again).getByRole('button', {name: 'Reset all'})).toHaveFocus()
+    await expect(within(again).getByRole('button', {name: 'Delete'})).toHaveFocus()
     await userEvent.keyboard('{Enter}')
     await waitFor(() => expect(page.queryByRole('alertdialog')).toBeNull())
-    await expect(canvas.getByText('Resets: 1')).toBeVisible()
+    await expect(canvas.getByText('Deletions: 1')).toBeVisible()
     await expect(trigger).toHaveFocus()
   },
 }

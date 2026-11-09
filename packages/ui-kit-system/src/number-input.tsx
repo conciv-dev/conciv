@@ -1,4 +1,5 @@
 import {Show, splitProps, type JSX} from 'solid-js'
+import {useFieldContext} from '@ark-ui/solid/field'
 import {NumberInput as Ark} from '@ark-ui/solid/number-input'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -23,6 +24,7 @@ type NumberInputProps = {
   unit?: string
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
   'aria-label'?: string
 }
@@ -45,10 +47,14 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
     'unit',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
     'aria-label',
   ])
-  const steppable = () => !local.disabled && !local.readOnly
+  const field = useFieldContext()
+  const disabled = () => local.disabled ?? field?.().disabled
+  const readOnly = () => local.readOnly ?? field?.().readOnly
+  const steppable = () => !disabled() && !readOnly()
   const largeStep = () => (local.step ?? 1) * 10
   return (
     <Ark.Root
@@ -62,8 +68,9 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
       largeStep={largeStep()}
       clampValueOnBlur={false}
       allowOverflow
-      disabled={local.disabled}
-      readOnly={local.readOnly}
+      disabled={disabled()}
+      readOnly={readOnly()}
+      invalid={local.invalid ?? field?.().invalid}
       formatOptions={{useGrouping: false, maximumFractionDigits: 6}}
       translations={{valueText: (value) => (local.unit ? `${value} ${local.unit}` : value)}}
     >

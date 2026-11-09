@@ -1,4 +1,5 @@
 import {For, Show, splitProps, untrack, type JSX} from 'solid-js'
+import {useFieldContext} from '@ark-ui/solid/field'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {useFilter} from '@ark-ui/solid/locale'
 import Check from 'lucide-solid/icons/check'
@@ -28,6 +29,7 @@ type ComboboxSelectProps = {
   emptyText?: string
   disabled?: boolean
   readOnly?: boolean
+  invalid?: boolean
   class?: string
 }
 
@@ -40,8 +42,10 @@ export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
     'emptyText',
     'disabled',
     'readOnly',
+    'invalid',
     'class',
   ])
+  const field = useFieldContext()
   const filters = useFilter({sensitivity: 'base'})
   const list = useListCollection<ComboboxOption>({
     initialItems: untrack(() => local.options),
@@ -62,8 +66,9 @@ export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
       }}
       openOnClick
       inputBehavior="autohighlight"
-      disabled={local.disabled}
-      readOnly={local.readOnly}
+      disabled={local.disabled ?? field?.().disabled}
+      readOnly={local.readOnly ?? field?.().readOnly}
+      invalid={local.invalid ?? field?.().invalid}
       positioning={{strategy: 'fixed', placement: 'bottom-start', gutter: 4}}
     >
       <Combobox.Control class={CONTROL}>
