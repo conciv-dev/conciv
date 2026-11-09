@@ -50,11 +50,19 @@ const NodeRefSchema = z.object({target: z.string(), round: z.number(), node: z.s
 const HintSchema = z.object({component: z.string(), specifier: z.string(), confidence: z.number()})
 
 const CatalogConfigSchema = z.object({
-  sources: z.array(z.string()),
-  hint: z.boolean(),
-  section: z.boolean(),
-  appTierFull: z.number(),
-  hintConfidence: z.number(),
+  sources: z
+    .array(z.enum(['vite-oxc']))
+    .default(['vite-oxc'])
+    .describe('the component sources to scan; none turns the scan, the section and the hints off'),
+  hint: z.boolean().default(true).describe('design_get names the component a node probably is'),
+  section: z.boolean().default(true).describe('design_get carries the component list'),
+  appTierFull: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(24)
+    .describe('the most app components the list shows in full before it counts the rest'),
+  hintConfidence: z.number().min(0).max(1).default(0.5).describe('the lowest score a hint is given at'),
 })
 
 export const CatalogSchemas = {

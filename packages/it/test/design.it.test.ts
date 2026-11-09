@@ -884,3 +884,50 @@ describe('design_components', () => {
     expect(firstBlock(envelope.data.text)).toBe(firstBlock(listed.text))
   })
 })
+
+describe('design_get components section', () => {
+  const SEGMENT_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=5-1'
+
+  const SEGMENT_DOCUMENT = {
+    name: 'it fixture',
+    lastModified: '2026-11-09T00:00:00Z',
+    version: '1',
+    nodes: {
+      '5:1': {
+        document: figmaFrame({
+          id: '5:1',
+          name: 'Toolbar',
+          box: {x: 0, y: 0, w: 600, h: 120},
+          layoutMode: 'HORIZONTAL',
+          children: [
+            figmaFrame({id: '5:2', name: 'Segment control', type: 'INSTANCE', box: {x: 24, y: 40, w: 240, h: 40}}),
+          ],
+        }),
+      },
+    },
+  }
+
+  async function segmentTarget(on: Kit) {
+    const image = join(on.targetsDir, 'segment-figma.png')
+    await writeFile(image, blankPng({width: 600, height: 120}))
+    return on.call('design_get', {figma: SEGMENT_LINK, image, document: SEGMENT_DOCUMENT})
+  }
+
+  it('lists the project components and hints the kit component a node names', async () => {
+    const got = await segmentTarget(kit)
+    expect(got.components?.length).toBeGreaterThan(0)
+    expect(got.nodes.find((node) => node.name === 'Segment control')?.hint?.component).toBe('SegmentGroup')
+  })
+
+  it('carries no section and no hint when the catalog reads no sources', async () => {
+    const bare = await boot({config: {catalog: {sources: []}}})
+    try {
+      const got = await segmentTarget(bare)
+      expect('components' in got).toBe(false)
+      expect(got.nodes.filter((node) => node.hint !== undefined)).toEqual([])
+      expect((await bare.call('design_components', {})).components).toEqual([])
+    } finally {
+      await bare.dispose()
+    }
+  })
+})

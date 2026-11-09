@@ -1,14 +1,33 @@
 import {z} from 'zod'
 import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
-import type {Catalog, CatalogConfig, CatalogFlag, Component, NodeRef, PropSketch} from '../shared/catalog-defs.js'
-import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
+import type {
+  Catalog,
+  CatalogConfig,
+  CatalogFlag,
+  Component,
+  Hinter,
+  NodeRef,
+  PropSketch,
+  Ranked,
+} from '../shared/catalog-defs.js'
+import {
+  DESIGN_TOOL_PREFIX,
+  DESIGN_TOOLS,
+  DESIGN_VERDICTS,
+  type DesignRuntime,
+  type Differ,
+  type Got,
+} from '../shared/defs.js'
 import {renderComponents} from './catalog/render-list.js'
 import {figmaRef} from './figma-ref.js'
 
 const [getDef, checkDef, statusDef, , , componentsDef] = DESIGN_TOOLS
 
 const NO_PAGE = 'no page registered for this link'
+
+const HINT_RULE =
+  'a node with hint is probably that project component: import it rather than drawing it, and ignore the hint when it does not fit'
 
 const SOURCES =
   'Sources, each row with target and at: targets (the registered design: link, width, height, image, lead: the first frame of the set when the design has a frame per width), rounds (one per design_check: much, noticeably, slightly, pins, other, reflow, paint, rows_count, nodes, mapped, rendered, revoted, pixel_share, and against the round before: pixel_before, closed, opened, kept, gained, lost, changed_ratio, changed_regions, note, verdict, unsettled: why a round was measured but not judged), missing (per round the nodes no element renders, kind missing, not_rendered or dupe), candidates (tied votes: node, selector, score), widths (the widths a round measured: width, from, root_height, overflow_x), regions (where the screenshot changed since the round before: x, y, width, height and per overlapping element id, node, name, source, overlap; truncated when only the largest are listed), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, token, confidence, margin; the kind of a paint row is fill, text color, font family, font weight, font size, line height, radius, border, opacity or image), nodes (one per Figma node of the design, its expected look: node, name, type, within, depth, x, y, w, h, fill_kind solid, gradient, image or none, fill, fill_opacity, stroke, stroke_weight, radius, font_family, font_weight, font_size, line_height, text_align, text, opacity, image, asset, and the token each field is bound to: token_fill, token_stroke, token_radius, token_font, token_gap, token_padding), fom (the stored mapping per conciv id and Figma node: source, confidence, margin, round, revoted_round, reason, joined to the look of that node with every nodes field), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note), notes (run, round, text) and node_components (which project component rendered each design node in a round: round, node, component_id, source, the source line that tied them).'
@@ -77,7 +96,7 @@ export const SERVER_STEPS = [
       tool: getDef.name,
       input,
       session: request.sessionId,
-      call: () => ctx.differ.get({input, session: request.sessionId, page}),
+      call: async () => withCatalog({reply: await ctx.differ.get({input, session: request.sessionId, page}), ctx}),
     }),
   ),
   checkDef.server((input, ctx: DesignContext, request) =>
@@ -116,7 +135,40 @@ type DesignContext = {
   differ: Differ
   db: ExtensionDb<Record<never, never>>
   catalog: Catalog
-  limits: Pick<CatalogConfig, 'appTierFull'>
+  catalogConfig: CatalogConfig
+  hinters: Hinter[]
+}
+
+type GetReply = Got | {variants: Got[]}
+
+async function withCatalog(input: {reply: GetReply; ctx: DesignContext}): Promise<GetReply> {
+  const {reply, ctx} = input
+  const config = ctx.catalogConfig
+  if (config.sources.length === 0 || (!config.section && !config.hint)) return reply
+  const ranked = await ctx.catalog.list({})
+  if (ranked.length === 0) return reply
+  if ('variants' in reply)
+    return {variants: await Promise.all(reply.variants.map((got) => withComponents({got, ranked, ctx})))}
+  return withComponents({got: reply, ranked, ctx})
+}
+
+async function withComponents(input: {got: Got; ranked: Ranked[]; ctx: DesignContext}): Promise<Got> {
+  const {got, ranked, ctx} = input
+  const config = ctx.catalogConfig
+  const section = config.section ? {components: renderComponents({ranked, limits: config})} : {}
+  if (!config.hint) return {...got, ...section}
+  const design = await ctx.design.store.design(got.target)
+  const hints = new Map(ctx.hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]))
+  if (hints.size === 0) return {...got, ...section}
+  return {
+    ...got,
+    ...section,
+    rules: [...got.rules, HINT_RULE],
+    nodes: got.nodes.map((node) => {
+      const hint = hints.get(node.id)
+      return hint === undefined ? node : {...node, hint}
+    }),
+  }
 }
 
 type ComponentsInput = z.output<typeof componentsDef.inputSchema>
@@ -136,7 +188,7 @@ async function listed(asked: {input: ComponentsInput; ctx: DesignContext; sessio
   const {store} = ctx.design
   const record = await targetBehind({link: input.link, session, store})
   const components = await ctx.catalog.list({live: record === null ? [] : await store.sources(record.id)})
-  const text = renderComponents({ranked: components, limits: ctx.limits})
+  const text = renderComponents({ranked: components, limits: ctx.catalogConfig})
   return {text: input.link !== undefined && record === null ? `${NO_PAGE}\n\n${text}` : text, components}
 }
 

@@ -24,6 +24,7 @@ import {createRuns} from './server/runs.js'
 import {DESIGN_COMMANDS} from './server/commands.js'
 import {createCatalog} from './server/catalog/catalog.js'
 import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
+import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -79,9 +80,22 @@ const design = defineExtension({
     pageDir: fileURLToPath(new URL('xray/', import.meta.url)),
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
-  const catalog = createCatalog({home: runtime.home, db, cwd: server.cwd, sources: [createViteOxcSource()]})
+  const componentSources = {'vite-oxc': createViteOxcSource()}
+  const catalog = createCatalog({
+    home: runtime.home,
+    db,
+    cwd: server.cwd,
+    sources: config.catalog.sources.map((source) => componentSources[source]),
+  })
   return {
-    context: {design: runtime, differ, db, catalog, limits: config.catalog},
+    context: {
+      design: runtime,
+      differ,
+      db,
+      catalog,
+      catalogConfig: config.catalog,
+      hinters: [createNameVariantHinter()],
+    },
     router: xray.router,
     app: xray.app,
     dispose: async () => {

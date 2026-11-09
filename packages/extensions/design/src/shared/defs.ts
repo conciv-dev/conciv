@@ -7,6 +7,7 @@ import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
 import {designTool} from './design-tool.js'
+import {CatalogSchemas} from './catalog-defs.js'
 import {componentsDef} from './components-def.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -308,6 +309,7 @@ const TaggedNodeSchema = z
     implied: z.boolean().optional(),
     reflow: ReflowTagSchema.optional(),
     selector: z.string().optional(),
+    hint: CatalogSchemas.Hint.optional().describe('the project component this node probably is'),
   })
   .loose()
 
@@ -335,6 +337,7 @@ const GetResultSchema = z.object({
   viewport: z.object({width: z.number(), height: z.number()}),
   rules: z.array(z.string()),
   nodes: z.array(TaggedNodeSchema),
+  components: z.string().optional().describe('the project components to build from, as design_components lists them'),
 })
 
 const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
