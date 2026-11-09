@@ -10,8 +10,7 @@ An extension declares its user settings once, as a zod object. conciv then:
 1. stores them per extension namespace in the settings store from #779 (`project` scope, namespace = extension name),
 2. adds a rail/tab entry for that extension on the settings page, at `/panel/$sessionId/settings/extensions/$name`,
 3. renders one control per field from the schema, through the same TanStack Form + kit controls the built-in tabs use,
-4. shows a field as locked, with the reason, when the project already sets it in `conciv({extensions: {<name>: {...}}})`,
-5. lets the extension read the live values from its client and server code.
+4. lets the extension read the live values from its client and server code.
 
 No extension writes UI for its settings. Extensions without `settings` get no entry.
 
@@ -40,7 +39,8 @@ defineExtension({
 - `settings` is a `z.ZodObject`. Every field must have a `.default()` (enforce in the type, not at runtime).
 - Field metadata uses zod v4 `.meta({title, description})` (read through `z.globalRegistry` / `schema.meta()`). No custom registry.
 - Reading: the existing per-namespace `settings.project` store (`getHostApi().useScope(name).settings.project` on the client, the server scope from #779) returns raw stored values; add a typed helper on the extension builder (e.g. `useSettings()` client side) that parses stored values through the schema so the extension always sees a full, valid object (defaults filled, a malformed stored value falls back to its default via `.catch`). Server side gets the same parsed object through `ServerApi`.
-- Locks: a key that is present in that extension's `conciv({extensions})` config with the same name wins over the stored value and the control shows "Set in conciv({extensions}) by this project." (same wording style as `create-preferences.ts` locks).
+- No locks (Omri, 2026-11-09, the Devframe way): `conciv({extensions})` stays server-only extension config (`configSchema`, `ServerApi.config`) and never reaches the browser; `settings` is user settings only. The two are separate; a value a project wants fixed is config, not a setting.
+- `defineExtension` also gains an optional `icon?: Component<{class?: string}>` (same shape as `ExtensionView.icon`), used for the extension's settings tab.
 
 ## Control mapping (generated page)
 
@@ -58,7 +58,7 @@ Label = `meta.title` (fallback: the key, humanised), hint = `meta.description`. 
 ## Routes & layout
 
 - New file route `panel.$sessionId_.settings.extensions.$name.tsx`. Unknown `$name` (no such extension, or no `settings`) redirects to `/panel/$sessionId/settings/general` in `beforeLoad`, never throws.
-- The settings layout (`panel.$sessionId_.settings.tsx`) lists one tab per extension with settings, after Shortcuts and before the spacer/Advanced, with the extension's icon if it has one (fallback `Puzzle` from lucide). Tabs stay route-driven (`useMatchRoute`), keep `data-glide` so the top-tab / rail transition still animates, and the last-tab memory (`last-tab.ts`) must accept extension tabs (store the extension name; an extension that is gone falls back to `general`).
+- The settings layout (`panel.$sessionId_.settings.tsx`) lists one tab per extension with settings, after Shortcuts and before the spacer/Advanced, with the extension's `icon` (fallback `Puzzle` from lucide). Tabs stay route-driven (`useMatchRoute`), keep `data-glide` so the top-tab / rail transition still animates, and the last-tab memory (`last-tab.ts`) must accept extension tabs (store the extension name; an extension that is gone falls back to `general`).
 - Advanced gains a "Reset extension settings" row next to Views/Shortcuts that clears every extension namespace's project settings (reuse the existing reset mutation shape).
 
 ## Constraints (all mandatory, from AGENTS.md and Omri's standing rules)
@@ -69,7 +69,7 @@ Label = `meta.title` (fallback: the key, humanised), hint = `meta.description`. 
 - Styling: UnoCSS classes from preset tokens only. No `.css` files, no arbitrary breakpoints (`@[360px]`), container variants `@xs/@sm/@md/@lg` only. Match the existing settings page look exactly (cards, rows, controls); do not invent a new style.
 - Ark only through `@conciv/ui-kit-system`. The kit only gets generic Ark controls it lacks; settings-specific components live in `apps/conciv/src/settings/`.
 - Use library features before writing code (zod v4 meta/registry, TanStack Form field API, router `beforeLoad` redirect). Never hand-roll a primitive a library already has.
-- Tests: no new test files. Extend the existing `describe('settings page')` journey in `apps/conciv/test/conciv.browser.test.tsx` with an extension that declares `settings` (one boolean, one enum, one number, one string, one locked through config): open its tab, change each control like a user (pointer clicks, typing), see the value reach the extension (render it from the extension's `Surface`), reload, see it persist, see the locked field disabled with its reason. Extension package unit coverage goes into the existing node test file of `packages/extension`. Run only the test files you touched, never full suites or turbo gates.
+- Tests: no new test files. Extend the existing `describe('settings page')` journey in `apps/conciv/test/conciv.browser.test.tsx` with an extension that declares `settings` (one boolean, one enum, one number, one string): open its tab, change each control like a user (pointer clicks, typing), see the value reach the extension (render it from the extension's `Surface`), reload, see it persist. Extension package unit coverage goes into the existing node test file of `packages/extension`. Run only the test files you touched, never full suites or turbo gates.
 - Headless browsers only.
 - Before finishing: `pnpm exec fallow audit --format json --quiet --explain --gate-marker agent` must pass; add a changeset (`'@conciv/extension': patch` and `'@conciv/embed': patch`); update `packages/extension/src/README.md` and `apps/conciv/src/settings/README.md`.
 
