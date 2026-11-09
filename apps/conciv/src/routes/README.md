@@ -14,6 +14,9 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `/panel/$sessionId` (`panel.$sessionId.tsx`): `PanelSession`, search `{popOut?: 'lost'}`; reads its session through `sessions.get`; clicking the header title (or Enter/Space on it) opens the session menu (`Popover`: Ark owns open state, focus, Escape and outside click, and returns focus to the title) hosting `SessionSelector`, context and refresh/pop-out/disconnect rows, and a pencil (`Editable`) renames in place through `rpc.sessions.rename`
 - `/panel/$sessionId/` (`panel.$sessionId.index.tsx`): `ChatPaneRoute`
 - `/panel/$sessionId/$view` (`panel.$sessionId.$view.tsx`): `PanelView`, an extension view
+- `/panel/$sessionId/settings` (`panel.$sessionId_.settings.tsx`): `SettingsLayout`, outside the session layout; header with Close, kit `Tabs` driven by the matched child route (selecting a tab navigates), the tab's route in the panel; the index redirects to `appearance`
+- `/panel/$sessionId/settings/appearance`, `/views`, `/shortcuts`, `/advanced` (`panel.$sessionId_.settings.<tab>.tsx`): one route per settings tab, each a `PreferencesForm`
+- `/panel/$sessionId/settings/advanced/reset` (`panel.$sessionId_.settings.advanced.reset.tsx`): the reset-all `ConfirmDialog`; closing it navigates back to `advanced`
 - `/quick` (`quick.tsx`): quick terminal layer, search `QuickSearchSchema` (`panes`, `focus`)
 - `/pip/$sessionId` (`pip.$sessionId.tsx`): `PipSession`, renders the session into a popup window
 - `panelHeightCap`, `defaultPanelHeight` (`panel-height.ts`): panel height from viewport, at most 750 px
@@ -23,6 +26,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `__root.tsx:Route.validateSearch`: `open` is either `true` or absent
 - `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
+- `__root.tsx:onKeyDown`: Escape on a settings route navigates to the chat route with `replace` and history state `restoreFocus: 'settings'`, which focuses the settings link in the session header and keeps `panel.tsx` from focusing the composer
 - `quick.tsx:Route.beforeLoad`: redirects to `/` when `settings.quickTerminal.enabled` is false
 - `panel.$sessionId.tsx:SessionTitle`: no rename when the trimmed title is empty or unchanged
 - `pip.$sessionId.tsx:PipSession`: if the popup cannot open, returns inline with `popOut: 'lost'`; closing the popup (`pagehide`) returns inline
