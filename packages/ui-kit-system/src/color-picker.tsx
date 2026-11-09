@@ -65,7 +65,9 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
       local.onValueChange?.(toHex(details))
       if (!picker().open) local.onValueCommit?.(toHex(details))
     },
-    onValueChangeEnd: (details) => local.onValueCommit?.(toHex(details)),
+    onValueChangeEnd: (details) => {
+      if (picker().open) local.onValueCommit?.(toHex(details))
+    },
     onOpenChange: (details) => {
       if (!details.open) local.onValueCommit?.(picker().value.toString('hex'))
     },
