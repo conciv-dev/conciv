@@ -2,6 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test} from 'vitest'
 import {
+  glideToLatestFromFarUp,
   registerCalmCore,
   startBoundaryRun,
   startMultiToolRun,
@@ -32,4 +33,10 @@ test('a long thread at the virtualization boundary streams a run without dropped
 
 test('a streamed code block streams without dropped frames', async () => {
   expectSmooth(await streamCodeAnswer())
+}, 120_000)
+
+test('Latest from far up in a long chat glides to the end without dropped frames', async () => {
+  const watch = await glideToLatestFromFarUp()
+  console.info('latest glide frame gaps', JSON.stringify(watch.frameGaps()))
+  expectSmooth(watch)
 }, 120_000)
