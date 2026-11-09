@@ -173,6 +173,10 @@ export function createApprovalStore(
   }
   const outsideDenied = async (threadId: string): Promise<boolean> =>
     (await grantsOf(outsideHolder(threadId))).refused.includes(OUTSIDE_APPROVAL_ID)
+  const outsideRevoked = (allowedGeneration: number | null): boolean => {
+    const current = hubGeneration()
+    return current === null || allowedGeneration !== current
+  }
   return {
     asked: async (threadId, ask) => {
       const pending = await pendingOf(threadId)
@@ -209,9 +213,7 @@ export function createApprovalStore(
     admit: async (threadId, approvalId) => {
       const holder = holderOf(threadId, approvalId)
       const grants = await grantsOf(holder)
-      const current = hubGeneration()
-      const revoked =
-        approvalId === OUTSIDE_APPROVAL_ID && (current === null || grants.outsideAllowedGeneration !== current)
+      const revoked = approvalId === OUTSIDE_APPROVAL_ID && outsideRevoked(grants.outsideAllowedGeneration)
       if (grants.session.includes(approvalId) && !revoked) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'
       if (!grants.outside.includes(approvalId)) return 'ask'
