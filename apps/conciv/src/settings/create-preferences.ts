@@ -42,14 +42,15 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
     }),
     () => options.queryClient,
   )
-  const stored = createMemo(() => PreferencesSchema.parse(snapshot.data?.value ?? {}))
+  const saved = (): Record<string, unknown> => (snapshot.isSuccess ? snapshot.data.value : {})
+  const stored = createMemo(() => PreferencesSchema.parse(saved()))
   const hostHotkeys = (command: ShortcutCommand): string[] | null =>
     command === 'quickTerminal' ? options.host.quickTerminal.hotkeys : null
   const write = (key: keyof typeof PREFERENCE_DEFAULTS, value: unknown) =>
     isEqual(value, PREFERENCE_DEFAULTS[key]) ? options.store.delete(key) : options.store.set(key, value)
   return {
     stored,
-    status: () => (snapshot.data ? 'success' : snapshot.status),
+    status: () => snapshot.status,
     retry: () => void snapshot.refetch(),
     launcher: () => (options.host.fromHost.launcher ? launcherChoice(options.host.launcher) : stored().launcher),
     openOnLoad: () => (options.host.fromHost.defaultOpen ? options.host.defaultOpen : stored().openOnLoad),
@@ -65,7 +66,7 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
       await Promise.all(keys.map((key) => options.store.delete(key)))
     },
     clear: async () => {
-      await Promise.all(Object.keys(snapshot.data?.value ?? {}).map((key) => options.store.delete(key)))
+      await Promise.all(Object.keys(saved()).map((key) => options.store.delete(key)))
     },
   }
 }
