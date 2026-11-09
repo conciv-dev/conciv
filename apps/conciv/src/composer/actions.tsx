@@ -62,7 +62,7 @@ export function ComposerActions(props: {
       >
         <FoldVertical class="size-5 block" />
       </Action.ActionButton>
-      <ConnectAgentsMenu sessionId={props.sessionId} class={ACT} />
+      <ConnectAgentsMenu class={ACT} />
     </>
   )
 }

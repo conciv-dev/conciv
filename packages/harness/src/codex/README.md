@@ -6,10 +6,10 @@ Codex CLI harness, published as `./codex`. It chats through `codex` from `@conci
 
 ## Interface
 
-- `codex` (`index.ts`): id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`.
+- `codex` (`index.ts`): id/binName `'codex'`, displayName `'Codex'`; capabilities resume true, `permissionGate: 'none'`, transcriptHistory true, compaction false, `systemPrompt: 'flag'`, `mcp: 'http'`, `slashCommands: 'none'`, imageInput false, `init: 'none'`; `resume.command({nativeId})` is `codex resume <nativeId>`.
 - `codex.chatConfig` (`index.ts`): codexAdapter with `sandboxMode: 'workspace-write'`, `approvalPolicy: 'never'`; with `deps.hasTools` adds `mcp_servers.tanstack.default_tools_approval_mode = "approve"`; env through `definedEntries`; `sessionId` when resuming.
 - `codexHome(env)`, `codexModels(dir)`, `codexDefaultModel(dir)` (`models.ts`).
-- `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project.
+- `stateDbPath()` (`$CODEX_HOME/state_5.sqlite`), `sessionsRoot()` (`$CODEX_HOME/sessions`), `rolloutCwd(raw)`, `rolloutPath(sessionId)`, `codexHistory` `{messages, observe, withinProject, contextTokens, list, meta}` (`history.ts`); `messages` streams the rollout through `foldJsonlFile`, taking the cwd from its first `session_meta` line, and answers `[]` when that cwd is not the project. `list({cwd}, page)` reads the `threads` rows of that cwd, `list({everywhere: true}, page)` every unarchived row; each meta carries the row's `cwd`.
 
 ## Invariants
 

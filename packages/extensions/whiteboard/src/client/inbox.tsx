@@ -2,7 +2,7 @@ import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import InboxIcon from 'lucide-solid/icons/inbox'
 import ListFilter from 'lucide-solid/icons/list-filter'
-import {Button, RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Button, Kbd, RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 
@@ -118,7 +118,7 @@ export function Inbox(): JSX.Element {
             value={search()}
             onInput={(event) => setSearch(event.currentTarget.value)}
           />
-          <kbd class="text-[0.75rem] text-chat-accent-hi shrink-0">⌘3</kbd>
+          <Kbd class="shrink-0">⌘3</Kbd>
         </div>
         <div class="px-3 py-1.5 border-b border-chat-line-soft flex items-center justify-between">
           <Menu

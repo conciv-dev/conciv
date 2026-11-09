@@ -8,6 +8,7 @@ import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
+  HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
   TranscriptHandle,
@@ -46,6 +47,7 @@ const ThreadRowSchema = z
   .object({
     id: HarnessSessionId,
     rollout_path: z.string(),
+    cwd: z.string(),
     title: z.string().nullish(),
     first_user_message: z.string().nullish(),
     preview: z.string().nullish(),
@@ -61,12 +63,12 @@ const ThreadRowSchema = z
 type ThreadRow = z.infer<typeof ThreadRowSchema>
 
 const THREAD_COLUMNS =
-  'id, rollout_path, title, first_user_message, preview, model, tokens_used, created_at, updated_at, created_at_ms, updated_at_ms'
+  'id, rollout_path, cwd, title, first_user_message, preview, model, tokens_used, created_at, updated_at, created_at_ms, updated_at_ms'
 
 const UPDATED_MS =
   'cast(round(case when updated_at_ms > 0 then updated_at_ms else coalesce(updated_at, 0) * 1000 end) as integer)'
 
-const LIST_THREADS = `select ${THREAD_COLUMNS} from threads where cwd = ? and archived = 0 and (? is null or (${UPDATED_MS}, id) < (?, ?)) order by ${UPDATED_MS} desc, id desc limit ?`
+const LIST_THREADS = `select ${THREAD_COLUMNS} from threads where (? is null or cwd = ?) and archived = 0 and (? is null or (${UPDATED_MS}, id) < (?, ?)) order by ${UPDATED_MS} desc, id desc limit ?`
 const THREAD_BY_ID = `select ${THREAD_COLUMNS} from threads where id = ? limit 1`
 const PROJECT_THREAD = `select ${THREAD_COLUMNS} from threads where id = ? and cwd = ? limit 1`
 
@@ -349,10 +351,12 @@ async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatM
   return folded.spine.messages
 }
 
-async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const after = page.after
+  const projectCwd = 'cwd' in scope ? realpathOrSelf(scope.cwd) : null
   const rows = threadRows(stateDbPath(), LIST_THREADS, [
-    realpathOrSelf(cwd),
+    projectCwd,
+    projectCwd,
     after?.updatedAt ?? null,
     after?.updatedAt ?? null,
     after?.id ?? null,
@@ -370,6 +374,7 @@ async function threadMeta(row: ThreadRow): Promise<HarnessSessionMeta | null> {
   if (info === null) return null
   return {
     id: row.id,
+    cwd: row.cwd,
     derivedTitle: firstText(row),
     updatedAt: millis(row.updated_at_ms, row.updated_at),
     sizeBytes: info.size,

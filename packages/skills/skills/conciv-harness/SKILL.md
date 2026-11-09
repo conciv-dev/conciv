@@ -229,10 +229,12 @@ with different rooting rules.
 - **`tty?: {command(ctx: HarnessConnectContext): TtyCommand}`** — the argv/options for opening the CLI
   in the built-in terminal pane.
 - There is no connect/launch-plan sidecar. Outside sessions of a harness (any cwd) reach conciv through the
-  `conciv-hub` MCP server, `conciv mcp` from `@conciv/cli` (`packages/cli/src/hub.ts`), which the user installs
-  from the composer's "Connect agents" menu. That install argv lives on the harness's init contribution in
-  `@conciv/harness-init` as `hub: {add(command): string[]}` (`packages/harness-init/src/codex.ts`), not on the
-  `HarnessAdapter`; a harness with no MCP support (pi) omits `hub`.
+  `conciv-hub` MCP server, `conciv mcp serve --agent <harness>` from `@conciv/cli` (`packages/cli/src/hub.ts`),
+  which the user installs from the composer's "Connect agents" menu, `conciv mcp connect <harness>` or
+  `conciv init`. That install argv lives on the harness's init contribution in `@conciv/harness-init` as
+  `hub: {name, shellEnv, add(command, env): string[], remove?: string[]}` (`packages/harness-init/src/codex.ts`),
+  not on the `HarnessAdapter`; `shellEnv` is the variable the CLI sets in its shell tool's env, so `conciv tools`
+  run from that agent names it. A harness with no MCP support (pi) omits `hub`.
 - **`commands?: HarnessCommands`** — `(ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>`
   (`packages/protocol/src/harness-types.ts:35-39`), required whenever `slashCommands !== 'none'`. Each
   `HarnessCommand` is `{name, description?, argumentHint?}`; `'live'` means query the running CLI for

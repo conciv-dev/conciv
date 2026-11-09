@@ -145,6 +145,32 @@
   height: auto;
 }
 
+/* Compact markdown for one-glance excerpts: one type size taken from the container, no heading scale,
+   no block spacing, and a fence reads as inline code, so a clipped excerpt keeps a fixed line height. */
+.chat-markdown-compact {
+  overflow-wrap: anywhere;
+}
+
+.chat-markdown-compact * {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.chat-markdown-compact li {
+  list-style-position: inside;
+}
+
+.chat-markdown-compact pre {
+  white-space: normal;
+}
+
+.chat-markdown-compact code {
+  font-family: var(--chat-mono);
+  color: var(--chat-code);
+}
+
 /* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
    `color-scheme: light dark` on its own shadow host inside `@layer base`, which would follow the OS
    rather than the widget. This unlayered rule beats that layered one and hands the component the

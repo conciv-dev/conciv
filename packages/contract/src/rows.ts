@@ -21,6 +21,15 @@ export const SessionMetaSchema = z.object({
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
 
+export const SessionHitSchema = SessionMetaSchema.extend({
+  excerpt: z.string().nullable(),
+  matched: z.array(z.string()),
+  cwd: z.string().nullable(),
+  resume: z.string().nullable(),
+  preview: NativeSessionRefSchema.nullable(),
+})
+export type SessionHit = z.infer<typeof SessionHitSchema>
+
 export const PersistedAttachmentSchema = z.object({
   id: z.string(),
   type: z.string(),

@@ -80,16 +80,25 @@ const DECIDING_PROCEDURES = new Set(['chat.permissionDecision', 'chat.allowOutsi
 
 const OUTSIDE_DECISION_REFUSAL = "outside agents can't answer permission requests; decide it in the tab"
 
+const HUB_PROCEDURES = new Set(['meta.connectHub', 'meta.disconnectHub'])
+
+const OUTSIDE_HUB_REFUSAL = "outside agents can't connect or disconnect agents; do it in the tab"
+
 export function makeHubAdmission(deps: RpcDeps) {
   return plainOs.$context<RpcContext>().middleware(async ({context, next, signal, path}, input: unknown) => {
-    const outside = callTrace((header) => rpcHeader(context, header)).hub !== null
-    if (outside && DECIDING_PROCEDURES.has(path.join('.'))) {
-      throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
-    }
+    const hub = callTrace((header) => rpcHeader(context, header)).hub
+    if (hub !== null) refuseOutside(deps, hub.client, path.join('.'))
     const named = NamedSessionSchema.safeParse(input)
     if (named.success) await admitHubCaller(deps, context, deps.runtime.forSession(named.data.sessionId), signal)
     return next()
   })
+}
+
+function refuseOutside(deps: RpcDeps, client: string | null, procedure: string): void {
+  const disconnected = deps.hub.refusal(client)
+  if (disconnected !== null) throw new ORPCError('APPROVAL_DENIED', {message: disconnected})
+  if (DECIDING_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_DECISION_REFUSAL})
+  if (HUB_PROCEDURES.has(procedure)) throw new ORPCError('APPROVAL_DENIED', {message: OUTSIDE_HUB_REFUSAL})
 }
 
 async function admitHubCaller(
@@ -100,7 +109,8 @@ async function admitHubCaller(
 ): Promise<void> {
   const hub = callTrace((header) => rpcHeader(context, header)).hub
   if (hub === null) return
-  const refusal = await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)
+  const refusal =
+    (await deps.admitOutside(scope, hub.client, signal ?? new AbortController().signal)) ?? deps.hub.refusal(hub.client)
   if (refusal !== null) throw new ORPCError('APPROVAL_DENIED', {message: refusal})
 }
 

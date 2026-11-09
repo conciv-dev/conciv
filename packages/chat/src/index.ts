@@ -43,6 +43,7 @@ type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   stateRoot: string
   hubAccess: HubAccess
+  hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
 }
 
@@ -107,6 +108,7 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const approvals = createApprovalStore(
     {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
     deps.hubAccess,
+    deps.hubGeneration,
   )
   const ui = createUiChannel()
   const transcripts = createTranscriptImporter({

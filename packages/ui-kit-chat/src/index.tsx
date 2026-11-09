@@ -179,7 +179,7 @@ export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
-export {Markdown, type MarkdownProps} from './styled/markdown.js'
+export {Markdown, MarkdownHighlightProvider, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
 export {Group, type GroupRootProps, type GroupTriggerProps, type GroupContentProps} from './styled/group.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'

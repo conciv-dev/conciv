@@ -332,6 +332,7 @@ describe('chat plane', () => {
         list: async () => ({sessions: [], next: null}),
         meta: async () => null,
       },
+      resume: {command: ({nativeId}) => ({bin: 'native', args: [nativeId]})},
       capabilities: {...NO_CAPABILITIES, transcriptHistory: true},
     })
   }
@@ -360,6 +361,7 @@ describe('chat plane', () => {
       db,
       stateRoot: root,
       hubAccess: 'session',
+      hubGeneration: () => 0,
       cwd: root,
       harnessFor: () => harness,
       systemPrompt: {},
