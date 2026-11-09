@@ -42,7 +42,7 @@ export const spawnPaintHarness: ServerHarness = {
   release: () => {},
 }
 
-export const bashHarness: ServerHarness = {
+const bashHarness: ServerHarness = {
   id: 'test-tty',
   ttyCommand: () => ({bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}),
   release: () => {},
@@ -59,24 +59,6 @@ export function recordingHarness(): {harness: ServerHarness; captured: HarnessCo
       ttyCommand: (ctx) => {
         captured.push(ctx)
         return command(ctx)
-      },
-    },
-  }
-}
-
-export function connectingHarness(): {harness: ServerHarness; captured: HarnessConnectContext[]} {
-  const captured: HarnessConnectContext[] = []
-  return {
-    captured,
-    harness: {
-      ...bashHarness,
-      connectPlan: (ctx) => {
-        captured.push(ctx)
-        return {
-          argv: ['fake-cli', '--session', ctx.harnessSessionId ?? 'new', ...(ctx.mcpUrl ? ['--mcp', ctx.mcpUrl] : [])],
-          env: {CONCIV_LAUNCH: 'yes'},
-          files: [],
-        }
       },
     },
   }

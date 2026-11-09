@@ -8,13 +8,11 @@ import {
   Show,
   Suspense,
   untrack,
-  type Accessor,
   type JSX,
 } from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
-import {range} from 'es-toolkit'
 import {
   activeToolCall,
   AttachmentByMime,
@@ -25,8 +23,10 @@ import {
   Thread,
   ToolProvider,
   useComposerContext,
+  useThread,
   type PageSessionConfig,
-  type Turn,
+  type TurnItem,
+  type TurnPrefixSource,
 } from '@conciv/ui-kit-chat'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {pageSessionEntry} from '@conciv/extension-page/client'
@@ -40,12 +40,12 @@ import type {ChatSession} from '@conciv/client'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'
-import {paneAttachments, returnUnsentToDraft} from './pane-attachments.js'
+import {paneAttachments, returnQueueToDraft} from './pane-attachments.js'
 import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, useRpc} from '../app/context.js'
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
-import {foldToolDurations} from './tool-durations.js'
+import {createToolDurations} from './tool-durations.js'
 import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
@@ -55,6 +55,7 @@ import {guardedToolCards} from '../extension/extension-boundary.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
 import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
+import {ConnectedAgents} from '../composer/connected-agents.js'
 import {SessionModelPrompt, useModelMenu} from '../composer/model-selector.js'
 import {useEngineNotices} from '../shell/notice-context.js'
 import {makeDraftStorage, type PaneDraftStorage} from './draft-storage.js'
@@ -67,6 +68,7 @@ import {OlderMessages} from './older-messages.js'
 import {usePaneMessaging} from './use-pane-messaging.js'
 import {RunErrorRow} from './run-error-row.js'
 import {viewTabPanelAttributes} from './view-tab-ids.js'
+import {QueueStrip} from './queue-strip.js'
 
 const PAGE_SESSION: PageSessionConfig = {
   entry: pageSessionEntry,
@@ -75,14 +77,13 @@ const PAGE_SESSION: PageSessionConfig = {
 }
 
 const ABOVE_COMPOSER =
-  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden pt-[9px] pe-5 pb-[10px] ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-[11px] leading-[1.4] [&>*+*]:before:content-["·"] [&>*+*]:before:px-[5px] [&>*+*]:before:[color:var(--chat-separator)]'
-const NOW_ROW = 'shrink-0 self-stretch min-w-0 pb-[6px]'
-const NOW_ROW_UNDER_TURN = 'shrink-0 self-stretch min-w-0 pb-[6px] -mt-[13px]'
+  'flex flex-row flex-wrap items-center min-h-0 shrink max-h-40 overflow-y-auto empty:hidden py-2 pe-5 ps-5 [background:var(--chat-queue-bg)] [border-block-start:1px_solid_var(--chat-line-soft)] [color:var(--chat-text-3)] [font-family:var(--chat-mono)] text-chat-xs leading-snug [&>*+*]:before:content-["·"] [&>*+*]:before:px-1 [&>*+*]:before:[color:var(--chat-separator)]'
+const NOW_ROW = 'shrink-0 self-stretch min-w-0'
 const THINKING_TITLE = 'Thinking…'
 const RESPONDING_TITLE = 'Responding…'
 const HARNESS_LABEL =
-  'self-start ps-[var(--chat-trace-gutter)] text-[10px] leading-[1.75] [font-family:var(--chat-mono)] text-chat-faint'
-const ERROR = 'flex gap-2 items-center text-chat-danger text-[0.75rem] anim-msg'
+  'self-start ps-[var(--chat-trace-gutter)] text-chat-micro leading-loose [font-family:var(--chat-mono)] text-chat-faint'
+const ERROR = 'flex gap-2 items-center text-chat-danger text-chat-sm anim-msg'
 const LOAD_FAILED = 'Couldn’t load this conversation'
 
 function resetSlideOnSelf(reset: () => void) {
@@ -150,14 +151,20 @@ function isStoppedTurn(message: ChatMessage | undefined): boolean {
   return message?.role === 'assistant' && StoppedMetadataSchema.safeParse(message.metadata).success
 }
 
-function turnHarnessNames(chat: ChatSession, current: () => string | undefined): (turn: Turn) => string | undefined {
+function sameEntries<T>(previous: readonly T[], next: readonly T[]): boolean {
+  return previous.length === next.length && next.every((entry, index) => entry === previous[index])
+}
+
+function turnHarnessNames(
+  chat: ChatSession,
+  current: () => string | undefined,
+  turns: () => readonly TurnItem[],
+): (turn: TurnPrefixSource) => string | undefined {
   const harnesses = useHarnesses()
   const mixed = createMemo(() => {
     const harnessId = current()
     if (harnessId === undefined) return false
-    return chat
-      .messages()
-      .some((message) => message.role === 'assistant' && (chat.harnessOf(message.id) ?? harnessId) !== harnessId)
+    return turns().some((turn) => turn.role === 'assistant' && (chat.harnessOf(turn.key) ?? harnessId) !== harnessId)
   })
   return (turn) => {
     if (!mixed() || turn.role !== 'assistant') return undefined
@@ -166,27 +173,18 @@ function turnHarnessNames(chat: ChatSession, current: () => string | undefined):
   }
 }
 
-type ThreadDividers = {
-  before: (turn: Turn) => MarkerRow[]
-  trailing: () => MarkerRow[]
-  stoppedBefore: (turn: Turn) => boolean
+function decidedThen(chat: ChatSession, after: () => Promise<void>): ChatSession['decide'] {
+  return async (approvalId, approved, scope) => {
+    await chat.decide(approvalId, approved, scope)
+    await after()
+  }
 }
 
-function threadDividers(chat: ChatSession, rows: () => MarkerRow[]): ThreadDividers {
-  const after = (message: ChatMessage | undefined): MarkerRow[] => {
-    const messageId = message?.id ?? null
-    return rows().filter((row) => row.afterMessageId === messageId)
-  }
-  const preceding = (turn: Turn): (ChatMessage | undefined)[] => {
-    const messages = chat.messages()
-    return range(turn.start, turn.end + 1).map((index) => messages[index - 1])
-  }
-  const loadedAfter = (message: ChatMessage | undefined): MarkerRow[] =>
-    message === undefined && chat.hasOlderMessages() ? [] : after(message)
-  return {
-    before: (turn) => preceding(turn).flatMap(loadedAfter),
-    trailing: () => loadedAfter(chat.messages().at(-1)),
-    stoppedBefore: (turn) => isStoppedTurn(preceding(turn)[0]),
+function markersAfter(chat: ChatSession, rows: () => MarkerRow[]): (messageId: string | undefined) => MarkerRow[] {
+  return (messageId) => {
+    if (messageId === undefined && chat.hasOlderMessages()) return []
+    const anchor = messageId ?? null
+    return rows().filter((row) => row.afterMessageId === anchor)
   }
 }
 
@@ -239,41 +237,8 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     loaded: () => registryCatalog.data !== undefined,
     meta: (name) => registryCatalog.data?.find((signature) => signature.name === name),
   }
-  const narrationRowClass = createMemo(() =>
-    chat.messages().at(-1)?.role === 'assistant' ? NOW_ROW_UNDER_TURN : NOW_ROW,
-  )
-  const activeCall = createMemo(() => activeToolCall(chat.messages()))
-  const transcriptToolCallIds = createMemo(
-    () =>
-      new Set(
-        chat
-          .messages()
-          .flatMap((message) => message.parts)
-          .flatMap((part) => (part.type === 'tool-call' ? [part.id] : [])),
-      ),
-  )
-  const outOfBandAsks = createMemo(() =>
-    chat.pendingApprovals().filter((ask) => !transcriptToolCallIds().has(ask.toolCallId)),
-  )
-  createEffect<number>((previous) => {
-    const waiting = outOfBandAsks().length
-    if (waiting > previous) announce('conciv is asking for permission.')
-    return waiting
-  }, 0)
-  const narrationTitle = () => {
-    const call = activeCall()
-    if (call) return nowTitle(call, catalog)
-    return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
-  }
-
   const captures = useSessionCaptures(sessionId)
   const draftStorage = makeDraftStorage(rpc, sessionId)
-
-  const startedAt = new Map<string, number>()
-  const durations = createMemo<Record<string, number>>(
-    (prev) => foldToolDurations(chat.messages(), startedAt, Date.now, prev),
-    {},
-  )
 
   const messaging = usePaneMessaging({
     rpc,
@@ -289,10 +254,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
-    decide: (approvalId, approved, scope) => chat.decide(approvalId, approved, scope),
+    decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
-    durationFor: (toolCallId) => durations()[toolCallId],
+    durationFor: createToolDurations(chat.messages, Date.now),
     captureFor: captures.lookup,
   })
 
@@ -345,22 +310,171 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
   }
   const paneGrab = makePaneGrabApi(pane.grabStaging, pane.grabProvider)
 
-  const hasHistory = () => chat.messages().length > 0
-  const composerPlaceholder = () => (hasHistory() ? 'Add an instruction…' : 'Ask a question…')
-
-  const dividers = threadDividers(chat, () => markers.data ?? [])
   const renderDivider = (row: MarkerRow): JSX.Element => <Divider kind={row.kind} />
-  const lastTurnStopped = () => !narrating() && (chat.stopped() || isStoppedTurn(chat.messages().at(-1)))
-  const turnHarnessName = turnHarnessNames(chat, () => harness()?.id)
-  const renderTurnPrefix = (turn: Accessor<Turn>): JSX.Element => (
-    <>
-      <Show when={dividers.stoppedBefore(turn())}>
-        <Divider kind="stopped" />
-      </Show>
-      <For each={dividers.before(turn())}>{renderDivider}</For>
-      <Show when={turnHarnessName(turn())}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
-    </>
-  )
+  const markerRowsAfter = markersAfter(chat, () => markers.data ?? [])
+
+  const PaneBody = (): JSX.Element => {
+    const thread = useThread()
+    const lastTurn = () => thread.turns.at(-1)?.turn()
+    const outOfBandAsks = createMemo(
+      () =>
+        chat
+          .pendingApprovals()
+          .filter((ask) => !lastTurn()?.parts.some((part) => part.type === 'tool-call' && part.id === ask.toolCallId)),
+      [],
+      {equals: sameEntries},
+    )
+    createEffect<number>((previous) => {
+      const waiting = outOfBandAsks().length
+      if (waiting > previous) announce('conciv is asking for permission.')
+      return waiting
+    }, 0)
+    const NarrationRow = (): JSX.Element => {
+      const title = createMemo(() => {
+        const call = activeToolCall(lastTurn())
+        if (call) return nowTitle(call, catalog)
+        return isThinking() ? THINKING_TITLE : RESPONDING_TITLE
+      })
+      return (
+        <div class={NOW_ROW}>
+          <NowLine title={title()} />
+        </div>
+      )
+    }
+    const composerPlaceholder = () => (thread.isEmpty ? 'Ask a question…' : 'Add an instruction…')
+    const lastMessage = () => lastTurn()?.messages.at(-1)
+    const lastMessageId = createMemo(() => lastMessage()?.id)
+    const lastTurnStopped = () => !narrating() && (chat.stopped() || isStoppedTurn(lastMessage()))
+    const turnHarnessName = turnHarnessNames(
+      chat,
+      () => harness()?.id,
+      () => thread.turns,
+    )
+    const renderTurnPrefix = (source: TurnPrefixSource): JSX.Element => {
+      const anchors = createMemo(
+        () => {
+          const turn = source.turn()
+          return [turn.before, ...turn.messages.slice(0, -1)]
+        },
+        [],
+        {equals: sameEntries},
+      )
+      return (
+        <>
+          <Show when={isStoppedTurn(anchors()[0])}>
+            <Divider kind="stopped" />
+          </Show>
+          <For each={anchors().flatMap((message) => markerRowsAfter(message?.id))}>{renderDivider}</For>
+          <Show when={turnHarnessName(source)}>{(name) => <span class={HARNESS_LABEL}>{name()}</span>}</Show>
+        </>
+      )
+    }
+    return (
+      <div class="contents">
+        <ExtensionSurface name="header" instances={instances} />
+        <ExtensionSurface name="widget" instances={instances} />
+        <div
+          {...viewTabPanelAttributes(props.viewTab)}
+          onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
+          class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
+        >
+          <Thread>
+            <Thread.Viewport>
+              <Suspense fallback={<ConversationSkeleton />}>
+                <Show
+                  when={!chat.isHydrating()}
+                  fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
+                >
+                  <OlderMessages sessionId={sessionId} chat={chat} />
+                  <Show when={!chat.loadFailed()}>
+                    <Thread.Welcome>
+                      <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                    </Thread.Welcome>
+                  </Show>
+                  <Thread.Messages
+                    tools={tools()}
+                    attachmentCards={attachments().cards}
+                    components={{ToolFallback: toolFallbackCard}}
+                    turnPrefix={renderTurnPrefix}
+                    pageSession={PAGE_SESSION}
+                  />
+                  <Show when={lastTurnStopped()}>
+                    <Divider kind="stopped" />
+                  </Show>
+                  <Show when={!chat.loadFailed()}>
+                    <For each={markerRowsAfter(lastMessageId())}>{renderDivider}</For>
+                  </Show>
+                  <Show when={compacting()}>
+                    <Divider kind="compact" pending />
+                  </Show>
+                  <Show when={outOfBandAsks().length > 0}>
+                    <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
+                  </Show>
+                  <Show when={narrating()}>
+                    <NarrationRow />
+                  </Show>
+                  <Show when={messaging.visibleError()}>
+                    {(error) => (
+                      <Show when={!chat.loadFailed()} fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}>
+                        <RunErrorRow
+                          error={error()}
+                          compacting={compacting()}
+                          onRetry={() => void chat.reload()}
+                          onCompact={() => messaging.compact.mutate()}
+                        />
+                      </Show>
+                    )}
+                  </Show>
+                </Show>
+              </Suspense>
+            </Thread.Viewport>
+            <Thread.Composer>
+              <div class={ABOVE_COMPOSER}>
+                <Suspense>
+                  <ConnectedAgents onDisconnected={focusInput} />
+                </Suspense>
+                <ExtensionSurface name="status" instances={instances} />
+                <ExtensionSurface name="footer" instances={instances} />
+              </div>
+              <QueueStrip queue={chat.queue()} />
+              <Suspense>
+                <PaneComposer
+                  draftStorage={draftStorage.storage}
+                  draftKey={sessionId}
+                  placeholder={composerPlaceholder()}
+                  inputLabel="Message the conciv agent"
+                  attachmentAdapter={attachments().adapter}
+                  AttachmentComponent={PaneAttachment}
+                  onInputReady={setInputHandle}
+                  onSelectionChange={draftStorage.noteSelection}
+                  busy={compactingIndicator(compacting())}
+                  triggers={commandSources.triggers}
+                  prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
+                >
+                  <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
+                  <Suspense fallback={<ComposerActionsPending />}>
+                    <ComposerActions
+                      sessionId={sessionId}
+                      compacting={compacting()}
+                      onCompact={() => messaging.compact.mutate()}
+                      onNewSession={() => pane.newSession()}
+                      onStageGrab={stageGrab}
+                    />
+                    <ExtensionSurface name="composer" instances={instances} />
+                    <ComposerWiring
+                      onReady={(api) => {
+                        composerApi.current = api
+                      }}
+                    />
+                  </Suspense>
+                </PaneComposer>
+              </Suspense>
+            </Thread.Composer>
+          </Thread>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <HostApiProvider
@@ -376,117 +490,13 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
             value={{
               onSend: sendOrRunCommand,
               onSendError: messaging.onSendError,
-              onCancel: () =>
-                void chat.interruptAndFlush().then((unsent) => returnUnsentToDraft(unsent, {insert, addFile: attach})),
+              onCancel: () => {
+                returnQueueToDraft(chat, {insert, addFile: attach})
+                void chat.stop()
+              },
             }}
           >
-            <div class="contents">
-              <ExtensionSurface name="header" instances={instances} />
-              <ExtensionSurface name="widget" instances={instances} />
-              <div
-                {...viewTabPanelAttributes(props.viewTab)}
-                onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
-                class={`chat-density flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
-              >
-                <Thread>
-                  <Thread.Viewport>
-                    <Suspense fallback={<ConversationSkeleton />}>
-                      <Show
-                        when={!chat.isHydrating()}
-                        fallback={<ConversationLoading reopened={props.opened.reopened} sessionId={sessionId} />}
-                      >
-                        <OlderMessages sessionId={sessionId} chat={chat} />
-                        <Show when={!chat.loadFailed()}>
-                          <Thread.Welcome>
-                            <EmptyStateSlot
-                              onStarter={(starter) => void chat.sendMessage(starter)}
-                              instances={instances}
-                            />
-                          </Thread.Welcome>
-                        </Show>
-                        <Thread.Messages
-                          tools={tools()}
-                          attachmentCards={attachments().cards}
-                          components={{ToolFallback: toolFallbackCard}}
-                          turnPrefix={renderTurnPrefix}
-                          pageSession={PAGE_SESSION}
-                        />
-                        <Show when={lastTurnStopped()}>
-                          <Divider kind="stopped" />
-                        </Show>
-                        <Show when={!chat.loadFailed()}>
-                          <For each={dividers.trailing()}>{renderDivider}</For>
-                        </Show>
-                        <Show when={compacting()}>
-                          <Divider kind="compact" pending />
-                        </Show>
-                        <Show when={outOfBandAsks().length > 0}>
-                          <PendingApprovals asks={outOfBandAsks()} ctx={toolCtx} />
-                        </Show>
-                        <Show when={narrating()}>
-                          <div class={narrationRowClass()}>
-                            <NowLine title={narrationTitle()} />
-                          </div>
-                        </Show>
-                        <Show when={messaging.visibleError()}>
-                          {(error) => (
-                            <Show
-                              when={!chat.loadFailed()}
-                              fallback={<LoadFailedAlert busy={false} sessionId={sessionId} />}
-                            >
-                              <RunErrorRow
-                                error={error()}
-                                compacting={compacting()}
-                                onRetry={() => void chat.reload()}
-                                onCompact={() => messaging.compact.mutate()}
-                              />
-                            </Show>
-                          )}
-                        </Show>
-                      </Show>
-                    </Suspense>
-                  </Thread.Viewport>
-                  <Thread.Composer>
-                    <div class={ABOVE_COMPOSER}>
-                      <ExtensionSurface name="status" instances={instances} />
-                      <ExtensionSurface name="footer" instances={instances} />
-                    </div>
-                    <Suspense>
-                      <PaneComposer
-                        draftStorage={draftStorage.storage}
-                        draftKey={sessionId}
-                        placeholder={composerPlaceholder()}
-                        inputLabel="Message the conciv agent"
-                        attachmentAdapter={attachments().adapter}
-                        AttachmentComponent={PaneAttachment}
-                        onInputReady={setInputHandle}
-                        onSelectionChange={draftStorage.noteSelection}
-                        busy={compactingIndicator(compacting())}
-                        triggers={commandSources.triggers}
-                        prompt={<SessionModelPrompt sessionId={sessionId} menu={modelMenu} running={narrating()} />}
-                      >
-                        <DraftRestore storage={draftStorage} draftKey={sessionId} input={inputHandle} />
-                        <Suspense fallback={<ComposerActionsPending />}>
-                          <ComposerActions
-                            sessionId={sessionId}
-                            compacting={compacting()}
-                            onCompact={() => messaging.compact.mutate()}
-                            onNewSession={() => pane.newSession()}
-                            onStageGrab={stageGrab}
-                          />
-                          <ExtensionSurface name="composer" instances={instances} />
-                          <ComposerWiring
-                            onReady={(api) => {
-                              composerApi.current = api
-                            }}
-                          />
-                        </Suspense>
-                      </PaneComposer>
-                    </Suspense>
-                  </Thread.Composer>
-                </Thread>
-              </div>
-            </div>
+            <PaneBody />
           </ComposerHandlersProvider>
         </ToolProvider>
       </ChatProvider>

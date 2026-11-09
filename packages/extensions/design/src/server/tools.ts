@@ -118,7 +118,6 @@ function designDataTool<Shape extends z.ZodRawShape>(spec: {
       label: {running: spec.running, done: spec.done},
       hint: spec.summary,
       mutating: spec.verb === 'write',
-      mirrors: false,
       capture: 'none',
       keywords: ['design', 'data', spec.verb],
     },

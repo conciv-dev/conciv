@@ -213,7 +213,7 @@ local choice that looked fine in its own diff. Spec and postmortem:
 ## Harness & runner adapters
 
 - A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
-  `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `connect`, `tty`, `commands`).
+  `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `tty`, `commands`).
   Turns run through `chat()` with the conciv sandbox middleware; never spawn or
   decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:

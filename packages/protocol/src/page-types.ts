@@ -3,6 +3,7 @@ import {PageCaptureBundleSchema} from './element-capture-types.js'
 
 export const PageQuerySchema = z.object({
   requestId: z.string().optional(),
+  agentId: z.string().min(1).describe('the agent the page call acts for; keys its cursor on the page'),
   name: z.string().min(1).describe('registry tool name whose client body runs in the page'),
   input: z.record(z.string(), z.unknown()).describe('schema-validated input for the named tool'),
 })

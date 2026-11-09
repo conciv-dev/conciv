@@ -1,16 +1,19 @@
 import {afterAll, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest'
-import {page} from 'vitest/browser'
+import {page, server} from 'vitest/browser'
 import {collectClientEffects, collectClientTools, type ClientEffect, type ClientToolCtx} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver, installReactBridge} from '@conciv/page'
 import type {PageError} from '@conciv/protocol/page-types'
 import pageExtension from '../src/client.js'
 import {PAGE_TOOL_PREFIX, PAGE_TOOL_DEFS} from '../src/shared/defs.js'
 import {z} from 'zod'
+import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
 
-describe('effects', () => {
+const inFirefox = server.browser === 'firefox'
+
+describe.skipIf(inFirefox)('effects', () => {
   function installBanner(): ClientEffect {
     let banner: HTMLElement | null = null
     return {
@@ -37,13 +40,13 @@ describe('effects', () => {
   const banner = () => page.getByText('fixture banner shown')
 
   const effectResult = async (input: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (!outcome.ok) throw new Error(`expected a result, got ${outcome.error.code}: ${outcome.error.message}`)
     return outcome.result
   }
 
   const effectFailure = async (input: Record<string, unknown>): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}effect`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}effect`, input})
     if (outcome.ok) throw new Error('expected a failure, got a result')
     return outcome.error
   }
@@ -117,7 +120,7 @@ describe('effects', () => {
   })
 })
 
-describe('page tools', () => {
+describe.skipIf(inFirefox)('page tools', () => {
   let container: HTMLElement
   let reactRoot: Root
   let driver: PageDriver
@@ -134,7 +137,7 @@ describe('page tools', () => {
   }
 
   const resultOf = async (verb: string, input: Record<string, unknown> = {}): Promise<Record<string, unknown>> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (!outcome.ok) throw new Error(`expected a result for ${verb}, got ${outcome.error.code}`)
     const result = {...outcome.result}
     expect(declaredOutputOf(verb).parse(result)).toEqual(result)
@@ -142,7 +145,7 @@ describe('page tools', () => {
   }
 
   const failureOf = async (verb: string, input: Record<string, unknown> = {}): Promise<PageError> => {
-    const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}${verb}`, input})
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}${verb}`, input})
     if (outcome.ok) throw new Error(`expected a failure for ${verb}, got a result`)
     return outcome.error
   }
@@ -156,7 +159,10 @@ describe('page tools', () => {
     <form id="frm"><button id="inner" type="button">inner</button></form>
     <p id="prose">hello page</p>
     <span id="failprobe">probe</span>
-    <select id="sel"><option value="a">A</option><option value="b">B</option></select>
+    <select id="sel"><option value="a">A</option><option value="b">B</option><option value="fs">Full Stack</option></select>
+    <input id="locked" type="checkbox" disabled />
+    <input id="qty" type="number" />
+    <input id="stuck" type="checkbox" />
     <button id="hovbtn">hover me</button>
     <div id="htmlhost"><i>old</i></div>
   `
@@ -215,10 +221,9 @@ describe('page tools', () => {
   })
 
   describe('dom verbs', () => {
-    it('clicks through React handlers and mirrors the action', async () => {
+    it('clicks through React handlers', async () => {
       expect(await resultOf('click', {selector: '[data-fixture="leaf"]'})).toEqual({ok: true})
       await expect.element(leaf()).toMatchTextContent(':1:')
-      expect(document.querySelector('[data-conciv-cursor]')).not.toBeNull()
     })
 
     it('fills form fields with native events', async () => {
@@ -226,7 +231,7 @@ describe('page tools', () => {
       expect(await resultOf('value', {selector: '#field'})).toEqual({value: 'typed'})
       expect(await failureOf('fill', {selector: '#prose', value: 'x'})).toEqual({
         code: 'invalid-args',
-        message: 'fill target is not an input/textarea/select',
+        message: 'That element is not a text field.',
       })
     })
 
@@ -250,7 +255,7 @@ describe('page tools', () => {
 
       expect(await failureOf('uncheck', {selector: '#plan-pro'})).toEqual({
         code: 'invalid-args',
-        message: 'cannot uncheck a radio; check another radio in the same group instead',
+        message: 'A radio is unchecked by checking another one.',
       })
       await expect.element(formState()).toMatchTextContent('plan: pro')
 
@@ -279,7 +284,12 @@ describe('page tools', () => {
       expect(route.pathname).toBe(location.pathname)
       expect(await resultOf('exists', {selector: '#frm'})).toEqual({exists: true, count: 1})
       const query = await resultOf('query', {selector: 'input'})
-      expect(query.count).toBe(5)
+      expect(query.count).toBe(8)
+    })
+
+    it('route reports the document title and visibility', async () => {
+      document.title = 'Settings'
+      expect(await resultOf('route')).toMatchObject({title: 'Settings', state: 'visible'})
     })
 
     it('waits for visibility and times out with an explanation', async () => {
@@ -361,6 +371,38 @@ describe('page tools', () => {
       expect(await resultOf('select', {selector: '#sel', value: 'b'})).toEqual({ok: true, value: 'b'})
       expect(changes).toEqual(['b'])
       expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'b'})
+    })
+
+    it('selects by visible label, and a missing option fails listing the options without changing the select', async () => {
+      expect(await resultOf('select', {selector: '#sel', value: 'Full Stack'})).toEqual({ok: true, value: 'fs'})
+      expect(await failureOf('select', {selector: '#sel', value: 'fullstack'})).toEqual({
+        code: 'invalid-args',
+        message: 'No option "fullstack"; options: a "A", b "B", fs "Full Stack".',
+      })
+      expect(await resultOf('value', {selector: '#sel'})).toEqual({value: 'fs'})
+    })
+
+    it('fails instead of reporting ok when a field or box refuses the change', async () => {
+      document.querySelector('#stuck')?.addEventListener('click', (event) => event.preventDefault())
+      expect(await failureOf('fill', {selector: '#qty', value: 'many'})).toEqual({
+        code: 'invalid-args',
+        message: 'The field rejected "many" and stayed empty.',
+      })
+      const pin = Object.assign(document.createElement('input'), {id: 'pin', type: 'password'})
+      pin.addEventListener('input', () => (pin.value = ''))
+      container.appendChild(pin)
+      const refused = await failureOf('fill', {selector: '#pin', value: 'hunter2-secret'})
+      pin.remove()
+      expect(refused).toEqual({code: 'invalid-args', message: 'The field rejected *** and stayed empty.'})
+      expect(JSON.stringify(refused)).not.toContain('hunter2-secret')
+      expect(await failureOf('check', {selector: '#locked'})).toEqual({
+        code: 'invalid-args',
+        message: 'That element is disabled.',
+      })
+      expect(await failureOf('check', {selector: '#stuck'})).toEqual({
+        code: 'invalid-args',
+        message: 'The box is still unchecked; the page prevented the change.',
+      })
     })
 
     it('submits the form owning the target without navigating', async () => {
@@ -511,6 +553,7 @@ describe('page tools', () => {
     }
 
     const ctxOver = (target: Document): ClientToolCtx => ({
+      agentId: 'test-agent',
       document: target,
       target: documentOnly,
       resolve: documentOnly,
@@ -549,10 +592,15 @@ describe('page tools', () => {
   })
 
   describe('screenshot', () => {
-    const CapturedShape = z.object({image: z.string().min(1), width: z.number(), height: z.number()})
+    const CapturedShape = z.object({
+      image: z.string().min(1),
+      width: z.number(),
+      height: z.number(),
+      warnings: z.array(z.string()).optional(),
+    })
 
-    const screenshotOf = async () => {
-      const outcome = await driver.execute({name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    const screenshotOf = async (input: {exclude?: string[]} = {}) => {
+      const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input})
       if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
       return CapturedShape.parse(outcome.result)
     }
@@ -589,14 +637,33 @@ describe('page tools', () => {
       expect({width: bitmap.width, height: bitmap.height}).toEqual({width: shot.width, height: shot.height})
     }, 10_000)
 
-    it('leaves the conciv widget host out of the capture', async () => {
+    it('leaves the conciv widget host, effects surface and grab toast out of the capture', async () => {
       const plain = coverViewport()
       const covered = centrePixel(await decoded((await screenshotOf()).image))
       plain.remove()
-      coverViewport('data-conciv-root')
-      const excluded = centrePixel(await decoded((await screenshotOf()).image))
+      const widget = coverViewport('data-conciv-root')
+      const widgetExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      widget.remove()
+      const effects = coverViewport('data-conciv-effects')
+      const effectsExcluded = centrePixel(await decoded((await screenshotOf()).image))
+      effects.remove()
+      coverViewport('data-conciv-toast')
+      const toastExcluded = centrePixel(await decoded((await screenshotOf()).image))
       expect(isRed(covered)).toBe(true)
-      expect(isRed(excluded)).toBe(false)
+      expect({widget: isRed(widgetExcluded), effects: isRed(effectsExcluded), toast: isRed(toastExcluded)}).toEqual({
+        widget: false,
+        effects: false,
+        toast: false,
+      })
+    }, 10_000)
+
+    it('leaves out host-page elements the caller names and warns about a selector it cannot read', async () => {
+      coverViewport('data-host-devtools')
+      const shot = await screenshotOf({exclude: ['[data-host-devtools]', '[[not a selector']})
+      expect({excluded: !isRed(centrePixel(await decoded(shot.image))), warnings: shot.warnings}).toEqual({
+        excluded: true,
+        warnings: ['ignored invalid selector: [[not a selector'],
+      })
     }, 10_000)
   })
 
@@ -712,4 +779,66 @@ describe('page tools', () => {
       expect(result.waitedMs).toBeGreaterThanOrEqual(50)
     })
   })
+})
+
+describe('a capture in every engine', () => {
+  const mountProbe = async (layout: string, fill: (box: HTMLElement) => void): Promise<void> => {
+    const face = CHAT_FONTS.find((candidate) => candidate.family === 'Archivo' && candidate.weight === 600)
+    if (!face) throw new Error('no Archivo 600 face to load')
+    const fontRule = document.createElement('style')
+    fontRule.textContent = `@font-face{font-family:'Capture Probe';font-weight:600;src:url(${face.src}) format('woff2')}`
+    document.head.append(fontRule)
+    await document.fonts.load('600 14px "Capture Probe"')
+    const box = document.createElement('nav')
+    box.style.cssText = `position:fixed;top:0;left:0;z-index:2147483647;width:100vw;height:72px;box-sizing:border-box;padding:16px;background:#fff;color:#000;font:600 14px/20px "Capture Probe";${layout}`
+    fill(box)
+    document.body.appendChild(box)
+    onTestFinished(() => {
+      box.remove()
+      fontRule.remove()
+    })
+  }
+
+  const capturedLines = async (): Promise<{firstLine: boolean; secondLine: boolean}> => {
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    const outcome = await driver.execute({agentId: 'test-agent', name: `${PAGE_TOOL_PREFIX}screenshot`, input: {}})
+    if (!outcome.ok) throw new Error(`expected a screenshot, got ${outcome.error.code}: ${outcome.error.message}`)
+    const {image} = z.object({image: z.string().min(1)}).parse(outcome.result)
+    const response = await fetch(`data:image/webp;base64,${image}`)
+    const bitmap = await createImageBitmap(await response.blob())
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('no 2d context to sample the screenshot')
+    context.drawImage(bitmap, 0, 0)
+    const inked = (top: number, bottom: number): boolean =>
+      context.getImageData(0, top, 300, bottom - top).data.some((value, index) => index % 4 === 0 && value < 128)
+    return {firstLine: inked(16, 36), secondLine: inked(38, 70)}
+  }
+
+  it('keeps link text that sits on one line on one line in the capture', async () => {
+    await mountProbe('display:flex;flex-wrap:wrap;align-items:flex-start;overflow-wrap:anywhere', (box) => {
+      const row = document.createElement('div')
+      row.style.cssText = 'display:flex;flex-wrap:nowrap;column-gap:16px'
+      for (const label of ['Home', 'About', 'Form', 'Docs']) {
+        const link = document.createElement('a')
+        link.href = '#'
+        link.textContent = label
+        link.style.cssText = 'display:inline-flex;align-items:center;color:inherit;text-decoration:none'
+        row.append(link)
+      }
+      box.append(row)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: false})
+  }, 10_000)
+
+  it('keeps a wrapping paragraph inside a nowrap container wrapped in the capture', async () => {
+    await mountProbe('white-space:nowrap', (box) => {
+      const paragraph = document.createElement('p')
+      paragraph.textContent = 'Wraps here'
+      paragraph.style.cssText = 'margin:0;width:60px;white-space:normal'
+      box.append(paragraph)
+    })
+    expect(await capturedLines()).toEqual({firstLine: true, secondLine: true})
+  }, 10_000)
 })

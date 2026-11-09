@@ -1,6 +1,7 @@
 import {existsSync, statSync} from 'node:fs'
 import {delimiter, join} from 'node:path'
-import {INIT_HARNESS_IDS, initContributions, type InitHarnessId} from './registry.js'
+import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-types'
+import {initContributions} from './registry.js'
 
 export type FoundHarness = {id: InitHarnessId; via: 'path' | 'config'}
 

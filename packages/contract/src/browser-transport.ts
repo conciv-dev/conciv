@@ -84,16 +84,22 @@ function writeStoredToken(key: string, token: string | undefined): void {
   }
 }
 
-export function consumeMagicLinkCode(): string | undefined {
+function magicLinkFragment(url: URL): URLSearchParams {
+  return new URLSearchParams(url.hash.replace(/^#/, ''))
+}
+
+export function readMagicLinkCode(): string | undefined {
   if (typeof location === 'undefined') return undefined
+  return magicLinkFragment(new URL(location.href)).get(MAGIC_LINK_PARAM) ?? undefined
+}
+
+export function forgetMagicLinkCode(): void {
+  if (readMagicLinkCode() === undefined) return
   const url = new URL(location.href)
-  const fragment = new URLSearchParams(url.hash.replace(/^#/, ''))
-  const code = fragment.get(MAGIC_LINK_PARAM) ?? undefined
-  if (code === undefined) return undefined
+  const fragment = magicLinkFragment(url)
   fragment.delete(MAGIC_LINK_PARAM)
   url.hash = fragment.toString()
   history.replaceState(history.state, '', url.href)
-  return code
 }
 
 const REACHABILITY_EVENT = 'reachability'

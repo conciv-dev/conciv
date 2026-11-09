@@ -566,3 +566,17 @@ describe('design_status', () => {
     expect(status.rows).toEqual(checked.rows)
   })
 })
+
+describe('design_check capture', () => {
+  it('leaves the conciv effects surface out of the live capture of a round', async () => {
+    await goto('effects-cover')
+    const got = await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    const reply = await fetch(`${kit.apiBase}/api/ext/design/files/live/${got.target}/${checked.round}`)
+    expect(reply.status).toBe(200)
+    const png = PNG.sync.read(Buffer.from(await reply.arrayBuffer()))
+    const offset = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4
+    const [red = 0, green = 0, blue = 0] = png.data.subarray(offset, offset + 3)
+    expect(red > 200 && green < 60 && blue < 60).toBe(false)
+  })
+})

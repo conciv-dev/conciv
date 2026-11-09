@@ -25,7 +25,6 @@ type ToolMeta = {
   summary: string // required if meta is passed at all; must not repeat the name
   category?: string
   mutating?: boolean
-  mirrors?: boolean // client tool that mirrors a server tool's name — used by collectClientTools
   keywords?: readonly string[]
   positional?: string
   hint?: string

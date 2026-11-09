@@ -28,7 +28,7 @@ function ThreadDump(): JSX.Element {
       <For each={thread.turns}>
         {(turn) => (
           <div data-turn={turn.role}>
-            [{turn.role}] {turn.parts.map(partLabel).join(' · ')}
+            [{turn.role}] {turn.turn().parts.map(partLabel).join(' · ')}
           </div>
         )}
       </For>

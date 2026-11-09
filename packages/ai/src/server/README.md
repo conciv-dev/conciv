@@ -6,20 +6,22 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 ## Interface
 
-- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, then rethrows any failed cancel writes as one `AggregateError`), `settled`, `hydrate`, `codeRunner`).
+- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, then rethrows any failed cancel writes as one `AggregateError`), `settled`, `hydrate`, `record`, `codeRunner`).
+- `chat-server.ts:record` - folds the given chunks through a `StreamProcessor` and appends the assistant messages to the thread the same way a stopped turn is saved, skipping tool calls the thread already holds.
 - `chat-server.ts:TurnPlan.reasoning` - passed to `chat({reasoning})`; the adapter maps it for its model (`--effort` or `MAX_THINKING_TOKENS` for claude-code) and drops it for a model it has no reasoning data for.
 - `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.
 - `code-mode.ts:codeModeTools` - the code-mode `discover_tools` carries our own short description (`DISCOVER_DESCRIPTION`) in place of the library's, which embeds the whole capability catalog; the same tool serves chat turns and MCP.
 - `chat-server.ts:toolApprovalId` - `approvalId({provider: 'conciv', kind: 'tool', target: name})`.
 - `chat-server.ts:approvalNeeded` - returns an Error telling the model to retry once the user approves.
 - `delivery.ts:createDelivery` - returns `socket`, `events` (SSE POST), `resume` and `drive` (headless run).
-- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`.
+- `delivery.ts:terminalPhaseOf` - maps RUN_ERROR to `failed` and RUN_FINISHED (unless `tool_calls`) to `completed`; `endsTheRun` also counts a terminal run-lifecycle chunk.
 - `chat-stores.ts:drizzleChatStores(db, {harnessOf})` - implements `ChatStores` (messages, runs, metadata) on a `NodeSQLiteDatabase`; a new run row records `harnessOf(threadId)` in `harness_id`. `messages.saveThread` upserts one `chat_messages` row per message (rewriting only rows whose JSON changed) and deletes rows past the new end. `messages.loadThread` with a `limit` reads one page: the end position (the row count, or the `before` message's row through the `thread_id, message_id` index), the nearest user row at or before `end - limit`, then only the rows in that range, and returns a `MessagePage`; the window starts on a user message so no turn is split, its `cursor` is that message's id, and an unknown `before` gives an empty complete page. Without a `limit` it returns the whole transcript, which every write path uses.
 - `@conciv/db` `chatRuns` - table `chat_runs` (PK `run_id`; indexes `chat_runs_status_detached`, `chat_runs_thread_started`).
 - `@conciv/db` `chatMessages` / `chatMetadata` - tables `chat_messages` (one row per message: PK `thread_id, position`, plus `message_id`, `role`, `message_json`; index `thread_id, message_id`) and `chat_metadata` (composite PK namespace + key).
 - `image-tool-results.ts:imageToolProvisioner` - a `ToolBridgeProvisioner` that serves an MCP JSON-RPC bridge at `/mcp`.
 - `image-tool-results.ts:imagesIn` / `withoutImages` / `imageBlocks` - find image parts, replace them with a stub, or convert them to MCP image blocks.
 - `child-cards.ts:childCardChunks` / `childCards` - turn `code_mode:external_call/result/error` custom events into TOOL_CALL_* chunks linked to the parent `execute_typescript` call.
+- `compaction-stamp.ts:compactionStamp` - middleware added only to `kind: 'compact'` runs: merges `compaction: true` into `metadata.conciv` (`CompactionMetadataSchema`, other `conciv` keys kept) on TEXT_MESSAGE_START, REASONING_MESSAGE_START and RUN_FINISHED chunks so the live message carries it, and on finish writes it onto the stored assistant messages of that run (`metadata.tanstack.run.id`; no write when the run stored none), so a reload carries it too.
 - `code-mode.ts:loadIsolateDriver` / `codeModeTools` / `secretRefusalOf` - build the QuickJS thread driver, build code-mode tools, detect secret refusals.
 - `code-mode.ts:stoppedWith` - wraps a driver so aborting the signal disposes the running context; a turn passes its run signal, so stopping the turn stops its program; a failed dispose is logged.
 - `quickjs-thread.ts:quickJSThreadDriver` - an `IsolateDriver` that runs `createQuickJSIsolateDriver` in a `node:worker_threads` worker (entry `quickjs-worker.ts`, built as `dist/quickjs-worker.js`), one worker per context.
@@ -31,6 +33,8 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 - `chat-server.ts:run` (`conciv-steer` middleware) - starting a run ends every other live run on the same thread.
 - `chat-server.ts:planned` - an exception from `hooks.plan` becomes a `failed-launch` adapter that emits RUN_ERROR.
 - `chat-server.ts:terminalChunk` - a `completed` phase is reported as `aborted` when the record has `cancelRequested`.
+- `chat-server.ts` `onStart`: `hooks.started` (the run announcement) is skipped once the run's controller is aborted; `@tanstack/ai` calls `onStart` after setup even for a cancelled run.
+- `chat-server.ts:endedWithItsRecord` - a run stream that ends without a terminal chunk (a stopped run) is closed with its recorded terminal run-lifecycle chunk, so a replay or join of a stopped run reads its `aborted` end; no `RUN_FINISHED` is added, because the run's owner reads the same log and a late `RUN_FINISHED` would settle the owner's next turn.
 - `chat-server.ts:stop` - cancels only the thread's active run, and only if it is in `runIds` when given.
 - `chat-server.ts:hydrate` - waits for aborted live runs to settle before reconstructing, passes the optional `limit` and `before` to `reconstructChat` (one window of the thread plus `page`), and validates the result with `ReconstructedSchema`. `activeRun` and `lastRun` are never paged.
 - `code-mode.ts:refusingSecrets` - throws when a tool parameter was flagged as a secret; `codeModeTools` returns null when there are no `__toolSide === 'server'` tools.

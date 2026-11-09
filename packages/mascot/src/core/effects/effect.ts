@@ -14,6 +14,7 @@ export type EffectHandle = {
   rest: () => void
   remove: () => void
   anchor?: (tip: EmitterAnchor) => void
+  replan?: () => void
 }
 
 export type EffectMount = (context: EffectContext) => EffectHandle

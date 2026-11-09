@@ -15,11 +15,12 @@ import {
 import pc from 'picocolors'
 import type {Framework} from './detect.js'
 import type {FoundHarness} from '@conciv/harness-init/detect'
+import {initContributions} from '@conciv/harness-init/registry'
 import type {HarnessId} from './harness-detect.js'
 import type {StepNote, StepStatus} from './ledger.js'
 
-type FoundSelections = {framework: Framework; harnesses: FoundHarness[]}
-export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]; docsPack: boolean}
+type FoundSelections = {framework: Framework; harnesses: FoundHarness[]; agents: HarnessId[]}
+export type ConfirmedSelections = {framework: boolean; harnesses: HarnessId[]; agents: HarnessId[]; docsPack: boolean}
 
 export type PlanRow = {title: string; wouldEdit: string[]; already: boolean}
 export type HarnessRow = {id: HarnessId; found: boolean; selected: boolean}
@@ -71,7 +72,7 @@ export function renderPlan(rows: PlanRow[], harnesses: HarnessRow[]): string {
 }
 
 function defaultSelections(found: FoundSelections): ConfirmedSelections {
-  return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+  return {framework: true, harnesses: found.harnesses.map((one) => one.id), agents: found.agents, docsPack: false}
 }
 
 export async function approvePlan(args: ApprovePlan): Promise<PlanApproval> {
@@ -156,11 +157,13 @@ export const clackPrompts: PlanPrompts = {
   selections: async (found) => {
     const harnesses = await pickHarnesses(found.harnesses)
     if (harnesses === 'cancelled') return 'cancelled'
+    const agents = await pickAgents(found.agents)
+    if (agents === 'cancelled') return 'cancelled'
     const framework = await confirm({message: frameworkQuestion(found.framework), initialValue: true})
     if (isCancel(framework)) return 'cancelled'
     const docsPack = await confirm({message: docsPackQuestion, initialValue: false})
     if (isCancel(docsPack)) return 'cancelled'
-    return {framework, harnesses, docsPack}
+    return {framework, harnesses, agents, docsPack}
   },
   confirmRun: async () => {
     const proceed = await confirm({message: 'Run this plan?', initialValue: true})
@@ -175,6 +178,18 @@ async function pickHarnesses(found: FoundHarness[]): Promise<HarnessId[] | 'canc
     message: 'Teach these agent harnesses about conciv?',
     options: found.map((harness) => ({value: harness.id, label: harness.id, hint: `found via ${harness.via}`})),
     initialValues: found.map((harness) => harness.id),
+    required: false,
+  })
+  if (isCancel(picked)) return 'cancelled'
+  return picked
+}
+
+async function pickAgents(found: HarnessId[]): Promise<HarnessId[] | 'cancelled'> {
+  if (found.length === 0) return []
+  const picked = await multiselect({
+    message: 'Connect these agents to conciv, so they can find and drive your open conciv tabs?',
+    options: found.map((id) => ({value: id, label: initContributions[id].hub?.name ?? id})),
+    initialValues: found,
     required: false,
   })
   if (isCancel(picked)) return 'cancelled'

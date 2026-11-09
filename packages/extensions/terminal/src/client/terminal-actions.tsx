@@ -1,17 +1,14 @@
-import {createMemo, createResource, createSignal, For, Match, Show, Switch, type JSX} from 'solid-js'
+import {createMemo, createResource, For, Match, Show, Switch, type JSX} from 'solid-js'
 import Crosshair from 'lucide-solid/icons/crosshair'
 import Plus from 'lucide-solid/icons/plus'
 import RotateCw from 'lucide-solid/icons/rotate-cw'
-import SquareArrowOutUpRight from 'lucide-solid/icons/square-arrow-out-up-right'
 import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
-import {Button, Tooltip, TooltipIconButton, writeClipboardText} from '@conciv/ui-kit-system'
+import {Button, Tooltip, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
-import {ORPCError} from '@orpc/client'
 import {getExtensionApi} from '@conciv/extension'
 import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
-import {terminalClient} from './rpc.js'
 
 const MODEL_KEY = 'conciv-model'
 
@@ -49,10 +46,7 @@ export function TerminalActions(): JSX.Element {
   const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
   const rpc = host.useRpc()
-  const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
-  const toast = host.useToast()
-  const leaveView = host.useLeaveView()
   const grab = host.useGrab()
   const newSession = host.useNewSession()
   const busy = () => store.busy()
@@ -63,47 +57,11 @@ export function TerminalActions(): JSX.Element {
     return list
   })
   const options = createMemo(() => (models() ?? []).map(toOption))
-  const [opening, setOpening] = createSignal(false)
   const pickModel = (id: string) => {
     if (busy() || id === store.spawnModel()) return
     store.setSpawnModel(id)
     writeStoredModel(id)
     store.bumpRespawn()
-  }
-  const copyCommand = (command: string): Promise<void> =>
-    writeClipboardText(command).then(
-      () => {
-        leaveView()
-        toast('Command copied. Paste it in your terminal.')
-      },
-      () => toast(`Run in your terminal: ${command}`),
-    )
-  const launch = async (): Promise<void> => {
-    const id = sessionId()
-    if (!id) return toast('No active session.')
-    const client = terminalClient(apiBase())
-    const {ok} = await client.launch({sessionId: id, model: store.spawnModel() ?? undefined})
-    if (ok) {
-      leaveView()
-      return toast('Opened externally.')
-    }
-    const {command} = await client.connectCommand({sessionId: id})
-    await copyCommand(command)
-  }
-  const launchFailure = (error: unknown): string => {
-    if (error instanceof ORPCError && error.code === 'NO_CONNECT') return 'This harness can’t be opened in a terminal.'
-    return 'Couldn’t open externally.'
-  }
-  const openExternally = async () => {
-    if (opening()) return
-    setOpening(true)
-    try {
-      await launch()
-    } catch (error) {
-      toast(launchFailure(error))
-    } finally {
-      setOpening(false)
-    }
   }
   const pickElement = async () => {
     try {
@@ -164,14 +122,6 @@ export function TerminalActions(): JSX.Element {
         onClick={() => newSession()}
       >
         <Plus class="size-4 block" aria-hidden="true" />
-      </TooltipIconButton>
-      <TooltipIconButton
-        tooltip="Open externally"
-        class="shrink-0 size-7"
-        disabled={busy() || opening()}
-        onClick={() => void openExternally()}
-      >
-        <SquareArrowOutUpRight class="size-4 block" aria-hidden="true" />
       </TooltipIconButton>
     </Tooltip.Group>
   )

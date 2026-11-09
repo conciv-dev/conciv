@@ -40,6 +40,9 @@ export const SKIN_SCALAR_ANCHORS = [
   'chat-radius-surface-lg',
   'chat-ease',
   'chat-ease-expo',
+  'chat-ease-in-out',
+  'chat-duration-normal',
+  'chat-duration-slow',
   'chat-space',
 ] as const
 
@@ -114,6 +117,12 @@ export const SKIN_ANCHOR_DOCS: Record<SkinAnchorName, AnchorDoc> = {
   'chat-radius-surface-lg': {group: 'radii', description: 'Floating surface radius, largest step.'},
   'chat-ease': {group: 'motion', description: 'Default easing curve for state changes.'},
   'chat-ease-expo': {group: 'motion', description: 'Decisive easing curve for entrances and exits.'},
+  'chat-ease-in-out': {group: 'motion', description: 'Symmetric easing curve for a motion that goes and comes back.'},
+  'chat-duration-normal': {group: 'motion', description: 'Default duration for a state change.'},
+  'chat-duration-slow': {
+    group: 'motion',
+    description: 'Longer duration for a feedback effect that should stay readable.',
+  },
   'chat-space': {
     group: 'density',
     description:

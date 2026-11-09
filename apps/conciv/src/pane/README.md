@@ -14,13 +14,13 @@ The chat pane for one session: transcript, composer with attachments and element
 - `makeDraftStorage(rpc, sessionId)`, `appendDraft`, `PaneDraftStorage` (`draft-storage.ts`): composer draft storage backed by `rpc.drafts`
 - `makeGrabStaging(deps)`, `GrabStaging`, `ComposerGrabPort` (`grab-staging.ts`): stages page element grabs as composer attachments
 - `resolveGrabSource(grab, symbolicate)` (`grab-source-resolve.ts`)
-- `paneAttachments`, `returnUnsentToDraft` (`pane-attachments.ts`): image and text attachment adapters; unsent queue goes back to the draft
+- `paneAttachments`, `returnQueueToDraft` (`pane-attachments.ts`): image and text attachment adapters; Stop takes the queued messages out of the queue and puts them back in the draft (text in order, images as attachments), unsent
 - `makeRefreshCoordinator(deps)`, `RefreshCoordinator` (`refresh-coordinator.ts`)
 - `useSessionCaptures(sessionId)` (`session-captures.ts`), `useComposerTriggerSources({sessionId, openModelMenu})` (`trigger-sources.ts`): `{triggers, runTyped}`: slash command and tool trigger sources, plus `runTyped(text)` that runs a widget command whose `/<name>` is the whole text; widget commands are the built-in `/model` (opens the model menu) and extension commands from `useInstances()`
 - `QueueStrip` (`queue-strip.tsx`), `PendingApprovals` (`pending-approvals.tsx`), `ContextTracker`, `ContextSummary` (`context-tracker.tsx`), `StatusBar` (`status-bar.tsx`)
 - `Divider`, `CompactSpinner`, `ConversationSkeleton({label?})`, `ThinkingBubble` (`indicators.tsx`)
 - `OlderMessages({sessionId, chat})` (`older-messages.tsx`): rendered inside the thread viewport; a solid-query query keyed on the session and the oldest shown message id runs `chat.loadOlderMessages()` (each oldest id loads once; the next key waits until no older-page load is in flight, via `useIsFetching`) while the viewport reports `isNearTop()` (within one viewport height of the top, which includes a newest page too short to scroll); shows a `Loading earlier messages` status row at the top while it loads, and an alert with Retry when it fails
-- `makeToolViewCtx` (`tool-view-ctx.ts`), `toolFallbackCard` (`tool-fallback-card.tsx`), `foldToolDurations` (`tool-durations.ts`)
+- `makeToolViewCtx` (`tool-view-ctx.ts`), `toolFallbackCard` (`tool-fallback-card.tsx`), `createToolDurations` (`tool-durations.ts`, one pane-level record of tool durations; each chunk folds only the live turn's tool calls, settled entries stay, so a row that scrolls away and back reads the same duration)
 - `CHAT_VIEW_ID`, `viewTabId`, `viewTabPanelId`, `viewTabPanelAttributes` (`view-tab-ids.ts`)
 
 ## Invariants
@@ -39,7 +39,7 @@ The chat pane for one session: transcript, composer with attachments and element
 
 - `draft-storage.ts:makeDraftStorage`, `appendDraft`: `rpc.drafts.get` and `rpc.drafts.set`; write errors are swallowed
 - `use-pane-messaging.ts:usePaneMessaging`: `rpc.chat.uiReply` and `rpc.sessions.compact`, then `invalidateSessions`
-- `refresh-coordinator.ts:run`: `chat().refresh()` and refetches `sessions.list`, `markers.list`, `captures.list`; screen reader announcements
+- `refresh-coordinator.ts:run`: `chat().refresh()` and refetches `sessions.list`, `sessions.search`, the pane's `sessions.get`, `markers.list`, `captures.list`; screen reader announcements
 - `chat-pane.tsx:ChatPane`: announces `conciv is asking for permission.` and `conciv replied.`; invalidates sessions and refetches markers when a run settles
 - `trigger-sources.ts:useComposerTriggerSources`: `ensureQueryData` for `meta.commands` and `meta.tools`
 - `trigger-sources.ts:useComposerTriggerSources`: a built-in or extension command replaces the harness command of the same name in the `/` list; a built-in beats an extension command of the same name

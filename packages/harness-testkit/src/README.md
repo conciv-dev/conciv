@@ -9,7 +9,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 - `testkit.ts` - the package entry; re-exports the helpers below.
 - `create-testkit.ts:createTestkit` - `(harness, boot, options)` returns `{setup}`; `setup()` boots the app and returns a `Kit` with `rpc`, `session`, `chat`, `events`, `join`, `hydrate`, `post`, `get`, `invokeTool`, `callTool`, `restartServer`, `cleanup`.
 - `create-test-harness.ts:createTestHarness` - copies a real `HarnessAdapter` and replaces `chatConfig` with a scripted adapter (`script`).
-- `create-fake-harness.ts:createFakeHarness` - a fake `HarnessAdapter` with options `id`, `text`, `resume`, `models`, `commands`, `history`, `tty`.
+- `create-fake-harness.ts:createFakeHarness` - a fake `HarnessAdapter` with options `id`, `text`, `resume`, `models`, `commands`, `history` (`FixtureSession`: session metas, each with an optional `text` its `messages` returns as one assistant message, or `messages` returned as given, and an optional `cwd`: a row without one belongs to whichever project a `{cwd}` listing asks for, except a folder another row names as its own (that folder is another project), and is left out of an `{everywhere: true}` listing, like a transcript that records no cwd; a row with one is listed only for that cwd or everywhere), `tty`; a fake with `history` carries `resume.command({nativeId})` = `{bin: <resumeBin ?? id>, args: ['--resume', nativeId]}`; `transcripts.hold()` / `transcripts.release()` hold the `messages` read of every session that carries `text` until released.
 - `scripted-run.ts:makeScriptedRun` - scripted turns (`ScriptedTurn`, `PacedText`, `PacedRelease`) with hold and release.
 - `harness-modes.ts:harnessModes` - returns a `fake` mode and a `real` mode for a harness.
 - `harness-available.ts:harnessAvailable` - true when `command -v <binName>` succeeds.
@@ -27,7 +27,7 @@ Test helpers for running the conciv engine against a scripted or real harness: b
 ## Invariants
 
 - `until.ts:until` - throws `until: stall` after `hangGuardMs` (default 5000) and throws when `failWhen` returns true first.
-- `run-stream.ts:makeRunStream` - `waitFor`, `waitForToolCall` and `done` reject after 90000 ms by default, or when the run ends without a match.
+- `run-stream.ts:makeRunStream` - `waitFor` and `waitForToolCall` reject after 90000 ms by default, or when the run ends without a match; `done` has no timer and resolves on the terminal `RUN_FINISHED`/`RUN_ERROR` or when the source ends, so the test timeout bounds a real hang.
 - `call-tool.ts:makeRunTypescript` - rejects after `deadlineMs` (default 60000) and throws when `execute_typescript` is not listed on `/api/mcp`.
 - `mcp-client.ts:connectMcpClient` - a tool result with `isError: true` throws its text.
 - `harness-modes.ts:harnessModes` - the `real` mode runs only when `CI` is unset and the harness binary is on `PATH`.

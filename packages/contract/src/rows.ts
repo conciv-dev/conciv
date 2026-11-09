@@ -9,7 +9,7 @@ export const SessionMetaSchema = z.object({
   id: SessionId,
   title: z.string(),
   updatedAt: z.number(),
-  messageCount: z.number(),
+  sizeBytes: z.number().optional(),
   running: z.boolean(),
   origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
@@ -20,6 +20,15 @@ export const SessionMetaSchema = z.object({
   harnessKind: z.string(),
 })
 export type SessionMeta = z.infer<typeof SessionMetaSchema>
+
+export const SessionHitSchema = SessionMetaSchema.extend({
+  excerpt: z.string().nullable(),
+  matched: z.array(z.string()),
+  cwd: z.string().nullable(),
+  resume: z.string().nullable(),
+  preview: NativeSessionRefSchema.nullable(),
+})
+export type SessionHit = z.infer<typeof SessionHitSchema>
 
 export const PersistedAttachmentSchema = z.object({
   id: z.string(),

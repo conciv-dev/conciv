@@ -12,11 +12,14 @@ export type PaneActivity = 'unmounted' | 'idle' | 'running'
 
 export type LiveSessions = {
   activityIn: (sessionId: string | null) => PaneActivity
+  waitingIn: (sessionId: string | null) => boolean
   open: (sessionId: Accessor<string>) => Accessor<ChatSession>
   reopen: (sessionId: string) => void
+  stop: (sessionId: string) => void
 }
 
 export type LiveSessionsDeps = {
+  active: Accessor<string | null>
   rpc: RpcClient
   apiBase: Accessor<string>
   generation: Accessor<number>
@@ -24,6 +27,7 @@ export type LiveSessionsDeps = {
   appData: AppData
   queryClient: QueryClient
   announce: (message: string) => void
+  onRunEnd?: (sessionId: string) => void
 }
 
 type LiveChat = {sessionId: string; chat: Accessor<ChatSession>; dispose: () => void}
@@ -52,7 +56,10 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
   const watched = createMemo(() =>
     Object.entries(state.runs).flatMap(([sessionId, run]) => (run.live === null ? [] : [sessionId])),
   )
-  const wanted = createMemo(() => uniq([...opened(), ...watched()]))
+  const wanted = createMemo(() => {
+    const active = deps.active()
+    return uniq([...opened(), ...watched(), ...(active === null ? [] : [active])])
+  })
 
   const runOf = (sessionId: string): RunWatch => state.runs[sessionId] ?? IDLE_RUN
 
@@ -66,6 +73,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     const run = runOf(sessionId)
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
+    deps.onRunEnd?.(sessionId)
     deps.appData.invalidateSessions()
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
@@ -146,6 +154,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
       if (!entry) return 'unmounted'
       return entry.chat().runInProgress() ? 'running' : 'idle'
     },
+    waitingIn(sessionId) {
+      return (chatOf(sessionId)?.chat().pendingApprovals().length ?? 0) > 0
+    },
     open(sessionId) {
       setState('openers', (list) => [...list, sessionId])
       onCleanup(() => setState('openers', (list) => list.filter((entry) => entry !== sessionId)))
@@ -158,6 +169,9 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     reopen(sessionId) {
       const entry = chatOf(sessionId)
       if (entry) setState('retired', {[sessionId]: entry.chat()})
+    },
+    stop(sessionId) {
+      void chatOf(sessionId)?.chat().stop()
     },
   }
 }

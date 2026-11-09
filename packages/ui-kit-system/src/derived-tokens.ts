@@ -16,6 +16,10 @@ export const DERIVED_TOKENS: Record<string, DerivedTokenDefinition> = {
     description: 'fixed agent hue (teal), darkened toward the ink anchor on light',
   },
   'chat-danger-line': {value: 'color-mix(in oklch, var(--chat-danger) 42%, transparent)', description: 'error border'},
+  'chat-duration-fast': {
+    value: 'calc(var(--chat-duration-normal) * 0.6)',
+    description: 'quick feedback duration for hover and press, three fifths of the normal duration',
+  },
   'chat-shadow': {value: 'var(--chat-shadow-sm)', description: 'elevation'},
   'chat-shadow-hover': {value: 'var(--chat-shadow-lg)', description: 'elevation hover'},
 }

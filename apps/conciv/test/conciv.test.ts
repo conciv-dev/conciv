@@ -9,7 +9,6 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {foldToolDurations, type ToolPartLike} from '../src/pane/tool-durations.js'
 import {
   clamp,
   cornerAt,
@@ -290,75 +289,6 @@ describe('settings', () => {
         'Mod+k',
         'Mod+j',
       ])
-    })
-  })
-})
-
-describe('tool durations', () => {
-  const message = (...parts: ToolPartLike[]): {parts: ToolPartLike[]} => ({parts})
-
-  function makeClock(start: number): {now: () => number; advance: (ms: number) => void} {
-    const state = {at: start}
-    return {
-      now: () => state.at,
-      advance: (ms) => {
-        state.at += ms
-      },
-    }
-  }
-
-  describe('foldToolDurations', () => {
-    it('measures from first pending sighting to the settling fold', () => {
-      const startedAt = new Map<string, number>()
-      const clock = makeClock(1_000)
-      const pending = foldToolDurations(
-        [message({type: 'tool-call', id: 'a', state: 'input-streaming'})],
-        startedAt,
-        clock.now,
-        {},
-      )
-      expect(pending).toEqual({})
-      clock.advance(250)
-      const settled = foldToolDurations(
-        [message({type: 'tool-call', id: 'a', state: 'complete'})],
-        startedAt,
-        clock.now,
-        pending,
-      )
-      expect(settled).toEqual({a: 250})
-    })
-
-    it('never rewrites a recorded duration on later folds', () => {
-      const startedAt = new Map<string, number>()
-      const clock = makeClock(0)
-      foldToolDurations([message({type: 'tool-call', id: 'a', state: 'pending'})], startedAt, clock.now, {})
-      clock.advance(10)
-      const first = foldToolDurations(
-        [message({type: 'tool-call', id: 'a', state: 'complete'})],
-        startedAt,
-        clock.now,
-        {},
-      )
-      clock.advance(500)
-      const second = foldToolDurations(
-        [message({type: 'tool-call', id: 'a', state: 'complete'})],
-        startedAt,
-        clock.now,
-        first,
-      )
-      expect(second).toEqual({a: 10})
-    })
-
-    it('records nothing for a part that was already settled at first sight', () => {
-      const startedAt = new Map<string, number>()
-      const clock = makeClock(0)
-      const next = foldToolDurations(
-        [message({type: 'tool-call', id: 'a', state: 'complete'})],
-        startedAt,
-        clock.now,
-        {},
-      )
-      expect(next).toEqual({})
     })
   })
 })

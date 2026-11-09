@@ -46,7 +46,6 @@ const textMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Reading text', done: 'Read the text'},
   mutating: false,
-  mirrors: false,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}},
@@ -100,7 +99,13 @@ export const RouteObject: Story = {
     <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
         part={storyPart('page_route', {})}
-        result={storyResult({pathname: '/checkout', search: '?step=2', href: 'https://shop.test/checkout?step=2'})}
+        result={storyResult({
+          pathname: '/checkout',
+          search: '?step=2',
+          href: 'https://shop.test/checkout?step=2',
+          title: 'Checkout',
+          state: 'visible',
+        })}
         ctx={storyCtx({})}
         addResult={storyAddResult}
       />

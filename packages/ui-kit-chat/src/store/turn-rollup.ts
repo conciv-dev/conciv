@@ -98,7 +98,7 @@ function isFailedCall(part: ToolCallPart, result: ToolResultPart | undefined): b
   return exitCode !== undefined && exitCode !== 0
 }
 
-export function turnRollup(turn: Turn): TurnRollup {
+export function turnRollup(turn: Pick<Turn, 'parts'>): TurnRollup {
   const {byCallId} = pairResults(turn.parts)
   const toolCalls = turn.parts.filter((part): part is ToolCallPart => part.type === 'tool-call')
   const patchInfos = toolCalls.filter((call) => call.name === 'apply_patch').map(applyPatchInfo)

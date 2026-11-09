@@ -10,12 +10,13 @@ Themed tool-call cards and building blocks: the generic tool card and fallback, 
 - `card-shell.tsx:CardShell`, `cardHeader`, `detailChips`; `card-chrome.tsx:CardChromeProvider`, `useCardChrome`, `useEmbeddedCard`; `card-headline.tsx:CardHeadline`; `collapsible-card.tsx:CollapsibleCard` (kit-internal).
 - `meta-tool-card.tsx:MetaToolCard`, `metaToolHasEmbeddedBody`; `permission-card.tsx:PermissionCard`.
 - `chip.tsx:Chip`, `ChipRow`, `ChipGroup`, `CHIP`; `code-block.tsx:CodeBlock`, `DiffBlock`, `diffBlockClass`; `json-tree.tsx:JsonTree`; `shaped-content.tsx:ShapedValue`; `error-block.tsx:ErrorBlock`; `result-image.tsx:ResultImage`.
-- `element-preview.tsx:ElementPreview` (`{Root, Frame, Descriptor}`); `inline-row.tsx:InlineRow`, `InlineShell`; `note-row.tsx:NoteRow`, `MirrorRow`; `action-row.tsx:ActionRow`, `ActionButton`; `collapsible-section.tsx:CollapsibleSection`; `tool-icon.tsx:toolIconRender`, `GENERIC_TOOL_ICON`.
+- `element-preview.tsx:ElementPreview` (`{Root, Frame, Descriptor}`); `inline-row.tsx:InlineRow`, `InlineShell`; `note-row.tsx:NoteRow`; `action-row.tsx:ActionRow`, `ActionButton`; `collapsible-section.tsx:CollapsibleSection`; `tool-icon.tsx:toolIconRender`, `GENERIC_TOOL_ICON`.
 
 ## Invariants
 
 - `collapsible-card.tsx:CollapsibleCard` is internal to the kit: the `conciv/tool-card-shell` lint rule in `packages/oxlint-plugin` forbids importing it from `@conciv/ui-kit-chat` outside this package; compose `CardShell` or `ToolCard` instead.
 - `element-preview.tsx` throws when its parts render outside `ElementPreview.Root`.
+- `tool-call-card.tsx:ToolTraceRow` tags a row "from <client>" ("from outside agent" without a client) when its call's metadata carries the hub marker `{conciv: {origin: 'hub'}}`; in-page calls carry no tag.
 
 ## Side Effects
 

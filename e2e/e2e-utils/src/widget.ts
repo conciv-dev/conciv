@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs'
 import {expect, type ConsoleMessage, type Page} from '@playwright/test'
-import {magicLink} from '@conciv/harness-testkit/login'
+import {loginThroughTerminal, magicLink} from '@conciv/harness-testkit/login'
 import {e2eServerLog} from './config.js'
 
 export type PageFailures = {
@@ -105,6 +105,12 @@ export async function loginWidget(page: Page, path = '/', serverLog?: string): P
   await page.goto('about:blank')
   await page.goto(link, {waitUntil: 'domcontentloaded', timeout: 60_000})
   await expect(page.getByRole('button', {name: /conciv chat$/})).toBeVisible()
+}
+
+export async function trustedEngineBase(page: Page, path = '/'): Promise<string> {
+  const origin = await engineOrigin(page, path)
+  const logPath = e2eServerLog(Number(new URL(page.url()).port))
+  return `${origin}/t/${await loginThroughTerminal(origin, () => readFileSync(logPath, 'utf8'))}`
 }
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g

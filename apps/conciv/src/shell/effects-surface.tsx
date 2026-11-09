@@ -6,7 +6,7 @@ import {useConnectionGeneration, useHostTheme} from '../app/context.js'
 import {applySchemeClass, applySkinClass, themeClasses} from '../lib/color-scheme.js'
 import {ExtensionBoundary} from '../extension/extension-boundary.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
-import styles from '../styles.css?inline'
+import {widgetStyles} from '../lib/widget-styles.js'
 
 function decorateHost(element: HTMLDivElement): void {
   element.setAttribute('data-conciv-effects', '')
@@ -33,7 +33,7 @@ export function EffectsSurface(props: {instances: ExtensionInstance[]}): JSX.Ele
         decorateHost(element)
       }}
     >
-      <style>{styles}</style>
+      <style>{widgetStyles}</style>
       <div class={themeClasses(theme())}>
         <EnvironmentProvider value={() => host?.shadowRoot ?? document}>
           <Show when={mountKey()} keyed>

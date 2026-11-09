@@ -28,8 +28,8 @@ export const extensionCommands = dynamic(ExtensionCatalogSchema, (catalog) =>
           argument(name(positional), description(positional), schema(z.string().optional())),
         ),
         envelopeFlag,
-        handler((model) =>
-          runRpc((rpc) =>
+        handler((model, target) =>
+          runRpc(target, (rpc) =>
             rpc.extensions.run({
               name: entry.name,
               args: entry.positionals.flatMap((positional) => {

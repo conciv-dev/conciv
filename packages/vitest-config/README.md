@@ -19,7 +19,7 @@ Private workspace package (`private: true`) holding shared vitest CI settings, a
 
 ## Side Effects
 
-- None at import of the package root beyond env reads in `ciTest()`; CLI effects (GitHub output files, turbo runs) are in [src/README.md](./src/README.md#side-effects).
+- None at import of the package root; `ciTest()` reads env, creates a temp `CONCIV_HOME` folder and sets `process.env.CONCIV_HOME`; CLI effects (GitHub output files, turbo runs) are in [src/README.md](./src/README.md#side-effects).
 
 ## Verification
 

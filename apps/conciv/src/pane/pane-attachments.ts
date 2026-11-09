@@ -29,7 +29,9 @@ export function paneAttachments(
   return {cards, chips: guardedAttachmentCards(extensions, 'chip'), adapter}
 }
 
-type UnsentDraftSink = {insert: (text: string) => void; addFile: (file: File) => void}
+type DraftSink = {insert: (text: string) => void; addFile: (file: File) => void}
+
+type QueueOwner = {queue: () => readonly QueuedMessage[]; cancelQueued: (id: string) => void}
 
 function visibleParts(content: QueuedMessage['content']): ContentPart[] {
   const body = typeof content === 'string' ? content : content.content
@@ -43,8 +45,10 @@ function partFile(part: ContentPart): File[] {
   return [new File([bytes], part.type, {type: part.source.mimeType})]
 }
 
-export function returnUnsentToDraft(unsent: readonly QueuedMessage[], sink: UnsentDraftSink): void {
-  const parts = unsent.flatMap((item) => visibleParts(item.content))
+export function returnQueueToDraft(owner: QueueOwner, sink: DraftSink): void {
+  const queued = owner.queue()
+  for (const item of queued) owner.cancelQueued(item.id)
+  const parts = queued.flatMap((item) => visibleParts(item.content))
   const text = parts.flatMap((part) => (part.type === 'text' ? [part.content] : []))
   if (text.length > 0) sink.insert(text.join('\n'))
   for (const file of parts.flatMap(partFile)) sink.addFile(file)

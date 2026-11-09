@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -13,133 +13,18 @@ import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {start as startEngine, type Engine} from '@conciv/core'
 import {connectMcpClient, createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
 import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
-import {makeExtRpcClient} from '@conciv/extension'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
-import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import terminalExtension, {default as terminal, type TerminalRouter} from '../src/server.js'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
-import {
-  bashHarness,
-  connectingHarness,
-  recordingHarness,
-  startTerminalServer,
-  type TerminalTestServer,
-} from './helpers.js'
-
-describe('launch', () => {
-  const OPENER_BINS = ['open', 'x-terminal-emulator', 'cmd']
-
-  function tempDir(prefix: string): string {
-    return mkdtempSync(join(tmpdir(), prefix))
-  }
-
-  function fakeOpenerDir(): string {
-    const dir = tempDir('conciv-opener-')
-    for (const bin of OPENER_BINS) {
-      const path = join(dir, bin)
-      writeFileSync(path, '#!/bin/sh\nexit 0\n')
-      chmodSync(path, 0o755)
-    }
-    return dir
-  }
-
-  function launchScripts(stateDir: string): string[] {
-    return readdirSync(join(stateDir, 'launch')).map((name) => readFileSync(join(stateDir, 'launch', name), 'utf8'))
-  }
-
-  describe('terminal launch and connect command', () => {
-    const started: TerminalTestServer[] = []
-    const originalPath = process.env.PATH
-
-    afterEach(async () => {
-      process.env.PATH = originalPath
-      await Promise.all(started.splice(0).map((server) => server.close()))
-    })
-
-    const start = async (harness = connectingHarness().harness): Promise<TerminalTestServer> => {
-      const server = await startTerminalServer(harness, {stateDir: tempDir('conciv-launch-state-')})
-      started.push(server)
-      return server
-    }
-
-    it('renders the copyable connect command from the harness plan', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const server = await start()
-      const {command} = await server.rpc.connectCommand({sessionId})
-      expect(command).toContain(`cd '${process.cwd()}'`)
-      expect(command).toContain("CONCIV_LAUNCH='yes'")
-      expect(command).toContain("'fake-cli' '--session' 'new'")
-      expect(command).toMatch(/'--mcp' 'http:\/\/127\.0\.0\.1:\d+\/api\/mcp'/)
-    })
-
-    it('renders a connect command whose mcp url carries the app base path', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const server = await startTerminalServer(connectingHarness().harness, {
-        basePath: '/t/tok-launch',
-        stateDir: tempDir('conciv-launch-state-'),
-      })
-      started.push(server)
-      const {command} = await server.rpc.connectCommand({sessionId})
-      expect(command).toMatch(/'--mcp' 'http:\/\/127\.0\.0\.1:\d+\/t\/tok-launch\/api\/mcp'/)
-    })
-
-    it('passes the session identity and no resume to the plan for a session with no native id', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const {harness, captured} = connectingHarness()
-      const server = await start(harness)
-      await server.rpc.connectCommand({sessionId})
-      expect(captured).toHaveLength(1)
-      expect(captured[0]?.concivSessionId).toBe(sessionId)
-      expect(captured[0]?.harnessSessionId).toBeNull()
-      expect(captured[0]?.resume).toBe(false)
-      expect(server.sessions.tokens.get(sessionId)).toBeUndefined()
-    })
-
-    it('resumes the recorded native id when the session already has one', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const {harness, captured} = connectingHarness()
-      const server = await start({...harness, transcriptExists: () => true})
-      server.sessions.tokens.set(sessionId, HarnessSessionId.parse('native-7'))
-      await server.rpc.connectCommand({sessionId})
-      expect(captured[0]?.harnessSessionId).toBe('native-7')
-      expect(captured[0]?.resume).toBe(true)
-    })
-
-    it('launches a terminal window and leaves the plan as a runnable script', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const server = await start()
-      process.env.PATH = fakeOpenerDir()
-      expect(await server.rpc.launch({sessionId})).toEqual({ok: true})
-      const scripts = launchScripts(server.stateDir)
-      expect(scripts).toHaveLength(1)
-      expect(scripts[0]).toContain(`cd '${process.cwd()}'`)
-      expect(scripts[0]).toContain("'fake-cli'")
-    })
-
-    it('reports a failed launch when no terminal opener is on the path', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const server = await start()
-      process.env.PATH = tempDir('conciv-empty-path-')
-      expect(await server.rpc.launch({sessionId})).toEqual({ok: false})
-    })
-
-    it('rejects launch and connectCommand when the harness cannot be launched', async () => {
-      const sessionId = `conciv_${randomUUID()}`
-      const server = await start(bashHarness)
-      await expect(server.rpc.launch({sessionId})).rejects.toMatchObject({code: 'NO_CONNECT'})
-      await expect(server.rpc.connectCommand({sessionId})).rejects.toMatchObject({code: 'NO_CONNECT'})
-    })
-  })
-})
+import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
 describe('prefixed serving', () => {
   const TOKEN = '8a1e7d5c-3b2f-4e6a-9c0d-1f2e3a4b5c6d'
 
   describe('prefixed serving over the real wire (start with an access token)', () => {
-    const captured: HarnessConnectContext[] = []
     let root: string
     let engine: Engine
     let base: string
@@ -147,19 +32,7 @@ describe('prefixed serving', () => {
 
     beforeAll(async () => {
       root = mkdtempSync(join(tmpdir(), 'conciv-prefixed-wire-'))
-      const harness: HarnessAdapter = {
-        ...createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'}),
-        connect: {
-          plan: (ctx) => {
-            captured.push(ctx)
-            return {
-              argv: ['fake-cli', ...(ctx.mcpUrl ? ['--mcp', ctx.mcpUrl] : [])],
-              env: {},
-              files: [],
-            }
-          },
-        },
-      }
+      const harness: HarnessAdapter = createFakeHarness({id: 'fake-prefixed-wire', text: 'prefixed ok'})
       engine = await startEngine({
         options: {stateRoot: root, systemPrompt: false, harness: 'fake-prefixed-wire'},
         root,
@@ -177,30 +50,16 @@ describe('prefixed serving', () => {
       rmSync(root, {recursive: true, force: true})
     })
 
-    it(
-      'serves the terminal connect command through the prefixed route and the handed-out mcp url answers mcp',
-      {timeout: 15_000},
-      async () => {
-        const {sessionId} = await rpc.sessions.create(undefined)
-        const terminalRpc = makeExtRpcClient<TerminalRouter>(base, 'terminal')
-        const {command} = await terminalRpc.connectCommand({sessionId})
-        expect(command).toContain(`/t/${TOKEN}/api/mcp`)
-
-        const mcpUrl = captured.at(-1)?.mcpUrl
-        if (!mcpUrl) throw new Error('the harness connect plan never received an mcp url')
-        expect(mcpUrl).toBe(`http://127.0.0.1:${engine.port}/t/${TOKEN}/api/mcp`)
-
-        const mcp = await connectMcpClient(mcpUrl, {[CONCIV_SESSION_HEADER]: sessionId})
-        try {
-          const tools = await mcp.tools()
-          expect(tools.map((tool) => tool.name)).toContain('execute_typescript')
-        } finally {
-          await mcp.close()
-        }
-
-        await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
-      },
-    )
+    it('the mcp url under the token prefix answers mcp and the bare one is refused', {timeout: 15_000}, async () => {
+      const {sessionId} = await rpc.sessions.create(undefined)
+      const mcp = await connectMcpClient(`${base}/api/mcp`, {[CONCIV_SESSION_HEADER]: sessionId})
+      try {
+        expect((await mcp.tools()).map((tool) => tool.name)).toContain('execute_typescript')
+      } finally {
+        await mcp.close()
+      }
+      await expect(connectMcpClient(`http://127.0.0.1:${engine.port}/api/mcp`)).rejects.toMatchObject({code: 401})
+    })
 
     it('streams a chat turn over the prefixed delivery route', {timeout: 15_000}, async () => {
       const {sessionId} = await rpc.sessions.create(undefined)

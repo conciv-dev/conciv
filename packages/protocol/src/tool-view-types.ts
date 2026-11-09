@@ -15,7 +15,6 @@ export type ToolViewMeta = {
   icon?: ToolIconKey
   label?: ToolLabel
   mutating: boolean
-  mirrors: boolean
   approval?: 'ask'
   inputSchema?: unknown
   outputSchema?: unknown

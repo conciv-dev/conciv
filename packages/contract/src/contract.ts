@@ -6,7 +6,10 @@ import {
   ChatHarnessesSchema,
   ChatHistorySchema,
   ChatModelsSchema,
+  HubAgentsSchema,
   ChatToolsSchema,
+  HarnessListCursorSchema,
+  HarnessSessionId,
   NativeSessionRefSchema,
   NavigationWriteSchema,
   PermissionDecisionSchema,
@@ -25,11 +28,39 @@ import {
 import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {SessionCapturesSchema} from '@conciv/protocol/element-capture-types'
 import {TOOL_ICON_KEYS} from '@conciv/protocol/tool-icon-types'
-import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
+import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: SessionId})
+const SessionListInput = z.object({
+  includeHidden: z.boolean().optional(),
+  cursor: HarnessListCursorSchema.nullish(),
+  limit: z.number().int().min(1).max(100).default(30),
+})
+const SessionSearchInput = SessionListInput.extend({
+  term: z.string().trim().min(1).max(200),
+  everywhere: z.boolean().default(false).catch(false),
+})
+const SessionPageSchema = z.object({sessions: z.array(SessionMetaSchema), next: HarnessListCursorSchema.nullable()})
+const SessionSearchPageSchema = z.object({
+  sessions: z.array(SessionHitSchema),
+  next: HarnessListCursorSchema.nullable(),
+})
+
+const SessionPreviewInput = z.object({
+  harness: z.string().min(1),
+  nativeId: HarnessSessionId,
+  cwd: z.string().min(1).optional(),
+  before: z.string().min(1).nullable(),
+  limit: z.number().int().min(1).max(100),
+})
+const SessionPreviewSchema = z.object({messages: ChatHistorySchema, earlier: z.string().min(1).nullable()})
+
+const SessionsChangeSchema = z.object({version: z.number().int().nonnegative()})
+
+export type SessionsChange = z.infer<typeof SessionsChangeSchema>
 const ChatPendingInterruptSchema = z.object({
   id: z.string(),
   reason: z.string(),
@@ -69,6 +100,10 @@ const notFound = {NOT_FOUND: {message: 'session not found'}}
 const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 const queryFailed = {QUERY_FAILED: {message: 'the query was refused'}}
 const approvalDenied = {APPROVAL_DENIED: {message: 'the call was not approved'}}
+const HubHarnessInput = z.object({harness: z.enum(INIT_HARNESS_IDS)})
+const HubOutcome = z
+  .object({ok: z.literal(true), note: z.string().optional()})
+  .or(z.object({ok: z.literal(false), message: z.string()}))
 const registryCallErrors = {
   NO_PAGE_CLIENT: {message: 'no widget connected'},
   PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
@@ -94,7 +129,6 @@ export const ToolCommandSignatureSchema = z.object({
     .optional()
     .catch(undefined),
   mutating: z.boolean(),
-  mirrors: z.boolean(),
   reachable: z.boolean(),
   approval: z.literal('ask').optional(),
   inputSchema: z.unknown(),
@@ -149,28 +183,42 @@ export const contract = {
     requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
   },
   sessions: {
-    list: oc.input(z.object({includeHidden: z.boolean().optional()}).nullish()).output(z.array(SessionMetaSchema)),
+    list: oc
+      .input(SessionListInput.nullish().transform((input) => SessionListInput.parse(input ?? {})))
+      .output(SessionPageSchema),
+    search: oc.input(SessionSearchInput).output(SessionSearchPageSchema),
+    changes: oc.output(eventIterator(SessionsChangeSchema)),
+    get: oc
+      .errors({...notFound, ...approvalDenied})
+      .input(SessionIdInput)
+      .output(SessionMetaSchema),
+    preview: oc.errors(notFound).input(SessionPreviewInput).output(SessionPreviewSchema),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     open: oc.input(NativeSessionRefSchema).output(SessionIdInput),
-    restore: oc.input(SessionIdInput).output(SessionIdInput),
+    restore: oc.errors(approvalDenied).input(SessionIdInput).output(SessionIdInput),
     rename: oc
-      .errors(notFound)
+      .errors({...notFound, ...approvalDenied})
       .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
       .output(z.object({title: z.string()})),
-    delete: oc.input(SessionIdInput).output(Ok),
+    delete: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     model: oc
-      .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
+      .errors({...notFound, ...approvalDenied, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
       .input(SessionIdInput.extend({model: z.string()}))
       .output(z.object({model: z.string()})),
     effort: oc
-      .errors({...notFound, UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'}})
+      .errors({
+        ...notFound,
+        ...approvalDenied,
+        UNSUPPORTED_EFFORT: {message: 'the session model does not support this effort'},
+      })
       .input(SessionIdInput.extend({effort: ReasoningEffortSchema.nullable()}))
       .output(z.object({effort: ReasoningEffortSchema.nullable()})),
-    compact: oc.input(SessionIdInput).output(Ok),
+    compact: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     switchHarness: oc
       .errors({
         ...notFound,
+        ...approvalDenied,
         UNKNOWN_HARNESS: {message: 'that harness is not available'},
         UNKNOWN_MODEL: {message: 'the target harness does not offer that model'},
         SESSION_RUNNING: {message: 'the session has a run in progress'},
@@ -179,26 +227,40 @@ export const contract = {
       .output(z.object({harnessId: z.string()})),
   },
   drafts: {
-    get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(Ok),
+    get: oc.errors(approvalDenied).input(SessionIdInput).output(DraftRowSchema.nullable()),
+    set: oc
+      .errors(approvalDenied)
+      .input(DraftRowSchema.omit({updatedAt: true}))
+      .output(Ok),
   },
   markers: {
-    list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
+    list: oc.errors(approvalDenied).input(SessionIdInput).output(z.array(MarkerRowSchema)),
   },
   navigation: {
     get: oc.output(NavigationWriteSchema.nullable()),
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    events: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    hydrate: oc.input(SessionIdInput.extend(ChatHistoryWindowSchema.shape)).output(ChatHydrationSchema),
-    stop: oc.input(SessionIdInput.extend({runIds: z.array(z.string().min(1))})).output(Ok),
+    events: oc.errors(approvalDenied).input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    hydrate: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput.extend(ChatHistoryWindowSchema.shape))
+      .output(ChatHydrationSchema),
+    stop: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput.extend({runIds: z.array(z.string().min(1))}))
+      .output(Ok),
     permissionDecision: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending approval'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending approval'}})
       .input(PermissionDecisionSchema)
       .output(Ok.extend({startsTurn: z.boolean()})),
+    outsideAccess: oc
+      .errors(approvalDenied)
+      .input(SessionIdInput)
+      .output(z.object({denied: z.boolean()})),
+    allowOutside: oc.errors(approvalDenied).input(SessionIdInput).output(Ok),
     uiReply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending ui question'}})
       .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
       .output(Ok),
   },
@@ -210,7 +272,7 @@ export const contract = {
       .output(z.unknown()),
   },
   captures: {
-    list: oc.input(SessionIdInput).output(SessionCapturesSchema),
+    list: oc.errors(approvalDenied).input(SessionIdInput).output(SessionCapturesSchema),
   },
   db: {
     sources: oc.output(
@@ -262,29 +324,31 @@ export const contract = {
   },
   page: {
     symbolicate: oc.input(SymbolicateSchema).output(SourceLocSchema.nullable()),
-    changes: oc.output(z.array(PageChangeEntrySchema)),
-    clearChanges: oc.output(Ok),
-    queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
+    changes: oc.errors(approvalDenied).output(z.array(PageChangeEntrySchema)),
+    clearChanges: oc.errors(approvalDenied).output(Ok),
+    queries: oc.errors(approvalDenied).output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
-      .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
+      .errors({...approvalDenied, UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
       .output(Ok),
   },
   server: {
-    config: oc.errors(noBundler).output(BundlerConfigSchema),
+    config: oc.errors({...noBundler, ...approvalDenied}).output(BundlerConfigSchema),
     resolve: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({spec: z.string(), importer: z.string().optional()}))
       .output(z.object({id: z.string().nullable()})),
     graph: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
       .output(z.array(ModuleNodeSchema)),
     transform: oc
-      .errors(noBundler)
+      .errors({...noBundler, ...approvalDenied})
       .input(z.object({url: z.string()}))
       .output(z.object({code: z.string().nullable()})),
-    urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
+    urls: oc
+      .errors({...noBundler, ...approvalDenied})
+      .output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
     reload: oc
       .errors({...noBundler, ...approvalDenied})
       .input(z.object({file: z.string()}))
@@ -295,14 +359,17 @@ export const contract = {
       .output(Ok),
   },
   editor: {
-    open: oc.input(EditorOpenInputSchema).output(Ok),
+    open: oc.errors(approvalDenied).input(EditorOpenInputSchema).output(Ok),
     openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
-    models: oc.input(SessionIdInput).output(ChatModelsSchema),
+    models: oc.errors(approvalDenied).input(SessionIdInput).output(ChatModelsSchema),
     harnesses: oc.output(ChatHarnessesSchema),
-    commands: oc.input(SessionIdInput).output(ChatCommandsSchema),
+    commands: oc.errors(approvalDenied).input(SessionIdInput).output(ChatCommandsSchema),
     tools: oc.output(ChatToolsSchema),
     engine: oc.output(EngineStalenessSchema),
+    hubAgents: oc.output(HubAgentsSchema),
+    connectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
+    disconnectHub: oc.errors(approvalDenied).input(HubHarnessInput).output(HubOutcome),
   },
 }

@@ -4,10 +4,10 @@ import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'r
 import {createRoot, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import ScanSearch from 'lucide-solid/icons/scan-search'
-import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
+import {CONCIV_UI_SELECTOR, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import type {HostWiring} from '@conciv/extension/host'
 import {ComposerActions} from '@conciv/ui-kit-chat'
-import {keepBodyMargins} from '@conciv/extension-page/body-margins'
+import {capturePlugins} from '@conciv/extension-page/capture-plugins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
@@ -77,7 +77,7 @@ const MIRROR_ATTR = 'data-conciv-mirror'
 const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed`
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
-const LIVE_EXCLUDE = [...OVERLAYS, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
+const LIVE_EXCLUDE = [...OVERLAYS, CONCIV_UI_SELECTOR, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
@@ -498,7 +498,7 @@ async function snapdomShot(input: {doc: Document; size: Size; exclude: string[];
     exclude: input.exclude,
     excludeMode: 'remove',
     embedFonts: true,
-    plugins: [keepBodyMargins],
+    plugins: capturePlugins,
   })
   return composited({blob: await capture.toBlob({format: 'png'}), doc, ...size})
 }

@@ -1,4 +1,4 @@
-import {createContext, createEffect, createMemo, onCleanup, useContext, type JSX} from 'solid-js'
+import {createContext, onCleanup, onMount, useContext, type Accessor, type JSX} from 'solid-js'
 import type {EmbeddedCardHeader} from '../primitives/tool-row.js'
 
 export type CardChrome = 'card' | 'embedded'
@@ -9,9 +9,15 @@ type CardChromeValue = {
   chrome: () => CardChrome
   headerChannel: () => EmbeddedHeaderChannel | undefined
   rowLine: () => string
+  duration: Accessor<number | undefined>
 }
 
-const defaultValue: CardChromeValue = {chrome: () => 'card', headerChannel: () => undefined, rowLine: () => ''}
+const defaultValue: CardChromeValue = {
+  chrome: () => 'card',
+  headerChannel: () => undefined,
+  rowLine: () => '',
+  duration: () => undefined,
+}
 
 const CardChromeContext = createContext<CardChromeValue>(defaultValue)
 
@@ -19,19 +25,29 @@ export function CardChromeProvider(props: {
   value: CardChrome
   headerChannel?: EmbeddedHeaderChannel
   rowLine?: () => string
+  duration?: Accessor<number | undefined>
   children: JSX.Element
 }): JSX.Element {
-  const chrome = createMemo(() => props.value)
   const value: CardChromeValue = {
-    chrome,
+    chrome: () => props.value,
     headerChannel: () => props.headerChannel,
     rowLine: () => props.rowLine?.() ?? '',
+    duration: () => props.duration?.(),
   }
   return <CardChromeContext.Provider value={value}>{props.children}</CardChromeContext.Provider>
 }
 
+export function ToolDurationProvider(props: {value: Accessor<number | undefined>; children: JSX.Element}): JSX.Element {
+  const value: CardChromeValue = {...useCardChromeValue(), duration: () => props.value()}
+  return <CardChromeContext.Provider value={value}>{props.children}</CardChromeContext.Provider>
+}
+
+function useCardChromeValue(): CardChromeValue {
+  return useContext(CardChromeContext) ?? defaultValue
+}
+
 export function useCardChrome(): () => CardChrome {
-  return (useContext(CardChromeContext) ?? defaultValue).chrome
+  return useCardChromeValue().chrome
 }
 
 export function useEmbeddedCard(): () => boolean {
@@ -40,19 +56,21 @@ export function useEmbeddedCard(): () => boolean {
 }
 
 export function useEmbeddedHeaderChannel(): () => EmbeddedHeaderChannel | undefined {
-  return (useContext(CardChromeContext) ?? defaultValue).headerChannel
+  return useCardChromeValue().headerChannel
 }
 
 export function useEmbeddedRowLine(): () => string {
-  return (useContext(CardChromeContext) ?? defaultValue).rowLine
+  return useCardChromeValue().rowLine
+}
+
+export function useToolCallDuration(): Accessor<number | undefined> {
+  return useCardChromeValue().duration
 }
 
 export function publishCardHeader(read: () => EmbeddedCardHeader): void {
   const headerChannel = useEmbeddedHeaderChannel()
-  const header = createMemo(read)
-  createEffect(() => {
+  onMount(() => {
     const publish = headerChannel()
-    if (publish === undefined) return
-    onCleanup(publish(header))
+    if (publish !== undefined) onCleanup(publish(read))
   })
 }

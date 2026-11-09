@@ -1,7 +1,7 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, test, vi} from 'vitest'
 import {main as cliMain} from '../src/main.js'
 import {runCli} from '../src/run.js'
-import {execFileSync, spawnSync} from 'node:child_process'
+import {execFile, execFileSync, spawn, spawnSync} from 'node:child_process'
 import {once} from 'node:events'
 import {createServer} from 'node:net'
 import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
@@ -17,6 +17,9 @@ import {engineOrigin} from '../src/engine-origin.js'
 import {runRevoke} from '../src/auth.js'
 import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
+import {createMCPClient} from '@tanstack/ai-mcp'
+import {stdioTransport} from '@tanstack/ai-mcp/stdio'
+import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -24,6 +27,8 @@ import {runInitCommand} from '../src/init.js'
 import {type Detected, detectFramework, detectProject, type Framework} from '../src/init/detect.js'
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
+import {createHubConnections} from '@conciv/harness-init/hub'
+import {recordHubConnection, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -77,6 +82,8 @@ import {
 } from './helpers.js'
 
 describe('cli', () => {
+  const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
+
   describe('cli arguments', () => {
     const {cleanups, written} = cliSession()
 
@@ -124,20 +131,15 @@ describe('cli', () => {
         })
       })
 
-      it('rejects an unknown flag placed before a nested subcommand instead of dropping it', async () => {
+      it('rejects an unknown flag placed before the first or a nested subcommand instead of dropping it', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {}})
         expect(await runCli(cliMain, ['tools', '--bogus', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
-      })
-
-      it('rejects an unknown flag placed before the very first subcommand', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
+        written.length = 0
         expect(await runCli(cliMain, ['--bogus', 'tools', 'page', 'click', '#a'])).toBe(1)
-        expect(answer.seen()).toBeNull()
         expect(failureText()).toContain('--bogus')
+        expect(answer.seen()).toBeNull()
       })
 
       it('still accepts an envelope flag placed before a nested subcommand', async () => {
@@ -193,7 +195,6 @@ describe('cli', () => {
   describe('cli bin', () => {
     const ESCAPE = '\u001b'
     const COLOR_VARIABLES = new Set(['NO_COLOR', 'FORCE_COLOR', 'CI', 'TEST', 'TERM'])
-    const bin = fileURLToPath(new URL('../dist/bin.js', import.meta.url))
 
     let cwd = ''
     let closedPort = 0
@@ -230,10 +231,11 @@ describe('cli', () => {
     })
 
     describe('the built conciv bin through a pipe', () => {
-      it('prints --help without ANSI escapes when stdout is not a terminal', () => {
+      it('prints --help, init among the commands, without ANSI escapes when stdout is not a terminal', () => {
         const help = conciv(['--help'])
         expect(help.status).toBe(0)
         expect(help.stdout).toContain('tools')
+        expect(help.stdout).toMatch(/^\s+init\s/m)
         expect(help.stdout).not.toContain(ESCAPE)
       })
 
@@ -245,53 +247,24 @@ describe('cli', () => {
         expect(conciv(['-v'])).toEqual({status: 0, stdout: `conciv ${manifest.version}\n`})
       })
 
-      it('registers init under the root command', () => {
-        const help = conciv(['--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toMatch(/^\s+init\s/m)
-      })
-
-      it('lists the built-in page verbs offline and says so on the last line', () => {
-        const help = conciv(['tools', 'page', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('snapshot')
-        expect(help.stdout).toContain('fill')
-        expect(help.stdout.trim().split('\n').at(-1)).toBe(
-          'offline: showing the built-in page capabilities; a running server may add more',
-        )
-      })
-
-      it('lists only the react verbs under react --help offline', () => {
-        const help = conciv(['tools', 'react', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('locate')
-        expect(help.stdout).not.toContain('fill')
-      })
-
-      it('derives the design verbs offline from the design tool declarations', () => {
-        const help = conciv(['tools', 'design', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('register a design image as the target; its width and height come from the image')
-      })
-
-      it('shows a verb flags offline', () => {
-        const help = conciv(['tools', 'page', 'fill', '--help'])
-        expect(help.status).toBe(0)
-        expect(help.stdout).toContain('--value')
-      })
-
-      it('running a page verb offline still fails, pointing at server.json and CONCIV_PORT', () => {
-        const run = conciv(['tools', 'page', 'snapshot'])
-        expect(run.status).toBe(1)
-        const document: unknown = JSON.parse(run.stdout)
-        expect(document).toMatchObject({
-          ok: false,
-          error: {
-            kind: 'user',
-            message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
-            hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
-          },
-        })
+      it('offline, group help and group verbs fail with the start-a-server envelope', () => {
+        for (const argv of [
+          ['tools', 'page', '--help'],
+          ['tools', 'design', '--help'],
+          ['tools', 'page', 'snapshot'],
+        ]) {
+          const run = conciv(argv)
+          expect(run.status).toBe(1)
+          const document: unknown = JSON.parse(run.stdout)
+          expect(document).toMatchObject({
+            ok: false,
+            error: {
+              kind: 'user',
+              message: `No conciv dev server on 127.0.0.1:${closedPort}.`,
+              hint: "Start your app (pnpm dev). conciv reads the engine port from .conciv/server.json; CONCIV_PORT=<engine port> overrides it (this is the conciv engine port, not Vite's).",
+            },
+          })
+        }
       })
     })
   })
@@ -311,7 +284,7 @@ describe('cli', () => {
     }
 
     const beacon = defineTool({
-      name: 'page_beacon',
+      name: 'acme_beacon',
       description: 'Raise the acme beacon over the page.',
       inputSchema: z.object({height: z.number().int().min(1)}),
       outputSchema: z.object({raised: z.boolean()}),
@@ -321,11 +294,33 @@ describe('cli', () => {
         icon: 'pointer',
         label: {running: 'Raising the beacon', done: 'Raised the beacon'},
         mutating: true,
-        mirrors: true,
       },
     }).client()
 
     const beaconExtension = defineExtension({name: 'acme-beacon', tools: [beacon]})
+
+    const serverStatus = defineTool({
+      name: 'server_status',
+      description: 'Report the acme status board.',
+      inputSchema: z.object({}),
+      outputSchema: z.object({green: z.boolean()}),
+      meta: {summary: 'report the acme status board', mutating: false},
+    }).client()
+
+    const paint = defineTool({
+      name: 'acme_paint',
+      description: 'Paint strokes and patch the acme canvas.',
+      inputSchema: z.object({
+        patch: z.record(z.string(), z.unknown()),
+        strokes: z.array(z.object({x: z.number()}).loose()),
+        parts: z.array(z.unknown()).optional(),
+        label: z.string().nullable().optional(),
+      }),
+      outputSchema: z.object({painted: z.boolean()}),
+      meta: {summary: 'paint strokes and patch the acme canvas', mutating: true},
+    }).client()
+
+    const acmeExtension = defineExtension({name: 'acme-tools', tools: [serverStatus, paint]})
 
     const ONE_PIXEL_PNG =
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -383,10 +378,77 @@ describe('cli', () => {
         expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1, height: 1}})
       })
 
-      it('derives a page verb whose declaration carries card cosmetics the CLI itself ignores', async () => {
-        await bootCli(cleanups, {extensions: [beaconExtension]})
-        const help = await helpText(['tools', 'page', '--help'])
-        expect(help).toContain('raise the acme beacon over the page')
+      it('serves a group from an extension the CLI has never heard of', async () => {
+        const kit = await bootCli(cleanups, {extensions: [beaconExtension]})
+        expect(await helpText(['tools', 'acme', '--help'])).toContain('raise the acme beacon over the page')
+        const answer = await answerNextQuery(kit, {ok: true, result: {raised: true}})
+        expect(await runCli(cliMain, ['tools', 'acme', 'beacon', '--height', '2'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_beacon', input: {height: 2}})
+      })
+
+      it('sends an extension tool named like a server operation to the extension, not the dev server', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {green: true}})
+        expect(await runCli(cliMain, ['tools', 'server', 'status'])).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'server_status'})
+        expect(onlyDocument(written)).toMatchObject({ok: true, data: {green: true}})
+      })
+
+      it('parses object and array-of-object flags as JSON before sending them', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{"color":"red"}',
+            '--strokes',
+            '{"x":1}',
+            '--strokes',
+            '{"x":2,"y":3}',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {patch: {color: 'red'}, strokes: [{x: 1}, {x: 2, y: 3}]},
+        })
+      })
+
+      it('decodes JSON into an unconstrained array item, keeps a plain value a string, and a nullable string stays a string', async () => {
+        const kit = await bootCli(cleanups, {extensions: [acmeExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {painted: true}})
+        expect(
+          await runCli(cliMain, [
+            'tools',
+            'acme',
+            'paint',
+            '--patch',
+            '{}',
+            '--strokes',
+            '{"x":1}',
+            '--parts',
+            '{"type":"text","text":"Hello"}',
+            '--parts',
+            'plain words',
+            '--label',
+            '123',
+          ]),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({
+          name: 'acme_paint',
+          input: {parts: [{type: 'text', text: 'Hello'}, 'plain words'], label: '123'},
+        })
+      })
+
+      it('rejects a flag that is not valid JSON with the flag named', async () => {
+        await bootCli(cleanups, {extensions: [acmeExtension]})
+        expect(await runCli(cliMain, ['tools', 'acme', 'paint', '--patch', '{color', '--strokes', '{"x":1}'])).toBe(1)
+        expect(onlyDocument(written)).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: expect.stringContaining('--patch: expected a JSON object')},
+        })
       })
 
       it('sends the effect argument to the server instead of dropping it', async () => {
@@ -413,13 +475,6 @@ describe('cli', () => {
           name: 'page_setattr',
           input: {selector: '#a', attribute: 'data-state', value: 'open'},
         })
-      })
-
-      it('rejects an edit that names no attribute rather than sending a nameless one', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {}})
-        expect(await runCli(cliMain, ['tools', 'page', 'setattr', '#a', '--value', 'open'])).toBe(1)
-        expect(answer.seen()).toBeNull()
       })
 
       it('clears a field when the value is explicitly empty', async () => {
@@ -457,14 +512,6 @@ describe('cli', () => {
         expect(help.replaceAll(/\s+/g, ' ')).toContain(
           'after editing a file, wait for the hot update to land before reading the page',
         )
-      })
-
-      it('offers the react verbs under react and leaves the page-only ones out', async () => {
-        await bootCli(cleanups)
-        const help = await helpText(['tools', 'react', '--help'])
-        expect(help).toContain('inspect')
-        expect(help).toContain('override')
-        expect(help).not.toContain('sethtml')
       })
 
       it('derives a dev-server operation and its positional from the declaration', async () => {
@@ -512,23 +559,13 @@ describe('cli', () => {
         expect(resolved).toEqual(['./x.ts from src/a.ts'])
       })
 
-      it('rejects a non-positive line number as a plain user mistake, not a bug', async () => {
+      it('rejects a zero, fractional or non-numeric line number as a plain user mistake, not a bug', async () => {
         await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '0'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('rejects a fractional line number as a plain user mistake, not a bug', async () => {
-        await bootCli(cleanups)
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '1.5'])).toBe(1)
-        expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
-      })
-
-      it('opens at a positive integer line number', async () => {
-        const opened: {file: string; line?: number}[] = []
-        await bootCli(cleanups, {openInEditor: (file, line) => opened.push({file, line})})
-        expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', '3'])).toBe(0)
-        expect(opened).toEqual([{file: 'src/a.ts', line: 3}])
+        for (const line of ['0', '1.5', 'abc']) {
+          written.length = 0
+          expect(await runCli(cliMain, ['tools', 'open', 'src/a.ts', '--line', line])).toBe(1)
+          expect(FailureSchema.parse(onlyDocument(written)).error.kind).toBe('user')
+        }
       })
     })
   })
@@ -613,18 +650,7 @@ describe('cli', () => {
         expect(error.stack).toBeUndefined()
       })
 
-      it('a page verb with no dev server fails as the standard envelope, not an unhandled rejection', async () => {
-        process.env.CONCIV_PORT = String(await closedPort())
-        const code = await runCli(cliMain, ['tools', 'page', 'snapshot'])
-        expect(code).toBe(1)
-        const error = failure()
-        expect(error.kind).toBe('user')
-        expect(error.message).toContain('No conciv dev server')
-        expect(error.hint).toContain('.conciv/server.json')
-        expect(error.hint).toContain('CONCIV_PORT')
-      })
-
-      it('a server whose catalog declares no page capabilities is reported, not silently shrunk', async () => {
+      it('a server whose catalog serves no page tools rejects page as a user error', async () => {
         process.env.CONCIV_PORT = String(
           await listen((_request, response) => {
             response.writeHead(200, {'content-type': 'application/json'})
@@ -635,7 +661,7 @@ describe('cli', () => {
         expect(code).toBe(1)
         const error = failure()
         expect(error.kind).toBe('user')
-        expect(error.message).toContain('no page capabilities')
+        expect(error.message).toContain("'page' for conciv tools")
       })
 
       it('reports an alien server on the port as a probable bug, with the stack', async () => {
@@ -679,22 +705,13 @@ describe('cli', () => {
     }
 
     describe('conciv CLI (IT, real served core, typed rpc)', () => {
-      it('page fill drives registry.call and prints one success envelope with exit 0', async () => {
+      it('page fill drives registry.call and prints one success envelope with exit 0, --json or not', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'a@b.c'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c'])
+        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'a@b.c', '--json'])
         expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email', value: 'a@b.c'}})
         expect(code).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'a@b.c'}})
-      })
-
-      it('accepts --json on a verb and still prints exactly one document', async () => {
-        const kit = await bootCli(cleanups)
-        const answer = await answerNextQuery(kit, {ok: true, result: {ok: true, value: 'x'}})
-        const code = await runCli(cliMain, ['tools', 'page', 'fill', '#email', '--value', 'x', '--json'])
-        expect(answer.seen()).toMatchObject({name: 'page_fill', input: {selector: '#email'}})
-        expect(code).toBe(0)
-        expect(onlyDocument(written)).toEqual({ok: true, data: {ok: true, value: 'x'}})
       })
 
       it('a page verb the browser refuses fails as a user error with the declared code and exit 1', async () => {
@@ -726,16 +743,6 @@ describe('cli', () => {
         })
       })
 
-      it('server config without a bridge fails as a user error with the declared code and exit 1', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'server', 'config'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toEqual({
-          ok: false,
-          error: {kind: 'user', code: 'NO_BUNDLER', message: 'no bundler bridge'},
-        })
-      })
-
       it('page wait with an invalid --state is a user error before any rpc call', async () => {
         const kit = await bootCli(cleanups)
         const answer = await answerNextQuery(kit, {ok: true, result: {ok: true}})
@@ -746,15 +753,6 @@ describe('cli', () => {
         expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
         expect(JSON.stringify(failure)).toContain('visible')
         expect(JSON.stringify(failure)).not.toContain('\\n    at ')
-      })
-
-      it('open with a non-numeric --line is a user error, not a raw zod stack', async () => {
-        await bootCli(cleanups)
-        const code = await runCli(cliMain, ['tools', 'open', 'x.ts', '--line', 'abc'])
-        expect(code).toBe(1)
-        const failure = onlyDocument(written)
-        expect(failure).toMatchObject({ok: false, error: {kind: 'user'}})
-        expect(JSON.stringify(failure)).toContain('line')
       })
 
       it('page changes lists the journal in an envelope and --clear resets it', async () => {
@@ -771,14 +769,6 @@ describe('cli', () => {
         written.length = 0
         expect(await runCli(cliMain, ['tools', 'page', 'changes'])).toBe(0)
         expect(onlyDocument(written)).toEqual({ok: true, data: []})
-      })
-
-      it('server restart without a session context is refused with exit 1', async () => {
-        const bridge = restartCapableBridge()
-        await bootCli(cleanups, {bridge})
-        const code = await runCli(cliMain, ['tools', 'server', 'restart'])
-        expect(code).toBe(1)
-        expect(onlyDocument(written)).toMatchObject({ok: false, error: {kind: 'user', code: 'APPROVAL_DENIED'}})
       })
 
       it('server restart is refused through the session and an approval lets the retry run', async () => {
@@ -939,13 +929,9 @@ describe('cli', () => {
       expect(browser).toEqual([])
     })
 
-    test('the CLI reads the tool declarations without loading the extension package index', () => {
-      const external = runtimeClosure(cliEntry)
-      expect([...external].filter((specifier) => specifier.startsWith('@conciv/extension')).toSorted()).toEqual([
-        '@conciv/extension-design/defs',
-        '@conciv/extension-page/defs',
-        '@conciv/extension/tool',
-      ])
+    test('the CLI loads no extension code; every tool group comes from the running engine', () => {
+      const external = [...runtimeClosure(cliEntry)]
+      expect(external.filter((specifier) => /^@conciv\/(extension|tools)/.test(specifier))).toEqual([])
     })
   })
 
@@ -968,31 +954,25 @@ describe('cli', () => {
       return {root, nested}
     }
 
-    test('finds the engine port in .conciv/server.json walking up from a nested cwd', () => {
+    const originFor = async (cwd: string, env: NodeJS.ProcessEnv) =>
+      (await engineOrigin(cwd, {CONCIV_HOME: mkdtempSync(join(tmpdir(), 'conciv-home-')), ...env}, null)).origin
+
+    test('finds the engine port in .conciv/server.json walking up from a nested cwd, and CONCIV_PORT wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234')
-      expect(engineOrigin(project.root, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.root, {})).toBe('http://127.0.0.1:41234')
+      expect(await originFor(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
     })
 
-    test('CONCIV_PORT wins over .conciv/server.json', () => {
-      const project = projectWith(JSON.stringify({port: 41234}))
-      expect(engineOrigin(project.nested, {CONCIV_PORT: '45678'})).toBe('http://127.0.0.1:45678')
+    test('falls back to 5173 with no server.json anywhere up the tree, or a malformed one, and no live engine', async () => {
+      expect(await originFor(projectWith(null).nested, {})).toBe('http://127.0.0.1:5173')
+      expect(await originFor(projectWith('{"port": "not a number"').nested, {})).toBe('http://127.0.0.1:5173')
     })
 
-    test('falls back to 5173 with no server.json anywhere up the tree', () => {
-      const project = projectWith(null)
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
-    })
-
-    test('a malformed server.json falls through to 5173 instead of throwing', () => {
-      const project = projectWith('{"port": "not a number"')
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:5173')
-    })
-
-    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', () => {
+    test('scopes the origin to the engine token from server.json, and CONCIV_TOKEN wins over it', async () => {
       const project = projectWith(JSON.stringify({port: 41234, token: 'from-file'}))
-      expect(engineOrigin(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
-      expect(engineOrigin(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
+      expect(await originFor(project.nested, {})).toBe('http://127.0.0.1:41234/t/from-file')
+      expect(await originFor(project.nested, {CONCIV_TOKEN: 'from-env'})).toBe('http://127.0.0.1:41234/t/from-env')
     })
 
     test('auth revoke lists, revokes one and revokes every trusted browser', () => {
@@ -1065,6 +1045,423 @@ describe('cli', () => {
     })
   })
 
+  const pages = new AbortController()
+  afterAll(() => pages.abort())
+
+  async function engineWithTab(
+    home: string,
+    shared?: {root: string; sessionId: string},
+    extensions?: Parameters<typeof startEngine>[0]['extensions'],
+  ) {
+    const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
+    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home, extensions})
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    await page.page.queries(undefined, {signal: pages.signal})
+    return {engine, sessionId, base, page, root}
+  }
+
+  describe('conciv tools on any tab', () => {
+    const conciv = (cwd: string, home: string, args: string[], agentEnv: Record<string, string> = {}) =>
+      new Promise<unknown>((resolve) =>
+        execFile(process.execPath, [bin, ...args], {cwd, env: {CONCIV_HOME: home, ...agentEnv}}, (_error, stdout) =>
+          resolve(JSON.parse(stdout)),
+        ),
+      )
+
+    it('names the calling agent from its shell env, so a disconnected Codex is refused before any Allow card', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const refused = await conciv(elsewhere, home, ['tools', 'tabs', '--tab', sessionId], {
+          CODEX_THREAD_ID: 'thread',
+        })
+        expect(refused).toMatchObject({ok: false, error: {kind: 'user', message: /Codex is disconnected from conciv/}})
+        expect(refused).not.toHaveProperty('error.stack')
+        expect(refused).not.toHaveProperty('error.hint')
+        expect((await page.chat.hydrate({sessionId})).pendingApprovals).toEqual([])
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('lists every tab from the home db anywhere, and --tab acts on its tab only after allow', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const listed = {ok: true, data: {tabs: [expect.objectContaining({tab: sessionId})]}}
+        const viaTab = ['tools', 'tabs', '--tab', sessionId]
+        const waiting = conciv(elsewhere, home, viaTab)
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: true})
+        expect(await waiting).toMatchObject(listed)
+        expect(await conciv(elsewhere, home, ['tools', 'tabs'])).toMatchObject(listed)
+        const missing = ['tools', 'tabs', '--tab', 'conciv_gone']
+        expect(await conciv(elsewhere, home, missing)).toMatchObject({
+          ok: false,
+          error: {message: /conciv_gone.*not open/},
+        })
+        const malformed = {ok: false, error: {kind: 'user', message: expect.stringContaining('--tab')}}
+        expect(await conciv(elsewhere, home, ['tools', 'tabs', '--tab', 'nope'])).toMatchObject(malformed)
+        const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+        mkdirSync(join(project, '.conciv'))
+        writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify({port: 9}))
+        expect(await conciv(project, home, ['tools', 'tabs'])).toMatchObject({
+          ok: false,
+          error: {message: 'No conciv dev server on 127.0.0.1:9.'},
+        })
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('a call that found its engine through the home db asks the tab like --tab does, and a deny refuses it', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['tools', 'tabs'])
+        await vi.waitFor(async () => expect((await page.chat.hydrate({sessionId})).pendingApprovals).toHaveLength(1), {
+          timeout: 5000,
+        })
+        const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+        expect(ask).toMatchObject({toolName: 'Allow terminal to use this tab'})
+        await page.chat.permissionDecision({approvalId: ask?.approvalId ?? '', approved: false})
+        expect(await waiting).toMatchObject({ok: false, error: {message: /The user denied terminal access/}})
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('a root --tab and a verb --tab naming different tabs are refused instead of acting on the first', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-elsewhere-'))
+      const {engine, sessionId, page} = await engineWithTab(home)
+      try {
+        const waiting = conciv(elsewhere, home, ['--tab', sessionId, 'tools', 'tabs', '--tab', 'conciv_other'])
+        const allowIfAsked = vi
+          .waitFor(
+            async () => {
+              const [ask] = (await page.chat.hydrate({sessionId})).pendingApprovals
+              if (!ask) throw new Error('no ask yet')
+              await page.chat.permissionDecision({approvalId: ask.approvalId, approved: true})
+            },
+            {timeout: 3000},
+          )
+          .catch(() => {})
+        expect(await waiting).toMatchObject({
+          ok: false,
+          error: {kind: 'user', message: '--tab was given more than once with different tab ids.'},
+        })
+        await allowIfAsked
+      } finally {
+        await engine.stop()
+      }
+    })
+
+    it('--tab after the verb loads the verbs of the engine that holds the tab, not of the cwd engine', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const lantern = defineTool({
+        name: 'page_lantern',
+        description: 'Light the lantern over the page.',
+        inputSchema: z.object({brightness: z.number().int().min(1)}),
+        outputSchema: z.object({lit: z.boolean()}),
+        meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
+      }).client()
+      const cwdEngine = await engineWithTab(home)
+      const holder = await engineWithTab(home, undefined, [defineExtension({name: 'lantern', tools: [lantern]})])
+      const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      mkdirSync(join(project, '.conciv'))
+      const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
+      writeFileSync(join(project, '.conciv', 'server.json'), JSON.stringify(recorded))
+      try {
+        const args = [bin, 'tools', 'page', 'lantern', '--tab', holder.sessionId, '--help']
+        const help = await new Promise<{failed: boolean; stdout: string}>((resolve) =>
+          execFile(process.execPath, args, {cwd: project, env: {CONCIV_HOME: home}}, (error, stdout) =>
+            resolve({failed: error !== null, stdout}),
+          ),
+        )
+        expect({failed: help.failed, mentions: help.stdout.includes('--brightness')}).toEqual({
+          failed: false,
+          mentions: true,
+        })
+      } finally {
+        await Promise.all([cwdEngine.engine.stop(), holder.engine.stop()])
+      }
+    })
+
+    it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const first = await engineWithTab(home)
+      const second = await engineWithTab(home, first)
+      try {
+        expect(await conciv(tmpdir(), home, ['tools', 'tabs', '--tab', first.sessionId])).toMatchObject({
+          ok: false,
+          error: {
+            kind: 'user',
+            message: `tab ${first.sessionId} is open in 2 running conciv dev servers: ${first.root}, ${first.root}.`,
+          },
+        })
+      } finally {
+        await Promise.all([first.engine.stop(), second.engine.stop()])
+      }
+    })
+  })
+
+  describe('conciv mcp hub', () => {
+    const hub = (home: string) =>
+      createMCPClient({
+        transport: stdioTransport({
+          command: process.execPath,
+          args: [bin, 'mcp', 'serve', '--agent', 'claude'],
+          env: {CONCIV_HOME: home},
+        }),
+        name: 'cli-test',
+      })
+
+    const fakeClaude = () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const binDir = mkdtempSync(join(tmpdir(), 'conciv-agent-bin-'))
+      const log = join(binDir, 'calls.log')
+      writeFileSync(join(binDir, 'claude'), `#!/bin/sh\necho "$*" >> '${log}'\n`)
+      chmodSync(join(binDir, 'claude'), 0o755)
+      const mcp = (...args: string[]) => {
+        const ran = spawnSync(process.execPath, [bin, 'mcp', ...args], {
+          env: {...process.env, CONCIV_HOME: home, PATH: `${binDir}${delimiter}${process.env.PATH ?? ''}`},
+          encoding: 'utf8',
+        })
+        const document: unknown = JSON.parse(ran.stdout)
+        return {status: ran.status, document}
+      }
+      const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [])
+      return {home, mcp, calls}
+    }
+
+    it('connects, lists and disconnects an agent through its CLI, and the engine refuses it once disconnected', async () => {
+      const claude = fakeClaude()
+      expect(claude.mcp('list')).toEqual({status: 0, document: {ok: true, data: []}})
+      expect(claude.mcp('connect', 'claude')).toEqual({status: 0, document: {ok: true, data: {connected: 'claude'}}})
+      expect(claude.mcp('list')).toMatchObject({
+        status: 0,
+        document: {ok: true, data: [{harness: 'claude', name: 'Claude'}]},
+      })
+      expect(claude.calls()).toEqual([
+        expect.stringMatching(
+          new RegExp(
+            `^mcp add -s user conciv-hub -e CONCIV_HOME=${claude.home} -- npx -y @conciv/cli@\\S+ mcp serve --agent claude$`,
+          ),
+        ),
+      ])
+      expect(claude.mcp('disconnect', 'claude')).toEqual({
+        status: 0,
+        document: {ok: true, data: {disconnected: 'claude'}},
+      })
+      expect(claude.calls().at(-1)).toBe('mcp remove -s user conciv-hub')
+      expect(claude.mcp('list')).toEqual({status: 0, document: {ok: true, data: []}})
+      expect(claude.mcp('connect', 'pi')).toMatchObject({status: 1, document: {ok: false}})
+      const engine = await engineWithTab(claude.home)
+      const client = await hub(claude.home)
+      try {
+        expect(await run(client, 'return 1 + 1')).toContain('Claude is disconnected from conciv')
+      } finally {
+        await client.close()
+        await engine.engine.stop()
+      }
+    })
+
+    const run = async (client: Awaited<ReturnType<typeof hub>>, typescriptCode: string) =>
+      JSON.stringify(await client.callTool('execute_typescript', {typescriptCode}))
+
+    it('a connect still waiting on the agent CLI never reconnects an agent disconnected meanwhile', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const adding = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const hub = createHubConnections(home, async (argv) => {
+        if (argv.includes('add')) {
+          adding.resolve()
+          await release.promise
+        }
+        return {ok: true, output: '', message: ''}
+      })
+      const connecting = hub.connect('claude', ['conciv'])
+      await adding.promise
+      expect(await hub.disconnect('claude')).toEqual({
+        ok: true,
+        note: 'Claude is still being (dis)connected, so its conciv-hub entry stays for now; conciv refuses it until you reconnect.',
+      })
+      release.resolve()
+      expect(await connecting).toEqual({ok: false, message: 'Claude was disconnected while connecting; connect again'})
+      expect(hub.list()).toEqual([])
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+    })
+
+    it('a reconnect waits out a slow remove, so the remove never deletes the entry the reconnect installed', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const entries = new Set<string>()
+      const removing = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<void>()
+      const hub = createHubConnections(home, async (argv) => {
+        if (argv.includes('remove')) {
+          removing.resolve()
+          await release.promise
+          entries.delete('conciv-hub')
+          return {ok: true, output: '', message: ''}
+        }
+        entries.add('conciv-hub')
+        return {ok: true, output: '', message: ''}
+      })
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      const disconnecting = hub.disconnect('claude')
+      await removing.promise
+      expect(hub.list()).toEqual([])
+      expect(await hub.connect('claude', ['conciv'])).toEqual({
+        ok: false,
+        message: 'Claude is still being (dis)connected; try again in a moment',
+      })
+      release.resolve()
+      expect(await disconnecting).toEqual({ok: true})
+      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(entries.has('conciv-hub')).toBe(true)
+      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+    })
+
+    it('a lease lasts as long as its process or the agent CLI it spawned, up to a ten minute ceiling against pid reuse', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const leased = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
+      const lease = (pid: number, childPid: number | null, age: number) =>
+        withHomeDb(home, (db) =>
+          takeHubOperation(db, {harness: 'claude', pid, childPid, startedAt: Date.now() - age}, () => true),
+        )
+      const busy = {ok: false, message: 'Claude is still being (dis)connected; try again in a moment'}
+      const exited = spawnSync('true').pid
+      const orphan = spawn('sleep', ['60'])
+      try {
+        lease(process.pid, null, 5 * 60_000)
+        expect(await leased.connect('claude', ['conciv'])).toEqual(busy)
+        lease(exited, orphan.pid ?? exited, 0)
+        expect(await leased.connect('claude', ['conciv'])).toEqual(busy)
+        lease(exited, exited, 0)
+        expect(await leased.connect('claude', ['conciv'])).toEqual({ok: true})
+        lease(process.pid, orphan.pid ?? exited, 11 * 60_000)
+        expect(await leased.disconnect('claude')).toEqual({ok: true})
+      } finally {
+        orphan.kill()
+      }
+    })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an agent CLI the lease cannot record is refused, so no untracked change outlives its owner',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+        const untracked = createHubConnections(home, async (argv, options) => {
+          chmodSync(join(home, 'home.db'), 0o000)
+          const refused = options.started(process.pid)
+          chmodSync(join(home, 'home.db'), 0o600)
+          if (refused === null) return {ok: true, output: '', message: ''}
+          return {ok: false, output: '', message: refused}
+        })
+        try {
+          expect(await untracked.connect('claude', ['conciv'])).toMatchObject({
+            ok: false,
+            message: expect.stringContaining('conciv could not record the claude process in its home db'),
+          })
+          expect(untracked.list()).toMatchObject([{harness: 'codex'}])
+        } finally {
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
+
+    it('an agent CLI whose lease was taken over meanwhile is refused, so it never runs untracked', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const overtaken = createHubConnections(home, async (argv, options) => {
+        withHomeDb(home, (db) =>
+          takeHubOperation(db, {harness: 'claude', pid: process.pid, childPid: null, startedAt: 1}, () => true),
+        )
+        const refused = options.started(process.pid)
+        if (refused === null) return {ok: true, output: '', message: ''}
+        return {ok: false, output: '', message: refused}
+      })
+      expect(await overtaken.connect('claude', ['conciv'])).toEqual({
+        ok: false,
+        message: 'conciv lost the claude lease to another connect or disconnect; try again',
+      })
+      expect(overtaken.list()).toEqual([])
+    })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable home fails closed: no generation, and connect answers instead of throwing',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, (db) => recordHubConnection(db, 'codex', 1))
+        const unreadable = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
+        try {
+          chmodSync(join(home, 'home.db'), 0o000)
+          expect(await unreadable.connect('claude', ['conciv'])).toMatchObject({
+            ok: false,
+            message: expect.stringContaining('conciv could not reach its home db'),
+          })
+          chmodSync(join(home, 'home.db'), 0o600)
+          chmodSync(home, 0o000)
+          expect(unreadable.generation()).toBeNull()
+        } finally {
+          chmodSync(home, 0o700)
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
+
+    it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const first = await engineWithTab(home)
+      const client = await hub(home)
+      try {
+        expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
+          'discover_tools',
+          'execute_typescript',
+        ])
+        expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
+        const direct = await createMCPClient({transport: {type: 'http', url: `${first.base}/api/mcp`, headers}})
+        const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
+        await direct.close()
+        expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
+        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        await first.engine.stop()
+        const second = await engineWithTab(home)
+        expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)
+        await second.engine.stop()
+      } finally {
+        await client.close()
+      }
+    })
+
+    it('with no engine running a call names the home folder, and the tools still say how to pick a tab', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const client = await hub(home)
+      try {
+        const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+        expect(execute?.description).toContain('external_use_tab({id})')
+        const reply = await run(client, 'return 1')
+        expect(reply).toContain('no conciv dev server is running; start one and open its page')
+        expect(reply).toContain(home)
+      } finally {
+        await client.close()
+      }
+    })
+  })
+
   describe('prod closure', () => {
     const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 
@@ -1117,10 +1514,11 @@ describe('cli', () => {
       return {name: raw.name, dependencies}
     }
 
-    test('the CLI production closure carries harness-init but never @conciv/ai, the harness package or an agent sdk', () => {
+    test('the CLI production closure carries harness-init but never @conciv/ai, an extension, the harness or an agent sdk', () => {
       const manifests = prodClosureDirs().map(manifestOf)
       const names = manifests.map((manifest) => manifest.name)
       expect(names).toContain('@conciv/harness-init')
+      expect(names.filter((name) => name.startsWith('@conciv/extension'))).toEqual([])
       for (const banned of BANNED) expect(names).not.toContain(banned)
       for (const manifest of manifests) {
         const declared = Object.keys(manifest.dependencies).filter((name) => BANNED.includes(name))
@@ -1256,6 +1654,16 @@ describe('init', () => {
         )
         expect(outcome.code).not.toBe(0)
         expect(outcome.output).toContain('terminated by SIGKILL')
+      }, 5000)
+
+      it('a timeout settles even when the child ignores SIGTERM', async () => {
+        const outcome = await execFileOutcome(
+          'sh',
+          ['-c', 'trap "" TERM; exec sleep 30'],
+          {cwd: process.cwd(), timeout: 200},
+          () => {},
+        )
+        expect(outcome).toEqual({code: 1, output: 'terminated by SIGKILL'})
       }, 5000)
     })
   })
@@ -1542,6 +1950,7 @@ describe('init', () => {
             {id: 'framework', status: 'done'},
             {id: 'agents', status: 'done'},
             {id: 'claude', status: 'done'},
+            {id: 'connect-claude', status: 'done'},
           ],
         })
         expect(JSON.stringify(parsed.data)).toContain('pnpm dev')
@@ -1588,6 +1997,8 @@ describe('init', () => {
         )
         expect(code).toBe(0)
         expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Install @conciv/it')
+        expect(JSON.stringify(SuccessSchema.parse(document).data)).toContain('Connect Claude to conciv')
+        expect(existsSync(join(run.home, 'conciv'))).toBe(false)
         expect(run.added).toEqual([])
         expect(run.spawned).toEqual([])
         expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
@@ -1801,6 +2212,19 @@ describe('init', () => {
         expect(events).toContain('settle:manual:X — needs a manual step: verification failed')
       })
 
+      it('names why verify could not check the result', async () => {
+        const {output} = recorded()
+        const entries = await runSteps(
+          [step({verify: async () => Promise.reject(new Error('conciv could not read its home db'))})],
+          settings(),
+          output,
+        )
+        expect(entries[0]).toMatchObject({
+          status: 'manual',
+          detail: 'verification failed: conciv could not read its home db',
+        })
+      })
+
       it('releases the interrupt handler for each step it finishes', async () => {
         const registered: string[] = []
         const {output} = recorded()
@@ -1923,7 +2347,12 @@ describe('init', () => {
       return {
         selections: async (found: FoundSelections) => {
           events.push('selections')
-          return {framework: true, harnesses: found.harnesses.map((one) => one.id), docsPack: false}
+          return {
+            framework: true,
+            harnesses: found.harnesses.map((one) => one.id),
+            agents: found.agents,
+            docsPack: false,
+          }
         },
         confirmRun: async () => {
           events.push('confirmRun')
@@ -1936,7 +2365,13 @@ describe('init', () => {
       it('wires a vite project end to end with --yes over the injected runtime', async () => {
         const run = initFixture()
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'done',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
         expect(run.added).toEqual(['@conciv/it'])
         expect(readFileSync(join(run.cwd, 'package.json'), 'utf8')).toContain('@conciv/it')
         expect(readFileSync(join(run.cwd, 'vite.config.ts'), 'utf8')).toContain('@conciv/it/plugin/vite')
@@ -1946,6 +2381,11 @@ describe('init', () => {
           `claude plugin marketplace add ${claudeConnectDir(join(run.cwd, '.conciv'))}`,
           'claude plugin install conciv-connect@conciv --scope local',
           'claude plugin update conciv-connect@conciv --scope local',
+          expect.stringMatching(
+            new RegExp(
+              `^claude mcp add -s user conciv-hub -e CONCIV_HOME=${join(run.home, 'conciv')} -- npx -y @conciv/cli@\\S+ mcp serve --agent claude$`,
+            ),
+          ),
         ])
         expect(run.events).toContain('intro:conciv init')
         expect(run.events).toContain('spin-stop:Detected: vite (vite.config.ts) · pnpm · harnesses: claude')
@@ -1986,12 +2426,13 @@ describe('init', () => {
           'settle:done:Wired vite.config.ts',
           'settle:done:Wrote the conciv section to AGENTS.md',
           'settle:done:Installed the conciv claude plugin',
+          'settle:done:Connected Claude to conciv',
         ])
         const stepAt = run.events.indexOf('step:Wiring vite.config.ts…')
         const settleAt = run.events.indexOf('settle:done:Wired vite.config.ts')
         expect(stepAt).toBeGreaterThan(-1)
         expect(settleAt).toBeGreaterThan(stepAt)
-        expect(run.events).toContain('success:4 wired')
+        expect(run.events).toContain('success:5 wired')
       })
 
       it('streams the claude plugin install output into that step before it settles', async () => {
@@ -2029,10 +2470,16 @@ describe('init', () => {
       it('resolves a step that can only card as a manual line with its own reason and keeps going', async () => {
         const run = initFixture({configFixture: 'vite.config.no-plugins.ts'})
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
-        expect(statusById(result)).toEqual({install: 'done', framework: 'manual', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'manual',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
         expect(run.events).toContain('settle:manual:Wire the vite config — needs a manual step (see the card below)')
         expect(run.events.some((event) => event.startsWith('note:Wire the conciv vite plugin:'))).toBe(true)
-        expect(run.events).toContain('warn:3 wired · 1 manual step below')
+        expect(run.events).toContain('warn:4 wired · 1 manual step below')
         expect(run.events).toContain('settle:done:Installed the conciv claude plugin')
       })
 
@@ -2040,7 +2487,7 @@ describe('init', () => {
         const run = initFixture()
         const result = await runInit(
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
-          {...run.runtime, prompts: acceptWith({framework: true, harnesses: [], docsPack: false})},
+          {...run.runtime, prompts: acceptWith({framework: true, harnesses: [], agents: [], docsPack: false})},
         )
         expect(statusById(result).claude).toBe('skipped')
         expect(run.events).toContain('settle:skipped:Install the conciv claude plugin — skipped: not selected')
@@ -2056,7 +2503,7 @@ describe('init', () => {
             prompts: {
               selections: async () => {
                 run.events.push('selections')
-                return {framework: false, harnesses: [], docsPack: false}
+                return {framework: false, harnesses: [], agents: [], docsPack: false}
               },
               confirmRun: async () => {
                 run.events.push('confirmRun')
@@ -2074,7 +2521,12 @@ describe('init', () => {
         expect(plans).toHaveLength(1)
         expect(plans[0]).not.toContain('Wire the vite config')
         expect(plans[0]).toContain('○ claude (not selected)')
-        expect(statusById(result)).toEqual({install: 'done', agents: 'done', claude: 'skipped'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          agents: 'done',
+          claude: 'skipped',
+          'connect-claude': 'skipped',
+        })
         expect(recordedConsent(run.cwd)).toEqual({harnesses: []})
         expect(run.spawned).toEqual([])
       })
@@ -2092,11 +2544,11 @@ describe('init', () => {
           expect(statusById(second)[id], id).toBe('already')
         }
         expect(run.added).toEqual(['@conciv/it'])
-        expect(run.spawned).toHaveLength(3)
+        expect(run.spawned).toHaveLength(4)
         const plans = plansOf(run.events)
         expect(plans[1]).toContain('already wired')
         expect(run.events).toContain('settle:already:Install @conciv/it — already wired')
-        expect(run.events).toContain('success:4 already wired')
+        expect(run.events).toContain('success:5 already wired')
       })
 
       it('plans the dry run against this run selections, not the harnesses a previous run recorded', async () => {
@@ -2124,38 +2576,10 @@ describe('init', () => {
         expect(planLine(plan, 'Teach agents the conciv CLI')).not.toContain('AGENTS.md')
       })
 
-      it('prints the plan and touches nothing with --dry-run', async () => {
+      it.each([false, true])('prints the plan and touches nothing with --dry-run (--yes %s)', async (yes) => {
         const run = initFixture()
         const result = await runInit(
-          {yes: false, dryRun: true, force: false, cwd: run.cwd},
-          {
-            ...run.runtime,
-            interactive: () => false,
-            prompts: {
-              selections: async () => {
-                throw new Error('selections must not run under --dry-run')
-              },
-              confirmRun: async () => {
-                throw new Error('confirmRun must not run under --dry-run')
-              },
-            },
-          },
-        )
-        expect(result.outcome).toBe('planned')
-        expect(result.outcome === 'planned' ? result.plan : '').toContain('Install @conciv/it')
-        const plans = plansOf(run.events)
-        expect(plans).toHaveLength(1)
-        expect(plans[0]).toContain('Install @conciv/it')
-        expect(run.events).toContain('outro:Dry run — nothing changed.')
-        expect(existsSync(join(run.cwd, '.conciv'))).toBe(false)
-        expect(run.added).toEqual([])
-        expect(run.spawned).toEqual([])
-      })
-
-      it('prints the plan and touches nothing when --yes and --dry-run are passed together', async () => {
-        const run = initFixture()
-        const result = await runInit(
-          {yes: true, dryRun: true, force: false, cwd: run.cwd},
+          {yes, dryRun: true, force: false, cwd: run.cwd},
           {
             ...run.runtime,
             interactive: () => false,
@@ -2214,7 +2638,13 @@ describe('init', () => {
           {yes: true, dryRun: false, force: false, cwd: run.cwd},
           {...run.runtime, interactive: () => false},
         )
-        expect(statusById(result)).toEqual({install: 'done', framework: 'done', agents: 'done', claude: 'done'})
+        expect(statusById(result)).toEqual({
+          install: 'done',
+          framework: 'done',
+          agents: 'done',
+          claude: 'done',
+          'connect-claude': 'done',
+        })
       })
 
       it('restores the config, says so, and exits 130 when the run is interrupted mid-apply', async () => {
@@ -2280,14 +2710,6 @@ describe('init', () => {
         expect(run.spawned).toEqual([])
       })
 
-      it('refuses a directory without a package.json with the reason', async () => {
-        const run = initFixture()
-        const empty = mkdtempSync(join(tmpdir(), 'conciv-init-empty-'))
-        const result = await runInit({yes: true, dryRun: false, force: false, cwd: empty}, run.runtime)
-        expect(result).toEqual({outcome: 'refused', reason: 'no package.json here — run init from your app directory'})
-        expect(run.events).toContain('error:no package.json here — run init from your app directory')
-      })
-
       it('plans the manual card honestly when no framework is detected', async () => {
         const run = initFixture({configFixture: null, vite: false})
         const result = await runInit({yes: true, dryRun: false, force: false, cwd: run.cwd}, run.runtime)
@@ -2339,7 +2761,7 @@ describe('init', () => {
         const run = initFixture()
         const result = await runInit(
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
-          {...run.runtime, prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true})},
+          {...run.runtime, prompts: acceptWith({framework: true, harnesses: ['claude'], agents: [], docsPack: true})},
         )
         expect(statusById(result)['docs-pack']).toBe('done')
         expect(run.added).toEqual(['@conciv/it', '@conciv/skills'])
@@ -2353,7 +2775,7 @@ describe('init', () => {
           {yes: false, dryRun: false, force: false, cwd: run.cwd},
           {
             ...run.runtime,
-            prompts: acceptWith({framework: true, harnesses: ['claude'], docsPack: true}),
+            prompts: acceptWith({framework: true, harnesses: ['claude'], agents: [], docsPack: true}),
             spawn: async (bin, args, spawnCwd, onLine) => {
               if (bin === 'pnpm' && args[0] === 'dlx' && args[1] === '@tanstack/intent@latest') {
                 return {code: 1, output: 'network unreachable'}

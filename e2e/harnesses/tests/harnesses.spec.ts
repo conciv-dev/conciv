@@ -1,5 +1,8 @@
+import {spawnSync} from 'node:child_process'
+import {join} from 'node:path'
 import {expect, test} from '@playwright/test'
-import {collectFailures, expectWidgetBoots, loginWidget} from '@conciv/e2e-utils/widget'
+import {harnessHome} from '@conciv/e2e-utils/config'
+import {collectFailures, expectWidgetBoots, loginWidget, trustedEngineBase} from '@conciv/e2e-utils/widget'
 import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
 type ExpectedModel = {model: string; usable?: false}
@@ -81,4 +84,39 @@ test('full app boots with the configured harness and exposes its real model cata
   testInfo.annotations.push({type: 'turn-outcome', description: `${projectName}: ${outcome}`})
   expect(outcome).not.toBe('')
   expect(outcome).toMatch(outcomePattern[projectName])
+})
+
+const hubCheck: Record<HarnessApp, string[]> = {
+  claude: ['claude', 'mcp', 'get', 'conciv-hub'],
+  codex: ['codex', 'mcp', 'get', 'conciv-hub'],
+  'gemini-cli': ['gemini', 'mcp', 'list'],
+  opencode: ['opencode', 'mcp', 'list'],
+  pi: [],
+}
+
+test('connect hub registers conciv-hub in the harness CLI config', async ({page}, testInfo) => {
+  const projectName = testInfo.project.name
+  if (!isHarnessName(projectName)) throw new Error(`unexpected harness project ${projectName}`)
+  const base = await trustedEngineBase(page)
+  const connected = await fetch(`${base}/rpc/meta/connectHub`, {
+    method: 'POST',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify({json: {harness: projectName}}),
+  })
+  const [bin, ...args] = hubCheck[projectName]
+  if (bin === undefined) {
+    expect(await connected.json()).toEqual({
+      json: {ok: false, message: `${projectName} cannot connect to the conciv hub`},
+    })
+    return
+  }
+  expect(await connected.json()).toEqual({json: {ok: true}})
+
+  const home = harnessHome(projectName)
+  const env = {...process.env, HOME: home, CODEX_HOME: join(home, '.codex')}
+  const run = spawnSync(bin, args, {env, encoding: 'utf8', timeout: 60_000})
+  expect(run.status).toBe(0)
+  const listed = `${run.stdout}${run.stderr}`
+  expect(listed).toContain('conciv-hub')
+  expect(listed).toContain('@conciv/cli@')
 })

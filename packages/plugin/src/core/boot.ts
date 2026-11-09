@@ -32,6 +32,7 @@ export function makeEngineBooter(
         extensions,
         nativePageDir: builtins.nativePageDir,
         devEndpointDir: options.devEndpointDir,
+        homeDir: options.homeDir,
         childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
       }),
     )

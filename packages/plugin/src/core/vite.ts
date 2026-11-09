@@ -141,6 +141,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    homeDir: options.homeDir,
     print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })

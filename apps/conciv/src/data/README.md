@@ -12,7 +12,7 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 - `AppData` type (`app-data.ts`)
 - `useSessionModels`, `useSessionHarness` (`harness-meta.ts`): `meta.models` for a session and its harness metadata (`ChatModels['harness']`)
 - `useHarnesses` (`harness-meta.ts`): `meta.harnesses` (each harness with its models) as `list`, `switchable` (more than one) and `nameOf(id)`
-- `useRefetchSessionHarness` (`harness-meta.ts`): refetches a session's `meta.models`, `meta.commands` and `sessions.list`, inactive queries included
+- `useRefetchSessionHarness` (`harness-meta.ts`): refetches a session's `meta.models`, `meta.commands`, `sessions.list`, `sessions.search` and its `sessions.get`, inactive queries included
 
 ## Invariants
 
@@ -25,8 +25,8 @@ Widget settings parsing, the query-utils wrapper over the rpc client, and the pe
 
 ## Side Effects
 
-- `app-data.ts:invalidateSessions`: invalidates the `sessions.list` query in the TanStack QueryClient; a fetch already running is cancelled and replaced, so the list ends on data read after the invalidation
-- `app-data.ts:makeAppData`: sets `sessions.list` query defaults once for every observer: 30 s `staleTime`, no refetch on window focus; freshness comes from `invalidateSessions`
+- `app-data.ts:invalidateSessions`: invalidates the `sessions.list`, `sessions.search` and `sessions.get` queries in the TanStack QueryClient; a fetch already running is cancelled and replaced, so each ends on data read after the invalidation
+- `app-data.ts:makeAppData`: sets `sessions.list` and `sessions.get` query defaults once for every observer: 30 s `staleTime`, no refetch on window focus; freshness comes from `invalidateSessions`
 
 ## Verification
 

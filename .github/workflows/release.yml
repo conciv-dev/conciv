@@ -64,7 +64,7 @@ jobs:
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
-          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+          firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       # OIDC trusted publishing requires npm >= 11.5.1. Pinned exact + fetched through
       # the firewall: this job holds id-token: write, so an unpinned npm@latest here
       # would be a registry-compromise straight into the publish path.
@@ -158,7 +158,7 @@ jobs:
         if: steps.detect.outputs.run == 'true'
         with:
           mode: firewall-free
-          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+          firewall-version: 1.16.0 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
         if: steps.detect.outputs.run == 'true'
       # In-repo fixture drift gate (D2): the mirror carries the committed fixture copy,

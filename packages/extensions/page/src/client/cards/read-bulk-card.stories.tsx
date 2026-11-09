@@ -39,7 +39,6 @@ const domMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Reading the DOM', done: 'Read the DOM'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {html: {type: 'string'}}},
 }
@@ -50,7 +49,6 @@ const queryMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Querying the page', done: 'Queried the page'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {count: {type: 'number'}, elements: {type: 'array'}}},
 }
@@ -61,7 +59,6 @@ const snapshotMeta: ToolViewMeta = {
   icon: 'read',
   label: {running: 'Capturing a snapshot', done: 'Captured a snapshot'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {nodes: {type: 'array'}}},
 }

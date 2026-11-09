@@ -1,6 +1,12 @@
-import {isEqual} from 'es-toolkit'
+import {isEqual, keyBy, range} from 'es-toolkit'
 import type {JSX} from 'solid-js'
-import type {ChatPart, ToolCallPart, ToolResultPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import {
+  CompactionMetadataSchema,
+  type ChatPart,
+  type ToolCallPart,
+  type ToolResultPart,
+  type ChatMessage,
+} from '@conciv/protocol/chat-message-types'
 import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
 
@@ -19,16 +25,18 @@ export function childCallsFor(parts: ReadonlyArray<ChatPart>, parentId: string):
   )
 }
 
-export type Turn = {key: string; role: ChatMessage['role']; parts: ChatPart[]; start: number; end: number}
+export type Turn = {
+  key: string
+  role: ChatMessage['role']
+  parts: ChatPart[]
+  messages: readonly ChatMessage[]
+  before: ChatMessage | undefined
+  start: number
+  end: number
+}
 
 export function coalesceTurns(messages: ReadonlyArray<ChatMessage>): Turn[] {
-  return messages.reduce<Turn[]>((turns, message, index) => {
-    const last = turns.at(-1)
-    if (message.role === 'assistant' && last?.role === 'assistant') {
-      return [...turns.slice(0, -1), {...last, parts: [...last.parts, ...message.parts], end: index}]
-    }
-    return [...turns, {key: message.id, role: message.role, parts: [...message.parts], start: index, end: index}]
-  }, [])
+  return diffTurns([], [], messages)
 }
 
 type TurnBounds = {first: ChatMessage; start: number; end: number}
@@ -37,7 +45,7 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   const bounds: TurnBounds[] = []
   messages.forEach((message, index) => {
     const last = bounds.at(-1)
-    if (last && message.role === 'assistant' && last.first.role === 'assistant') {
+    if (last && message.role === 'assistant' && last.first.role === 'assistant' && !opensTurn(message)) {
       last.end = index
       return
     }
@@ -46,10 +54,18 @@ function turnBounds(messages: ReadonlyArray<ChatMessage>): TurnBounds[] {
   return bounds
 }
 
-function sameMessage(previous: ChatMessage | undefined, message: ChatMessage): boolean {
+function opensTurn(message: ChatMessage): boolean {
+  return CompactionMetadataSchema.safeParse(message.metadata).success
+}
+
+function sameMessage(previous: ChatMessage | undefined, message: ChatMessage | undefined): boolean {
   if (previous === message) return true
-  if (!previous || previous.id !== message.id || previous.role !== message.role) return false
-  return isEqual(previous.parts, message.parts)
+  if (!previous || !message || previous.id !== message.id || previous.role !== message.role) return false
+  return (
+    isEqual(previous.parts, message.parts) &&
+    isEqual(previous.metadata, message.metadata) &&
+    isEqual(previous.createdAt, message.createdAt)
+  )
 }
 
 function sourceUnchanged(
@@ -57,16 +73,19 @@ function sourceUnchanged(
   prevMessages: ReadonlyArray<ChatMessage>,
   messages: ReadonlyArray<ChatMessage>,
 ): boolean {
-  return messages
-    .slice(bound.start, bound.end + 1)
-    .every((message, offset) => sameMessage(prevMessages[bound.start + offset], message))
+  return range(Math.max(bound.start - 1, 0), bound.end + 1).every((index) =>
+    sameMessage(prevMessages[index], messages[index]),
+  )
 }
 
 function buildTurn(messages: ReadonlyArray<ChatMessage>, bound: TurnBounds): Turn {
+  const source = messages.slice(bound.start, bound.end + 1)
   return {
     key: bound.first.id,
     role: bound.first.role,
-    parts: messages.slice(bound.start, bound.end + 1).flatMap((message) => message.parts),
+    parts: source.flatMap((message) => message.parts),
+    messages: source,
+    before: messages[bound.start - 1],
     start: bound.start,
     end: bound.end,
   }
@@ -302,6 +321,26 @@ export function stickyGrouper(grouper: Grouper): Grouper {
   }
 }
 
+export function shareGroupNodes(previous: readonly GroupNode[], next: readonly GroupNode[]): readonly GroupNode[] {
+  const byIdentity = keyBy(previous, groupNodeIdentity)
+  const shared = next.map((node) => sharedNode(byIdentity[groupNodeIdentity(node)], node))
+  return shared.length === previous.length && shared.every((node, index) => node === previous[index])
+    ? previous
+    : shared
+}
+
+function sharedNode(previous: GroupNode | undefined, next: GroupNode): GroupNode {
+  if (previous === undefined || previous.idKey !== next.idKey) return next
+  if (previous.type === 'group' && next.type === 'group' && previous.key === next.key)
+    return sharedGroup(previous, next)
+  return isEqual(previous, next) ? previous : next
+}
+
+function sharedGroup(previous: GroupNodeGroup, next: GroupNodeGroup): GroupNodeGroup {
+  const children = shareGroupNodes(previous.children, next.children)
+  return children === previous.children && isEqual(previous.indices, next.indices) ? previous : {...next, children}
+}
+
 export function groupNodeIdentity(node: GroupNode): string {
   return `${node.type}:${node.nodeKey}`
 }
@@ -320,7 +359,7 @@ export function isReplyText(part: ChatPart): boolean {
   return part.type === 'text' && part.content.trim().length > 0
 }
 
-export type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
+type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
 
 export function pairResults(parts: ReadonlyArray<ChatPart>): ResultPairing {
   const callIds = new Set(parts.flatMap((part) => (part.type === 'tool-call' && part.id.length > 0 ? [part.id] : [])))

@@ -16,8 +16,12 @@ export function claudeMcpArgs(mcpUrl: string, sessionId?: string): string[] {
   return [...claudeMcpArgsPermissive(mcpUrl, sessionId), '--strict-mcp-config']
 }
 
+export function claudeSessionArgs(harnessSessionId: string, resume: boolean): string[] {
+  return [resume ? '--resume' : '--session-id', harnessSessionId]
+}
+
 export function claudeConnectArgs(ctx: HarnessConnectContext): string[] {
-  const session = ctx.harnessSessionId ? [ctx.resume ? '--resume' : '--session-id', ctx.harnessSessionId] : []
+  const session = ctx.harnessSessionId ? claudeSessionArgs(ctx.harnessSessionId, ctx.resume) : []
   const model = ctx.model ? ['--model', ctx.model] : []
   const mcpArgs = ctx.owned ? claudeMcpArgs : claudeMcpArgsPermissive
   const mcp = ctx.mcpUrl ? mcpArgs(ctx.mcpUrl, ctx.concivSessionId) : []

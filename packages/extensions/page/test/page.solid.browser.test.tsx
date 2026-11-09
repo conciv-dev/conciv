@@ -1,4 +1,4 @@
-import {expect, it, test, describe} from 'vitest'
+import {expect, it, onTestFinished, test, describe} from 'vitest'
 import {page, userEvent} from 'vitest/browser'
 import {render} from '@solidjs/testing-library'
 import type {ChatPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
@@ -16,6 +16,11 @@ import {createSignal, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import {PAGE_SESSION_GROUP_KEY, type GroupNodeGroup, type PageSessionThinkingPart} from '@conciv/ui-kit-chat'
 import {SessionCard} from '../src/client/cards/session-card.js'
+import {collectClientTools} from '@conciv/extension'
+import {makeDomPageDriver} from '@conciv/page'
+import {Menu} from '@conciv/ui-kit-system'
+import pageExtension from '../src/client.js'
+import {endTask, mountSimulator} from '../src/client/simulator.js'
 
 describe('act card body nonempty', () => {
   function errorResult(toolCallId: string, message: string): ToolResultPart {
@@ -26,14 +31,12 @@ describe('act card body nonempty', () => {
     summary: 'run a synthetic effect with no declared inputs',
     category: 'act',
     mutating: true,
-    mirrors: false,
   }
 
   const FILL_META: ToolViewMeta = {
     summary: 'type a value into a form field',
     category: 'act',
     mutating: true,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, value: {type: 'string'}},
@@ -95,7 +98,6 @@ describe('card input chips', () => {
     summary: 'read the visible text of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, trim: {type: 'boolean'}},
@@ -107,7 +109,6 @@ describe('card input chips', () => {
     summary: 'read the markup of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, maxChars: {type: 'number'}},
@@ -119,7 +120,6 @@ describe('card input chips', () => {
     summary: 'locate the react source of an element',
     category: 'read',
     mutating: false,
-    mirrors: false,
     inputSchema: {
       type: 'object',
       properties: {selector: {type: 'string'}, action: {type: 'string'}},
@@ -305,7 +305,6 @@ describe('read value card image', () => {
     icon: 'read',
     label: {running: 'Taking a screenshot', done: 'Took a screenshot'},
     mutating: false,
-    mirrors: false,
   }
 
   function webpBase64(): string {
@@ -598,5 +597,127 @@ describe('session card', () => {
 
     await expect.element(page.getByText('Editing the page')).toBeVisible()
     expect(document.body.textContent).toContain(location.host)
+  })
+})
+
+describe('the agent acts on the page like a person', () => {
+  const AGENT = 'agent-session'
+
+  function AgentPage() {
+    const [name, setName] = createSignal('')
+    const [count, setCount] = createSignal(0)
+    const [frozen, setFrozen] = createSignal(false)
+    return (
+      <div>
+        <Menu.Root>
+          <Menu.Trigger id="actions">Actions</Menu.Trigger>
+          <Menu.Positioner>
+            <Menu.Content>
+              <Menu.Item value="archive">Archive</Menu.Item>
+            </Menu.Content>
+          </Menu.Positioner>
+        </Menu.Root>
+        <label>
+          Name
+          <input id="name" onInput={(event) => setName(event.currentTarget.value)} />
+        </label>
+        <p>Hello, {name()}</p>
+        <button id="count" onClick={() => setCount((value) => value + 1)}>
+          Count
+        </button>
+        <p>{count()} clicks</p>
+        <button id="hidden" hidden>
+          Hidden
+        </button>
+        <button id="disabled" disabled>
+          Disabled
+        </button>
+        <label>
+          <input id="locked" type="checkbox" disabled />
+          Locked
+        </label>
+        <div
+          id="frozen"
+          role="checkbox"
+          aria-label="Frozen"
+          aria-checked={frozen()}
+          aria-disabled="true"
+          onClick={() => setFrozen((value) => !value)}
+        />
+      </div>
+    )
+  }
+
+  it('opens a pointerdown menu, types into a focused field, shields the page, stops on two clicks, refuses what a person could not use', async () => {
+    const [stopped, setStopped] = createSignal('')
+    render(() => (
+      <div>
+        <AgentPage />
+        <p>stopped {stopped()}</p>
+      </div>
+    ))
+    const host = document.createElement('div')
+    host.setAttribute('data-conciv-root', '')
+    document.body.append(host)
+    onTestFinished(() => host.remove())
+    const unmountSimulator = mountSimulator({
+      root: host.attachShadow({mode: 'open'}),
+      session: () => AGENT,
+      onStop: (sessionId) => {
+        setStopped(sessionId)
+        endTask()
+      },
+    })
+    const driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
+    onTestFinished(() => driver.dispose())
+    const act = (name: string, input: Record<string, unknown>) =>
+      driver.execute({agentId: AGENT, name: `page_${name}`, input})
+
+    expect(await act('click', {selector: '#actions'})).toMatchObject({ok: true})
+    await expect.element(page.getByRole('menuitem', {name: 'Archive'})).toBeVisible()
+
+    expect(await act('fill', {selector: '#name', value: 'Ada'})).toMatchObject({ok: true})
+    await expect.element(page.getByRole('textbox', {name: 'Name'})).toHaveFocus()
+    await expect.element(page.getByText('Hello, Ada')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Count'}), {force: true})
+    await expect.element(page.getByText('Click again to stop me')).toBeVisible()
+    await expect.element(page.getByText('0 clicks')).toBeVisible()
+
+    await userEvent.click(page.getByRole('button', {name: 'Count'}), {force: true})
+    await expect.element(page.getByText(`stopped ${AGENT}`)).toBeVisible()
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', {name: 'Count'}))
+    await expect.element(page.getByText('1 clicks')).toBeVisible()
+
+    expect(await act('click', {selector: '#hidden'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is not visible.'},
+    })
+    expect(await act('click', {selector: '#disabled'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is disabled.'},
+    })
+    expect(await act('check', {selector: '#locked'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is disabled.'},
+    })
+    expect(await act('check', {selector: '#frozen'})).toMatchObject({
+      ok: false,
+      error: {code: 'invalid-args', message: 'That element is disabled.'},
+    })
+    await expect.element(page.getByRole('checkbox', {name: 'Frozen'})).not.toBeChecked()
+
+    unmountSimulator()
+    host.remove()
+    const remounted = document.createElement('div')
+    remounted.setAttribute('data-conciv-root', '')
+    document.body.append(remounted)
+    onTestFinished(() => remounted.remove())
+    onTestFinished(
+      mountSimulator({root: remounted.attachShadow({mode: 'open'}), session: () => AGENT, onStop: endTask}),
+    )
+    expect(await act('fill', {selector: '#name', value: 'Grace'})).toMatchObject({ok: true})
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeVisible()
   })
 })

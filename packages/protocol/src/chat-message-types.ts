@@ -11,6 +11,7 @@ import {
   type UIMessage,
 } from '@tanstack/ai'
 import type {ToolCallState as LibraryToolCallState} from '@tanstack/ai/client'
+import {z} from 'zod'
 
 export {generateMessageId} from '@tanstack/ai'
 
@@ -31,6 +32,8 @@ export type ModelMessage = LibraryModelMessage
 export type ContentPart = LibraryContentPart
 
 export type SendContent = {content: string | ContentPart[]; id?: string; metadata?: Record<string, unknown>}
+
+export const CompactionMetadataSchema = z.object({conciv: z.object({compaction: z.literal(true)})})
 
 export type QueuedMessage = {id: string; content: string | SendContent; createdAt: number}
 

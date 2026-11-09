@@ -90,6 +90,8 @@ export const BINARY_EMITTER_COLOR = 'var(--chat-accent, #e0218a)'
 export const BINARY_EMITTER_DIGIT_LEFT_PX = -4
 export const BINARY_EMITTER_DIGIT_TOP_PX = -12
 export const BINARY_EMITTER_TANGENT_OFFSET_DEG = 90
+export const BINARY_EMITTER_REACH_PX = 8
+export const BINARY_EMITTER_CLEARANCE_PX = 10
 
 export const TIP_SCALE = 0.2
 

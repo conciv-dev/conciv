@@ -60,7 +60,7 @@ The node-side action. It receives three arguments:
 - `input` is already `inputSchema.parse`d, so it is fully typed.
 - `ctx` is the context your extension's `.server(...)` factory returned (see below). `unknown`
   unless you annotate the handler parameter.
-- `request` is `{sessionId: string; model: string | null}` for the calling chat session.
+- `request` is `{sessionId: string; agentId: string; model: string | null}` for the calling chat session and the agent acting in it.
 
 The return value is the tool result. Return small structured data; the agent reads it verbatim.
 

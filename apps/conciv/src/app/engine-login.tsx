@@ -2,7 +2,8 @@ import {createMemo, from, onCleanup, onMount, type Accessor, type JSX} from 'sol
 import {createStore} from 'solid-js/store'
 import {
   browserRpcConnection,
-  consumeMagicLinkCode,
+  forgetMagicLinkCode,
+  readMagicLinkCode,
   type EngineTokenSource,
   type EngineTrust,
   type TrustStatus,
@@ -50,18 +51,28 @@ export function engineLocked(status: TrustStatus): boolean {
   return status === 'untrusted' || status === 'revoked'
 }
 
+async function exchangeMagicLink(trust: EngineTrust, code: string): Promise<boolean> {
+  const exchanged = await trust.requestTrustWithCode(code).catch((error: unknown) => {
+    console.error('[conciv] the magic link code exchange failed', error)
+    return null
+  })
+  if (exchanged === null) return false
+  forgetMagicLinkCode()
+  return 'token' in exchanged
+}
+
 export async function startEngineLogin(login: EngineLogin): Promise<boolean> {
-  const code = consumeMagicLinkCode()
+  const trusted = await resolveEngineLogin(login)
+  if (trusted) forgetMagicLinkCode()
+  return trusted
+}
+
+async function resolveEngineLogin(login: EngineLogin): Promise<boolean> {
+  const code = readMagicLinkCode()
   const trust = login.trust()
   if (await trust.requestTrust()) return true
   if (trust.status() === 'unreachable') return false
-  if (code !== undefined) {
-    const exchanged = await trust.requestTrustWithCode(code).catch((error: unknown) => {
-      console.error('[conciv] the magic link code exchange failed', error)
-      return null
-    })
-    if (exchanged !== null && 'token' in exchanged) return true
-  }
+  if (code !== undefined && (await exchangeMagicLink(trust, code))) return true
   return login.requestTrust()
 }
 

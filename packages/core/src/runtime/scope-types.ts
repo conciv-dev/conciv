@@ -55,6 +55,7 @@ export type SessionRun = {
   stop: (runIds: readonly string[]) => Promise<{ok: true}>
   compact: () => Promise<void>
   live: () => Promise<boolean>
+  record: (chunks: readonly ChatEvent[]) => Promise<void>
 }
 
 export type SessionScope = {

@@ -1,5 +1,4 @@
 import type {JSX} from 'solid-js'
-import MoveUpRight from 'lucide-solid/icons/move-up-right'
 
 export type NoteRowTone = 'link' | 'accent'
 
@@ -16,13 +15,5 @@ export function NoteRow(props: {icon: JSX.Element; tone: NoteRowTone; children: 
       {props.icon}
       <span>{props.children}</span>
     </p>
-  )
-}
-
-export function MirrorRow(): JSX.Element {
-  return (
-    <NoteRow icon={<MoveUpRight size={12} aria-hidden="true" />} tone="link">
-      shown on your page
-    </NoteRow>
   )
 }

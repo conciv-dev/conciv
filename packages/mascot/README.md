@@ -92,6 +92,16 @@ and rises straight when there is headroom or arcs toward the open side when the 
 are anchored to the tip and ignore it. Every effect enters staged out of the antenna tip and drains
 back into it when work stops.
 
+`<Mascot.Binary avoid={rect}>` (or `configureBinaryEffect({avoid: () => rect})`) names a rectangle the
+digits must stay out of, as an `EmitterRect` (`{top, left, right, bottom}`) in viewport pixels, such as a
+panel opened above the robot. Once `avoid` is set, one rule routes the digits: they rise until the
+nearest edge in their way, the rectangle's bottom or the top of the viewport, keeping a small clearance.
+If the rectangle has room beside it on screen, they turn toward the nearer free side, round its corner
+and climb up along that side. If neither side has room, or the edge is the top of the viewport, they run
+along the edge toward the side with more room. Nothing in the way means the plain rise. A new `avoid`
+value re-plans a running emitter without restarting it: the digits in flight are retargeted onto the
+new path, at most once per animation frame however often the value changes.
+
 ## Skin
 
 Every art-coupled value — the layer images, transform origins, origin and tip fractions, the awake

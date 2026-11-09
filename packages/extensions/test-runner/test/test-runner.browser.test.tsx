@@ -92,7 +92,6 @@ describe('test card', () => {
     icon: 'script',
     label: {running: 'Running the tests', done: 'Ran the tests'},
     mutating: false,
-    mirrors: false,
   }
 
   const catalog: ToolCatalogView = {

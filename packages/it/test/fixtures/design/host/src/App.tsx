@@ -95,6 +95,12 @@ export function App() {
       {requested === 'painted' ? <PaintedCards data-conciv-key="WViT6A" /> : <Cards variant={variant} column={requested === 'column'} data-conciv-key="EztCBw" />}
       {variant === 'missing' ? null : <Table variant={variant} look={requested} data-conciv-key="rFh37A" />}
       {requested === 'container' ? <style data-conciv-key="2WxtqQ">{CONTAINER_CSS}</style> : null}
+      {requested === 'effects-cover' ? (
+        <div
+          data-conciv-effects=""
+          style={{position: 'fixed', inset: 0, zIndex: 2147483647, background: 'rgb(255,0,0)'}} data-conciv-key="9wrSag"
+        />
+      ) : null}
     </>
   )
 }

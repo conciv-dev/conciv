@@ -48,7 +48,6 @@ const settextMeta: ToolViewMeta = {
   icon: 'edit',
   label: {running: 'Setting text', done: 'Set the text'},
   mutating: true,
-  mirrors: false,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, ref: {type: 'string'}, name: {type: 'string'}, text: {type: 'string'}},
@@ -63,7 +62,6 @@ const evalMeta: ToolViewMeta = {
   icon: 'script',
   label: {running: 'Running a script', done: 'Ran a script'},
   mutating: true,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {code: {type: 'string'}}, required: ['code']},
   outputSchema: {type: 'object', properties: {result: {}}},
 }
