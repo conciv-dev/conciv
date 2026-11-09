@@ -169,7 +169,7 @@ export function Panel(props: {
                     </ScrollArea.Root>
                   </div>
                   <div class="bg-chat-line-soft shrink-0 h-px" data-conciv-key="04XpPA" />
-                  <div class="flex flex-col gap-1.5 w-50 items-start" data-conciv-key="Qn54kQ">
+                  <div class="flex flex-col gap-1.5 items-start" data-conciv-key="Qn54kQ">
                     <span
                       class="text-[length:var(--chat-text-xs)] text-chat-text-3 tracking-wide font-semibold"
                       data-conciv-key="Nvp7FA"

@@ -149,7 +149,7 @@ export function Card(props: {
       </div>
       <div class="flex gap-2 w-fit items-center" data-conciv-key="6bynCg">
         <label
-          class="text-xs text-chat-text-hi font-semibold pe-2.5 border border-chat-line rounded-chat-surface-sm bg-chat-fill-soft inline-flex cursor-pointer items-center"
+          class="text-xs text-chat-text-hi font-semibold pe-2.5 ps-0.5 border border-chat-line rounded-chat-surface-sm bg-chat-fill-soft inline-flex cursor-pointer items-center"
           data-conciv-key="cyFXOg"
         >
           <ClipboardCopyButton text={brief()} tooltips={{idle: 'Copy for the agent'}} class="size-6.5" />
