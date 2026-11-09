@@ -2345,17 +2345,21 @@ describe('rpc wire', () => {
         }
 
         function writeClaudeLines(nativeId: string, raw: string, stamp: number): void {
-          const path = claudeTranscriptPath(nativeId)
+          writeWhole(claudeTranscriptPath(nativeId), raw, stamp)
+        }
+
+        function writeWhole(path: string, raw: string, stamp?: number): void {
+          const written = `${path}.writing`
           mkdirSync(dirname(path), {recursive: true})
-          writeFileSync(path, raw)
-          utimesSync(path, stamp / 1000, stamp / 1000)
+          writeFileSync(written, raw)
+          if (stamp !== undefined) utimesSync(written, stamp / 1000, stamp / 1000)
+          renameSync(written, path)
         }
 
         function writeCodexTurn(nativeId: string, ask: string, answer: string): string {
           const cwd = searched.cwd
           const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
-          mkdirSync(dirname(rollout), {recursive: true})
-          writeFileSync(
+          writeWhole(
             rollout,
             [
               {type: 'session_meta', payload: {session_id: nativeId, id: nativeId, cwd}},
@@ -2772,7 +2776,7 @@ return seen`
         expect(toolRuns.echo).toBe(ran + 2)
         const children = toolCallParts(await thread(sessionId)).filter((part) => part.name !== 'execute_typescript')
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
-          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent, startedAt: expect.any(Number)}]),
+          CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
         )
         expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
         const results = resultsOf(await thread(sessionId))

@@ -35,6 +35,9 @@ import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
   ChatProvider,
+  Thread,
+  ToolProvider,
+  useThread,
   Composer,
   ComposerHandlersProvider,
   useComposerContext,
@@ -55,8 +58,8 @@ import {
   type RegisterExtension,
 } from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
-import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
@@ -83,13 +86,14 @@ import {
   type ChatSessionHydration,
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
-import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
+import {createToolDurations} from '../src/pane/tool-durations.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
-import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
@@ -4166,6 +4170,116 @@ describe('run errors', () => {
       await typeTurn('second turn')
       await expect.element(runError('the model went away')).toBeVisible()
     })
+  })
+})
+
+describe('tool durations across row eviction', () => {
+  const EARLIER_EXCHANGES = 24
+  const PROBE_CALL = 'probe-call'
+
+  function ProbeCard(props: ToolCardProps): JSX.Element {
+    return <p>{`probe took ${formatDuration(props.durationMs) ?? 'no time yet'}`}</p>
+  }
+
+  const probeEntries: ToolCardEntry[] = [
+    {names: ['probe_tool'], render: ProbeCard, hasEmbeddedBody: () => true, display: 'standalone'},
+  ]
+
+  function earlierExchanges(): ChatMessage[] {
+    return Array.from({length: EARLIER_EXCHANGES}, (_, index): ChatMessage[] => [
+      {id: `earlier-u${index}`, role: 'user', parts: [{type: 'text', content: `earlier question ${index}`}]},
+      {
+        id: `earlier-a${index}`,
+        role: 'assistant',
+        parts: [{type: 'text', content: `earlier answer ${index} ${'with a long aside. '.repeat(30)}`}],
+      },
+    ]).flat()
+  }
+
+  function gatedProbeRun(resultGate: Promise<void>): ReturnType<typeof storyConnection> {
+    return {
+      async *connect(_messages, _data, _signal, runContext) {
+        const run = {threadId: runContext?.threadId ?? 'durations', runId: runContext?.runId ?? 'durations-run'}
+        yield {type: ChatEventType.RUN_STARTED, ...run}
+        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL})
+        await resultGate
+        yield createToolResultChunk(PROBE_CALL, 'probed')
+        yield* createTextChunks('probe finished')
+        yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
+      },
+    }
+  }
+
+  function RunPhase(): JSX.Element {
+    const thread = useThread()
+    return <span>{thread.isRunning ? 'probe run live' : 'probe run settled'}</span>
+  }
+
+  function mountProbeThread(resultGate: Promise<void>): void {
+    function ProbeThread(): JSX.Element {
+      const chat = createChat({threadId: 'tool-durations', connection: gatedProbeRun(resultGate)})
+      const ctx = {...INERT_TOOL_CTX, durationFor: createToolDurations(chat.messages, Date.now)}
+      onMount(() => {
+        chat.setMessages(earlierExchanges())
+        void chat.sendMessage('run the probe')
+      })
+      return (
+        <ChatProvider chat={chat}>
+          <ToolProvider value={ctx}>
+            <RunPhase />
+            <div style={{height: '360px', width: '520px', display: 'flex', 'flex-direction': 'column'}}>
+              <Thread>
+                <Thread.Viewport>
+                  <Thread.Messages tools={probeEntries} />
+                </Thread.Viewport>
+              </Thread>
+            </div>
+          </ToolProvider>
+        </ChatProvider>
+      )
+    }
+    render(() => <ProbeThread />)
+  }
+
+  const log = () => page.getByRole('log')
+  const probeTook = () => page.getByText(/^probe took \d+(\.\d)?s$/)
+  const probeCard = () => page.getByText(/^probe took/)
+
+  async function scrollAway(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: -1_000_000}})
+    await expect.element(page.getByText('earlier question 0'), {timeout: 3000}).toBeInViewport()
+    await expect.element(probeCard()).not.toBeInTheDocument()
+  }
+
+  async function scrollBack(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: 1_000_000}})
+    await expect.element(page.getByText('probe finished'), {timeout: 3000}).toBeInViewport()
+  }
+
+  it('keeps a finished tool duration after its message scrolls out of view and back', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+    gate.resolve()
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+  })
+
+  it('shows a duration for a tool that finished while its message was scrolled away', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    gate.resolve()
+    await expect.element(page.getByText('probe run settled'), {timeout: 3000}).toBeVisible()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
   })
 })
 

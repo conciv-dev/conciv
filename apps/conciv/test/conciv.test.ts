@@ -9,8 +9,6 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {foldToolDuration} from '../src/pane/tool-durations.js'
-import type {ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {
   clamp,
   cornerAt,
@@ -291,72 +289,6 @@ describe('settings', () => {
         'Mod+k',
         'Mod+j',
       ])
-    })
-  })
-})
-
-describe('tool durations', () => {
-  const call = (state: ToolCallPart['state']): ToolCallPart => ({
-    type: 'tool-call',
-    id: 'a',
-    name: 'Bash',
-    arguments: '{}',
-    state,
-  })
-
-  function makeClock(start: number): {now: () => number; advance: (ms: number) => void} {
-    const state = {at: start}
-    return {
-      now: () => state.at,
-      advance: (ms) => {
-        state.at += ms
-      },
-    }
-  }
-
-  describe('foldToolDuration', () => {
-    it('measures from first pending sighting to the settling fold', () => {
-      const clock = makeClock(1_000)
-      const pending = foldToolDuration(call('input-streaming'), {}, clock.now)
-      expect(pending.ms).toBeUndefined()
-      clock.advance(250)
-      expect(foldToolDuration(call('complete'), pending, clock.now).ms).toBe(250)
-    })
-
-    it('never rewrites a recorded duration on later folds', () => {
-      const clock = makeClock(0)
-      const pending = foldToolDuration(call('input-streaming'), {}, clock.now)
-      clock.advance(10)
-      const first = foldToolDuration(call('complete'), pending, clock.now)
-      clock.advance(500)
-      expect(foldToolDuration(call('complete'), first, clock.now)).toBe(first)
-    })
-
-    it('hands back the same record while the call keeps running, so its readers stay quiet', () => {
-      const clock = makeClock(0)
-      const first = foldToolDuration(call('input-streaming'), {}, clock.now)
-      clock.advance(10)
-      expect(foldToolDuration(call('input-complete'), first, clock.now)).toBe(first)
-    })
-
-    it('records nothing for a part that was already settled at first sight', () => {
-      expect(foldToolDuration(call('complete'), {}, makeClock(0).now)).toEqual({})
-    })
-
-    it('a remounted running row counts from the server start, not from its remount', () => {
-      const clock = makeClock(1_000)
-      const running = {...call('input-complete'), metadata: {parentToolCallId: 'p', startedAt: 400}}
-      const remounted = foldToolDuration(running, {}, clock.now)
-      clock.advance(250)
-      expect(foldToolDuration({...running, state: 'complete'}, remounted, clock.now).ms).toBe(850)
-    })
-
-    it('a malformed start stamp falls back to the first sighting', () => {
-      const clock = makeClock(1_000)
-      const running = {...call('input-complete'), metadata: {startedAt: 'soon'}}
-      const pending = foldToolDuration(running, {}, clock.now)
-      clock.advance(250)
-      expect(foldToolDuration({...running, state: 'complete'}, pending, clock.now).ms).toBe(250)
     })
   })
 })

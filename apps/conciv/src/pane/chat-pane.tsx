@@ -45,7 +45,7 @@ import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, us
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
-import {foldToolDuration} from './tool-durations.js'
+import {createToolDurations} from './tool-durations.js'
 import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
@@ -256,7 +256,7 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
-    durationFor: (part, previous) => foldToolDuration(part, previous, Date.now),
+    durationFor: createToolDurations(chat.messages, Date.now),
     captureFor: captures.lookup,
   })
 
