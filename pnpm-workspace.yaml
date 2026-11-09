@@ -52,6 +52,7 @@ catalog:
   '@oxlint/plugins': 1.90.0
   '@playwright/test': '^1.64.1'
   '@shikijs/langs-precompiled': 4.5.0
+  '@shikijs/magic-move': '^4.5.0'
   '@solid-primitives/date': '^2.1.8'
   '@solid-primitives/event-listener': '^2.4.6'
   '@solid-primitives/keyed': '^1.5.3'
@@ -61,7 +62,6 @@ catalog:
   '@storybook/addon-docs': '^10.6.5'
   '@tailwindcss/typography': '^0.5.20'
   '@tailwindcss/vite': '^4.3.3'
-  '@typescript/typescript6': '^6.0.2'
   '@tanstack/devtools-vite': '^0.8.5'
   '@tanstack/pacer': '^0.23.1'
   '@tanstack/query-core': '^5.107.1'

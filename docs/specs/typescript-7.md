@@ -46,11 +46,15 @@ use original names and the output is correct.
 4. Code that needs the classic TS API:
    - `storybook-solidjs-vite` 10.7.4 already depends on and imports `@typescript/typescript6` itself
      (`dist/internal/docgen-worker.js`). Nothing to do; verify storybook still builds with docgen.
-   - `apps/site/scripts/highlight-snippets.ts`: import `createTwoslasher` from `twoslash/core` and
-     pass `tsModule` from `@typescript/typescript6` (new devDependency of `apps/site`, catalog entry).
-     `@typescript/vfs` takes `ts` as an argument and never imports it. twoslash 0.3.9 peers
-     `typescript ^5.5 || ^6` (twoslashes/twoslash#93 open); the regenerated
-     `framework-snippets.gen.ts` must be byte-identical to today's.
+   - The landing snippet generator (twoslash): twoslash types `tsModule` from its own `typescript`
+     peer, so in a TS7 package `twoslash/core` + `tsModule` fails the site typecheck (TS2741), and
+     pnpm overrides do not redirect peers. (Revised 2026-11-09, Omri.) The snippet data, the
+     generator script and the generated `framework-snippets.gen.ts` move into the private workspace
+     package `apps/site-snippets` on `catalog:ts6`, which keeps twoslash's default
+     `createTwoslasher()` from `twoslash`. `apps/site` stays fully TS7 and imports the data and the
+     generated output through the package's `exports` (`site-snippets`, `site-snippets/generated`).
+     twoslash 0.3.9 peers `typescript ^5.5 || ^6` (twoslashes/twoslash#93 open). No
+     `@typescript/typescript6` dependency or catalog entry of ours remains.
    - `packages/extension/test/extension.test.ts` ("every scaffold kind emits source that parses"):
      use `oxc-parser` (already in the catalog) instead of `ts.transpileModule`.
    - `packages/extensions/tanstack/test/tanstack.test.ts` ("typescript resolves types by
@@ -71,8 +75,7 @@ use original names and the output is correct.
 The "TypeScript 6 holdouts" table below is the single record. Each row: app, the tool that blocks,
 the upstream issue, the check that unblocks it. Re-attempt = for each row, check the issue/changelog,
 switch `catalog:ts6` to `catalog:`, run that app's typecheck + e2e. When the table is empty, delete
-the `ts6` catalog. `@typescript/typescript6` goes when twoslash ships TS7 support (#93) or TS 7.1's
-stable API lands and twoslash adopts it. Bundled d.ts (tsdown `dts: true`) may come back only after
+the `ts6` catalog. Bundled d.ts (tsdown `dts: true`) may come back only after
 rolldown-plugin-dts#295 ships, and only for every package at once, with a d.ts export diff proving the
 public surface unchanged.
 
@@ -82,6 +85,7 @@ public surface unchanged.
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | e2e/svelte               | svelte-check 4.7.7 refuses TS7 alone: `svelte-check --tsconfig ./tsconfig.json` on TS7 throws `Error: TypeScript 7 support currently requires both TypeScript 7 and TypeScript 6 installed in your project, and requires using the --tsgo or --tsgo-experimental-api flag.`                                      | sveltejs/language-tools#3063, #3185, #3174                                                                      | svelte-check release with TS7 peer or stable `--tsgo`; `pnpm --filter <app> check` green on TS7 |
 | apps/examples/nextjs-app | its `lint` (eslint-config-next 16.4.3 pulls typescript-eslint 8.61.1, which loads the classic TypeScript API) crashes on TS7: `pnpm --filter nextjs-app lint` throws `TypeError: Cannot read properties of undefined (reading 'Cjs')` at `@typescript-eslint/typescript-estree/dist/create-program/shared.js:59` | typescript-eslint peers `typescript >=4.8.4 <6.1.0`; TS7 support tracked in typescript-eslint/typescript-eslint | typescript-eslint release peering TS7; `pnpm --filter nextjs-app lint` and `build` green on TS7 |
+| apps/site-snippets       | twoslash 0.3.9 peers `typescript` `^5.5` or `^6` and needs the classic API                                                                                                                                                                                                                                       | twoslashes/twoslash#93                                                                                          | twoslash release supporting TS7; `gen:snippets` output unchanged on TS7                         |
 
 (Implementation adds rows only for proven failures, with the failing command and error line.)
 

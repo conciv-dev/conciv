@@ -1,11 +1,9 @@
 import {writeFile} from 'node:fs/promises'
-import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createHighlighter} from 'shiki'
-import {createTwoslasher} from 'twoslash/core'
-import typescript6 from '@typescript/typescript6'
+import {createTwoslasher} from 'twoslash'
 import {codeToKeyedTokens} from '@shikijs/magic-move/core'
-import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/components/landing/framework-snippets.ts'
+import {cleanSnippet, FRAMEWORK_SNIPPETS} from '../src/framework-snippets.ts'
 
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
@@ -29,11 +27,7 @@ const inlineHighlight = (code: string) =>
     .replace(/^<pre[^>]*><code>/, '')
     .replace(/<\/code><\/pre>$/, '')
 
-const twoslasher = createTwoslasher({
-  vfsRoot: process.cwd(),
-  tsModule: typescript6,
-  tsLibDirectory: dirname(typescript6.getDefaultLibFilePath({})),
-})
+const twoslasher = createTwoslasher()
 
 const hoverData = withCode.flatMap((snippet) => {
   if (snippet.twoslash !== true) return []
@@ -80,6 +74,6 @@ const body = [
   '',
 ].join('\n')
 
-const out = fileURLToPath(new URL('../src/components/landing/framework-snippets.gen.ts', import.meta.url))
+const out = fileURLToPath(new URL('../src/framework-snippets.gen.ts', import.meta.url))
 await writeFile(out, body)
 console.log(`wrote ${out} (${steps.length} steps, ${hoverData.length} twoslash)`)

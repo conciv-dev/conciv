@@ -4,7 +4,7 @@ import VariableProximity from '@/components/VariableProximity'
 import {RobotFab} from './robot-fab'
 import {ConcivMark} from '@conciv/brand/react'
 import {FrameworkTabs} from './framework-tabs'
-import {FRAMEWORK_SNIPPETS} from './framework-snippets'
+import {FRAMEWORK_SNIPPETS} from 'site-snippets'
 
 function Code({children}: {children: ReactNode}) {
   return (
