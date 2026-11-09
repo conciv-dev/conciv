@@ -3,10 +3,34 @@
 }
 
 .xp-page {
+  --xp-surface: #ffffff;
+  --xp-topbar-line: rgba(15, 18, 24, 0.06);
+  --xp-line: rgba(15, 18, 24, 0.12);
+  --xp-logo: #16a34a;
+  --xp-bar: rgba(15, 18, 24, 0.08);
+  --xp-row: rgba(15, 18, 24, 0.04);
+  --xp-text: #0b0d10;
+  --xp-text-muted: #565b63;
+}
+
+@media (prefers-color-scheme: dark) {
+  .xp-page {
+    --xp-surface: #121114;
+    --xp-topbar-line: #232025;
+    --xp-line: #272428;
+    --xp-logo: #6fbf8b;
+    --xp-bar: rgba(255, 255, 255, 0.1);
+    --xp-row: rgba(255, 255, 255, 0.05);
+    --xp-text: #f0ebe8;
+    --xp-text-muted: #a29c9c;
+  }
+}
+
+.xp-page {
   display: flex;
   flex-direction: column;
   aspect-ratio: 1440 / 900;
-  background: #ffffff;
+  background: var(--xp-surface);
   font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
   line-height: 1.424;
 }
@@ -16,7 +40,7 @@
   align-items: center;
   gap: 24px;
   padding: 15.5px 24px;
-  border-bottom: 1px solid rgba(15, 18, 24, 0.06);
+  border-bottom: 1px solid var(--xp-topbar-line);
 }
 
 .xp-logo {
@@ -24,12 +48,12 @@
   aspect-ratio: 1;
   flex: none;
   border-radius: 6px;
-  background: #16a34a;
+  background: var(--xp-logo);
 }
 
 .xp-nav {
   font-size: 15px;
-  color: #565b63;
+  color: var(--xp-text-muted);
 }
 
 .xp-layout {
@@ -54,7 +78,7 @@
 }
 
 .xp-bar {
-  background: rgba(15, 18, 24, 0.08);
+  background: var(--xp-bar);
   width: var(--xp-width);
 }
 
@@ -78,14 +102,14 @@
   margin: 0;
   font-size: 28px;
   font-weight: 700;
-  color: #0b0d10;
+  color: var(--xp-text);
 }
 
 .xp-lede {
   margin: 0;
   width: 49.296%;
   font-size: 15px;
-  color: #565b63;
+  color: var(--xp-text-muted);
 }
 
 .xp-figures {
@@ -103,21 +127,21 @@
   min-width: 11.375rem;
   aspect-ratio: 260 / 150;
   padding: 20px;
-  border: 1px solid rgba(15, 18, 24, 0.12);
+  border: 1px solid var(--xp-line);
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--xp-surface);
   box-sizing: border-box;
 }
 
 .xp-card-value {
   font-size: 24px;
   font-weight: 700;
-  color: #0b0d10;
+  color: var(--xp-text);
 }
 
 .xp-card-label {
   font-size: 14px;
-  color: #565b63;
+  color: var(--xp-text-muted);
 }
 
 .xp-portrait {
@@ -132,13 +156,13 @@
   width: 72.183%;
   aspect-ratio: 820 / 260;
   padding: 20px;
-  border: 1px solid rgba(15, 18, 24, 0.12);
+  border: 1px solid var(--xp-line);
   border-radius: 12px;
   box-sizing: border-box;
 }
 
 .xp-row {
-  background: rgba(15, 18, 24, 0.04);
+  background: var(--xp-row);
 }
 
 .xp-row-short { width: 71.795%; --xp-ratio: 46.667; }
