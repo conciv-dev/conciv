@@ -4739,6 +4739,8 @@ describe('settings page', () => {
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
   const skin = (name: string) => page.getByRole('radio', {name, exact: true})
   const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
+  const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
+  const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all settings?'})
 
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
@@ -4827,9 +4829,19 @@ describe('settings page', () => {
 
     harness.dispose()
     harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
-    await page.getByRole('button', {name: 'Reset all', exact: true}).click()
-    await page.getByRole('button', {name: 'Click again', exact: true}).click()
+    await resetAll().click()
+    await expect.element(resetDialog()).toBeVisible()
+    await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
+    expect(harness.pathname()).toBe(settingsPath('advanced/reset'))
+    await userEvent.keyboard('{Escape}')
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath('advanced'))
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await resetAll().click()
+    await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
     await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
+    await expect.element(resetDialog()).not.toBeInTheDocument()
     expect(harness.pathname()).toBe(settingsPath('advanced'))
     await expect.element(probe('light')).toBeInTheDocument()
 

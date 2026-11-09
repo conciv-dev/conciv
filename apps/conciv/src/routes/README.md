@@ -17,8 +17,9 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 - `/panel/$sessionId/options` (`panel.$sessionId._chat.options.tsx`): chat with the session menu open; renders nothing
 - `/panel/$sessionId/$view` (`panel.$sessionId.$view.tsx`): `PanelView`, an extension view plus its outlet
 - `/panel/$sessionId/$view/options` (`panel.$sessionId.$view.options.tsx`): the view with the session menu open; renders nothing
-- `/panel/$sessionId/settings` (`panel.$sessionId_.settings.tsx`): `SettingsLayout`, outside the session layout; header with a Back to chat button, kit `Tabs` driven by the matched child route (selecting a tab navigates and remembers the tab), top tabs on a narrow panel and a left rail from the `@lg` container size, with the tabs gliding between the two; footer shows the route; the index redirects to the last opened tab
-- `/panel/$sessionId/settings/general`, `/views`, `/shortcuts`, `/advanced` (`panel.$sessionId_.settings.<tab>.tsx`): one route per settings tab, each a `PreferencesForm`
+- `/panel/$sessionId/settings` (`panel.$sessionId_.settings.tsx`): `SettingsLayout`, outside the session layout; header with a Back to chat button, kit `Tabs` driven by the matched child route (selecting a tab navigates), top tabs on a narrow panel and a left rail from the `@lg` container size, with the tabs gliding between the two; footer shows the route; the index redirects to the last opened tab
+- `/panel/$sessionId/settings/general`, `/views`, `/shortcuts`, `/advanced` (`panel.$sessionId_.settings.<tab>.tsx`): one route per settings tab, each a `PreferencesForm`; each remembers itself as the last tab in `onEnter`
+- `/panel/$sessionId/settings/advanced/reset` (`panel.$sessionId_.settings.advanced.reset.tsx`): the Reset all confirmation, kit `ConfirmDialog` open while the route matches (focus on Cancel); closing it in any way navigates back to `/advanced` with `replace`, Confirm clears every stored key and announces the result
 - `/quick` (`quick.tsx`): quick terminal layer, search `QuickSearchSchema` (`panes`, `focus`)
 - `/pip/$sessionId` (`pip.$sessionId.tsx`): `PipSession`, renders the session into a popup window
 - `panelHeightCap`, `defaultPanelHeight` (`panel-height.ts`): panel height from viewport, at most 750 px

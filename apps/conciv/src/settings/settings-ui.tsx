@@ -15,7 +15,6 @@ const BUTTON =
   'inline-flex shrink-0 items-center gap-1.5 h-7 px-2.5 rounded-[var(--chat-radius-sm)] bg-transparent [border:1px_solid_var(--chat-line-2)] font-chat text-[0.75rem] text-chat-text cursor-pointer focus-ring trans-bg hover:bg-chat-fill-strong disabled:opacity-50 disabled:cursor-not-allowed'
 export const BUTTON_WARN = `${BUTTON} [border-color:color-mix(in_oklch,var(--chat-warn)_42%,transparent)] !text-chat-warn hover:!bg-[color-mix(in_oklch,var(--chat-warn)_10%,transparent)]`
 export const BUTTON_DANGER_FILL = `${BUTTON} !bg-chat-danger [border-color:var(--chat-danger)] !text-chat-on-accent`
-export const BUTTON_DANGER_ARMED = `${BUTTON_DANGER_FILL} brightness-112`
 const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
