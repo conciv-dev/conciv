@@ -1,6 +1,7 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {createStore} from 'solid-js/store'
+import {Button} from './button.js'
 import {ComboboxSelect} from './combobox-select.js'
 import {FieldShell} from './field-shell.js'
 
@@ -18,7 +19,11 @@ const CITIES = [
 ]
 
 function ComboboxStates() {
-  const [state, setState] = createStore({departure: 'lisbon', arrival: 'lisbon'})
+  const [state, setState] = createStore<{departure: string; arrival: string; layovers: typeof CITIES}>({
+    departure: 'lisbon',
+    arrival: 'lisbon',
+    layovers: [],
+  })
   const arrivalError = () => (state.arrival === state.departure ? 'Pick a city other than the departure.' : undefined)
   return (
     <div class={STACK}>
@@ -33,6 +38,12 @@ function ComboboxStates() {
       <FieldShell label="Arrival" error={arrivalError()}>
         <ComboboxSelect options={CITIES} value={state.arrival} onValueChange={(value) => setState('arrival', value)} />
       </FieldShell>
+      <FieldShell label="Layover">
+        <ComboboxSelect options={state.layovers} value={undefined} emptyText="No layovers loaded" />
+      </FieldShell>
+      <Button variant="outline" size="sm" onClick={() => setState('layovers', CITIES)}>
+        Load layovers
+      </Button>
       <FieldShell label="Home city" readOnly>
         <ComboboxSelect options={CITIES} value="oslo" />
       </FieldShell>
@@ -71,6 +82,13 @@ export const Keyboard: Story = {
     await userEvent.clear(departure)
     await userEvent.type(departure, 'zzz')
     await expect(page.getByText('No city matches')).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(canvas.getByRole('button', {name: 'Load layovers'}))
+    const layover = canvas.getByRole('combobox', {name: 'Layover'})
+    await userEvent.click(layover)
+    await userEvent.type(layover, 'ly')
+    await expect(await page.findByRole('option', {name: /Lyon/})).toBeVisible()
     await userEvent.keyboard('{Escape}')
 
     await expect(canvas.getByRole('combobox', {name: 'Home city'})).toHaveAttribute('readonly')

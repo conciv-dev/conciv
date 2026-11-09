@@ -55,24 +55,27 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
   const field = useFieldContext()
   const platform = detectPlatform()
   const recordTextId = createUniqueId()
-  const [state, setState] = createStore<{draft: string | null}>({draft: null})
+  const [state, setState] = createStore<{draft: string | null | undefined}>({draft: undefined})
   let changeButton: HTMLButtonElement | undefined
   let capture: HTMLDivElement | undefined
-  const returnFocus = () => changeButton?.focus()
+  const close = () => {
+    setState('draft', undefined)
+    changeButton?.focus()
+  }
   const recorder = createHotkeyRecorder({
     recordBy: 'key',
     onRecord: (hotkey) => setState('draft', hotkey),
-    onCancel: returnFocus,
+    onCancel: close,
     onClear: () => {
       local.onValueChange?.(null)
-      returnFocus()
+      close()
     },
   })
   const disabled = () => local.disabled ?? field?.().disabled
   const editable = () => !disabled() && !(local.readOnly ?? field?.().readOnly)
-  const editing = () => recorder.isRecording() || state.draft !== null
-  const parsedDraft = createMemo(() => (state.draft === null ? undefined : parseHotkey(state.draft)))
-  const warning = () => (state.draft === null ? undefined : local.conflict?.(state.draft))
+  const editing = () => state.draft !== undefined
+  const parsedDraft = createMemo(() => (typeof state.draft === 'string' ? parseHotkey(state.draft) : undefined))
+  const warning = () => (typeof state.draft === 'string' ? local.conflict?.(state.draft) : undefined)
   const modifierLabel = (modifier: CanonicalModifier): string =>
     platform === 'mac'
       ? MAC_MODIFIER_SYMBOLS[modifier]
@@ -88,9 +91,8 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
   }
   const finish = (value: string | null | undefined) => {
     recorder.stopRecording()
-    setState('draft', null)
     if (value !== undefined) local.onValueChange?.(value)
-    returnFocus()
+    close()
   }
   const toggle = (modifier: CanonicalModifier) => {
     const parsed = parsedDraft()
@@ -101,7 +103,12 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
     setState('draft', normalizeHotkey(chord))
   }
   return (
-    <div class="flex flex-col gap-2 min-w-0">
+    <div
+      class="flex flex-col gap-2 min-w-0"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && editing()) finish(undefined)
+      }}
+    >
       <div class={ROW} classList={{'opacity-50': Boolean(disabled())}}>
         <Show when={local.value} fallback={<span class={EMPTY}>Not set</span>}>
           {(value) => <Keys hotkey={value()} />}
@@ -123,7 +130,7 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
             <span id={recordTextId}>{local.value ? 'Change' : 'Record'}</span>
           </Button>
           <Show when={local.value}>
-            <TooltipIconButton tooltip="Clear shortcut" class="size-7" onClick={() => local.onValueChange?.(null)}>
+            <TooltipIconButton tooltip="Clear shortcut" class="size-7" onClick={() => finish(null)}>
               <X class="size-3.5" aria-hidden="true" />
             </TooltipIconButton>
           </Show>
@@ -173,7 +180,12 @@ export function HotkeyRecorder(props: HotkeyRecorderProps): JSX.Element {
             <Button variant="ghost" size="sm" class="min-h-7" onClick={() => finish(undefined)}>
               Cancel
             </Button>
-            <Button size="sm" class="min-h-7" disabled={state.draft === null} onClick={() => finish(state.draft)}>
+            <Button
+              size="sm"
+              class="min-h-7"
+              disabled={typeof state.draft !== 'string'}
+              onClick={() => finish(state.draft)}
+            >
               Save
             </Button>
           </div>
