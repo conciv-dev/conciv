@@ -1,5 +1,5 @@
-import {Show, createUniqueId, splitProps, type JSX} from 'solid-js'
-import {FieldPrimitive as Field} from '@conciv/ui-kit-system'
+import {Match, Show, Switch, createUniqueId, splitProps, type JSX} from 'solid-js'
+import {Button, FieldPrimitive as Field, Loader} from '@conciv/ui-kit-system'
 import Lock from 'lucide-solid/icons/lock'
 import {useFieldContext} from './form-context.js'
 
@@ -119,5 +119,33 @@ export function ActionRow(props: ActionRowProps): JSX.Element {
       </span>
       {props.children}
     </div>
+  )
+}
+
+const FAILED = 'flex flex-col items-start gap-2 text-[0.8125rem] text-chat-text-2'
+
+type SettingsLoadProps = {status: 'pending' | 'error' | 'success'; retry: () => void; children: JSX.Element}
+
+export function SettingsLoad(props: SettingsLoadProps): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.status === 'success'}>{props.children}</Match>
+      <Match when={props.status === 'error'}>
+        <div class={FAILED} role="alert">
+          <p class="m-0">Your conciv settings could not be loaded.</p>
+          <Button variant="outline" size="sm" class="min-h-7" onClick={() => props.retry()}>
+            Retry
+          </Button>
+        </div>
+      </Match>
+      <Match when={props.status === 'pending'}>
+        <Loader.Root class="py-6 text-chat-text-2" translations={{value: () => 'Loading settings'}}>
+          <Loader.Indicator />
+          <Loader.Text>
+            <Loader.Label>Loading settings…</Loader.Label>
+          </Loader.Text>
+        </Loader.Root>
+      </Match>
+    </Switch>
   )
 }

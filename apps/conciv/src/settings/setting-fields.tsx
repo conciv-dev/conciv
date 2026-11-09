@@ -1,10 +1,12 @@
 import {For, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {
+  NumberInput,
   RadioGroupPrimitive as RadioGroup,
   SegmentGroup,
   Select,
   Switch,
+  TextField as TextInput,
   createListCollection,
   skinDefinition,
   type SchemePair,
@@ -185,6 +187,48 @@ export function SwitchField(props: FieldProps): JSX.Element {
         </Switch.Control>
         <Switch.HiddenInput />
       </Switch.Root>
+    </SettingRow>
+  )
+}
+
+type NumberFieldProps = FieldProps & {min?: number; max?: number; step?: number}
+
+export function NumberField(props: NumberFieldProps): JSX.Element {
+  const [local] = splitProps(props, ['label', 'hint', 'lock', 'min', 'max', 'step'])
+  const field = useFieldContext<number>()
+  return (
+    <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
+      <NumberInput
+        value={field().state.value}
+        min={local.min}
+        max={local.max}
+        step={local.step}
+        onValueChange={(value) => {
+          if (value !== undefined) field().setValue(value, {dontRunListeners: true})
+        }}
+        onValueCommit={(value) => {
+          if (value !== undefined) field().handleChange(value)
+          field().handleBlur()
+        }}
+      />
+    </SettingRow>
+  )
+}
+
+const TEXT_INPUT = 'w-37.5 min-w-0'
+
+export function TextField(props: FieldProps): JSX.Element {
+  const [local] = splitProps(props, ['label', 'hint', 'lock'])
+  const field = useFieldContext<string>()
+  return (
+    <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
+      <TextInput
+        class={TEXT_INPUT}
+        name={field().name}
+        value={field().state.value}
+        onInput={(event) => field().handleChange(event.currentTarget.value)}
+        onBlur={() => field().handleBlur()}
+      />
     </SettingRow>
   )
 }
