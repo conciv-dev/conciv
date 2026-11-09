@@ -28,9 +28,17 @@ export function createXrayData(input: {
     setInterval,
   )
   const [hotkeys] = createResource(client, (rpc) => rpc.xray.hotkeys())
-  const [ui, setUi] = createStore<{round: number | null; width: number | null; shown: Record<Layer, boolean>}>({
+  const [ui, setUi] = createStore<{
+    round: number | null
+    width: number | null
+    pick: boolean
+    picked: string | null
+    shown: Record<Layer, boolean>
+  }>({
     round: null,
     width: null,
+    pick: false,
+    picked: null,
     shown: {design: true, page: false, moved: false},
   })
   const rounds = createMemo(() => design.latest?.rounds ?? [])
@@ -106,6 +114,26 @@ export function createXrayData(input: {
           ],
     )
   })
+  const card = createMemo(() => {
+    const node = ui.picked
+    const root = layers.latest
+    if (node === null || !root) return null
+    const found = placeOf(root.root, node)
+    if (found === null) return null
+    const problem = problems().find((entry) => entry.node === node)
+    const row = shownRound()?.rows.find((entry) => entry.node === node)
+    return {
+      node,
+      name: found.look?.name ?? node,
+      within: found.parent?.fom[0]?.look?.name ?? null,
+      magnitude: problem?.magnitude ?? null,
+      look: found.look,
+      layer: found.layer,
+      source: row?.source ?? null,
+      selector: row?.selector ?? null,
+      lines: problem?.lines ?? [],
+    }
+  })
   const file = (path: string): Promise<Blob | null> =>
     fetch(`${input.apiBase()}/api/ext/${DESIGN_EXTENSION_NAME}/files/${path}`, {
       headers: engineHeaders(input.apiBase()),
@@ -126,6 +154,11 @@ export function createXrayData(input: {
     viewports,
     viewport,
     moved,
+    card,
+    pick: () => ui.pick,
+    picked: () => ui.picked,
+    setPick: (on: boolean) => setUi('pick', on),
+    pickNode: (node: string | null) => setUi('picked', node),
     shown: (layer: Layer) => ui.shown[layer],
     pinRound: (round: number | null) => setUi('round', round),
     pickViewport: (width: number) => setUi('width', width),
@@ -151,4 +184,20 @@ type XrayClient = ReturnType<typeof makeExtRpcClient<XrayRouter>>
 
 function entriesOf(layer: LayerRoot): LayerRoot['fom'] {
   return [...layer.fom, ...layer.children.flatMap(entriesOf)]
+}
+
+type LayerNode = LayerRoot
+
+function placeOf(
+  layer: LayerNode,
+  node: string,
+  parent: LayerNode | null = null,
+): {layer: LayerNode; parent: LayerNode | null; look: LayerNode['fom'][number]['look']} | null {
+  const own = layer.fom.find((entry) => entry.nodeId === node)
+  if (own !== undefined) return {layer, parent, look: own.look}
+  for (const child of layer.children) {
+    const found = placeOf(child, node, layer)
+    if (found !== null) return found
+  }
+  return null
 }

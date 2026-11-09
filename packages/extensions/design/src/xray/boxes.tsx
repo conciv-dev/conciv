@@ -8,7 +8,8 @@ export function Boxes(props: {data: ReturnType<typeof createXrayData>}): JSX.Ele
         <For each={props.data.boxes()}>
           {(entry) => (
             <div
-              class="fixed"
+              class={`fixed ${props.data.pick() ? 'pointer-events-auto cursor-pointer' : ''}`}
+              onClick={() => props.data.pick() && props.data.pickNode(entry.node)}
               style={{
                 left: `${entry.box.x}px`,
                 top: `${entry.box.y}px`,
