@@ -11,6 +11,7 @@ export type Store = {
   design(id: string): Promise<Design>
   image(input: {id: string; round?: number; kind?: 'live' | 'diff'}): Promise<Uint8Array | null>
   mapping(id: string): Promise<Mapping>
+  sources(id: string): Promise<string[]>
   writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
   writeToolCall(input: ToolCall & {session: string; round: number | null}): Promise<void>
   ids(id: string): Promise<IdTree | null>

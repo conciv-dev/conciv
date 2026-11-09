@@ -1,4 +1,5 @@
 import {and, asc, desc, eq, inArray, max} from 'drizzle-orm'
+import {uniqBy} from 'es-toolkit'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
@@ -147,6 +148,8 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
       return readRaw({state, key: (kind === 'diff' ? head?.diff : head?.live) ?? null})
     },
     mapping: mappingOf,
+    sources: async (id) =>
+      uniqBy(await latestFom(id), (row) => row.id).flatMap((row) => (row.source === null ? [] : [row.source])),
     writeVotes: async ({id, round, votes: cast}) => {
       const runId = await run()
       const names = await namesOf(id)

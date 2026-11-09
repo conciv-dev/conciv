@@ -9,6 +9,7 @@ import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
 import {DESIGN_ERRORS} from './errors.js'
+import {componentsDef} from './components-def.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
@@ -504,7 +505,7 @@ const shotsDef = designTool({
   catalog: false,
 })
 
-export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef, shotsDef] as const
+export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef, shotsDef, componentsDef] as const
 
 type Rgb = [number, number, number]
 type MeasureSource = z.output<typeof MeasureSourceSchema>

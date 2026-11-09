@@ -1,9 +1,14 @@
 import {z} from 'zod'
 import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
+import type {Catalog, CatalogConfig, Component, NodeRef, PropSketch} from '../shared/catalog-defs.js'
 import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
+import {renderComponents} from './catalog/render-list.js'
+import {figmaRef} from './figma-ref.js'
 
-const [getDef, checkDef, statusDef] = DESIGN_TOOLS
+const [getDef, checkDef, statusDef, , , componentsDef] = DESIGN_TOOLS
+
+const NO_PAGE = 'no page registered for this link'
 
 const SOURCES =
   'Sources, each row with target and at: targets (the registered design: link, width, height, image, lead: the first frame of the set when the design has a frame per width), rounds (one per design_check: much, noticeably, slightly, pins, other, reflow, paint, rows_count, nodes, mapped, rendered, revoted, pixel_share, and against the round before: pixel_before, closed, opened, kept, gained, lost, changed_ratio, changed_regions, note, verdict, unsettled: why a round was measured but not judged), missing (per round the nodes no element renders, kind missing, not_rendered or dupe), candidates (tied votes: node, selector, score), widths (the widths a round measured: width, from, root_height, overflow_x), regions (where the screenshot changed since the round before: x, y, width, height and per overlapping element id, node, name, source, overlap; truncated when only the largest are listed), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, token, confidence, margin; the kind of a paint row is fill, text color, font family, font weight, font size, line height, radius, border, opacity or image), nodes (one per Figma node of the design, its expected look: node, name, type, within, depth, x, y, w, h, fill_kind solid, gradient, image or none, fill, fill_opacity, stroke, stroke_weight, radius, font_family, font_weight, font_size, line_height, text_align, text, opacity, image, asset, and the token each field is bound to: token_fill, token_stroke, token_radius, token_font, token_gap, token_padding), fom (the stored mapping per conciv id and Figma node: source, confidence, margin, round, revoted_round, reason, joined to the look of that node with every nodes field), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply_bytes, duration_ms, error), runs (model, prompt_head, started, ended, cost, verdict), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note), notes (run, round, text) and node_components (which project component rendered each design node in a round: round, node, component_id, source, the source line that tied them).'
@@ -93,11 +98,64 @@ export const SERVER_STEPS = [
       call: () => ctx.differ.status({session: request.sessionId}),
     }),
   ),
+  componentsDef.server((input, ctx: DesignContext, request) =>
+    recorded({
+      ctx,
+      tool: componentsDef.name,
+      input,
+      session: request.sessionId,
+      call: () => listed({input, ctx, session: request.sessionId}),
+    }),
+  ),
   queryDef.server((input, ctx: DesignContext) => ctx.db.read(input)),
   writeDef.server((input, ctx: DesignContext) => ctx.db.write(input)),
 ] as const satisfies readonly AnyToolBuilder[]
 
-type DesignContext = {design: DesignRuntime; differ: Differ; db: ExtensionDb<Record<never, never>>}
+type DesignContext = {
+  design: DesignRuntime
+  differ: Differ
+  db: ExtensionDb<Record<never, never>>
+  catalog: Catalog
+  limits: Pick<CatalogConfig, 'appTierFull'>
+}
+
+type ComponentsInput = z.output<typeof componentsDef.inputSchema>
+
+async function listed(asked: {input: ComponentsInput; ctx: DesignContext; session: string}) {
+  const {input, ctx, session} = asked
+  if (input.flag !== undefined) await ctx.catalog.flag(input.flag.name, input.flag.flag)
+  if (input.show !== undefined) {
+    const component = await ctx.catalog.show(input.show)
+    return {text: shownText(component), component}
+  }
+  const {store} = ctx.design
+  const record = await targetBehind({link: input.link, session, store})
+  const components = await ctx.catalog.list({live: record === null ? [] : await store.sources(record.id)})
+  const text = renderComponents({ranked: components, limits: ctx.limits})
+  return {text: input.link !== undefined && record === null ? `${NO_PAGE}\n\n${text}` : text, components}
+}
+
+async function targetBehind(input: {link: string | undefined; session: string; store: DesignRuntime['store']}) {
+  const {link, session, store} = input
+  if (link === undefined) return store.current(session)
+  const ref = figmaRef(link)
+  return (await store.list()).find((record) => record.ref === ref) ?? null
+}
+
+function shownText(component: Component & {nodes: NodeRef[]}): string {
+  return [
+    `${component.names.join(', ')} from '${component.specifier}'`,
+    component.file,
+    ...(component.sentence === null ? [] : [component.sentence]),
+    ...(component.props === 'see file' ? ['props: see file'] : component.props.map(propLine)),
+    ...(component.usage === null ? [] : [`usage: ${component.usage}`]),
+    ...(component.nodes.length === 0 ? [] : [`renders ${component.nodes.length} design nodes`]),
+  ].join('\n')
+}
+
+function propLine(prop: PropSketch): string {
+  return `${prop.name}${prop.required ? '' : '?'}: ${prop.type}`
+}
 
 function designDataTool<Shape extends z.ZodRawShape>(spec: {
   verb: string

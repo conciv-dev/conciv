@@ -17,6 +17,16 @@ export const designConfig = Object.assign(
       .array(z.enum(['progress']))
       .default([])
       .describe('reply fields sent to the agent beyond the default; progress is computed and stored either way'),
+    catalog: z
+      .object({
+        appTierFull: z
+          .number()
+          .int()
+          .nonnegative()
+          .default(24)
+          .describe('the most app components design_components lists in full before it counts the rest'),
+      })
+      .prefault({}),
   }),
   {
     tolerances: {

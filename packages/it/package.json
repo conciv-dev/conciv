@@ -79,6 +79,7 @@
     "@conciv/plugin": "workspace:^"
   },
   "devDependencies": {
+    "@conciv/cli": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",

@@ -18,6 +18,7 @@ import type {
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
+import {figmaRef} from './figma-ref.js'
 import {verdictOf} from './verdict.js'
 
 export function createDiffer(input: {
@@ -128,14 +129,6 @@ function sameRef(input: {record: TargetRecord; query: OneQuery; cwd: string}): b
   const link = query.figma === undefined ? null : figmaRef(query.figma)
   if (link !== null) return link === record.ref
   return query.image !== undefined && projectRef({ref: query.image, cwd: input.cwd}) === record.ref
-}
-
-function figmaRef(link: string): string | null {
-  if (!URL.canParse(link)) return null
-  const url = new URL(link)
-  const fileKey = url.pathname.split('/').filter(Boolean)[1]
-  const nodeId = url.searchParams.get('node-id')?.replaceAll('-', ':')
-  return fileKey === undefined || nodeId === undefined ? null : `${fileKey}/${nodeId}`
 }
 
 async function registered(input: {

@@ -1,9 +1,11 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
+import {execFile} from 'node:child_process'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
+import {promisify} from 'node:util'
 import react from '@vitejs/plugin-react'
 import {differenceCiede2000} from 'culori'
 import {chromium, type Browser, type Page} from 'playwright'
@@ -63,9 +65,11 @@ const NO_IDS = {
 }
 const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 
-const EndpointSchema = z.object({apiBase: z.string().min(1)})
+const EndpointSchema = z.object({apiBase: z.string().min(1), token: z.string().min(1)})
 
-const [getDef, checkDef, statusDef] = DESIGN_TOOLS
+const CliEnvelopeSchema = z.object({ok: z.literal(true), data: z.object({text: z.string()})})
+
+const [getDef, checkDef, statusDef, , , componentsDef] = DESIGN_TOOLS
 
 type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
@@ -73,11 +77,13 @@ type OneFrame<Reply> = Exclude<Reply, {variants: unknown}>
 type Got = OneFrame<ToolOutput<typeof getDef>>
 type Checked = OneFrame<ToolOutput<typeof checkDef>>
 type Status = OneFrame<ToolOutput<typeof statusDef>>
+type Listed = ToolOutput<typeof componentsDef>
 
 type Call = {
   (name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
   (name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
   (name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
+  (name: 'design_components', input: z.input<typeof componentsDef.inputSchema>): Promise<Listed>
 }
 
 type Kit = {
@@ -88,6 +94,7 @@ type Kit = {
   apiBase: string
   session: SessionId
   stateRoot: string
+  token: string
   targetsDir: string
   call: Call
   goto: (to: string) => Promise<void>
@@ -98,8 +105,9 @@ function makeCall(rpc: RpcClient): Call {
   function call(name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
   function call(name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
   function call(name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
+  function call(name: 'design_components', input: z.input<typeof componentsDef.inputSchema>): Promise<Listed>
   async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
-    const def = [getDef, checkDef, statusDef].find((candidate) => candidate.name === name)
+    const def = [getDef, checkDef, statusDef, componentsDef].find((candidate) => candidate.name === name)
     if (def?.outputSchema === undefined) throw new Error(`no design tool named ${name}`)
     return def.outputSchema.parse(await rpc.registry.call({name, input}))
   }
@@ -158,7 +166,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
   const local = server.resolvedUrls?.local[0]
   if (local === undefined) throw new Error('the fixture dev server has no local url')
   const origin = new URL(local).origin
-  const {apiBase} = EndpointSchema.parse(JSON.parse(await readFile(join(devEndpointDir, ENDPOINT_FILE), 'utf8')))
+  const {apiBase, token} = EndpointSchema.parse(JSON.parse(await readFile(join(devEndpointDir, ENDPOINT_FILE), 'utf8')))
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
@@ -184,6 +192,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
     apiBase,
     session,
     stateRoot,
+    token,
     targetsDir,
     call: makeCall(rpc),
     goto,
@@ -771,5 +780,57 @@ describe('catalog store', () => {
     expect((await catalog.componentOf('src/XrayPage.tsx:9:9'))?.names).toEqual(['XrayPage'])
     expect(await catalog.componentOf('src/XrayPage.tsx:2:1')).toBeNull()
     expect(await catalog.componentOf('index.html:3:1')).toBeNull()
+  })
+})
+
+describe('design_components', () => {
+  function firstBlock(text: string): string {
+    return text.split('\n\n')[0] ?? ''
+  }
+
+  it('lists the kit tier first, each row with its import line and rank facts', async () => {
+    const listed = await call('design_components', {})
+    const first = firstBlock(listed.text)
+    expect(first).toContain('import {')
+    expect(first).toContain('\nkit · ')
+    expect(first).toContain(' imports')
+    expect(listed.components?.length).toBeGreaterThan(0)
+  })
+
+  it('shows one component with every prop and its file', async () => {
+    const shown = await call('design_components', {show: 'PinInput'})
+    const props = shown.component?.props
+    expect(Array.isArray(props) && props.length > 0).toBe(true)
+    expect(shown.text).toContain(shown.component?.file)
+  })
+
+  it('leaves a do-not-use component out of the list', async () => {
+    const slider = "import {Slider} from '@conciv/ui-kit-system'"
+    expect((await call('design_components', {})).text).toContain(slider)
+    await call('design_components', {flag: {name: 'Slider', flag: 'do-not-use'}})
+    try {
+      expect((await call('design_components', {})).text).not.toContain(slider)
+    } finally {
+      await call('design_components', {flag: {name: 'Slider', flag: 'clear'}})
+    }
+  })
+
+  it('the CLI prints the same first row', async () => {
+    const listed = await call('design_components', {})
+    const printed = await promisify(execFile)(
+      process.execPath,
+      [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'components'],
+      {
+        cwd: kit.stateRoot,
+        env: {
+          ...process.env,
+          CONCIV_PORT: new URL(kit.apiBase).port,
+          CONCIV_TOKEN: kit.token,
+          CONCIV_SESSION_ID: kit.session,
+        },
+      },
+    )
+    const envelope = CliEnvelopeSchema.parse(JSON.parse(printed.stdout))
+    expect(firstBlock(envelope.data.text)).toBe(firstBlock(listed.text))
   })
 })
