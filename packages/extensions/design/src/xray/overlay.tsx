@@ -120,7 +120,9 @@ function RailButton(props: {label: string; icon: Component<LucideProps>; active?
       class={`px-1 pb-1 pt-1.5 border-0 rounded-chat-surface-sm flex flex-col gap-0.5 w-12 cursor-pointer items-center ${props.active ? 'bg-chat-fill-strong text-chat-accent' : 'bg-transparent text-chat-text-3'}`}
       data-conciv-key="_04rZQ"
     >
-      <props.icon class="size-5 block" aria-hidden="true" />
+      <span class="size-5 block" data-conciv-key="Mj0Whg">
+        <props.icon class="size-full block" aria-hidden="true" />
+      </span>
       <span
         class={`text-[length:var(--chat-text-xs)] leading-none ${props.active ? 'font-semibold' : 'font-normal'}`}
         data-conciv-key="P-ZisQ"
