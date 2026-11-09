@@ -32,6 +32,7 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
       return row === undefined ? (props.moreRowSize ?? 0) : props.sizeOf(row)
     },
     overscan: OVERSCAN,
+    useAnimationFrameWithResizeObserver: true,
     onChange: () => reachMore(),
   })
   const reachMore = (): void => {
@@ -52,12 +53,13 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
           {(item) => (
             <div
               role="presentation"
+              data-index={item.index}
+              ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
               style={{
                 position: 'absolute',
                 'inset-block-start': '0',
                 'inset-inline-start': '0',
                 'inline-size': '100%',
-                'block-size': `${item.size}px`,
                 transform: `translateY(${item.start}px)`,
               }}
             >

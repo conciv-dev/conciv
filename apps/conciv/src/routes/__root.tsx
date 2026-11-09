@@ -326,11 +326,12 @@ function RootChrome(props: {
     }
     void router.navigate({to: '/panel/latest', search: {open: true}, replace: Boolean(quickMatch())})
   }
-  const closePanel = () => {
+  const closePanel = (restoreFocus = true) => {
     if (settings.surface === 'dock') return
     const captured = hostRestoreTarget
     hostRestoreTarget = null
     void setShutter(router, false).then(() => {
+      if (!restoreFocus) return
       if (captured?.isConnected) {
         captured.focus()
         return
@@ -351,7 +352,7 @@ function RootChrome(props: {
     if (!preferences.stored().closeOnOutsideClick || !panelOpen() || settings.surface === 'dock') return
     const root = rootEl?.getRootNode()
     const widget = root instanceof ShadowRoot ? root.host : rootEl
-    if (widget && !event.composedPath().includes(widget)) closePanel()
+    if (widget && !event.composedPath().includes(widget)) closePanel(false)
   })
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
@@ -474,7 +475,7 @@ function RootChrome(props: {
 
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
-      <PanelChromeContext.Provider value={{close: closePanel, frame: setPanelElement}}>
+      <PanelChromeContext.Provider value={{close: () => closePanel(), frame: setPanelElement}}>
         <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>

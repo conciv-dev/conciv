@@ -11,6 +11,7 @@ import {
 import {createStore, reconcile} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import {makeEventListener} from '@solid-primitives/event-listener'
+import {createMediaQuery} from '@solid-primitives/media'
 import {
   Virtualizer,
   elementScroll,
@@ -21,10 +22,14 @@ import {
 } from '@tanstack/solid-virtual'
 
 export const SCROLL_END_THRESHOLD_PX = 1
+const NEAR_START_VIEWPORTS = 3
+const GLIDE_VIEWPORTS = 2
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
-type ReaderInput = 'untouched' | 'holding' | 'touched'
+type ReaderInput = 'untouched' | 'holding' | 'touched' | 'aiming-at-end' | 'gliding-to-end'
 
 type OffsetRecovery =
   | {phase: 'viewport-attached'}
@@ -82,12 +87,14 @@ export type ThreadVirtualizer = {
   atEnd: Accessor<boolean>
   nearStart: Accessor<boolean>
   landOnEnd: () => void
+  glideToEnd: () => void
   measureRow: (element: Element) => void
   remeasure: () => void
 }
 
 export function createThreadVirtualizer(config: ThreadVirtualizerConfig): ThreadVirtualizer {
   let landedOffset: number | undefined
+  const reducedMotion = createMediaQuery(REDUCED_MOTION)
 
   const writeScroll = (offset: number, behavior: ScrollBehavior | undefined): void => {
     elementScroll(offset, {adjustments: undefined, behavior}, instance)
@@ -108,8 +115,31 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   }
 
   const returnToEnd = (): void => {
+    instance.cancelScroll()
     if (readerInput !== 'holding') readerInput = 'untouched'
     landOnEnd()
+  }
+
+  const glideToEnd = (): void => {
+    if (reducedMotion()) {
+      returnToEnd()
+      return
+    }
+    if (readerInput !== 'holding') readerInput = 'gliding-to-end'
+    landedOffset = undefined
+    jumpNearEnd()
+    instance.scrollToEnd({behavior: 'smooth'})
+  }
+
+  const jumpNearEnd = (): void => {
+    const element = config.scrollElement()
+    const target = instance.getOffsetForIndex(config.count() - 1, 'end')
+    if (!element?.isConnected || !target) return
+    const nearEnd = target[0] - element.clientHeight * GLIDE_VIEWPORTS
+    if (element.scrollTop >= nearEnd) return
+    writeScroll(nearEnd, 'auto')
+    instance.scrollOffset = element.scrollTop
+    update()
   }
 
   const stillOnTheLanding = (element: HTMLElement): boolean =>
@@ -129,13 +159,21 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
   let readerInput: ReaderInput = 'untouched'
 
   const holdViewport = (): void => {
+    instance.cancelScroll()
     readerInput = 'holding'
   }
   const releaseViewport = (): void => {
     if (readerInput === 'holding') readerInput = 'touched'
   }
   const noteReaderInput = (): void => {
+    instance.cancelScroll()
     if (readerInput !== 'holding') readerInput = 'touched'
+  }
+  const noteWheel = (event: WheelEvent): void => {
+    noteReaderInput()
+    const element = config.scrollElement()
+    if (!element || readerInput === 'holding') return
+    if (wheelReachesEnd(event, element)) readerInput = 'aiming-at-end'
   }
 
   const rememberAnchor = (element: HTMLElement): void => {
@@ -168,6 +206,16 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     landedOffset = undefined
   }
 
+  const settleLanding = (element: HTMLElement): void => {
+    if (readerInput !== 'holding' && liveAtEnd()) takeLanding(element)
+    if (!stillOnTheLanding(element)) releaseOrReland()
+  }
+
+  const takeLanding = (element: HTMLElement): void => {
+    landedOffset = element.scrollTop
+    if (readerInput === 'gliding-to-end') readerInput = 'untouched'
+  }
+
   const onScrolled = (): void => {
     if (recovery.phase === 'deferred-behind-gesture') {
       const {anchor} = recovery
@@ -178,7 +226,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       }
     }
     const element = config.scrollElement()
-    if (element && !stillOnTheLanding(element)) releaseOrReland()
+    if (element) settleLanding(element)
     syncAtEnd()
     if (element?.isConnected) rememberAnchor(element)
   }
@@ -236,12 +284,12 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
 
   const followingReader = (): boolean => {
     const element = config.scrollElement()
-    return liveAtEnd() || (element !== undefined && stillOnTheLanding(element))
+    return liveAtEnd() || readerInput === 'aiming-at-end' || (element !== undefined && stillOnTheLanding(element))
   }
 
   const liveNearStart = (): boolean => {
     const element = config.scrollElement()
-    return element?.isConnected === true && element.scrollTop <= element.clientHeight
+    return element?.isConnected === true && element.scrollTop <= element.clientHeight * NEAR_START_VIEWPORTS
   }
 
   const syncAtEnd = () => {
@@ -280,7 +328,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     if (element) {
       makeEventListener(element, 'scroll', onScrolled, {passive: true})
       makeEventListener(element, 'pointerdown', holdViewport, {passive: true})
-      makeEventListener(element, 'wheel', noteReaderInput, {passive: true})
+      makeEventListener(element, 'wheel', noteWheel, {passive: true})
       makeEventListener(element, 'touchmove', noteReaderInput, {passive: true})
       makeEventListener(element, 'keydown', noteReaderInput, {passive: true})
       makeEventListener(element.ownerDocument, 'pointerup', releaseViewport, {passive: true})
@@ -334,8 +382,9 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     const firstKey = firstTurnKey()
     const lastKey = lastTurnKey()
     const sameThread = isSameThread(element, firstKey, lastKey)
+    const prependedMidGlide = readerInput === 'gliding-to-end' && landing.firstKey !== firstKey
     setLanding({element, firstKey, lastKey})
-    if (!sameThread) {
+    if (!sameThread || prependedMidGlide) {
       returnToEnd()
       return
     }
@@ -349,6 +398,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     atEnd: () => edges.atEnd,
     nearStart: () => edges.nearStart,
     landOnEnd: returnToEnd,
+    glideToEnd,
     measureRow: (element) => instance.measureElement(element),
     remeasure: () => {
       instance.measureElement(null)
@@ -359,4 +409,33 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       }
     },
   }
+}
+
+function wheelReachesEnd(event: WheelEvent, thread: HTMLElement): boolean {
+  const distance = wheelPixels(event, thread)
+  if (distance <= 0 || distance < remainingBelow(thread)) return false
+  const path = event.composedPath()
+  return !path.slice(0, path.indexOf(thread)).some(takesDownwardWheel)
+}
+
+function wheelPixels(event: WheelEvent, thread: HTMLElement): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * thread.clientHeight
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * lineHeightOf(thread)
+  return event.deltaY
+}
+
+function lineHeightOf(element: HTMLElement): number {
+  const style = getComputedStyle(element)
+  return Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize)
+}
+
+function remainingBelow(element: Element): number {
+  return element.scrollHeight - element.clientHeight - element.scrollTop
+}
+
+function takesDownwardWheel(target: EventTarget): boolean {
+  if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return false
+  const style = getComputedStyle(target)
+  if (!SCROLLABLE_OVERFLOW.has(style.overflowY)) return false
+  return remainingBelow(target) > SCROLL_END_THRESHOLD_PX || style.overscrollBehaviorY !== 'auto'
 }

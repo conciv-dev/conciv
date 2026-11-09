@@ -42,7 +42,7 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
     }),
     () => options.queryClient,
   )
-  const saved = (): Record<string, unknown> => (snapshot.isSuccess ? snapshot.data.value : {})
+  const saved = (): Record<string, unknown> => (snapshot.isPending ? {} : (snapshot.data?.value ?? {}))
   const stored = createMemo(() => PreferencesSchema.parse(saved()))
   const hostHotkeys = (command: ShortcutCommand): string[] | null =>
     command === 'quickTerminal' ? options.host.quickTerminal.hotkeys : null
@@ -50,7 +50,7 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
     isEqual(value, PREFERENCE_DEFAULTS[key]) ? options.store.delete(key) : options.store.set(key, value)
   return {
     stored,
-    status: () => snapshot.status,
+    status: () => (snapshot.isPending ? 'pending' : snapshot.data ? 'success' : 'error'),
     retry: () => void snapshot.refetch(),
     launcher: () => (options.host.fromHost.launcher ? launcherChoice(options.host.launcher) : stored().launcher),
     openOnLoad: () => (options.host.fromHost.defaultOpen ? options.host.defaultOpen : stored().openOnLoad),

@@ -13,7 +13,7 @@ import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
@@ -550,6 +550,7 @@ const STREAMED_TEXT_CHUNK = 56
 const STREAMED_TEXT_PACE_MS = 30
 const STREAMED_CODE_CLOSING = 'That is the whole helper.'
 const SEEDED_EXCHANGES = Math.floor((VIRTUALIZE_THRESHOLD - 4) / 2)
+const LONG_CHAT_EXCHANGES = CHAT_HISTORY_PAGE_SIZE / 2
 
 const core = {base: ''}
 const active: {pane: PaneMount | null; watch: CalmWatch | null} = {pane: null, watch: null}
@@ -714,6 +715,25 @@ export async function streamCodeAnswer(): Promise<CalmWatch> {
   await watch.checkpoint()
   await coreControl.releaseTools()
   await expect.element(page.getByText(STREAMED_CODE_CLOSING, {exact: true})).toBeVisible()
+  await watch.checkpoint()
+  return watch
+}
+
+export async function glideToLatestFromFarUp(): Promise<CalmWatch> {
+  const {sessionId} = await newSession()
+  await seedThread(core.base, sessionId, LONG_CHAT_EXCHANGES)
+  mountChatPane(sessionId)
+  const exchange = (index: number) => page.getByText(`seeded exchange ${index}`, {exact: true})
+  const latest = page.getByRole('button', {name: 'Scroll to bottom'})
+  await expect.element(exchange(LONG_CHAT_EXCHANGES - 1)).toBeVisible()
+  await userEvent.click(exchange(LONG_CHAT_EXCHANGES - 1))
+  await userEvent.keyboard('{Home}')
+  await expect.element(exchange(0)).toBeVisible()
+  const watch = watchCalm()
+  await watch.checkpoint()
+  await userEvent.click(latest)
+  await expect.element(exchange(LONG_CHAT_EXCHANGES - 1)).toBeInViewport()
+  await expect.element(latest).toBeDisabled()
   await watch.checkpoint()
   return watch
 }

@@ -59,11 +59,12 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
       const paged = pageAfter(listed, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
       return Promise.resolve({sessions: paged.items, next: paged.next})
     },
-    messages: async (_cwd, sessionId) => {
+    messages: async (_cwd, sessionId, options) => {
       const row = rows.find((candidate) => candidate.id === sessionId)
       const text = row?.text
       if (row?.messages === undefined && text === undefined) return []
       await transcripts.wait()
+      options?.signal?.throwIfAborted()
       return (
         row?.messages ?? [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text ?? ''}]}]
       )
