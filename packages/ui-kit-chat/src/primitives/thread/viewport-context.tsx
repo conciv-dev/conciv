@@ -4,6 +4,7 @@ export type ThreadScroller = {
   atEnd: Accessor<boolean>
   nearStart: Accessor<boolean>
   landOnEnd: () => void
+  glideToEnd: () => void
 }
 
 export type ViewportContextValue = {

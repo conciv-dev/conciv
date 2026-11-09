@@ -1446,6 +1446,7 @@ describe('virtual thread', () => {
   const ABOVE_THRESHOLD = VIRTUALIZE_THRESHOLD * 4
   const JUST_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 1
   const WELL_BELOW_THRESHOLD = VIRTUALIZE_THRESHOLD - 5
+  const NESTED_SCROLL_PX = 20_000
 
   function lastAnswer(count: number): string {
     return `answer ${count % 2 === 0 ? count - 1 : count - 2}`
@@ -1484,9 +1485,21 @@ describe('virtual thread', () => {
     )
   }
 
+  function ScrollingAssistantMessage(): JSX.Element {
+    return (
+      <Message.Root class="self-start">
+        <div role="region" aria-label="Scrolling answer" tabindex="0" class="h-6 overflow-y-auto">
+          <Message.Parts />
+          <div style={{height: `${NESTED_SCROLL_PX}px`}} />
+        </div>
+      </Message.Root>
+    )
+  }
+
   function mountThread(
     initial: ChatMessage[],
     stream: StoryConnectionOptions = {chunks: []},
+    assistant: () => JSX.Element = AssistantMessage,
   ): {
     host: HTMLElement
     viewport: () => HTMLElement
@@ -1520,7 +1533,7 @@ describe('virtual thread', () => {
                 </div>
               }
             >
-              <PrimitiveThread.Messages components={{UserMessage, AssistantMessage}} />
+              <PrimitiveThread.Messages components={{UserMessage, AssistantMessage: assistant}} />
             </PrimitiveThread.Viewport>
           </PrimitiveThread.Root>
         </ChatProvider>
@@ -1570,6 +1583,24 @@ describe('virtual thread', () => {
     await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
     await expect.element(page.getByText('question 0')).not.toBeInTheDocument()
     await expect.element(thread.transcript).toHaveAttribute('data-at-bottom')
+  })
+
+  it('a downward wheel a nested scroller takes leaves the reader in place when the next message arrives', async () => {
+    const seeded = seedMessages(ABOVE_THRESHOLD)
+    const thread = mountThread(seeded, {chunks: []}, ScrollingAssistantMessage)
+    const latest = page.getByRole('button', {name: 'Scroll to bottom'})
+    const firstAnswer = page.getByRole('region', {name: 'Scrolling answer'}).filter({hasText: /^answer 1\s/})
+    await expect.element(page.getByText(lastAnswer(ABOVE_THRESHOLD), {exact: false})).toBeVisible()
+
+    await userEvent.wheel(thread.transcript, {delta: {y: -1_000_000}})
+    await expect.element(firstAnswer).toBeInViewport()
+    await userEvent.wheel(firstAnswer, {delta: {y: NESTED_SCROLL_PX / 2}})
+    thread
+      .chat()
+      .setMessages([...seeded, {id: 'late', role: 'user', parts: [{type: 'text', content: 'late question'}]}])
+
+    await expect.element(firstAnswer).toBeInViewport()
+    await expect.element(latest).toBeEnabled()
   })
 
   it('history prepend keeps the reading position while scrolled up', async () => {
