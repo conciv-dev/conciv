@@ -522,3 +522,10 @@ element, and a widget dependency that reads `process.env` threw, so the widget w
 - Image rows for a frame whose width is not the tab's are taken from the mirror at that frame's width, as layout rows
   are; the live tab answers only its own width.
 - The width floor that drops reflow widths under the smallest `minChildWidth` never drops a frame's own width.
+
+A background asset is the fill stack flattened (2026-11-09). A node whose fills hold an image is given one asset:
+its fill layers composited bottom to top in design order, each with its own opacity, blend mode, scale mode and
+filters, at twice the node's box in pixels, never the original's size. Solid and gradient layers inside the stack
+are part of the asset; a solid layer below the stack stays a `fill` the agent writes as CSS. The agent is told the
+asset is complete: it sets it as the background and adds no filter, overlay or tint of its own. The look row for such
+a node compares the node's pixels against the asset as before.
