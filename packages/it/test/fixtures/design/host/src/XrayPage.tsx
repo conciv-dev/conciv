@@ -31,7 +31,12 @@ export function XrayPage() {
           </p>
           <section className="xp-figures" data-conciv-key="A4VsVg">
             {STATS.map((stat) => (
-              <div key={stat.label} className="xp-card" data-conciv-key="yW45EQ">
+              <div
+                key={stat.label}
+                className="xp-card"
+                data-conciv-key="yW45EQ"
+                data-conciv-instance={`A4VsVg/yW45EQ/${stat.label}`}
+              >
                 <span className="xp-card-value" data-conciv-key="OszFng">{stat.value}</span>
                 <span className="xp-card-label" data-conciv-key="TOcseA">{stat.label}</span>
               </div>

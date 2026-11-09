@@ -37,6 +37,10 @@ const LAST_CHECK_MINUTES_AGO = 2
 
 const ROUNDS = [1, 2, 3, 4, 5, 6]
 
+const STATS_KEY = 'A4VsVg'
+
+const CARD_KEY = 'yW45EQ'
+
 const SAMPLES: Record<string, () => Sample> = {
   empty: () => ({...roundSample(), current: null}),
   round: roundSample,
@@ -176,29 +180,29 @@ function row(input: {node: string; name: string; magnitude: Row['magnitude']; te
 
 function pageLayer(): Layer {
   return layer({
-    id: 'xRaYpG',
+    id: 'n7jFZw',
     element: 'main',
     box: {x: 240, y: 56, w: 1200, h: 844},
     children: [
       layer({
-        id: 'gReEtG',
+        id: 'dfU4xA',
         element: 'h1',
         box: {x: 472, y: 88, w: 300, h: 36},
         look: look({node: '33:240', name: 'Greeting', box: {x: 472, y: 88, w: 300, h: 36}}),
       }),
       layer({
-        id: 'sTaTsR',
+        id: STATS_KEY,
         element: 'div',
         box: {x: 472, y: 208, w: 820, h: 150},
         within: look({node: '34:599', name: 'the stats row', box: {x: 472, y: 208, w: 820, h: 150}}),
         children: [
-          card({id: 'sTaTpK', node: '34:600', name: 'Stat / Picked', x: 472}),
-          card({id: 'sTaTiV', node: '34:610', name: 'Stat / Invoices', x: 752}),
-          card({id: 'sTaTtR', node: '34:620', name: 'Stat / Trucks', x: 1032}),
+          card({label: 'Picked this week', node: '34:600', name: 'Stat / Picked', x: 472}),
+          card({label: 'Open invoices', node: '34:610', name: 'Stat / Invoices', x: 752}),
+          card({label: 'Trucks on the road', node: '34:620', name: 'Stat / Trucks', x: 1032}),
         ],
       }),
       layer({
-        id: 'aVaTaR',
+        id: 'arzcgA',
         element: 'div',
         box: {x: 472, y: 378, w: 56, h: 56},
         look: look({node: '34:617', name: 'Avatar', box: {x: 472, y: 378, w: 56, h: 56}}),
@@ -207,10 +211,11 @@ function pageLayer(): Layer {
   })
 }
 
-function card(input: {id: string; node: string; name: string; x: number}): Layer {
+function card(input: {label: string; node: string; name: string; x: number}): Layer {
   const box = {x: input.x, y: 208, w: 260, h: 150}
   return layer({
-    id: input.id,
+    id: CARD_KEY,
+    instance: `${STATS_KEY}/${CARD_KEY}/${input.label}`,
     element: 'div',
     classes: ['lp-card'],
     box,
@@ -232,6 +237,7 @@ function layer(input: {
   classes?: string[]
   background?: string
   radius?: number
+  instance?: string
   look?: Placed
   within?: Placed
   children?: Layer[]
@@ -240,7 +246,7 @@ function layer(input: {
   const placed = own ?? within
   return {
     id: input.id,
-    dom: [{path: `/${input.id}`, text: '', drawn: false, box, instance: null, at: box, kids: 0}],
+    dom: [{path: `/${input.id}`, text: '', drawn: false, box, instance: input.instance ?? null, at: box, kids: 0}],
     cssom: [
       {
         background: input.background ?? 'rgba(0, 0, 0, 0)',
@@ -269,7 +275,7 @@ function layer(input: {
         : [
             {
               nodeId: placed.node,
-              instance: null,
+              instance: input.instance ?? null,
               confidence: 1,
               margin: 1,
               round: ROUNDS.length,

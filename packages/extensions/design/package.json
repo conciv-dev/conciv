@@ -94,6 +94,7 @@
     "@conciv/extension-compiler": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",

@@ -5,6 +5,8 @@ import {groupBy, sortBy, uniq, uniqBy} from 'es-toolkit'
 import {engineHeaders, makeBrowserRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {GateRow} from '../shared/defs.js'
+import {readIds} from '../shared/id-tree.js'
+import {walk} from '../shared/tree.js'
 import type {XrayRouter} from '../server.js'
 
 export function createXrayData(input: {
@@ -35,6 +37,7 @@ export function createXrayData(input: {
     stack: boolean
     planes: Record<Plane, boolean>
     picked: string | null
+    hovered: string | null
     shown: Record<Layer, boolean>
   }>({
     round: null,
@@ -43,6 +46,7 @@ export function createXrayData(input: {
     stack: false,
     planes: {src: true, cssom: true, dom: false},
     picked: null,
+    hovered: null,
     shown: {design: true, page: false, moved: false},
   })
   const rounds = createMemo(() => design.latest?.rounds ?? [])
@@ -112,7 +116,9 @@ export function createXrayData(input: {
     const root = layers.latest
     if (!root) return []
     const worst = new Map(problems().map((entry) => [entry.node, entry.magnitude]))
-    return uniqBy(entriesOf(root.root), (entry) => entry.nodeId).flatMap((entry) =>
+    const {selector} = readIds({root: root.root, live: null})
+    const placed = [...walk(root.root)].flatMap(({node: site}) => site.fom.map((entry) => ({site, entry})))
+    return uniqBy(placed, (place) => place.entry.nodeId).flatMap(({site, entry}) =>
       entry.box === null
         ? []
         : [
@@ -120,6 +126,7 @@ export function createXrayData(input: {
               node: entry.nodeId,
               name: entry.look?.name ?? entry.nodeId,
               box: entry.box,
+              selector: selector({id: site.id, instance: entry.instance}),
               magnitude: worst.get(entry.nodeId) ?? null,
             },
           ],
@@ -175,6 +182,8 @@ export function createXrayData(input: {
     picked: () => ui.picked,
     setPick: (on: boolean) => setUi('pick', on),
     pickNode: (node: string | null) => setUi('picked', node),
+    hovered: () => ui.hovered,
+    hover: (node: string | null) => setUi('hovered', node),
     shown: (layer: Layer) => ui.shown[layer],
     pinRound: (round: number | null) => setUi('round', round),
     pickViewport: (width: number) => setUi('width', width),
@@ -201,10 +210,6 @@ type Layer = 'design' | 'page' | 'moved'
 type LayerRoot = NonNullable<Awaited<ReturnType<XrayClient['xray']['layers']>>>['root']
 
 type XrayClient = ReturnType<typeof makeExtRpcClient<XrayRouter>>
-
-function entriesOf(layer: LayerRoot): LayerRoot['fom'] {
-  return [...layer.fom, ...layer.children.flatMap(entriesOf)]
-}
 
 type LayerNode = LayerRoot
 
