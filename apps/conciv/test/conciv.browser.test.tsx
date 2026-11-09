@@ -110,6 +110,7 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
+  afterAll(() => coreControl.setHubConnection('codex', false))
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -1267,7 +1268,6 @@ describe('grab staging', () => {
 describe('chat history paging', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const SEEDED_EXCHANGES = 100
-  const GLIDE_DRAG_WINDOW_MS = 1_500
   const STREAMED_REPLY_CLOSING = 'That is the end of the streamed reply.'
   const STREAMED_REPLY = [
     ...Array.from({length: 30}, (_, line) => `Streamed reply line ${line} keeps the reader company while it grows.`),
@@ -1460,13 +1460,13 @@ describe('chat history paging', () => {
     await userEvent.wheel(thread(), {delta: {y: -400}})
     await faults.releaseAll()
     await expect.element(loadingOlder()).not.toBeInTheDocument()
-    await new Promise((resolve) => setTimeout(resolve, GLIDE_DRAG_WINDOW_MS))
+    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
+    await streamReplyAndSettle('streamed while scrolled away')
 
     await expect.element(latest()).toBeEnabled()
 
     await userEvent.click(latest())
     await expect.element(latest()).toBeDisabled()
-    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
     await coreControl.scriptTurn({toolCalls: [], text: STREAMED_REPLY, textPace: STREAMED_REPLY_PACE})
     const streamed = await sendTurn(core(), long.sessionId, 'streamed while reading')
     await expect.element(page.getByText('streamed while reading', {exact: true})).toBeInViewport()
@@ -1475,10 +1475,19 @@ describe('chat history paging', () => {
     await scrollToEnd()
     await streamed.awaitTurnEnd()
 
-    await expect.element(page.getByText(STREAMED_REPLY_CLOSING, {exact: true})).toBeInViewport()
+    await expect.element(page.getByText(STREAMED_REPLY_CLOSING, {exact: true}).last()).toBeInViewport()
     await expect.element(latest()).toBeDisabled()
     await coreControl.clearScript()
   }, 60_000)
+
+  async function streamReplyAndSettle(text: string): Promise<void> {
+    const stop = page.getByRole('button', {name: 'Stop generating'})
+    await coreControl.scriptTurn({toolCalls: [], text: STREAMED_REPLY, textPace: STREAMED_REPLY_PACE})
+    const turn = await sendTurn(core(), long.sessionId, text)
+    await expect.element(stop).toBeVisible()
+    await turn.awaitTurnEnd()
+    await expect.element(stop).not.toBeInTheDocument()
+  }
 
   test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {
     const sessionId = await seedExchanges()
@@ -2740,6 +2749,7 @@ describe('session options outside agents', () => {
   const coreBase = bootedCore('outside-agents')
   const harness = createShellHarness(coreBase)
   afterEach(harness.dispose)
+  afterAll(() => coreControl.setHubConnection('codex', false))
   const strip = () => page.getByRole('group', {name: 'Permission request'})
   const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
   const approve = () =>

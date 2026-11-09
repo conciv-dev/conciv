@@ -25,6 +25,7 @@ export const SCROLL_END_THRESHOLD_PX = 1
 const NEAR_START_VIEWPORTS = 3
 const GLIDE_VIEWPORTS = 2
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+const SCROLLABLE_OVERFLOW = new Set(['auto', 'scroll'])
 
 type ViewportAnchor = {mode: 'resume-following'} | {mode: 'preserve-reader-anchor'; offset: number}
 
@@ -171,7 +172,7 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
     noteReaderInput()
     const element = config.scrollElement()
     if (!element || readerInput === 'holding') return
-    if (event.deltaY >= element.scrollHeight - element.clientHeight - element.scrollTop) readerInput = 'aiming-at-end'
+    if (wheelReachesEnd(event, element)) readerInput = 'aiming-at-end'
   }
 
   const rememberAnchor = (element: HTMLElement): void => {
@@ -401,4 +402,33 @@ export function createThreadVirtualizer(config: ThreadVirtualizerConfig): Thread
       }
     },
   }
+}
+
+function wheelReachesEnd(event: WheelEvent, thread: HTMLElement): boolean {
+  const distance = wheelPixels(event, thread)
+  if (distance <= 0 || distance < remainingBelow(thread)) return false
+  const path = event.composedPath()
+  return !path.slice(0, path.indexOf(thread)).some(takesDownwardWheel)
+}
+
+function wheelPixels(event: WheelEvent, thread: HTMLElement): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * thread.clientHeight
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * lineHeightOf(thread)
+  return event.deltaY
+}
+
+function lineHeightOf(element: HTMLElement): number {
+  const style = getComputedStyle(element)
+  return Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize)
+}
+
+function remainingBelow(element: Element): number {
+  return element.scrollHeight - element.clientHeight - element.scrollTop
+}
+
+function takesDownwardWheel(target: EventTarget): boolean {
+  if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return false
+  const style = getComputedStyle(target)
+  if (!SCROLLABLE_OVERFLOW.has(style.overflowY)) return false
+  return remainingBelow(target) > SCROLL_END_THRESHOLD_PX || style.overscrollBehaviorY !== 'auto'
 }
