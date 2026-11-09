@@ -28,6 +28,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
+import {takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1331,6 +1332,25 @@ describe('cli', () => {
       expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
       expect(entries.has('conciv-hub')).toBe(true)
       expect(hub.list()).toMatchObject([{harness: 'claude'}])
+    })
+
+    it('a lease lasts as long as the process holding it, up to a ten minute ceiling against pid reuse', async () => {
+      const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+      const leased = createHubConnections(home, async () => ({ok: true, output: '', message: ''}))
+      const lease = (pid: number, age: number) =>
+        withHomeDb(home, (db) =>
+          takeHubOperation(db, {harness: 'claude', pid, startedAt: Date.now() - age}, () => true),
+        )
+      const exited = spawnSync('true').pid
+      lease(process.pid, 5 * 60_000)
+      expect(await leased.connect('claude', ['conciv'])).toEqual({
+        ok: false,
+        message: 'Claude is still being (dis)connected; try again in a moment',
+      })
+      lease(exited, 0)
+      expect(await leased.connect('claude', ['conciv'])).toEqual({ok: true})
+      lease(process.pid, 11 * 60_000)
+      expect(await leased.disconnect('claude')).toEqual({ok: true})
     })
 
     it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {

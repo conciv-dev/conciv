@@ -31,7 +31,7 @@ const GrantsSchema = z.object({
   outside: z.array(z.string()).default([]),
   denied: z.array(z.string()).default([]),
   refused: z.array(z.string()).default([]),
-  outsideAllowedGeneration: z.number().default(0),
+  outsideAllowedGeneration: z.number().nullable().default(null),
 })
 
 type Grants = z.infer<typeof GrantsSchema>
@@ -94,7 +94,7 @@ type ApprovalMetadata = ChatStores['metadata'] & {
 export function createApprovalStore(
   metadata: ApprovalMetadata,
   hubAccess: HubAccess,
-  hubGeneration: () => number,
+  hubGeneration: () => number | null,
 ): ApprovalStore {
   const outsideHolder = (threadId: string): string => (hubAccess === 'project' ? PROJECT_HOLDER : threadId)
   const holderOf = (threadId: string, approvalId: string): string =>
@@ -112,7 +112,7 @@ export function createApprovalStore(
         outside: [],
         denied: [],
         refused: [],
-        outsideAllowedGeneration: 0,
+        outsideAllowedGeneration: null,
       },
     )
   const writeGrants = (threadId: string, grants: Grants): Promise<void> =>
@@ -209,7 +209,9 @@ export function createApprovalStore(
     admit: async (threadId, approvalId) => {
       const holder = holderOf(threadId, approvalId)
       const grants = await grantsOf(holder)
-      const revoked = approvalId === OUTSIDE_APPROVAL_ID && grants.outsideAllowedGeneration < hubGeneration()
+      const current = hubGeneration()
+      const revoked =
+        approvalId === OUTSIDE_APPROVAL_ID && (current === null || grants.outsideAllowedGeneration !== current)
       if (grants.session.includes(approvalId) && !revoked) return 'allowed'
       if (grants.refused.includes(approvalId)) return 'denied'
       if (!grants.outside.includes(approvalId)) return 'ask'

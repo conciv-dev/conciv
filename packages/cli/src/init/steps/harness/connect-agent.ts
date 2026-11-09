@@ -42,10 +42,10 @@ async function applyConnect(
 }
 
 function connections(io: ConnectAgentIo, ctx: InitContext) {
-  return createHubConnections(io.concivHome, async (argv) => {
+  return createHubConnections(io.concivHome, async (argv, timeout) => {
     const [bin, ...args] = argv
     if (bin === undefined) return {ok: false, output: '', message: 'the harness gave no command to run'}
-    const outcome = await io.spawn(bin, args, ctx.cwd, ctx.feed)
+    const outcome = await io.spawn(bin, args, ctx.cwd, ctx.feed, timeout)
     return {ok: outcome.code === 0, output: outcome.output, message: outcome.output.trim()}
   })
 }

@@ -43,7 +43,7 @@ type ChatPlaneDeps = TurnDeps & {
   db: ConcivDb
   stateRoot: string
   hubAccess: HubAccess
-  hubGeneration: () => number
+  hubGeneration: () => number | null
   firstOutputTimeoutMs?: number
 }
 

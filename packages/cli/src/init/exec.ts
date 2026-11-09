@@ -5,7 +5,7 @@ export type CommandOutcome = {code: number; output: string}
 export function execFileOutcome(
   bin: string,
   args: string[],
-  options: {cwd: string; env?: NodeJS.ProcessEnv},
+  options: {cwd: string; env?: NodeJS.ProcessEnv; timeout?: number},
   onLine: (line: string) => void,
 ): Promise<CommandOutcome> {
   return new Promise((settle, reject) => {

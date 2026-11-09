@@ -11,7 +11,7 @@ Init steps that connect agent harnesses. They write the consent file .conciv/har
 - `harnessInitStep(init, consented, io)` (`install-harness.ts`): InitStep with id init.harnessId that writes plan files and runs plan commands
 - `HarnessInitIo` {home, run} (`install-harness.ts`)
 - `consentFile(cwd)` / `writeConsent(cwd, ids)` (`consent.ts`): the .conciv/harnesses.json path and its writer
-- `connectAgentStep(agent, consented, {concivHome, spawn})` (`connect-agent.ts`): InitStep `connect-<agent>` that connects the agent to conciv through `createHubConnections` (`@conciv/harness-init/hub`), running the agent CLI's `hub.add` with `serveArgv(agent)` through `spawn`; detect is 'present' when the conciv home db already holds the connection; an agent not selected is skipped as 'not selected'; a failing add is manual with a `conciv mcp connect <agent>` card
+- `connectAgentStep(agent, consented, {concivHome, spawn})` (`connect-agent.ts`): InitStep `connect-<agent>` that connects the agent to conciv through `createHubConnections` (`@conciv/harness-init/hub`), running the agent CLI's `hub.add` with `serveArgv(agent)` through `spawn` with the hub's 30 s per-command timeout; detect is 'present' when the conciv home db already holds the connection; an agent not selected is skipped as 'not selected'; a failing add is manual with a `conciv mcp connect <agent>` card
 
 ## Invariants
 

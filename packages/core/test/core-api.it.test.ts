@@ -11,6 +11,7 @@ import {
   utimesSync,
   symlinkSync,
   renameSync,
+  chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
 import {open, writeFile} from 'node:fs/promises'
@@ -4029,6 +4030,23 @@ describe('outside agent consent', () => {
     forget()
     await decideOutside(base, tab, true)
     expect(await overRpc).toContain('Codex is disconnected from conciv')
+  })
+
+  it('an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect', async () => {
+    const home = connectedHome()
+    const base = await boot(undefined, home)
+    const sessionId = await newSession(base)
+    const waiting = hubCall(base, sessionId)
+    await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
+    chmodSync(join(home, 'home.db'), 0o000)
+    await decideOutside(base, sessionId, true)
+    expect(await waiting).toContain('waiting for the user to allow it in the conciv tab')
+    chmodSync(join(home, 'home.db'), 0o600)
+    withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
+    connectedHome(home)
+    const asked = hubCall(base, sessionId)
+    await decideOutside(base, sessionId, false)
+    expect(await asked).toContain(DENIED)
   })
 
   it('a disconnect from anything sharing the home, the terminal included, voids the outside Allow every engine holds', async () => {

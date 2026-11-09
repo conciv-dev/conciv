@@ -74,6 +74,7 @@ export type SpawnBin = (
   args: string[],
   cwd: string,
   onLine: (line: string) => void,
+  timeout?: number,
 ) => Promise<{code: number; output: string}>
 
 export type InitRuntime = {
@@ -89,8 +90,14 @@ export type InitRuntime = {
 
 type Emission = {kind: 'line'; text: string} | {kind: 'note'; note: StepNote}
 
-function spawnBin(bin: string, args: string[], cwd: string, onLine: (line: string) => void): Promise<CommandOutcome> {
-  return execFileOutcome(bin, args, {cwd}, onLine)
+function spawnBin(
+  bin: string,
+  args: string[],
+  cwd: string,
+  onLine: (line: string) => void,
+  timeout?: number,
+): Promise<CommandOutcome> {
+  return execFileOutcome(bin, args, {cwd, timeout}, onLine)
 }
 
 function defaultRuntime(): InitRuntime {

@@ -15,7 +15,7 @@ import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-typ
 import {initContributions} from './registry.js'
 
 const RUN_TIMEOUT_MS = 30_000
-const LEASE_STALE_MS = 2 * RUN_TIMEOUT_MS
+const LEASE_CEILING_MS = 10 * 60_000
 const BUSY = 'busy'
 const ALREADY_EXISTS = /already exists/i
 const ALREADY_REMOVED = /not found|no mcp server|no such|does not exist/i
@@ -27,7 +27,7 @@ type HubConnection = {harness: InitHarnessId; name: string; connectedAt: number}
 
 type RunOutcome = {ok: boolean; output: string; message: string}
 
-type Run = (argv: string[]) => Promise<RunOutcome>
+type Run = (argv: string[], timeout: number) => Promise<RunOutcome>
 
 type Hub = {remove?: string[]}
 
@@ -41,7 +41,13 @@ export function createHubConnections(home: string, run: Run = runFile) {
     })
   return {
     list,
-    generation: (): number => readHomeDb(home, lastHubRevocation) ?? 0,
+    generation: (): number | null => {
+      try {
+        return readHomeDb(home, lastHubRevocation) ?? 0
+      } catch {
+        return null
+      }
+    },
     connect: async (harness: InitHarnessId, command: string[]): Promise<HubOutcome> => {
       const hub = initContributions[harness].hub
       if (hub === undefined) return {ok: false, message: `${harness} cannot connect to the conciv hub`}
@@ -86,19 +92,19 @@ export function createHubConnections(home: string, run: Run = runFile) {
 }
 
 async function installHub(hub: Hub, add: string[], run: Run, record: () => HubOutcome): Promise<HubOutcome> {
-  const added = await run(add)
+  const added = await run(add, RUN_TIMEOUT_MS)
   if (added.ok) return record()
   if (!ALREADY_EXISTS.test(added.output)) return {ok: false, message: added.message}
   if (hub.remove === undefined) return record()
-  const removed = await run(hub.remove)
+  const removed = await run(hub.remove, RUN_TIMEOUT_MS)
   if (!removed.ok) return {ok: false, message: removed.message}
-  const replaced = await run(add)
+  const replaced = await run(add, RUN_TIMEOUT_MS)
   if (!replaced.ok) return {ok: false, message: replaced.message}
   return record()
 }
 
 async function uninstallHub(name: string, remove: string[], run: Run): Promise<HubOutcome> {
-  const removed = await run(remove)
+  const removed = await run(remove, RUN_TIMEOUT_MS)
   if (removed.ok || ALREADY_REMOVED.test(removed.output)) return {ok: true}
   return {
     ok: true,
@@ -131,7 +137,7 @@ function leaseOf(home: string, operation: HubOperation): {ok: true} | {ok: false
 }
 
 function staleFor(now: number): (held: HubOperation) => boolean {
-  return (held) => now - held.startedAt > LEASE_STALE_MS || !alive(held.pid)
+  return (held) => !alive(held.pid) || now - held.startedAt > LEASE_CEILING_MS
 }
 
 function alive(pid: number): boolean {
@@ -157,11 +163,11 @@ function readable(
   }
 }
 
-function runFile(argv: string[]): Promise<RunOutcome> {
+function runFile(argv: string[], timeout: number): Promise<RunOutcome> {
   const [bin, ...args] = argv
   if (bin === undefined) return Promise.resolve({ok: false, output: '', message: 'the harness gave no command to run'})
   return new Promise((resolve) => {
-    execFile(bin, args, {timeout: RUN_TIMEOUT_MS, env: process.env}, (error, stdout, stderr) => {
+    execFile(bin, args, {timeout, env: process.env}, (error, stdout, stderr) => {
       const message = stderr.trim() || stdout.trim() || (error?.message ?? '')
       resolve({ok: error === null, output: `${stdout}\n${stderr}`, message})
     })

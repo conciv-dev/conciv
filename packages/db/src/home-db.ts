@@ -10,6 +10,7 @@ import {homeMigrations} from './home-migrations.gen.js'
 import {engines, hubConnections as hubConnectionsTable, hubOperations, hubRevocations} from './home-schema.js'
 
 const ConcivHomeSchema = z.string().min(1).optional().catch(undefined)
+const IMMEDIATE: {behavior: 'immediate'} = {behavior: 'immediate'}
 
 export type HomeDb = ReturnType<typeof drizzle>
 
@@ -80,14 +81,14 @@ export function recordHubConnection(
     if (currentGeneration(tx) > generation) return false
     tx.insert(hubConnectionsTable).values({harness, connectedAt: now}).onConflictDoNothing().run()
     return true
-  })
+  }, IMMEDIATE)
 }
 
 export function removeHubConnection(db: HomeDb, harness: string): void {
   db.transaction((tx) => {
     tx.delete(hubConnectionsTable).where(eq(hubConnectionsTable.harness, harness)).run()
     tx.insert(hubRevocations).values({}).run()
-  })
+  }, IMMEDIATE)
 }
 
 export function lastHubRevocation(db: HomeDb): number {
@@ -103,7 +104,7 @@ export function takeHubOperation(db: HomeDb, operation: HubOperation, stale: (he
       .onConflictDoUpdate({target: hubOperations.harness, set: {pid: operation.pid, startedAt: operation.startedAt}})
       .run()
     return true
-  })
+  }, IMMEDIATE)
 }
 
 export function endHubOperation(db: HomeDb, operation: HubOperation): void {

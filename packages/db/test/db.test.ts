@@ -612,6 +612,26 @@ describe('home db', () => {
     })
   })
 
+  it('takes a lease in one immediate transaction, so another writer between its read and its write never breaks it', () => {
+    const home = freshHome()
+    withHomeDb(home, (db) => {
+      const other = new DatabaseSync(join(home, 'home.db'), {timeout: 0})
+      const raced: string[] = []
+      expect(takeHubOperation(db, {harness: 'claude', pid: 1, startedAt: 10}, () => false)).toBe(true)
+      const taken = takeHubOperation(db, {harness: 'claude', pid: 2, startedAt: 20}, () => {
+        try {
+          other.exec('INSERT INTO hub_revocations DEFAULT VALUES')
+          raced.push('written')
+        } catch {
+          raced.push('waited')
+        }
+        return true
+      })
+      other.close()
+      expect({taken, raced}).toEqual({taken: true, raced: ['waited']})
+    })
+  })
+
   it('reads the home db only when it exists, so a lookup never creates the home folder', () => {
     const home = join(freshHome(), 'not-yet')
     expect(readHomeDb(home, hubConnections)).toBeNull()
