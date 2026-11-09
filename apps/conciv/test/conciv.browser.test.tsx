@@ -1,6 +1,6 @@
 import '../src/styles.css'
 import 'virtual:uno.css'
-import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
+import {expect, test, vi, it, afterAll, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
 import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
@@ -3808,9 +3808,19 @@ describe('session selector', () => {
   const EXTERNAL_ID = HarnessSessionId.parse('external-mid-run')
   const OLDER_SESSIONS = 40
   const DAY_MS = 86_400_000
+  const HOUR_MS = 3_600_000
 
-  const localMidnight = new Date().setHours(0, 0, 0, 0)
+  const noon = new Date(Date.now() - 12 * HOUR_MS).setHours(12, 0, 0, 0)
+  const localMidnight = new Date(noon).setHours(0, 0, 0, 0)
   const MINUTE_MS = 60_000
+
+  beforeAll(() => {
+    vi.useFakeTimers({toFake: ['Date'], now: noon, shouldAdvanceTime: true})
+  })
+
+  afterAll(() => {
+    vi.useRealTimers()
+  })
   const TIDE_TURNS = 30
   const tideLog = Array.from({length: TIDE_TURNS}, (_, turn): ChatMessage[] => [
     {id: `tide-question-${turn}`, role: 'user', parts: [{type: 'text', content: `question ${turn}`}]},
@@ -3828,18 +3838,18 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('gull-away'),
         cwd: ELSEWHERE,
         derivedTitle: 'the gull census',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 13) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 13) * DAY_MS,
         text: 'forty gulls on the breakwater',
       },
       {
         id: HarnessSessionId.parse('gull-home'),
         derivedTitle: 'a gull at home',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 14) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 14) * DAY_MS,
       },
       {
         id: EXTERNAL_ID,
         derivedTitle: 'a session mid-run',
-        updatedAt: Date.now(),
+        updatedAt: noon,
         sizeBytes: 2_400_000,
       },
       {
@@ -3857,23 +3867,23 @@ describe('session selector', () => {
       ...Array.from({length: OLDER_SESSIONS}, (_, index) => ({
         id: HarnessSessionId.parse(`older-${index}`),
         derivedTitle: `older session ${index}`,
-        updatedAt: Date.now() - (index + 1) * DAY_MS,
+        updatedAt: noon - (index + 1) * DAY_MS,
         sizeBytes: 1536,
       })),
       {
         id: HarnessSessionId.parse('kiwi-orchard'),
         derivedTitle: 'the kiwi orchard plan',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 10) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 10) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('puffin-notes'),
         derivedTitle: 'the puffin notes',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 11) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 11) * DAY_MS,
       },
       {
         id: HarnessSessionId.parse('seabird-survey'),
         derivedTitle: 'a seabird survey',
-        updatedAt: Date.now() - (OLDER_SESSIONS + 12) * DAY_MS,
+        updatedAt: noon - (OLDER_SESSIONS + 12) * DAY_MS,
         text: 'a puffin colony nests on the cliff',
       },
     ],
