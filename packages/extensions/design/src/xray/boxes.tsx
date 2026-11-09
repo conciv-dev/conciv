@@ -170,7 +170,7 @@ const FILLED = new Set(['noticeably', 'paint'])
 
 const STROKE = 'calc(var(--chat-space) * 0.375)'
 
-const FILLED_STROKE = 'calc(var(--chat-space) * 0.5)'
+const FILLED_STROKE = 'calc(var(--chat-space) * 0.375)'
 
 const LIFT = 'translateY(calc(-100% - var(--chat-space) * 0.5))'
 
