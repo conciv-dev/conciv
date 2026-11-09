@@ -66,7 +66,8 @@ export function createPreferences(options: PreferencesOptions): PreferencesApi {
       await Promise.all(keys.map((key) => options.store.delete(key)))
     },
     clear: async () => {
-      await Promise.all(Object.keys(saved()).map((key) => options.store.delete(key)))
+      const all = await options.store.all()
+      await Promise.all(Object.keys(all).map((key) => options.store.delete(key)))
     },
   }
 }

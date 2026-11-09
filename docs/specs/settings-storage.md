@@ -6,13 +6,11 @@ Replaces the #592 layered-settings design; #592 is not ported.
 ## Goal
 
 A Devframe plugin's settings code works on conciv unchanged. We implement Devframe's settings contract
-(v1.3.2, `packages/devframe/src/{settings-store.ts,node/settings.ts,client/settings.ts,types/scope.ts}` in
-`/Users/omrikatz/Public/web/_ref/devframe`, read from `origin/main`) exactly: same surface, same semantics,
-same file layout. Only the wire differs: conciv syncs over its own oRPC instead of Devframe's shared-state RPC.
+(v1.3.2, `packages/devframe/src/{settings-store.ts,node/settings.ts,client/settings.ts,types/scope.ts}`)
+exactly: same surface, same semantics, same file layout. Only the wire differs: conciv syncs over its own oRPC instead of Devframe's shared-state RPC.
 No `devframe` dependency.
 
-Read those four Devframe files in full before writing code. Where this spec and Devframe disagree, Devframe
-wins; say so in the report.
+Where this spec and Devframe disagree, Devframe wins, except where a deviation is named below.
 
 ## The contract (identical to Devframe)
 
@@ -46,11 +44,24 @@ type SettingsForNamespace<NS extends string> = NS extends keyof SettingsRegistry
   - `global`: `<concivHome>/settings/<namespace>.json` (`concivHome()` from `@conciv/db`).
 - Storage: unstorage (Omri, 2026-11-09). `createSettingsStorage` takes one unstorage `Storage` per scope; the engine passes the `fs` driver over `<folder>/settings` with `setItem` replaced the Devframe way (`atomicFsDriver`: write `<file>.<pid>.tmp`, rename it over the file, remove the temp on failure), and the key is `<namespace>.json`. A test or host can pass the `memory` or `null` driver instead. Reads go through unstorage's `destr` (drops `__proto__`); writes are debounced 100ms, then one `setItem` of the pretty JSON, chained after the previous write so two never share the temp file;
   pretty JSON with a trailing newline, like Devframe's `createStorage`.
-- Reads: `JSON.parse` with Devframe's reviver that drops `__proto__` / `constructor.prototype`. A corrupt file
-  logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the next `set`.
-- Namespace safety: reject a namespace containing `\0` or resolving outside the settings dir (Devframe's
-  `relative` check), plus zod-validate it at the RPC boundary.
+- Reads: `storage.getItem` parses through unstorage's `destr` (drops `__proto__`), then a zod record check. A
+  corrupt file logs a warning and starts empty (Devframe's DF0012 behaviour); it is never overwritten until the
+  next `set`. `get` returns only own keys, so `get('constructor')` on an empty store is `undefined`.
+- Namespace safety: one rule, `SettingsNamespaceSchema` in `@conciv/contract`, used both at the RPC boundary
+  and by the engine store: 1 to 200 characters, no `\0`, no `/`, `\`, `:` or `?`. A namespace is one file
+  name inside the settings dir, so `release..prefs` is fine. Deviation from Devframe: Devframe's `relative`
+  check also allows nested names like `acme/editor`; unstorage folds `/`, `\` and `:` into one key separator
+  and cuts keys at `?`, so conciv refuses those characters instead of mapping two names onto one file.
 - One in-memory store per (scope, namespace) on the engine, created lazily, shared by every caller.
+- Two engines can share one home (two projects open at once), so the global scope is watched: the engine calls
+  unstorage's `watch()` on the global storage once (chokidar under the `fs` driver; `memory` and `null` drivers
+  do not watch) and, for a changed key with an open file, re-reads it through the same read path. A result
+  equal to the held value is ignored, which covers the engine's own write echoing back; a file with an unsaved
+  change skips the reload, since its own write is about to land. Otherwise the file takes the disk value as the
+  next version of its generation and publishes it, without writing it back. Engine dispose stops the watch.
+  Project files have one owning engine and are not watched.
+- Remaining race, accepted (no locks, by decision): two engines saving the same global file at nearly the same
+  moment each write their whole value, and the last write wins; the other engine then reloads that value.
 
 ## Wire (conciv oRPC)
 
@@ -60,6 +71,17 @@ In `packages/contract/src/contract.ts`, a `settings` group, every input zod-vali
 - `settings.set({scope, namespace, key, value})`, `settings.delete({scope, namespace, key})`;
 - `settings.changes({scope, namespace})`: `eventIterator` of full snapshots (first event = current snapshot),
   the same pattern as `sessions.changes`.
+
+Every snapshot is `{generation, version, value}`. Each engine picks a random `generation` id at boot, and
+`version` counts from 0 per file within that engine. The client keeps an incoming snapshot when its
+`generation` differs from the one it holds (a restarted engine, always taken) or when the generation matches and
+the `version` is higher.
+
+Reconnect: the browser fetch link's `ClientRetryPlugin` (`packages/contract/src/browser-transport.ts`) retries
+an event-iterator call (any contract procedure whose output is an `eventIterator`) without limit, 250ms doubling
+up to 5s, for as long as the caller's signal is not aborted and the connection is alive. One-shot calls keep 12
+retries at 250ms. An aborted follower never retries. This rule lives only in the retry plugin, so it goes away
+when oRPC moves onto one WebSocket.
 
 Behind the existing engine trust (same as every other procedure; untrusted callers get nothing). The client
 store keeps the latest snapshot from `changes` and resolves `get`/`all` from it after the first event, the way
@@ -85,8 +107,6 @@ Devframe's `connectionMeta.configs`.
 Functions, not classes. No IIFEs. Zero comments. No `any` / `as` / `!` / `@ts-ignore`. No em dashes. zod at
 every trust boundary. Handle every error (no floating promises). No new test files. Changeset (patch, the
 `@conciv/*` set). `pnpm exec fallow audit --changed-since main --format json --quiet`: nothing INTRODUCED.
-Commit locally on `feat/settings-storage` in `/Users/omrikatz/Public/web/aidx-wt-settings-storage`. Do NOT push.
-Do NOT open a PR.
 
 ## Out of scope
 

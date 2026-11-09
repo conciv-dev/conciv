@@ -41,7 +41,9 @@ Shapes follow Devframe's hub user settings (`DevframeDocksUserSettings`) where t
   `docksCustomOrder`). The status bar honours it immediately.
 - Shortcuts: the quick terminal hotkey and any other app hotkeys, recorded with `HotkeyRecorder`, with a
   conflict warning (Devframe's `commandShortcuts`: empty array = disabled).
-- Advanced: reset all conciv settings, behind `ConfirmDialog` (focus starts on Cancel).
+- Advanced: reset all conciv settings, behind `ConfirmDialog` (focus starts on Cancel). The dialog is the route
+  `/settings/advanced/reset`: "Reset all" links to it; Cancel, Escape, an outside click and Back leave it by navigating
+  to `/settings/advanced` (replace); Confirm runs the reset and announces "Settings reset".
 
 Storage: namespace `conciv`, `project` scope (Devframe keeps its hub user settings per checkout). Values set by
 the host in `conciv({...})` (`ConcivSettings`, read-only) show as locked with the reason, and win over stored

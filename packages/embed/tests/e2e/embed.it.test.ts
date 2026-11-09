@@ -123,6 +123,9 @@ test.describe('embed boot', () => {
       })
       expect(await currentHref(kit)).not.toContain('/options')
       await switchToSessionByTitle(page, 'the other session')
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await openPanel(page)
+      await switchToSessionByTitle(page, 'the other session')
     })
 
     test('sends a message and renders the assistant reply from the fake harness', async ({page}) => {

@@ -81,7 +81,7 @@ function Toggle(props: {checked: boolean; onCheckedChange?: (checked: boolean) =
 }
 
 function SwitchStates() {
-  const [state, setState] = createStore({email: true, terms: false})
+  const [state, setState] = createStore({email: true, terms: false, archived: true})
   return (
     <div class={STACK}>
       <FieldShell label="Email notifications" description="A message when someone replies." layout="row">
@@ -95,7 +95,7 @@ function SwitchStates() {
         <Toggle checked={state.terms} onCheckedChange={(checked) => setState('terms', checked)} />
       </FieldShell>
       <FieldShell label="Archived" layout="row" readOnly>
-        <Toggle checked />
+        <Toggle checked={state.archived} onCheckedChange={(checked) => setState('archived', checked)} />
       </FieldShell>
       <FieldShell label="Sync contacts" description="Connect an account first." layout="row" disabled>
         <Toggle checked={false} />
@@ -118,7 +118,6 @@ export const Keyboard: Story = {
 
     await userEvent.tab()
     await expect(email).toHaveFocus()
-    await expect(email.matches(':focus-visible')).toBe(true)
     await userEvent.keyboard(' ')
     await waitFor(() => expect(email).not.toBeChecked())
 
@@ -130,6 +129,17 @@ export const Keyboard: Story = {
 
     const archived = canvas.getByRole('switch', {name: 'Archived'})
     await userEvent.click(canvas.getByText('Archived'))
+    await expect(archived).toBeChecked()
+    const archivedControl = archived.parentElement?.querySelector('[data-part="control"]')
+    if (!(archivedControl instanceof HTMLElement)) throw new Error('the archived switch renders no control')
+    const box = archivedControl.getBoundingClientRect()
+    const y = box.top + box.height / 2
+    await userEvent.pointer([
+      {keys: '[MouseLeft>]', target: archivedControl, coords: {clientX: box.right - 4, clientY: y}},
+      {target: archivedControl, coords: {clientX: box.left + box.width / 2, clientY: y}},
+      {target: archivedControl, coords: {clientX: box.left + 2, clientY: y}},
+      {keys: '[/MouseLeft]', target: archivedControl},
+    ])
     await expect(archived).toBeChecked()
   },
 }

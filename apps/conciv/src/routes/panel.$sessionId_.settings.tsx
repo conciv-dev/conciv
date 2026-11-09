@@ -12,7 +12,7 @@ import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import Puzzle from 'lucide-solid/icons/puzzle'
 import {MICRO} from '../settings/settings-ui.js'
 import {extensionSettingsPage} from '../settings/extension-fields.js'
-import {writeLastTab, type SettingsTabId} from '../settings/last-tab.js'
+import type {SettingsTabId} from '../settings/last-tab.js'
 
 const PAGE = 'flex flex-1 flex-col min-h-0'
 const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1px_solid_var(--chat-line-soft)]'
@@ -98,10 +98,7 @@ function SettingsLayout(): JSX.Element {
   const builtin = (tab: BuiltinTab): SettingsTab => ({
     ...tab,
     selected: matchRoute({from: Route.fullPath, to: `./${tab.id}`, fuzzy: true}),
-    open: () => {
-      writeLastTab(tab.id)
-      void navigate({to: `./${tab.id}`})
-    },
+    open: () => void navigate({to: `./${tab.id}`}),
   })
   const mainTabs = MAIN_TABS.map(builtin)
   const advancedTab = builtin(ADVANCED_TAB)
@@ -116,13 +113,11 @@ function SettingsLayout(): JSX.Element {
         params: {name: extension.name},
         fuzzy: true,
       }),
-      open: () => {
-        writeLastTab({extension: extension.name})
+      open: () =>
         void navigate({
           to: '/panel/$sessionId/settings/extensions/$name',
           params: {sessionId: params().sessionId, name: extension.name},
-        })
-      },
+        }),
     }))
   const tabs = [...mainTabs, ...extensionTabs, advancedTab]
   const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'

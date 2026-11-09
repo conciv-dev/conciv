@@ -358,6 +358,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
 
 export type ShellMountOptions = {
   transport?: ChatTransportPreference
+  host?: Record<string, unknown>
   apiBase?: () => string
   login?: {apiBase: string; tokenSource?: EngineTokenSource}
 }
@@ -402,7 +403,9 @@ export function createShellHarness(base: () => string): ShellHarness {
       rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: document, document},
-      settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
+      settings: parseConcivSettings(
+        JSON.stringify({...options.host, ...(options.transport ? {transport: options.transport} : {})}),
+      ),
       apiBase: options.apiBase ?? (() => apiBase),
       connected: () => (login ? engineConnected(login.status()) : true),
       connectionGeneration: () => 0,

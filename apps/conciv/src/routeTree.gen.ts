@@ -27,6 +27,7 @@ import { Route as PanelSessionIdSettingsAdvancedRouteImport } from './routes/pan
 import { Route as PanelSessionIdSettingsGeneralRouteImport } from './routes/panel.$sessionId_.settings.general'
 import { Route as PanelSessionIdSettingsShortcutsRouteImport } from './routes/panel.$sessionId_.settings.shortcuts'
 import { Route as PanelSessionIdSettingsViewsRouteImport } from './routes/panel.$sessionId_.settings.views'
+import { Route as PanelSessionIdSettingsAdvancedResetRouteImport } from './routes/panel.$sessionId_.settings.advanced.reset'
 import { Route as PanelSessionIdSettingsExtensionsNameRouteImport } from './routes/panel.$sessionId_.settings.extensions.$name'
 
 const IndexRoute = IndexRouteImport.update({
@@ -125,6 +126,12 @@ const PanelSessionIdSettingsViewsRoute =
     path: '/views',
     getParentRoute: () => PanelSessionIdSettingsRoute,
   } as any)
+const PanelSessionIdSettingsAdvancedResetRoute =
+  PanelSessionIdSettingsAdvancedResetRouteImport.update({
+    id: '/reset',
+    path: '/reset',
+    getParentRoute: () => PanelSessionIdSettingsAdvancedRoute,
+  } as any)
 const PanelSessionIdSettingsExtensionsNameRoute =
   PanelSessionIdSettingsExtensionsNameRouteImport.update({
     id: '/extensions/$name',
@@ -144,12 +151,13 @@ export interface FileRoutesByFullPath {
   '/panel/$sessionId/settings': typeof PanelSessionIdSettingsRouteWithChildren
   '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
   '/panel/$sessionId/options': typeof PanelSessionIdChatOptionsRoute
-  '/panel/$sessionId/settings/advanced': typeof PanelSessionIdSettingsAdvancedRoute
+  '/panel/$sessionId/settings/advanced': typeof PanelSessionIdSettingsAdvancedRouteWithChildren
   '/panel/$sessionId/settings/general': typeof PanelSessionIdSettingsGeneralRoute
   '/panel/$sessionId/settings/shortcuts': typeof PanelSessionIdSettingsShortcutsRoute
   '/panel/$sessionId/settings/views': typeof PanelSessionIdSettingsViewsRoute
   '/panel/$sessionId/': typeof PanelSessionIdChatIndexRoute
   '/panel/$sessionId/settings/': typeof PanelSessionIdSettingsIndexRoute
+  '/panel/$sessionId/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
 }
 export interface FileRoutesByTo {
@@ -163,11 +171,12 @@ export interface FileRoutesByTo {
   '/panel/$sessionId/$view': typeof PanelSessionIdViewRouteWithChildren
   '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
   '/panel/$sessionId/options': typeof PanelSessionIdChatOptionsRoute
-  '/panel/$sessionId/settings/advanced': typeof PanelSessionIdSettingsAdvancedRoute
+  '/panel/$sessionId/settings/advanced': typeof PanelSessionIdSettingsAdvancedRouteWithChildren
   '/panel/$sessionId/settings/general': typeof PanelSessionIdSettingsGeneralRoute
   '/panel/$sessionId/settings/shortcuts': typeof PanelSessionIdSettingsShortcutsRoute
   '/panel/$sessionId/settings/views': typeof PanelSessionIdSettingsViewsRoute
   '/panel/$sessionId/settings': typeof PanelSessionIdSettingsIndexRoute
+  '/panel/$sessionId/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
 }
 export interface FileRoutesById {
@@ -184,12 +193,13 @@ export interface FileRoutesById {
   '/panel/$sessionId_/settings': typeof PanelSessionIdSettingsRouteWithChildren
   '/panel/$sessionId/$view/options': typeof PanelSessionIdViewOptionsRoute
   '/panel/$sessionId/_chat/options': typeof PanelSessionIdChatOptionsRoute
-  '/panel/$sessionId_/settings/advanced': typeof PanelSessionIdSettingsAdvancedRoute
+  '/panel/$sessionId_/settings/advanced': typeof PanelSessionIdSettingsAdvancedRouteWithChildren
   '/panel/$sessionId_/settings/general': typeof PanelSessionIdSettingsGeneralRoute
   '/panel/$sessionId_/settings/shortcuts': typeof PanelSessionIdSettingsShortcutsRoute
   '/panel/$sessionId_/settings/views': typeof PanelSessionIdSettingsViewsRoute
   '/panel/$sessionId/_chat/': typeof PanelSessionIdChatIndexRoute
   '/panel/$sessionId_/settings/': typeof PanelSessionIdSettingsIndexRoute
+  '/panel/$sessionId_/settings/advanced/reset': typeof PanelSessionIdSettingsAdvancedResetRoute
   '/panel/$sessionId_/settings/extensions/$name': typeof PanelSessionIdSettingsExtensionsNameRoute
 }
 export interface FileRouteTypes {
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId/settings/views'
     | '/panel/$sessionId/'
     | '/panel/$sessionId/settings/'
+    | '/panel/$sessionId/settings/advanced/reset'
     | '/panel/$sessionId/settings/extensions/$name'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -230,6 +241,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId/settings/shortcuts'
     | '/panel/$sessionId/settings/views'
     | '/panel/$sessionId/settings'
+    | '/panel/$sessionId/settings/advanced/reset'
     | '/panel/$sessionId/settings/extensions/$name'
   id:
     | '__root__'
@@ -251,6 +263,7 @@ export interface FileRouteTypes {
     | '/panel/$sessionId_/settings/views'
     | '/panel/$sessionId/_chat/'
     | '/panel/$sessionId_/settings/'
+    | '/panel/$sessionId_/settings/advanced/reset'
     | '/panel/$sessionId_/settings/extensions/$name'
   fileRoutesById: FileRoutesById
 }
@@ -389,6 +402,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PanelSessionIdSettingsViewsRouteImport
       parentRoute: typeof PanelSessionIdSettingsRoute
     }
+    '/panel/$sessionId_/settings/advanced/reset': {
+      id: '/panel/$sessionId_/settings/advanced/reset'
+      path: '/reset'
+      fullPath: '/panel/$sessionId/settings/advanced/reset'
+      preLoaderRoute: typeof PanelSessionIdSettingsAdvancedResetRouteImport
+      parentRoute: typeof PanelSessionIdSettingsAdvancedRoute
+    }
     '/panel/$sessionId_/settings/extensions/$name': {
       id: '/panel/$sessionId_/settings/extensions/$name'
       path: '/extensions/$name'
@@ -437,8 +457,23 @@ const PanelSessionIdRouteWithChildren = PanelSessionIdRoute._addFileChildren(
   PanelSessionIdRouteChildren,
 )
 
+interface PanelSessionIdSettingsAdvancedRouteChildren {
+  PanelSessionIdSettingsAdvancedResetRoute: typeof PanelSessionIdSettingsAdvancedResetRoute
+}
+
+const PanelSessionIdSettingsAdvancedRouteChildren: PanelSessionIdSettingsAdvancedRouteChildren =
+  {
+    PanelSessionIdSettingsAdvancedResetRoute:
+      PanelSessionIdSettingsAdvancedResetRoute,
+  }
+
+const PanelSessionIdSettingsAdvancedRouteWithChildren =
+  PanelSessionIdSettingsAdvancedRoute._addFileChildren(
+    PanelSessionIdSettingsAdvancedRouteChildren,
+  )
+
 interface PanelSessionIdSettingsRouteChildren {
-  PanelSessionIdSettingsAdvancedRoute: typeof PanelSessionIdSettingsAdvancedRoute
+  PanelSessionIdSettingsAdvancedRoute: typeof PanelSessionIdSettingsAdvancedRouteWithChildren
   PanelSessionIdSettingsGeneralRoute: typeof PanelSessionIdSettingsGeneralRoute
   PanelSessionIdSettingsShortcutsRoute: typeof PanelSessionIdSettingsShortcutsRoute
   PanelSessionIdSettingsViewsRoute: typeof PanelSessionIdSettingsViewsRoute
@@ -448,7 +483,8 @@ interface PanelSessionIdSettingsRouteChildren {
 
 const PanelSessionIdSettingsRouteChildren: PanelSessionIdSettingsRouteChildren =
   {
-    PanelSessionIdSettingsAdvancedRoute: PanelSessionIdSettingsAdvancedRoute,
+    PanelSessionIdSettingsAdvancedRoute:
+      PanelSessionIdSettingsAdvancedRouteWithChildren,
     PanelSessionIdSettingsGeneralRoute: PanelSessionIdSettingsGeneralRoute,
     PanelSessionIdSettingsShortcutsRoute: PanelSessionIdSettingsShortcutsRoute,
     PanelSessionIdSettingsViewsRoute: PanelSessionIdSettingsViewsRoute,

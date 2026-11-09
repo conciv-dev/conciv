@@ -1,6 +1,7 @@
-import {For, Show, splitProps, untrack, type JSX} from 'solid-js'
+import {createMemo, For, Show, splitProps, type JSX} from 'solid-js'
+import {createStore} from 'solid-js/store'
 import {useFieldContext} from '@ark-ui/solid/field'
-import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
+import {Combobox, createListCollection} from '@ark-ui/solid/combobox'
 import {useFilter} from '@ark-ui/solid/locale'
 import Check from 'lucide-solid/icons/check'
 import ChevronsUpDown from 'lucide-solid/icons/chevrons-up-down'
@@ -47,22 +48,24 @@ export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
   ])
   const field = useFieldContext()
   const filters = useFilter({sensitivity: 'base'})
-  const list = useListCollection<ComboboxOption>({
-    initialItems: untrack(() => local.options),
-    filter: (itemText, filterText) => filters().contains(itemText, filterText),
-  })
+  const [search, setSearch] = createStore({term: ''})
+  const collection = createMemo(() =>
+    createListCollection<ComboboxOption>({
+      items: local.options.filter((option) => filters().contains(option.label, search.term)),
+    }),
+  )
   return (
     <Combobox.Root
       class={`${ROOT}  ${local.class ?? ''}`}
-      collection={list.collection()}
+      collection={collection()}
       value={local.value === undefined ? [] : [local.value]}
       onValueChange={(details) => {
         const [next] = details.value
         if (next !== undefined) local.onValueChange?.(next)
       }}
-      onInputValueChange={(details) => list.filter(details.inputValue)}
+      onInputValueChange={(details) => setSearch('term', details.inputValue)}
       onOpenChange={(details) => {
-        if (details.open) list.filter('')
+        if (details.open) setSearch('term', '')
       }}
       openOnClick
       inputBehavior="autohighlight"
@@ -80,7 +83,7 @@ export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
       <Combobox.Positioner>
         <Combobox.Content class={CONTENT}>
           <Combobox.Empty class={EMPTY}>{local.emptyText ?? 'No matches'}</Combobox.Empty>
-          <For each={list.collection().items}>
+          <For each={collection().items}>
             {(item) => (
               <Combobox.Item item={item} class={ITEM}>
                 <Combobox.ItemText>{item.label}</Combobox.ItemText>

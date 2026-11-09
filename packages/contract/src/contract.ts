@@ -66,17 +66,18 @@ const SettingsScopeSchema = z.enum(['global', 'project'])
 
 export type SettingsScope = z.infer<typeof SettingsScopeSchema>
 
-const SettingsNamespaceSchema = z
+export const SettingsNamespaceSchema = z
   .string()
   .min(1)
   .max(200)
   .refine((namespace) => !namespace.includes('\0'), 'a settings namespace cannot contain a NUL character')
   .refine(
-    (namespace) => !/^[\\/]|^[a-zA-Z]:/.test(namespace) && !namespace.split(/[\\/]/).includes('..'),
-    'a settings namespace must stay inside the settings folder',
+    (namespace) => !/[/\\:?]/.test(namespace),
+    'a settings namespace is one file name inside the settings folder, without / \\ : or ?',
   )
 
 const SettingsSnapshotSchema = z.object({
+  generation: z.string().min(1),
   version: z.number().int().nonnegative(),
   value: z.record(z.string(), z.unknown()),
 })

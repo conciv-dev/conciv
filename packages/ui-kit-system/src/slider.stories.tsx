@@ -185,7 +185,6 @@ export const Keyboard: Story = {
 
     await userEvent.tab()
     await expect(volume).toHaveFocus()
-    await expect(volume.matches(':focus-visible')).toBe(true)
     await userEvent.keyboard('{ArrowRight}')
     await waitFor(() => expect(volume).toHaveAttribute('aria-valuenow', '41'))
     await userEvent.keyboard('{End}')

@@ -433,6 +433,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const settings = createSettingsStorage(
     settingsOnDisk({global: concivHome({homeDir: opts.home, env: process.env}), project: stateDir}),
   )
+  await settings.ready
   const primitives = makeSessionPrimitives({
     db,
     root: opts.cwd,
@@ -711,7 +712,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         () => plane.endAllRuns(),
         ...disposers,
         search.dispose,
-        settings.flush,
+        settings.close,
         () => browsers.close(),
         () => db.$client.close(),
       ],

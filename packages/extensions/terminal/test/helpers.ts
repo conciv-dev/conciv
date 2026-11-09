@@ -4,7 +4,17 @@ import {cors} from 'hono/cors'
 import type {AnyRouter} from '@orpc/server'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveExtensionRpc} from '@conciv/harness-testkit/rpc-mounts'
-import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
+import type {SettingsSnapshot} from '@conciv/contract'
+import {
+  createSettingsStore,
+  makeExtRpcClient,
+  type ExtensionScope,
+  type ServerApi,
+  type ServerHarness,
+  type ServerSessions,
+  type SettingsForNamespace,
+  type SettingsState,
+} from '@conciv/extension'
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 import terminalExtension, {type TerminalRouter} from '../src/server.js'
@@ -23,6 +33,40 @@ function fakeSessions(): FakeSessions {
     chatBusy: () => Promise.resolve(false),
     model: () => Promise.resolve(null),
     onChatTurn: () => {},
+  }
+}
+
+function memoryScope<Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> {
+  const global = memorySettings()
+  const project = memorySettings()
+  return {
+    namespace,
+    settings: {
+      global: createSettingsStore<SettingsForNamespace<Namespace>>(async () => global),
+      project: createSettingsStore<SettingsForNamespace<Namespace>>(async () => project),
+    },
+  }
+}
+
+function memorySettings(): SettingsState {
+  const current: {snapshot: SettingsSnapshot} = {snapshot: {generation: 'terminal-test', version: 0, value: {}}}
+  const listeners = new Set<(snapshot: SettingsSnapshot) => void>()
+  const commit = (value: Record<string, unknown>): SettingsSnapshot => {
+    current.snapshot = {...current.snapshot, version: current.snapshot.version + 1, value}
+    listeners.forEach((listener) => listener(current.snapshot))
+    return current.snapshot
+  }
+  return {
+    read: async () => current.snapshot,
+    set: async (key, value) => commit({...current.snapshot.value, [key]: value}),
+    delete: async (key) =>
+      commit(Object.fromEntries(Object.entries(current.snapshot.value).filter(([name]) => name !== key))),
+    subscribe: async (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
   }
 }
 
@@ -88,6 +132,7 @@ export async function startTerminalServer(
   const sessions = fakeSessions()
   const api: ServerApi<Record<never, never>> = {
     config: {},
+    scope: memoryScope,
     cwd: process.cwd(),
     basePath: opts.basePath ?? '',
     stateDir,

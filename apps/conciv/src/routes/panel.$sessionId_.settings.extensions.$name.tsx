@@ -1,6 +1,7 @@
 import {createFileRoute, redirect} from '@tanstack/solid-router'
 import {Show, type JSX} from 'solid-js'
 import {ExtensionSettingsForm} from '../settings/extension-settings-form.js'
+import {writeLastTab} from '../settings/last-tab.js'
 
 export const Route = createFileRoute('/panel/$sessionId_/settings/extensions/$name')({
   beforeLoad: ({context, params}) => {
@@ -9,6 +10,7 @@ export const Route = createFileRoute('/panel/$sessionId_/settings/extensions/$na
       throw redirect({to: '/panel/$sessionId/settings/general', params: {sessionId: params.sessionId}, replace: true})
     return {settingsExtension: extension}
   },
+  onEnter: ({params}) => writeLastTab({extension: params.name}),
   component: ExtensionSettings,
 })
 
