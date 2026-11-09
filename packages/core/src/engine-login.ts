@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import {REVOKED_SOCKET_CLOSE_CODE, SocketTrustFrameSchema, type ExchangeRefusal} from '@conciv/contract'
-import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
+import {RPC_PREFIX, type RpcSocketGate, type UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {
   TRUSTED_BROWSERS_FILE,
@@ -274,6 +274,37 @@ export function trustingUpgrade(upgrade: UpgradeWebSocket, trust: ConnectionTrus
     })
 }
 
+function isAuthProcedure(path: readonly string[]): boolean {
+  return AUTH_PROCEDURE_PATHS.includes(`${RPC_PREFIX}/${path.join('/')}`)
+}
+
+export function rpcSocketGate(trust: ConnectionTrust, authorization: string | undefined): RpcSocketGate {
+  const connection: {socket: EngineSocket | null; release: (() => void) | null} = {socket: null, release: null}
+  const admit = (token: string): boolean => {
+    if (connection.socket === null) return false
+    const release = trust.trustConnection(connection.socket, token)
+    if (release === null) return false
+    connection.release?.()
+    connection.release = release
+    return true
+  }
+  return {
+    trust: {allows: (path) => connection.release !== null || isAuthProcedure(path), admit},
+    open: (socket) => {
+      connection.socket = socket
+      const presented = BEARER.exec(authorization ?? '')?.[1]
+      if (presented !== undefined) admit(presented)
+    },
+    present: (token) => {
+      admit(token)
+    },
+    close: () => {
+      connection.release?.()
+      connection.release = null
+    },
+  }
+}
+
 function requesterOf(context: RpcContext): BrowserRequester {
   return {
     browser: describeBrowser(rpcHeader(context, 'user-agent') ?? ''),
@@ -288,11 +319,17 @@ export function makeAuthRouter(deps: {
   now: () => number
 }) {
   return {
-    trust: os.auth.trust.handler(({input}) => ({trusted: deps.trust.trusts(input.token)})),
+    trust: os.auth.trust.handler(({input, context}) => {
+      const trusted = deps.trust.trusts(input.token)
+      if (trusted) context.socket?.admit(input.token)
+      return {trusted}
+    }),
     exchange: os.auth.exchange.handler(({input, context}) => {
       const outcome = deps.codes.exchange(input.code)
       if (outcome !== 'trusted') return {refused: outcome}
-      return {token: deps.browsers.grant(requesterOf(context), deps.now())}
+      const token = deps.browsers.grant(requesterOf(context), deps.now())
+      context.socket?.admit(token)
+      return {token}
     }),
     requestCode: os.auth.requestCode.handler(({input, context}) =>
       deps.codes.request(requesterOf(context), input.reissue ?? false),

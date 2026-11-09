@@ -33,6 +33,8 @@ import whiteboard from '@conciv/extension-whiteboard'
 import type {BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {readTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {rpcObserverFor} from '@conciv/extension-testkit/rpc-observer'
+import {rpcSocketFor} from '@conciv/extension-testkit/rpc-socket'
 import {installConcivBinShim} from '../src/core/bin-shim.js'
 import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
@@ -48,6 +50,8 @@ import {
   pageApiBase,
   type StartedDevServer,
 } from './helpers/dev-servers.js'
+
+const NAVIGATION_SET_PATH = ['navigation', 'set']
 
 describe('bin shim', () => {
   describe('installConcivBinShim', () => {
@@ -1329,18 +1333,19 @@ describe('vite devtools dock', () => {
     const floatingUrl = floating.server.resolvedUrls?.local[0]
     if (floatingUrl === undefined) throw new Error('dev server did not start')
     const floatingPage = await browser.newPage({viewport: {width: 1280, height: 800}})
+    await rpcSocketFor(floatingPage).installed
     await floatingPage.goto(await magicLinkUrl(floating, floatingUrl), {waitUntil: 'domcontentloaded'})
     await floatingPage.getByRole('button', {name: /conciv chat$/}).click({timeout: 45_000})
     const floatingComposer = floatingPage.getByRole('textbox', {name: 'Message the conciv agent'})
     await floatingComposer.waitFor()
-    const closedPanelPersisted = floatingPage.waitForResponse(
-      (response) =>
-        response.url().endsWith('/rpc/navigation/set') &&
-        /\/panel\/(?!latest)/.test(response.request().postData() ?? '') &&
-        !(response.request().postData() ?? '').includes('open=true'),
-    )
+    const observer = rpcObserverFor(floatingPage)
+    const beforeEscape = observer.mark()
     await floatingComposer.press('Escape')
-    await closedPanelPersisted
+    await observer.completed({
+      path: NAVIGATION_SET_PATH,
+      input: /^(?!.*open=true).*\/panel\/(?!latest)/,
+      since: beforeEscape,
+    })
     await floatingPage.close()
     await floating.server.close()
     const page = await browser.newPage({viewport: {width: 1280, height: 800}})
@@ -1579,6 +1584,12 @@ describe('vite devtools dock', () => {
   describe('pop-out window', () => {
     const composerName = 'Message the conciv agent'
 
+    async function dockPage(): Promise<Page> {
+      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      await rpcSocketFor(page).installed
+      return page
+    }
+
     async function openDockChat(page: Page): Promise<void> {
       await page.getByRole('button', {name: 'conciv'}).dispatchEvent('click')
       await page.getByRole('dialog', {name: 'conciv chat agent'}).getByRole('textbox', {name: composerName}).waitFor()
@@ -1587,13 +1598,11 @@ describe('vite devtools dock', () => {
     async function popOut(page: Page): Promise<Page> {
       await page.getByRole('button', {name: 'Session options'}).click()
       const popup = page.waitForEvent('popup')
-      const persisted = page.waitForResponse(
-        (response) =>
-          response.url().endsWith('/rpc/navigation/set') && (response.request().postData() ?? '').includes('/pip/'),
-      )
+      const observer = rpcObserverFor(page)
+      const beforePopOut = observer.mark()
       await page.getByRole('button', {name: 'Pop out to a window'}).click()
       const popupPage = await popup
-      await persisted
+      await observer.completed({path: NAVIGATION_SET_PATH, input: /\/pip\//, since: beforePopOut})
       await expectLocator(popupPage.getByRole('textbox', {name: composerName})).toBeVisible()
       return popupPage
     }
@@ -1620,7 +1629,7 @@ describe('vite devtools dock', () => {
     }
 
     it('opens the pop-out from the session menu while the click still allows popups', async () => {
-      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const page = await dockPage()
       await allowPopupsOnlyDuringAClick(page)
       await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
       await openDockChat(page)
@@ -1647,7 +1656,7 @@ describe('vite devtools dock', () => {
     }, 60_000)
 
     it('shows a popped-out state in the dock that brings the chat back', async () => {
-      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const page = await dockPage()
       await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
       await openDockChat(page)
       const popupPage = await popOut(page)
@@ -1660,7 +1669,7 @@ describe('vite devtools dock', () => {
     }, 60_000)
 
     it('re-attaches to the still-open pop-out after the page reloads', async () => {
-      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const page = await dockPage()
       await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
       await openDockChat(page)
       const popupPage = await popOut(page)
@@ -1671,7 +1680,7 @@ describe('vite devtools dock', () => {
     }, 60_000)
 
     it('returns to the inline chat when the user closes the pop-out after a reload', async () => {
-      const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const page = await dockPage()
       await page.goto(await dockServer(), {waitUntil: 'domcontentloaded'})
       await openDockChat(page)
       const popupPage = await popOut(page)
@@ -1685,7 +1694,7 @@ describe('vite devtools dock', () => {
 
     it('falls back to the inline chat with a pop out again action when the pop-out cannot be restored', async () => {
       const url = await dockServer()
-      const first = await browser.newPage({viewport: {width: 1280, height: 800}})
+      const first = await dockPage()
       await first.goto(url, {waitUntil: 'domcontentloaded'})
       await openDockChat(first)
       const stale = await popOut(first)

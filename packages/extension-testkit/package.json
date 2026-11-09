@@ -29,6 +29,8 @@
     "./chat-wire": "./src/chat-wire.ts",
     "./push-wire": "./src/push-wire.ts",
     "./rpc-fault": "./src/rpc-fault.ts",
+    "./rpc-socket": "./src/rpc-socket.ts",
+    "./rpc-observer": "./src/rpc-observer.ts",
     "./chat-fault": "./src/chat-fault.ts"
   },
   "scripts": {
@@ -52,6 +54,7 @@
     "@conciv/uno-preset": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "@orpc/standard-server-peer": "catalog:",
     "@playwright/test": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "p-timeout": "catalog:",

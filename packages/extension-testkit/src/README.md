@@ -18,14 +18,15 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `mountToolCard` (`card-harness.tsx`): renders a Solid `ToolCardProps` component with a synthetic tool-call part (id 't1') and an optional tool-result
 - `completeConnectHandshake` (`connect-handshake.ts`): waits for the 'connect pane ready' status, dispatches `embedtest:connect`, waits for the page-plane subscription, then calls RPC `registry.call` with page_text
 - `pagePlaneWatchFor` / `awaitPagePlaneSubscribed` / `PagePlaneWatch` (`page-plane.ts`): per-page watch that resolves once any push socket on PUSH_WS_PATH sends a 'ready' frame (sent when the socket starts serving page queries)
-- `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records HTTP oRPC calls by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
-- `rpcCallCursor` / `rpcCallMark` / `httpRpcRequestUrls` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark and collects /rpc request URLs
-- `watchRpcWire` / `RpcWireWatch` (`rpc-wire.ts`): waits for sessions.list and sessions.resolve traffic
-- `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): Playwright route-based RPC fault injection (error status, abort, toggleable hold, capture-and-release gate)
+- `observeRpc` / `rpcObserverFor` / `RpcObserver` / `RpcCallRecord` / `RpcCallFilter` / `RpcInputPattern` (`rpc-observer.ts`): records the page's oRPC calls on its `/rpc-ws` socket by procedure path; supports mark, completed(filter), startedCount, completedCount, socketCount, dispose
+- `rpcCallCursor` / `rpcCallMark` / `RpcCallCursor` (`rpc-counts.ts`): counts RPC calls since a mark
+- `rpcSocketFor` / `RpcSocket` / `RpcSocketCall` / `RpcSocketRule` / `RpcSocketEvent` (`rpc-socket.ts`): one `page.routeWebSocket` per Page on `/rpc-ws` that forwards every frame, decodes oRPC requests and replies for listeners, lets rules forward, fail, hold or cut a call, and can hold the whole socket down; await `installed` before the page opens its socket
+- `watchRpcWire` / `RpcWireWatch` (`rpc-wire.ts`, async: installs the socket route first): waits for sessions.list and sessions.resolve traffic
+- `failRpcCalls` / `abortRpcCalls` / `holdRpcCalls` / `gateRpcCalls` / `RpcFaultInjector` / `RpcHold` / `RpcGate` (`rpc-fault.ts`): socket-rule RPC fault injection (error reply, cut the socket, toggleable hold that closes and refuses the socket, capture-and-release gate that forwards or cuts on release)
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
 - `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames
-- `procedurePathOf` / `samePath` / `rpcPayload` (`rpc-payload.ts`): reads the decoded procedure path from an `/rpc/` URL (null otherwise), compares two paths, and deserializes an oRPC StandardRPC body
+- `procedurePathOf` / `samePath` (`rpc-payload.ts`): reads the decoded procedure path from an `/rpc/` URL (null otherwise) and compares two paths
 - `makeFakeFrameworkAdapter` / `FrameworkAdapterOverrides` (`framework-fake.ts`): `defineFrameworkAdapter` with canned tanstack-start client, server, queryCache and serverFunctions data, deep-merged with overrides
 - `currentHref` (`navigation-state.ts`): reads the persisted navigation entry href through kit.rpc.navigation.get, '' if none
 - `testHostConfig` / `TestHostConfigOptions` (`test-host-config.ts`): Vite UserConfig for the test host (default root ./host) wiring the conciv build plugin with NO_BUILTINS, a `virtual:conciv-extension-under-test` module, UnoCSS presetConciv, solid and a 'shiki' chunk group
@@ -40,8 +41,8 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `settleTeardown` (`settle-teardown.ts`): every step runs even if another fails; each step times out after 20s by default; the first rejection is rethrown after all steps settle
 - `getExtensionTestApi` (`get-extension-test-api.ts`): dispose tears down browser, host and server through settleTeardown; serverContext is keyed by extension.server.name
 - `pagePlaneWatchFor` (`page-plane.ts`): one watch per Page (WeakMap); the ready gate resets on main-frame navigation and push-socket close; subscribed() times out after 30s and throws if no push socket sent a 'ready' frame; the journal keeps at most 200 entries
-- `rpcObserverFor` (`rpc-observer.ts`): one observer per Page (WeakMap); only URLs containing '/rpc/' are recorded; completed() checks buffered calls first and rejects after 30s by default; dispose rejects pending waiters
-- `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): OPTIONS preflights always pass through; the gate's answered waits for status 200 within 15s
+- `rpcObserverFor` (`rpc-observer.ts`): one observer per Page (WeakMap); only calls on a socket opened after the route was installed are recorded; completed() checks buffered calls first and rejects after 30s by default; dispose rejects pending waiters
+- `failRpcCalls`/`abortRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`): only request frames are matched (trust, abort and iterator frames always pass); the gate's answered waits for status 200 within 15s
 - `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): only POST requests are faulted; the request's origin is echoed in CORS headers
 - `watchChatWire` (`chat-wire.ts`): only frames that parse against the RunAgentInput schema are recorded; nextTurn rejects after 30s
 - `serveDir` (`serve.ts`): strips leading '../' segments after normalize; any read error returns 404
@@ -54,7 +55,7 @@ Test utilities for @conciv/extension-testkit (the root export points at get-exte
 - `serveDir` (`serve.ts`), `serveHost` (`serve-host.ts`), `serveStaticDir` (`widget-suite.ts`), `listenLocal` (`listen-local.ts`): bind HTTP servers on 127.0.0.1 and read files from disk
 - `mountToolCard` (`card-harness.tsx`): appends to document.body; a module-level vitest afterEach disposes renders and clears document.body
 - `completeConnectHandshake` (`connect-handshake.ts`): dispatches the window CustomEvent 'embedtest:connect' and calls RPC registry.call
-- `failRpcCalls`/`abortRpcCalls`/`holdRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`) and `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): install page.route interceptors (holdRpcCalls is never unrouted)
+- `failRpcCalls`/`abortRpcCalls`/`holdRpcCalls`/`gateRpcCalls` (`rpc-fault.ts`) and `failChatTurns`/`dropChatTurns` (`chat-fault.ts`): install socket rules or page.route interceptors (the socket route is never unrouted)
 - `observeRpc` (`rpc-observer.ts`), `pagePlaneWatchFor` (`page-plane.ts`), `watchChatWire` (`chat-wire.ts`), `watchPushWire` (`push-wire.ts`): attach Playwright page listeners; chat-wire and push-wire never detach them
 - `testHostConfig` (`test-host-config.ts`): the conciv build plugin reads process.cwd() as its default root; the build empties outDir
 

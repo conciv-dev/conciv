@@ -1,8 +1,5 @@
-import type {Page, Request as PageRequest} from 'playwright'
+import type {Page} from 'playwright'
 import {rpcObserverFor} from './rpc-observer.js'
-
-const RPC_HTTP_MARKER = '/rpc/'
-const RPC_HTTP_ROOT = '/rpc'
 
 export type RpcCallCursor = {
   startedSince: (path: readonly string[]) => number
@@ -23,14 +20,4 @@ export function rpcCallCursor(page: Page): RpcCallCursor {
 
 export function rpcCallMark(page: Page): number {
   return rpcObserverFor(page).mark()
-}
-
-export function httpRpcRequestUrls(page: Page): {urls: string[]; dispose: () => void} {
-  const urls: string[] = []
-  const onRequest = (request: PageRequest): void => {
-    const pathname = new URL(request.url()).pathname
-    if (pathname.startsWith(RPC_HTTP_MARKER) || pathname === RPC_HTTP_ROOT) urls.push(request.url())
-  }
-  page.on('request', onRequest)
-  return {urls, dispose: () => page.off('request', onRequest)}
 }

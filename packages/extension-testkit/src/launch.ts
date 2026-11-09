@@ -1,11 +1,13 @@
 import {chromium, type BrowserContext, type Page} from 'playwright'
 import {pagePlaneWatchFor} from './page-plane.js'
 import {rpcObserverFor} from './rpc-observer.js'
+import {rpcSocketFor} from './rpc-socket.js'
 
 export type LaunchedPage = {page: Page; context: BrowserContext; close: () => Promise<void>}
 
 export async function openObservedPage(context: BrowserContext, url: string): Promise<Page> {
   const page = await context.newPage()
+  await rpcSocketFor(page).installed
   const observer = rpcObserverFor(page)
   const plane = pagePlaneWatchFor(page)
   page.once('close', () => {

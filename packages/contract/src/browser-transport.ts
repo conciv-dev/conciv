@@ -1,8 +1,19 @@
 import {createORPCClient, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
-import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
-import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
-import type {ContractRouterClient} from '@orpc/contract'
+import {RPCLink as WebsocketRpcLink, type LinkWebsocketClientOptions} from '@orpc/client/websocket'
+import {
+  ClientRetryPlugin,
+  type ClientRetryPluginAttemptOptions,
+  type ClientRetryPluginContext,
+} from '@orpc/client/plugins'
+import {
+  getContractRouter,
+  getEventIteratorSchemaDetails,
+  isContractProcedure,
+  type ContractRouterClient,
+} from '@orpc/contract'
+import ReconnectingWebSocket from 'partysocket/ws'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 
 export type RpcClientContext = ClientRetryPluginContext & {concivSessionId?: string}
@@ -11,10 +22,17 @@ export type SessionAccessor = () => string | null
 
 const CONNECTION_LOSS_RETRIES = 12
 const CONNECTION_LOSS_RETRY_DELAY_MS = 250
+const MIN_RECONNECT_DELAY_MS = 250
+const MAX_RECONNECT_DELAY_MS = 2000
+const MIN_UPTIME_MS = 1000
+const CONNECTION_TIMEOUT_MS = 2000
 const ENSURE_TRUSTED_TIMEOUT_MS = 60_000
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
 const UNAUTHORIZED_STATUS = 401
+const NO_RECONNECT_DELAY_MS = 0
+const SOCKET_CLOSED = 3
+const SOCKET_STATES = [0, 1, 2, SOCKET_CLOSED] as const
 
 export const REVOKED_SOCKET_CLOSE_CODE = 1008
 
@@ -45,7 +63,7 @@ export type BrowserRpcConnection = {
   close: () => void
 }
 
-type ConnectionEntry = BrowserRpcConnection & {state: TrustState}
+type ConnectionEntry = BrowserRpcConnection & {state: TrustState; reconnect: () => void}
 
 export type ReachabilityListener = (reachable: boolean) => void
 
@@ -129,19 +147,44 @@ export function isRetryableRpcFailure(alive: boolean, error: unknown): boolean {
   return alive && !(error instanceof ORPCError) && !isAbortedFailure(error)
 }
 
-function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRetryPlugin<RpcClientContext> {
+function isStreamingCall(path: readonly string[]): boolean {
+  const procedure = getContractRouter(contract, path)
+  return isContractProcedure(procedure) && getEventIteratorSchemaDetails(procedure['~orpc'].outputSchema) !== undefined
+}
+
+function socketReopened(
+  socket: ReconnectingWebSocket,
+  lifetime: AbortSignal,
+  call: AbortSignal | undefined,
+): Promise<number> {
+  const ended = call === undefined ? lifetime : AbortSignal.any([lifetime, call])
+  if (socket.readyState === socket.OPEN || ended.aborted) return Promise.resolve(NO_RECONNECT_DELAY_MS)
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      socket.removeEventListener('open', settle)
+      ended.removeEventListener('abort', settle)
+      resolve(NO_RECONNECT_DELAY_MS)
+    }
+    socket.addEventListener('open', settle)
+    ended.addEventListener('abort', settle)
+  })
+}
+
+function retryDelay(
+  socket: ReconnectingWebSocket,
+  lifetime: AbortSignal,
+  options: ClientRetryPluginAttemptOptions<RpcClientContext>,
+): number | Promise<number> {
+  if (!isStreamingCall(options.path)) return CONNECTION_LOSS_RETRY_DELAY_MS
+  return socketReopened(socket, lifetime, options.signal)
+}
+
+function retryPlugin(socket: ReconnectingWebSocket, lifetime: AbortSignal): ClientRetryPlugin<RpcClientContext> {
   return new ClientRetryPlugin<RpcClientContext>({
     default: {
-      retry: CONNECTION_LOSS_RETRIES,
-      retryDelay: CONNECTION_LOSS_RETRY_DELAY_MS,
-      shouldRetry: (options) => {
-        const retryable = isRetryableRpcFailure(alive(), options.error)
-        if (retryable) vote(false)
-        return retryable
-      },
-      onRetry: () => (isSuccess: boolean) => {
-        if (isSuccess) vote(true)
-      },
+      retry: (options) => (isStreamingCall(options.path) ? Number.POSITIVE_INFINITY : CONNECTION_LOSS_RETRIES),
+      retryDelay: (options) => retryDelay(socket, lifetime, options),
+      shouldRetry: (options) => isRetryableRpcFailure(!lifetime.aborted, options.error),
     },
   })
 }
@@ -171,20 +214,38 @@ function bearer(state: TrustState): Record<string, string> {
   return state.token === undefined ? {} : {authorization: `Bearer ${state.token}`}
 }
 
-function requestHeaders(state: TrustState, options: ClientOptions<RpcClientContext>): Record<string, string> {
+function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
   const id = options.context.concivSessionId
-  return {...bearer(state), ...(id ? {[CONCIV_SESSION_HEADER]: id} : {})}
+  return id ? {[CONCIV_SESSION_HEADER]: id} : {}
 }
 
-function fetchLink(
-  key: string,
+function rpcSocketUrl(key: string): string {
+  const url = new URL(`${key}${RPC_WS_PATH}`)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
+function socketDelegate(socket: ReconnectingWebSocket): LinkWebsocketClientOptions['websocket'] {
+  return {
+    addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions) =>
+      socket.addEventListener(type, listener, options),
+    removeEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: EventListenerOptions) =>
+      socket.removeEventListener(type, listener, options),
+    send: (data) => socket.send(data),
+    get readyState() {
+      return SOCKET_STATES.find((state) => state === socket.readyState) ?? SOCKET_CLOSED
+    },
+  }
+}
+
+function socketLink(
+  socket: ReconnectingWebSocket,
   state: TrustState,
-  alive: () => boolean,
-  vote: ReachabilityListener,
+  lifetime: AbortSignal,
 ): ClientLink<RpcClientContext> {
-  return new FetchRpcLink<RpcClientContext>({
-    url: `${key}/rpc`,
-    headers: (options) => requestHeaders(state, options),
+  return new WebsocketRpcLink<RpcClientContext>({
+    websocket: socketDelegate(socket),
+    headers: sessionHeaders,
     interceptors: [
       (options) => {
         const sent = state.token
@@ -194,7 +255,7 @@ function fetchLink(
         })
       },
     ],
-    plugins: [retryPlugin(alive, vote)],
+    plugins: [retryPlugin(socket, lifetime)],
   })
 }
 
@@ -279,18 +340,45 @@ function makeEngineTrust(key: string, state: TrustState, link: ClientLink<RpcCli
   }
 }
 
-function fetchConnection(key: string, state: TrustState): ConnectionEntry {
-  const open = {value: true}
+function socketConnection(key: string, state: TrustState): ConnectionEntry {
+  const lifetime = new AbortController()
+  const socket = new ReconnectingWebSocket(rpcSocketUrl(key), [], {
+    minReconnectionDelay: MIN_RECONNECT_DELAY_MS,
+    maxReconnectionDelay: MAX_RECONNECT_DELAY_MS,
+    minUptime: MIN_UPTIME_MS,
+    connectionTimeout: CONNECTION_TIMEOUT_MS,
+    shouldReconnectOnClose: (event) => event.code !== REVOKED_SOCKET_CLOSE_CODE,
+    startClosed: true,
+    WebSocket: trustingWebSocket(() => state),
+  })
   const vote = (reachable: boolean): void => {
-    if (open.value) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
+    if (!lifetime.signal.aborted) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
   }
-  const link = fetchLink(key, state, () => open.value, vote)
+  socket.addEventListener('open', () => vote(true))
+  socket.addEventListener('close', (event) => {
+    if (event.code === REVOKED_SOCKET_CLOSE_CODE) {
+      distrust(state, state.token)
+      return
+    }
+    vote(false)
+  })
+  const rpc = socketLink(socket, state, lifetime.signal)
+  const link: ClientLink<RpcClientContext> = {
+    call: (path, input, options) => {
+      if (!socket.shouldReconnect && !lifetime.signal.aborted) socket.reconnect()
+      return rpc.call(path, input, options)
+    },
+  }
   return {
     link,
     state,
     trust: makeEngineTrust(key, state, link),
+    reconnect: () => {
+      if (socket.shouldReconnect && socket.readyState !== socket.OPEN && !lifetime.signal.aborted) socket.reconnect()
+    },
     close: () => {
-      open.value = false
+      lifetime.abort()
+      socket.close()
     },
   }
 }
@@ -299,7 +387,7 @@ function connectionEntry(apiBase: string): ConnectionEntry {
   const key = normalizeApiBase(apiBase)
   const existing = currentEntry(key)
   if (existing) return existing
-  const created = fetchConnection(key, {
+  const created = socketConnection(key, {
     key,
     status: 'checking',
     token: readStoredToken(key),
@@ -321,30 +409,33 @@ export function resetBrowserRpcConnection(apiBase: string): BrowserRpcConnection
   const key = normalizeApiBase(apiBase)
   const existing = currentEntry(key)
   if (!existing) return connectionEntry(apiBase)
-  const reset = fetchConnection(key, existing.state)
-  replaceEntry(reset)
-  return reset
+  existing.reconnect()
+  return existing
 }
 
 export function engineHeaders(apiBase: string): Record<string, string> {
   return bearer(connectionEntry(apiBase).state)
 }
 
-export function engineWebSocket(apiBase: string): typeof WebSocket {
+function trustingWebSocket(currentState: () => TrustState): typeof WebSocket {
   return new Proxy(WebSocket, {
     construct: (target, args) => {
       const socket: WebSocket = Reflect.construct(target, args)
       const sent: {token: string | undefined} = {token: undefined}
       socket.addEventListener('open', () => {
-        sent.token = connectionEntry(apiBase).state.token
+        sent.token = currentState().token
         socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: sent.token ?? ''}))
       })
       socket.addEventListener('close', (event) => {
-        if (event.code === REVOKED_SOCKET_CLOSE_CODE) distrust(connectionEntry(apiBase).state, sent.token)
+        if (event.code === REVOKED_SOCKET_CLOSE_CODE) distrust(currentState(), sent.token)
       })
       return socket
     },
   })
+}
+
+export function engineWebSocket(apiBase: string): typeof WebSocket {
+  return trustingWebSocket(() => connectionEntry(apiBase).state)
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Defines the oRPC `contract` router between conciv core and its clients (sessions, drafts, markers, navigation, chat, registry, captures, page, server, editor, meta) and the zod row schemas those procedures use. It also provides two client factories: a plain fetch client and a browser client. The browser client keeps one connection, for the one engine the page talks to, in a `globalThis` slot, retries after a dropped connection, and reports reachability to subscribers. `index.ts` re-exports `rows.ts`, `contract.ts`, `client.ts` and `browser-transport.ts`.
+Defines the oRPC `contract` router between conciv core and its clients (sessions, drafts, markers, navigation, chat, registry, captures, page, server, editor, meta) and the zod row schemas those procedures use. It also provides two client factories: a plain fetch client for node callers and a browser client. The browser client keeps one connection, for the one engine the page talks to, in a `globalThis` slot: every procedure (one-shot calls and event-iterator streams) rides one partysocket `ReconnectingWebSocket` to `${apiBase}/rpc-ws` through oRPC's websocket `RPCLink`; the socket reconnects on its own, open streams resubscribe after it comes back, and its open/close state is the reachability subscribers hear. `index.ts` re-exports `rows.ts`, `contract.ts`, `client.ts` and `browser-transport.ts`.
 
 ## Interface
 
@@ -16,7 +16,7 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `makeRpcClient(apiBase, {headers?})` -> `RpcClient` (`client.ts`): oRPC client over `RPCLink` at `${apiBase}/rpc` using `abortableFetch`.
 - `abortableFetch(request, init, {signal?})` (`client.ts`): fetch wrapper passing `signal ?? null`.
 - `makeBrowserRpcClient(base | () => base | null, {session?})` -> `BrowserRpcClient {rpc, bound, bind, rebind, close}` (`client.ts`); types `RpcClient`, `RpcClientOptions`, `BrowserRpcClientOptions`, `BrowserRpcClient`.
-- `browserRpcConnection(apiBase)`, `closeBrowserRpcConnection(apiBase)`, `resetBrowserRpcConnection(apiBase)` (`browser-transport.ts`): get, close or recreate the shared connection for a normalized api base.
+- `browserRpcConnection(apiBase)`, `closeBrowserRpcConnection(apiBase)`, `resetBrowserRpcConnection(apiBase)` (`browser-transport.ts`): get or close the shared connection for a normalized api base, or reset it: reconnect its socket now instead of waiting out the backoff. Reset keeps the same connection object, so a login dialog or query holding it keeps working.
 - `dynamicBrowserRpcLink(currentApiBase, session?)` (`browser-transport.ts`): ClientLink that resolves the api base per call and puts `concivSessionId` in the call context.
 - `subscribeRpcReachability(apiBase, listener)` -> unsubscribe (`browser-transport.ts`).
 - `EngineTrust` on every `BrowserRpcConnection.trust` (`browser-transport.ts`): the one trust owner per api base. `isTrusted()`, `status()` (`checking | trusted | untrusted | revoked | unreachable`), `subscribe(listener)` (the listener gets the new and the previous status), `requestTrust(tokenSource?)` (stored token first, the token source only when it is missing or refused), `requestTrustWithToken(token)`, `requestTrustWithCode(code)` -> `{token} | {refused}`, `requestAuthCode({reissue?})`, `ensureTrusted()`.
@@ -39,17 +39,18 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `BrowserRpcClient.bind` throws `conciv rpc client already bound` when a base is set and `conciv rpc cannot bind an empty api base` for `''` (`client.ts`).
 - `dynamicBrowserRpcLink.call` throws `RPC_UNBOUND_MESSAGE` when the current api base is null (`browser-transport.ts`).
 - Connections are keyed by `normalizeApiBase` (origin + pathname without trailing slash, resolved against `location.href` when present), so equivalent bases share one connection (`browser-transport.ts`).
-- Retry policy: `CONNECTION_LOSS_RETRIES` = 12 with `CONNECTION_LOSS_RETRY_DELAY_MS` = 250, gated by `isRetryableRpcFailure`; a closed connection is not alive and stops retrying (`browser-transport.ts`).
-- The token is stored under `conciv:engine-token:<normalized api base>` in localStorage; a 401 or a 1008 close for the token currently held forgets it and sets `untrusted`, a refusal for an older token is ignored (`browser-transport.ts`).
+- Retry policy (`ClientRetryPlugin`, gated by `isRetryableRpcFailure`): a one-shot call retries `CONNECTION_LOSS_RETRIES` = 12 times `CONNECTION_LOSS_RETRY_DELAY_MS` = 250 apart; a contract event-iterator call (`getEventIteratorSchemaDetails` on its output schema) retries without a cap, each retry waiting for the socket to open again and resuming with oRPC's `lastEventId`; a closed connection is not alive and stops retrying. Extension streams (`ext.*`) are not in the contract and keep the one-shot cap (`browser-transport.ts`).
+- Trust is per socket: the socket sends `{type: SOCKET_TRUST_FRAME, token}` on every open before any queued call, and an `auth.trust` or `auth.exchange` that succeeds on the socket trusts that socket too. A `REVOKED_SOCKET_CLOSE_CODE` close stops the reconnects (`shouldReconnectOnClose`) and forgets the held token; the next call reopens the socket without it (`browser-transport.ts`).
+- The token is stored under `conciv:engine-token:<normalized api base>` in localStorage; an `UNAUTHORIZED` reply or a 1008 close for the token currently held forgets it and sets `untrusted` / `revoked`, a refusal for an older token is ignored (`browser-transport.ts`).
 
 ## Side Effects
 
 - Holds the page's one engine connection in `globalThis.__concivBrowserRpcConnectionV4`, shared across bundle copies (`connectionEntry` in `browser-transport.ts`); asking for a different normalized api base closes the held connection and replaces it, and closing a base clears the slot only when it holds that base. Trust status and reachability votes are events on each connection's `EventTarget`; `subscribeRpcReachability` creates the connection for its base when none exists yet, and a vote only dispatches while its connection is still open.
-- HTTP calls to `${apiBase}/rpc` through `RPCLink` (`makeRpcClient` in `client.ts`; `fetchLink` in `browser-transport.ts`).
-- Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) when the context has `concivSessionId` (`requestHeaders`, `browser-transport.ts`).
-- `makeRpcClient` is the node client and sends `CONCIV_VERSION_HEADER` (`x-conciv-version`, from `@conciv/protocol/rpc-types`) set to the contract package.json version; browser code uses the browser link (`makeBrowserRpcClient` / `dynamicBrowserRpcLink`), which carries no custom header an engine from before release versions would refuse in its CORS preflight.
+- HTTP calls to `${apiBase}/rpc` through the fetch `RPCLink` (`makeRpcClient` in `client.ts`, node callers only); the browser opens one WebSocket to `${apiBase}/rpc-ws` per connection (`socketConnection` in `browser-transport.ts`).
+- Adds the `CONCIV_SESSION_HEADER` header (from `@conciv/protocol/chat-types`) to a socket call when the context has `concivSessionId` (`sessionHeaders`, `browser-transport.ts`).
+- `makeRpcClient` is the node client and sends `CONCIV_VERSION_HEADER` (`x-conciv-version`, from `@conciv/protocol/rpc-types`) set to the contract package.json version; browser code uses the socket link (`makeBrowserRpcClient` / `dynamicBrowserRpcLink`).
 - Reads `location.href` when defined (`normalizeApiBase`).
-- Calls reachability listeners with `false` when a retry is scheduled and `true` when a retry succeeds (`retryPlugin`, `browser-transport.ts`).
+- Calls reachability listeners with `true` when the socket opens and `false` when it closes for any reason but a revocation (`socketConnection`, `browser-transport.ts`).
 - `rebind` / `close` remove the previous base's shared connection from the global registry, which affects every client sharing that base (`closeBrowserRpcConnection`).
 
 ## Verification

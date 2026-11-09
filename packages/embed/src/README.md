@@ -15,6 +15,7 @@ Mounts the conciv widget into a shadow root on the host page and starts the page
 
 ## Invariants
 
+- `mount-impl.tsx` unmount - closes the rpc socket before the app and its query cache are torn down, so the calls that teardown aborts are already settled by the socket close and never try to send an abort frame on a closed socket.
 - `mount.ts:createConciv.mount` - does nothing without a `document` or when the state is not `unmounted`; a failed mount resets to `unmounted` and rethrows.
 - `mount.ts:createConciv.rebind` - does nothing unless the state is `mounted`.
 - `mount.ts:mountConciv` - does nothing inside a `data-conciv-capture` frame or when a `[data-conciv-script-root]` already exists; removes its element if the mount fails.

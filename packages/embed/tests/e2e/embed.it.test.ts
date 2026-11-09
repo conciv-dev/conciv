@@ -47,6 +47,7 @@ import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
 import type {DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
@@ -130,6 +131,23 @@ test.describe('embed boot', () => {
       await openPage(page)
       await openPanel(page)
       await sendMessage(page, 'hi there', ASSISTANT_TEXT)
+    })
+
+    test('every rpc call from login to a reply rides one websocket and none goes over http', async ({page}) => {
+      test.setTimeout(120_000)
+      const httpRpc: string[] = []
+      const rpcSockets: string[] = []
+      page.on('request', (request) => {
+        if (new URL(request.url()).pathname.includes('/rpc/')) httpRpc.push(request.url())
+      })
+      page.on('websocket', (socket) => {
+        if (new URL(socket.url()).pathname.endsWith(RPC_WS_PATH)) rpcSockets.push(socket.url())
+      })
+      await openPage(page)
+      await openPanel(page)
+      await sendMessage(page, 'hi there', ASSISTANT_TEXT)
+      expect(httpRpc).toEqual([])
+      expect(rpcSockets).toHaveLength(1)
     })
   })
 
@@ -694,7 +712,7 @@ test.describe('idle fetch heartbeat', () => {
       page,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(page)
+      const wire = await watchRpcWire(page)
       const hold = await holdRpcCalls(page)
       await openLoggedIn(page, suite.kit(), suite.host().base)
       await openChatPanel(page)
@@ -920,7 +938,7 @@ test.describe('native widget', () => {
     test('opens the panel on native open and is idempotent, and closes on native close', async ({
       page: fixturePage,
     }) => {
-      const wire = watchRpcWire(fixturePage)
+      const wire = await watchRpcWire(fixturePage)
       const {page} = await openNative(fixturePage)
       await wire.sessionsBootTraffic()
       await callNative(page, 'open', {v: 1, seq: 1})
@@ -935,7 +953,7 @@ test.describe('native widget', () => {
       page: fixturePage,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(fixturePage)
+      const wire = await watchRpcWire(fixturePage)
       const {page, bridge} = await openNative(fixturePage)
       await wire.sessionsBootTraffic()
       const picked = Promise.withResolvers<PageToNativeMessage>()

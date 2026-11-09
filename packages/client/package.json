@@ -46,7 +46,7 @@
     "@orpc/tanstack-query": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/query-core": "catalog:",
-    "partysocket": "^1.3.0",
+    "partysocket": "catalog:",
     "solid-js": "catalog:"
   },
   "devDependencies": {

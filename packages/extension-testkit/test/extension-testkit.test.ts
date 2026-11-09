@@ -349,7 +349,7 @@ describe('page rpc observer', () => {
   const PING_PATH = ['ext', 'ping', 'ping']
   const CORE_NAMESAKE_PATH = ['ping']
 
-  test('the page observer sees extension rpc calls from the page-load one onward, over the fetch transport', async () => {
+  test('the page observer sees extension rpc calls from the page-load one onward, over one websocket', async () => {
     const api = await getExtensionTestApi({server: ping, host: fixtureHost(hostDist)})
     try {
       await playwrightExpect(api.page.getByText('pong: boot')).toBeVisible()
@@ -359,7 +359,7 @@ describe('page rpc observer', () => {
       await playwrightExpect(api.page.getByText('pong: again')).toBeVisible()
       const roundtrip = await observer.completed({path: PING_PATH, since: mark})
       playwrightExpect(roundtrip.status).toBe(200)
-      playwrightExpect(observer.socketCount()).toBe(0)
+      playwrightExpect(observer.socketCount()).toBe(1)
       playwrightExpect(observer.startedCount({path: PING_PATH, since: mark})).toBe(1)
       playwrightExpect(observer.startedCount({path: PING_PATH})).toBe(2)
     } finally {

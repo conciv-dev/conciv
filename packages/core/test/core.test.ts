@@ -16,14 +16,25 @@ import {
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
-import {makeRpcClient, SOCKET_TRUST_FRAME, type EngineStaleness} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  closeBrowserRpcConnection,
+  dynamicBrowserRpcLink,
+  makeBrowserRpcClient,
+  makeRpcClient,
+  subscribeRpcReachability,
+  SOCKET_TRUST_FRAME,
+  type EngineStaleness,
+} from '@conciv/contract'
+import {revokeBrowsers} from '@conciv/protocol/engine-trust'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {chatRuns, openDb, type ConcivDb} from '@conciv/db'
 import {defineTool, defineExtension, makeExtRpcClient} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
-import {CHAT_SSE_PATH, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {eq} from 'drizzle-orm'
@@ -52,7 +63,7 @@ import {os} from '@orpc/server'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {RPCLink as WebsocketRpcLink} from '@orpc/client/websocket'
-import {CONCIV_VERSION_HEADER, type RpcContext} from '@conciv/protocol/rpc-types'
+import {CONCIV_VERSION_HEADER, RPC_WS_PATH, rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import coreManifest from '../package.json' with {type: 'json'}
 import {chunkWithInlineMap, cleanupChunks, makeChatFixture, type ChatFixture} from './helpers.js'
@@ -1343,6 +1354,118 @@ describe('engine login', () => {
       rmSync(root, {recursive: true, force: true})
     }
   })
+})
+
+describe('browser rpc over one websocket', () => {
+  const REVOKED_RECONNECT_WINDOW_MS = 1500
+  const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
+  const sessionOs = os.$context<RpcContext>()
+  const sessionProbe = defineExtension({name: 'session probe'}).server(() => ({
+    context: {},
+    router: sessionOs.router({session: sessionOs.handler(({context}) => rpcHeader(context, CONCIV_SESSION_HEADER))}),
+  }))
+
+  type Wire = {httpRpc: number; sockets: number}
+
+  async function engine(root: string, port = 0, agentToken?: string) {
+    const made = await makeApp({
+      cfg: resolveConfig({}, root),
+      cwd: root,
+      openInEditor: () => {},
+      extensions: [sessionProbe],
+      ...(agentToken ? {agentToken} : {}),
+    })
+    const wire: Wire = {httpRpc: 0, sockets: 0}
+    const served = await serveHono({
+      port,
+      fetch: (request, env) => {
+        const {pathname} = new URL(request.url)
+        if (pathname === RPC_WS_PATH && request.headers.get('upgrade') === 'websocket') wire.sockets += 1
+        if (pathname.startsWith('/rpc/')) wire.httpRpc += 1
+        return made.fetch(request, env)
+      },
+    })
+    const stop = async () => {
+      await served.close()
+      await made.dispose()
+    }
+    return {made, wire, port: served.port, origin: `http://127.0.0.1:${served.port}`, stop}
+  }
+
+  test('an untrusted socket is refused until an auth call on that same socket trusts it, and nothing rides http', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    try {
+      const {trust} = browserRpcConnection(served.origin)
+      const {rpc} = makeBrowserRpcClient(served.origin)
+      await expect(rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      expect(await trust.requestTrust()).toBe(false)
+      expect(trust.status()).toBe('untrusted')
+      expect(await trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      expect(await rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+      const probe = (session?: () => string) =>
+        createORPCClient<{ext: {'session-probe': {session: () => Promise<string | null>}}}>(
+          dynamicBrowserRpcLink(() => served.origin, session),
+        ).ext['session-probe'].session()
+      expect(await Promise.all([probe(() => 'conciv_first'), probe(() => 'conciv_second'), probe()])).toEqual([
+        'conciv_first',
+        'conciv_second',
+        null,
+      ])
+      expect(served.wire).toEqual({httpRpc: 0, sockets: 1})
+    } finally {
+      closeBrowserRpcConnection(served.origin)
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
+  test('an open changes stream keeps delivering after the engine restarts on the same port', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const first = await engine(root)
+    const token = first.made.trustBrowser(requester, Date.now())
+    const votes: boolean[] = []
+    const unsubscribe = subscribeRpcReachability(first.origin, (reachable) => votes.push(reachable))
+    const restarted: {current: Awaited<ReturnType<typeof engine>> | null} = {current: null}
+    try {
+      expect(await browserRpcConnection(first.origin).trust.requestTrustWithToken(token)).toBe(true)
+      const changes = await makeBrowserRpcClient(first.origin).rpc.sessions.changes()
+      expect((await changes.next()).done).toBe(false)
+      await first.stop()
+      await vi.waitFor(() => expect(votes.at(-1)).toBe(false), {timeout: 5_000})
+      restarted.current = await engine(root, first.port)
+      expect((await changes.next()).done).toBe(false)
+      expect(votes.at(-1)).toBe(true)
+      await changes.return(undefined)
+      expect(first.wire).toEqual({httpRpc: 0, sockets: 1})
+      expect(restarted.current.wire.httpRpc).toBe(0)
+    } finally {
+      unsubscribe()
+      closeBrowserRpcConnection(first.origin)
+      await restarted.current?.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 20_000)
+
+  test('a revoked token closes the socket, the client stops reconnecting, and the next call comes back without it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    try {
+      const {trust} = browserRpcConnection(served.origin)
+      expect(await trust.requestTrustWithToken(served.made.trustBrowser(requester, Date.now()))).toBe(true)
+      revokeBrowsers(concivStateDir(root), 'all')
+      await vi.waitFor(() => expect(trust.status()).toBe('revoked'), {timeout: 5_000})
+      await new Promise((resolve) => setTimeout(resolve, REVOKED_RECONNECT_WINDOW_MS))
+      expect(served.wire.sockets).toBe(1)
+      expect(await trust.requestTrust()).toBe(false)
+      expect(trust.status()).toBe('untrusted')
+      expect(served.wire).toEqual({httpRpc: 0, sockets: 2})
+    } finally {
+      closeBrowserRpcConnection(served.origin)
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  }, 20_000)
 })
 
 describe('engine version', () => {
