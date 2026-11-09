@@ -2297,7 +2297,7 @@ describe('registry', () => {
   })
 
   describe('defineHarness', () => {
-    it('accepts a transcriptHistory harness that provides a history implementation', () => {
+    it('accepts a transcriptHistory harness that provides history and resume implementations', () => {
       const handle: TranscriptHandle = {
         revision: () => Promise.resolve({rev: '0', changedAt: 0}),
         read: () => Promise.resolve({ok: true, rev: '0', changedAt: 0, messages: [], replaced: false}),
@@ -2324,6 +2324,7 @@ describe('registry', () => {
           list: () => Promise.resolve({sessions: [], next: null}),
           meta: () => Promise.resolve(null),
         },
+        resume: {command: ({nativeId}) => ({bin: 'x', args: [nativeId]})},
       })
       expect(typeof adapter.history?.messages).toBe('function')
     })
@@ -2794,5 +2795,19 @@ describe('transcript handles', () => {
       expect(openFileCount()).toBe(before)
       expect(failure(await first.read()).reason).toBe('unreadable')
     })
+  })
+})
+
+describe('resume.command', () => {
+  const input = {cwd: '/workspace/app', nativeId: HarnessSessionId.parse('native-7')}
+
+  it.each([
+    {harness: claude, argv: ['claude', '--resume', 'native-7']},
+    {harness: codex, argv: ['codex', 'resume', 'native-7']},
+    {harness: opencode, argv: ['opencode', '--session', 'native-7']},
+    {harness: pi, argv: ['pi', '--session', 'native-7']},
+  ])('$harness.id resumes a session by its native id', ({harness, argv}) => {
+    const command = harness.resume.command(input)
+    expect([command.bin, ...command.args]).toEqual(argv)
   })
 })

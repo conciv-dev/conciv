@@ -6,7 +6,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 
 ## Interface
 
-- `HarnessAdapter` (`contract.ts`): base fields `id`, `binName`, `displayName?`, `connect`, `chatConfig(deps)`, `models`, `defaultModel`, `tty.command(ctx)`, plus unions keyed on capabilities.
+- `HarnessAdapter` (`contract.ts`): base fields `id`, `binName`, `displayName?`, `connect`, `chatConfig(deps)`, `models`, `defaultModel`, `tty.command(ctx)`, `resume.command({cwd, nativeId})` (the `{bin, args}` a person runs in that cwd to reopen a native session), plus unions keyed on capabilities.
 - `HarnessChatConfig` `{adapter: TextAdapter; modelOptions?; prepareMessages?}`; `defineHarness(adapter)` identity helper for type checking (`contract.ts`).
 - `acpChatConfig(name, commandOf, defaultModel)` (`acp.ts`): chatConfig that builds an `acp(...)` adapter with `permissions: 'interactive'` and sets `modelOptions.sessionId` when resuming.
 - `unsupportedChatConfig(id, binName)` (`stub.ts`): TextAdapter that yields `RUN_STARTED` then `RUN_ERROR` "<binName> is not installed or not yet supported".
@@ -20,7 +20,7 @@ Helpers shared by the harness adapters: the `HarnessAdapter` contract type, an A
 
 ## Invariants
 
-- `HarnessAdapter` requires `history` when `capabilities.transcriptHistory: true`, `commands` when `slashCommands` is `'live'` or `'files'`, and `init` when `init: 'files'`; otherwise each must be undefined (`contract.ts`).
+- `HarnessAdapter` requires `history` and `resume` when `capabilities.transcriptHistory: true`, `commands` when `slashCommands` is `'live'` or `'files'`, and `init` when `init: 'files'`; otherwise each must be undefined (`contract.ts`).
 - `defineStubHarness` capabilities are fixed to `transcriptHistory: false`, `compaction: false`, `slashCommands: 'none'`, `init: 'none'` (`stub.ts`).
 - `containedPath` returns null when the relative step is `''`, starts with `..`, or is absolute (the root itself is rejected); it resolves symlinks with `realpathSync`, falling back to the parent (`contained-path.ts`).
 - `transcriptPage` pages the transcripts of one or more directories as one newest-first list, and skips a transcript whose real path escapes the listed directory (`containedPath`), so `list` never returns a session that `messages` and `meta` refuse to read (`transcript-page.ts`).

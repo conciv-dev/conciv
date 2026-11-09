@@ -2369,8 +2369,7 @@ describe('rpc wire', () => {
           renameSync(written, path)
         }
 
-        function writeCodexTurn(nativeId: string, ask: string, answer: string): string {
-          const cwd = searched.cwd
+        function writeCodexTurn(nativeId: string, ask: string, answer: string, cwd = searched.cwd): string {
           const rollout = join(codexHome(), 'sessions', '2026', '11', '06', `rollout-${nativeId}.jsonl`)
           writeWhole(
             rollout,
@@ -2775,8 +2774,28 @@ describe('rpc wire', () => {
             {nativeId: away, cwd: elsewhere},
             {nativeId: home, cwd: null},
           ])
-          expect(hits[0]?.resume).toContain(`cd '${elsewhere}' && 'claude' '--resume' '${away}'`)
+          expect(hits[0]?.resume).toBe(`cd '${elsewhere}' && 'claude' '--resume' '${away}'`)
           expect(hits[1]?.resume).toBeNull()
+          writeCodexTurn('codex-avocet-away', 'a codex avocet away', 'it fed', elsewhere)
+          const piAway = HarnessSessionId.parse('pi-avocet-away')
+          writeWhole(
+            requireTranscriptPath(piHarness)(elsewhere, piAway),
+            [
+              {type: 'session', version: 3, id: piAway, timestamp: '2026-11-07T09:00:00.000Z', cwd: elsewhere},
+              {type: 'message', id: 'u1', parentId: null, message: {role: 'user', content: 'a pi avocet away'}},
+            ]
+              .map((entry) => `${JSON.stringify(entry)}\n`)
+              .join(''),
+            nextStamp(),
+          )
+          await foundOnceIndexed('avocet', [piAway, 'codex-avocet-away', away, home], true)
+          const {sessions: kinds} = await searchKit().rpc.sessions.search({term: 'avocet', everywhere: true})
+          expect(kinds.map(({harnessKind, resume}) => ({harnessKind, resume}))).toEqual([
+            {harnessKind: 'pi', resume: `cd '${elsewhere}' && 'pi' '--session' '${piAway}'`},
+            {harnessKind: 'codex', resume: `cd '${elsewhere}' && 'codex' 'resume' 'codex-avocet-away'`},
+            {harnessKind: 'claude', resume: `cd '${elsewhere}' && 'claude' '--resume' '${away}'`},
+            {harnessKind: 'claude', resume: null},
+          ])
           expect(await listedNativeIds()).not.toContain(away)
           const awayAsk = {harness: 'claude', nativeId: HarnessSessionId.parse(away), before: null, limit: 10}
           const awayWindow = await searchKit().rpc.sessions.preview({...awayAsk, cwd: elsewhere})

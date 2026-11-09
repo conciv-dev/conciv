@@ -384,6 +384,7 @@ describe('chat plane', () => {
         list: async () => ({sessions: [], next: null}),
         meta: async () => null,
       },
+      resume: {command: ({nativeId}) => ({bin: 'native', args: [nativeId]})},
       capabilities: {
         resume: false,
         permissionGate: 'none',
