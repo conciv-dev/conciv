@@ -121,6 +121,12 @@ already enforced by a tool (formatting, lint autofix) is not review material.
 - Web-first assertions only (`await expect(locator)...`). Flag `expect.poll`, hand-written polling
   loops, and fixed sleeps.
 - Timeouts sized to the real operation; flag a raised suite or step timeout.
+- Time is never the signal a test passes or fails on. Flag any assertion whose meaning depends on a
+  clock: a custom `timeout` that tells the fixed path from the broken one ("in view within 500ms"),
+  a sleep before an assertion, or a duration compared against a budget outside the perf suite. The
+  test orders itself on real signals instead: a held request released or answered, a stream event, a
+  visible state change. It tells fixed from broken by a state only the broken path produces. If no
+  such state exists, the PR says so; it does not invent a timeout.
 - Widget integration tests use `browser.newPage()`, never `browser.newContext()`: contexts leak and
   spike CPU/memory. Whatever a test creates it closes in teardown.
 - Widget integration tests exercise the PREBUILT bundle

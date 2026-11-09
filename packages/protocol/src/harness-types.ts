@@ -162,7 +162,7 @@ export type HarnessTranscriptPaths =
     }
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
   observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean

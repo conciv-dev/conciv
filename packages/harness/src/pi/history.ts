@@ -212,10 +212,14 @@ function containedTranscript(cwd: string, sessionId: string): string | null {
   return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId))
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
   const path = containedTranscript(cwd, sessionId)
   if (path === null) return []
-  const folded = await foldJsonlFile(path, emptyFold(), foldLine).catch(whenMissing(null))
+  const folded = await foldJsonlFile(path, emptyFold(), foldLine, options).catch(whenMissing(null))
   return folded === null ? [] : messagesOf(folded.entries)
 }
 

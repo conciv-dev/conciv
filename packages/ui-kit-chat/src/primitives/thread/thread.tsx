@@ -14,6 +14,7 @@ import {
   type ParentProps,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {keyBy} from 'es-toolkit'
 import {createStore} from 'solid-js/store'
 import {createResizeObserver} from '@solid-primitives/resize-observer'
 import type {ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -51,7 +52,7 @@ function Root(props: DivProps): JSX.Element {
       value={{
         isAtBottom: () => scroller()?.atEnd() ?? true,
         isNearTop: () => scroller()?.nearStart() ?? false,
-        scrollToBottom: landOnEnd,
+        scrollToBottom: () => scroller()?.glideToEnd(),
         sendFromUser: (deliver) => {
           landOnEnd()
           return deliver()
@@ -150,6 +151,7 @@ function VirtualMessages(props: {
 }): JSX.Element {
   const thread = useThread()
   const items = () => thread.turns
+  const itemsByKey = createMemo(() => keyBy(items(), (item) => item.key))
   const turnCount = createMemo(
     () => {
       const list = items()
@@ -192,6 +194,7 @@ function VirtualMessages(props: {
       atEnd: virtualizer.atEnd,
       nearStart: virtualizer.nearStart,
       landOnEnd: virtualizer.landOnEnd,
+      glideToEnd: virtualizer.glideToEnd,
     })
     onCleanup(() => props.viewport.setScroller(undefined))
     let disposed = false
@@ -261,7 +264,7 @@ function VirtualMessages(props: {
             class={ROW}
             style={{transform: `translateY(${item.start - metrics.scrollMargin}px)`}}
           >
-            <Show when={items()[item.index]} keyed>
+            <Show when={itemsByKey()[String(item.key)]} keyed>
               {(turnItem) => <TurnSlot item={turnItem} total={turnCount} messages={props.messages} />}
             </Show>
           </div>

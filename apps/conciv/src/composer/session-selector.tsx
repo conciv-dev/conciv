@@ -267,7 +267,6 @@ export function SessionSelector(props: {
   const highlighted = (value: string | null) => {
     setPicker('highlighted', value)
     if (value === null) return settle.cancel()
-    if (picker.open) return setPicker('previewed', value)
     settle.maybeExecute(value)
   }
   const previewTarget = createMemo(() => previewOf(sessionOf(picker.previewed)), null, {equals: isEqual})
@@ -417,7 +416,7 @@ export function SessionSelector(props: {
                 when={list.isFetchNextPageError}
                 fallback={
                   <div
-                    class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 h-full items-center"
+                    class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 min-h-11 items-center"
                     role="status"
                     aria-busy="true"
                   >
@@ -496,7 +495,7 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
     <Combobox.Item
       ref={(element) => setRow('element', element)}
       item={props.session}
-      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 h-full cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-accent-20 [&_mark]:text-chat-text [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
+      class="text-chat-text px-2 py-[0.4375rem] rounded-chat-surface-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-chat-text-hi data-[highlighted]:bg-chat-fill-strong [&_mark]:bg-chat-accent-20 [&_mark]:text-chat-text [&_mark]:rounded-chat-chip [&_mark]:[box-shadow:inset_0_-1px_var(--chat-accent)] [&_mark]:anim-mark"
       aria-labelledby={labelId}
       aria-describedby={excerpt() === null ? undefined : excerptId}
     >
@@ -528,7 +527,7 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
           {(text) => (
             <div
               id={excerptId}
-              class="text-[0.75rem] text-chat-text-2 leading-4 h-12 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_calc(100%-0.5rem),transparent)]"
+              class="text-[0.75rem] text-chat-text-2 leading-4 max-h-12 overflow-hidden [mask-image:linear-gradient(to_bottom,#000_2.5rem,transparent_3rem)]"
             >
               <Markdown content={text()} compact highlight={matchedOf(props.session)} />
             </div>
