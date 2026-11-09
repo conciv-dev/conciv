@@ -155,7 +155,9 @@ function RailButton(props: {
       class="px-1 pb-1 pt-1.5 flex-col gap-0.5 w-12 data-[active]:text-chat-accent !rounded-chat-surface-sm data-[active]:bg-chat-fill-strong"
       data-conciv-key="_04rZQ"
     >
-      <props.icon class="size-5 block" aria-hidden="true" />
+      <span class="size-5 block" data-conciv-key="pe8UhA">
+        <props.icon class="size-5 block" aria-hidden="true" />
+      </span>
       <span
         class={`text-[length:var(--chat-text-xs)] leading-none ${props.active ? 'font-semibold' : 'text-chat-text-3 font-normal'}`}
         data-conciv-key="P-ZisQ"
