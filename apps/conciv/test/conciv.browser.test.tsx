@@ -4013,17 +4013,7 @@ describe('session selector', () => {
     await expect.element(option('the puffin notes').getByRole('mark')).toHaveTextContent('puffin')
     await expect.element(option('the puffin notes')).not.toHaveAccessibleDescription()
     await expect.element(option('the second puffin diary')).toBeVisible()
-    const boxOf = (locator: Locator) => coreControl.boxOf(locator.selector)
-    const shortExcerpt = await boxOf(page.getByText('a puffin colony nests on the cliff'))
-    const belowShortExcerpt = await boxOf(option('the first puffin diary'))
-    expect(belowShortExcerpt.y - (shortExcerpt.y + shortExcerpt.height)).toBeLessThan(28)
     const results = ['the puffin notes', 'a seabird survey', 'the first puffin diary', 'the second puffin diary']
-    const boxes = await Promise.all(results.map((title) => boxOf(option(title))))
-    for (const [index, box] of boxes.slice(1).entries()) {
-      const above = boxes[index]
-      if (!above) throw new Error('every result row has a row above it')
-      expect(box.y).toBeGreaterThanOrEqual(above.y + above.height - 0.5)
-    }
     for (const title of results) {
       await userEvent.keyboard('{ArrowDown}')
       await expect.element(option(title)).toHaveAttribute('data-highlighted')

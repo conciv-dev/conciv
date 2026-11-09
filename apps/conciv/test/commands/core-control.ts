@@ -510,12 +510,6 @@ const buttonBox = async (ctx: BrowserCommandContext, name: string) => {
   return box
 }
 
-const boxOf: BrowserCommand<[selector: string]> = async (ctx, selector) => {
-  const box = await ctx.iframe.locator(selector).boundingBox()
-  if (!box) throw new Error(`nothing on screen matches ${selector}`)
-  return box
-}
-
 const walkPointer = (ctx: BrowserCommandContext, start: {x: number; y: number}, moves: PointerMove[]) =>
   moves.reduce(async (previous: Promise<{x: number; y: number}>, move) => {
     const at = await previous
@@ -545,7 +539,6 @@ const hoverButton: BrowserCommand<[hover: PointerHover]> = async (ctx, hover) =>
 }
 
 export const coreCommands = {
-  boxOf,
   dragButton,
   hoverButton,
   bootCore,
