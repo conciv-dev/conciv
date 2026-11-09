@@ -30,7 +30,9 @@ function browserProject(name: string, include: string[], exclude: string[]): Tes
       browser: {
         enabled: true,
         headless: true,
-        provider: playwright({contextOptions: {timezoneId: 'Pacific/Kiritimati'}}),
+        provider: playwright({
+          contextOptions: {timezoneId: 'Pacific/Kiritimati', permissions: ['clipboard-read', 'clipboard-write']},
+        }),
         instances: [{browser: 'chromium'}],
         commands: coreCommands,
       },

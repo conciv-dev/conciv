@@ -211,6 +211,16 @@ describe('clipboard', () => {
     expect(written).toEqual([TEXT])
   })
 
+  it('keeps its tooltip open through the click so the pointer user sees Copied', async () => {
+    render(() => <ClipboardCopyButton text={TEXT} resetMs={RESET_MS * 10} writeText={accept([])} />)
+    await userEvent.hover(copyButton())
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copy')
+    await userEvent.click(copyButton())
+
+    await expect.element(page.getByRole('tooltip')).toBeVisible()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
+  })
+
   it('renames the copy button to Copy failed when the clipboard refuses', async () => {
     await copyOnceWithButton(refuse)
 

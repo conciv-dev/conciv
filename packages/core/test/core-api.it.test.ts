@@ -64,6 +64,7 @@ import {
   connectMcpClient,
   makeCallTool,
   approvePending,
+  type FixtureSession,
   type TestHarness,
   type RunEvents,
   type RunStream,
@@ -91,12 +92,7 @@ import {
   type ReasoningEffort,
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
-import {
-  type HarnessChatDeps,
-  type HarnessListCursor,
-  type HarnessModel,
-  type HarnessSessionMeta,
-} from '@conciv/protocol/harness-types'
+import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -717,7 +713,7 @@ describe('api harness switching', () => {
   const alpha = recorded(
     createFakeHarness({id: 'alpha', displayName: 'Alpha', resume: true, models: [{id: 'a-model', name: 'A'}]}),
   )
-  const betaTranscripts: HarnessSessionMeta[] = [
+  const betaTranscripts: FixtureSession[] = [
     {id: NATIVE_BETA, derivedTitle: 'a beta session', updatedAt: 5, sizeBytes: 2048},
   ]
   const beta = recorded(
@@ -922,6 +918,7 @@ describe('api harness switching', () => {
       id: HarnessSessionId.parse(owned),
       derivedTitle: 'the owned transcript',
       updatedAt: Date.now() + 3_600_000,
+      text: 'a skua stole the catch',
     })
     const listings = async (includeHidden: boolean) => {
       const {sessions: listed} = await kit().rpc.sessions.list({includeHidden})
@@ -939,7 +936,23 @@ describe('api harness switching', () => {
         (await kit().rpc.sessions.search({term: 'owned transcript'})).sessions.some((meta) => meta.id === sessionId),
       {hangGuardMs: 5_000, intervalMs: 50},
     )
+    const skuaHit = async () => {
+      const {sessions: hits} = await kit().rpc.sessions.search({term: 'skua'})
+      return hits.find((meta) => meta.id === sessionId)
+    }
+    await until(async () => (await skuaHit()) !== undefined, {hangGuardMs: 5_000, intervalMs: 50})
+    const previewOfHit = async () => {
+      const preview = (await skuaHit())?.preview
+      if (!preview) throw new Error('the skua hit carries no transcript to preview')
+      const ask = {harness: preview.harnessKind, nativeId: preview.nativeId, cwd: preview.cwd, before: null}
+      const window = await kit().rpc.sessions.preview({...ask, limit: 10})
+      return window.messages.flatMap((message) =>
+        message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+      )
+    }
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     expect(await turn(sessionId, 'back on alpha')).toMatchObject({harness: 'alpha', resumeSessionId: null})
+    expect(await previewOfHit()).toEqual(['a skua stole the catch'])
     await kit().rpc.sessions.switchHarness({sessionId, harnessId: 'beta'})
     const returned = await turn(sessionId, 'back on beta')
     expect(returned).toMatchObject({harness: 'beta', resumeSessionId: null})
@@ -2466,8 +2479,8 @@ describe('rpc wire', () => {
           return rollout
         }
 
-        async function found(search: string): Promise<string[]> {
-          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100})
+        async function found(search: string, everywhere = false): Promise<string[]> {
+          const {sessions: listed} = await searchKit().rpc.sessions.search({term: search, limit: 100, everywhere})
           return listed.map((meta) => meta.native?.nativeId ?? meta.title)
         }
 
@@ -2485,10 +2498,10 @@ describe('rpc wire', () => {
           await searched.changes.next()
         }
 
-        async function foundOnceIndexed(search: string, expected: string[]): Promise<void> {
-          if (isEqual(await found(search), expected)) return
+        async function foundOnceIndexed(search: string, expected: string[], everywhere = false): Promise<void> {
+          if (isEqual(await found(search, everywhere), expected)) return
           await indexedChange()
-          return foundOnceIndexed(search, expected)
+          return foundOnceIndexed(search, expected, everywhere)
         }
 
         async function stampedOnceIndexed(search: string, expected: {nativeId: string; updatedAt: number}[]) {
@@ -2677,6 +2690,171 @@ describe('rpc wire', () => {
             return page.next === null ? ids : [...ids, ...(await paged(page.next))]
           }
           expect(await paged(null)).toEqual(tied)
+        })
+
+        it('carries an excerpt from the matching line and the words that matched it, by prefix or one typo', async () => {
+          const curlew = claudeId('claude-curlew')
+          writeClaudeTurn(curlew, 'a shore walk', 'first we packed\nthe Curlews jetted past the jetty')
+          expect(await listedNativeIds()).toContain(curlew)
+          await foundOnceIndexed('curl', [curlew])
+          const hitOf = async (term: string) => {
+            const {sessions: listed} = await searchKit().rpc.sessions.search({term, limit: 100})
+            return listed.map(({excerpt, matched}) => ({excerpt, matched}))
+          }
+
+          expect(await hitOf('curl')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['Curlews']}])
+          expect(await hitOf('jetti')).toEqual([{excerpt: 'the Curlews jetted past the jetty', matched: ['jetty']}])
+          expect(await hitOf('packd')).toEqual([
+            {excerpt: 'first we packed\nthe Curlews jetted past the jetty', matched: ['packed']},
+          ])
+
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const owned = listed.find((meta) => meta.native?.nativeId === curlew)
+          if (owned === undefined) throw new Error('the curlew session was not listed')
+          await searchKit().rpc.sessions.rename({sessionId: owned.id, title: 'the godwit count'})
+          expect(await hitOf('godwit')).toEqual([{excerpt: null, matched: ['godwit']}])
+
+          const tabbed = claudeId('claude-tabbed')
+          writeClaudeTurn(tabbed, 'a tabbed tally', `${'alpha\t'.repeat(100)}phalarope`)
+          await foundOnceIndexed('phalarope', [tabbed])
+          const [phalarope] = await hitOf('phalarope')
+          expect(phalarope?.matched).toEqual(['phalarope'])
+          expect(phalarope?.excerpt).toMatch(/^….*phalarope$/s)
+        })
+
+        it('previews a native transcript newest window first, pages back by message, and refuses an unknown one', async () => {
+          const sanderling = claudeId('claude-sanderling')
+          writeClaudeLines(
+            sanderling,
+            [0, 1, 2]
+              .flatMap((turn) => [
+                JSON.stringify({type: 'user', message: {content: `sanderling question ${turn}`}}),
+                JSON.stringify({
+                  type: 'assistant',
+                  message: {content: [{type: 'text', text: `sanderling answer ${turn}`}]},
+                }),
+              ])
+              .join('\n') + '\n',
+            nextStamp(),
+          )
+          const {sessions: listed} = await searchKit().rpc.sessions.list({limit: 100})
+          const native = listed.find((meta) => meta.native?.nativeId === sanderling)?.native
+          if (!native) throw new Error('the sanderling session was not listed')
+          const textsIn = (window: {messages: ChatMessage[]}) =>
+            window.messages.map((message) =>
+              message.parts.flatMap((part) => (part.type === 'text' ? [part.content] : [])),
+            )
+          const ask = {harness: native.harnessKind, nativeId: native.nativeId, limit: 4}
+
+          const newest = await searchKit().rpc.sessions.preview({...ask, before: null})
+          expect(textsIn(newest)).toEqual([
+            ['sanderling question 1'],
+            ['sanderling answer 1'],
+            ['sanderling question 2'],
+            ['sanderling answer 2'],
+          ])
+          const earlier = await searchKit().rpc.sessions.preview({...ask, before: newest.earlier})
+          expect(textsIn(earlier)).toEqual([['sanderling question 0'], ['sanderling answer 0']])
+          expect(earlier.earlier).toBeNull()
+          const never = HarnessSessionId.parse(claudeId('claude-never'))
+          await expect(searchKit().rpc.sessions.preview({...ask, nativeId: never, before: null})).rejects.toMatchObject(
+            {
+              code: 'NOT_FOUND',
+            },
+          )
+          expect((await searchKit().rpc.sessions.list({limit: 100})).sessions).toHaveLength(listed.length)
+        })
+
+        it('previewing a session in a folder outside the index adds that folder, so a later search finds its sessions', async () => {
+          const folder = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-unindexed-')))
+          const transcriptIn = (nativeId: string, ask: string, answer: string) => {
+            const id = HarnessSessionId.parse(nativeId)
+            const entries = [
+              {type: 'session', version: 3, id, timestamp: '2026-11-07T09:00:00.000Z'},
+              {
+                type: 'message',
+                id: 'u1',
+                parentId: null,
+                message: {role: 'user', content: [{type: 'text', text: ask}]},
+              },
+              {
+                type: 'message',
+                id: 'a1',
+                parentId: 'u1',
+                message: {role: 'assistant', content: [{type: 'text', text: answer}]},
+              },
+            ]
+            writeWhole(
+              requireTranscriptPath(piHarness)(folder, id),
+              entries.map((entry) => `${JSON.stringify(entry)}\n`).join(''),
+              nextStamp(),
+            )
+          }
+          transcriptIn('pi-plover-previewed', 'a plover on the shingle', 'it ran the tideline')
+          transcriptIn('pi-plover-neighbour', 'a ringed plover nest', 'four speckled eggs')
+          await searchKit().rpc.sessions.list({limit: 100})
+          expect(await found('ringed', true)).toEqual([])
+
+          const window = await searchKit().rpc.sessions.preview({
+            harness: 'pi',
+            nativeId: HarnessSessionId.parse('pi-plover-previewed'),
+            cwd: folder,
+            before: null,
+            limit: 10,
+          })
+          expect(window.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await foundOnceIndexed('ringed', ['pi-plover-neighbour'], true)
+
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-preview-elsewhere-')))
+          const turnstone = claudeId('claude-turnstone-away')
+          writeWhole(
+            requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(turnstone)),
+            JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'a turnstone away'}}) + '\n',
+            nextStamp(),
+          )
+          await foundOnceIndexed('turnstone', [turnstone], true)
+          expect(await found('ringed', true)).toEqual(['pi-plover-neighbour'])
+          rmSync(folder, {recursive: true, force: true})
+          rmSync(elsewhere, {recursive: true, force: true})
+        })
+
+        it('searches this project unless asked for every project, reading each session from its own folder', async () => {
+          const elsewhere = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-search-elsewhere-')))
+          const home = claudeId('claude-avocet-home')
+          const away = claudeId('claude-avocet-away')
+          writeClaudeTurn(home, 'an avocet at home', 'it waded the lagoon')
+          const awayPath = requireTranscriptPath(requireClaude())(elsewhere, HarnessSessionId.parse(away))
+          mkdirSync(dirname(awayPath), {recursive: true})
+          writeFileSync(
+            awayPath,
+            [
+              JSON.stringify({type: 'user', cwd: elsewhere, message: {content: 'an avocet away'}}),
+              JSON.stringify({type: 'assistant', cwd: elsewhere, message: {content: [{type: 'text', text: 'stilts'}]}}),
+            ].join('\n') + '\n',
+          )
+          const stamp = nextStamp() / 1000
+          utimesSync(awayPath, stamp, stamp)
+          expect(await listedNativeIds()).toContain(home)
+
+          await foundOnceIndexed('avocet', [home])
+          expect(await found('stilts')).toEqual([])
+          await foundOnceIndexed('avocet', [away, home], true)
+          await foundOnceIndexed('stilts', [away], true)
+          expect(await found('avocet')).toEqual([home])
+
+          const {sessions: hits} = await searchKit().rpc.sessions.search({term: 'avocet', everywhere: true})
+          expect(hits.map(({native, cwd}) => ({nativeId: native?.nativeId, cwd}))).toEqual([
+            {nativeId: away, cwd: elsewhere},
+            {nativeId: home, cwd: null},
+          ])
+          expect(hits[0]?.resume).toContain(`cd '${elsewhere}' && 'claude' '--resume' '${away}'`)
+          expect(hits[1]?.resume).toBeNull()
+          expect(await listedNativeIds()).not.toContain(away)
+          const awayAsk = {harness: 'claude', nativeId: HarnessSessionId.parse(away), before: null, limit: 10}
+          const awayWindow = await searchKit().rpc.sessions.preview({...awayAsk, cwd: elsewhere})
+          expect(awayWindow.messages.map((message) => message.role)).toEqual(['user', 'assistant'])
+          await expect(searchKit().rpc.sessions.preview(awayAsk)).rejects.toMatchObject({code: 'NOT_FOUND'})
+          rmSync(elsewhere, {recursive: true, force: true})
         })
 
         it('tolerates typos only when every word has at least four characters', async () => {

@@ -678,7 +678,7 @@ describe('claude history', () => {
         JSON.stringify({type: 'user', message: {role: 'user', content: 'rename the settings panel'}}),
         JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'done'}]}}),
       ].join('\n')
-      expect(parseSessionMeta('s', jsonl, 1).derivedTitle).toBe('rename the settings panel')
+      expect(parseSessionMeta('s', '/proj', jsonl, 1).derivedTitle).toBe('rename the settings panel')
     })
 
     it('counts only genuine turns and never previews machinery', () => {
@@ -687,7 +687,7 @@ describe('claude history', () => {
         JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'done'}]}}),
         ...machineryLines,
       ].join('\n')
-      const meta = parseSessionMeta('s', jsonl, 1)
+      const meta = parseSessionMeta('s', '/proj', jsonl, 1)
       expect(meta.lastMessage).toBe('done')
     })
   })
@@ -753,7 +753,7 @@ describe('claude history', () => {
       seed(cwd, CLAUDE_IDS.older, JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
       seed(cwd, CLAUDE_IDS.newer, newer + '\n', 2000)
       seed(cwd, CLAUDE_IDS.hidden, JSON.stringify({type: 'assistant', message: {content: []}}) + '\n', 3000)
-      const out = (await claudeHistory.list(cwd, FIRST_PAGE)).sessions
+      const out = (await claudeHistory.list({cwd}, FIRST_PAGE)).sessions
       expect(out).toEqual([
         expect.objectContaining({
           id: CLAUDE_IDS.newer,
@@ -768,6 +768,24 @@ describe('claude history', () => {
       rmSync(transcriptRoot(cwd), {recursive: true, force: true})
     })
 
+    it('lists the sessions of every project, each with the cwd its transcript records', async () => {
+      const projects = {
+        first: {cwd: '/proj/every-first', id: '00000000-0000-4000-8000-0000000000e1'},
+        second: {cwd: '/proj/every/second', id: '00000000-0000-4000-8000-0000000000e2'},
+      }
+      for (const project of Object.values(projects)) {
+        seed(
+          project.cwd,
+          project.id,
+          JSON.stringify({type: 'user', cwd: project.cwd, message: {content: 'task'}}) + '\n',
+          4000,
+        )
+      }
+      const {sessions} = await claudeHistory.list({everywhere: true}, FIRST_PAGE)
+      expect(sessions.map(({id, cwd}) => ({id, cwd}))).toEqual(expect.arrayContaining(Object.values(projects)))
+      for (const project of Object.values(projects)) rmSync(transcriptRoot(project.cwd), {recursive: true, force: true})
+    })
+
     it('pages newest first and breaks updatedAt ties by id', async () => {
       const cwd = '/proj/paged'
       const body = JSON.stringify({type: 'user', message: {content: 'paged task'}}) + '\n'
@@ -776,7 +794,7 @@ describe('claude history', () => {
       seed(cwd, CLAUDE_PAGED_IDS.tieLow, body, 2000)
       seed(cwd, CLAUDE_PAGED_IDS.oldest, body, 1000)
       await expectPagingContract(
-        (page) => claudeHistory.list(cwd, page),
+        (page) => claudeHistory.list({cwd}, page),
         CLAUDE_PAGED_IDS,
         2_000_000,
         async () => {},
@@ -785,7 +803,7 @@ describe('claude history', () => {
     })
 
     it('returns [] for a missing dir', async () => {
-      expect(await claudeHistory.list('/no/such', FIRST_PAGE)).toEqual({sessions: [], next: null})
+      expect(await claudeHistory.list({cwd: '/no/such'}, FIRST_PAGE)).toEqual({sessions: [], next: null})
     })
   })
 
@@ -804,7 +822,7 @@ describe('claude history', () => {
         JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'the reply'}]}}),
         JSON.stringify({type: 'result', usage: {input_tokens: 10, output_tokens: 5}}),
       ].join('\n')
-      const meta = parseSessionMeta('tok', jsonl, 123)
+      const meta = parseSessionMeta('tok', '/proj', jsonl, 123)
       expect(meta.model).toBe('claude-opus-4-8')
       expect(meta.updatedAt).toBe(123)
       expect(meta.totalTokens).toBe(15)
@@ -1140,7 +1158,7 @@ describe('codex history', () => {
 
   describe('codex history sidecar', () => {
     it('lists only the sessions recorded for this cwd', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'List the files',
@@ -1154,10 +1172,21 @@ describe('codex history', () => {
     })
 
     it('reads one session meta for this cwd and none for another', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(await history().meta(PROJECT, SESSION)).toEqual(sessions[0])
       expect(await history().meta(PROJECT, STRAY)).toBeNull()
       expect(await history().meta(PROJECT, DELETED)).toBeNull()
+    })
+
+    it('lists the sessions of every project, each with the cwd its thread records', async () => {
+      const {sessions} = await history().list({everywhere: true}, FIRST_PAGE)
+      expect(sessions.map(({id, cwd}) => ({id, cwd}))).toEqual(
+        expect.arrayContaining([
+          {id: SESSION, cwd: PROJECT},
+          {id: STRAY, cwd: OTHER},
+        ]),
+      )
+      expect(sessions.map((session) => session.id)).not.toContain(DELETED)
     })
 
     it('pages newest first, breaks updatedAt ties by id, and reads only the rollouts on the page', async () => {
@@ -1172,7 +1201,7 @@ describe('codex history', () => {
         {id: PAGED_IDS.oldest, path: oldest, cwd: paged, updated: 1_000_000},
       ])
       await expectPagingContract(
-        (page) => history().list(paged, page),
+        (page) => history().list({cwd: paged}, page),
         PAGED_IDS,
         2_000_000,
         async () => {
@@ -1216,7 +1245,9 @@ describe('codex history', () => {
       expect(rolloutPath(planted)).toBeNull()
       expect(await history().messages(PROJECT, planted)).toEqual([])
       expect(await history().meta(PROJECT, planted)).toBeNull()
-      expect((await history().list(PROJECT, FIRST_PAGE)).sessions.map((session) => session.id)).not.toContain(planted)
+      expect((await history().list({cwd: PROJECT}, FIRST_PAGE)).sessions.map((session) => session.id)).not.toContain(
+        planted,
+      )
     })
   })
 
@@ -1786,7 +1817,7 @@ describe('opencode history', () => {
 
   describe('opencode history sidecar', () => {
     it('lists only the sessions opened in this directory', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(sessions.map((session) => session.id)).toEqual([SESSION])
       expect(sessions[0]).toMatchObject({
         derivedTitle: 'Count the files',
@@ -1795,6 +1826,16 @@ describe('opencode history', () => {
         updatedAt: 1785305469728,
         createdAt: 1785273548261,
       })
+    })
+
+    it('lists the sessions of every directory, each with the directory its row records', async () => {
+      const {sessions} = await history().list({everywhere: true}, FIRST_PAGE)
+      expect(sessions.map(({id, cwd}) => ({id, cwd}))).toEqual(
+        expect.arrayContaining([
+          {id: SESSION, cwd: PROJECT},
+          {id: STRAY, cwd: OTHER},
+        ]),
+      )
     })
 
     it('rebuilds the conversation from the message and part rows', async () => {
@@ -1845,7 +1886,7 @@ describe('opencode history', () => {
     })
 
     it('reads one session meta for this directory and none for another', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(await history().meta(PROJECT, SESSION)).toEqual(sessions[0])
       expect(await history().meta(PROJECT, STRAY)).toBeNull()
     })
@@ -1867,22 +1908,25 @@ describe('opencode history', () => {
       message.run('msg_low_2', PAGED_IDS.tieLow, 2, 2, '{}')
       db.close()
       await expectPagingContract(
-        (page) => history().list(paged, page),
+        (page) => history().list({cwd: paged}, page),
         PAGED_IDS,
         2_000_000,
         async () => {},
       )
-      const lastPage = await history().list(paged, {
-        after: {updatedAt: 2_000_000, id: HarnessSessionId.parse(PAGED_IDS.tieHigh)},
-        limit: 1,
-      })
+      const lastPage = await history().list(
+        {cwd: paged},
+        {
+          after: {updatedAt: 2_000_000, id: HarnessSessionId.parse(PAGED_IDS.tieHigh)},
+          limit: 1,
+        },
+      )
       expect(lastPage.sessions).toMatchObject([{id: PAGED_IDS.tieLow}])
     })
 
     it('returns nothing when there is no opencode database', async () => {
       renameSync(storagePath(), `${storagePath()}.kept`)
       try {
-        expect(await history().list(PROJECT, FIRST_PAGE)).toEqual({sessions: [], next: null})
+        expect(await history().list({cwd: PROJECT}, FIRST_PAGE)).toEqual({sessions: [], next: null})
         expect(await history().messages(PROJECT, SESSION)).toEqual([])
       } finally {
         renameSync(`${storagePath()}.kept`, storagePath())
@@ -1899,7 +1943,7 @@ describe('opencode history', () => {
       await mkdir(real, {recursive: true})
       await symlink(real, link)
       seed(linked, real, '_linked')
-      expect((await history().list(link, FIRST_PAGE)).sessions.map((session) => session.id)).toEqual([linked])
+      expect((await history().list({cwd: link}, FIRST_PAGE)).sessions.map((session) => session.id)).toEqual([linked])
       expect(await history().messages(link, linked)).toHaveLength(2)
       const handle = history().observe(link, linked)
       const chunk = await handle.read()
@@ -2025,22 +2069,40 @@ describe('pi history', () => {
 
   describe('pi history sidecar', () => {
     it('identifies both pi-named and conciv-named transcripts by their file name', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(sessions.map((session) => session.id).toSorted()).toEqual([CONCIV_NAMED, SESSION].toSorted())
       const messages = await history().messages(PROJECT, CONCIV_NAMED)
       expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'assistant'])
     })
 
     it('lists the sessions stored under the cwd directory', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       const found = sessions.find((session) => session.id === SESSION)
       expect(found).toEqual({
         id: SESSION,
+        cwd: PROJECT,
         derivedTitle: 'count the files',
         updatedAt: expect.any(Number),
         sizeBytes: Buffer.byteLength(jsonl(LINES)),
         createdAt: Date.parse('2026-07-30T09:45:14.653Z'),
       })
+    })
+
+    it('lists the sessions of every project, each with the cwd its session header records', async () => {
+      const elsewhere = '/workspace/pi-elsewhere'
+      const dir = sessionsDir(elsewhere)
+      await mkdir(dir, {recursive: true})
+      const away = HarnessSessionId.parse('away-session')
+      const header = {type: 'session', version: 3, id: away, timestamp: '2026-07-30T09:45:14.653Z', cwd: elsewhere}
+      await writeFile(join(dir, `2026-07-30T09-45-14-653Z_${away}.jsonl`), jsonl([header, ...LINES.slice(1)]), 'utf8')
+      const {sessions} = await history().list({everywhere: true}, FIRST_PAGE)
+      expect(sessions.map(({id, cwd}) => ({id, cwd}))).toEqual(
+        expect.arrayContaining([
+          {id: SESSION, cwd: PROJECT},
+          {id: away, cwd: elsewhere},
+        ]),
+      )
+      rmSync(dir, {recursive: true, force: true})
     })
 
     it('reads a session meta from the head up to the first prompt, never the transcript after it', async () => {
@@ -2074,7 +2136,7 @@ describe('pi history', () => {
     })
 
     it('reads one session meta by id and none for an unknown one', async () => {
-      const {sessions} = await history().list(PROJECT, FIRST_PAGE)
+      const {sessions} = await history().list({cwd: PROJECT}, FIRST_PAGE)
       expect(await history().meta(PROJECT, SESSION)).toEqual(sessions.find((session) => session.id === SESSION))
       expect(await history().meta(PROJECT, HarnessSessionId.parse('missing'))).toBeNull()
     })
@@ -2093,7 +2155,7 @@ describe('pi history', () => {
       write(PAGED_IDS.tieLow, 2000)
       blockingTranscript(fileOf(PAGED_IDS.oldest), 1000)
       await expectPagingContract(
-        (page) => history().list(project, page),
+        (page) => history().list({cwd: project}, page),
         PAGED_IDS,
         2_000_000,
         async () => {
@@ -2130,7 +2192,7 @@ describe('pi history', () => {
       await mkdir(dir, {recursive: true})
       await writeFile(join(dir, FILE), jsonl(LINES), 'utf8')
       await writeFile(join(dir, 'notes about the run.jsonl'), jsonl(LINES), 'utf8')
-      expect((await history().list(project, FIRST_PAGE)).sessions.map((entry) => entry.id)).toEqual([SESSION])
+      expect((await history().list({cwd: project}, FIRST_PAGE)).sessions.map((entry) => entry.id)).toEqual([SESSION])
     })
 
     it('refuses to observe a transcript whose name links out of the session directory', async () => {
@@ -2474,7 +2536,7 @@ describe('transcript handles', () => {
       const expected = golden('claude-golden.json')
       const raw = fixture('claude-transcript.jsonl')
       expect(claudeParse(raw)).toEqual(expected.messages)
-      expect(parseSessionMeta('fixture', raw, 1785417797467)).toEqual(expected.meta)
+      expect(parseSessionMeta('fixture', '/proj/fixture', raw, 1785417797467)).toEqual(expected.meta)
       expect(claudeHistory.nameFromTranscript?.(raw)).toEqual(expected.name)
       expect(claudeHistory.contextTokens?.(raw)).toEqual(expected.contextTokens)
 

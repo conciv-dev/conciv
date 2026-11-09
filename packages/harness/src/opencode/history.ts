@@ -8,6 +8,7 @@ import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
 import type {
   HarnessHistory,
   HarnessListPage,
+  HarnessListScope,
   HarnessSessionMeta,
   HarnessSessionPage,
   TranscriptChunk,
@@ -108,7 +109,7 @@ function partsFrom(data: unknown): ChatPart[] {
 
 const SESSION_BY_ID = 'select * from session where id = ? limit 1'
 const LIST_SESSIONS =
-  'select * from session where directory = ? and time_archived is null and (? is null or (coalesce(time_updated, 0), id) < (?, ?)) order by coalesce(time_updated, 0) desc, id desc limit ?'
+  'select * from session where (? is null or directory = ?) and time_archived is null and (? is null or (coalesce(time_updated, 0), id) < (?, ?)) order by coalesce(time_updated, 0) desc, id desc limit ?'
 const MESSAGES_OF = 'select id, data from message where session_id = ? order by time_created asc, id asc'
 const PARTS_OF = 'select message_id, data from part where session_id = ? order by time_created asc, id asc'
 const STAT_OF =
@@ -150,15 +151,17 @@ async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatM
   })
 }
 
-async function listSessions(cwd: string, page: HarnessListPage): Promise<HarnessSessionPage> {
+async function listSessions(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage> {
   const after = page.after
+  const projectCwd = 'cwd' in scope ? realpathOrSelf(scope.cwd) : null
   return withDatabase<HarnessSessionPage>({sessions: [], next: null}, (db) => {
     const rows = rowsOf(
       SessionRowSchema,
       db
         .prepare(LIST_SESSIONS)
         .all(
-          realpathOrSelf(cwd),
+          projectCwd,
+          projectCwd,
           after?.updatedAt ?? null,
           after?.updatedAt ?? null,
           after?.id ?? null,
@@ -181,6 +184,7 @@ async function storedMeta(cwd: string, sessionId: string): Promise<HarnessSessio
 function sessionMeta(row: z.infer<typeof SessionRowSchema>): HarnessSessionMeta {
   return {
     id: row.id,
+    cwd: row.directory,
     derivedTitle: condense(row.title, MAX_TITLE),
     updatedAt: row.time_updated ?? 0,
     model: row.model ?? null,

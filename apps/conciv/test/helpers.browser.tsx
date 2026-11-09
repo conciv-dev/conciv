@@ -354,8 +354,10 @@ export type ShellMountOptions = {
 }
 
 type ShellHarness = {
-  mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
+  mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
+  pathname: () => string | undefined
+  back: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
@@ -371,7 +373,11 @@ export function createShellHarness(base: () => string): ShellHarness {
     apiBase: '',
   }
 
-  const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
+  const mountShell = (
+    entry: string | string[],
+    extensions: AnyExtension[] = [],
+    options: ShellMountOptions = {},
+  ): void => {
     const apiBase = options.login?.apiBase ?? base()
     mounted.apiBase = apiBase
     const loginOptions = options.login
@@ -385,7 +391,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     const activeSession: {read: () => string | null} = {read: () => null}
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
-      history: createMemoryHistory({initialEntries: [entry]}),
+      history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
       apiBase: options.apiBase ?? (() => apiBase),
@@ -412,7 +418,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     onlineManager.setOnline(true)
   }
 
-  return {mountShell, dispose}
+  return {
+    mountShell,
+    dispose,
+    pathname: () => mounted.router?.state.location.pathname,
+    back: () => mounted.router?.history.back(),
+  }
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'

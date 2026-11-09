@@ -1,4 +1,4 @@
-import {chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync} from 'node:fs'
+import {chmodSync, existsSync, lstatSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {and, eq, isNull, max} from 'drizzle-orm'
@@ -22,15 +22,12 @@ export function concivHome(options: {homeDir?: string; env: NodeJS.ProcessEnv}):
 
 export function openHomeDb(home: string): HomeDb {
   prepareFolder(home)
-  const file = join(home, 'home.db')
-  closeSync(openSync(file, 'a', 0o600))
-  chmodSync(file, 0o600)
-  const client = new DatabaseSync(file, {timeout: 5000})
-  const db = drizzle({client})
+  const db = drizzle({client: openPrivateDatabase(home, 'home.db')})
   try {
-    migrate(db)
-  } catch {
-    retryMigrate(db)
+    whileMigrationLockHeld(home, () => migrate(db))
+  } catch (error) {
+    closeHomeDb(db)
+    throw error
   }
   return db
 }
@@ -148,18 +145,31 @@ function homeFolderRefused(home: string, reason: string): Error {
   return Object.assign(new Error(`conciv refuses the home folder ${home}: ${reason}`), {name: 'HomeFolderRefused'})
 }
 
+function openPrivateDatabase(home: string, name: string): DatabaseSync {
+  const file = join(home, name)
+  const client = new DatabaseSync(file, {timeout: 5000})
+  try {
+    chmodSync(file, 0o600)
+  } catch (error) {
+    client.close()
+    throw error
+  }
+  return client
+}
+
+function whileMigrationLockHeld(home: string, run: () => void): void {
+  const lock = openPrivateDatabase(home, 'home.lock')
+  try {
+    lock.exec('BEGIN EXCLUSIVE')
+    run()
+  } finally {
+    lock.close()
+  }
+}
+
 function migrate(db: HomeDb): void {
   db.$client.exec('PRAGMA journal_mode = WAL')
   migrateSync(homeMigrations, db._.session)
-}
-
-function retryMigrate(db: HomeDb): void {
-  try {
-    migrate(db)
-  } catch (error) {
-    closeHomeDb(db)
-    throw error
-  }
 }
 
 function currentGeneration(db: Pick<HomeDb, 'select'>): number {
