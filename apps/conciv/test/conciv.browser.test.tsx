@@ -4639,6 +4639,9 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
+    await expect
+      .element(page.getByRole('tablist', {name: 'Settings sections'}))
+      .toHaveAttribute('aria-orientation', 'vertical')
 
     const tabPaths: Record<string, string> = {
       General: 'general',
@@ -4653,7 +4656,7 @@ describe('settings page', () => {
       expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
     for (const name of ['Settings probe', 'Shortcuts', 'Views', 'General']) {
-      await userEvent.keyboard('{ArrowLeft}')
+      await userEvent.keyboard('{ArrowUp}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
       expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
