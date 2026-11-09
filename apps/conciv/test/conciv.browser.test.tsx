@@ -3780,7 +3780,7 @@ describe('session selector', () => {
 
   const core = bootedCore('session-selector', {
     resume: true,
-    connect: true,
+    resumeBin: 'claude',
     holdTranscripts: true,
     history: [
       {

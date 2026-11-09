@@ -4,6 +4,7 @@ import {
   type HarnessConnectContext,
   type HarnessHistory,
   type HarnessModel,
+  type HarnessResume,
   type HarnessSessionMeta,
 } from '@conciv/protocol/harness-types'
 import {defineHarness, type HarnessAdapter} from '@conciv/harness'
@@ -84,6 +85,7 @@ function buildAdapter(
   base: Omit<typeof BASE_CAPABILITIES, 'resume'> & {resume: boolean},
   history: HarnessHistory | undefined,
   commands: HarnessCommand[] | undefined,
+  resume: HarnessResume,
 ): HarnessAdapter {
   const listCommands = commands ? () => Promise.resolve(commands) : undefined
   if (history && listCommands) {
@@ -91,6 +93,7 @@ function buildAdapter(
       ...shared,
       capabilities: {...base, transcriptHistory: true, slashCommands: 'live'},
       history,
+      resume,
       commands: listCommands,
     })
   }
@@ -99,6 +102,7 @@ function buildAdapter(
       ...shared,
       capabilities: {...base, transcriptHistory: true, slashCommands: 'none'},
       history,
+      resume,
     })
   }
   if (listCommands) {
@@ -124,6 +128,7 @@ export function createFakeHarness(
     commands?: HarnessCommand[]
     history?: FixtureSession[]
     tty?: {command(ctx: HarnessConnectContext): TtyCommand}
+    resumeBin?: string
   } = {},
 ): FakeHarness {
   const id = opts.id ?? 'fake-harness'
@@ -143,6 +148,7 @@ export function createFakeHarness(
     capabilities,
     opts.history ? fixtureHistory(opts.history, transcripts) : undefined,
     opts.commands,
+    {command: ({nativeId}) => ({bin: opts.resumeBin ?? id, args: ['--resume', nativeId]})},
   )
   return Object.assign(adapter, {script: scripted, transcripts})
 }
