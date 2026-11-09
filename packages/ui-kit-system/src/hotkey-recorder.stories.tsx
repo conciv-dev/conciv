@@ -56,7 +56,14 @@ export const Keyboard: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByText('Press a shortcut. Esc cancels.')).toBeNull())
     await expect(change).toHaveFocus()
-    await expect(change.matches(':focus-visible')).toBe(true)
+
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard(`{${MOD}>}u{/${MOD}}`)
+    await expect(canvas.getByRole('group', {name: 'Modifiers'})).toBeVisible()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(canvas.queryByRole('group', {name: 'Modifiers'})).toBeNull())
+    await expect(canvas.getByText(/^Search /)).toHaveTextContent('Search Mod+K')
+    await expect(change).toHaveFocus()
 
     await userEvent.keyboard('{Enter}')
     await expect(canvas.getByText('Press a shortcut. Esc cancels.')).toBeVisible()
@@ -79,7 +86,7 @@ export const Keyboard: Story = {
     if (!clear) throw new Error('the search recorder renders no clear button')
     await userEvent.click(clear)
     await expect(canvas.getByText(/^Search /)).toHaveTextContent('Search null')
-    await expect(canvas.getByRole('button', {name: 'Record Search'})).toBeVisible()
+    await expect(canvas.getByRole('button', {name: 'Record Search'})).toHaveFocus()
 
     await expect(canvas.queryByRole('button', {name: 'Change Undo'})).toBeNull()
     await expect(canvas.queryByRole('button', {name: 'Change Redo'})).toBeNull()
