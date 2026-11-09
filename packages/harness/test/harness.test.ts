@@ -807,6 +807,31 @@ describe('claude history', () => {
     })
   })
 
+  describe('messages stops reading when its caller aborts', () => {
+    it('rejects with an AbortError long before a full fold of a large transcript would finish', async () => {
+      const cwd = '/proj/abort'
+      const id = '00000000-0000-4000-8000-0000000000ab'
+      const filler = 'x'.repeat(400)
+      const line = (index: number) =>
+        index % 2 === 0
+          ? JSON.stringify({type: 'user', message: {content: `question ${index} ${filler}`}})
+          : JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: `answer ${index} ${filler}`}]}})
+      seed(cwd, id, Array.from({length: 40_000}, (_, index) => line(index)).join('\n') + '\n', 5000)
+      const sessionId = HarnessSessionId.parse(id)
+      const fullStart = performance.now()
+      const full = await claudeHistory.messages(cwd, sessionId)
+      const fullElapsed = performance.now() - fullStart
+      expect(full.length).toBeGreaterThan(1000)
+      const controller = new AbortController()
+      const abortedStart = performance.now()
+      const aborted = claudeHistory.messages(cwd, sessionId, {signal: controller.signal})
+      setTimeout(() => controller.abort(), 0)
+      await expect(aborted).rejects.toMatchObject({name: 'AbortError'})
+      expect(performance.now() - abortedStart).toBeLessThan(fullElapsed / 2)
+      rmSync(transcriptRoot(cwd), {recursive: true, force: true})
+    })
+  })
+
   describe('withinProject', () => {
     it('rejects traversal and accepts a normal id', () => {
       expect(withinProject('/proj', '../../etc/passwd')).toBe(false)

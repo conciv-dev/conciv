@@ -4286,8 +4286,12 @@ describe('session selector', () => {
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
     await expect.element(preview('a minute after midnight').getByRole('mark')).not.toBeInTheDocument()
-    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}')
+    expect(preview('older session 0').query()).toBeNull()
+    expect(preview('a minute before midnight').query()).toBeNull()
+    expect(entry('a minute after midnight', 'tide log entry 29').query()).not.toBeNull()
     await expect.element(entry('a minute before midnight', 'the evening ebb')).toBeVisible()
+    expect(preview('a minute after midnight').query()).toBeNull()
     await userEvent.keyboard('{ArrowUp}')
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
 
