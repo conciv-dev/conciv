@@ -1,6 +1,7 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isEqual} from 'es-toolkit'
+import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
   ToolCardEntry,
@@ -88,6 +89,8 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
 
 export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
 
+const OutsideMarkerSchema = z.object({conciv: z.object({origin: z.literal('hub'), client: z.string().nullable()})})
+
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
@@ -105,6 +108,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
     undefined,
     {equals: isEqual},
   )
+  const tag = createMemo(() => outsideTag(local.part))
   const rowLine = () => `${projection().target} ${projection().meta ?? ''}`
   const asked = () => local.part.approval !== undefined && local.ctx.respondApproval !== undefined
   const bodyTone = (): TraceOutputTone => (projection().mark === 'fail' ? 'error' : 'normal')
@@ -141,7 +145,13 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   )
   return (
     <>
-      <TraceToolRow projection={projection()} ring={local.ring ?? true} body={cardBody} foldable={framed()} />
+      <TraceToolRow
+        projection={projection()}
+        ring={local.ring ?? true}
+        body={cardBody}
+        foldable={framed()}
+        tag={tag()}
+      />
       <Show when={asked()}>
         <TracePermissionBlock
           part={local.part}
@@ -152,4 +162,10 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
       </Show>
     </>
   )
+}
+
+function outsideTag(part: ToolCallPart): string | undefined {
+  const marker = OutsideMarkerSchema.safeParse(part.metadata)
+  if (!marker.success) return undefined
+  return `from ${marker.data.conciv.client ?? 'outside agent'}`
 }

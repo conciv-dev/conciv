@@ -7,6 +7,7 @@ const SESSIONS_STALE_MS = 30_000
 export type AppData = {
   utils: QueryUtils
   invalidateSessions: () => Promise<void>
+  invalidateOutsideAccess: () => Promise<void>
 }
 
 export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
@@ -20,5 +21,6 @@ export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData {
     invalidateSessions: async () => {
       await Promise.all(sessionKeys.map((queryKey) => queryClient.invalidateQueries({queryKey})))
     },
+    invalidateOutsideAccess: () => queryClient.invalidateQueries({queryKey: utils.chat.outsideAccess.key()}),
   }
 }

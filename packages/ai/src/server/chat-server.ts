@@ -41,7 +41,6 @@ import type {ChatMessage, ModelMessage} from '@conciv/protocol/chat-message-type
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
 import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
-import {toolStartStamp} from './tool-start-stamp.js'
 import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
@@ -118,6 +117,7 @@ export type ChatServer = ChatDelivery & {
   settled: (threadId: string) => Promise<void>
   driving: (threadId: string) => boolean
   hydrate: (threadId: string, window?: ChatThreadWindow) => Promise<ChatThread>
+  record: (threadId: string, chunks: readonly ChatEvent[]) => Promise<void>
   codeRunner: (codeMode: readonly ChatTool[]) => CodeRunner | null
 }
 
@@ -271,6 +271,15 @@ function unsavedParts(message: ChatMessage, saved: ReadonlySet<string>): ChatMes
 }
 
 async function saveStoppedTurn(messages: MessageStore, threadId: string, processor: StreamProcessor): Promise<void> {
+  await saveShown(messages, threadId, processor, (message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+}
+
+async function saveShown(
+  messages: MessageStore,
+  threadId: string,
+  processor: StreamProcessor,
+  finish: (message: ModelMessage) => ModelMessage,
+): Promise<void> {
   const stored = await messages.loadThread(threadId)
   const saved = storedToolCallIds(stored)
   const shown = processor
@@ -279,7 +288,7 @@ async function saveStoppedTurn(messages: MessageStore, threadId: string, process
     .map((message) => unsavedParts(message, saved))
     .filter((message) => message.parts.length > 0)
     .flatMap(uiMessageToModelMessages)
-    .map((message) => withTanstackMetadata(message, {stopReason: 'aborted'}))
+    .map(finish)
   if (shown.length === 0) return
   const replaced = new Set(shown.flatMap((message) => (message.id === undefined ? [] : [message.id])))
   const kept = stored.filter((message) => message.id === undefined || !replaced.has(message.id))
@@ -326,6 +335,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   const persistence = defineAIPersistence({stores})
   const processLocks = new InMemoryLockStore()
   const locks = defineLock({withLock: (key, work) => processLocks.withLock(key, work)})
+  const savingShown = (threadId: string, work: () => Promise<void>): Promise<void> =>
+    processLocks.withLock(`conciv-shown:${threadId}`, work)
   const live = new Map<string, LiveRun>()
   const debug = silentCategories({
     debug: () => undefined,
@@ -457,8 +468,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       onFinish: () => settle(),
       onError: () => settle(),
       onAbort: async () => {
-        await saveStoppedTurn(stores.messages, turn.threadId, shown).catch((error: unknown) =>
-          config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
+        await savingShown(turn.threadId, () => saveStoppedTurn(stores.messages, turn.threadId, shown)).catch(
+          (error: unknown) => config.log(`[ai] saving the stopped turn of run ${turn.runId} failed: ${String(error)}`),
         )
         if (failure.message !== null) {
           await stores.runs.update(turn.runId, {
@@ -538,7 +549,6 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
           },
         }),
         childCards(config.codeModeResult),
-        toolStartStamp(),
         ...(turn.kind === 'compact' ? [compactionStamp(stores.messages)] : []),
         withSandbox(sandbox, {
           runs: stores.runs,
@@ -583,10 +593,17 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     hydrate: async (threadId, window = {}) => {
       const stopping = liveRunsOf(threadId).filter(([, entry]) => entry.controller.signal.aborted)
       await Promise.all(stopping.map(([, entry]) => entry.settled.promise))
+      await savingShown(threadId, async () => undefined)
       const response = await reconstructChat(persistence, new Request(threadUrl(threadId, window)))
       const thread = ReconstructedSchema.parse(await response.json())
       const latest = (await stores.runs.listByThread(threadId)).at(-1)
       return {...thread, lastRun: latest === undefined ? null : lifecycleOf(latest)}
+    },
+    record: async (threadId, chunks) => {
+      const processor = new StreamProcessor({})
+      for (const chunk of chunks) followRun(processor, chunk)
+      await Promise.all(liveRunsOf(threadId).map(([, entry]) => entry.settled.promise))
+      await savingShown(threadId, () => saveShown(stores.messages, threadId, processor, (message) => message))
     },
     codeRunner: (codeMode) => {
       if (driver === null) return null

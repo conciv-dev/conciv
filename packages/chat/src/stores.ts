@@ -1,4 +1,4 @@
-import {eq, sql} from 'drizzle-orm'
+import {and, eq, like, sql} from 'drizzle-orm'
 import {chatMessages, chatMetadata, chatRuns, runMessages, runs, sessionHistory, type ConcivDb} from '@conciv/db'
 
 export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string>> {
@@ -7,6 +7,18 @@ export async function runningThreadIds(db: ConcivDb): Promise<ReadonlySet<string
     .from(chatRuns)
     .where(eq(chatRuns.status, 'running'))
   return new Set(rows.map((row) => row.threadId))
+}
+
+export async function metadataKeysEndingWith(
+  db: ConcivDb,
+  namespace: string,
+  suffix: string,
+): Promise<readonly string[]> {
+  const rows = await db
+    .select({key: chatMetadata.key})
+    .from(chatMetadata)
+    .where(and(eq(chatMetadata.namespace, namespace), like(chatMetadata.key, `%${suffix}`)))
+  return rows.map((row) => row.key)
 }
 
 export function clearThread(db: ConcivDb, threadId: string): void {

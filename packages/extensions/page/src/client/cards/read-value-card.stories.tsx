@@ -99,7 +99,13 @@ export const RouteObject: Story = {
     <div class={STORY_FRAME_CLASS}>
       <ReadValueCard
         part={storyPart('page_route', {})}
-        result={storyResult({pathname: '/checkout', search: '?step=2', href: 'https://shop.test/checkout?step=2'})}
+        result={storyResult({
+          pathname: '/checkout',
+          search: '?step=2',
+          href: 'https://shop.test/checkout?step=2',
+          title: 'Checkout',
+          state: 'visible',
+        })}
         ctx={storyCtx({})}
         addResult={storyAddResult}
       />

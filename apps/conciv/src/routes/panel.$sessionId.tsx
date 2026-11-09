@@ -14,6 +14,7 @@ import X from 'lucide-solid/icons/x'
 import Pencil from 'lucide-solid/icons/pencil'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import RefreshCw from 'lucide-solid/icons/refresh-cw'
+import ShieldCheck from 'lucide-solid/icons/shield-check'
 import Unplug from 'lucide-solid/icons/unplug'
 import {Show, Suspense, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
 import {z} from 'zod'
@@ -174,6 +175,32 @@ function CloseChatButton(): JSX.Element {
       <TooltipIconButton tooltip="Close chat" class={GHOST} onClick={() => panelChrome.close()}>
         <X class="size-3.5 block" strokeWidth={1.75} aria-hidden="true" />
       </TooltipIconButton>
+    </Show>
+  )
+}
+
+function AllowOutsideAgentsRow(props: {sessionId: string}): JSX.Element {
+  const appData = useAppData()
+  const {rpc} = useChatDeps()
+  const outsideAccess = useQuery(() =>
+    appData.utils.chat.outsideAccess.queryOptions({input: {sessionId: props.sessionId}}),
+  )
+  const allowOutside = useMutation(() => ({
+    mutationFn: () => rpc.chat.allowOutside({sessionId: props.sessionId}),
+    onSuccess: appData.invalidateOutsideAccess,
+  }))
+  return (
+    <Show when={outsideAccess.isSuccess && outsideAccess.data.denied}>
+      <Button
+        variant="plain"
+        size="none"
+        class={RAIL_MENU_ROW}
+        disabled={allowOutside.isPending}
+        onClick={() => allowOutside.mutate()}
+      >
+        <ShieldCheck class="size-4 block shrink-0" aria-hidden="true" />
+        Allow outside agents
+      </Button>
     </Show>
   )
 }
@@ -375,6 +402,7 @@ function PanelSession(): JSX.Element {
                   )}
                 />
               </Show>
+              <AllowOutsideAgentsRow sessionId={params().sessionId} />
               <Button variant="plain" size="none" class={RAIL_MENU_ROW} onClick={popOut}>
                 <PictureInPicture2 class="size-4 block shrink-0" aria-hidden="true" />
                 Pop out to a window

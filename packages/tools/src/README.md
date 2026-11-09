@@ -12,7 +12,7 @@ Entry modules of `@conciv/tools`. They define the `conciv_ui` and `conciv_extens
 - `concivSandboxTools(ctx)` and `concivSandboxToolNames()` (`['conciv_ui', 'conciv_extensions']`) (`server.ts`).
 - `tools.ts` (export `.`): `ConcivServerTool`, `ConcivToolContext`, `concivSandboxTools`, `concivSandboxToolNames`, `concivUiToolDef`.
 - `defs.ts` (export `./defs`): `concivUiToolDef`, `concivExtensionsToolDef`.
-- `builtins.ts` (export `./builtins`): re-exports `BUILTIN_OPEN_TOOL`, `BUILTIN_SERVER_TOOL`, `BUILTIN_SERVER_TOOLS`, `OpenToolContext`, `ServerToolContext`, `BuiltinCategory`; defines `SERVER_TOOL_PREFIX` (`'server_'`), `serverOperationOfTool(name)`, `builtinToolNames()`.
+- `builtins.ts` (export `./builtins`): re-exports `BUILTIN_OPEN_TOOL`, `BUILTIN_SERVER_TOOL`, `BUILTIN_SERVER_TOOLS`, `BUILTIN_TABS_TOOL`, `TABS_GUIDANCE`, `OpenToolContext`, `ServerToolContext`, `TabsToolContext`, `BuiltinCategory`; defines `SERVER_TOOL_PREFIX` (`'server_'`), `serverOperationOfTool(name)`, `builtinToolNames()`.
 - `cards.tsx` (export `./cards`): `concivToolCards: ToolCardEntry[]` (`conciv_ui` -> `UiCard`, `open` -> `OpenCard`, `conciv_extensions` -> `ExtensionsCard`) and re-exports of the three cards.
 - [builtins/README.md](./builtins/README.md): `server_*` and `open` tools.
 - [cards/README.md](./cards/README.md): card renderers.

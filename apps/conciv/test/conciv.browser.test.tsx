@@ -2,7 +2,7 @@ import '../src/styles.css'
 import 'virtual:uno.css'
 import {expect, test, vi, it, afterEach, beforeAll, describe} from 'vitest'
 import {page, userEvent, page as browserPage, type Locator} from 'vitest/browser'
-import {CONCIV_SESSION_HEADER, HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
@@ -35,6 +35,9 @@ import {createStore} from 'solid-js/store'
 import {
   AttachmentByMime,
   ChatProvider,
+  Thread,
+  ToolProvider,
+  useThread,
   Composer,
   ComposerHandlersProvider,
   useComposerContext,
@@ -55,8 +58,8 @@ import {
   type RegisterExtension,
 } from '@conciv/extension'
 import {paneAttachments, returnQueueToDraft} from '../src/pane/pane-attachments.js'
-import type {ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
-import {INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
+import type {ChatMessage, ContentPart, ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {formatDuration, INERT_TOOL_CTX, ToolCallCard, ToolTraceRow} from '@conciv/ui-kit-chat/tools'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 import {concivToolCards} from '@conciv/tools/cards'
 import pageExtensionEntry from '@conciv/extension-page'
@@ -83,13 +86,14 @@ import {
   type ChatSessionHydration,
 } from '@conciv/ai/client'
 import type {ComposerInputHandle} from '../src/pane/composer-input-adapter.jsx'
-import {createTextChunks, storyConnection} from '@conciv/ai/testkit'
+import {createTextChunks, createToolCallChunks, createToolResultChunk, storyConnection} from '@conciv/ai/testkit'
+import {createToolDurations} from '../src/pane/tool-durations.js'
 import {EngineReachabilityContext} from '../src/app/reachability.js'
 import {PaneComposer} from '../src/pane/pane-composer.jsx'
 import {ChatEventType, type ChatEvent, type RunClockSource, type RunLifecycle} from '@conciv/protocol/chat-event-types'
 import {SessionSelector} from '../src/composer/session-selector.js'
 import {StatusBar} from '../src/pane/status-bar.jsx'
-import type {ToolCardEntry} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {coreToolCards, EXECUTE_TOOL_NAME} from '@conciv/core/cards'
 import {concivExtensionsToolDef, concivUiToolDef} from '@conciv/tools/defs'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
@@ -106,10 +110,7 @@ describe('approval replay', () => {
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
 
-  async function newSession(): Promise<{rpc: RpcClient; sessionId: string}> {
-    const sessionId = await createSession(coreRpc(core()))
-    return {rpc: makeRpcClient(core(), {headers: {[CONCIV_SESSION_HEADER]: sessionId}}), sessionId}
-  }
+  const newSession = () => createSession(coreRpc(core()))
 
   async function attachedPane(sessionId: string): Promise<PaneMount> {
     const attached = await coreControl.pushSocketsOpened()
@@ -118,17 +119,8 @@ describe('approval replay', () => {
     return mount
   }
 
-  async function refusedOutsideCall(rpc: RpcClient, sessionId: string, file: string): Promise<string> {
-    expect(await coreControl.outsideReload(sessionId, file)).toBe('APPROVAL_DENIED')
-    const pending = (await rpc.chat.hydrate({sessionId})).pendingApprovals
-    expect(pending.map((approval) => approval.runId)).toEqual([null])
-    const askedId = pending[0]?.approvalId
-    if (askedId === undefined) throw new Error('the refused call left no pending ask')
-    return askedId
-  }
-
   test('an ask from a chat turn sits in the strip, and approving it posts the message that retries', async () => {
-    const {sessionId} = await newSession()
+    const sessionId = await newSession()
     keep(await attachedPane(sessionId))
     await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
     await coreControl.scriptCustomEvent('approval-requested', {
@@ -150,7 +142,7 @@ describe('approval replay', () => {
   }, 120_000)
 
   test('an ask from a chat turn sits in the strip, and denying it posts the message that re-runs the turn refused', async () => {
-    const {sessionId} = await newSession()
+    const sessionId = await newSession()
     keep(await attachedPane(sessionId))
     await coreControl.scriptTurn({toolCalls: [], text: 'That needs your approval.'})
     await coreControl.scriptCustomEvent('approval-requested', {
@@ -171,11 +163,8 @@ describe('approval replay', () => {
   }, 120_000)
 
   test('a pane opened while the ask waits draws the card from hydrate, inside the pane at any width', async () => {
-    const {rpc, sessionId} = await newSession()
-    const first = await attachedPane(sessionId)
-
-    await refusedOutsideCall(rpc, sessionId, 'src/waiting-ask.ts')
-    first.dispose()
+    const sessionId = await newSession()
+    const waiting = coreControl.hubExecute(sessionId, 'return 1')
 
     const pane = await attachedPane(sessionId)
     keep(pane)
@@ -195,7 +184,8 @@ describe('approval replay', () => {
 
     await approveButton().click()
     await expect.element(permissionRequest(), {timeout: 15_000}).not.toBeInTheDocument()
-    expect(await coreControl.outsideReload(sessionId, 'src/waiting-ask.ts')).toBe('NO_BUNDLER')
+    expect(await waiting).toContain('{\\"result\\":1')
+    expect(await coreControl.hubExecute(sessionId, 'return 40 + 2')).toContain('42')
   }, 120_000)
 })
 
@@ -1804,15 +1794,9 @@ describe('harness switching', () => {
   })
 })
 
-describe('launch actions', () => {
-  const CONNECT_COMMAND_PATH = ['ext', 'terminal', 'connectCommand']
-  const LAUNCH_PATH = ['ext', 'terminal', 'launch']
-  const STALE_API_BASE = 'http://127.0.0.1:1'
-
-  const core = bootedCore('launch-actions', {displayName: 'Claude', connect: true, terminal: true, resume: true})
+describe('connect agents', () => {
+  const core = bootedCore('connect-agents')
   const keep = keptPane()
-  const faults = trackedFaults()
-
   const grabApi: GrabApi = {
     pick: async () => null,
     comment: async () => null,
@@ -1823,9 +1807,7 @@ describe('launch actions', () => {
     clear: () => {},
   }
 
-  afterEach(async () => {
-    await coreControl.setTerminalLaunch(true)
-  })
+  afterEach(() => coreControl.fakeHubCli(null))
 
   async function mountActions(): Promise<void> {
     const sessionId = await createSession(coreRpc(core()))
@@ -1849,59 +1831,20 @@ describe('launch actions', () => {
     )
   }
 
-  async function openMenu(): Promise<void> {
-    await page.getByRole('button', {name: 'Terminal options for Claude'}).click()
-  }
+  const menu = () => page.getByRole('button', {name: 'Connect agents'})
+  const item = () => page.getByRole('menuitem', {name: 'Connect Claude'})
 
-  test('opening externally launches through the terminal extension', async () => {
+  test('a detected harness connects from the menu: a failure shows the CLI message, a success removes it', async () => {
+    await coreControl.fakeHubCli('fail')
     await mountActions()
-
-    await openMenu()
-    await page.getByText('Open in Claude').click()
-
-    await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
-    expect(await coreControl.terminalLaunches()).toBe(1)
-    expect(await coreControl.rpcCallCount(LAUNCH_PATH)).toBe(1)
-  })
-
-  test('when the terminal cannot open, the connect command is offered instead', async () => {
-    await coreControl.setTerminalLaunch(false)
-    await mountActions()
-    const before = await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)
-
-    await openMenu()
-    await page.getByText('Open in Claude').click()
-
-    await expect.element(page.getByText(/Command copied|Run in your terminal: cd .*'claude' '--resume'/)).toBeVisible()
-    expect((await coreControl.rpcCallCount(CONNECT_COMMAND_PATH)) - before).toBe(1)
-  })
-
-  test('after a rebind, opening externally reaches the engine the widget is bound to, not the page api base it booted on', async () => {
-    window.__CONCIV_API_BASE__ = STALE_API_BASE
-    try {
-      await mountActions()
-      const before = await coreControl.terminalLaunches()
-
-      await openMenu()
-      await page.getByText('Open in Claude').click()
-
-      await expect.element(page.getByText('Opened in Claude.')).toBeVisible()
-      expect((await coreControl.terminalLaunches()) - before).toBe(1)
-    } finally {
-      delete window.__CONCIV_API_BASE__
-    }
-  })
-
-  test('a launch failure is surfaced instead of swallowed', async () => {
-    const fault = await faults.install({kind: 'fail', path: LAUNCH_PATH, status: 500})
-    await mountActions()
-
-    await openMenu()
-    await page.getByText('Open in Claude').click()
-
-    await expect.element(page.getByText('Couldn’t open Claude.')).toBeVisible()
-
-    await coreControl.releaseFault(fault)
+    await menu().click()
+    await item().click()
+    await expect.element(page.getByText('claude: could not add conciv-hub')).toBeVisible()
+    await coreControl.fakeHubCli('ok')
+    await menu().click()
+    await item().click()
+    await expect.element(page.getByText('Claude connected. Ask any Claude session for your conciv tab.')).toBeVisible()
+    await expect.element(menu()).not.toBeInTheDocument()
   })
 })
 
@@ -2576,6 +2519,85 @@ describe('panel header', () => {
     await expect.element(page.getByRole('option', {name: new RegExp(`^${RENAMED},`)})).toBeVisible()
     await page.getByRole('option', {name: new RegExp(`^${OTHER},`)}).click()
     await expect.element(titleButton(OTHER), {timeout: 8000}).toBeVisible()
+  }, 30_000)
+})
+
+describe('session options outside agents', () => {
+  const coreBase = bootedCore('outside-agents')
+  const harness = createShellHarness(coreBase)
+  afterEach(harness.dispose)
+  const strip = () => page.getByRole('group', {name: 'Permission request'})
+  const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
+  const approve = () =>
+    strip()
+      .getByRole('button', {name: /Approve/})
+      .click()
+
+  test('allow outside agents lifts a deny and leaves the menu', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const denied = coreControl.hubExecute(sessionId, 'return 1')
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(strip().getByText('Allow codex to use this tab'), {timeout: 8000}).toBeVisible()
+    await page.getByRole('button', {name: 'Deny'}).click()
+    await expect.element(strip()).not.toBeInTheDocument()
+    expect(await denied).toContain('The user denied codex access')
+    await page.getByRole('button', {name: /session options$/}).click()
+    await allowRow().click()
+    await expect.element(allowRow()).not.toBeInTheDocument()
+    const allowed = coreControl.hubExecute(sessionId, 'return 1')
+    await approve()
+    expect(await allowed).toContain('{\\"result\\":1')
+  }, 30_000)
+
+  test('an allowed outside call shows tagged with its agent and the pane settles, an in-page call has no tag', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const waiting = coreControl.hubExecute(sessionId, 'return 40 + 2')
+    await approve()
+    await expect.element(strip()).not.toBeInTheDocument()
+    expect(await waiting).toContain('42')
+    expect(await coreControl.hubExecute(sessionId, 'return 7 * 6', 'in-page')).toContain('42')
+    const outsideRow = page.getByRole('button', {name: /exec return 40 \+ 2/})
+    const inPageRow = page.getByRole('button', {name: /exec return 7 \* 6/})
+    await expect.element(outsideRow, {timeout: 8000}).toMatchTextContent(/from codex/)
+    await expect.element(inPageRow).toBeVisible()
+    await expect.element(inPageRow).not.toMatchTextContent(/from/)
+    await expect.element(page.getByRole('button', {name: 'Stop generating'})).not.toBeInTheDocument()
+    await expect.element(page.getByText('Responding…')).not.toBeInTheDocument()
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    await expect.element(outsideRow, {timeout: 8000}).toMatchTextContent(/from codex/)
+    await expect.element(inPageRow).not.toMatchTextContent(/from/)
+  }, 30_000)
+
+  test('a closed panel badges the launcher while an outside agent waits, and the answer clears it', async () => {
+    await page.viewport(1000, 700)
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}`)
+    const launcher = () => page.getByRole('button', {name: 'Open conciv chat'})
+    const waiting = () => page.getByRole('button', {name: 'Waiting for your Allow. Open conciv chat'})
+    await expect.element(launcher()).toBeVisible()
+    const call = coreControl.hubExecute(sessionId, 'return 1')
+    await expect.element(waiting(), {timeout: 8000}).toBeVisible()
+    await waiting().click()
+    await expect.element(page.getByRole('button', {name: 'Minimize conciv chat'})).toBeVisible()
+    await approve()
+    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expect.element(launcher()).toBeVisible()
+    await expect.element(waiting()).not.toBeInTheDocument()
+    expect(await call).toContain('{\\"result\\":1')
+  }, 30_000)
+
+  test('a call forwarded from another engine shows only its tool row, never the forwarding execute', async () => {
+    const sessionId = await createSession(coreRpc(coreBase()))
+    harness.mountShell(`/panel/${sessionId}?open=true`)
+    const waiting = coreControl.hubExecute(sessionId, 'return 1')
+    await approve()
+    expect(await waiting).toContain('{\\"result\\":1')
+    const forwarded = 'return await external_page_route({})'
+    expect(await coreControl.hubExecute(sessionId, forwarded, 'hub-forward')).toContain('page_route')
+    await expect.element(page.getByRole('button', {name: /^failed route/}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /exec return await/})).not.toBeInTheDocument()
   }, 30_000)
 })
 
@@ -4070,6 +4092,116 @@ describe('run errors', () => {
       await typeTurn('second turn')
       await expect.element(runError('the model went away')).toBeVisible()
     })
+  })
+})
+
+describe('tool durations across row eviction', () => {
+  const EARLIER_EXCHANGES = 24
+  const PROBE_CALL = 'probe-call'
+
+  function ProbeCard(props: ToolCardProps): JSX.Element {
+    return <p>{`probe took ${formatDuration(props.durationMs) ?? 'no time yet'}`}</p>
+  }
+
+  const probeEntries: ToolCardEntry[] = [
+    {names: ['probe_tool'], render: ProbeCard, hasEmbeddedBody: () => true, display: 'standalone'},
+  ]
+
+  function earlierExchanges(): ChatMessage[] {
+    return Array.from({length: EARLIER_EXCHANGES}, (_, index): ChatMessage[] => [
+      {id: `earlier-u${index}`, role: 'user', parts: [{type: 'text', content: `earlier question ${index}`}]},
+      {
+        id: `earlier-a${index}`,
+        role: 'assistant',
+        parts: [{type: 'text', content: `earlier answer ${index} ${'with a long aside. '.repeat(30)}`}],
+      },
+    ]).flat()
+  }
+
+  function gatedProbeRun(resultGate: Promise<void>): ReturnType<typeof storyConnection> {
+    return {
+      async *connect(_messages, _data, _signal, runContext) {
+        const run = {threadId: runContext?.threadId ?? 'durations', runId: runContext?.runId ?? 'durations-run'}
+        yield {type: ChatEventType.RUN_STARTED, ...run}
+        yield* createToolCallChunks('probe_tool', {target: 'everything'}, {toolCallId: PROBE_CALL})
+        await resultGate
+        yield createToolResultChunk(PROBE_CALL, 'probed')
+        yield* createTextChunks('probe finished')
+        yield {type: ChatEventType.RUN_FINISHED, ...run, finishReason: 'stop'}
+      },
+    }
+  }
+
+  function RunPhase(): JSX.Element {
+    const thread = useThread()
+    return <span>{thread.isRunning ? 'probe run live' : 'probe run settled'}</span>
+  }
+
+  function mountProbeThread(resultGate: Promise<void>): void {
+    function ProbeThread(): JSX.Element {
+      const chat = createChat({threadId: 'tool-durations', connection: gatedProbeRun(resultGate)})
+      const ctx = {...INERT_TOOL_CTX, durationFor: createToolDurations(chat.messages, Date.now)}
+      onMount(() => {
+        chat.setMessages(earlierExchanges())
+        void chat.sendMessage('run the probe')
+      })
+      return (
+        <ChatProvider chat={chat}>
+          <ToolProvider value={ctx}>
+            <RunPhase />
+            <div style={{height: '360px', width: '520px', display: 'flex', 'flex-direction': 'column'}}>
+              <Thread>
+                <Thread.Viewport>
+                  <Thread.Messages tools={probeEntries} />
+                </Thread.Viewport>
+              </Thread>
+            </div>
+          </ToolProvider>
+        </ChatProvider>
+      )
+    }
+    render(() => <ProbeThread />)
+  }
+
+  const log = () => page.getByRole('log')
+  const probeTook = () => page.getByText(/^probe took \d+(\.\d)?s$/)
+  const probeCard = () => page.getByText(/^probe took/)
+
+  async function scrollAway(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: -1_000_000}})
+    await expect.element(page.getByText('earlier question 0'), {timeout: 3000}).toBeInViewport()
+    await expect.element(probeCard()).not.toBeInTheDocument()
+  }
+
+  async function scrollBack(): Promise<void> {
+    await userEvent.wheel(log(), {delta: {y: 1_000_000}})
+    await expect.element(page.getByText('probe finished'), {timeout: 3000}).toBeInViewport()
+  }
+
+  it('keeps a finished tool duration after its message scrolls out of view and back', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+    gate.resolve()
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
+  })
+
+  it('shows a duration for a tool that finished while its message was scrolled away', async () => {
+    const gate = Promise.withResolvers<void>()
+    mountProbeThread(gate.promise)
+    await expect.element(page.getByText('probe took no time yet'), {timeout: 3000}).toBeVisible()
+
+    await scrollAway()
+    gate.resolve()
+    await expect.element(page.getByText('probe run settled'), {timeout: 3000}).toBeVisible()
+    await scrollBack()
+
+    await expect.element(probeTook(), {timeout: 3000}).toBeVisible()
   })
 })
 

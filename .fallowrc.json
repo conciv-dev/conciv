@@ -15,6 +15,7 @@
     "packages/oxlint-plugin/fixtures/**",
     "packages/cli/test/fixtures/**",
     "apps/examples/**",
+    "native/swift/**",
     "docs/assets/page-session-card-spike/**",
     "e2e/astro/**",
     "e2e/nextjs/**",
@@ -204,6 +205,7 @@
     "packages/extensions/tanstack/test/host/conciv/extensions/connect-probe.tsx",
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
+    "packages/db/drizzle-home.config.ts",
     "apps/conciv/test/commands/core-control.ts",
     "apps/conciv/test/commands/core-testkit.ts"
   ]

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {MAX_ATTACHMENT_RAW_BYTES} from '@conciv/protocol/chat-types'
 import type {RunLifecycle} from '@conciv/protocol/chat-event-types'
-import type {ChatPart, ChatMessage} from '@conciv/protocol/chat-message-types'
+import type {ChatPart, ChatMessage, ToolCallPart} from '@conciv/protocol/chat-message-types'
 import {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
@@ -10,7 +10,15 @@ import {
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
 import {formatElapsed, runClock, type RunClockSource} from '../src/store/run-clock.js'
-import {coalesceTurns, defaultGrouper, diffTurns, groupParts, shareGroupNodes} from '../src/store/grouping.js'
+import {
+  coalesceTurns,
+  defaultGrouper,
+  diffTurns,
+  groupParts,
+  PAGE_SESSION_GROUP_KEY,
+  shareGroupNodes,
+} from '../src/store/grouping.js'
+import {createPageSessionGrouper} from '../src/store/page-session.js'
 
 describe('attachment adapter', () => {
   describe('attachment adapters', () => {
@@ -270,6 +278,20 @@ describe('grouping diff', () => {
       )
       expect(after[0]).toBe(before[0])
       expect(after[1]).not.toBe(before[1])
+    })
+
+    it('moves an act that leaves its approval prompt from the chain into the page session', () => {
+      const grouper = createPageSessionGrouper({actNames: new Set(['page_fill']), toolPrefix: 'page_'})
+      const act = (state: ToolCallPart['state']): ChatPart => ({
+        type: 'tool-call',
+        id: 'fill',
+        name: 'page_fill',
+        arguments: '{}',
+        state,
+      })
+      const asking = groupParts([act('approval-requested')], grouper, {})
+      const approved = shareGroupNodes(asking, groupParts([act('input-complete')], grouper, {}))
+      expect(approved[0]).toMatchObject({type: 'group', key: PAGE_SESSION_GROUP_KEY})
     })
   })
 })

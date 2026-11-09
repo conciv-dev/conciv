@@ -608,6 +608,58 @@ describe('page session injection', () => {
   })
 })
 
+describe('standalone card replaced in place', () => {
+  function OutcomeCard(props: ToolCardProps): JSX.Element {
+    return <p>{`${props.part.id} reads ${props.result?.content ?? 'nothing'}`}</p>
+  }
+
+  const entries: ToolCardEntry[] = [
+    {names: ['confirm_ui'], render: OutcomeCard, hasEmbeddedBody: () => true, display: 'standalone'},
+  ]
+
+  function answered(callId: string, content: string): ChatMessage[] {
+    return [
+      {id: 'ask', role: 'user', parts: [{type: 'text', content: 'confirm it'}]},
+      {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          {type: 'tool-call', id: callId, name: 'confirm_ui', arguments: '{}', state: 'complete'},
+          {type: 'tool-result', toolCallId: callId, content, state: 'complete'},
+        ],
+      },
+    ]
+  }
+
+  it('reads the result of the call it now shows, not the call it first mounted for', async () => {
+    let chat: Chat | undefined
+    function ReplacedThread(): JSX.Element {
+      const value = createChat({threadId: 'standalone-replaced', connection: storyConnection()})
+      onMount(() => {
+        chat = value
+        value.setMessages(answered('first-call', 'first outcome'))
+      })
+      return (
+        <ChatProvider chat={value}>
+          <ToolProvider value={ctxWith(catalogOf({}))}>
+            <Thread>
+              <Thread.Viewport>
+                <Thread.Messages tools={entries} />
+              </Thread.Viewport>
+            </Thread>
+          </ToolProvider>
+        </ChatProvider>
+      )
+    }
+    mountView(() => <ReplacedThread />)
+    await expect.element(page.getByText('first-call reads first outcome'), {timeout: 3000}).toBeVisible()
+
+    chat?.setMessages(answered('second-call', 'second outcome'))
+
+    await expect.element(page.getByText('second-call reads second outcome'), {timeout: 3000}).toBeVisible()
+  })
+})
+
 describe('standalone tool outside chain', () => {
   function ConfirmCard(props: ToolCardProps): JSX.Element {
     return <p>Confirm this action for {props.part.name}</p>

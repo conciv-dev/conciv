@@ -331,7 +331,8 @@ export function shareGroupNodes(previous: readonly GroupNode[], next: readonly G
 
 function sharedNode(previous: GroupNode | undefined, next: GroupNode): GroupNode {
   if (previous === undefined || previous.idKey !== next.idKey) return next
-  if (previous.type === 'group' && next.type === 'group') return sharedGroup(previous, next)
+  if (previous.type === 'group' && next.type === 'group' && previous.key === next.key)
+    return sharedGroup(previous, next)
   return isEqual(previous, next) ? previous : next
 }
 

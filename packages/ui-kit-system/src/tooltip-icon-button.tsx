@@ -1,5 +1,4 @@
 import {createUniqueId, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
-import {useTooltipContext} from '@ark-ui/solid/tooltip'
 import {Tooltip} from './tooltip.js'
 import {useTooltipGroup} from './tooltip-group.js'
 import {useSharedTooltip, type SharedTooltip} from './truncated-text.js'
@@ -39,10 +38,8 @@ export type TooltipIconButtonProps = JSX.ButtonHTMLAttributes<HTMLButtonElement>
 }
 
 function sharedTooltipFor(side: TooltipIconButtonSide | undefined): SharedTooltip | undefined {
-  const shared = useSharedTooltip()
-  if (shared === undefined || useTooltipGroup() !== undefined) return undefined
-  if ((side ?? 'top') !== shared.side() || !shared.owns(useTooltipContext())) return undefined
-  return shared
+  if (useTooltipGroup() !== undefined) return undefined
+  return useSharedTooltip(side)
 }
 
 export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {

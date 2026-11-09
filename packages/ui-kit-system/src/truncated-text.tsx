@@ -78,8 +78,10 @@ type Shown = {key: string; value: string; target: RevealTarget}
 
 const SharedTooltipContext = createContext<SharedTooltip>()
 
-export function useSharedTooltip(): SharedTooltip | undefined {
-  return useContext(SharedTooltipContext)
+export function useSharedTooltip(side: TruncatedTextSide | undefined): SharedTooltip | undefined {
+  const shared = useContext(SharedTooltipContext)
+  if (shared === undefined || (side ?? 'top') !== shared.side() || !shared.owns(useTooltipContext())) return undefined
+  return shared
 }
 
 export type TruncatedTextGroupProps = {side?: TruncatedTextSide; children?: JSX.Element}
@@ -165,7 +167,7 @@ function ScopedTruncatedText(props: TruncatedTextProps & {scope: SharedTooltip})
 
 export function TruncatedText(props: TruncatedTextProps): JSX.Element {
   return (
-    <Show when={useContext(SharedTooltipContext)} fallback={<OwnTruncatedText {...props} />}>
+    <Show when={useSharedTooltip(props.side)} fallback={<OwnTruncatedText {...props} />}>
       {(scope) => <ScopedTruncatedText {...props} scope={scope()} />}
     </Show>
   )

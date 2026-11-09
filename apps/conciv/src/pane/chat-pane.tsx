@@ -45,7 +45,7 @@ import {useAnnounce, useAppData, useConnected, useInstances, useLiveSessions, us
 import {useHarnesses, useSessionHarness} from '../data/harness-meta.js'
 import {usePanelComposerFocus} from '../app/panel-focus.js'
 import {usePane} from '../app/pane-context.js'
-import {foldToolDuration} from './tool-durations.js'
+import {createToolDurations} from './tool-durations.js'
 import {toolFallbackCard} from './tool-fallback-card.js'
 import {useComposerTriggerSources} from './trigger-sources.js'
 import {CompactSpinner, ConversationSkeleton, Divider} from './indicators.js'
@@ -172,6 +172,13 @@ function turnHarnessNames(
   }
 }
 
+function decidedThen(chat: ChatSession, after: () => Promise<void>): ChatSession['decide'] {
+  return async (approvalId, approved, scope) => {
+    await chat.decide(approvalId, approved, scope)
+    await after()
+  }
+}
+
 function markersAfter(chat: ChatSession, rows: () => MarkerRow[]): (messageId: string | undefined) => MarkerRow[] {
   return (messageId) => {
     if (messageId === undefined && chat.hasOlderMessages()) return []
@@ -246,10 +253,10 @@ function OpenedChatPane(props: {opened: OpenedChat; sessionId: string; viewTab?:
     harnessId: () => harness()?.id ?? '',
     catalog,
     sendMessage: (text) => void chat.sendMessage(text),
-    decide: (approvalId, approved, scope) => chat.decide(approvalId, approved, scope),
+    decide: decidedThen(chat, appData.invalidateOutsideAccess),
     onError: () => notices.notify('That permission request is no longer waiting for an answer.', {tone: 'warn'}),
     addResult: (toolCallId, value) => messaging.uiReply.mutate({toolCallId, value}),
-    durationFor: (part, previous) => foldToolDuration(part, previous, Date.now),
+    durationFor: createToolDurations(chat.messages, Date.now),
     captureFor: captures.lookup,
   })
 

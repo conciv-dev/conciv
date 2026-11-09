@@ -75,10 +75,10 @@ Assert both as screenshots, never `getBoundingClientRect` or `scrollHeight`, per
 Prerequisite: the demo has no core of its own. `native/swift/ConcivDemo/run.sh` only builds, boots, installs, and launches `dev.conciv.ConcivDemo`; the app then discovers a core through `CONCIV_URL`, the pairing file `~/.conciv/dev-endpoint.json` that a running dev core writes on startup, or the 4599/8787/3000 port probe (`apps/site/content/docs/quick-start/ios.mdx`). So start the core FIRST:
 
 ```
-pnpm --filter ios-example dev
+pnpm exec turbo run dev --filter=ios-example
 ```
 
-That example (`apps/examples/ios`) is a bare Vite host whose `vite.config.ts` pins the core to port 4599 and configures the `ios` extension against `native/swift/ConcivDemo`, so from the agent panel `ios.build` and `ios.run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that dev core is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios.build` / `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
+That example (`native/swift`, package `ios-example`) is a bare Vite host whose `vite.config.ts` pins the core to port 4599 and configures the `ios` extension against `native/swift/ConcivDemo`, so from the agent panel `ios.build` and `ios.run` build and launch the demo with `SIMCTL_CHILD_CONCIV_URL` already injected. `run.sh` is the equivalent by hand, and works only while that dev core is up. For a consumer app instead of the in-repo demo, follow the same doc (`ios.build` / `ios.run`, or `SIMCTL_CHILD_CONCIV_URL=http://127.0.0.1:4599 xcrun simctl launch booted dev.conciv.YourApp`).
 
 Then the interaction problem: `simctl` can launch, screenshot (`io <udid> screenshot`), and stream logs (`spawn <udid> log stream`), but it CANNOT tap, type, or scroll. All four checks are interactive, so the listed commands alone cannot drive them. Two honest options, in order:
 

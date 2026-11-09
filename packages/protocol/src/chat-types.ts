@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {type ChatMessage} from './chat-message-types.js'
 import {UsageSnapshotSchema} from './usage-types.js'
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from './rpc-types.js'
+import {INIT_HARNESS_IDS} from './harness-types.js'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
@@ -13,6 +14,16 @@ export const CHAT_HISTORY_PAGE_SIZE = 50
 export const CHAT_DELIVERY_HEADERS = ['x-run-id', 'last-event-id'] as const
 
 export const CONCIV_CLAUDE_SESSION_HEADER = 'conciv-claude-session-id'
+
+export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
+
+export const CONCIV_CLIENT_HEADER = 'conciv-client'
+
+export const HUB_FORWARD_ORIGIN = 'hub-forward'
+
+export const OUTSIDE_SESSION_TARGET = 'outside-session'
+
+export type HubAccess = 'open' | 'session' | 'project'
 
 export const CODE_MODE_SYNTHETIC_PART_MARKER = 'codeModeSynthetic'
 
@@ -71,6 +82,8 @@ export const HarnessSessionId = z
   .regex(/^[A-Za-z0-9_-]{1,128}$/)
   .brand<'HarnessSessionId'>()
 export type HarnessSessionId = z.infer<typeof HarnessSessionId>
+
+export const HarnessListCursorSchema = z.object({updatedAt: z.number(), id: z.union([HarnessSessionId, SessionId])})
 
 export function isHarnessSessionId(id: unknown): id is HarnessSessionId {
   return HarnessSessionId.safeParse(id).success
@@ -146,7 +159,6 @@ export const HarnessModelSchema = z.object({
 export const HarnessMetaSchema = z.object({
   id: z.string(),
   name: z.string(),
-  canLaunch: z.boolean(),
   imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
 })
 export type HarnessMeta = z.infer<typeof HarnessMetaSchema>
@@ -154,6 +166,7 @@ export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
   harness: HarnessMetaSchema,
+  hubInstalls: z.array(z.object({harnessId: z.enum(INIT_HARNESS_IDS), name: z.string()})),
 })
 export const HarnessMenuEntrySchema = HarnessMetaSchema.extend({
   models: z.array(HarnessModelSchema),
@@ -216,5 +229,49 @@ export const ChatLaunchSchema = z.object({
   command: z.string().nullable(),
 })
 export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
+
+export const TabsSchema = z.object({
+  project: z.object({name: z.string().nullable(), root: z.string(), branch: z.string().nullable()}),
+  tabs: z.array(
+    z.object({
+      sessionId: SessionId,
+      harness: z.string(),
+      browserTabs: z.number(),
+      session: z.object({title: z.string(), updatedAt: z.number(), running: z.boolean()}),
+      page: z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable(),
+    }),
+  ),
+})
+export type Tabs = z.infer<typeof TabsSchema>
+
+const TabToolSchema = z.object({name: z.string(), description: z.string(), typeStub: z.string()})
+
+export const TabOpenSchema = z.object({
+  open: z.boolean(),
+  instructions: z.string().nullable(),
+  tools: z.array(TabToolSchema),
+})
+export type TabOpen = z.infer<typeof TabOpenSchema>
+
+export const TabsListingSchema = z.object({
+  tabs: z.array(
+    z.object({
+      tab: SessionId,
+      project: z.string().optional(),
+      branch: z.string().optional(),
+      root: z.string(),
+      href: z.string().optional(),
+      pageTitle: z.string().optional(),
+      sessionTitle: z.string(),
+      lastActive: z.string(),
+      running: z.boolean(),
+      state: z.enum(['visible', 'hidden']).optional(),
+      harness: z.string(),
+      browserTabs: z.number(),
+    }),
+  ),
+  unreachable: z.array(z.object({root: z.string(), error: z.string()})),
+})
+export type TabsListing = z.infer<typeof TabsListingSchema>
 
 export type RequestMeta = Record<string, unknown>
