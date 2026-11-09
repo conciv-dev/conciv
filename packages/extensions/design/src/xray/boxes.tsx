@@ -4,11 +4,19 @@ import type {createXrayData} from './data.js'
 export function Boxes(props: {data: ReturnType<typeof createXrayData>}): JSX.Element {
   return (
     <Show when={props.data.shown('design')}>
-      <div aria-hidden="true" class="pointer-events-none inset-0 fixed" data-conciv-key="Jwmpcw">
+      <div
+        role="group"
+        aria-label="Design x-ray boxes"
+        class="pointer-events-none inset-0 fixed"
+        data-conciv-key="Jwmpcw"
+      >
         <For each={props.data.boxes()}>
           {(entry) => (
-            <div
-              class={`fixed ${props.data.pick() ? 'pointer-events-auto cursor-pointer' : ''}`}
+            <button
+              type="button"
+              aria-label={`${entry.name} ${entry.node}`}
+              tabIndex={props.data.pick() ? 0 : -1}
+              class={`p-0 bg-transparent fixed ${props.data.pick() ? 'pointer-events-auto cursor-pointer' : ''}`}
               onClick={() => props.data.pick() && props.data.pickNode(entry.node)}
               style={{
                 left: `${entry.box.x}px`,
@@ -34,7 +42,7 @@ export function Boxes(props: {data: ReturnType<typeof createXrayData>}): JSX.Ele
                   {entry.node}
                 </span>
               </span>
-            </div>
+            </button>
           )}
         </For>
       </div>

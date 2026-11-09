@@ -38,6 +38,7 @@ export function XrayOverlay(props: {
     prepareHost(shown)
     if (shown.shadowRoot !== null) shown.shadowRoot.adoptedStyleSheets = styles()
     shown.hidden = !props.on()
+    shown.style.setProperty('display', props.on() ? '' : 'none')
     shown.classList.toggle('dark', scheme() === 'dark')
     shown.classList.toggle('light', scheme() !== 'dark')
   })
@@ -48,6 +49,9 @@ export function XrayOverlay(props: {
         <Portal mount={document.body} useShadow ref={setElement}>
           <EnvironmentProvider value={rootNode}>
             <div class="chat-density text-chat-text font-chat antialiased" data-conciv-key="HxvEWg">
+              <Show when={props.data.shownRound() !== null}>
+                <Boxes data={props.data} />
+              </Show>
               <nav
                 aria-label="Design x-ray rail"
                 class="px-1 py-3 border border-chat-line bg-chat-glass flex flex-col gap-2 w-14 pointer-events-auto items-center start-0 inset-y-0 fixed"
@@ -56,6 +60,7 @@ export function XrayOverlay(props: {
                 <RailButton label="X-ray" active icon={Power} />
                 <RailButton
                   label="Pick"
+                  active={props.data.pick()}
                   icon={MousePointerClick}
                   onClick={() => props.data.setPick(!props.data.pick())}
                 />
@@ -83,7 +88,6 @@ export function XrayOverlay(props: {
                 </section>
               </Show>
               <Show when={props.data.shownRound() !== null}>
-                <Boxes data={props.data} />
                 <Panel data={props.data} close={props.toggle} capture={props.capture} />
               </Show>
             </div>
@@ -137,6 +141,7 @@ function RailButton(props: {
   return (
     <button
       type="button"
+      aria-pressed={props.onClick === undefined ? undefined : (props.active ?? false)}
       onClick={() => props.onClick?.()}
       class={`px-1 pb-1 pt-1.5 border-0 rounded-chat-surface-sm flex flex-col gap-0.5 w-12 cursor-pointer items-center ${props.active ? 'bg-chat-fill-strong text-chat-accent' : 'bg-transparent text-chat-text-3'}`}
       data-conciv-key="_04rZQ"
