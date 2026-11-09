@@ -19,13 +19,7 @@ import {isEqual} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
-import type {
-  ToolCardEntry,
-  ToolCardProps,
-  ToolCardView,
-  ToolDuration,
-  ToolViewCtx,
-} from '@conciv/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolCardView, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -142,12 +136,8 @@ function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
-function createCallDuration(call: Accessor<ToolCallPart | null>, ctx: ToolViewCtx): Accessor<number | undefined> {
-  const duration = createMemo<ToolDuration>((previous) => {
-    const current = call()
-    return current && ctx.durationFor ? ctx.durationFor(current, previous) : previous
-  }, {})
-  return () => duration().ms
+function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
+  return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
 }
 
 function AssistantTurn(props: {
@@ -197,7 +187,7 @@ function AssistantTurn(props: {
           const current = call()
           return current !== null && rowMarkOf(current, result()) === 'run'
         })
-        const durationMs = createCallDuration(call, ctx)
+        const durationMs = createCallDuration(callId, ctx)
         return {
           key: item.key,
           get live() {
@@ -273,7 +263,7 @@ function AssistantTurn(props: {
               {(part) => {
                 const callId = untrack(part).id
                 const result = createMemo(() => turnParts.resultFor(callId))
-                const durationMs = createCallDuration(part, ctx)
+                const durationMs = createCallDuration(callId, ctx)
                 return (
                   <ToolCallCard
                     part={part()}
