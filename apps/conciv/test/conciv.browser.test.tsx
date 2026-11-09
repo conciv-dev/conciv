@@ -110,6 +110,7 @@ const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z
 describe('approval replay', () => {
   const core = bootedCore('approval-replay')
   const keep = keptPane()
+  afterAll(() => coreControl.setHubConnection('codex', false))
 
   const permissionRequest = () => page.getByRole('group', {name: 'Permission request'})
   const approveButton = () => page.getByRole('button', {name: 'Approve'})
@@ -1267,6 +1268,12 @@ describe('grab staging', () => {
 describe('chat history paging', () => {
   const HYDRATE_PATH = ['chat', 'hydrate']
   const SEEDED_EXCHANGES = 100
+  const STREAMED_REPLY_CLOSING = 'That is the end of the streamed reply.'
+  const STREAMED_REPLY = [
+    ...Array.from({length: 30}, (_, line) => `Streamed reply line ${line} keeps the reader company while it grows.`),
+    STREAMED_REPLY_CLOSING,
+  ].join('\n\n')
+  const STREAMED_REPLY_PACE = {chunk: 24, everyMs: 50}
   const core = bootedCore('history-paging', {
     displayName: 'Alpha',
     alternates: [{id: 'beta', displayName: 'Beta', text: 'Hello from beta'}],
@@ -1317,7 +1324,7 @@ describe('chat history paging', () => {
   function mountPagedChat(sessionId: string) {
     return keep(
       mountPane({base: core(), sessionId, width: 460}, () => (
-        <div style={{display: 'flex', 'flex-direction': 'column', height: '600px'}}>
+        <div style={{display: 'flex', 'flex-direction': 'column', height: '400px'}}>
           <ChatPane sessionId={sessionId} />
         </div>
       )),
@@ -1359,6 +1366,45 @@ describe('chat history paging', () => {
     expect(await hydrates()).toBe(opened + 1)
   })
 
+  test('scrolling up loads the older page well before the top, and the messages in view stay where they were', async () => {
+    const opened = await openChat(long.sessionId)
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await userEvent.wheel(thread(), {delta: {y: -1000}})
+
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await expect.element(loadingOlder()).not.toBeInViewport()
+    await expectInViewOnly([87, 88], [86, 91])
+    await faults.releaseAll()
+
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expectInViewOnly([87, 88], [86, 91])
+    expect(await hydrates()).toBe(opened + 1)
+  })
+
+  test('the replies on screen are kept, not rebuilt, when the page before them lands', async () => {
+    await openChat(long.sessionId)
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+    await userEvent.wheel(thread(), {delta: {y: -1000}})
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await userEvent.hover(thread().getByText('Hello from conciv', {exact: true}).first())
+    await userEvent.click(thread().getByRole('button', {name: 'Copy'}).first())
+    const copyOutcome = thread()
+      .getByRole('status')
+      .filter({hasText: /^(Copied the message|Could not copy the message)$/})
+    await expect.element(copyOutcome).toBeInTheDocument()
+
+    await faults.releaseAll()
+
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await expect.element(copyOutcome).toBeInTheDocument()
+  })
+
+  async function expectInViewOnly(shown: number[], hidden: number[]): Promise<void> {
+    for (const index of shown) await expect.element(exchange(index)).toBeInViewport()
+    for (const index of hidden) await expect.element(exchange(index)).not.toBeInViewport()
+  }
+
   test('an older page that fails waits for Retry instead of asking again, and Retry loads it', async () => {
     const opened = await openChat(long.sessionId)
     await faults.install({kind: 'fail', path: HYDRATE_PATH, status: 500})
@@ -1392,6 +1438,56 @@ describe('chat history paging', () => {
     await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeVisible()
     await expectMarkersInPlace()
   })
+
+  test('Latest glides to the newest message from far up, a wheel mid-glide leaves the reader where they scrolled, and scrolling back down by hand follows the stream again', async () => {
+    const latest = () => page.getByRole('button', {name: 'Scroll to bottom'})
+    await openChat(long.sessionId)
+    for (const boundary of [74, 49]) {
+      await scrollToTop()
+      await expect.element(exchange(boundary)).toBeInTheDocument()
+    }
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await userEvent.click(latest())
+
+    await expect.element(latest()).toBeEnabled()
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInViewport()
+    await expect.element(latest()).toBeDisabled()
+
+    await scrollToTop()
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await userEvent.click(latest())
+    await userEvent.wheel(thread(), {delta: {y: -400}})
+    await faults.releaseAll()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
+    await streamReplyAndSettle('streamed while scrolled away')
+
+    await expect.element(latest()).toBeEnabled()
+
+    await userEvent.click(latest())
+    await expect.element(latest()).toBeDisabled()
+    await coreControl.scriptTurn({toolCalls: [], text: STREAMED_REPLY, textPace: STREAMED_REPLY_PACE})
+    const streamed = await sendTurn(core(), long.sessionId, 'streamed while reading')
+    await expect.element(page.getByText('streamed while reading', {exact: true})).toBeInViewport()
+    await userEvent.wheel(thread(), {delta: {y: -300}})
+    await expect.element(latest()).toBeEnabled()
+    await scrollToEnd()
+    await streamed.awaitTurnEnd()
+
+    await expect.element(page.getByText(STREAMED_REPLY_CLOSING, {exact: true}).last()).toBeInViewport()
+    await expect.element(latest()).toBeDisabled()
+    await coreControl.clearScript()
+  }, 60_000)
+
+  async function streamReplyAndSettle(text: string): Promise<void> {
+    const stop = page.getByRole('button', {name: 'Stop generating'})
+    await coreControl.scriptTurn({toolCalls: [], text: STREAMED_REPLY, textPace: STREAMED_REPLY_PACE})
+    const turn = await sendTurn(core(), long.sessionId, text)
+    await expect.element(stop).toBeVisible()
+    await turn.awaitTurnEnd()
+    await expect.element(stop).not.toBeInTheDocument()
+  }
 
   test('a turn run from elsewhere while older pages are loaded shows up and keeps those pages', async () => {
     const sessionId = await seedExchanges()
@@ -2653,6 +2749,7 @@ describe('session options outside agents', () => {
   const coreBase = bootedCore('outside-agents')
   const harness = createShellHarness(coreBase)
   afterEach(harness.dispose)
+  afterAll(() => coreControl.setHubConnection('codex', false))
   const strip = () => page.getByRole('group', {name: 'Permission request'})
   const allowRow = () => page.getByRole('button', {name: 'Allow outside agents'})
   const approve = () =>
