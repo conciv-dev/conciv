@@ -468,14 +468,14 @@ function boxNode(input: {node: FigmaNode; box: Box; origin: Origin; children: De
   const {node, box, origin, children} = input
   const {scale} = origin
   const paint = paintOf(node.fills ?? [])
-  const imageRef = children.length === 0 ? null : backgroundRef(node)
+  const stack = children.length > 0 && backgroundRef(node) !== null
   const stroke = (node.strokes ?? []).findLast((candidate) => candidate.type === 'SOLID' && candidate.visible !== false)
   const color = stroke?.color
   return {
     id: node.id,
     box,
     hash: '',
-    figma: figmaFacts({node, origin, marks: {image: imageFilled(node) || imageRef !== null, crop: false, imageRef}}),
+    figma: figmaFacts({node, origin, marks: {image: imageFilled(node) || stack, crop: false, stack}}),
     kind: 'box',
     ...(paint === null ? {} : {paint}),
     ...autoLayout({node, scale}),

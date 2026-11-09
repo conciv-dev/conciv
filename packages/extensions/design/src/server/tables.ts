@@ -281,6 +281,6 @@ export function designTables(table: SQLiteTableFn) {
 
 const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 
-const FILL_KINDS = ['solid', 'gradient', 'image', 'none'] as const
+const FILL_KINDS = ['solid', 'gradient', 'image', 'image-stack', 'none'] as const
 
 const NOW_MS = sql`(cast(unixepoch('subsec') * 1000 as integer))`

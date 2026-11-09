@@ -22,7 +22,7 @@ type NodeLook = {
   y: number
   w: number
   h: number
-  fill_kind: 'solid' | 'gradient' | 'image' | 'none'
+  fill_kind: 'solid' | 'gradient' | 'image' | 'image-stack' | 'none'
   fill: string | null
   fill_opacity: number | null
   stroke: string | null
@@ -81,6 +81,7 @@ const FieldsSchema = z.object({
   opacity: z.number().optional().catch(undefined),
   image: z.boolean().optional().catch(undefined),
   asset: z.string().optional().catch(undefined),
+  assetLayers: z.array(z.unknown()).optional().catch(undefined),
   tokens: TokensSchema.catch({}),
 })
 
@@ -109,7 +110,11 @@ function lookOf(input: {
     within: input.within,
     depth: input.depth,
     ...facts.box,
-    fill_kind: fillKind({image: image && node.children.length === 0, type: fill?.type}),
+    fill_kind: fillKind({
+      image: image && node.children.length === 0,
+      stack: fields.assetLayers !== undefined,
+      type: fill?.type,
+    }),
     fill: fill?.color ?? first?.color ?? null,
     fill_opacity: fill?.opacity ?? null,
     stroke: stroke?.color ?? null,
@@ -135,8 +140,9 @@ function lookOf(input: {
   }
 }
 
-function fillKind(input: {image: boolean; type: string | undefined}): NodeLook['fill_kind'] {
+function fillKind(input: {image: boolean; stack: boolean; type: string | undefined}): NodeLook['fill_kind'] {
   if (input.image) return 'image'
+  if (input.stack) return 'image-stack'
   if (input.type === undefined) return 'none'
   if (input.type === 'solid') return 'solid'
   return input.type.endsWith('gradient') ? 'gradient' : 'none'
