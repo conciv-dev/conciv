@@ -1,3 +1,4 @@
+import {runsViews} from './src/server/views.js'
 import {runsTables} from './src/server/runs-tables.js'
 
 export const {
@@ -17,3 +18,5 @@ export const {
   notes,
   node_components,
 } = runsTables
+
+export const {run_summary, round_rows, hint_vs_drawn, kit_per_round, mispairs, lost_components} = runsViews

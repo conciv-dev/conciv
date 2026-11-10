@@ -396,6 +396,8 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
         round: integer().notNull(),
         node: text().notNull(),
         component_id: text().notNull(),
+        component: text(),
+        specifier: text(),
         source: text().notNull(),
       },
       (self) => [...byRound('node_components')(self), index('node_components_by_component').on(self.component_id)],

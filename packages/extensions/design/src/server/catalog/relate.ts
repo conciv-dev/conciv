@@ -27,7 +27,16 @@ export async function relateRound(input: {
     related.forEach(({node, source, component}) =>
       tx
         .insert(nodeComponents)
-        .values({target_id: targetId, run_id: runId, round, node, component_id: component.id, source})
+        .values({
+          target_id: targetId,
+          run_id: runId,
+          round,
+          node,
+          component_id: component.id,
+          component: component.names[0],
+          specifier: component.specifier,
+          source,
+        })
         .run(),
     )
   })
