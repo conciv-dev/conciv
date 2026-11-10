@@ -24,6 +24,8 @@ const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'we
 const CONTAINER_CSS =
   '#root { container-type: inline-size; } @container (min-width: 600px) { .toolbar { padding-bottom: 12px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
+const SLOW_FONT_CSS = "@import url('/slow-font.css');"
+const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const TYPE_SIZES = [12, 16, 24, 32]
 const TYPE_STRINGS = ['Export the quarterly report', 'EXPORT', '1,240.00']
 
@@ -61,6 +63,14 @@ export function App() {
           <textarea className="contact-field contact-message" placeholder="Message" data-conciv-key="rLmLTw" />
           <button type="submit" data-conciv-key="Yqw8VA">Send</button>
         </form>
+      </main>
+    )
+  }
+  if (requested === 'slowfont') {
+    return (
+      <main className="slowfont" data-conciv-key="sLwFmn">
+        <style data-conciv-key="sLwFst">{SLOW_FONT_CSS}</style>
+        <p className="slowfont-text" data-conciv-key="sLwFtx">{SLOW_FONT_TEXT}</p>
       </main>
     )
   }

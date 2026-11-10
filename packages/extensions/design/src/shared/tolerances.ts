@@ -70,6 +70,7 @@ export const designConfig = Object.assign(
       residualAreaGate: 0.01,
       runDebounceMs: 150,
       settleQuiet: 800,
+      settleWait: 5000,
       measureChunk: 200,
       pairBudgetMs: 20_000,
       pairBoxIou: 0.3,

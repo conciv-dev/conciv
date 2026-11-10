@@ -235,3 +235,15 @@ button {
   width: 200px;
   height: 100px;
 }
+
+.slowfont {
+  padding: 40px;
+}
+
+.slowfont-text {
+  width: 480px;
+  margin: 0;
+  font-family: monospace;
+  font-size: 32px;
+  line-height: 40px;
+}

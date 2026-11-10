@@ -367,6 +367,7 @@ const MeasuredSchema = RoundSchema.pick({
   progress: true,
 }).extend({
   unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
+  fontsLoading: z.number().optional().describe('ms a measure of this check waited for fonts that were still loading'),
   progress: ProgressSchema.nullable().optional(),
   ...UnsettledSchema.partial().shape,
 })
@@ -414,6 +415,10 @@ export const MeasureResultSchema = z.object({
   framework: z.enum(['react', 'solid']).nullable().default(null).describe('react with a fiber, solid with vite ids'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
+  fontsLoading: z
+    .number()
+    .optional()
+    .describe('ms the measure waited for stylesheets and fonts that were still loading when it went ahead'),
 })
 
 const Width = z.number().int().positive()
@@ -492,7 +497,7 @@ export type Measurer = {
 
 export type Measured = Pick<
   z.output<typeof MeasureResultSchema>,
-  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks'
+  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks' | 'fontsLoading'
 > & {live: LiveComponent; raster: Raster; path: CapturePath; sources: MeasureSource[]; framework: 'react' | 'solid'}
 
 export type Pairer = (input: {

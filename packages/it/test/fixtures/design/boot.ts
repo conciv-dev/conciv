@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
-import {createLogger, createServer} from 'vite'
+import {createLogger, createServer, type Connect, type Plugin} from 'vite'
 import {z} from 'zod'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
@@ -32,6 +32,7 @@ export async function boot(options: {config?: DesignConfigInput} = {}): Promise<
     },
     server: {host: '127.0.0.1', port: 0},
     plugins: [
+      slowFonts(),
       react(),
       unplugin.vite({
         stateRoot,
@@ -87,6 +88,8 @@ export async function boot(options: {config?: DesignConfigInput} = {}): Promise<
 }
 
 const HOST_ROOT = fileURLToPath(new URL('host/', import.meta.url))
+const SLOW_PREFIX = '/slow/'
+const SLOW_FONT_MS = 3000
 const ENDPOINT_FILE = 'dev-endpoint.json'
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 
@@ -153,4 +156,20 @@ async function injectWidget(page: Page, apiBase: string): Promise<void> {
     },
     {base: apiBase, entry: WIDGET_BOOT},
   )
+}
+
+function slowFonts(): Plugin {
+  return {
+    name: 'conciv-it-slow-fonts',
+    configureServer: (server) => {
+      server.middlewares.use(slowly)
+    },
+  }
+}
+
+function slowly(request: Connect.IncomingMessage, _response: unknown, next: () => void): void {
+  const url = request.url ?? ''
+  if (!url.startsWith(SLOW_PREFIX)) return next()
+  request.url = url.slice(SLOW_PREFIX.length - 1)
+  setTimeout(next, SLOW_FONT_MS)
 }

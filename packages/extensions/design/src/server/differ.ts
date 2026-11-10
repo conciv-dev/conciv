@@ -70,7 +70,8 @@ export function createDiffer(input: {
     if (!('round' in measured))
       return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
-    const checked = shown({...measured, verdict, reasons})
+    const late = measured.fontsLoading === undefined ? [] : [fontsLine(measured.fontsLoading)]
+    const checked = shown({...measured, verdict, reasons: [...reasons, ...late]})
     return nodes === undefined ? checked : only({checked, nodes})
   }
   const statusOne = async (record: TargetRecord) =>
@@ -136,8 +137,6 @@ const BASE64_REF = 'base64'
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 const TOLERANCES = designConfig.tolerances
-
-const SETTLE_WAIT_MS = 5000
 
 const NOTHING_MEASURED = {
   rows: [],
@@ -309,6 +308,10 @@ function unsettledReason(measured: Exclude<RoundReply, {round: number}>): string
   return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
 }
 
+function fontsLine(waited: number): string {
+  return `fonts were still loading; measured after ${waited} ms`
+}
+
 function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
   quiet: () => Promise<void>
   compiled: () => Promise<CompileError | null>
@@ -335,7 +338,7 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
     quiet: () =>
       Promise.race([
         state.settled?.promise ?? Promise.resolve(),
-        delay(TOLERANCES.settleQuiet + SETTLE_WAIT_MS, undefined, {ref: false}),
+        delay(TOLERANCES.settleQuiet + TOLERANCES.settleWait, undefined, {ref: false}),
       ]),
     compiled: async () => {
       const {failed} = state

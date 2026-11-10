@@ -33,8 +33,10 @@ import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {boot} from './fixtures/design/boot.js'
+import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
+const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
@@ -476,58 +478,66 @@ describe('design_check on a page that breaks the widget or the build', () => {
   })
 })
 
-const PICTURE_LINK = 'https://www.figma.com/design/ItPictureKey/x?node-id=2-1'
-const PICTURE_FRAME = {w: 400, h: 300}
-const PICTURE = {x: 50, y: 50, w: 200, h: 100}
-const QUADRANTS = [
-  [214, 69, 69],
-  [46, 160, 67],
-  [44, 92, 201],
-  [240, 200, 40],
-]
-const PICTURE_DOCUMENT = {
-  name: 'it picture',
+const SLOW_LINK = 'https://www.figma.com/design/ItSlowFontKey/x?node-id=3-1'
+const SLOW_FRAME = {w: 1280, h: 400}
+const SLOW_FONT_FILE = '/slow/fonts/'
+const FALLBACK_FAMILY = 'font-family: monospace;'
+const SLOW_FAMILY = "font-family: 'Slow Sans', monospace;"
+const SLOW_DOCUMENT = {
+  name: 'it slow font',
   lastModified: '2026-11-10T00:00:00Z',
   version: '1',
   nodes: {
-    '2:1': {
-      document: {
-        id: '2:1',
-        name: 'Picture',
-        type: 'FRAME',
-        absoluteBoundingBox: {x: 0, y: 0, width: PICTURE_FRAME.w, height: PICTURE_FRAME.h},
-        fills: [{type: 'SOLID', color: {r: 1, g: 1, b: 1, a: 1}}],
-        children: [
-          {
-            id: '2:2',
-            name: 'Photo',
-            type: 'RECTANGLE',
-            absoluteBoundingBox: {x: PICTURE.x, y: PICTURE.y, width: PICTURE.w, height: PICTURE.h},
-            fills: [{type: 'IMAGE', scaleMode: 'FILL', imageRef: 'photo'}],
-            children: [],
-          },
-        ],
-      },
+    '3:1': {
+      document: figmaFrame({
+        id: '3:1',
+        name: 'Report',
+        box: {x: 0, y: 0, ...SLOW_FRAME},
+        children: [figmaFrame({id: '3:2', name: 'Paragraph', box: {x: 40, y: 40, w: 480, h: 160}})],
+      }),
     },
   },
 }
 
+describe('design_check on a page whose fonts load slowly', () => {
+  it('measures the same page on the first check, while an @import font is still loading, and on the second', async () => {
+    await goto('slowfont')
+    const image = join(kit.targetsDir, 'slow-font.png')
+    await writeFile(image, blankPng({width: SLOW_FRAME.w, height: SLOW_FRAME.h}))
+    await call('design_get', {figma: SLOW_LINK, image, document: SLOW_DOCUMENT})
+    const slowly = (response: {url: () => string}): boolean => response.url().includes(SLOW_FONT_FILE)
+    const requested = kit.page.waitForRequest(slowly)
+    const landed = kit.page.waitForResponse(slowly)
+    const styles = await readFile(STYLES_FILE, 'utf8')
+    await writeFile(STYLES_FILE, styles.replace(FALLBACK_FAMILY, SLOW_FAMILY))
+    const [first, second] = await requested
+      .then(() => call('design_check', {}))
+      .then(async (checked) => [roundOf(checked), roundOf(await landed.then(() => call('design_check', {})))])
+      .finally(() => writeFile(STYLES_FILE, styles))
+    expect([second?.round, second?.unchanged]).toEqual([first?.round, true])
+  })
+})
+
 describe('design_check image rows', () => {
+  const PICTURE = picture.box
   const folder = join(kit.hostRoot, 'public', 'design')
   const frame = join(kit.targetsDir, 'picture-frame.png')
 
   beforeAll(async () => {
     await mkdir(folder, {recursive: true})
-    await writeFile(join(folder, 'same.png'), painted({width: PICTURE.w * 2, height: PICTURE.h * 2, turned: false}))
-    await writeFile(join(folder, 'other.png'), painted({width: PICTURE.w, height: PICTURE.h, turned: true}))
-    await writeFile(frame, framed())
+    await writeFile(
+      join(folder, 'same.png'),
+      picture.painted({width: PICTURE.w * 2, height: PICTURE.h * 2, turned: false}),
+    )
+    await writeFile(join(folder, 'other.png'), picture.painted({width: PICTURE.w, height: PICTURE.h, turned: true}))
+    await writeFile(frame, picture.framed())
   })
 
   afterAll(() => rm(folder, {recursive: true, force: true}))
 
   const imageRows = async (src: string): Promise<ReturnType<typeof roundOf>['rows']> => {
     await goto(`/?variant=picture&src=${encodeURIComponent(src)}`)
-    await call('design_get', {figma: PICTURE_LINK, image: frame, document: PICTURE_DOCUMENT})
+    await call('design_get', {figma: picture.link, image: frame, document: picture.document})
     return roundOf(await call('design_check', {})).rows.filter((row) => row.kind === 'image')
   }
 
@@ -541,23 +551,3 @@ describe('design_check image rows', () => {
     expect(['/design/2-2.png', '/design/other.png'].every((name) => rows[0]?.text.includes(name))).toBe(true)
   })
 })
-
-function painted(input: {width: number; height: number; turned: boolean}): Uint8Array {
-  const png = new PNG({width: input.width, height: input.height})
-  Array.from({length: input.width * input.height}, (_, index) => index).forEach((index) => {
-    const x = index % input.width
-    const y = (index - x) / input.width
-    const quadrant = (y < input.height / 2 ? 0 : 2) + (x < input.width / 2 ? 0 : 1)
-    const [red = 0, green = 0, blue = 0] = QUADRANTS[input.turned ? 3 - quadrant : quadrant] ?? []
-    png.data.set([red, green, blue, 255], index * 4)
-  })
-  return new Uint8Array(PNG.sync.write(png))
-}
-
-function framed(): Uint8Array {
-  const png = new PNG({width: PICTURE_FRAME.w, height: PICTURE_FRAME.h})
-  png.data.fill(255)
-  const picture = PNG.sync.read(Buffer.from(painted({width: PICTURE.w, height: PICTURE.h, turned: false})))
-  PNG.bitblt(picture, png, 0, 0, PICTURE.w, PICTURE.h, PICTURE.x, PICTURE.y)
-  return new Uint8Array(PNG.sync.write(png))
-}

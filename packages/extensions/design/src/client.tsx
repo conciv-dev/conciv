@@ -19,6 +19,7 @@ import {XrayPane} from './xray/router.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
+import {settled} from './client/settled.js'
 
 declare global {
   interface Window {
@@ -207,6 +208,7 @@ function overlayError(): string | null {
 
 async function measureLive(input: {size: Size}): Promise<Measuring> {
   const {size} = input
+  const fontsLoading = await settled({doc: document, cap: TOLERANCES.settleWait})
   const longestTask = watchLongTasks()
   const components = await collectComponents({root: document, size})
   const masks = canvasBoxes({root: document, size})
@@ -227,6 +229,7 @@ async function measureLive(input: {size: Size}): Promise<Measuring> {
     overflowX: sidewaysScroll(document),
     framework: pageFramework(),
     ...(longest === null ? {} : {longestTask: longest}),
+    ...(fontsLoading === null ? {} : {fontsLoading}),
   }
 }
 
@@ -253,6 +256,7 @@ async function measureMirror(input: {size: Size}): Promise<Measuring> {
 
 async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
   const {doc, size} = input
+  const fontsLoading = await settled({doc, cap: TOLERANCES.settleWait})
   const measured = await collectComponents({root: doc, size})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
@@ -269,12 +273,14 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
     opinion: opinion !== null,
     overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
+    ...(fontsLoading === null ? {} : {fontsLoading}),
   }
 }
 
 async function shotsStep(input: ShotsInput): Promise<{shots: NodeShot[]}> {
   const size = {width: input.width, height: input.height}
   const doc = size.width === innerWidth ? document : mirrorDocument(await mirrorAt(size))
+  await settled({doc, cap: TOLERANCES.settleWait})
   return frozen({
     doc,
     run: async () => {
@@ -387,7 +393,6 @@ async function buildMirror(size: Size): Promise<HTMLIFrameElement> {
   const widget = document.querySelector(WIDGET_ROOT_SELECTOR)
   const placeholder = widget === null ? null : rebuilt.getNode(source.getId(widget))
   placeholder?.parentNode?.removeChild(placeholder)
-  await mirrorDocument(iframe).fonts.ready
   return iframe
 }
 

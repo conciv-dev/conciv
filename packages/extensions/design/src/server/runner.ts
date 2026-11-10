@@ -70,8 +70,10 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     const widths = widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
     const results = []
     const failures = []
+    const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
     for (const {width} of widths) {
       const narrow = width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT})
+      if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
       const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
       const measuredAt = reflowAt({
         root: design.root,
@@ -140,7 +142,8 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
         ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
       ],
     })
-    const reply = {round, rows, reflow, coverage: judged, counts, progress}
+    const late = waits.length === 0 ? {} : {fontsLoading: Math.max(...waits)}
+    const reply = {round, rows, reflow, coverage: judged, counts, progress, ...late}
     return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
   }
 }

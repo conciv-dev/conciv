@@ -118,6 +118,7 @@ function measuredFrom(reply: MeasureReply): Measured {
     sheets: reply.sheets,
     ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
+    ...(reply.fontsLoading === undefined ? {} : {fontsLoading: reply.fontsLoading}),
     framework: frameworkOf(reply),
     masks: reply.masks,
   }
