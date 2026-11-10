@@ -2,7 +2,7 @@
 import {execFile} from 'node:child_process'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {basename, join} from 'node:path'
+import {basename, join, resolve} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
@@ -34,6 +34,8 @@ import {createStore} from '../../extensions/design/src/server/store.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
+import {openRunsStore} from '../../extensions/design/src/server/runs-store.js'
+import {importRun} from '../../extensions/design/src/server/import-run.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -1269,5 +1271,52 @@ describe('runs store schema', () => {
     expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
     expect(names('PRAGMA table_info(design_node_components)')).toContain('run_id')
     expect(names('PRAGMA table_info(design_fom_nodes)')).toContain('fill_kind')
+  })
+})
+
+const RUN_FIXTURE = fileURLToPath(new URL('fixtures/runs/twentysix-figma7-1/', import.meta.url))
+
+const CountSchema = z.object({count: z.number()})
+
+function countIn(input: {client: DatabaseSync; table: string; where?: string}): number {
+  return CountSchema.parse(
+    input.client.prepare(`SELECT count(*) AS count FROM ${input.table} ${input.where ?? ''}`).get(),
+  ).count
+}
+
+async function withRunsStore<T>(run: (store: ReturnType<typeof openRunsStore>) => Promise<T>): Promise<T> {
+  const home = await mkdtemp(join(tmpdir(), 'conciv-runs-home-'))
+  const store = openRunsStore(home)
+  try {
+    return await run(store)
+  } finally {
+    store.close()
+    await rm(home, {recursive: true, force: true})
+  }
+}
+
+describe('runs store', () => {
+  it('imports a finished run once, its rounds, rows and votes under a new run id', async () => {
+    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+    const tables = ['design_rounds', 'design_rows', 'design_votes', 'design_tool_calls']
+    const expected = tables.map((table) => countIn({client: source, table}))
+    source.close()
+    await withRunsStore(async (store) => {
+      const first = importRun({runsStore: store, stateDir: RUN_FIXTURE})
+      const where = `WHERE run_id = ${first.runId}`
+      const counted = () => tables.map((table) => countIn({client: store.reader, table, where}))
+      expect(first.imported).toBe(true)
+      expect(counted()).toEqual(expected)
+      const again = importRun({runsStore: store, stateDir: RUN_FIXTURE})
+      expect([again.imported, again.runId]).toEqual([false, first.runId])
+      expect(counted()).toEqual(expected)
+      expect(countIn({client: store.reader, table: 'design_runs'})).toBe(1)
+      const run = await store.orm.query.runs.findFirst({with: {rounds: {columns: {round: true}}}})
+      expect([run?.source_path, run?.source_run_id, run?.rounds.length]).toEqual([
+        resolve(RUN_FIXTURE),
+        first.sourceRunId,
+        expected[0],
+      ])
+    })
   })
 })

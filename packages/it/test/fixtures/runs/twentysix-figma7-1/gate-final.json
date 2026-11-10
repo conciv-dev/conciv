@@ -1,0 +1,153 @@
+{
+  "verdict": "done",
+  "reasons": [],
+  "variants": [
+    {
+      "round": 7,
+      "rows": [],
+      "reflow": {
+        "widths": [
+          {"width": 1595, "from": ["stack 83:30228 - 1"]},
+          {"width": 1596, "from": ["stack 83:30228"]},
+          {"width": 1920, "from": ["design"]}
+        ],
+        "results": [
+          {
+            "width": 1595,
+            "rootHeight": 5402,
+            "sticksOut": [],
+            "overflowX": false,
+            "overlaps": [],
+            "tags": [],
+            "rows": []
+          },
+          {
+            "width": 1596,
+            "rootHeight": 5395,
+            "sticksOut": [],
+            "overflowX": false,
+            "overlaps": [],
+            "tags": [],
+            "rows": []
+          },
+          {
+            "width": 1920,
+            "rootHeight": 4879,
+            "sticksOut": [],
+            "overflowX": false,
+            "overlaps": [],
+            "tags": [],
+            "rows": []
+          }
+        ]
+      },
+      "coverage": {
+        "nodes": 186,
+        "mapped": 177,
+        "rendered": 177,
+        "missing": ["83:30227", "50:935", "50:890", "50:905", "50:920", "83:30713", "83:30718", "83:30755", "83:30756"],
+        "notRendered": [],
+        "dupes": [],
+        "revoted": 0,
+        "candidates": []
+      },
+      "counts": {"much": 0, "noticeably": 0, "slightly": 3, "pins": 0, "other": 0, "rows": 0, "reflow": 0, "paint": 0},
+      "unchanged": true,
+      "verdict": "done",
+      "reasons": [],
+      "target": "343d7ad7ffe7",
+      "width": 1920
+    },
+    {
+      "round": 7,
+      "rows": [],
+      "reflow": {
+        "widths": [{"width": 1440, "from": ["design", "query 1440"]}],
+        "results": [
+          {
+            "width": 1440,
+            "rootHeight": 3983,
+            "sticksOut": [],
+            "overflowX": false,
+            "overlaps": [],
+            "tags": [],
+            "rows": []
+          }
+        ]
+      },
+      "coverage": {
+        "nodes": 186,
+        "mapped": 177,
+        "rendered": 177,
+        "missing": [
+          "100:1154",
+          "100:1343",
+          "100:1358",
+          "100:1373",
+          "100:1388",
+          "100:1422",
+          "100:1427",
+          "100:1464",
+          "100:1465"
+        ],
+        "notRendered": [],
+        "dupes": [],
+        "revoted": 1,
+        "candidates": []
+      },
+      "counts": {"much": 0, "noticeably": 0, "slightly": 1, "pins": 0, "other": 0, "rows": 0, "reflow": 0, "paint": 0},
+      "unchanged": true,
+      "verdict": "done",
+      "reasons": [],
+      "target": "6393d6fdfd98",
+      "width": 1440
+    },
+    {
+      "round": 7,
+      "rows": [],
+      "reflow": {
+        "widths": [{"width": 390, "from": ["design"]}],
+        "results": [
+          {
+            "width": 390,
+            "rootHeight": 5368,
+            "sticksOut": [],
+            "overflowX": false,
+            "overlaps": [],
+            "tags": [],
+            "rows": []
+          }
+        ]
+      },
+      "coverage": {
+        "nodes": 161,
+        "mapped": 149,
+        "rendered": 149,
+        "missing": [
+          "100:1492",
+          "100:1615",
+          "100:1622",
+          "100:1635",
+          "100:1642",
+          "100:1655",
+          "100:1668",
+          "100:2303",
+          "100:1698",
+          "100:1703",
+          "100:1738",
+          "100:1739"
+        ],
+        "notRendered": [],
+        "dupes": [],
+        "revoted": 58,
+        "candidates": []
+      },
+      "counts": {"much": 0, "noticeably": 0, "slightly": 1, "pins": 0, "other": 0, "rows": 0, "reflow": 0, "paint": 0},
+      "unchanged": true,
+      "verdict": "done",
+      "reasons": [],
+      "target": "27f6c00fdff0",
+      "width": 390
+    }
+  ]
+}

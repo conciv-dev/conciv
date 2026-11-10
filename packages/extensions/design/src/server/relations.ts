@@ -15,7 +15,7 @@ export const runsRelations = defineRelations(runsTables, (r) => {
       to: [r.rounds.run_id, r.rounds.target_id, r.rounds.round],
     })
   const child = (table: Child) => ({run: ofRun(table), target: ofTarget(table)})
-  const rounded = (table: Rounded) => ({...child(table), round: ofRound(table)})
+  const rounded = (table: Rounded) => ({...child(table), roundRow: ofRound(table)})
   return {
     runs: {
       targets: r.many.targets(),
@@ -56,10 +56,10 @@ export const runsRelations = defineRelations(runsTables, (r) => {
         from: [r.tool_calls.run_id, r.tool_calls.target_id],
         to: [r.targets.run_id, r.targets.target_id],
       }),
-      round: ofRound('tool_calls'),
+      roundRow: ofRound('tool_calls'),
     },
-    labels: {run: ofRun('labels'), target: ofTarget('labels'), round: ofRound('labels')},
-    notes: {run: ofRun('notes'), target: ofTarget('notes'), round: ofRound('notes')},
+    labels: {run: ofRun('labels'), target: ofTarget('labels'), roundRow: ofRound('labels')},
+    notes: {run: ofRun('notes'), target: ofTarget('notes'), roundRow: ofRound('notes')},
     nodes: child('nodes'),
   }
 })
