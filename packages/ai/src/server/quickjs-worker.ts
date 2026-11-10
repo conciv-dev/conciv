@@ -17,21 +17,30 @@ export type QuickJSTask = {
   port: MessagePort
 }
 
+const loaded = await createQuickJSIsolateDriver().createContext({bindings: {}})
+await loaded.dispose()
+
 export default async function runQuickJS(task: QuickJSTask): Promise<ExecutionResult> {
   const host: Host = createORPCClient(new RPCLink({port: task.port}))
-  const context = await createQuickJSIsolateDriver(task).createContext({
-    bindings: Object.fromEntries(task.names.map((name) => [name, bindingOver(host, name)])),
-    timeout: task.timeout,
-    memoryLimit: task.memoryLimit,
-  })
-  return context.execute(task.code).catch((error: unknown) => ({
-    success: false,
-    error: {
-      name: error instanceof Error ? error.name : 'Error',
-      message: error instanceof Error ? error.message : String(error),
-    },
-    logs: [],
-  }))
+  try {
+    const context = await createQuickJSIsolateDriver(task).createContext({
+      bindings: Object.fromEntries(task.names.map((name) => [name, bindingOver(host, name)])),
+      timeout: task.timeout,
+      memoryLimit: task.memoryLimit,
+    })
+    const result = await context.execute(task.code).catch((error: unknown) => ({
+      success: false,
+      error: {
+        name: error instanceof Error ? error.name : 'Error',
+        message: error instanceof Error ? error.message : String(error),
+      },
+      logs: [],
+    }))
+    await context.dispose()
+    return result
+  } finally {
+    task.port.close()
+  }
 }
 
 function bindingOver(host: Host, name: string): ToolBinding {
