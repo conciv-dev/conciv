@@ -18,6 +18,7 @@ const TARGET_ALIASES = new Set([
   'shifted',
   'webfont',
   'container',
+  'process',
 ])
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
@@ -94,6 +95,7 @@ export function App() {
       />
       {requested === 'painted' ? <PaintedCards data-conciv-key="WViT6A" /> : <Cards variant={variant} column={requested === 'column'} data-conciv-key="EztCBw" />}
       {variant === 'missing' ? null : <Table variant={variant} look={requested} data-conciv-key="rFh37A" />}
+      {requested === 'process' ? <section id="process" data-conciv-key="SE7-sA" /> : null}
       {requested === 'container' ? <style data-conciv-key="2WxtqQ">{CONTAINER_CSS}</style> : null}
       {requested === 'effects-cover' ? (
         <div

@@ -580,3 +580,12 @@ describe('design_check capture', () => {
     expect(red > 200 && green < 60 && blue < 60).toBe(false)
   })
 })
+
+describe('design_check on a page that names a global', () => {
+  it('answers on a page whose section is named process', async () => {
+    await goto('process')
+    await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.rows.length).toBeGreaterThan(0)
+  })
+})
