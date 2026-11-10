@@ -1,5 +1,5 @@
 const LINK = 'https://www.figma.com/design/ItWrapTextKey/x?node-id=7-1'
-const FRAME = {w: 1280, h: 200}
+const FRAME = {w: 1280, h: 400}
 const PARAGRAPH = '7:2'
 const TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const DOCUMENT = {
