@@ -40,7 +40,18 @@ use original names and the output is correct.
    `exports[*].types` at the emitted per-file d.ts. rolldown-plugin-dts leaves every type path,
    so #295 cannot reach any package. `minifyInternalExports` stays at its default.
    Packages whose dist mixes bundled JS from several entries keep tsdown for JS only.
-3. No d.ts guard: with no bundled declarations there is nothing for it to catch. The
+3. (Added 2026-11-10, Omri.) Plain tsc emit does not inline third-party types the way tsdown's
+   bundled d.ts did, so every package a published `.d.ts` references must be declared by that
+   package (TypeScript handbook, "Publishing"): `dependencies`, or `peerDependencies` for
+   framework packages such as `solid-js`. A `.d.ts` names only packages its source imports: where
+   tsc would print a package the source never imports (inferred oRPC router types, tool
+   definitions), the export gets an explicit type built from packages the source does import
+   (written router types from `@orpc/server`, `ToolDefinition` and `ChatEvent` from
+   `@conciv/protocol`), so no package carries a type-only dependency and fallow needs no
+   exceptions. Only `packages/ai` and `packages/protocol` import `@tanstack/ai*` (lint rule). No
+   `isolatedDeclarations` (about 800 errors in 8 packages, mostly zod schemas and oRPC routers).
+   `*.stories.*` is excluded from every `tsconfig.build.json`. No automated check for this (Omri
+   declined one). No d.ts guard either: with no bundled declarations there is nothing for it to catch. The
    `check-dts` command from commit b54b5ea1d is deleted (revert it, including its ci.yml and
    `conciv-publish check` wiring and its test describe).
 4. Code that needs the classic TS API:
