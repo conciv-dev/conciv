@@ -195,7 +195,7 @@ type NumberFieldProps = FieldProps & {min?: number; max?: number; step?: number}
 
 export function NumberField(props: NumberFieldProps): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'min', 'max', 'step'])
-  const field = useFieldContext<number>()
+  const field = useFieldContext<number | undefined>()
   return (
     <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
       <NumberInput
@@ -204,9 +204,7 @@ export function NumberField(props: NumberFieldProps): JSX.Element {
         min={local.min}
         max={local.max}
         step={local.step}
-        onValueChange={(value) => {
-          if (value !== undefined) field().setValue(value, {dontRunListeners: true})
-        }}
+        onValueChange={(value) => field().setValue(value, {dontRunListeners: true})}
         onValueCommit={(value) => {
           if (value !== undefined) field().handleChange(value)
           field().handleBlur()
