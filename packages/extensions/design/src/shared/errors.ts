@@ -12,5 +12,4 @@ export const DESIGN_ERRORS = {
   },
   'figma-request': {message: 'Figma did not answer the request'},
   'no-component': {message: 'no component by that name in the catalog'},
-  'runs-query': {message: 'the runs store did not answer the query'},
 } satisfies ToolErrors

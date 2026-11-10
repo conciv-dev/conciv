@@ -35,7 +35,6 @@ import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {openRunsStore} from '../../extensions/design/src/server/runs-store.js'
 import {importRun} from '../../extensions/design/src/server/import-run.js'
-import {queryRuns} from '../../extensions/design/src/server/query-runs.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -853,24 +852,20 @@ describe('catalog hints on design_get', () => {
 
   it('lists the hinted nodes in hint_vs_drawn once the run is imported, a round or none', async () => {
     const runs = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
-    const asked = (input: {sql: string; params?: (string | number)[]}) =>
-      kit.rpc.registry.call({name: 'design_runs', input})
     await runs(['start', 'it-model', 'it-head'])
     const got = await hintedTarget()
     const {runId} = z.object({runId: z.number()}).parse(await runs(['import', kit.stateRoot]))
-    const answer = z
-      .object({columns: z.array(z.string()), rows: z.array(z.object({node: z.string(), hint: z.string()}))})
-      .parse(
-        await asked({
-          sql: 'SELECT node, hint FROM hint_vs_drawn WHERE run_id = ? AND target_id = ?',
-          params: [runId, got.target],
-        }),
-      )
-    expect(answer.columns).toEqual(['node', 'hint'])
-    expect(new Set(answer.rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
+    const rows = z.array(z.object({node: z.string(), hint: z.string()})).parse(
+      await kit.rpc.db.read({
+        from: 'design_hint_vs_drawn',
+        where: `run == ${runId} && target == "${got.target}"`,
+        select: ['node', 'hint'],
+      }),
+    )
+    expect(new Set(rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
     await expect(
-      asked({sql: "INSERT INTO design_notes (target_id, run_id, text) VALUES ('t', 1, 'x')"}),
-    ).rejects.toThrow('attempt to write a readonly database')
+      kit.rpc.db.write({into: 'design_stored_notes', values: {target: 't', run: 1, text: 'x'}}),
+    ).rejects.toThrow('design_stored_notes is read-only')
   })
 
   it('stores the reply design_get returned whole, beside its input', async () => {
@@ -1322,6 +1317,10 @@ async function withRunsStore<T>(run: (store: ReturnType<typeof openRunsStore>) =
 }
 
 describe('runs store', () => {
+  const FixtureImportSchema = z.object({runId: z.number(), imported: z.boolean()})
+  const importedFixture = async () =>
+    FixtureImportSchema.parse(await kit.rpc.extensions.run({name: 'design:runs', args: ['import', RUN_FIXTURE]}))
+
   it('imports a finished run once, its rounds, rows and votes under a new run id', async () => {
     const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
     const tables = ['design_rounds', 'design_rows', 'design_votes', 'design_tool_calls']
@@ -1330,13 +1329,13 @@ describe('runs store', () => {
     await withRunsStore(async (store) => {
       const first = importRun({runsStore: store, stateDir: RUN_FIXTURE})
       const where = `WHERE run_id = ${first.runId}`
-      const counted = () => tables.map((table) => countIn({client: store.reader, table, where}))
+      const counted = () => tables.map((table) => countIn({client: store.orm.$client, table, where}))
       expect(first.imported).toBe(true)
       expect(counted()).toEqual(expected)
       const again = importRun({runsStore: store, stateDir: RUN_FIXTURE})
       expect([again.imported, again.runId]).toEqual([false, first.runId])
       expect(counted()).toEqual(expected)
-      expect(countIn({client: store.reader, table: 'design_runs'})).toBe(1)
+      expect(countIn({client: store.orm.$client, table: 'design_runs'})).toBe(1)
       const run = await store.orm.query.runs.findFirst({with: {rounds: {columns: {round: true}}}})
       expect([run?.source_path, run?.source_run_id, run?.rounds.length]).toEqual([
         resolve(RUN_FIXTURE),
@@ -1361,26 +1360,57 @@ describe('runs store', () => {
       ),
     })
     const gate = GateSchema.parse(JSON.parse(await readFile(join(RUN_FIXTURE, 'gate-final.json'), 'utf8')))
-    await withRunsStore(async (store) => {
-      const {runId} = importRun({runsStore: store, stateDir: RUN_FIXTURE})
-      const {rows} = queryRuns({
-        runsStore: store,
-        sql: 'SELECT target_id, round, verdict, rows FROM run_summary WHERE run_id = ? ORDER BY width DESC',
-        params: [runId],
-      })
-      expect(rows).toEqual(
-        gate.variants.map((variant) => ({
-          target_id: variant.target,
-          round: variant.round,
-          verdict: variant.verdict,
-          rows: variant.counts.rows,
-        })),
-      )
-      expect(queryRuns({runsStore: store, sql: 'SELECT * FROM mispairs WHERE run_id = 0'}).rows).toEqual([])
-      expect(() => queryRuns({runsStore: store, sql: 'DELETE FROM design_runs'})).toThrow(
-        'attempt to write a readonly database',
-      )
+    const {runId} = await importedFixture()
+    const rows = await kit.rpc.db.read({
+      from: 'design_run_summary',
+      where: `run == ${runId}`,
+      select: ['target', 'round', 'verdict', 'rows'],
+      order: [{field: 'width', dir: 'desc'}],
     })
+    expect(rows).toEqual(
+      gate.variants.map((variant) => ({
+        target: variant.target,
+        round: variant.round,
+        verdict: variant.verdict,
+        rows: variant.counts.rows,
+      })),
+    )
+    expect(await kit.rpc.db.read({from: 'design_mispairs', where: 'run == 0'})).toEqual([])
+    await expect(kit.rpc.db.write({into: 'design_stored_runs', values: {model: 'm'}})).rejects.toThrow(
+      'design_stored_runs is read-only',
+    )
+  })
+
+  it('reads the run summary of every imported run through the CLI, filtered by cost', async () => {
+    const {runId} = await importedFixture()
+    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+    const widths = z
+      .array(z.object({width: z.number()}))
+      .parse(source.prepare('SELECT width FROM design_targets ORDER BY width').all())
+    source.close()
+    const printed = await promisify(execFile)(
+      process.execPath,
+      [
+        fileURLToPath(import.meta.resolve('@conciv/cli/bin')),
+        'db',
+        'query',
+        '--from',
+        'design_run_summary',
+        '--where',
+        'cost > 2',
+        '--select',
+        'run,width,verdict',
+        '--order',
+        'width',
+      ],
+      {cwd: kit.stateRoot, env: {...process.env, CONCIV_STATE_ROOT: kit.stateRoot}},
+    )
+    const SummarySchema = z.object({
+      ok: z.literal(true),
+      data: z.array(z.object({run: z.number(), width: z.number(), verdict: z.string()})),
+    })
+    const {data} = SummarySchema.parse(JSON.parse(printed.stdout))
+    expect(data.map((row) => [row.run, row.width])).toEqual(widths.map((row) => [runId, row.width]))
   })
 
   it('imports a tool call that names a round the run never stored', async () => {

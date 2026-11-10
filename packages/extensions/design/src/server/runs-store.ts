@@ -1,6 +1,5 @@
 import {mkdirSync} from 'node:fs'
 import {join} from 'node:path'
-import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {openMigratedDb} from '@conciv/db'
@@ -22,15 +21,9 @@ export function openRunsStore(home: string) {
   opened.$client.exec('PRAGMA legacy_alter_table = OFF')
   opened.$client.exec('PRAGMA foreign_keys = ON')
   opened.$client.exec('PRAGMA synchronous = NORMAL')
-  const reader = new DatabaseSync(file, {readOnly: true})
-  reader.exec('PRAGMA query_only = ON')
   return {
     file,
     orm: drizzle({client: opened.$client, relations: runsRelations}),
-    reader,
-    close: () => {
-      reader.close()
-      opened.$client.close()
-    },
+    close: () => opened.$client.close(),
   }
 }

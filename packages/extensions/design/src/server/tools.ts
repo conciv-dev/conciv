@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {toolError, type AnyToolBuilder, type ExtensionDb} from '@conciv/extension'
+import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
 import type {
   Catalog,
@@ -21,10 +21,7 @@ import {
   type Got,
 } from '../shared/defs.js'
 import type {ToolReply} from '../shared/tool-reply.js'
-import {runsDef} from '../shared/runs-def.js'
 import {renderComponents} from './catalog/render-list.js'
-import {queryRuns} from './query-runs.js'
-import type {openRunsStore} from './runs-store.js'
 import {figmaRef} from './figma-ref.js'
 
 const [getDef, checkDef, statusDef, , , componentsDef] = DESIGN_TOOLS
@@ -133,7 +130,6 @@ export const SERVER_STEPS = [
   ),
   queryDef.server((input, ctx: DesignContext) => ctx.db.read(input)),
   writeDef.server((input, ctx: DesignContext) => ctx.db.write(input)),
-  runsDef.server(async (input, ctx: DesignContext) => answered({input, ctx})),
 ] as const satisfies readonly AnyToolBuilder[]
 
 type DesignContext = {
@@ -143,7 +139,6 @@ type DesignContext = {
   catalog: Catalog
   catalogConfig: CatalogConfig
   hinters: Hinter[]
-  runsStore: ReturnType<typeof openRunsStore>
 }
 
 type GetReply = Got | {variants: Got[]}
@@ -282,13 +277,5 @@ async function recorded<Reply extends ToolReply>(input: {
       round: null,
     })
     throw error
-  }
-}
-
-function answered(asked: {input: z.output<typeof runsDef.inputSchema>; ctx: DesignContext}) {
-  try {
-    return queryRuns({runsStore: asked.ctx.runsStore, sql: asked.input.sql, params: asked.input.params})
-  } catch (error) {
-    throw toolError('runs-query', {message: error instanceof Error ? error.message : String(error)})
   }
 }
