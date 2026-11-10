@@ -35,7 +35,7 @@ export async function hostServer(input: {
     plugins: [
       react(),
       unplugin.vite({
-        ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
+        ...(input.agent ? {} : {systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
         extensions: {
           design: {
