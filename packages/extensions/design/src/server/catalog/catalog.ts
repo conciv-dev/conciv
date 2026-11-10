@@ -8,6 +8,7 @@ import {
   type Catalog,
   type Component,
   type ComponentSource,
+  type Ranked,
   type Scan,
 } from '../../shared/catalog-defs.js'
 import type {designTables} from '../tables.js'
@@ -104,9 +105,9 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
     return component
   }
 
-  async function componentsOf(lines: string[]): Promise<Map<string, Component>> {
+  async function componentsOf(lines: string[]): Promise<Map<string, Ranked>> {
     await scanIfStale()
-    const found = await rows()
+    const found = rankComponents({components: await rows(), flags: new Map(), live: []})
     return new Map(
       lines.flatMap((source) => {
         const component = enclosing({found, at: located(source)})
@@ -204,7 +205,7 @@ function located(source: string): {file: string; line: number} {
   }
 }
 
-function enclosing(input: {found: Component[]; at: {file: string; line: number}}): Component | null {
+function enclosing<Found extends Component>(input: {found: Found[]; at: {file: string; line: number}}): Found | null {
   const {found, at} = input
   const {file, line} = at
   const rendered = found.find((component) => component.sites.some((site) => site.file === file && site.line === line))

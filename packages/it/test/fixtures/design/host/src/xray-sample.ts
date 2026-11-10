@@ -24,7 +24,7 @@ type Look = Record<string, string | number | boolean | null>
 
 type Placed = {node: string; look: Look}
 
-type Component = {name: string; specifier: string}
+type Component = {id: string; name: string; specifier: string; tier: 'kit' | 'app' | 'other'; imports: number}
 
 type Layer = Omit<IdNode, 'fom' | 'children'> & {
   fom: (IdNode['fom'][number] & {box: Box | null; look: Look; component: Component | null})[]
@@ -43,7 +43,13 @@ const STATS_KEY = 'A4VsVg'
 
 const CARD_KEY = 'yW45EQ'
 
-const STAT = {name: 'Stat', specifier: './src/Stat.tsx'}
+const STAT: Component = {
+  id: '2a6daca08a84a2caed721c09f9a76bd9e51cd0f3bec7a545728c9c08510f97ad',
+  name: 'Stat',
+  specifier: './src/Stat.tsx',
+  tier: 'app',
+  imports: 1,
+}
 
 const SAMPLES: Record<string, () => Sample> = {
   empty: () => ({...roundSample(), current: null}),

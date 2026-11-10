@@ -6,6 +6,7 @@ import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {DESIGN_VERDICTS, type Box, type DesignRuntime, type IdNode} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
+import type {Ranked} from '../shared/catalog-defs.js'
 import type {designConfig} from '../shared/tolerances.js'
 
 export function createXrayRoutes(input: {runtime: DesignRuntime; hotkeys: DesignConfig['hotkeys']; takumiDir: string}) {
@@ -75,7 +76,13 @@ function makeXrayRouter(input: {runtime: DesignRuntime; hotkeys: DesignConfig['h
           const components = new Map(
             [...related].map(([node, component]) => [
               node,
-              {name: component.names[0] ?? '', specifier: component.specifier},
+              {
+                id: component.id,
+                name: component.names[0] ?? '',
+                specifier: component.specifier,
+                tier: component.tier,
+                imports: component.imports,
+              },
             ]),
           )
           return {
@@ -129,7 +136,7 @@ function layerOf(input: {
 
 type Look = Awaited<ReturnType<Store['looks']>>[number]
 
-type LayerComponent = {name: string; specifier: string}
+type LayerComponent = Pick<Ranked, 'id' | 'specifier' | 'tier' | 'imports'> & {name: string}
 
 type Layer = Omit<IdNode, 'fom' | 'children'> & {
   fom: (IdNode['fom'][number] & {box: Box | null; look: Look | null; component: LayerComponent | null})[]

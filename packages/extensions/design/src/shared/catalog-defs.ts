@@ -113,7 +113,7 @@ type Catalog = {
   show(name: string): Promise<Component & {nodes: NodeRef[]; preview: string}>
   flag(name: string, flag: CatalogFlag): Promise<void>
   componentOf(source: string): Promise<Component | null>
-  componentsOf(sources: string[]): Promise<Map<string, Component>>
+  componentsOf(sources: string[]): Promise<Map<string, Ranked>>
   scanIfStale(): Promise<void>
 }
 type ComponentSource = {name: string; scan(input: {cwd: string}): Promise<Scan>}

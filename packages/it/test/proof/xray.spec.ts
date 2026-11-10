@@ -17,6 +17,8 @@ const WIDTHS = [1800, 1200]
 
 const ACTION_MS = 15_000
 
+const STAT_PREVIEW = '/__conciv/preview/2a6daca08a84a2caed721c09f9a76bd9e51cd0f3bec7a545728c9c08510f97ad'
+
 test('the x-ray overlay shows each mockup state on its fixture sample, light and dark', async () => {
   const kit = await bootDesignHost()
   const {page} = kit
@@ -56,6 +58,7 @@ test('the x-ray overlay shows each mockup state on its fixture sample, light and
         await open({state: 'round', scheme})
         await expect(panel.getByRole('heading', {name: 'Not matching yet'})).toBeVisible()
         await expect(panel.getByText('Check 6 of 6')).toBeVisible()
+        await expect(panel.getByText(/^5 problems on 4 elements\./)).toBeVisible()
         await expect(panel.getByText('PROBLEMS · 4')).toBeVisible()
         await expect(panel.getByText('Too short: 56px tall, the design wants 64px.')).toBeVisible()
         await expect(panel.getByRole('radio', {name: 'Desktop 1440'})).toBeChecked()
@@ -131,7 +134,9 @@ test('the x-ray overlay shows each mockup state on its fixture sample, light and
         await expect(panel.getByText('div.lp-card')).toBeVisible()
         await expect(panel.getByText('src/Stat.tsx, line 3')).toBeVisible()
         await expect(panel.getByText('In a component')).toBeVisible()
-        await expect(panel.getByText('Stat', {exact: true})).toBeVisible()
+        await expect(panel.getByRole('link', {name: 'Stat · app · 1 import'})).toHaveAttribute('href', STAT_PREVIEW)
+        await expect(panel.getByRole('link', {name: 'Stat · app · 1 import'})).toHaveAttribute('target', '_blank')
+        await expect(panel.getByTitle('Stat preview')).toHaveAttribute('src', STAT_PREVIEW)
         await expect(panel.getByText('PROBLEMS · 4')).toBeHidden()
         await shot({page, state: 'card', scheme})
       })

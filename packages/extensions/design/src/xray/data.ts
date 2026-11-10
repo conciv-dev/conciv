@@ -1,7 +1,7 @@
 import {createMemo, createResource} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
 import {createStore} from 'solid-js/store'
-import {groupBy, sortBy, uniq, uniqBy} from 'es-toolkit'
+import {groupBy, sortBy, sumBy, uniq, uniqBy} from 'es-toolkit'
 import {engineHeaders, makeBrowserRpcClient} from '@conciv/contract'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {GateRow} from '../shared/defs.js'
@@ -82,6 +82,7 @@ export function createXrayData(input: {
         magnitude: sortBy(group, [(row) => SEVERITY.indexOf(row.magnitude)])[0]?.magnitude ?? 'other',
         drift: drift === undefined ? null : {kit: drift.kitToken ?? '', design: drift.designToken ?? ''},
         lines: group.map((row) => row.text),
+        count: group.filter((row) => row.magnitude !== DRIFT).length,
       }
     })
   })
@@ -91,7 +92,7 @@ export function createXrayData(input: {
     const elements = problems().length
     return {
       matching: round.verdict === 'done' || round.rows.length === 0,
-      problems: problems().reduce((total, entry) => total + entry.lines.length, 0),
+      problems: sumBy(problems(), (entry) => entry.count),
       elements,
       matched: Math.max(round.coverage.nodes - elements, 0),
       total: round.coverage.nodes,

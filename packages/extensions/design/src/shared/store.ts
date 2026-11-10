@@ -1,6 +1,6 @@
 import type {designTables} from '../server/tables.js'
 import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord, Widget} from './defs.js'
-import type {Component} from './catalog-defs.js'
+import type {Component, Ranked} from './catalog-defs.js'
 
 export type Store = {
   put(input: {
@@ -21,7 +21,7 @@ export type Store = {
   ids(input: {id: string; round?: number}): Promise<IdTree | null>
   looks(id: string): Promise<Look[]>
   writeRelation(input: {id: string; round: number; tree: IdTree}): Promise<Map<string, Component>>
-  relation(input: {id: string; round: number}): Promise<Map<string, Component>>
+  relation(input: {id: string; round: number}): Promise<Map<string, Ranked>>
   unsettledCount(id: string): Promise<number>
   writeUnsettledCount(input: {id: string; count: number}): Promise<void>
   writeRound(input: {

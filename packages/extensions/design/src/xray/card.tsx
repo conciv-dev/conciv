@@ -2,6 +2,7 @@ import {For, Show, type JSX} from 'solid-js'
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import {formatHex} from 'culori'
 import {Button, ClipboardCopyButton, TooltipIconButton} from '@conciv/ui-kit-system'
+import {PREVIEW_ROUTE} from '../shared/catalog-defs.js'
 import type {createXrayData} from './data.js'
 
 export function Card(props: {
@@ -133,18 +134,6 @@ export function Card(props: {
             {whereCode(props.card.source)}
           </span>
         </div>
-        <Show when={props.card.component}>
-          {(component) => (
-            <div class="flex gap-2 items-center" data-conciv-key="VwjYAw">
-              <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="vufE2w">
-                In a component
-              </span>
-              <span class="text-[length:var(--chat-text-md)] text-chat-accent" data-conciv-key="nUl7bQ">
-                {component().name}
-              </span>
-            </div>
-          )}
-        </Show>
         <div class="flex gap-2 items-center" data-conciv-key="T1RvXw">
           <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="eqAZrw">
             On the page
@@ -161,6 +150,34 @@ export function Card(props: {
             {props.card.name}, instance {props.card.node}
           </span>
         </div>
+        <Show when={props.card.component}>
+          {(component) => (
+            <div class="flex gap-2 items-center" data-conciv-key="VwjYAw">
+              <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="vufE2w">
+                In a component
+              </span>
+              <iframe
+                src={`${PREVIEW_ROUTE}${component().id}`}
+                title={`${component().name} preview`}
+                sandbox="allow-scripts"
+                tabindex="-1"
+                aria-hidden="true"
+                loading="lazy"
+                class="border border-chat-line-soft rounded-chat-surface-sm bg-chat-fill-soft shrink-0 h-6 w-10 pointer-events-none"
+                data-conciv-key="Vq4Thm"
+              />
+              <a
+                href={`${PREVIEW_ROUTE}${component().id}`}
+                target="_blank"
+                rel="noreferrer"
+                class="text-[length:var(--chat-text-md)] text-chat-accent rounded-chat-surface-sm underline underline-offset-2 focus-ring"
+                data-conciv-key="nUl7bQ"
+              >
+                {`${component().name} · ${component().tier} · ${importsText(component().imports)}`}
+              </a>
+            </div>
+          )}
+        </Show>
       </div>
       <div class="flex gap-2 w-fit items-center" data-conciv-key="6bynCg">
         <label
@@ -203,3 +220,9 @@ function wherePage(layer: NonNullable<ReturnType<ReturnType<typeof createXrayDat
   const first = layer.src.classes[0]
   return first === undefined ? layer.src.element : `${layer.src.element}.${first}`
 }
+
+function importsText(count: number): string {
+  return `${count} ${PLURAL.select(count) === 'one' ? 'import' : 'imports'}`
+}
+
+const PLURAL = new Intl.PluralRules('en')

@@ -355,15 +355,20 @@ function RoundBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
                         >
                           <span class="flex gap-2 items-center" data-conciv-key="QnDGfQ">
                             <StatusDot tone={DOTS[problem.magnitude] ?? 'dim'} />
-                            <span class="text-sm text-chat-text-hi font-semibold grow" data-conciv-key="VD8MhA">
+                            <span
+                              class="text-sm text-chat-text-hi font-semibold grow w-0 truncate"
+                              data-conciv-key="VD8MhA"
+                            >
                               {problem.name}
                             </span>
-                            <Show when={TAGS[problem.magnitude]}>
-                              {(tag) => <Chip kind="pill" tone={tag().tone} value={tag().label} />}
-                            </Show>
-                            <Show when={problem.drift}>
-                              <Chip kind="pill" tone="neutral" value="Token drift" />
-                            </Show>
+                            <span class="flex shrink-0 gap-1.5 items-center" data-conciv-key="PbChps">
+                              <Show when={TAGS[problem.magnitude]}>
+                                {(tag) => <Chip kind="pill" tone={tag().tone} value={tag().label} class="shrink-0" />}
+                              </Show>
+                              <Show when={problem.drift}>
+                                <Chip kind="pill" tone="neutral" value="Token drift" class="shrink-0" />
+                              </Show>
+                            </span>
                           </span>
                           <For each={problem.lines}>
                             {(line) => (
