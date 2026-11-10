@@ -4,17 +4,23 @@ import {applyAutosize, observeAutosize} from './autosize.js'
 
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-chat-text-2 font-chat'
-const INPUT =
-  'w-full font-chat text-[0.8125rem] rounded-chat-surface-md bg-chat-fill text-chat-text [border:1px_solid_var(--chat-line)] py-2 px-3 focus-ring placeholder:text-chat-text-3'
+const INPUT = {
+  filled:
+    'w-full font-chat text-[0.8125rem] rounded-chat-surface-md bg-chat-fill text-chat-text [border:1px_solid_var(--chat-line)] py-2 px-3 focus-ring placeholder:text-chat-text-3',
+  outline:
+    'w-full h-8 font-chat text-[0.8125rem] rounded-chat-surface-sm bg-chat-panel text-chat-text [border:1px_solid_var(--chat-line)] px-2.5 focus-ring placeholder:text-chat-text-3',
+}
 
-export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & {label?: string}): JSX.Element {
-  const [local, rest] = splitProps(props, ['label', 'class'])
+export function TextField(
+  props: JSX.InputHTMLAttributes<HTMLInputElement> & {label?: string; variant?: keyof typeof INPUT},
+): JSX.Element {
+  const [local, rest] = splitProps(props, ['label', 'class', 'variant'])
   return (
     <Field.Root class={`${ROOT}  ${local.class ?? ''}`}>
       <Show when={local.label}>
         <Field.Label class={LABEL}>{local.label}</Field.Label>
       </Show>
-      <Field.Input class={INPUT} {...rest} />
+      <Field.Input class={INPUT[local.variant ?? 'filled']} {...rest} />
     </Field.Root>
   )
 }

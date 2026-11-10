@@ -991,9 +991,11 @@ describe('token drift', () => {
     const {got, checked} = await driftRound(kit)
     const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
     const placed = layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom)
-    expect(placed.find((entry) => entry.nodeId === '8:2')?.component).toEqual({
+    expect(placed.find((entry) => entry.nodeId === '8:2')?.component).toMatchObject({
       name: 'Chip',
       specifier: './src/Chip.tsx',
+      tier: 'app',
+      imports: 1,
     })
   })
 

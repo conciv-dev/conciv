@@ -18,7 +18,7 @@ import ArrowDown from 'lucide-solid/icons/arrow-down'
 import ArrowUp from 'lucide-solid/icons/arrow-up'
 import SearchIcon from 'lucide-solid/icons/search'
 import {countBy} from 'es-toolkit'
-import {Button, TextField} from '@conciv/ui-kit-system'
+import {Button, TextField, Tooltip} from '@conciv/ui-kit-system'
 import {Chip} from '@conciv/ui-kit-chat/tools'
 import type {createXrayData} from './data.js'
 import {PartDetail} from './parts-detail.js'
@@ -26,8 +26,8 @@ import {PartDetail} from './parts-detail.js'
 export function Parts(props: {data: Data}): JSX.Element {
   const [filters, setFilters] = createStore<Filters>({
     search: '',
-    tiers: {kit: false, app: false, other: false},
-    onPage: false,
+    tiers: {kit: true, app: false, other: false},
+    onPage: true,
     preferred: false,
     hidden: false,
   })
@@ -64,14 +64,17 @@ export function Parts(props: {data: Data}): JSX.Element {
   })
   const tableRows = () => table.getRowModel().rows
   const [scrollElement, setScrollElement] = createSignal<HTMLDivElement>()
+  const sizing = createMemo(() => rowSizing(connected(scrollElement())))
   const virtualizer = createVirtualizer({
     get count() {
       return tableRows().length
     },
     getScrollElement: () => connected(scrollElement()),
-    estimateSize: () => ESTIMATED_ROW_PX,
+    estimateSize: () => sizing().row,
     getItemKey: (index) => tableRows()[index]?.id ?? index,
-    overscan: OVERSCAN,
+    get overscan() {
+      return sizing().overscan
+    },
   })
   const chips = (): FilterChip[] => [
     ...TIERS.map((tier) => ({
@@ -99,19 +102,20 @@ export function Parts(props: {data: Data}): JSX.Element {
       <div class="px-6 flex shrink-0 flex-col gap-3" data-conciv-key="Oi_SCg">
         <div class="relative" data-conciv-key="ahI5hw">
           <SearchIcon
-            class="text-chat-text-3 size-3.5 pointer-events-none start-3 top-1/2 absolute -translate-y-1/2"
+            class="text-chat-text-3 size-3.5 pointer-events-none start-2.5 top-1/2 absolute -translate-y-1/2"
             aria-hidden="true"
           />
           <TextField
             aria-label="Search parts"
             placeholder="Search parts"
             type="search"
+            variant="outline"
             class="[&_input]:ps-8"
             value={filters.search}
             onInput={(event) => setFilters('search', event.currentTarget.value)}
           />
         </div>
-        <div role="group" aria-label="Filters" class="flex flex-wrap gap-1.5 items-center" data-conciv-key="-1o5Ww">
+        <div role="group" aria-label="Filters" class="flex flex-wrap gap-1 items-center" data-conciv-key="-1o5Ww">
           <For each={chips()}>
             {(chip, index) => (
               <>
@@ -125,7 +129,7 @@ export function Parts(props: {data: Data}): JSX.Element {
                   class="rounded-chat-chip focus-ring"
                   onClick={() => chip.toggle()}
                 >
-                  <Chip kind="pill" tone={chip.on ? 'accent' : 'neutral'} value={chip.label} />
+                  <Chip kind="pill" size="compact" tone={chip.on ? 'accent' : 'neutral'} value={chip.label} />
                 </Button>
               </>
             )}
@@ -136,13 +140,13 @@ export function Parts(props: {data: Data}): JSX.Element {
         {shownText(tableRows().length)}
       </p>
       <div
-        ref={setScrollElement}
+        ref={(element) => onMount(() => setScrollElement(element))}
         class="mt-4 grow min-h-0 [scrollbar-width:thin] overflow-y-auto"
         data-conciv-key="5MNCng"
       >
         <Switch>
           <Match when={props.data.parts.error !== undefined && !listed()}>
-            <div class="px-6 py-4 flex flex-col gap-2 items-start" data-conciv-key="zdDRmg">
+            <div class="px-6 pb-4 flex flex-col gap-2 items-start" data-conciv-key="zdDRmg">
               <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0" data-conciv-key="yrgipQ">
                 The catalog could not be read.
               </p>
@@ -152,7 +156,7 @@ export function Parts(props: {data: Data}): JSX.Element {
             </div>
           </Match>
           <Match when={!listed()}>
-            <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0 px-6 py-4" data-conciv-key="8BmIoA">
+            <p class="text-[length:var(--chat-text-md)] text-chat-text-2 m-0 px-6 pb-4" data-conciv-key="8BmIoA">
               Reading the catalog…
             </p>
           </Match>
@@ -161,7 +165,7 @@ export function Parts(props: {data: Data}): JSX.Element {
               <thead class="bg-chat-glass grid top-0 sticky z-1" data-conciv-key="Ksdhug">
                 <For each={table.getHeaderGroups()}>
                   {(group) => (
-                    <tr class="border-b border-chat-line-soft flex gap-3 items-center" data-conciv-key="wHwSeQ">
+                    <tr class="border-b border-chat-line-soft flex gap-2 items-center" data-conciv-key="wHwSeQ">
                       <For each={group.headers}>
                         {(header) => (
                           <th
@@ -280,9 +284,9 @@ const IMPORTS_COLUMN = 'imports'
 
 const ON_PAGE_COLUMN = 'onPage'
 
-const ESTIMATED_ROW_PX = 56
+const ROW_SPACES = 14
 
-const OVERSCAN = 6
+const PREVIEW_BOX = 'border border-chat-line-soft rounded-chat-surface-sm bg-chat-fill-soft h-10 w-full'
 
 const CELL: Record<string, string> = {
   [PREVIEW_COLUMN]: 'w-24 ps-6 shrink-0',
@@ -312,6 +316,14 @@ const COLUMNS = HELPER.columns([
 
 const PLURAL = new Intl.PluralRules('en')
 
+function rowSizing(element: HTMLDivElement | null): {row: number; overscan: number} {
+  if (!element) return {row: 0, overscan: 0}
+  const space = Number.parseFloat(getComputedStyle(element).getPropertyValue('--chat-space'))
+  const rem = Number.parseFloat(getComputedStyle(element.ownerDocument.documentElement).fontSize)
+  const row = space * rem * ROW_SPACES
+  return {row, overscan: Math.ceil(element.clientHeight / row)}
+}
+
 function connected(element: HTMLDivElement | undefined): HTMLDivElement | null {
   return element?.isConnected ? element : null
 }
@@ -338,27 +350,28 @@ function PartRow(props: {
     <tr
       data-index={props.index}
       ref={(element) => onMount(() => props.measure(element))}
-      class="border-b border-chat-line-soft flex flex-wrap gap-x-3 w-full items-center start-0 top-0 absolute"
+      class="border-b border-chat-line-soft flex flex-wrap gap-x-2 w-full items-center start-0 top-0 absolute"
       style={{transform: `translateY(${props.start}px)`}}
       data-conciv-key="lSentA"
     >
       <td
-        class={`${CELL[PREVIEW_COLUMN]} py-2 flex h-14 cursor-pointer items-center`}
+        class={`${CELL[PREVIEW_COLUMN]} flex h-13.75 cursor-pointer items-center`}
         onClick={() => props.toggle()}
         data-conciv-key="TKHG3g"
       >
         <Show
           when={props.part.preview}
           fallback={
-            <span
-              class="text-[length:var(--chat-text-xs)] text-chat-text-3 leading-tight flex flex-col w-full"
-              data-conciv-key="emdBLQ"
-            >
-              <span data-conciv-key="uBoLSw">no preview</span>
-              <span class="[overflow-wrap:anywhere] line-clamp-1" data-conciv-key="sYdtRQ">
-                {props.part.previewError}
-              </span>
-            </span>
+            <Tooltip.Root disabled={!props.part.previewError}>
+              <Tooltip.Trigger
+                asChild={(triggerProps) => (
+                  <span {...triggerProps()} class={`${PREVIEW_BOX} block`} data-conciv-key="emdBLQ" />
+                )}
+              />
+              <Tooltip.Positioner>
+                <Tooltip.Content>{props.part.previewError}</Tooltip.Content>
+              </Tooltip.Positioner>
+            </Tooltip.Root>
           }
         >
           {(path) => (
@@ -369,7 +382,7 @@ function PartRow(props: {
               tabindex="-1"
               aria-hidden="true"
               loading="lazy"
-              class="border border-chat-line-soft rounded-chat-surface-sm bg-chat-panel h-10 w-full pointer-events-none"
+              class={`${PREVIEW_BOX} pointer-events-none`}
               data-conciv-key="iCjvMw"
             />
           )}
@@ -390,9 +403,9 @@ function PartRow(props: {
             {props.part.name}
           </span>
         </Button>
-        <Chip kind="pill" tone="neutral" value={props.part.tier} class="shrink-0" />
+        <Chip kind="pill" size="compact" tone="neutral" value={props.part.tier} class="shrink-0" />
         <Show when={props.part.flag === PREFER}>
-          <Chip kind="pill" tone="accent" value={PREFER} class="shrink-0" />
+          <Chip kind="pill" size="compact" tone="accent" value={PREFER} class="shrink-0" />
         </Show>
       </td>
       <td

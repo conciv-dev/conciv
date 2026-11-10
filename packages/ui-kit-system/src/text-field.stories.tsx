@@ -1,7 +1,7 @@
 import {createSignal} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {TextArea} from './text-field.js'
+import {TextArea, TextField} from './text-field.js'
 
 const meta: Meta = {title: 'ui-kit-system/TextArea'}
 export default meta
@@ -54,5 +54,19 @@ export const Autosize: Story = {
     const before = area.clientHeight
     await userEvent.type(area, 'line one\nline two\nline three')
     await waitFor(() => expect(area.clientHeight).toBeGreaterThan(before))
+  },
+}
+
+export const TextFieldVariants: Story = {
+  render: () => (
+    <div class="p-4 flex flex-col gap-3 w-80 [background:var(--chat-bg)]">
+      <TextField aria-label="Filled" placeholder="Filled" />
+      <TextField aria-label="Outline" placeholder="Outline" variant="outline" />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByRole('textbox', {name: 'Filled'})).toBeVisible()
+    await expect(c.getByRole('textbox', {name: 'Outline'})).toBeVisible()
   },
 }

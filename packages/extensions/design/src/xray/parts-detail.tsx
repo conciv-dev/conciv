@@ -6,11 +6,10 @@ import type {createXrayData} from './data.js'
 export function PartDetail(props: {part: Part; data: Data}): JSX.Element {
   const copy = createClipboardCopy({text: () => props.part.importLine})
   const hidden = () => props.part.flag === DO_NOT_USE
-  const preferred = () => props.part.flag === PREFER
   const busy = () => props.data.flagged.loading
   const flag = (next: Flag) => props.data.flagPart({id: props.part.id, flag: next})
   return (
-    <div class="py-4 pe-6 ps-30 flex flex-col gap-3 items-start" data-conciv-key="esBOHg">
+    <div class="pb-3.5 pe-3 ps-26 pt-3 flex flex-col gap-2 items-start" data-conciv-key="esBOHg">
       <code
         class="text-[length:var(--chat-text-md)] text-chat-text-hi font-chat-mono whitespace-pre-wrap [overflow-wrap:anywhere]"
         data-conciv-key="7d4wRQ"
@@ -86,15 +85,6 @@ export function PartDetail(props: {part: Part; data: Data}): JSX.Element {
         >
           {hidden() ? 'Use again' : 'Do not use'}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="font-semibold"
-          disabled={busy()}
-          onClick={() => flag(preferred() ? CLEAR : PREFER)}
-        >
-          {preferred() ? 'No preference' : 'Prefer'}
-        </Button>
       </div>
       <Show when={props.data.flagged.error}>
         <p role="alert" class="text-[length:var(--chat-text-md)] text-chat-danger m-0" data-conciv-key="lLE4Uw">
@@ -117,8 +107,6 @@ type Flag = Parameters<Data['flagPart']>[0]['flag']
 type Prop = Exclude<Part['props'], string>[number]
 
 const SEE_FILE = 'see file'
-
-const PREFER = 'prefer'
 
 const DO_NOT_USE = 'do-not-use'
 
