@@ -8,11 +8,12 @@ import WebSocket from 'ws'
 import {expect as expectLocator} from 'playwright/test'
 import type {Page} from 'playwright'
 import type {RouterClient} from '@orpc/server'
+import {createORPCClient} from '@orpc/client'
+import {heldBrowserRpcLink} from '@conciv/contract'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {ChatEventType} from '@conciv/protocol/chat-event-types'
 import {start as startEngine, type Engine} from '@conciv/core'
 import {connectMcpClient, createFakeHarness, makeRpcClient, until, type RpcClient} from '@conciv/harness-testkit'
-import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
 import {fixtureHost, getExtensionTestApi} from '@conciv/extension-testkit'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -372,11 +373,11 @@ describe('routes', () => {
     })
 
     it('serves the same rpc procedures over the composite websocket mount', async () => {
-      const socket = new globalThis.WebSocket(ctx.server?.rpcWsUrl ?? '')
-      const wsClient = rpcOverWebsocket<RouterClient<TerminalRouter>>(socket, {path: ['ext', 'terminal']})
+      const held = heldBrowserRpcLink(() => ctx.server?.base ?? null)
+      const wsClient = createORPCClient<RouterClient<TerminalRouter>>(held.link, {path: ['ext', 'terminal']})
       expect(await wsClient.state({sessionId})).toEqual(await rpc().state({sessionId}))
       expect((await wsClient.state({sessionId})).alive).toBe(true)
-      socket.close()
+      held.release()
     })
 
     it('replays buffered bytes on reconnect', async () => {

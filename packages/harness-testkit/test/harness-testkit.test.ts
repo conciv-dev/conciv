@@ -8,6 +8,10 @@ import {chmodSync, existsSync, mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {spawn, type ChildProcess} from 'node:child_process'
 import {createTestkit, type BootApp} from '../src/create-testkit.js'
+import {Hono} from 'hono'
+import {rpcWebsocketRoute} from '@conciv/extension/rpc-mount'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
+import {upgradeWebSocket} from '@conciv/serve'
 import {createFakeHarness} from '../src/create-fake-harness.js'
 import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import {type HarnessConnectContext, type HarnessChatDeps} from '@conciv/protocol/harness-types'
@@ -21,7 +25,7 @@ import {makeRunStream} from '../src/run-stream.js'
 import {makeScriptedRun, type ScriptedRun} from '../src/scripted-run.js'
 import {until as testkitUntil} from '../src/testkit.js'
 import {until} from '../src/until.js'
-import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from '../src/session.js'
+import {makeRpcClient, type RpcClient} from '../src/session.js'
 import {implement} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/node'
 import {contract} from '@conciv/contract'
@@ -206,22 +210,27 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
     }
   }
 
-  function fakeRpcResponse(request: Request): unknown {
-    const path = new URL(request.url).pathname
-    if (path.endsWith('/sessions/resolve')) return {sessionId: 'conciv_cleanup_fixture'}
-    if (path.endsWith('/sessions/list')) return []
-    return {ok: true}
-  }
+  const fakeEngine = new Hono().route(
+    '/t/fake-token',
+    new Hono().get(
+      RPC_WS_PATH,
+      rpcWebsocketRoute(
+        {
+          sessions: {
+            resolve: implement(contract).sessions.resolve.handler(() => ({sessionId: 'conciv_cleanup_fixture'})),
+          },
+        },
+        {upgrade: upgradeWebSocket},
+      ),
+    ),
+  )
 
   function lateWritingBoot(state: {writer: ChildProcess | null}): BootApp {
     return async (env) => {
       seedTree(env.stateRoot)
       return {
         agentToken: 'fake-token',
-        fetch: (request) =>
-          new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
-            headers: {'content-type': 'application/json'},
-          }),
+        fetch: fakeEngine.fetch,
         dispose: async () => {
           const writer = spawn(process.execPath, ['-e', lateWriterSource, env.stateRoot], {
             stdio: ['ignore', 'pipe', 'ignore'],
@@ -253,10 +262,7 @@ if (existsSync(join(root, 'writer-live'))) unlinkSync(join(root, 'writer-live'))
     const locked = {dir: ''}
     const boot: BootApp = async (env) => ({
       agentToken: 'fake-token',
-      fetch: (request) =>
-        new Response(JSON.stringify({json: fakeRpcResponse(request)}), {
-          headers: {'content-type': 'application/json'},
-        }),
+      fetch: fakeEngine.fetch,
       dispose: async () => {
         locked.dir = join(env.stateRoot, 'locked')
         mkdirSync(locked.dir)
@@ -988,9 +994,5 @@ describe('rpc clients abort a stream after the request behind it was collected',
 
   it('makeRpcClient', async () => {
     await expectAbortAfterCollection(makeRpcClient(base.url))
-  }, 10_000)
-
-  it('makeSessionBoundRpcClient', async () => {
-    await expectAbortAfterCollection(makeSessionBoundRpcClient(base.url, () => 'session-a'))
   }, 10_000)
 })

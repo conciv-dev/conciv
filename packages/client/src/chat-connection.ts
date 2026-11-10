@@ -178,6 +178,7 @@ async function* announcedRuns(
   threadId: string,
 ): AsyncGenerator<ChatEvent> {
   for await (const chunk of channel.events(scope)) {
+    if (scope.aborted) return
     const announced = sessionRunEvent.parse(chunk)
     if (announced === null || !(await options.joinsRun?.(announced.runId))) continue
     yield* finishedOnItsLifecycle(chosen.joinRun(announced.runId, scope), threadId, announced.runId)

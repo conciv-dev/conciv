@@ -4,13 +4,21 @@ export const WS_RPC_PAYLOAD_BUDGET_BYTES = WS_MAX_PAYLOAD_BYTES - WS_PAYLOAD_MAR
 
 export const CONCIV_VERSION_HEADER = 'x-conciv-version'
 
+export const RPC_WS_PATH = '/rpc-ws'
+
 export type RpcHeaders = Readonly<Record<string, string | string[] | undefined>>
+
+export type RpcSocketTrust = {
+  allows: (path: readonly string[]) => boolean
+  admit: (token: string) => boolean
+}
 
 export type RpcContext = {
   origin: string
   callerOrigin: string | null
   headers: RpcHeaders
   clientVersion?: string
+  socket?: RpcSocketTrust
 }
 
 export function rpcHeader(context: RpcContext, name: string): string | null {

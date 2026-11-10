@@ -79,12 +79,14 @@ function makeGuardedDisposer(instances: ExtensionInstance[], extra: () => void):
 
 function watchEngine(apiBase: string, rerunRefused: () => void): () => void {
   const stopReachability = setupEngineReachability(apiBase)
-  const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+  const connection = browserRpcConnection(apiBase)
+  const stopTrust = connection.trust.subscribe((status, previous) => {
     if (status === 'trusted' && engineLocked(previous)) rerunRefused()
   })
   return () => {
     stopReachability()
     stopTrust()
+    connection.release()
   }
 }
 

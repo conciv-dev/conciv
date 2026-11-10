@@ -232,6 +232,7 @@ function bootNormal(config: BootNormalConfig): BootResult {
   })
 
   const disposers = [
+    closeConnection,
     unsubscribeNavigation,
     stopFlushingWhenHidden,
     storage.dispose,
@@ -240,7 +241,6 @@ function bootNormal(config: BootNormalConfig): BootResult {
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
-    closeConnection,
     login.dispose,
     interactive.notify,
   ]
@@ -298,12 +298,12 @@ function bootConnect(config: BootConnectConfig): BootResult {
   config.root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const disposers = [
+    deferred.close,
     activeSession.dispose,
     disposeApp,
     () => disposeConcivRouter(router),
     () => router.options.context.queryClient.clear(),
     driver.dispose,
-    deferred.close,
     interactive.notify,
   ]
   return {dispose: () => runDisposers(disposers), interactive: interactive.promise}

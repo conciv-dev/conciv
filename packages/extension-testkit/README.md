@@ -4,6 +4,10 @@
 
 Private dev-only package that mounts a conciv extension in a real browser against a real server. The root holds the manifest and build and test configs; the default test-host build uses the ping fixture as the extension under test.
 
+## Product path
+
+The testkit runs the real product path: the page under test uses the same transports and clients as the product (browser rpc over the partysocket `/rpc-ws` socket), and only the expensive externals, the LLM harness and the agent CLIs, are faked. Interception with `page.routeWebSocket` observes or faults calls on that socket but never swaps the transport. Details in [src/README.md](./src/README.md#product-path).
+
 ## Interface
 
 - `exports['.']` (`package.json`): ./src/get-extension-test-api.ts

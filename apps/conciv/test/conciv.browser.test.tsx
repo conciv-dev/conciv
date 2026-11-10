@@ -875,6 +875,26 @@ describe('model menu', () => {
     await expect.element(input()).toHaveFocus()
   })
 
+  test('/model before the model list arrives opens the menu on its search field, which lists the models once they load', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(search()).toHaveFocus()
+    await expect.element(picker().getByRole('status')).toHaveTextContent('Loading models…')
+    await expect.element(picker().getByRole('option').first()).not.toBeInTheDocument()
+
+    await faults.releaseAll()
+
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(search()).toHaveFocus()
+  })
+
   test('a model list that failed to load offers a retry inside the menu, which then lists the models', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const fault = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})

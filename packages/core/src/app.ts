@@ -8,6 +8,7 @@ import {upgradeWebSocket} from '@conciv/serve'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/harness'
 import {concivStateDir} from '@conciv/protocol/state-types'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {
   type AnyExtension,
@@ -81,6 +82,7 @@ import {
   makeCompositeRpcRouter,
   RPC_PREFIX,
   rpcFetchMiddleware,
+  rpcWebsocketRoute,
   type UpgradeWebSocket,
 } from '@conciv/extension/rpc-mount'
 import type {CompositeRpcRouter} from './api/rpc/mount.js'
@@ -95,8 +97,10 @@ import {
   makeCodeStore,
   makeConnectionTrust,
   makeEngineGate,
+  rpcSocketGate,
   trustingUpgrade,
   watchTrustedBrowsers,
+  type ConnectionTrust,
   type GatedFetch,
   type TrustedBrowsers,
 } from './engine-login.js'
@@ -324,6 +328,7 @@ function composeRoutes(
     push: PushDeps
     plane: ChatPlane
     upgrade: UpgradeWebSocket
+    trust: ConnectionTrust
   },
 ) {
   return new Hono<{Variables: CoreVars}>()
@@ -350,6 +355,14 @@ function composeRoutes(
     })
     .route('/', deps.plane.routes(deps.upgrade))
     .route('/', pushRoutes(deps.push, deps.upgrade))
+    .get(
+      RPC_WS_PATH,
+      rpcWebsocketRoute(rpc, {
+        upgrade: upgradeWebSocket,
+        onError: logError,
+        gate: (c) => rpcSocketGate(deps.trust, c.req.header('authorization')),
+      }),
+    )
     .use(`${RPC_PREFIX}/*`, rpcFetchMiddleware(rpc))
     .route('/api/mcp', mcpApp)
     .route('/api/tabs', tabsApp)
@@ -693,6 +706,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       onShutdown: opts.onShutdown,
       plane,
       upgrade: socketUpgrade,
+      trust,
       push: {
         queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),

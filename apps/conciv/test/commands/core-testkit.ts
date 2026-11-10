@@ -1,5 +1,7 @@
 export {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 export {abortRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
+export {rpcSocketFor} from '@conciv/extension-testkit/rpc-socket'
+export {rpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 export {failChatTurns} from '@conciv/extension-testkit/chat-fault'
 export {watchPushWire, type PushWireWatch} from '@conciv/extension-testkit/push-wire'
 export {requestPrintedCode} from '@conciv/harness-testkit/login'

@@ -1,11 +1,9 @@
 import {commands, page, userEvent} from 'vitest/browser'
 import {
   type EngineStaleness,
-  makeRpcClient,
+  type BrowserRpcClient,
   type PersistedAttachment,
   type RpcClient,
-  browserRpcConnection,
-  closeBrowserRpcConnection,
   makeBrowserRpcClient,
   type EngineTokenSource,
 } from '@conciv/contract'
@@ -13,7 +11,7 @@ import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
@@ -90,7 +88,7 @@ type SeededDraft = {text?: string; attachments?: PersistedAttachment[]}
 type TurnHandle = {awaitTurnEnd: () => Promise<void>; awaitReply: () => Promise<void>; close: () => void}
 
 export function coreRpc(base: string): RpcClient {
-  return makeRpcClient(base)
+  return makeBrowserRpcClient(base).rpc
 }
 
 export async function createSession(rpc: RpcClient): Promise<string> {
@@ -185,11 +183,8 @@ type AppContextValueOptions = {
   transport?: ChatTransportPreference
 }
 
-function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
-  const rpc = makeRpcClient(
-    options.base,
-    options.sessionId === undefined ? {} : {headers: {[CONCIV_SESSION_HEADER]: options.sessionId}},
-  )
+function makeAppContextValue(options: AppContextValueOptions, client: BrowserRpcClient): AppContextValue {
+  const {rpc} = client
   const queryClient = new QueryClient()
   const announce = options.announce
   const data = makeAppData(rpc, queryClient)
@@ -271,18 +266,21 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  browserRpcConnection(options.base)
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)
+  const client = makeBrowserRpcClient(options.base, {session: () => options.sessionId})
   const chatRoot = createRoot((disposeChat) => {
-    const app = makeAppContextValue({
-      base: options.base,
-      sessionId: options.sessionId,
-      announce: (message) => setAnnounced((entries) => [...entries, message]),
-      instances,
-      transport: options.transport,
-    })
+    const app = makeAppContextValue(
+      {
+        base: options.base,
+        sessionId: options.sessionId,
+        announce: (message) => setAnnounced((entries) => [...entries, message]),
+        instances,
+        transport: options.transport,
+      },
+      client,
+    )
     const {data, queryClient} = app
     const chat = app.liveSessions.open(() => options.sessionId)
     const coordinator = makeRefreshCoordinator({
@@ -346,7 +344,7 @@ export function mountPane(options: PaneMountOptions, view: (pane: PaneContextVal
       for (const instance of instances) instance.dispose()
       chatRoot.dispose()
       reachabilityRoot.dispose()
-      closeBrowserRpcConnection(options.base)
+      client.close()
     },
     pane,
     data,
@@ -375,12 +373,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     router: ReturnType<typeof createConcivRouter> | null
     disposeLogin: () => void
     unmount: () => void
-    apiBase: string
+    closeRpc: () => void
   } = {
     router: null,
     disposeLogin: () => {},
     unmount: () => {},
-    apiBase: '',
+    closeRpc: () => {},
   }
 
   const mountShell = (
@@ -389,7 +387,6 @@ export function createShellHarness(base: () => string): ShellHarness {
     options: ShellMountOptions = {},
   ): void => {
     const apiBase = options.login?.apiBase ?? base()
-    mounted.apiBase = apiBase
     const loginOptions = options.login
     const login =
       loginOptions &&
@@ -399,8 +396,10 @@ export function createShellHarness(base: () => string): ShellHarness {
       })
     if (login) void startEngineLogin(login)
     const activeSession: {read: () => string | null} = {read: () => null}
+    const client = makeBrowserRpcClient(apiBase, {session: () => activeSession.read()})
+    mounted.closeRpc = client.close
     const router = createConcivRouter({
-      rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
+      rpc: client.rpc,
       history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(
@@ -426,7 +425,8 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.unmount = () => {}
     mounted.disposeLogin()
     mounted.disposeLogin = () => {}
-    closeBrowserRpcConnection(mounted.apiBase)
+    mounted.closeRpc()
+    mounted.closeRpc = () => {}
     onlineManager.setOnline(true)
   }
 
