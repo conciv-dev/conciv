@@ -7,8 +7,9 @@ Private workspace package (`private: true`) holding the shared TypeScript preset
 ## Interface
 
 - `tsconfig.base.json`: strict ES2024 settings for Node code without JSX; typecheck-only (`noEmit`, incremental into `.tsbuildinfo` beside the extending config).
-- `tsconfig.solid.json`: base plus DOM libs and Solid JSX (`jsx: preserve`, `jsxImportSource: solid-js`).
-- `tsconfig.react.json`: base plus DOM libs and React JSX (`jsx: react-jsx`).
+- `tsconfig.web.json`: base plus the DOM libs, for browser code without JSX.
+- `tsconfig.solid.json`: web plus Solid JSX (`jsx: preserve`, `jsxImportSource: solid-js`).
+- `tsconfig.react.json`: web plus React JSX (`jsx: react-jsx`).
 - `tsconfig.build.json`: declaration emit from `src` into `dist`, without stories, tests and fixtures. A package's `tsconfig.build.json` is `{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}`.
 
 ## Invariants

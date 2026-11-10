@@ -12,12 +12,14 @@
   },
   "files": [
     "tsconfig.base.json",
+    "tsconfig.web.json",
     "tsconfig.solid.json",
     "tsconfig.react.json",
     "tsconfig.build.json"
   ],
   "exports": {
     "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.web.json": "./tsconfig.web.json",
     "./tsconfig.solid.json": "./tsconfig.solid.json",
     "./tsconfig.react.json": "./tsconfig.react.json",
     "./tsconfig.build.json": "./tsconfig.build.json"

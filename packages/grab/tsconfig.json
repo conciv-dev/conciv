@@ -1,7 +1,6 @@
 {
-  "extends": "@conciv/tsconfig/tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.web.json",
   "compilerOptions": {
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": []
   },
   "include": ["src/**/*.ts"]
