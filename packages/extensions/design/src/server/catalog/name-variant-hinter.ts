@@ -1,4 +1,4 @@
-import {maxBy, orderBy} from 'es-toolkit'
+import {maxBy, orderBy, words} from 'es-toolkit'
 import {z} from 'zod'
 import type {DesignNode} from '../../shared/defs.js'
 import type {Hint, Hinter, Ranked} from '../../shared/catalog-defs.js'
@@ -43,20 +43,24 @@ const ComponentPropertiesSchema = z
 type Scored = {component: string; specifier: string; score: number}
 
 function bestOf(input: {node: DesignNode; ranked: Ranked[]}): Scored | null {
-  const name = folded(input.node.figma?.name ?? '')
+  const raw = input.node.figma?.name ?? ''
+  const name = folded(raw)
   if (name === '') return null
   const variants = variantsOf(input.node)
-  const scored = input.ranked.map((component) => scoreOf({name, variants, component}))
+  const spoken = namedSpans({words: lowerWords(raw), ranked: input.ranked})
+  const scored = input.ranked.map((component) => scoreOf({name, variants, component, spoken}))
   const [top, runner] = orderBy(scored, [(entry) => entry.score], ['desc'])
   if (top === undefined) return null
   if (runner !== undefined && top.score - runner.score < designConfig.tolerances.pairMargin) return null
   return top
 }
 
-function scoreOf(input: {name: string; variants: string[]; component: Ranked}): Scored {
-  const {name, variants, component} = input
-  const named = maxBy(component.names, (candidate) => SIMILARITY.text.similarity({a: name, b: folded(candidate)}))
-  const nameScore = named === undefined ? 0 : SIMILARITY.text.similarity({a: name, b: folded(named)})
+function scoreOf(input: {name: string; variants: string[]; component: Ranked; spoken: Span[]}): Scored {
+  const {name, variants, component, spoken} = input
+  const said = component.names.find((candidate) => spoken.some((span) => span.name === candidate))
+  const named =
+    said ?? maxBy(component.names, (candidate) => SIMILARITY.text.similarity({a: name, b: folded(candidate)}))
+  const nameScore = said === undefined ? textScore({name, candidate: named}) : 1
   const values = new Set(
     component.props === 'see file'
       ? []
@@ -66,6 +70,40 @@ function scoreOf(input: {name: string; variants: string[]; component: Ranked}): 
   const score =
     fit === null ? nameScore : (nameScore * NAME_WEIGHT + fit * VARIANT_WEIGHT) / (NAME_WEIGHT + VARIANT_WEIGHT)
   return {component: named ?? component.names[0] ?? '', specifier: component.specifier, score}
+}
+
+function textScore(input: {name: string; candidate: string | undefined}): number {
+  if (input.candidate === undefined) return 0
+  return SIMILARITY.text.similarity({a: input.name, b: folded(input.candidate)})
+}
+
+type Span = {name: string; start: number; end: number}
+
+function namedSpans(input: {words: string[]; ranked: Ranked[]}): Span[] {
+  const found = input.ranked.flatMap((component) =>
+    component.names.flatMap((name) => spansOf({name, words: input.words})),
+  )
+  return found.filter(
+    (span) =>
+      !found.some(
+        (other) =>
+          other.end - other.start > span.end - span.start && other.start <= span.start && span.end <= other.end,
+      ),
+  )
+}
+
+function spansOf(input: {name: string; words: string[]}): Span[] {
+  const wanted = lowerWords(input.name)
+  if (wanted.length === 0) return []
+  return input.words.flatMap((_, start) =>
+    wanted.every((word, offset) => input.words[start + offset] === word)
+      ? [{name: input.name, start, end: start + wanted.length}]
+      : [],
+  )
+}
+
+function lowerWords(text: string): string[] {
+  return words(text).map((word) => word.toLowerCase())
 }
 
 function variantsOf(node: DesignNode): string[] {

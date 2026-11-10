@@ -768,6 +768,46 @@ describe('design_get components section', () => {
   })
 })
 
+describe('catalog hints on design_get', () => {
+  const HINTED_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=9-1'
+  const NAMES = ['Chip Kit 14', 'Rail button/mouse-pointer-click', 'Button', 'Chip App 9', 'Row TooltipIconButton']
+
+  const HINTED_DOCUMENT = {
+    name: 'it fixture',
+    lastModified: '2026-11-10T00:00:00Z',
+    version: '1',
+    nodes: {
+      '9:1': {
+        document: figmaFrame({
+          id: '9:1',
+          name: 'Hinted',
+          box: {x: 0, y: 0, w: 600, h: 400},
+          children: NAMES.map((name, index) =>
+            figmaFrame({id: `9:${index + 2}`, name, box: {x: 24, y: 24 + index * 60, w: 240, h: 40}}),
+          ),
+        }),
+      },
+    },
+  }
+
+  async function hintedTarget() {
+    const image = join(kit.targetsDir, 'hinted-figma.png')
+    await writeFile(image, blankPng({width: 600, height: 400}))
+    return call('design_get', {figma: HINTED_LINK, image, document: HINTED_DOCUMENT})
+  }
+
+  it('hints the component a node names as a whole word, and none where two catalog names are named', async () => {
+    const got = await hintedTarget()
+    expect(NAMES.map((name) => got.nodes.find((node) => node.name === name)?.hint?.component ?? null)).toEqual([
+      'Chip',
+      'Button',
+      'Button',
+      null,
+      'TooltipIconButton',
+    ])
+  })
+})
+
 describe('node components', () => {
   const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
