@@ -555,3 +555,9 @@ A check reloads a page that threw before the last edit (2026-11-10). When the la
 runtime error and a file under the project changed after that error, `design_check` reloads the page once before it
 measures, so a fix the framework could not apply to an unmounted root is seen. A page that throws again after the
 reload is `broken` with the new error.
+
+A text that wraps to more lines than the frame is a row (2026-11-10). When a paired text element's line count differs
+from the design node's line count (the design's `lineHeight` into its box height against the element's `lineHeight`
+into its height), `design_check` emits a `reflow` row on that text node, 'wraps to N lines, the frame has M', before
+any row on its parents, and the parent's content-taller row names it as the cause. The tolerance on a text's height
+does not hide a line count that differs: lines are counted, not measured.
