@@ -145,3 +145,10 @@ beside the files makes it queryable. Definitions live in git; data never does. T
 - **Reports and judgements are data.** `design_judgements` rows and `reports/<wave>.md` are written by the judge and report commands
   with the same provenance, and are queryable sources like the rest.
 - **The home is the conciv home.** The store is never under a session scratch folder.
+
+## A run belongs to a project, not to a path
+
+The path a run was imported from differs per worktree and per clone of the same package. A run carries the catalog's project key
+(`projectKey`: the origin remote URL plus the path inside the repo, or the package name without git), the branch and the head commit
+at import, as `project_key`, `branch` and `head` on `design_runs`, indexed by `project_key`. "Runs of this project" is a `where` on
+the key; `source_path` stays as the import's provenance only.
