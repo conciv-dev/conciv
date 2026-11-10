@@ -9,8 +9,8 @@ import {
 } from '@conciv/db'
 import type {AnyExtension} from './define-extension.js'
 
-export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExtension[]}) {
-  const {orm, extensions} = input
+export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExtension[]; home: string}) {
+  const {orm, extensions, home} = input
   const declared = extensions.map((extension) => {
     const tables = extension.tables?.(extensionTable(extension.name)) ?? {}
     const catalog = sourceCatalog({extension: extension.name, sources: extension.sources?.(tables) ?? {}})
@@ -34,7 +34,7 @@ export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExten
       command,
       description: entry.description,
       positionals: [...entry.positionals],
-      run: (args: string[]) => entry.run({args, db}),
+      run: (args: string[]) => entry.run({args, db, home}),
     })),
   )
   writeCatalog({

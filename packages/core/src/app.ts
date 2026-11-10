@@ -436,7 +436,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harnesses = availableHarnesses(harness, opts, stateDir)
   const staleness = opts.staleness ?? engineStaleness
   const db = openDb({stateRoot: opts.cfg.stateRoot, extensions})
-  const {scoped: extensionDbs, sources: sourcesApi, commands: extensionCommands} = extensionDb({orm: db, extensions})
+  const home = opts.home ?? concivHome({env: process.env})
+  const {
+    scoped: extensionDbs,
+    sources: sourcesApi,
+    commands: extensionCommands,
+  } = extensionDb({orm: db, extensions, home})
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []
@@ -500,7 +505,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         db: extensionDbs.get(extension.name),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
-        home: opts.home ?? concivHome({env: process.env}),
+        home,
         basePath,
         sessions: serverSessions,
         harness: serverHarness,

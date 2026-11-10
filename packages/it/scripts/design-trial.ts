@@ -143,6 +143,7 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target, printed})
     print(`state ${dirs.stateRoot}`)
     await readCommands({trial, commands: input.commands})
+    await runCommand({trial, name: 'run', args: ['import', dirs.stateRoot]})
   } finally {
     await browser.close()
     await server.close()

@@ -66,7 +66,7 @@ export type ExtensionCommand = {
 export type ExtensionCliCommand<Tables extends ExtensionTables = ExtensionTables> = {
   description: string
   positionals: readonly string[]
-  run(input: {args: string[]; db: ExtensionDb<Tables>}): unknown
+  run(input: {args: string[]; db: ExtensionDb<Tables>; home: string}): unknown
 }
 
 export type ExtensionCliCommands<Tables extends ExtensionTables = ExtensionTables> = Record<

@@ -1319,4 +1319,12 @@ describe('runs store', () => {
       ])
     })
   })
+
+  it('imports a state dir through the runs command into the runs store in the home folder', async () => {
+    const ImportedSchema = z.object({runId: z.number(), imported: z.boolean()})
+    const run = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
+    const first = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
+    const again = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
+    expect([first.imported, again.imported, again.runId]).toEqual([true, false, first.runId])
+  })
 })
