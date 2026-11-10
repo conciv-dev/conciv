@@ -257,14 +257,6 @@ patchedDependencies:
   # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
   # tool knows which call it is answering. Drop it once upstream carries a call id there.
   '@tanstack/ai-code-mode@1.1.0': patches/@tanstack__ai-code-mode@1.1.0.patch
-  # LocalProcessProvider.destroy(id) only retries the dir (src/provider.ts:129-133 in 1.0.0); it never
-  # reaches the handle that spawned the CLI, so a stopped turn leaves the agent running. The patch tracks
-  # minted handles and destroys one through its own destroy (SIGTERM, then SIGKILL after 5s): the handle
-  # whose run signal was aborted with RUN_CANCEL_REASON, so a stop never kills another session's CLI on the
-  # shared dir. Its teardown also waits for the whole process group, not just the sh wrapper, before
-  # deciding to escalate: a journaled agent outlives a wrapper that SIGTERM killed. Drop it once upstream
-  # kills the tree there.
-  '@tanstack/ai-sandbox-local-process@1.0.0': patches/@tanstack__ai-sandbox-local-process@1.0.0.patch
   # withSandbox builds the workspace projection root through resolveHarnessCwd (src/middleware.ts:906 in
   # 1.2.0), a host path where the sandbox expects a virtual one; the patch keeps the virtual root.
   # Its durability options (dist/esm/durability.js:133-145 in 1.2.0) forward attachWaitMs only on an attach;

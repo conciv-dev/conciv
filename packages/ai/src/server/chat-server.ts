@@ -27,7 +27,6 @@ import {
   ToolBridgeProvisionerCapability,
   withSandbox,
 } from '@tanstack/ai-sandbox'
-import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
 import {makeTextAdapter, type TextAdapter} from '../adapters/adapters.js'
 import {
   isRunPhaseTerminal,
@@ -44,6 +43,7 @@ import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
+import {localSandbox} from './local-sandbox.js'
 
 export type ChatStores = {
   messages: MessageStore
@@ -345,7 +345,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
   })
   const sandbox = defineSandbox({
     id: 'conciv',
-    provider: localProcessSandbox({dir: config.sandbox.dir}),
+    provider: localSandbox({dir: config.sandbox.dir}),
     policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},

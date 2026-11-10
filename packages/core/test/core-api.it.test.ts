@@ -131,6 +131,15 @@ import {
   type FakeWidget,
 } from './helpers.js'
 
+function groupAlive(group: number): boolean {
+  try {
+    process.kill(-group, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function sharedKit(boot: () => Promise<Kit>): () => Kit {
   const held: {kit: Kit | undefined} = {kit: undefined}
   beforeAll(async () => {
@@ -629,8 +638,10 @@ describe('api codex turns', () => {
   const bin = join(root, 'bin')
   const fakeCodex = [
     '#!/bin/sh',
-    'cat > /dev/null',
+    'prompt=$(cat)',
     'echo "$@" > "$(dirname "$0")/args"',
+    `case "$prompt" in *stubborn*) trap '' TERM ;; esac`,
+    'case "$prompt" in *"stop me"*) ps -o pgid= -p $$ | tr -d " " > "$(dirname "$0")/group"; sleep 600 ;; esac',
     'count_file="$(dirname "$0")/count"',
     'count=$(( $(cat "$count_file" 2>/dev/null || echo 0) + 1 ))',
     'echo "$count" > "$count_file"',
@@ -702,6 +713,20 @@ describe('api codex turns', () => {
     await runTurn(kit(), 'think normally', sessionId)
     expect(readFileSync(join(bin, 'args'), 'utf8')).not.toContain('model_reasoning_effort')
   }, 30_000)
+
+  it("stop kills the agent's whole process group, also an agent that ignores SIGTERM after its wrapper died", async () => {
+    for (const prompt of ['stop me', 'stop me, stubborn']) {
+      const sessionId = (await kit().rpc.sessions.create()).sessionId
+      const runId = randomUUID()
+      rmSync(join(bin, 'group'), {force: true})
+      void (await kit().turn(prompt, {session: sessionId, runId})).done().catch(() => undefined)
+      await until(() => existsSync(join(bin, 'group')) && readFileSync(join(bin, 'group'), 'utf8').endsWith('\n'))
+      const group = Number(readFileSync(join(bin, 'group'), 'utf8'))
+      expect(groupAlive(group)).toBe(true)
+      await kit().rpc.chat.stop({sessionId, runIds: [runId]})
+      await until(() => !groupAlive(group), {hangGuardMs: 12_000, intervalMs: 50})
+    }
+  }, 40_000)
 })
 
 describe('api harness switching', () => {
