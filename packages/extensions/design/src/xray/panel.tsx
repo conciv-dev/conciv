@@ -223,18 +223,34 @@ function RoundBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
   const summary = () => props.data.summary()
   return (
     <div class="px-6 flex grow flex-col gap-5 min-h-0" data-conciv-key="H800hA">
-      <Show when={summary()}>
-        {(sum) => (
-          <div class="flex shrink-0 flex-col gap-1 items-stretch" data-conciv-key="OR53IQ">
-            <h2 class="text-xl text-chat-text-hi font-semibold m-0" data-conciv-key="zIz5eA">
-              {sum().matching ? 'Matching the design' : 'Not matching yet'}
+      <Show
+        when={props.data.shownRound()?.broken}
+        fallback={
+          <Show when={summary()}>
+            {(sum) => (
+              <div class="flex shrink-0 flex-col gap-1 items-stretch" data-conciv-key="OR53IQ">
+                <h2 class="text-xl text-chat-text-hi font-semibold m-0" data-conciv-key="zIz5eA">
+                  {sum().matching ? 'Matching the design' : 'Not matching yet'}
+                </h2>
+                <p
+                  class="text-[length:var(--chat-text-md)] text-chat-text-2 leading-[calc(var(--chat-space)*4.75)] m-0"
+                  data-conciv-key="GvjYag"
+                >
+                  {sum().problems} problems on {sum().elements} elements. {sum().matched} of {sum().total} elements
+                  match the design.
+                </p>
+              </div>
+            )}
+          </Show>
+        }
+      >
+        {(broken) => (
+          <div class="flex shrink-0 flex-col gap-1 items-stretch" data-conciv-key="DgUr0g">
+            <h2 class="text-xl text-chat-text-hi font-semibold m-0" data-conciv-key="C3gLmQ">
+              Page does not compile
             </h2>
-            <p
-              class="text-[length:var(--chat-text-md)] text-chat-text-2 leading-[calc(var(--chat-space)*4.75)] m-0"
-              data-conciv-key="GvjYag"
-            >
-              {sum().problems} problems on {sum().elements} elements. {sum().matched} of {sum().total} elements match
-              the design.
+            <p class="text-xs text-chat-text-2 font-chat-mono m-0" data-conciv-key="6nr1kA">
+              {broken()}
             </p>
           </div>
         )}

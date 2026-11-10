@@ -51,7 +51,6 @@ const SESSION_META: ToolViewMeta = {
   icon: 'pointer',
   label: SESSION_LABEL.edit,
   mutating: true,
-  mirrors: false,
 }
 
 const ACTION_FORMAT = new Intl.NumberFormat()

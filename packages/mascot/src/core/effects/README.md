@@ -11,7 +11,7 @@ The antenna-tip effects. Each file exports one `EffectMount`; `effect.ts` define
 - `effect-support.ts:createTipEmitter` / `createTimelineEmitter` / `createNozzleEmitter` / `createParticleNozzleEmitter` - build an `EffectHandle` around an element anchored at the antenna tip.
 - `effect-support.ts:createTipShell` / `createSparkCanvas` / `sparkCanvasGeometry` / `antennaScaleFactor` / `runFrameLoop` - DOM, canvas and ticker helpers.
 - `effect-support.ts:WILL_CHANGE_STYLE` / `SPARK_COLOR` / `SPARK_ACCENT_COLOR` / `TIP_ORIGIN` / `noEmitterWork` - shared constants.
-- `binary.ts:binaryEffect` / `configureBinaryEffect({curve})` - rising binary digits along a `CurveStyle` path.
+- `binary.ts:binaryEffect` / `configureBinaryEffect({curve, avoid})` - rising binary digits along a `CurveStyle` path; with `avoid` (an `EmitterRect` getter in viewport pixels) they route around that rectangle and the viewport top, and `replan()` retargets the digits in flight on the next frame.
 - `matrix.ts:matrixEffect`, `thought-cloud.ts:thoughtCloudEffect`, `pixel-bubbles.ts:pixelBubblesEffect`, `signal-rings.ts:signalRingsEffect`, `speech-bubble.ts:speechBubbleEffect`, `steam.ts:steamEffect` - tip effects.
 - `spark.ts:sparkEffect`, `spark-burst.ts:sparkBurstEffect`, `spark-fountain.ts:sparkFountainEffect`, `satellite.ts:satelliteEffect`, `led-cone.ts:ledConeEffect`, `tick-ring.ts:tickRingEffect`, `signal-bars.ts:signalBarsEffect`, `heart.ts:heartEffect`, `notes.ts:notesEffect` - tip effects.
 - Exported tuning constants such as `steam.ts:PUFF_COUNT`, `matrix.ts:MATRIX_GLYPHS`, `notes.ts:NOTE_GLYPHS`, `pixel-bubbles.ts:PIXEL_BUBBLES_COUNT`.

@@ -141,6 +141,7 @@ async function bootEngine(
     extensions,
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
+    homeDir: options.homeDir,
     print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
@@ -192,6 +193,8 @@ const EMBED_LATE_DISCOVERED_DEPENDENCIES = [
 ].map((chain) => `@conciv/it > @conciv/embed > ${chain}`)
 
 const EMBED_SOLID_RUNTIME = ['solid-js', 'solid-js/web', 'solid-js/store']
+
+const WIDGET_DEP_DEFINES = {'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined'}
 
 const RECORDER_LATE_DISCOVERED_DEPENDENCIES = ['rrweb', 'rrweb-player', '@rrweb/rrweb-plugin-console-record'].map(
   (dependency) => `@conciv/it > @conciv/extension-recorder > ${dependency}`,
@@ -282,6 +285,9 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         ...base,
         optimizeDeps: {
           ...base.optimizeDeps,
+          ...('rolldownVersion' in this.meta
+            ? {rolldownOptions: {transform: {define: WIDGET_DEP_DEFINES}}}
+            : {esbuildOptions: {define: WIDGET_DEP_DEFINES}}),
           include: [
             ...base.optimizeDeps.include,
             ...EMBED_SOLID_RUNTIME.filter((id) => !base.optimizeDeps.exclude.includes(id)).map(

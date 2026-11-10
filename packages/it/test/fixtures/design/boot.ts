@@ -95,9 +95,10 @@ const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
 type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
-type Got = ToolOutput<typeof getDef>
-type Checked = ToolOutput<typeof checkDef>
-type Status = ToolOutput<typeof statusDef>
+type OneFrame<Reply> = Exclude<Reply, {variants: unknown}>
+type Got = OneFrame<ToolOutput<typeof getDef>>
+type Checked = OneFrame<ToolOutput<typeof checkDef>>
+type Status = OneFrame<ToolOutput<typeof statusDef>>
 
 type Call = {
   (name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>

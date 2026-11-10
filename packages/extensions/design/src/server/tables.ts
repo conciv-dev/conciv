@@ -17,6 +17,7 @@ export function designTables(table: SQLiteTableFn) {
       image: text().notNull(),
       widget: text({enum: WIDGETS}).notNull().default('hidden'),
       unsettled: integer().notNull().default(0),
+      lead: text(),
       at: integer().notNull(),
     }),
     rounds: table('rounds', {
@@ -49,6 +50,7 @@ export function designTables(table: SQLiteTableFn) {
       tree: text().notNull(),
       verdict: text(),
       unsettled: text(),
+      broken: text(),
       live: text(),
       diff: text(),
       ids: text({mode: 'json'}).$type<IdTree>(),
@@ -281,6 +283,6 @@ export function designTables(table: SQLiteTableFn) {
 
 const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 
-const FILL_KINDS = ['solid', 'gradient', 'image', 'none'] as const
+const FILL_KINDS = ['solid', 'gradient', 'image', 'image-stack', 'none'] as const
 
 const NOW_MS = sql`(cast(unixepoch('subsec') * 1000 as integer))`

@@ -6,6 +6,8 @@ import type {ToolRequest} from '@conciv/extension'
 import {navigation, sessionCaptures, writeToolCapture, type ConcivDb} from '@conciv/db'
 import {symbolicateFrames} from '../editor/symbolicate.js'
 import type {ChatPlane} from '@conciv/chat'
+import type {ChatEvent} from '@conciv/protocol/chat-event-types'
+import {logError} from '../lib/debug.js'
 import {pageQueryStream} from '../page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
@@ -35,7 +37,6 @@ function catalogSignatures(catalog: ToolCatalog): ToolCommandSignature[] {
       icon: entry.icon,
       label: entry.label,
       mutating: signature.mutating,
-      mirrors: signature.mirrors,
       reachable: entry.reachable,
       approval: signature.approval,
       inputSchema: signature.inputSchema,
@@ -74,8 +75,9 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const {page, registry, stream} = deps.primitives
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
+  const agentId: string = id
   const requestFor = (toolCallId: string | undefined): ToolRequest =>
-    toolCallId === undefined ? {sessionId: id, model} : {sessionId: id, model, toolCallId}
+    toolCallId === undefined ? {sessionId: id, agentId, model} : {sessionId: id, agentId, model, toolCallId}
   return {
     id,
     model,
@@ -85,7 +87,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       catalog: view.catalog,
     },
     page: {
-      ask: async (name, input) => (await page.bus.ask(id, {name, input})).result,
+      ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
       queries: (signal) => pageQueryStream(page.bus, id, signal),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
@@ -95,7 +97,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     stream: {
       publish: (chunk) => stream.publish(id, chunk),
       listen: (onChunk) => stream.listen(id, onChunk),
-      events: (signal) => stream.events(id, signal),
+      events: (signal) => pendingThenLive(stream.events(id, signal), () => deps.plane.pendingAsks(id)),
     },
     asks: {ui: () => deps.plane.askUi(id)},
     captures: {
@@ -110,8 +112,24 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
       stop: (runIds) => deps.plane.stop(id, runIds),
       compact: () => deps.plane.compact(id),
       live: () => deps.plane.live(id),
+      record: (chunks) => deps.plane.record(id, chunks),
     },
   }
+}
+
+async function* pendingThenLive(
+  live: AsyncGenerator<ChatEvent>,
+  pending: () => Promise<ChatEvent[]>,
+): AsyncGenerator<ChatEvent> {
+  const first = live.next()
+  yield* await pending().catch((error: unknown) => {
+    logError(`[core] reading the pending asks for a new subscriber failed: ${String(error)}`)
+    return []
+  })
+  const opened = await first
+  if (opened.done === true) return
+  yield opened.value
+  yield* live
 }
 
 function established(raw: SessionScope): SessionScope {
@@ -142,6 +160,7 @@ function established(raw: SessionScope): SessionScope {
       stop: inScope(raw.run.stop),
       compact: inScope(raw.run.compact),
       live: raw.run.live,
+      record: inScope(raw.run.record),
     },
   }
   return scope

@@ -17,7 +17,7 @@ const traceTools: ToolCardEntry[] = tanstackClientTools.flatMap((client) => {
 function toolMeta(name: string): ToolViewMeta | undefined {
   const meta = tanstackClientTools.find((client) => client.name === name)?.meta
   if (!meta) return undefined
-  return {...meta, summary: meta.summary, mutating: meta.mutating ?? false, mirrors: false}
+  return {...meta, summary: meta.summary, mutating: meta.mutating ?? false}
 }
 
 const traceCtx: ToolViewCtx = {...INERT_TOOL_CTX, catalog: {loaded: () => true, meta: toolMeta}}

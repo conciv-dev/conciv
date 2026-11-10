@@ -21,3 +21,4 @@ export const pageSessionEntry: GroupEntry = {key: PAGE_SESSION_GROUP_KEY, render
 export {pageSessionSteps, type PageSessionStep} from './client/cards/session-steps.js'
 export {A11yNodeList, PageHtmlBlock, PageValueChip, type A11yNode} from './client/page-result-views.js'
 export {formatHtml} from './client/page-format.js'
+export {endRun, endTask, mountSimulator} from './client/simulator.js'

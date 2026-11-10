@@ -69,7 +69,7 @@ skills:
     packages:
       - '@conciv/harness'
       - '@conciv/protocol'
-    description: 'Wiring a new coding-agent CLI into conciv as a HarnessAdapter: capabilities, connect.plan(), chatConfig(), and the models/history/connect/tty/commands sidecars.'
+    description: 'Wiring a new coding-agent CLI into conciv as a HarnessAdapter: capabilities, chatConfig(), and the models/history/tty/commands sidecars.'
     sources:
       - 'conciv-dev/conciv:packages/core/src/chat/sandbox.ts'
       - 'conciv-dev/conciv:packages/core/src/chat/gate.ts'

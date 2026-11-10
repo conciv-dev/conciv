@@ -1,5 +1,6 @@
+import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
-import type {HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
+import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -53,14 +54,6 @@ export type HarnessConnectContext = {
 
 export type HarnessConnectFile = {path: string; contents: string; mode?: number}
 
-export type HarnessConnectPlan = {
-  argv: string[]
-  env: Record<string, string>
-  files: HarnessConnectFile[]
-}
-
-export type HarnessConnect = {plan(ctx: HarnessConnectContext): HarnessConnectPlan}
-
 export type HarnessInitDetection = {bin: string; configDir: string[]}
 
 export type HarnessInitCommand = {bin: string; args: string[]}
@@ -71,10 +64,20 @@ export type HarnessInitProject = {cwd: string; stateDir: string}
 
 export type HarnessInitPlan = {root: string; files: HarnessConnectFile[]; commands: HarnessInitCommand[]}
 
+export const INIT_HARNESS_IDS = ['claude', 'codex', 'gemini-cli', 'opencode', 'pi'] as const
+
+export type InitHarnessId = (typeof INIT_HARNESS_IDS)[number]
+
 type HarnessInitBase<Id extends string> = {
   harnessId: Id
   detection: HarnessInitDetection
   agentsMdNote?: string
+  hub?: {
+    name: string
+    shellEnv: string
+    add: (command: string[], env: Readonly<Record<string, string>>) => string[]
+    remove?: string[]
+  }
 }
 
 export type HarnessInit<Id extends string = string> = HarnessInitBase<Id> & {
@@ -92,10 +95,6 @@ export type HarnessInitContribution<Id extends string = string> =
   | HarnessInit<Id>
   | (HarnessInitBase<Id> & {init: 'none'})
 
-export type TerminalOpenRequest = {bin: string; args: string[]}
-
-export type TerminalOpener = (request: TerminalOpenRequest) => Promise<boolean>
-
 export type HarnessChatDeps = {
   cwd: string
   sessionId: SessionId
@@ -108,16 +107,29 @@ export type HarnessChatDeps = {
 
 export type HarnessSessionMeta = {
   id: HarnessSessionId
+  cwd: string
   derivedTitle: string
   updatedAt: number
-  messageCount: number
+  sizeBytes?: number
   model?: string | null
   totalTokens?: number
   lastMessage?: string | null
   createdAt?: number
 }
 
+export type HarnessResumeInput = {cwd: string; nativeId: HarnessSessionId}
+
+export type HarnessResume = {command(input: HarnessResumeInput): {bin: string; args: string[]}}
+
 export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
+
+export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
+
+export type HarnessListPage = {after: HarnessListCursor | null; limit: number}
+
+export type HarnessListScope = {cwd: string} | {everywhere: true}
+
+export type HarnessSessionPage = {sessions: HarnessSessionMeta[]; next: HarnessListCursor | null}
 
 export const TRANSCRIPT_FAILURES = ['missing', 'unreadable', 'corrupt'] as const
 
@@ -144,24 +156,24 @@ export type TranscriptHandle = {
 export type HarnessTranscriptPaths =
   | {transcriptPath?: undefined; transcriptRoot?: undefined}
   | {
-      transcriptPath(cwd: string, sessionId: HarnessSessionId, home?: string): string
+      transcriptPath(cwd: string, sessionId: HarnessSessionId): string
 
-      transcriptRoot(cwd: string, home?: string): string
+      transcriptRoot(cwd: string): string
     }
 
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<ChatMessage[]>
-  observe(cwd: string, sessionId: HarnessSessionId, home?: string): TranscriptHandle
+  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 
-  withinProject?(cwd: string, sessionId: HarnessSessionId, home?: string): boolean
+  withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
 
   nameFromTranscript?(raw: string): string | null
 
   contextTokens?(raw: string): number | undefined
 
-  list(cwd: string, home?: string): Promise<HarnessSessionMeta[]>
+  list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
 
-  meta?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionMeta | null>
+  meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 
-  summary?(cwd: string, sessionId: HarnessSessionId, home?: string): Promise<HarnessSessionSummary | null>
+  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }

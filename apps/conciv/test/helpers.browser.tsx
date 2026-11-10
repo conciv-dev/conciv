@@ -57,7 +57,7 @@ declare module 'vitest/internal/browser' {
     printedCode: () => Promise<string>
     requestCode: () => Promise<string>
     revokeBrowsers: () => Promise<number>
-    outsideReload: (sessionId: string, file: string) => Promise<string>
+    hubExecute: (sessionId: string, typescriptCode: string, origin?: string) => Promise<string>
     setStaleness: (value: EngineStaleness) => Promise<void>
     holdTurn: () => Promise<void>
     holdTools: () => Promise<void>
@@ -65,12 +65,13 @@ declare module 'vitest/internal/browser' {
     holdResults: () => Promise<void>
     releaseResults: (paced?: PacedRelease) => Promise<void>
     releaseTurn: () => Promise<void>
+    releaseTranscripts: () => Promise<void>
     scriptTurn: (turn: ScriptedTurn) => Promise<string[]>
     scriptError: (message: string) => Promise<void>
     clearScript: () => Promise<void>
     scriptCustomEvent: (name: string, value: unknown) => Promise<void>
-    setTerminalLaunch: (succeeds: boolean) => Promise<void>
-    terminalLaunches: () => Promise<number>
+    fakeHubCli: (outcome: 'ok' | 'fail' | 'hold' | 'hold-remove' | null) => Promise<void>
+    setHubConnection: (harness: string, connected: boolean) => Promise<void>
     rpcCallCount: (path: string[]) => Promise<number>
     installFault: (spec: FaultSpec) => Promise<string>
     releaseFault: (handle: string) => Promise<void>
@@ -192,6 +193,7 @@ function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
   const data = makeAppData(rpc, queryClient)
   const connected = () => true
   const liveSessions = makeLiveSessions({
+    active: () => null,
     rpc,
     apiBase: () => options.base,
     generation: () => 0,
@@ -352,8 +354,10 @@ export type ShellMountOptions = {
 }
 
 type ShellHarness = {
-  mountShell: (entry: string, extensions?: AnyExtension[], options?: ShellMountOptions) => void
+  mountShell: (entry: string | string[], extensions?: AnyExtension[], options?: ShellMountOptions) => void
   dispose: () => void
+  pathname: () => string | undefined
+  back: () => void
 }
 
 export function createShellHarness(base: () => string): ShellHarness {
@@ -369,7 +373,11 @@ export function createShellHarness(base: () => string): ShellHarness {
     apiBase: '',
   }
 
-  const mountShell = (entry: string, extensions: AnyExtension[] = [], options: ShellMountOptions = {}): void => {
+  const mountShell = (
+    entry: string | string[],
+    extensions: AnyExtension[] = [],
+    options: ShellMountOptions = {},
+  ): void => {
     const apiBase = options.login?.apiBase ?? base()
     mounted.apiBase = apiBase
     const loginOptions = options.login
@@ -383,7 +391,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     const activeSession: {read: () => string | null} = {read: () => null}
     const router = createConcivRouter({
       rpc: makeBrowserRpcClient(apiBase, {session: () => activeSession.read()}).rpc,
-      history: createMemoryHistory({initialEntries: [entry]}),
+      history: createMemoryHistory({initialEntries: [entry].flat()}),
       environment: {rootNode: document, document},
       settings: parseConcivSettings(options.transport ? JSON.stringify({transport: options.transport}) : ''),
       apiBase: options.apiBase ?? (() => apiBase),
@@ -410,7 +418,12 @@ export function createShellHarness(base: () => string): ShellHarness {
     onlineManager.setOnline(true)
   }
 
-  return {mountShell, dispose}
+  return {
+    mountShell,
+    dispose,
+    pathname: () => mounted.router?.state.location.pathname,
+    back: () => mounted.router?.history.back(),
+  }
 }
 
 const VIEWPORT_SELECTOR = '[role="log"][aria-live="off"]'
@@ -474,7 +487,8 @@ function startFrameGapSampler(): FrameGapSampler {
   const gaps: number[] = []
   let previous = performance.now()
   let handle = 0
-  const tick = (now: number): void => {
+  const tick = (): void => {
+    const now = performance.now()
     gaps.push(now - previous)
     previous = now
     handle = requestAnimationFrame(tick)

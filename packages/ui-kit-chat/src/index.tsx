@@ -4,6 +4,7 @@ export {
   useThread,
   useComposer,
   type ViewState,
+  type TurnItem,
   type Chat,
   type ChatContextValue,
 } from './store/chat-context.js'
@@ -33,7 +34,6 @@ export {
   type GroupRenderProps,
   type GroupEntry,
   type PartTypePaths,
-  type ResultPairing,
 } from './store/grouping.js'
 export {
   createGrouping,
@@ -177,9 +177,15 @@ export {readComposerDraft, writeComposerDraft, type PersistedComposerDraft} from
 export {useComposerDraftPersistence, type ComposerDraftPersistenceOptions} from './behaviors/use-composer-draft.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
-export {Thread, type ThreadComponents, type ThreadMessagesProps, type ThreadRootProps} from './styled/thread.js'
+export {
+  Thread,
+  type ThreadComponents,
+  type ThreadMessagesProps,
+  type ThreadRootProps,
+  type TurnPrefixSource,
+} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
-export {Markdown, type MarkdownProps} from './styled/markdown.js'
+export {Markdown, MarkdownHighlightProvider, type MarkdownProps} from './styled/markdown.js'
 export {Reasoning, ReasoningText, type ReasoningProps} from './styled/reasoning.js'
 export {Group, type GroupRootProps, type GroupTriggerProps, type GroupContentProps} from './styled/group.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
@@ -190,5 +196,6 @@ export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attach
 export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 export {NowLine} from './styled/now-line.js'
+export {TURN_MEASURE_CLASS} from './styled/turn-classes.js'
 export {MorphLabel} from './styled/morph-label.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'

@@ -1,5 +1,5 @@
 import {defineConfig} from 'vitest/config'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciReporters, ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
@@ -7,5 +7,6 @@ export default defineConfig({
     include: ['test/**/*.it.test.ts'],
     testTimeout: 180_000,
     reporters: ciReporters(),
+    env: ciTest().env,
   },
 })

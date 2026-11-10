@@ -1,7 +1,11 @@
 import type {JSX} from 'solid-js'
-import {Mascot} from '@conciv/mascot/solid'
+import {Mascot, type EmitterRect} from '@conciv/mascot/solid'
 
-export function FabRobot(props: {open: () => boolean; working: () => boolean}): JSX.Element {
+export function FabRobot(props: {
+  open: () => boolean
+  working: () => boolean
+  avoid: () => EmitterRect | undefined
+}): JSX.Element {
   return (
     <Mascot
       class="conciv-fab-rig"
@@ -12,7 +16,7 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}): 
       <Mascot.Head />
       <Mascot.Antenna />
       <Mascot.Eyes class="conciv-rig-eyes" />
-      <Mascot.Binary />
+      <Mascot.Binary avoid={props.avoid()} />
     </Mascot>
   )
 }

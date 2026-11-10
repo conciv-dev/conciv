@@ -41,7 +41,6 @@ const effectMeta: ToolViewMeta = {
   icon: 'edit',
   label: {running: 'Driving an effect', done: 'Drove an effect'},
   mutating: true,
-  mirrors: true,
   inputSchema: {
     type: 'object',
     properties: {action: {type: 'string'}, effect: {type: 'string'}},
@@ -69,7 +68,6 @@ export const EffectTurnedOn: Story = {
     await expect(canvas.getAllByText('grid-overlay')).toHaveLength(1)
     await waitFor(() => expect(canvas.getByText('enable')).toBeVisible())
     await waitFor(() => expect(canvas.getByText('on')).toBeVisible())
-    await waitFor(() => expect(canvas.getByText('shown on your page')).toBeVisible())
   },
 }
 

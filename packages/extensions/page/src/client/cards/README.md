@@ -6,7 +6,7 @@ Each `*Card` `ToolCardView` pairs a `render` component built on `CardShell` from
 
 ## Interface
 
-- `actCard` / `ActCard` (`act-card.tsx`): card for act verbs; shows the `capture.after` ElementPreview, a MirrorRow when `meta.mirrors`, and an ErrorBlock
+- `actCard` / `ActCard` (`act-card.tsx`): card for act verbs; shows the `capture.after` ElementPreview and an ErrorBlock
 - `consoleCard` (`console-card.tsx`): card that renders `{entries:[{level,ts,text}]}` as a timestamped log list, with a JsonTree fallback
 - `editLiveCard` (`edit-live-card.tsx`): card for live edits; shows a CodeBlock for `eval`/`css` verbs, or before/after ElementPreview Tabs plus a descriptor DiffBlock
 - `effectCard` (`effect-card.tsx`): card that renders a single `{effect,enabled}` or a list `{effects:[...]}` with on/off StatusDots

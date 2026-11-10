@@ -29,10 +29,10 @@ function Root(props: DivProps): JSX.Element {
   const [local, rest] = splitProps(props, ['onMouseEnter', 'onMouseLeave'])
   return (
     <Primitive.div
-      data-role={message.message().role}
-      data-message-id={message.message().key}
+      data-role={message.role}
+      data-message-id={message.key}
       onMouseEnter={(event) => {
-        chat.setView('hovering', message.message().key)
+        chat.setView('hovering', message.key)
         if (typeof local.onMouseEnter === 'function') local.onMouseEnter(event)
       }}
       onMouseLeave={(event) => {
@@ -92,7 +92,7 @@ function DispatchPart(props: {
   const components = (): PartsComponents => props.components
   const isHiddenResult = () => {
     const value = part()
-    return value.type === 'tool-result' && message.pairing().hiddenResultIds.has(value.toolCallId)
+    return value.type === 'tool-result' && message.parts.hidesResult(value.toolCallId)
   }
   const asText = () => {
     const value = part()
@@ -145,7 +145,7 @@ function DispatchPart(props: {
               <Dynamic
                 component={render()}
                 part={toolCall}
-                result={message.pairing().byCallId.get(toolCall.id)}
+                result={message.parts.resultFor(toolCall.id)}
                 ctx={props.ctx}
                 addResult={(value: UiAnswerValue) => props.ctx.addResult(toolCall.id, value)}
               />
@@ -244,7 +244,7 @@ function MessageError(props: ParentProps): JSX.Element {
   const chat = useChatContext()
   const message = useMessage()
   return (
-    <Show when={message.isLast() && message.message().role === 'assistant' && chat.error()}>
+    <Show when={message.isLast() && message.role === 'assistant' && chat.error()}>
       {(error) => <div role="alert">{props.children ?? String(error().message)}</div>}
     </Show>
   )

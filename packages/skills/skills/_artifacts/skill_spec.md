@@ -20,7 +20,7 @@ runtime once it's live.
 | -------------- | ---- | ------------------- | --------------------------------------------------------------------------------------- | ------------- |
 | conciv-setup   | core | installation        | plugin vs manual mount, harness selection, ConcivConfig/ConcivSettingsInit              | 2             |
 | conciv-develop | core | extension-authoring | defineExtension/defineTool/defineAttachment, tool contract, testkit                     | 2             |
-| conciv-harness | core | harness-adapters    | HarnessAdapter/HarnessCapabilities, chatConfig(), connect.plan(), sandbox-virtual cwd   | 2             |
+| conciv-harness | core | harness-adapters    | HarnessAdapter/HarnessCapabilities, chatConfig(), sandbox-virtual cwd                   | 2             |
 | conciv-debug   | core | runtime-debugging   | widget mount/connect, gate timeout vs no-listener refusal, port fallback, SSE lifecycle | 2             |
 
 ## Failure Mode Inventory

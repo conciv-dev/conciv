@@ -33,9 +33,7 @@ export function requireClaude(): HarnessAdapter {
   return adapter
 }
 
-export function requireTranscriptPath(
-  adapter: HarnessAdapter,
-): (cwd: string, sessionId: HarnessSessionId, home?: string) => string {
+export function requireTranscriptPath(adapter: HarnessAdapter): (cwd: string, sessionId: HarnessSessionId) => string {
   const path = adapter.history?.transcriptPath
   if (!path) throw new Error(`${adapter.id} adapter exposes no transcript path`)
   return path
@@ -80,7 +78,6 @@ export async function runTurn(kit: Kit, input: string | ChatMessage, session: st
 
 export type BootOverrides = {
   cwd?: string
-  claudeHome?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number) => void
@@ -88,6 +85,8 @@ export type BootOverrides = {
   firstChunkTimeoutMs?: number
   withhold?: string[]
   harnesses?: HarnessAdapter[]
+  systemPromptText?: string
+  home?: string
 }
 
 export function bootKit(overrides: BootOverrides = {}, harness: HarnessAdapter = requireClaude()): Promise<Kit> {
@@ -107,6 +106,7 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     harnessSessionId: undefined,
     systemPrompt: '',
     extensions: undefined,
+    hubAccess: 'session',
   }
   return makeApp({
     print: env.print,
@@ -114,13 +114,14 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     cwd: overrides.cwd ?? env.cwd,
     openInEditor: overrides.openInEditor ?? (() => {}),
     harness: env.harness,
-    claudeHome: overrides.claudeHome,
     extensions: overrides.extensions,
     extensionConfig: overrides.extensionConfig,
     bridge: overrides.bridge,
     firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     withhold: overrides.withhold,
     harnesses: overrides.harnesses,
+    systemPromptText: overrides.systemPromptText,
+    home: overrides.home,
   })
 }
 

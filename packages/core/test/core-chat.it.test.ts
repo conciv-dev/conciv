@@ -111,7 +111,7 @@ describe('extension tool call id', () => {
         typescriptCode: 'return await external_acme_echo_call_id({})',
       })
       const stream = await kit.turn('echo the call id', {session: sessionId, runId: randomUUID()})
-      const events = await stream.done({hangGuardMs: 20_000})
+      const events = await stream.done()
 
       const call = events.toolCalls('acme_echo_call_id').at(-1)
       if (call === undefined) throw new Error('the chat turn never carried the tool call')

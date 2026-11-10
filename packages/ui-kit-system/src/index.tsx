@@ -1,5 +1,6 @@
 export {Button, type ButtonVariant, type ButtonSize} from './button.js'
 export {Collapsible} from './collapsible.js'
+export {Editable} from './editable.js'
 export {HoverCard} from './hover-card.js'
 export {ScrollArea} from './scroll-area.js'
 export {Combobox} from './combobox.js'
@@ -17,7 +18,9 @@ export {
   createClipReveal,
   revealTriggerProps,
   TruncatedText,
+  TruncatedTextGroup,
   type ClipReveal,
+  type TruncatedTextGroupProps,
   type TruncatedTextProps,
   type TruncatedTextSide,
 } from './truncated-text.js'
@@ -27,6 +30,9 @@ export {
   type TooltipIconButtonProps,
   type TooltipIconButtonSlotProps,
 } from './tooltip-icon-button.js'
+export {Highlight} from './highlight.js'
+export {useFormatHotkey, useHotkeys} from './hotkeys.js'
+export {Kbd} from './kbd.js'
 export {Menu} from './menu.js'
 export {
   LIST_PANEL,
@@ -42,6 +48,7 @@ export {Listbox} from './listbox.js'
 export {Toast, ToastGroup, createToaster, type ToasterInstance} from './toast.js'
 export {Avatar} from './avatar.js'
 export {RelativeTime} from './relative-time.js'
+export {ByteSize} from './byte-size.js'
 export {Tabs, TabsPrimitive} from './tabs.js'
 export {Switch} from './switch.js'
 export {Slider} from './slider.js'
@@ -66,6 +73,7 @@ export {StatusDot, type StatusDotTone} from './status-dot.js'
 export {FocusTrap, type FocusTrapProps} from './focus-trap.js'
 export {EnvironmentProvider} from './environment.js'
 export {VirtualJsonTree, type VirtualJsonTreeProps} from './virtual-json-tree.js'
+export {VirtualList, type VirtualListProps} from './virtual-list.js'
 export {createResizable, type Grow} from './resize.js'
 export {readStorage, writeStorage} from './storage.js'
 export {TOKENS, type TokenDefinition} from './tokens.js'

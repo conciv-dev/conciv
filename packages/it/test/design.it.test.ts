@@ -1,8 +1,9 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
-import {mkdtemp} from 'node:fs/promises'
+import {mkdtemp, readFile, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {setImmediate as nextTurn} from 'node:timers/promises'
+import {fileURLToPath} from 'node:url'
 import {differenceCiede2000} from 'culori'
 import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
@@ -34,6 +35,8 @@ import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.
 import {bootDesignHost} from './fixtures/design/boot.js'
 import {cardsDesign} from './fixtures/design/cards.js'
 
+const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
+const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
 
@@ -50,8 +53,9 @@ const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 const [getDef, checkDef] = DESIGN_TOOLS
 
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
-type Got = ToolOutput<typeof getDef>
-type Checked = ToolOutput<typeof checkDef>
+type OneFrame<Reply> = Exclude<Reply, {variants: unknown}>
+type Got = OneFrame<ToolOutput<typeof getDef>>
+type Checked = OneFrame<ToolOutput<typeof checkDef>>
 
 function target(name: string): string {
   return join(kit.targetsDir, `${name}.png`)
@@ -132,8 +136,8 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', await cardsDesign(kit.targetsDir))
 }
 
-function roundOf(checked: Checked): Exclude<Checked, {unsettled: true}> {
-  if ('unsettled' in checked) throw new Error(`the page did not settle: ${JSON.stringify(checked)}`)
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown}> {
+  if ('unsettled' in checked || 'compile' in checked) throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
 
@@ -270,6 +274,7 @@ describe('store', () => {
       tree: '',
       verdict: null,
       unsettled: null,
+      broken: null,
     }
     await store.writeRound({
       id: 'store-1',
@@ -391,5 +396,42 @@ describe('design_status', () => {
     expect(status.verdict).toBe(checked.verdict)
     expect(status.counts).toEqual(checked.counts)
     expect(status.rows).toEqual(checked.rows)
+  })
+})
+
+describe('design_check capture', () => {
+  it('leaves the conciv effects surface out of the live capture of a round', async () => {
+    await goto('effects-cover')
+    const got = await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    const reply = await fetch(`${kit.apiBase}/api/ext/design/files/live/${got.target}/${checked.round}`)
+    expect(reply.status).toBe(200)
+    const png = PNG.sync.read(Buffer.from(await reply.arrayBuffer()))
+    const offset = (Math.floor(png.height / 2) * png.width + Math.floor(png.width / 2)) * 4
+    const [red = 0, green = 0, blue = 0] = png.data.subarray(offset, offset + 3)
+    expect(red > 200 && green < 60 && blue < 60).toBe(false)
+  })
+})
+
+describe('design_check on a page that breaks the widget or the build', () => {
+  it('answers on a page whose section is named process', async () => {
+    await goto('process')
+    await cardsTarget()
+    expect(roundOf(await call('design_check', {})).rows.length).toBeGreaterThan(0)
+  })
+
+  it('answers broken with the file and line, then measures again once the file compiles', async () => {
+    await goto('target')
+    await cardsTarget()
+    const source = await readFile(CARDS_FILE, 'utf8')
+    await writeFile(CARDS_FILE, source.replace('</h2>', ''))
+    const broken = await kit.page
+      .waitForSelector('vite-error-overlay', {state: 'attached', timeout: PAGE_DRIVER_TIMEOUT_MS})
+      .then(() => call('design_check', {}))
+      .finally(() => writeFile(CARDS_FILE, source))
+    const compile = 'compile' in broken ? broken.compile : null
+    expect([broken.verdict, compile?.file, typeof compile?.line]).toEqual(['broken', 'src/Cards.tsx', 'number'])
+    await goto('target')
+    expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })
 })

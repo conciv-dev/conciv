@@ -39,7 +39,6 @@ const locateMeta: ToolViewMeta = {
   icon: 'react',
   label: {running: 'Locating the source', done: 'Located the source'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {component: {type: 'string'}}},
 }
@@ -50,7 +49,6 @@ const inspectMeta: ToolViewMeta = {
   icon: 'react',
   label: {running: 'Inspecting a component', done: 'Inspected a component'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {component: {type: 'string'}}},
 }
@@ -61,7 +59,6 @@ const trackMeta: ToolViewMeta = {
   icon: 'react',
   label: {running: 'Tracking renders', done: 'Tracked renders'},
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {action: {type: 'string'}}, required: []},
   outputSchema: {type: 'object', properties: {components: {type: 'array'}}},
 }

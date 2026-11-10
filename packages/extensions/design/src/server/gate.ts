@@ -356,7 +356,7 @@ function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; liv
 
 function compared(seen: Seen): Compared[] {
   const {look} = seen
-  if (look.image || look.asset !== null) return []
+  if (look.fill_kind === 'image' || (look.asset !== null && !look.image)) return []
   if (look.type === 'TEXT') return textRows(seen)
   return [...fillRows(seen), ...radiusRows(seen), ...borderRows(seen), ...opacityRows(seen)]
 }

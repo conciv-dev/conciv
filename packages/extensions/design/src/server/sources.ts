@@ -32,6 +32,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         scale: targets.scale,
         image: targets.image,
         widget: targets.widget,
+        lead: targets.lead,
         at: targets.at,
       },
     },

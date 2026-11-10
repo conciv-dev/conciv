@@ -2,15 +2,17 @@ import {
   Outlet,
   createRootRouteWithContext,
   retainSearchParams,
+  stripSearchParams,
   useMatchRoute,
   useParams,
   useRouter,
   useSearch,
 } from '@tanstack/solid-router'
-import {QueryClientProvider} from '@tanstack/solid-query'
+import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {getHostApi, HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
+import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
 import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
@@ -34,6 +36,8 @@ import {
   useSettings,
   useSuppressed,
   useWarmSession,
+  useAppData,
+  useAppQueryClient,
   type AppContextValue,
 } from '../app/context.js'
 import {makeLiveSessions} from '../app/live-sessions.js'
@@ -43,24 +47,32 @@ import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-login.js'
 import {EffectsSurface} from '../shell/effects-surface.js'
-import {createDraggablePosition} from '../lib/draggable-position.js'
+import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
+import {createElementSize} from '@solid-primitives/resize-observer'
 import {createHotkeyRegistry} from '../lib/hotkey-registry.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
+import {sessionPickerSearchSchema} from '../lib/session-search-schemas.js'
 import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
 import '../styles.css'
+import 'virtual:uno.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
 const HOST_OWNER = 'conciv'
 const QUICK_TERMINAL_LABEL = 'Quick terminal'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
-  validateSearch: (search: Record<string, unknown>): {open?: true} => (search.open === true ? {open: true} : {}),
-  search: {middlewares: [retainSearchParams(['open'])]},
+  validateSearch: sessionPickerSearchSchema,
+  search: {
+    middlewares: [
+      stripSearchParams({sessionSearch: '', allProjects: false}),
+      retainSearchParams(['open', 'sessionSearch', 'allProjects']),
+    ],
+  },
   component: RootComponent,
 })
 
@@ -104,6 +116,7 @@ function RootComponent() {
   )
   app.bindActiveSession?.(() => activeSession())
   const liveSessions = makeLiveSessions({
+    active: activeSession,
     rpc: app.rpc,
     apiBase: app.apiBase,
     generation: app.connectionGeneration,
@@ -111,8 +124,21 @@ function RootComponent() {
     appData: app.data,
     queryClient: app.queryClient,
     announce,
+    onRunEnd: endRun,
   })
   const rootNode = app.environment.rootNode
+  if (rootNode instanceof ShadowRoot) {
+    onCleanup(
+      mountSimulator({
+        root: rootNode,
+        session: activeSession,
+        onStop: (sessionId) => {
+          liveSessions.stop(sessionId)
+          endTask()
+        },
+      }),
+    )
+  }
   const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
   const colorScheme = () => theme().scheme
 
@@ -225,9 +251,18 @@ function RootChrome(props: {
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
   const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
+  const [panelElement, setPanelElement] = createSignal<HTMLElement>()
+  const panelSize = createElementSize(panelElement)
+  const digitObstacle = createMemo((): PanelFrame | undefined => {
+    if (!panelOpen() || phone() || settings.surface === 'dock') return undefined
+    const width = panelSize.width
+    const height = panelSize.height
+    if (width === null || height === null || width === 0 || height === 0) return undefined
+    return props.fab.panelFrame({width, height})
+  })
 
   const warm = useWarmSession()
-  const activeRowRunning = () => warm.rows().find((session) => session.id === props.activeSession())?.running ?? false
+  const activeRowRunning = createStoredRunning(() => props.activeSession(), connected)
   const working = () => {
     const activity = liveSessions.activityIn(props.activeSession())
     if (activity === 'unmounted') return activeRowRunning()
@@ -400,7 +435,7 @@ function RootChrome(props: {
 
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
-      <PanelChromeContext.Provider value={{close: closePanel}}>
+      <PanelChromeContext.Provider value={{close: closePanel, frame: setPanelElement}}>
         <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>
@@ -413,9 +448,11 @@ function RootChrome(props: {
           }}
           open={panelOpen}
           working={working}
+          avoid={digitObstacle}
           suppressed={suppressed}
           fab={props.fab}
           locked={() => locked() && !panelOpen()}
+          waiting={() => liveSessions.waitingIn(props.activeSession()) && !panelOpen()}
           onToggle={togglePanel}
         />
       </Show>
@@ -434,4 +471,20 @@ function RootChrome(props: {
 
 function adoptedSheets(root: Node): CSSStyleSheet[] {
   return root instanceof ShadowRoot ? [...root.adoptedStyleSheets] : []
+}
+
+function createStoredRunning(activeSession: () => string | null, connected: () => boolean): () => boolean {
+  const appData = useAppData()
+  const queryClient = useAppQueryClient()
+  const activeRow = useQuery(
+    () => {
+      const sessionId = activeSession()
+      return {
+        ...appData.utils.sessions.get.queryOptions({input: {sessionId: sessionId ?? ''}}),
+        enabled: sessionId !== null && connected(),
+      }
+    },
+    () => queryClient,
+  )
+  return () => (activeRow.isSuccess ? activeRow.data.running : false)
 }

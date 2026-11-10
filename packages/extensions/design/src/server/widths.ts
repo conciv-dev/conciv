@@ -1,19 +1,23 @@
 import type {Design, Round} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
 
-export function widthsOf(input: {design: Design; styles: number[]}): Round['reflow']['widths'] {
-  const {design} = input
+export function widthsOf(input: {design: Design; styles: number[]; variants?: number[]}): Round['reflow']['widths'] {
+  const {design, variants = []} = input
+  const own = Math.round(design.root.figma?.box.w ?? design.root.box.w)
   const tags = [...walk(design.root)].flatMap(({node}) => (node.reflow === undefined ? [] : [{...node.reflow, node}]))
   const floor = Math.min(...tags.flatMap((tag) => (tag.minChildWidth === undefined ? [] : [tag.minChildWidth])))
   const named = [
-    {width: Math.round(design.root.figma?.box.w ?? design.root.box.w), from: 'design'},
+    {width: own, from: 'design'},
     ...tags.flatMap((tag) =>
       tag.kind === 'scroll' || tag.breakpoint === undefined
         ? []
         : pair({width: tag.breakpoint, from: `${tag.kind} ${tag.node.id}`}),
     ),
     ...input.styles.flatMap((width) => pair({width, from: `query ${width}`})),
-  ].filter((entry) => !(entry.width < floor))
+  ].filter(
+    (entry) =>
+      entry.width === own || (!(entry.width < floor) && nearestAbove({width: entry.width, variants, own}) === own),
+  )
   const grouped = new Map<number, string[]>()
   named.forEach((entry) => grouped.set(entry.width, [...(grouped.get(entry.width) ?? []), entry.from]))
   return [...grouped].toSorted(([a], [b]) => a - b).map(([width, from]) => ({width, from}))
@@ -21,4 +25,11 @@ export function widthsOf(input: {design: Design; styles: number[]}): Round['refl
 
 function pair(input: {width: number; from: string}): {width: number; from: string}[] {
   return [input, {width: input.width - 1, from: `${input.from} - 1`}]
+}
+
+function nearestAbove(input: {width: number; variants: number[]; own: number}): number {
+  const widths = input.variants.map(Math.round)
+  if (widths.length === 0) return input.own
+  const above = widths.filter((width) => width >= input.width)
+  return above.length === 0 ? Math.max(...widths) : Math.min(...above)
 }

@@ -41,6 +41,7 @@
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css"
   },
   "dependencies": {
+    "@zag-js/highlight-word": "catalog:",
     "marked": "catalog:",
     "rehype-harden": "catalog:",
     "rehype-raw": "catalog:",

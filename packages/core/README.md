@@ -21,7 +21,7 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 
 ## Invariants
 
-- `entry` (`tsdown.config.ts`): only src/start.ts, config.ts, app.ts and runtime.ts are Node entries
+- `entry` (`tsdown.config.ts`): only src/start.ts, config.ts, app.ts and runtime.ts are Node entries, plus src/sessions/search-index-worker.ts built as dist/search-index-worker.js, the session search index's `node:worker_threads` entry
 - `build.lib` (`vite.config.ts`): src/cards.tsx builds to cards.js with `emptyOutDir: false` so it does not wipe tsdown output
 - `rollupOptions.external` (`vite.config.ts`): solid-js, zod, @conciv/_, lucide-solid, rrweb_, @tanstack/* and @orpc/* stay external
 - `test.include` (`vitest.config.ts`): only `test/**/*.test.ts`, run with `--expose-gc`

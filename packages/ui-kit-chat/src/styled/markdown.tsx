@@ -1,6 +1,7 @@
-import {createSignal, onMount, Show, type JSX} from 'solid-js'
+import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
 import {createStore, produce, unwrap} from 'solid-js/store'
 import {mapValues} from 'es-toolkit'
+import {Highlight} from '@conciv/ui-kit-system'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
 import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
@@ -272,9 +273,49 @@ function codeBlock(fenceText: string, lang: string | undefined, streaming: boole
   return streamedPrefix(requested, fenceText)
 }
 
-export type MarkdownProps = {content: string; streaming?: boolean}
+export type MarkdownProps = {
+  content: string
+  streaming?: boolean
+  compact?: boolean
+  highlight?: readonly string[]
+}
+
+const NO_LINK_PREFIXES: string[] = []
+
+const MarkdownHighlightContext = createContext<readonly string[]>([])
+
+export const MarkdownHighlightProvider = MarkdownHighlightContext.Provider
+
+export function HighlightedText(props: {text: string}): JSX.Element {
+  const words = useContext(MarkdownHighlightContext)
+  return (
+    <Show when={words.length > 0} fallback={props.text}>
+      <Highlight text={props.text} query={[...words]} ignoreCase matchAll exactMatch />
+    </Show>
+  )
+}
 
 export function Markdown(props: MarkdownProps): JSX.Element {
+  const inherited = useContext(MarkdownHighlightContext)
+  const highlight = () => props.highlight ?? inherited
+  return (
+    <Show
+      when={props.compact}
+      fallback={<FullMarkdown content={props.content} streaming={props.streaming} highlight={highlight()} />}
+    >
+      <Streamdown
+        class="chat-markdown-compact"
+        allowedLinkPrefixes={NO_LINK_PREFIXES}
+        linkBlockPolicy="text-only"
+        highlight={highlight()}
+      >
+        {props.content}
+      </Streamdown>
+    </Show>
+  )
+}
+
+function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
   warmHighlighter()
   const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
   return (
@@ -283,6 +324,7 @@ export function Markdown(props: MarkdownProps): JSX.Element {
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}
+      highlight={props.highlight}
     >
       {props.content}
     </Streamdown>

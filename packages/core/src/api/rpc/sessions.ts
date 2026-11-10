@@ -1,7 +1,18 @@
 import {randomUUID} from 'node:crypto'
+import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
-import type {SessionMeta} from '@conciv/contract'
-import {SessionId, type HarnessMenuEntry, type HarnessMeta, type ReasoningEffort} from '@conciv/protocol/chat-types'
+import {uniqBy} from 'es-toolkit'
+import type {SessionHit, SessionMeta} from '@conciv/contract'
+import type {ChatMessage} from '@conciv/protocol/chat-message-types'
+import {
+  SessionId,
+  type HarnessMenuEntry,
+  type HarnessSessionId,
+  type HarnessMeta,
+  type ReasoningEffort,
+  type SessionRecord,
+} from '@conciv/protocol/chat-types'
+import type {HarnessListCursor, HarnessListPage, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -9,36 +20,126 @@ import {
   ensureRow,
   listSessionMetas,
   openNativeRow,
+  sessionMetaOf,
   resolveRow,
   restoreRow,
   rowById,
   switchRowHarness,
   tombstoneRow,
-  type NativeList,
+  type NativePage,
 } from '../../sessions/session-rows.js'
 import {logError} from '../../lib/debug.js'
 import {os, type ChatContext, type RpcDeps} from './mount.js'
 
-async function nativeListOf(chat: ChatContext, harness: HarnessAdapter): Promise<NativeList> {
+async function nativePageOf(
+  chat: ChatContext,
+  harness: HarnessAdapter,
+  page: HarnessListPage,
+): Promise<NativePage | null> {
   const history = harness.history
-  if (!harness.capabilities.transcriptHistory || history === undefined) return {harnessKind: harness.id, list: []}
+  if (!harness.capabilities.transcriptHistory || history === undefined) return null
   try {
-    return {harnessKind: harness.id, list: await history.list(chat.cwd, chat.claudeHome)}
+    return {harnessKind: harness.id, page: await history.list({cwd: chat.cwd}, page)}
   } catch (error) {
-    logError(`[core] listing the ${harness.id} native sessions failed: ${String(error)}`)
-    return {harnessKind: harness.id, list: []}
+    logError(
+      `[core] listing the ${harness.id} native sessions failed, its sessions list from their rows: ${String(error)}`,
+    )
+    return null
   }
 }
 
-export async function rpcSessionList(chat: ChatContext, includeHidden: boolean): Promise<SessionMeta[]> {
-  return listSessionMetas({
+async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<HarnessSessionMeta | undefined> {
+  const nativeId = row.harnessSessionId
+  const history = chat.harnesses.find((harness) => harness.id === row.harnessKind)?.history
+  if (nativeId === null || history === undefined) return undefined
+  try {
+    return (await history.meta(chat.cwd, nativeId)) ?? undefined
+  } catch (error) {
+    logError(`[core] reading the ${row.harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    return undefined
+  }
+}
+
+async function transcriptOf(
+  chat: ChatContext,
+  harnessKind: string,
+  nativeId: HarnessSessionId,
+  cwd: string,
+): Promise<ChatMessage[]> {
+  const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
+  if (history === undefined) return []
+  if (history.withinProject && !history.withinProject(cwd, nativeId)) return []
+  try {
+    return await history.messages(cwd, nativeId)
+  } catch (error) {
+    logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
+    return []
+  }
+}
+
+function previewWindow(
+  messages: ChatMessage[],
+  before: string | null,
+  limit: number,
+): {messages: ChatMessage[]; earlier: string | null} | null {
+  const end = before === null ? messages.length : messages.findIndex((message) => message.id === before)
+  if (messages.length === 0 || end < 0) return null
+  const start = Math.max(0, end - limit)
+  return {messages: messages.slice(start, end), earlier: start > 0 ? (messages[start]?.id ?? null) : null}
+}
+
+async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
+  const pages = await Promise.all(chat.harnesses.map((harness) => nativePageOf(chat, harness, page)))
+  return pages.filter((native) => native !== null)
+}
+
+type ListedHit = Omit<SessionHit, 'resume'>
+
+export async function rpcSessionMeta(chat: ChatContext, sessionId: SessionId): Promise<SessionMeta | null> {
+  const row = await rowById(chat.db, sessionId)
+  if (!row) return null
+  const context = {db: chat.db, running: await chat.plane.running(), model: (id: SessionId) => modelOf(chat.db, id)}
+  return sessionMetaOf(context, {row, native: await nativeMetaOf(chat, row)})
+}
+
+async function sessionPage(
+  chat: ChatContext,
+  input: {includeHidden?: boolean; cursor?: HarnessListCursor | null; limit: number},
+  search: string | null,
+  nativePagesOf: (page: HarnessListPage) => Promise<NativePage[]>,
+  returned: ListedHit[] = [],
+): Promise<{sessions: ListedHit[]; next: HarnessListCursor | null}> {
+  const page: HarnessListPage = {after: input.cursor ?? null, limit: input.limit - returned.length}
+  const listed = await listSessionMetas({
     db: chat.db,
     cwd: chat.cwd,
-    nativeLists: await Promise.all(chat.harnesses.map((harness) => nativeListOf(chat, harness))),
+    nativePages: await nativePagesOf(page),
+    page,
+    search,
     running: await chat.plane.running(),
     model: (sessionId) => modelOf(chat.db, sessionId),
-    includeHidden,
+    includeHidden: input.includeHidden ?? false,
   })
+  const counted = uniqBy([...returned, ...listed.sessions], (session) => session.id)
+  if (counted.length >= input.limit || listed.next === null) return {sessions: counted, next: listed.next}
+  return sessionPage(chat, {...input, cursor: listed.next}, search, nativePagesOf, counted)
+}
+
+function resumeOf(chat: ChatContext, hit: ListedHit): string | null {
+  const resume = chat.harnesses.find((harness) => harness.id === hit.harnessKind)?.resume
+  if (hit.cwd === null || hit.native === null || resume === undefined) return null
+  const {bin, args} = resume.command({cwd: hit.cwd, nativeId: hit.native.nativeId})
+  const argv = [bin, ...args]
+  if (platform() === 'win32') return `cd /d ${cmdQuote(hit.cwd)} && ${argv.map(cmdQuote).join(' ')}`
+  return `cd ${shellQuote(hit.cwd)} && ${argv.map(shellQuote).join(' ')}`
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`
+}
+
+function cmdQuote(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`
 }
 
 function cleanTitle(title: string): string {
@@ -53,7 +154,6 @@ export function harnessMetaOf(harness: HarnessAdapter): HarnessMeta {
   return {
     id: harness.id,
     name: harness.displayName ?? harness.id,
-    canLaunch: Boolean(harness.connect),
     imageInput: harness.capabilities.imageInput,
   }
 }
@@ -77,6 +177,7 @@ export function sessionsRouter(deps: RpcDeps) {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}
+  const search = deps.search
   const ensuredRow = async (sessionId: SessionId) => {
     await ensureRow(db, sessionId, scope.harnessKind, scope.cwd)
     return rowById(db, sessionId)
@@ -121,7 +222,30 @@ export function sessionsRouter(deps: RpcDeps) {
     return written.length > 0 ? 'switched' : switchEffort(sessionId, effort)
   }
   return {
-    list: os.sessions.list.handler(({input}) => rpcSessionList(chat, input?.includeHidden ?? false)),
+    list: os.sessions.list.handler(async ({input}) => {
+      const page = await sessionPage(chat, input, null, (cursorPage) => listedPages(chat, cursorPage))
+      search.listed()
+      return page
+    }),
+    changes: os.sessions.changes.handler(({signal}) => search.changes(signal)),
+    search: os.sessions.search.handler(async ({input}) => {
+      const page = await sessionPage(chat, input, input.term, (cursorPage) =>
+        search.pages(input.term, cursorPage, input.everywhere),
+      )
+      return {...page, sessions: page.sessions.map((hit) => ({...hit, resume: resumeOf(chat, hit)}))}
+    }),
+    get: os.sessions.get.handler(async ({input, errors}) => {
+      const meta = await rpcSessionMeta(chat, input.sessionId)
+      if (meta === null) throw errors.NOT_FOUND()
+      return meta
+    }),
+    preview: os.sessions.preview.handler(async ({input, errors}) => {
+      const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd)
+      const window = previewWindow(messages, input.before, input.limit)
+      if (window === null) throw errors.NOT_FOUND()
+      if (input.cwd !== undefined) search.cover(input.cwd)
+      return window
+    }),
     create: os.sessions.create.handler(async () => {
       const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
       await createRow(db, {
@@ -145,9 +269,11 @@ export function sessionsRouter(deps: RpcDeps) {
       return {sessionId: input.sessionId}
     }),
     rename: os.sessions.rename.handler(async ({input, errors}) => {
-      if (!(await rowById(db, input.sessionId))) throw errors.NOT_FOUND()
+      const row = await rowById(db, input.sessionId)
+      if (!row) throw errors.NOT_FOUND()
       const title = cleanTitle(input.title)
       await db.update(sessions).set({title, updatedAt: Date.now()}).where(eq(sessions.id, input.sessionId))
+      if (row.harnessSessionId !== null) await search.retitle(row.harnessKind, row.harnessSessionId, title)
       return {title}
     }),
     delete: os.sessions.delete.handler(async ({input}) => {

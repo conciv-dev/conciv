@@ -78,7 +78,11 @@ export function makeJsonlHandle<State>(source: JsonlSource<State>): TranscriptHa
 
   const pathOf = async (): Promise<string | TranscriptFailure> => {
     if (state.path) return state.path
-    const found = await source.resolvePath()
+    const found = await source
+      .resolvePath()
+      .catch((error: unknown) =>
+        transcriptFailure('unreadable', `resolving the transcript path failed: ${String(error)}`),
+      )
     if (typeof found !== 'string') return found
     state.path = found
     return found

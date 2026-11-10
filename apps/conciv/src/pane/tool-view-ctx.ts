@@ -9,7 +9,7 @@ export type ToolViewCtxDeps = {
   decide: (approvalId: string, approved: boolean, scope: PermissionScope) => Promise<void>
   onError: (error: unknown) => void
   addResult: ToolViewCtx['addResult']
-  durationFor: (toolCallId: string) => number | undefined
+  durationFor: NonNullable<ToolViewCtx['durationFor']>
   captureFor: (toolCallId: string) => ToolCaptureView | undefined
 }
 

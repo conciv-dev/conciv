@@ -27,14 +27,9 @@ export function containedPath(root: string, candidate: string): string | null {
   return realCandidate
 }
 
-export function transcriptPathWithin(
-  history: HarnessHistory,
-  cwd: string,
-  sessionId: HarnessSessionId,
-  home?: string,
-): string | null {
+export function transcriptPathWithin(history: HarnessHistory, cwd: string, sessionId: HarnessSessionId): string | null {
   const build = history.transcriptPath
   if (build === undefined) return null
-  if (history.withinProject && !history.withinProject(cwd, sessionId, home)) return null
-  return containedPath(history.transcriptRoot(cwd, home), build(cwd, sessionId, home))
+  if (history.withinProject && !history.withinProject(cwd, sessionId)) return null
+  return containedPath(history.transcriptRoot(cwd), build(cwd, sessionId))
 }

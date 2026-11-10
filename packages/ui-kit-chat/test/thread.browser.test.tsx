@@ -41,6 +41,7 @@ import {pageSessionCallParts, type PageSessionConfig, pageSessionThinkingParts} 
 import {VIRTUALIZE_THRESHOLD} from '../src/primitives/thread/virtualize-threshold.js'
 import {Message} from '../src/primitives/message/message.js'
 import {MessageProvider} from '../src/primitives/message/message-context.js'
+import {createTurnParts} from '../src/store/turn-parts.js'
 import {NowLine} from '../src/styled/now-line.js'
 import {StatusVisual} from '../src/tools/primitives/status-visual.js'
 import {ErrorBlock} from '../src/tools/styled/error-block.js'
@@ -202,7 +203,7 @@ describe('message if has text', () => {
   }
 
   function turnOf(parts: ChatPart[]): Turn {
-    return {key: 'turn-1', role: 'user', parts, start: 0, end: 0}
+    return {key: 'turn-1', role: 'user', parts, messages: [], before: undefined, start: 0, end: 0}
   }
 
   function Host(props: ParentProps<{parts: ChatPart[]}>): JSX.Element {
@@ -212,9 +213,11 @@ describe('message if has text', () => {
       <ChatProvider chat={chat}>
         <MessageProvider
           value={{
+            key: turn.key,
+            role: turn.role,
             message: () => turn,
             index: () => 0,
-            pairing: () => ({byCallId: new Map(), hiddenResultIds: new Set<string>()}),
+            parts: createTurnParts(() => turn),
             isLast: () => true,
           }}
         >
@@ -605,6 +608,58 @@ describe('page session injection', () => {
   })
 })
 
+describe('standalone card replaced in place', () => {
+  function OutcomeCard(props: ToolCardProps): JSX.Element {
+    return <p>{`${props.part.id} reads ${props.result?.content ?? 'nothing'}`}</p>
+  }
+
+  const entries: ToolCardEntry[] = [
+    {names: ['confirm_ui'], render: OutcomeCard, hasEmbeddedBody: () => true, display: 'standalone'},
+  ]
+
+  function answered(callId: string, content: string): ChatMessage[] {
+    return [
+      {id: 'ask', role: 'user', parts: [{type: 'text', content: 'confirm it'}]},
+      {
+        id: 'answer',
+        role: 'assistant',
+        parts: [
+          {type: 'tool-call', id: callId, name: 'confirm_ui', arguments: '{}', state: 'complete'},
+          {type: 'tool-result', toolCallId: callId, content, state: 'complete'},
+        ],
+      },
+    ]
+  }
+
+  it('reads the result of the call it now shows, not the call it first mounted for', async () => {
+    let chat: Chat | undefined
+    function ReplacedThread(): JSX.Element {
+      const value = createChat({threadId: 'standalone-replaced', connection: storyConnection()})
+      onMount(() => {
+        chat = value
+        value.setMessages(answered('first-call', 'first outcome'))
+      })
+      return (
+        <ChatProvider chat={value}>
+          <ToolProvider value={ctxWith(catalogOf({}))}>
+            <Thread>
+              <Thread.Viewport>
+                <Thread.Messages tools={entries} />
+              </Thread.Viewport>
+            </Thread>
+          </ToolProvider>
+        </ChatProvider>
+      )
+    }
+    mountView(() => <ReplacedThread />)
+    await expect.element(page.getByText('first-call reads first outcome'), {timeout: 3000}).toBeVisible()
+
+    chat?.setMessages(answered('second-call', 'second outcome'))
+
+    await expect.element(page.getByText('second-call reads second outcome'), {timeout: 3000}).toBeVisible()
+  })
+})
+
 describe('standalone tool outside chain', () => {
   function ConfirmCard(props: ToolCardProps): JSX.Element {
     return <p>Confirm this action for {props.part.name}</p>
@@ -918,7 +973,7 @@ describe('thread session log', () => {
     await expect.element(triggerLocator, {timeout: 3000}).toBeVisible()
     await expect.element(answerLocator, {timeout: 3000}).toBeVisible()
 
-    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(.absolute)')]
+    const contentRows = [...container.querySelectorAll('[data-conciv-msg] > *:not(:has([role="toolbar"]))')]
     const firstTextRow = firstTextLocator.element()
     const triggerRow = triggerLocator.element()
     const answerRow = answerLocator.element()
@@ -1051,6 +1106,7 @@ describe('trace permission block', () => {
     await page.getByRole('button', {name: 'Approve'}).click()
 
     await expect.element(page.getByText('Approved', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Approved the request')
     await expect.element(page.getByRole('button', {name: 'Approve'})).not.toBeInTheDocument()
     expect(decisions).toEqual([{id: 'approval-1', approved: true, scope: 'once'}])
   })
@@ -1062,6 +1118,7 @@ describe('trace permission block', () => {
     await page.getByRole('button', {name: 'Deny'}).click()
 
     await expect.element(page.getByText('Denied', {exact: true})).toBeVisible()
+    await expect.element(page.getByRole('status')).toHaveTextContent('Denied the request')
     await expect.element(page.getByRole('button', {name: 'Deny'})).not.toBeInTheDocument()
     expect(decisions).toEqual([{id: 'approval-1', approved: false, scope: 'once'}])
   })

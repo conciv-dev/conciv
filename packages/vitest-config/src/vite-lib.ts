@@ -7,6 +7,7 @@ export type SolidLibBuild = {entry: URL; external: ReadonlyArray<string | RegExp
 export function solidLibConfig(build: SolidLibBuild): UserConfig {
   return {
     plugins: [solid()],
+    define: {'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined'},
     build: {
       lib: {
         entry: fileURLToPath(build.entry),

@@ -106,6 +106,13 @@ describe('theme tokens', () => {
       expect(css).toContain(value)
     })
   })
+
+  it('resolves the chat type, mark and duration scales to their tokens', async () => {
+    const {css} = await uno.generate('text-chat-body size-chat-mark animate-duration-chat-fast', {preflights: true})
+    expect(css).toContain('var(--chat-text-body)')
+    expect(css).toContain('var(--chat-mark)')
+    expect(css).toContain('var(--chat-duration-fast)')
+  })
 })
 
 describe('typography', () => {

@@ -47,6 +47,7 @@ export type MascotService = {
   registerParts: (parts: MascotParts) => void
   mountEffect: (id: string, mount: EffectMount) => void
   unmountEffect: (id: string) => void
+  replanEffect: (id: string) => void
   connect: () => MascotConnect
   destroy: () => void
 }
@@ -217,6 +218,11 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
     registration?.activity.unmountEffect(id)
   }
 
+  const replanEffect = (id: string) => {
+    if (destroyed) return
+    registration?.activity.replanEffect(id)
+  }
+
   const syncSlots = () => {
     if (destroyed) return
     const parts = readyParts(slots)
@@ -291,5 +297,5 @@ export function createMascot(initial: MascotConfig, skin: MascotSkin = robotSkin
     effectHostProps.clear()
   }
 
-  return {update, registerParts, mountEffect, unmountEffect, connect, destroy}
+  return {update, registerParts, mountEffect, unmountEffect, replanEffect, connect, destroy}
 }

@@ -1,8 +1,9 @@
-import {Show, splitProps, type JSX} from 'solid-js'
+import {Show, splitProps, untrack, type JSX} from 'solid-js'
+import {createEventSignal} from '@solid-primitives/event-listener'
 import Check from 'lucide-solid/icons/check'
 import Copy from 'lucide-solid/icons/copy'
 import TriangleAlert from 'lucide-solid/icons/triangle-alert'
-import {createClipboardCopy, writeClipboardText, type ClipboardCopyLabels} from './clipboard.js'
+import {createClipboardCopy, writeClipboardText, type ClipboardCopy, type ClipboardCopyLabels} from './clipboard.js'
 import {Swap} from './swap.js'
 import {TooltipIconButton, type TooltipIconButtonSide, type TooltipIconButtonVariant} from './tooltip-icon-button.js'
 
@@ -13,7 +14,6 @@ const DEFAULT_TOOLTIPS: ClipboardCopyTooltips = {idle: 'Copy', copied: 'Copied',
 const ICON = 'size-3.5 block'
 
 export type ClipboardCopyButtonProps = {
-  text: string
   tooltips?: Partial<ClipboardCopyTooltips>
   labels?: Partial<ClipboardCopyLabels>
   resetMs?: number
@@ -24,11 +24,12 @@ export type ClipboardCopyButtonProps = {
   writeText?: (text: string) => Promise<void>
   onCopied?: () => void
   onFailed?: () => void
-}
+} & ({text: string; clipboard?: undefined} | {clipboard: ClipboardCopy; text?: undefined})
 
 export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Element {
   const [local] = splitProps(props, [
     'text',
+    'clipboard',
     'tooltips',
     'labels',
     'resetMs',
@@ -40,14 +41,20 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
     'onCopied',
     'onFailed',
   ])
-  const clipboard = createClipboardCopy({
-    text: () => local.text,
-    resetMs: () => local.resetMs,
-    labels: () => local.labels,
-    writeText: (text) => (local.writeText ?? writeClipboardText)(text),
-    onCopied: () => local.onCopied?.(),
-    onFailed: () => local.onFailed?.(),
-  })
+  const shared = untrack(() => local.clipboard)
+  const clipboard =
+    shared ??
+    createClipboardCopy({
+      text: () => local.text ?? '',
+      resetMs: () => local.resetMs,
+      labels: () => local.labels,
+      writeText: (text) => (local.writeText ?? writeClipboardText)(text),
+      onCopied: () => local.onCopied?.(),
+      onFailed: () => local.onFailed?.(),
+    })
+  let button: HTMLButtonElement | undefined
+  const engagedBy = createEventSignal(() => button ?? [], ['pointerenter', 'focus', 'pointerdown'])
+  const engaged = () => engagedBy() !== undefined || clipboard.status() !== 'idle'
   const tooltip = () => {
     const tooltips = {...DEFAULT_TOOLTIPS, ...local.tooltips}
     if (clipboard.copied()) return tooltips.copied
@@ -61,24 +68,40 @@ export function ClipboardCopyButton(props: ClipboardCopyButtonProps): JSX.Elemen
         variant={local.variant}
         class={local.class ?? 'size-7'}
         disabled={local.disabled}
+        keepOpenOnClick
         data-copied={clipboard.copied() ? '' : undefined}
         data-copy-failed={clipboard.failed() ? '' : undefined}
+        ref={(element) => (button = element)}
         onClick={clipboard.copy}
       >
-        <Swap.Root swap={clipboard.status() !== 'idle'}>
-          <Swap.Indicator type="on">
-            <Show when={clipboard.failed()} fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}>
-              <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
-            </Show>
-          </Swap.Indicator>
-          <Swap.Indicator type="off">
-            <Copy class={ICON} aria-hidden="true" />
-          </Swap.Indicator>
-        </Swap.Root>
+        <Show
+          when={engaged()}
+          fallback={
+            <Swap.Resting>
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Resting>
+          }
+        >
+          <Swap.Root swap={clipboard.status() !== 'idle'}>
+            <Swap.Indicator type="on">
+              <Show
+                when={clipboard.failed()}
+                fallback={<Check class={`${ICON} text-chat-accent`} aria-hidden="true" />}
+              >
+                <TriangleAlert class={`${ICON} text-chat-danger`} aria-hidden="true" />
+              </Show>
+            </Swap.Indicator>
+            <Swap.Indicator type="off">
+              <Copy class={ICON} aria-hidden="true" />
+            </Swap.Indicator>
+          </Swap.Root>
+        </Show>
       </TooltipIconButton>
-      <span role="status" aria-live="polite" class="sr-only">
-        {clipboard.announcement()}
-      </span>
+      <Show when={shared === undefined}>
+        <span role="status" aria-live="polite" class="sr-only">
+          {clipboard.announcement()}
+        </span>
+      </Show>
     </>
   )
 }

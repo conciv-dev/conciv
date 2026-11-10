@@ -120,7 +120,3 @@
     display: none;
   }
 }
-
-/* @unocss/postcss expands this into the generated utilities (scanned from .tsx per uno.config.ts).
-   Last in source order so a utility wins specificity ties over the hand-written .conciv-* marker rules above. */
-@unocss all;

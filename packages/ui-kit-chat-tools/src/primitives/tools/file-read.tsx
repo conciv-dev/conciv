@@ -53,7 +53,7 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
     return value ? lineRange(value) : undefined
   }
   const contents = () => (props.part.name === 'open' ? '' : fileContents(resultText(props.result)))
-  const status = createMemo(() => toolStatus(props.part, props.result))
+  const status = () => toolStatus(props.part, props.result)
   return (
     <FileReadContext.Provider value={{path, verb, range, contents, status}}>{props.children}</FileReadContext.Provider>
   )

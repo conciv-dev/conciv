@@ -1,6 +1,7 @@
 import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
+import UnoCSS from 'unocss/vite'
 
 const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
 
@@ -12,9 +13,14 @@ const isExternal = (id: string): boolean => {
 }
 
 export default defineConfig({
-  plugins: [solid()],
+  plugins: [UnoCSS(), solid()],
 
-  define: {'define.amd': 'false'},
+  define: {
+    'define.amd': 'false',
+    'process.env.NODE_ENV': '"production"',
+    'process.env': '{}',
+    'process.platform': '""',
+  },
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/mount.ts', import.meta.url)),

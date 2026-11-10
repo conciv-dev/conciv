@@ -2,8 +2,9 @@ import {extname} from 'node:path'
 import {parse} from 'culori'
 import {trim} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
-import type {Design, GateRow, LiveComponent} from '../shared/defs.js'
+import {PageNodeShotSchema, screenshotNodeDef, type PageNodeShot} from '@conciv/extension-page/defs'
+import {z} from 'zod'
+import {DESIGN_TOOLS, type Design, type GateRow, type LiveComponent} from '../shared/defs.js'
 import type {readIds} from '../shared/id-tree.js'
 import {designConfig} from '../shared/tolerances.js'
 import {createRaster} from './raster.js'
@@ -13,61 +14,83 @@ export async function imageRowsOf(input: {
   design: Design
   reads: ReturnType<typeof readIds>
   page: ServerToolPageAccess
+  mirror: {width: number; height: number} | null
 }): Promise<{rows: GateRow[]; ratios: {node: string; ratio: number}[]}> {
-  const {reads, page} = input
-  const found = await Promise.all(
-    nodeLooks(input.design).flatMap((look): Promise<Found>[] => {
-      const element = reads.of(look.node)[0]
-      const named = reads.named(look.node)
-      if (look.asset === null || element === undefined || named.selector === null) return []
-      const row = (text: string): GateRow => ({
-        node: look.node,
-        ...named,
-        kind: IMAGE,
-        name: look.name,
-        text,
-        magnitude: 'paint',
-        token: null,
-      })
-      const expected = `wrong image at [${look.node}]: ${look.asset} expected`
-      if (!references({shown: element.styles.image ?? '', asset: look.asset}))
-        return [Promise.resolve({row: row(`${expected}, ${foundIn(element)}`), ratio: null})]
-      return [
-        captured({page, selector: named.selector, w: look.w, h: look.h, asset: look.asset}).then((ratio) => ({
-          row: ratio === null || ratio > GATE ? row(expected) : null,
-          ratio: ratio === null ? null : {node: look.node, ratio},
-        })),
-      ]
-    }),
-  )
+  const {reads} = input
+  const checked = nodeLooks(input.design).flatMap((look): Checked[] => {
+    const element = reads.of(look.node)[0]
+    const named = reads.named(look.node)
+    if (look.asset === null || element === undefined || named.selector === null) return []
+    const row = (text: string): GateRow => ({
+      node: look.node,
+      ...named,
+      kind: IMAGE,
+      name: look.name,
+      text,
+      magnitude: 'paint',
+      token: null,
+    })
+    const background = look.image && look.fill_kind !== IMAGE
+    const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
+    if (!references({shown: element.styles.image ?? '', asset: look.asset}))
+      return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
+    if (background) return []
+    const shot = {selector: named.selector, width: side(look.w), height: side(look.h), scale: 1, reference: look.asset}
+    return [{row: row(expected), node: look.node, shot}]
+  })
+  const asked = checked.flatMap((entry) => (entry.shot === null ? [] : [entry.shot]))
+  const shots = await shotsOf({page: input.page, mirror: input.mirror, nodes: asked})
+  const found = checked.map((entry) => {
+    if (entry.shot === null) return {row: entry.row, ratio: null}
+    const shot = shots[asked.indexOf(entry.shot)] ?? null
+    const ratio = shot === null ? null : ratioOf(shot)
+    return {
+      row: ratio === null || ratio > GATE ? entry.row : null,
+      ratio: ratio === null ? null : {node: entry.node, ratio},
+    }
+  })
   return {
     rows: found.flatMap((entry) => (entry.row === null ? [] : [entry.row])),
     ratios: found.flatMap((entry) => (entry.ratio === null ? [] : [entry.ratio])),
   }
 }
 
-type Found = {row: GateRow | null; ratio: {node: string; ratio: number} | null}
+type NodeShot = z.input<typeof screenshotNodeDef.inputSchema>
+
+type Checked = {row: GateRow; node: string; shot: NodeShot | null}
 
 const IMAGE = 'image'
 const GATE = designConfig.tolerances.segmentImageShare
+const [, , , , shotsDef] = DESIGN_TOOLS
+const ShotsSchema = shotsDef.outputSchema ?? z.never()
 
-async function captured(input: {
+function side(length: number): number {
+  return Math.max(1, Math.round(length))
+}
+
+async function shotsOf(input: {
   page: ServerToolPageAccess
-  selector: string
-  w: number
-  h: number
-  asset: string
-}): Promise<number | null> {
-  const width = Math.max(1, Math.round(input.w))
-  const height = Math.max(1, Math.round(input.h))
-  const reply = await input.page
-    .call(screenshotNodeDef.name, {selector: input.selector, width, height, scale: 1, reference: input.asset})
-    .catch(() => null)
-  const shot = PageNodeShotSchema.safeParse(reply)
-  if (!shot.success || shot.data.reference === null || shot.data.mask === null) return null
-  const live = createRaster(Buffer.from(shot.data.image, 'base64'))
-  const reference = createRaster(Buffer.from(shot.data.reference, 'base64'))
-  const ink = createRaster(Buffer.from(shot.data.mask, 'base64')).pixels()
+  mirror: {width: number; height: number} | null
+  nodes: NodeShot[]
+}): Promise<(PageNodeShot | null)[]> {
+  const {page, mirror, nodes} = input
+  if (nodes.length === 0) return []
+  if (mirror === null)
+    return Promise.all(
+      nodes.map(async (node) => {
+        const shot = PageNodeShotSchema.safeParse(await page.call(screenshotNodeDef.name, node).catch(() => null))
+        return shot.success ? shot.data : null
+      }),
+    )
+  const taken = ShotsSchema.safeParse(await page.call(shotsDef.name, {...mirror, nodes}).catch(() => null))
+  return taken.success ? taken.data.shots : nodes.map(() => null)
+}
+
+function ratioOf(shot: PageNodeShot): number | null {
+  if (shot.reference === null || shot.mask === null) return null
+  const live = createRaster(Buffer.from(shot.image, 'base64'))
+  const reference = createRaster(Buffer.from(shot.reference, 'base64'))
+  const ink = createRaster(Buffer.from(shot.mask, 'base64')).pixels()
   const {mask} = live.compare({other: reference, comparator: 'pixelmatch'})
   const painted = mask.reduce<{seen: number; wrong: number}>(
     (sums, wrong, index) => {

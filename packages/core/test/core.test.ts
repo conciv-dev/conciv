@@ -381,8 +381,10 @@ describe('chat plane', () => {
           read: async () => ({ok: false, reason: 'missing', detail: 'no live transcript'}),
           close: () => undefined,
         }),
-        list: async () => [],
+        list: async () => ({sessions: [], next: null}),
+        meta: async () => null,
       },
+      resume: {command: ({nativeId}) => ({bin: 'native', args: [nativeId]})},
       capabilities: {
         resume: false,
         permissionGate: 'none',
@@ -426,6 +428,8 @@ describe('chat plane', () => {
     return createChatPlane({
       db,
       stateRoot: options.root,
+      hubAccess: 'session',
+      hubGeneration: () => 0,
       cwd: options.root,
       harnessFor: () => options.harness,
       systemPrompt: options.systemPrompt ?? {},
@@ -533,7 +537,6 @@ describe('chat plane', () => {
       binding: 'server',
       summary: 'Do the unit thing',
       mutating: false,
-      mirrors: false,
       reachable: true,
       inputSchema: {},
       outputSchema: {},
@@ -961,7 +964,7 @@ describe('page bus inflight teardown', () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
     const unsubscribe = bus.subscribe(SESSION, (frame) => frames.push(frame))
-    const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}})
+    const answered = bus.ask(SESSION, {name: 'fixture_click', input: {}, agentId: SESSION})
     await Promise.resolve()
     unsubscribe()
     bus.subscribe(SESSION, () => {})
@@ -972,7 +975,7 @@ describe('page bus inflight teardown', () => {
 
 describe('page bus ping before a long ask', () => {
   const SESSION = SessionId.parse('conciv_ping')
-  const LONG = {name: 'fixture_measure', input: {timeout: 6000}}
+  const LONG = {name: 'fixture_measure', input: {timeout: 6000}, agentId: SESSION}
 
   function framed(frame: unknown): {requestId: string; name: string} | null {
     if (typeof frame !== 'object' || frame === null) return null
@@ -1060,6 +1063,7 @@ describe('runtime ambient session', () => {
       storeCapture: () => Promise.resolve(),
       bundler: () => undefined,
       openInEditor: () => {},
+      listTabs: async () => ({tabs: [], unreachable: []}),
     })
     primitives.registry.register(clicker, {owner: 'a fixture'})
     const runtime = makeCoreRuntime({
@@ -1095,7 +1099,11 @@ describe('runtime ambient session', () => {
       const {runtime, primitives} = await madeRuntime()
       const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
       const result = await runWithSession(runtime.forSession(SESSION_A), () =>
-        primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+        primitives.registry.call(
+          'fixture_click',
+          {ref: 'r1'},
+          {request: {sessionId: SESSION_B, agentId: SESSION_B, model: null}},
+        ),
       )
       expect(result).toEqual({clicked: 'a'})
       unsubscribe()
@@ -1105,7 +1113,11 @@ describe('runtime ambient session', () => {
       const {runtime, primitives} = await madeRuntime()
       const unsubscribe = widgetOn(primitives, SESSION_A, {clicked: 'a'})
       await runWithSession(runtime.forSession(SESSION_A), () =>
-        primitives.registry.call('fixture_click', {ref: 'r1'}, {request: {sessionId: SESSION_B, model: null}}),
+        primitives.registry.call(
+          'fixture_click',
+          {ref: 'r1'},
+          {request: {sessionId: SESSION_B, agentId: SESSION_B, model: null}},
+        ),
       )
       unsubscribe()
       expect(await runtime.forSession(SESSION_A).page.changes()).toHaveLength(1)

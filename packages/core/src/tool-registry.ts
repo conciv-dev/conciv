@@ -3,7 +3,8 @@ import {isPageFailure} from '@conciv/protocol/page-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {pageVerbError, toolError, type PageAskRequest, type ToolRequest} from '@conciv/extension'
 import {createToolRegistry, type ForwardedPageTool, type ToolRegistry} from '@conciv/extension/registry'
-import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS} from '@conciv/tools/builtins'
+import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOLS, BUILTIN_TABS_TOOL} from '@conciv/tools/builtins'
+import type {TabsListing} from '@conciv/protocol/chat-types'
 import type {PageAnswer, PageEnv} from './page-bus.js'
 import {session} from './runtime/session-context.js'
 import {logError} from './lib/debug.js'
@@ -12,6 +13,7 @@ export type BuiltinRegistryDeps = {
   page: PageEnv
   bundler: () => BundlerBridge | undefined
   openInEditor: (file: string, line?: number) => void
+  listTabs: () => Promise<TabsListing>
 }
 
 export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
@@ -23,6 +25,7 @@ export function makeBuiltinRegistry(deps: BuiltinRegistryDeps): ToolRegistry {
     registry.register(tool, {owner: 'a built-in server tool', context: {bundler: deps.bundler}})
   }
   registry.register(BUILTIN_OPEN_TOOL, {owner: 'a built-in editor tool', context: {openInEditor: deps.openInEditor}})
+  registry.register(BUILTIN_TABS_TOOL, {owner: 'a built-in tabs tool', context: {listTabs: deps.listTabs}})
   return registry
 }
 
@@ -53,7 +56,7 @@ async function runClientTool(
   const record = PageToolInputSchema.parse(input ?? {})
   const sessionId = session().id
   try {
-    const answer = await env.bus.ask(sessionId, {name: tool.name, input: record})
+    const answer = await env.bus.ask(sessionId, {name: tool.name, input: record, agentId: request.agentId})
     await storeCapture(env, request, answer)
     const data = answer.result
     if (tool.mutating) {
@@ -73,7 +76,12 @@ async function runClientTool(
 export async function askPage(input: PageAskRequest & {page: PageEnv}): Promise<unknown> {
   const {page, sessionId, name, input: query, timeout} = input
   try {
-    const answer = await page.bus.ask(sessionId, {name, input: query, ...(timeout === undefined ? {} : {timeout})})
+    const answer = await page.bus.ask(sessionId, {
+      name,
+      input: query,
+      agentId: sessionId,
+      ...(timeout === undefined ? {} : {timeout}),
+    })
     return answer.result
   } catch (error) {
     throw attributedTo(name, toolFailureFromPage(name, name, error))

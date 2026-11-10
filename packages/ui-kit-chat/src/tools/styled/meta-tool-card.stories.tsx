@@ -23,7 +23,6 @@ const textMeta: ToolViewMeta = {
   label: {running: 'Reading the text', done: 'Read the text'},
   positional: 'selector',
   mutating: false,
-  mirrors: false,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, trim: {type: 'boolean'}},
@@ -39,7 +38,6 @@ const fillMeta: ToolViewMeta = {
   label: {running: 'Filling the field', done: 'Filled the field'},
   positional: 'selector',
   mutating: true,
-  mirrors: false,
   inputSchema: {
     type: 'object',
     properties: {selector: {type: 'string'}, value: {type: 'string'}},
@@ -49,18 +47,6 @@ const fillMeta: ToolViewMeta = {
   errors: [{code: 'NO_MATCH', message: 'nothing on the page matches that selector'}],
 }
 
-const highlightMeta: ToolViewMeta = {
-  summary: 'paint a highlight over an element',
-  category: 'edit-live',
-  icon: 'edit',
-  label: {running: 'Highlighting the element', done: 'Highlighted the element'},
-  positional: 'selector',
-  mutating: true,
-  mirrors: true,
-  inputSchema: {type: 'object', properties: {selector: {type: 'string'}}, required: ['selector']},
-  outputSchema: {type: 'object', properties: {ok: {type: 'boolean'}}},
-}
-
 const diagnosticsMeta: ToolViewMeta = {
   summary: 'run environment diagnostics and report the results',
   category: 'read',
@@ -68,7 +54,6 @@ const diagnosticsMeta: ToolViewMeta = {
   label: {running: 'Running diagnostics', done: 'Ran diagnostics'},
   positional: 'target',
   mutating: false,
-  mirrors: false,
   inputSchema: {type: 'object', properties: {target: {type: 'string'}}, required: ['target']},
   outputSchema: {type: 'array', items: {type: 'object'}},
 }
@@ -129,23 +114,6 @@ export const MutatingTool: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Filled the field #email')).toBeVisible()
     await expect(canvas.getByText('page edit')).toBeVisible()
-  },
-}
-
-export const MirroringTool: Story = {
-  render: () =>
-    frame(
-      <MetaToolCard
-        part={part('page_highlight', {selector: '.cta'})}
-        result={result('{"ok":true}')}
-        ctx={ctxFor({page_highlight: highlightMeta})}
-        addResult={INERT_ADD_RESULT}
-      />,
-    ),
-  play: async ({canvasElement}) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button'))
-    await waitFor(() => expect(canvas.getByText('shown on your page')).toBeVisible())
   },
 }
 

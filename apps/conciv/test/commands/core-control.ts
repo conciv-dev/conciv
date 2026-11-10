@@ -1,12 +1,20 @@
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import type {BrowserCommand, BrowserCommandContext} from 'vitest/node'
-import {makeRpcClient, type EngineStaleness} from '@conciv/contract'
-import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import type {EngineStaleness} from '@conciv/contract'
+import {
+  CHAT_SSE_PATH,
+  CONCIV_CLIENT_HEADER,
+  CONCIV_ORIGIN_HEADER,
+  CONCIV_SESSION_HEADER,
+} from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
-import type {HarnessCommand, HarnessModel, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import {concivHome, recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
+import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
-import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
+import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
@@ -16,9 +24,9 @@ export type BootCoreInput = {
   text?: string
   resume?: boolean
   displayName?: string
-  connect?: boolean
-  terminal?: boolean
-  history?: HarnessSessionMeta[]
+  resumeBin?: string
+  history?: FixtureSession[]
+  holdTranscripts?: boolean
   commands?: HarnessCommand[]
   models?: HarnessModel[]
   alternates?: AlternateHarness[]
@@ -41,6 +49,7 @@ export type FaultSpec =
   | {kind: 'offline'}
   | {kind: 'detached-sockets'}
   | {kind: 'chat-gate'}
+  | {kind: 'cut-on-release'; path: string[]}
   | {kind: 'pre-version-engine'}
 
 type Fault = {
@@ -53,14 +62,14 @@ type Fault = {
 
 type CoreTestkit = typeof import('./core-testkit.js')
 
-type TerminalState = {launches: number; succeeds: boolean}
+type HubCliState = {root: string; saved: {PATH: string; HOME: string; CONCIV_HOME: string}} | null
 
 type FileState = {
   kit: CoreKit | null
   staleness: {value: EngineStaleness}
   faults: Map<string, Fault>
   handles: {count: number}
-  terminal: TerminalState
+  hubCli: {current: HubCliState}
   push: PushWireWatch | null
 }
 
@@ -90,7 +99,7 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     staleness: {value: FRESH},
     faults: new Map(),
     handles: {count: 0},
-    terminal: {launches: 0, succeeds: true},
+    hubCli: {current: null},
     push: null,
   }
   files.set(key, created)
@@ -119,11 +128,7 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = stateOf(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const openedTerminal = (): Promise<boolean> => {
-    state.terminal.launches += 1
-    return Promise.resolve(state.terminal.succeeds)
-  }
-  const {bootCoreKit, createTerminalExtension, watchPushWire} = await testkitOf(ctx)
+  const {bootCoreKit, watchPushWire} = await testkitOf(ctx)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -135,22 +140,16 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
     alternates: input.alternates,
     allowedOrigins: input.allowedOrigins,
     staleness: () => state.staleness.value,
-    ...(input.terminal ? {extensions: [createTerminalExtension({openTerminal: openedTerminal})]} : {}),
-    ...(input.connect
-      ? {
-          connect: {
-            plan: (context) => ({
-              argv: ['claude', '--resume', context.harnessSessionId ?? 'new'],
-              env: {},
-              files: [],
-            }),
-          },
-        }
-      : {}),
+    resumeBin: input.resumeBin,
   })
+  holdTranscriptsWhen(kit, input.holdTranscripts)
   state.kit = kit
   state.push = watchPushWire(ctx.page)
   return {base: kit.base, wsBase: kit.wsBase, origin: kit.origin, bootMs: Date.now() - startedAt}
+}
+
+function holdTranscriptsWhen(kit: CoreKit, held: boolean | undefined): void {
+  if (held) kit.harness.transcripts.hold()
 }
 
 const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
@@ -158,13 +157,13 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   for (const fault of state.faults.values()) await fault.dispose()
   state.faults.clear()
   state.staleness.value = FRESH
-  state.terminal.launches = 0
-  state.terminal.succeeds = true
+  restoreHubCli(state)
   state.push = null
   const kit = state.kit
   state.kit = null
   if (!kit) return
   kit.harness.script.release()
+  kit.harness.transcripts.release()
   await kit.cleanup()
 }
 
@@ -191,12 +190,29 @@ const requestCode: BrowserCommand<[]> = async (ctx): Promise<string> => {
 const revokeBrowsers: BrowserCommand<[]> = (ctx): number =>
   revokeTrustedBrowsers(concivStateDir(kitOf(ctx).stateRoot), 'all').length
 
-const outsideReload: BrowserCommand<[string, string]> = (ctx, sessionId, file): Promise<string> => {
-  const rpc = makeRpcClient(kitOf(ctx).base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-  return rpc.server.reload({file}).then(
-    () => 'resolved',
-    (error: unknown) => (typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'error'),
+const setHubConnection: BrowserCommand<[string, boolean]> = (_ctx, harness, connected): void => {
+  withHomeDb(concivHome({env: process.env}), (db) =>
+    connected ? recordHubConnection(db, harness, Date.now()) : removeHubConnection(db, harness),
   )
+}
+
+const hubExecute: BrowserCommand<[string, string, string?]> = async (
+  ctx,
+  sessionId,
+  typescriptCode,
+  origin = 'hub',
+): Promise<string> => {
+  const headers = {[CONCIV_SESSION_HEADER]: sessionId, [CONCIV_ORIGIN_HEADER]: origin, [CONCIV_CLIENT_HEADER]: 'codex'}
+  withHomeDb(concivHome({env: process.env}), (db) => recordHubConnection(db, 'codex', Date.now()))
+  const {connectMcpClient} = await testkitOf(ctx)
+  const client = await connectMcpClient(`${kitOf(ctx).base}/api/mcp`, headers)
+  try {
+    const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+    if (execute === undefined) throw new Error('the engine served no execute_typescript tool')
+    return JSON.stringify(await execute.execute({typescriptCode}).catch((error: unknown) => String(error)))
+  } finally {
+    await client.close()
+  }
 }
 
 const setStaleness: BrowserCommand<[EngineStaleness]> = (ctx, value): void => {
@@ -209,6 +225,10 @@ const holdTurn: BrowserCommand<[]> = (ctx): void => {
 
 const releaseTurn: BrowserCommand<[]> = (ctx): void => {
   kitOf(ctx).harness.script.release()
+}
+
+const releaseTranscripts: BrowserCommand<[]> = (ctx): void => {
+  kitOf(ctx).harness.transcripts.release()
 }
 
 const holdTools: BrowserCommand<[]> = (ctx): void => {
@@ -241,11 +261,52 @@ const scriptCustomEvent: BrowserCommand<[string, unknown]> = (ctx, name, value):
   kitOf(ctx).harness.script.scriptCustomEvent(name, value)
 }
 
-const setTerminalLaunch: BrowserCommand<[boolean]> = (ctx, succeeds): void => {
-  stateOf(ctx).terminal.succeeds = succeeds
+type HubCliHold = 'fail' | 'hold' | 'hold-remove'
+
+const HUB_CLI_MARKERS: Record<HubCliHold, string> = {fail: 'fail', hold: 'gate', 'hold-remove': 'gate-remove'}
+
+const fakeHubCli: BrowserCommand<['ok' | HubCliHold | null]> = (ctx, outcome): void => {
+  const state = stateOf(ctx)
+  if (outcome === null) return restoreHubCli(state)
+  const root = hubCliRoot(state)
+  for (const marker of Object.values(HUB_CLI_MARKERS)) rmSync(join(root, marker), {force: true})
+  if (outcome !== 'ok') writeFileSync(join(root, HUB_CLI_MARKERS[outcome]), '')
+  Object.assign(process.env, {PATH: join(root, 'bin'), HOME: join(root, 'home'), CONCIV_HOME: join(root, 'conciv')})
 }
 
-const terminalLaunches: BrowserCommand<[]> = (ctx): number => stateOf(ctx).terminal.launches
+function hubCliRoot(state: FileState): string {
+  const current = state.hubCli.current ?? freshHubCli()
+  state.hubCli.current = current
+  mkdirSync(join(current.root, 'bin'), {recursive: true})
+  mkdirSync(join(current.root, 'home'), {recursive: true})
+  if (existsSync(join(current.root, 'bin', 'claude'))) return current.root
+  const lines = [
+    '#!/bin/sh',
+    `while [ -f '${join(current.root, 'gate')}' ]; do /bin/sleep 0.05; done`,
+    `case "$*" in *remove*) while [ -f '${join(current.root, 'gate-remove')}' ]; do /bin/sleep 0.05; done ;; esac`,
+    `if [ -f '${join(current.root, 'fail')}' ]; then echo "\${0##*/}: could not add conciv-hub" >&2; exit 2; fi`,
+    'exit 0',
+  ]
+  for (const agent of ['claude', 'opencode']) {
+    writeFileSync(join(current.root, 'bin', agent), `${lines.join('\n')}\n`, {mode: 0o755})
+  }
+  return current.root
+}
+
+function freshHubCli(): NonNullable<HubCliState> {
+  return {
+    root: mkdtempSync(join(tmpdir(), 'conciv-hub-cli-')),
+    saved: {PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', CONCIV_HOME: process.env.CONCIV_HOME ?? ''},
+  }
+}
+
+function restoreHubCli(state: FileState): void {
+  const current = state.hubCli.current
+  if (current === null) return
+  state.hubCli.current = null
+  Object.assign(process.env, current.saved)
+  rmSync(current.root, {recursive: true, force: true})
+}
 
 const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => kitOf(ctx).rpcServed(path)
 
@@ -317,13 +378,16 @@ async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector
 
 type Route = Parameters<Parameters<BrowserCommandContext['page']['route']>[1]>[0]
 
-async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+async function holdPosts(
+  ctx: BrowserCommandContext,
+  matcher: (url: URL) => boolean,
+  settle: (route: Route) => Promise<void>,
+): Promise<Fault> {
   const held: {open: boolean; routes: Route[]; waiters: {count: number; deliver: () => void}[]} = {
     open: false,
     routes: [],
     waiters: [],
   }
-  const matcher = (url: URL): boolean => url.pathname.endsWith(CHAT_SSE_PATH)
   const handler = async (route: Route): Promise<void> => {
     if (held.open || route.request().method() !== 'POST') return route.continue()
     held.routes.push(route)
@@ -332,7 +396,7 @@ async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   await ctx.page.route(matcher, handler)
   const open = async (): Promise<void> => {
     held.open = true
-    await Promise.all(held.routes.splice(0).map((route) => route.continue().catch(() => {})))
+    await Promise.all(held.routes.splice(0).map((route) => settle(route).catch(ignoreHandledRoute)))
   }
   return {
     pending: () => held.routes.length,
@@ -340,14 +404,35 @@ async function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
       held.routes.length >= count
         ? Promise.resolve()
         : new Promise((resolve) => held.waiters.push({count, deliver: resolve})),
-    answered: () =>
-      Promise.reject(new Error('a chat-gate fault streams its answer, so it has no single call to await')),
+    answered: () => Promise.reject(new Error('a held request fault has no single call to await')),
     release: open,
     dispose: async () => {
       await open()
       await ctx.page.unroute(matcher, handler)
     },
   }
+}
+
+function ignoreHandledRoute(error: unknown): void {
+  if (error instanceof Error && error.message.includes('Route is already handled')) return
+  throw error
+}
+
+function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
+  return holdPosts(
+    ctx,
+    (url) => url.pathname.endsWith(CHAT_SSE_PATH),
+    (route) => route.continue(),
+  )
+}
+
+function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
+  const httpPath = `/rpc/${path.join('/')}`
+  return holdPosts(
+    ctx,
+    (url) => url.pathname.endsWith(httpPath),
+    (route) => route.abort('aborted'),
+  )
 }
 
 function pathOptions(path: string[] | undefined): {path?: string[]} {
@@ -371,6 +456,7 @@ async function createFault(ctx: BrowserCommandContext, handle: string, spec: Fau
   const testkit = await testkitOf(ctx)
   if (spec.kind === 'gate') return testkit.gateRpcCalls(ctx.page, pathOptions(spec.path))
   if (spec.kind === 'chat-gate') return gateChatTurns(ctx)
+  if (spec.kind === 'cut-on-release') return cutOnRelease(ctx, spec.path)
   if (spec.kind === 'detached-sockets') return trackedFault(handle, spec.kind, await detachEngineSockets(ctx))
   if (spec.kind === 'offline') return trackedFault(handle, spec.kind, await takeEngineOffline(ctx))
   if (spec.kind === 'pre-version-engine') return trackedFault(handle, spec.kind, await preVersionEngine(ctx))
@@ -462,7 +548,7 @@ export const coreCommands = {
   printedCode,
   requestCode,
   revokeBrowsers,
-  outsideReload,
+  hubExecute,
   setStaleness,
   holdTurn,
   holdTools,
@@ -470,12 +556,13 @@ export const coreCommands = {
   holdResults,
   releaseResults,
   releaseTurn,
+  releaseTranscripts,
   scriptTurn,
   scriptError,
   clearScript,
   scriptCustomEvent,
-  setTerminalLaunch,
-  terminalLaunches,
+  fakeHubCli,
+  setHubConnection,
   rpcCallCount,
   installFault,
   releaseFault,

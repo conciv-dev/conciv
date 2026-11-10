@@ -352,17 +352,13 @@ export async function openPanel(page: Page): Promise<void> {
 }
 
 export async function switchToSessionByTitle(page: Page, title: string): Promise<void> {
-  const sessionOptions = page.getByRole('button', {name: 'Session options'})
-  await sessionOptions.click()
+  await page.getByRole('button', {name: 'Session options'}).click()
   await page.getByRole('button', {name: /^Session: /}).click()
   const option = page.getByRole('option', {name: new RegExp(escapeRegex(title))})
   await expect(option).toBeVisible({timeout: 30_000})
   await option.click()
-  const pill = page.getByRole('button', {name: `Session: ${title}`})
-  if (!(await pill.isVisible())) await sessionOptions.click()
-  await expect(pill).toBeVisible({timeout: 30_000})
-  await page.keyboard.press('Escape')
-  await expect(pill).toBeHidden({timeout: 30_000})
+  await expect(page.getByRole('button', {name: `${title}, session options`})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden()
 }
 
 export async function openPanelOnNewSession(page: Page, suite: WidgetSuite): Promise<string> {

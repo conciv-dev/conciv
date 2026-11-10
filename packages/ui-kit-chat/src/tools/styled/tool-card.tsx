@@ -4,12 +4,11 @@ import {TruncatedText} from '@conciv/ui-kit-system'
 import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
 import {toolStatus, type ToolStatus} from '../primitives/tool-status.js'
 import {formatDuration} from '../primitives/tool-util.js'
-import {useToolCallDuration} from '../primitives/tool-duration.js'
 import {StatusVisual} from '../primitives/status-visual.js'
 import {createSettleFold} from '../../primitives/util/create-settle-fold.js'
 import {CardHeadline, CARD_HEADLINE_TEXT} from './card-headline.js'
 import {CollapsibleCard, type CardVariant} from './collapsible-card.js'
-import {publishCardHeader, useEmbeddedCard, useEmbeddedRowLine} from './card-chrome.js'
+import {publishCardHeader, useEmbeddedCard, useEmbeddedRowLine, useToolCallDuration} from './card-chrome.js'
 import type {EmbeddedCardHeader} from '../primitives/tool-row.js'
 
 const TITLE = `text-chat-text flex-1 min-w-0 truncate ${CARD_HEADLINE_TEXT}`
@@ -152,23 +151,27 @@ export function ToolCard(props: {
   }
   const embeddedBody = (): JSX.Element => (
     <>
-      <Show when={bodySubtitle()}>{(subtitle) => <TruncatedText class={EMBEDDED_SUBTITLE} text={subtitle()} />}</Show>
+      {bodySubtitle() ? <TruncatedText class={EMBEDDED_SUBTITLE} text={bodySubtitle() ?? ''} /> : undefined}
       {props.children}
     </>
   )
   return (
-    <Show when={!embedded()} fallback={embeddedBody()}>
-      <CollapsibleCard
-        open={collapse.open()}
-        onOpenChange={collapse.setOpen}
-        tooltip={props.titleTooltip}
-        flush={props.flushHeader}
-        variant={props.variant}
-        class={props.class}
-        header={props.header ?? defaultHeader()}
-      >
-        {props.children}
-      </CollapsibleCard>
-    </Show>
+    <>
+      {embedded() ? (
+        embeddedBody()
+      ) : (
+        <CollapsibleCard
+          open={collapse.open()}
+          onOpenChange={collapse.setOpen}
+          tooltip={props.titleTooltip}
+          flush={props.flushHeader}
+          variant={props.variant}
+          class={props.class}
+          header={props.header ?? defaultHeader()}
+        >
+          {props.children}
+        </CollapsibleCard>
+      )}
+    </>
   )
 }

@@ -4,6 +4,7 @@ import solid from 'vite-plugin-solid'
 
 export default defineConfig({
   plugins: [solid()],
+  define: {'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined'},
   build: {
     lib: {
       entry: {

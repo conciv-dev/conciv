@@ -1,0 +1,1 @@
+ALTER TABLE `hub_operations` ADD `child_pid` integer;

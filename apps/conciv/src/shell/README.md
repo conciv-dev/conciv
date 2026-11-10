@@ -6,7 +6,7 @@ App shell pieces: launcher FAB, notices and toasts, engine stale and unreachable
 
 ## Interface
 
-- `ShellFab`, `FabRobot` (`fab.tsx`, `fab-robot.tsx`): launcher button controlling `#conciv-chat-panel`
+- `ShellFab`, `FabRobot` (`fab.tsx`, `fab-robot.tsx`): launcher button controlling `#conciv-chat-panel`; the robot's binary digits avoid the open panel's frame (`avoid`), going around its nearer free side
 - `createNoticeStore()`, `NoticeStore`, `Notify`, `NoticeTone` (`notices.tsx`): toaster with `notify`, `remove`, `Toaster`
 - `NoticeContextProvider`, `useNotices`, `NoticeSurface`, `useEngineNotices` (`notice-context.tsx`)
 - `EngineStaleNotice`, `EngineUnreachableNotice` (`engine-notice.tsx`): standing danger notices driven by `meta.engine` and reachability

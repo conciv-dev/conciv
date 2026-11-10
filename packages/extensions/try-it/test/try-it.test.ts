@@ -46,8 +46,8 @@ describe('probe', () => {
   const servers: Array<() => void> = []
   afterAll(() => servers.forEach((close) => close()))
 
-  function serveHealth(port: number, token: string): Promise<void> {
-    return new Promise((resolve) => {
+  function serveHealth(token: string): Promise<number> {
+    return new Promise((resolve, reject) => {
       const server = createServer((request, response) => {
         if (request.url === `/t/${token}/health`) {
           response.writeHead(200)
@@ -58,17 +58,27 @@ describe('probe', () => {
         response.end()
       })
       servers.push(() => server.close())
-      server.listen(port, '127.0.0.1', () => resolve())
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        if (address === null || typeof address === 'string') {
+          reject(new Error('server has no port'))
+          return
+        }
+        resolve(address.port)
+      })
     })
   }
 
   describe('probeCore', () => {
     it('finds a token-gated core on any candidate port', async () => {
-      await serveHealth(45911, 'tok-p')
-      expect(await probeCore('tok-p', [45910, 45911])).toBe('http://127.0.0.1:45911/t/tok-p')
+      const otherPort = await serveHealth('tok-other')
+      const tokPort = await serveHealth('tok-p')
+      expect(await probeCore('tok-p', [otherPort, tokPort])).toBe(`http://127.0.0.1:${tokPort}/t/tok-p`)
     })
     it('resolves null when nothing answers', async () => {
-      expect(await probeCore('tok-none', [45907])).toBe(null)
+      const otherPort = await serveHealth('tok-other')
+      expect(await probeCore('tok-none', [otherPort])).toBe(null)
     })
   })
 })

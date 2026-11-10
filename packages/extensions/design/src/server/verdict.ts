@@ -22,6 +22,7 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
     coverage: last.coverage,
     progress: last.progress,
   }
+  if (last.broken !== null) return {verdict: 'broken', reasons: [last.broken, BROKEN_RULE], ...shown}
   if (last.unsettled !== null) {
     const {rendered, nodes} = last.coverage
     const told = `the page renders ${rendered} of ${nodes} nodes; the missing ones are listed in coverage.missing`
@@ -30,13 +31,17 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
   const reasons = reasonsOf({round: last, required: requiredOf(input.design.root)})
   if (reasons.length === 0) return {verdict: 'done', reasons, ...shown}
   return {
-    verdict: stalled(rounds.filter((round) => round.unsettled === null)) ? 'stalled' : 'not yet',
+    verdict: stalled(rounds.filter((round) => round.unsettled === null && round.broken === null))
+      ? 'stalled'
+      : 'not yet',
     reasons,
     ...shown,
   }
 }
 
 const STALL_ROUNDS = 2
+
+const BROKEN_RULE = 'fix the compile error first; nothing else was measured'
 
 function requiredOf(root: DesignNode): Set<string> {
   return new Set(

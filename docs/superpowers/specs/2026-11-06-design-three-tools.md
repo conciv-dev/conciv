@@ -485,6 +485,56 @@ does not; and a conciv id must answer with its FOM, expected fill and font inclu
   device scale, clipped per node. The engine lets an extension answer a page verb from the server before the browser is
   asked. Design calls the verbs and never learns who answered; the round stores the capture path that ran.
 
+### A design is a set of frames, one per width (2026-11-08)
+
+Real design files carry a page three times: desktop, laptop, mobile. Today a session holds one frame and the rows at
+every other width are inferred from that frame's layout tags. Omri: use the variants when the file has them.
+
+- `design_get` takes one link or several. Each frame becomes its own row in `targets`, in one session, with the width
+  the frame has. A single link keeps today's behaviour exactly.
+- At a variant's width, the page is measured against that variant's nodes: layout rows, paint rows, image rows, assets.
+  `design_nodes` holds every variant's nodes, keyed by target. A conciv id pairs per variant; the Figma node ids differ
+  across frames, the id in the page does not, so `getFOM(id)` answers per target.
+- Between two variant widths the reflow rows stay inferred, from the nearest variant above the measured width.
+- `design_status` shows the verdict per variant; `done` is every variant done. `design_check` reports rows grouped by
+  variant.
+- Assets are exported once per Figma node id; a picture shared by three frames is three node ids and three files.
+- The head names all the links. Six runs an arm against six controls on the agency Process page, sonnet.
+
+### A frame with children keeps its image fill; a page may name an element `process` (2026-11-09)
+
+Wave 18 (agency page, three frames) is the first where the tools lose to control on the judge and the pixel share
+while winning on rows: every tool run paints the hero and the call-to-action as flat olive bands, control keeps the
+dark photo behind them. The cause is in the design reader: a frame with children and an image fill becomes a plain
+box, its image fills dropped, and `design_nodes` keeps only the solid overlay fill. The gate then calls flat bands done.
+Two runs also could not be measured at all: the page set `id="process"` on a section, `window.process` became that
+element, and a widget dependency that reads `process.env` threw, so the widget was gone from round 4 on.
+
+- A node with an image fill keeps it whether or not it has children. For a leaf the node is an image as today. For a
+  frame with children the node stays a box, `image` is true, and `asset` is the fill's own picture exported by its
+  `imageRef` through the file images endpoint, not a crop of the frame (a crop would carry the children). The row
+  reads `wrong image at [id]: /design/<id>.png expected as the background` when the element's `background-image`
+  does not reference the asset; its pixels are not compared, the children would drown them. The solid fill with a
+  blend mode over the picture is a fill row as today.
+- The widget never reads a global named `process`. Its build defines `process.env` away, so a page that names an
+  element `process` cannot break it; the same build rule applies on main.
+- A one-element list to `design_get` is one frame, exactly as a single link: no group, no `lead`, today's reply.
+- Image rows for a frame whose width is not the tab's are taken from the mirror at that frame's width, as layout rows
+  are; the live tab answers only its own width.
+- The width floor that drops reflow widths under the smallest `minChildWidth` never drops a frame's own width.
+
+A background asset is the fill stack flattened (2026-11-09). A node whose fills hold an image is given one asset:
+its fill layers composited bottom to top in design order, each with its own opacity, blend mode, scale mode and
+filters, at twice the node's box in pixels, never the original's size. Solid and gradient layers inside the stack
+are part of the asset; a solid layer below the stack stays a `fill` the agent writes as CSS. The agent is told the
+asset is complete: it sets it as the background and adds no filter, overlay or tint of its own. The look row for such
+a node compares the node's pixels against the asset as before.
+
+A page that does not compile is the verdict `broken` (2026-11-10). When the dev server reports a transform error for
+the page under check, `design_check` answers `verdict: broken` with the error's first line, file and position, no
+rows, and the rule 'fix the compile error first; nothing else was measured'. The round is stored with that verdict so
+the x-ray shows it.
+
 ### The widget is not hidden by decree; a target says whether it is measured (2026-11-09)
 
 Every measurement hides the widget and the overlay: the walk skips them, the keys query skips them, the live and mirror

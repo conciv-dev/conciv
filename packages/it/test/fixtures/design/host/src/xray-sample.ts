@@ -163,6 +163,7 @@ function roundOf(input: {round: number; rows: Row[]; nodes: number; at: number})
     tree: '',
     verdict: 'not yet',
     unsettled: null,
+    broken: null,
   }
 }
 

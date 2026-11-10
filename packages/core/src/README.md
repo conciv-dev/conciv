@@ -9,14 +9,14 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
-- Routes (`app.ts`): `GET /health`, `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
+- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`)
+- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); `PageBus.openSessions()` lists `{sessionId, subscribers}` for every session with at least one subscriber
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
-  - api: [./api/README.md](./api/README.md) - MCP, push and native-page routes
+  - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes
   - cards: [./cards/README.md](./cards/README.md) - execute_typescript tool card
   - editor: [./editor/README.md](./editor/README.md) - open source locations
   - lib: [./lib/README.md](./lib/README.md) - CORS, dev endpoint, staleness, state paths
@@ -46,6 +46,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 
 - `start` (`start.ts`): writes the system prompt file, the persisted-port file and the MCP connect endpoint file; binds 127.0.0.1
 - `start` (`start.ts`): with nativePageDir writes the dev-endpoint file; `stop` removes it
+- `start` (`start.ts`): registers `{id, pid, root, apiBase}` in the home db (`homeDir`, else `CONCIV_HOME`, else the platform folder) after the port is known, checks the other rows once in the background, and `stop` retires the row; every home db failure is logged and never stops the engine
 - `stop` (`start.ts`): closes the listener first, then disposes the app; `dispose` (`app.ts`) ends every live run, runs the extension disposers, then closes the database; each step runs even when an earlier one fails and the failures are rethrown as one `AggregateError` (`lib/shutdown.ts:runInOrder`)
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes
 - `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes

@@ -39,6 +39,7 @@ import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-a
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
 import {fileURLToPath} from 'node:url'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
@@ -106,6 +107,22 @@ test.describe('embed boot', () => {
       const second = await reopenPage(await context.newPage())
       await expect(second.getByRole('button', {name: 'Open conciv chat'})).toBeVisible({timeout: 30_000})
       expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
+    })
+
+    test('picking any session in the session menu closes the menu on that session', async ({page}) => {
+      test.setTimeout(120_000)
+      const other = await kit.rpc.sessions.create()
+      await kit.rpc.sessions.rename({sessionId: other.sessionId, title: 'the other session'})
+      await kit.rpc.sessions.create()
+      await openPage(page)
+      await openPanel(page)
+      await switchToSessionByTitle(page, 'the other session')
+      await until(async () => (await currentHref(kit)).includes(other.sessionId), {
+        hangGuardMs: 30_000,
+        intervalMs: 100,
+      })
+      expect(await currentHref(kit)).not.toContain('/options')
+      await switchToSessionByTitle(page, 'the other session')
     })
 
     test('sends a message and renders the assistant reply from the fake harness', async ({page}) => {
@@ -530,8 +547,12 @@ test.describe('element capture', () => {
       page,
     }) => {
       test.setTimeout(180_000)
+      const fresh = await kit.rpc.sessions.create()
+      const title = `code mode turn ${fresh.sessionId.slice(-12)}`
+      await kit.rpc.sessions.rename({sessionId: fresh.sessionId, title})
       await openHostPage(page)
       await openPanel(page)
+      await switchToSessionByTitle(page, title)
       kit.harness.script.scriptToolCall('execute_typescript', {
         typescriptCode: "await external_page_settext({selector: '#prose', text: 'rendered through the pipeline'})",
       })
@@ -966,7 +987,7 @@ test.describe('page dispatch parity', () => {
     )
     const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes.map((entry) => entry.verb)).toContain('page_click')
-    await expect(page.locator('[data-conciv-cursor]')).toHaveCount(1, {timeout: 10_000})
+    await expect(page.getByRole('img', {name: "Agent's cursor"})).toHaveCount(1, {timeout: 10_000})
   }
 
   test.describe('bootNormal: the widget embed serves page tools through the dispatcher', () => {
@@ -987,7 +1008,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
   })
@@ -1017,7 +1038,7 @@ test.describe('page dispatch parity', () => {
       await kit.cleanup()
     })
 
-    test('act: page_click acts on the page, journals, and fires the browser mirror', async () => {
+    test('act: page_click acts on the page, journals, and shows the agent cursor', async () => {
       await expectClickDispatched(kit, page)
     })
 
@@ -1243,6 +1264,8 @@ test.describe('rebind', () => {
       await sendChatMessage(page, USER_TEXT)
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
 
+      const renamed = `renamed before the drift ${String(sessionBefore).slice(-8)}`
+      await kit.rpc.sessions.rename({sessionId: SessionId.parse(sessionBefore), title: renamed})
       const beforeB = proxyB.trafficCount()
       await rebindHandle(page, proxyB.base)
       await proxyA.close()
@@ -1252,6 +1275,9 @@ test.describe('rebind', () => {
       await expect(chatBox(page)).toBeVisible({timeout: 30_000})
 
       await expect(apiBaseProbe).toHaveText(browserBase(proxyB.base), {timeout: 30_000})
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await expect(page.getByRole('button', {name: `Session: ${renamed}`})).toBeVisible({timeout: 30_000})
+      await page.keyboard.press('Escape')
 
       await expect(chatLog(page).getByText(USER_TEXT)).toHaveCount(1, {timeout: 30_000})
       await expect(page.getByText(ASSISTANT_TEXT)).toHaveCount(1, {timeout: 30_000})
@@ -1345,7 +1371,7 @@ test.describe('recording attachment', () => {
       await page.getByRole('button', {name: 'Send message'}).click()
       await expect(page.getByText('Recording received').first()).toBeVisible({timeout: 30_000})
 
-      const sessions = await kit.rpc.sessions.list()
+      const {sessions} = await kit.rpc.sessions.list()
       const chatSession = sessions[0]?.id
       if (!chatSession) throw new Error('widget session not found')
       const persisted = {messages: ''}
@@ -1515,6 +1541,7 @@ test.describe('selection containment', () => {
     await openLoggedIn(page, kit, host.base)
     await openPanel(page)
     await sendMessage(page, 'say something selectable', ASSISTANT_REPLY)
+    await page.getByText(ASSISTANT_REPLY).first().hover()
   }
 
   async function textStart(page: Page, text: string): Promise<Point> {
@@ -1548,7 +1575,7 @@ test.describe('selection containment', () => {
       {
         name: 'up past the top of the panel',
         target: async (page) => ({...(await textStart(page, ASSISTANT_REPLY)), y: 2}),
-        selects: /^\s*CONCIV[\s\S]*say something selectable[\s\S]*The widge$/,
+        selects: /say something selectable[\s\S]*say something selectable[\s\S]*The widge$/,
       },
       {name: 'sideways over host page text', target: (page) => textStart(page, HOST_TEXT), selects: /^The widge$/},
       {
@@ -1650,7 +1677,7 @@ test.describe('virtualize threshold cliff', () => {
     const kit = suite.kit()
     for (let index = 0; index < exchanges; index += 1) {
       const turn = await kit.chat(`question number ${index} about the reconciliation logic`, sessionId)
-      await turn.done({hangGuardMs: 10_000})
+      await turn.done()
     }
   }
 

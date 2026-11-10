@@ -489,7 +489,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const filter = useFilter({sensitivity: 'base'})
   const own = useSessionModels(() => props.sessionId)
   const catalog = useQuery(() => appData.utils.meta.harnesses.queryOptions())
-  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
+  const session = useQuery(() => appData.utils.sessions.get.queryOptions({input: {sessionId: props.sessionId}}))
   const {setModel, setEffort, switchHarness} = useSessionChoices(() => props.sessionId)
 
   const ownEntry = createMemo((): HarnessMenuEntry | undefined =>
@@ -499,7 +499,7 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   )
   const entries = createMemo(() => withOwnEntry(catalog.isSuccess ? catalog.data.harnesses : [], ownEntry()))
   const named = () => entries().length > 1
-  const row = () => (sessions.data ?? []).find((session) => session.id === props.sessionId)
+  const row = () => session.data
   const harness = () => entries().find((entry) => entry.id === ownEntry()?.id)
   const models = () => harness()?.models ?? []
   const value = () =>
