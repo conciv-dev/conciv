@@ -1,8 +1,10 @@
 import {formatHex, parse} from 'culori'
+import {groupBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {Ballot, Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
+import {layoutVote} from './layout-vote.js'
 
 export function createFigmaNodePairer(): Pairer {
   return (request) => Promise.resolve(pairNodes(request))
@@ -18,6 +20,7 @@ type Element = {
   tag: string
   classes: string[]
   cssom: IdNode['cssom'][number] | undefined
+  sole: {box: Box; cssom: IdNode['cssom'][number] | undefined} | undefined
   chain: string[]
   ancestors: Set<string>
 }
@@ -72,16 +75,6 @@ const LEAF_SHAPES = new Set(['RECTANGLE', 'VECTOR', 'ELLIPSE'])
 const IMAGE_TAGS = new Set(['img', 'svg'])
 
 const SVG = 'svg'
-
-const FLEX = 'flex'
-
-const GRID = 'grid'
-
-const ROW = 'row'
-
-const HORIZONTAL = 'HORIZONTAL'
-
-const FLOWS = new Set([HORIZONTAL, 'VERTICAL'])
 
 function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   const elements = elementsOf(input.ids)
@@ -225,7 +218,7 @@ function elementsOf(root: IdNode): Element[] {
     node.dom.map((dom, index) => ({dom, site: node, cssom: node.cssom[index]})),
   )
   const tags = new Map(doms.map(({dom, site}) => [dom.path, site.src.element]))
-  return doms.flatMap(({dom, site, cssom}) => {
+  const elements = doms.flatMap(({dom, site, cssom}): Element[] => {
     const tag = site.src.element
     const chain = prefixes(dom.path).filter((path) => tags.has(path))
     if (SKIPPED_TAGS.has(tag) || chain.some((path) => tags.get(path) === SVG)) return []
@@ -240,10 +233,16 @@ function elementsOf(root: IdNode): Element[] {
         tag,
         classes: site.src.classes,
         cssom,
+        sole: undefined,
         chain,
         ancestors: new Set(chain),
       },
     ]
+  })
+  const children = groupBy(elements, (element) => element.chain[0] ?? '')
+  return elements.map((element) => {
+    const [only, ...rest] = children[element.path] ?? []
+    return rest.length === 0 && only !== undefined ? {...element, sole: {box: only.box, cssom: only.cssom}} : element
   })
 }
 
@@ -328,7 +327,7 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const parent = anchor === null ? 0 : PAIR.parentBonus
   const dom = PAIR.overlapWeight * geo + textual + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
-  const cssom = layoutOf({node, element})
+  const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
 }
 
@@ -356,23 +355,6 @@ function namedAs(input: {node: DesignNode; element: Element}): number {
   if (input.node.kind === 'text' || name.split(' ')[0] === typed) return 0
   const tokens = [input.element.tag, ...input.element.classes.flatMap((hint) => [hint, ...normalized(hint).split(' ')])]
   return Math.max(0, ...tokens.map((token) => dice({a: name, b: normalized(token)})))
-}
-
-function layoutOf(input: {node: DesignNode; element: Element}): number {
-  const {node, element} = input
-  const {cssom} = element
-  if (cssom === undefined) return 0
-  const laidOut = cssom.display.includes(FLEX) || cssom.display.includes(GRID)
-  const mode = node.figma?.mode ?? null
-  if (mode !== null && FLOWS.has(mode)) {
-    if (node.children.some((child) => child.implied === true)) return 0
-    const flex = cssom.display.includes(FLEX)
-    if (!flex && (cssom.columns ?? 0) < 2) return 0
-    const row = flex ? cssom.flexDirection.startsWith(ROW) : true
-    return row === (mode === HORIZONTAL) ? PAIR.layoutRoleWeight : -PAIR.layoutRoleWeight
-  }
-  if (node.kind !== 'text') return 0
-  return laidOut && element.kids > 0 ? -PAIR.layoutRoleWeight : PAIR.layoutRoleWeight
 }
 
 function orderedTwin(input: {vote: Vote; entry: Node; scored: Scored[]; pick: Pick}): string | null {
