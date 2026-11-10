@@ -41,6 +41,7 @@ const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css',
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const THROW_BEFORE = 'const gap ='
 const THROWING_LINE = "  if (titles.length > 0) throw new TypeError('the cards fixture throws while rendering')"
+const HOT_UPDATED = '[vite] hot updated'
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
 
@@ -492,9 +493,13 @@ describe('design_check on a page that breaks the widget or the build', () => {
     await writeFile(CARDS_FILE, [...lines.slice(0, at), THROWING_LINE, ...lines.slice(at)].join('\n'))
     const broken = await thrown.then(() => call('design_check', {}))
     const error = 'thrown' in broken ? broken.thrown : null
+    const updated = kit.page.waitForEvent('console', {
+      predicate: (message) => message.text().includes(HOT_UPDATED),
+      timeout: PAGE_DRIVER_TIMEOUT_MS,
+    })
     await writeFile(CARDS_FILE, source)
+    await updated
     expect([broken.verdict, error?.file, error?.line]).toEqual(['broken', 'src/Cards.tsx', at + 1])
-    await goto('target')
     expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })
 })
