@@ -20,7 +20,7 @@ const DELEGATED = [
 const PIP_WRAP =
   'fixed inset-0 flex [&>*]:!static [&>*]:!inset-auto [&>*]:!w-full [&>*]:!h-full [&>*]:!max-h-none [&>*]:!transform-none [&>*]:!opacity-100 [&>*]:!visible [&>*]:!pointer-events-auto [&>*]:!border-none [&>*]:!rounded-none [&>*]:!shadow-none [&_[role=separator]]:hidden'
 
-const FALLBACK_THEME: HostTheme = {scheme: 'dark', skin: 'conciv'}
+const FALLBACK_THEME: HostTheme = {scheme: 'dark', skin: 'conciv', skinFromPage: false}
 
 export type PipWindow = {win: Window; wrap: HTMLElement; root: ShadowRoot; close: () => void}
 

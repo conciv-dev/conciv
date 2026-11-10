@@ -13,6 +13,8 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
   TranscriptHandle,
+  TranscriptPage,
+  TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {containedPath} from '../_shared/contained-path.js'
@@ -20,6 +22,7 @@ import {makeJsonlHandle, transcriptFailure} from '../_shared/jsonl-handle.js'
 import {transcriptPage, type TranscriptStamp} from '../_shared/transcript-page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
+import {tailLines} from '../_shared/tail-lines.js'
 
 const MAX_TITLE = 80
 const TAIL_BYTES = 65_536
@@ -154,6 +157,10 @@ function foldLine(state: PiFold, line: string): PiFold {
 }
 
 function messagesOf(entries: Entry[]): ChatMessage[] {
+  return pathMessages(activePath(entries))
+}
+
+function pathMessages(path: Entry[]): ChatMessage[] {
   const out: ChatMessage[] = []
   const idState = {n: 0}
   const open = (role: 'user' | 'assistant', parts: ChatPart[], nativeId: string | undefined): void => {
@@ -161,7 +168,7 @@ function messagesOf(entries: Entry[]): ChatMessage[] {
     out.push({id: nativeId ?? `h${idState.n}`, role, parts})
   }
 
-  for (const entry of activePath(entries)) {
+  for (const entry of path) {
     const spoken = spokenMessage(entry.message)
     if (spoken) {
       if (spoken.parts.length > 0) open(spoken.role, spoken.parts, entry.id)
@@ -212,10 +219,14 @@ function containedTranscript(cwd: string, sessionId: string): string | null {
   return containedPath(transcriptRoot(cwd), transcriptPath(cwd, sessionId))
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
   const path = containedTranscript(cwd, sessionId)
   if (path === null) return []
-  const folded = await foldJsonlFile(path, emptyFold(), foldLine).catch(whenMissing(null))
+  const folded = await foldJsonlFile(path, emptyFold(), foldLine, options).catch(whenMissing(null))
   return folded === null ? [] : messagesOf(folded.entries)
 }
 
@@ -339,8 +350,65 @@ async function storedMeta(cwd: string, sessionId: HarnessSessionId): Promise<Har
   return sessionMeta(sessionId, path, {updatedAt: Math.round(info.mtimeMs), sizeBytes: info.size}, cwd)
 }
 
+function entryOf(line: string): Entry | null {
+  const parsed = EntrySchema.safeParse(parseJsonOrNull(line.trim()))
+  return parsed.success ? parsed.data : null
+}
+
+function onChain(entry: Entry, wanted: string | null): boolean {
+  return wanted === null ? entry.type === 'message' : entry.id === wanted
+}
+
+function chainRole(entry: Entry): 'user' | 'assistant' | 'result' | null {
+  const spoken = spokenMessage(entry.message)
+  if (spoken !== null) return spoken.parts.length > 0 ? spoken.role : null
+  return toolResultPart(entry.message) === null ? null : 'result'
+}
+
+function chainScanner(
+  wanted: string | null,
+): (line: string) => {line: Entry; boundary: boolean; first: boolean} | null {
+  const chain = {wanted, orphanResults: false}
+  return (line) => {
+    const entry = entryOf(line)
+    if (entry === null || !onChain(entry, chain.wanted)) return null
+    chain.wanted = entry.parentId || null
+    const role = chainRole(entry)
+    const boundary = role === 'user' && !chain.orphanResults
+    if (role === 'assistant') chain.orphanResults = false
+    if (role === 'result') chain.orphanResults = true
+    return {line: entry, boundary, first: chain.wanted === null}
+  }
+}
+
+const ChainCursorSchema = z
+  .string()
+  .regex(/^\d+:.+$/)
+  .transform((cursor) => {
+    const separator = cursor.indexOf(':')
+    return {end: Number(cursor.slice(0, separator)), wanted: cursor.slice(separator + 1)}
+  })
+
+async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+  const empty: TranscriptPage = {messages: [], earlier: null}
+  const path = containedTranscript(cwd, sessionId)
+  const cursor = options.before === null ? null : ChainCursorSchema.safeParse(options.before)
+  if (path === null || cursor?.success === false) return empty
+  const page = tailLines({
+    path,
+    end: cursor?.data.end ?? null,
+    limit: options.limit,
+    signal: options.signal,
+    scan: chainScanner(cursor?.data.wanted ?? null),
+    fold: pathMessages,
+    cursor: (entry, offset) => `${offset}:${entry.parentId}`,
+  })
+  return page.catch(whenMissing(empty))
+}
+
 export const piHistory: HarnessHistory = {
   messages: transcriptMessages,
+  tail: transcriptTail,
   observe: observeTranscript,
   transcriptPath,
   transcriptRoot,

@@ -6,6 +6,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
+import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
   bootedCore,
@@ -29,6 +30,7 @@ import {
   expectRetryRecovers,
   type ShellMountOptions,
 } from './helpers.browser.js'
+import {z} from 'zod'
 import {render} from '@solidjs/testing-library'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
@@ -1457,10 +1459,19 @@ describe('chat history paging', () => {
     await scrollToTop()
     await expect.element(loadingOlder()).toBeInTheDocument()
     await userEvent.click(latest())
+    await faults.releaseAll()
+    await expect.element(loadingOlder()).not.toBeInTheDocument()
+    await userEvent.wheel(thread(), {delta: {y: -40}})
+    await expect.element(exchange(SEEDED_EXCHANGES - 1)).toBeInViewport()
+    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
+    await faults.install({kind: 'gate', path: HYDRATE_PATH})
+
+    await scrollToTop()
+    await expect.element(loadingOlder()).toBeInTheDocument()
+    await userEvent.click(latest())
     await userEvent.wheel(thread(), {delta: {y: -400}})
     await faults.releaseAll()
     await expect.element(loadingOlder()).not.toBeInTheDocument()
-    await coreRpc(core()).sessions.switchHarness({sessionId: long.sessionId, harnessId: 'history-paging'})
     await streamReplyAndSettle('streamed while scrolled away')
 
     await expect.element(latest()).toBeEnabled()
@@ -3444,7 +3455,7 @@ describe('quick add pane', () => {
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const closePane = () => page.getByRole('button', {name: 'Close pane'})
-  const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
+  const splitPane = () => page.getByRole('button', {name: 'Split pane', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
   const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
@@ -3940,6 +3951,7 @@ describe('session selector', () => {
   ]).flat()
 
   const ELSEWHERE = '/elsewhere/gull-colony'
+  const LONG_TITLE = 'the question nobody answered about the harbour lights and the old ferry timetable'
 
   const core = bootedCore('session-selector', {
     resume: true,
@@ -3957,6 +3969,16 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('gull-home'),
         derivedTitle: 'a gull at home',
         updatedAt: noon - (OLDER_SESSIONS + 14) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('gulch-walk'),
+        derivedTitle: 'a walk down the gulch',
+        updatedAt: noon - (OLDER_SESSIONS + 15) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('harbour-lights'),
+        derivedTitle: LONG_TITLE,
+        updatedAt: noon - (OLDER_SESSIONS + 16) * DAY_MS,
       },
       {
         id: EXTERNAL_ID,
@@ -4191,10 +4213,9 @@ describe('session selector', () => {
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await expect.element(labelled).toHaveFocus()
     await expect.element(option('older session 0')).toBeVisible()
-    await userEvent.keyboard('g')
-    expect(mounted.router.state.location.search).not.toHaveProperty('sessionSearch')
-    await typeKeyByKey(labelled, 'ull', 'g')
+    await typeKeyByKey(labelled, 'gull', '')
     await expect.element(option('a gull at home')).toBeVisible()
+    await expect.element(option('a walk down the gulch')).not.toBeInTheDocument()
     expect(mounted.router.state.location.search.sessionSearch).toBe('gull')
     await expect.element(option('the gull census')).not.toBeInTheDocument()
 
@@ -4213,6 +4234,13 @@ describe('session selector', () => {
     await userEvent.click(option('the gull census'))
     await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
     await expect.element(page.getByRole('log', {name: 'Announcements'})).toMatchTextContent(/puffin notes \| Copied$/)
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(labelled).toHaveValue('gul')
+    await expect.element(option('a walk down the gulch')).toBeVisible()
+    await typeKeyByKey(labelled, 'l', 'gul')
+    await expect.element(option('a walk down the gulch')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
     expect(await navigator.clipboard.readText()).toBe(copied)
     await expect.element(option('the gull census')).toBeVisible()
     await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
@@ -4295,6 +4323,19 @@ describe('session selector', () => {
     await expect
       .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
       .toHaveTextContent('question')
+    await userEvent.hover(option(LONG_TITLE).getByText(LONG_TITLE, {exact: true}))
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_TITLE)
+    await expect.element(preview(LONG_TITLE)).toBeVisible()
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(search).toHaveValue('questio')
+    await typeKeyByKey(search, 'n', 'questio')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_TITLE)
+    await expect.element(option(LONG_TITLE)).toBeVisible()
+    await userEvent.hover(option('a minute after midnight'))
+    await expect
+      .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
+      .toHaveTextContent('question')
     await typeKeyByKey(search, 'xq', 'question')
     await expect.element(option('a minute after midnight')).not.toBeInTheDocument()
 
@@ -4303,8 +4344,12 @@ describe('session selector', () => {
     await userEvent.hover(option('a minute after midnight'))
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
     await expect.element(preview('a minute after midnight').getByRole('mark')).not.toBeInTheDocument()
-    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}')
+    expect(preview('older session 0').query()).toBeNull()
+    expect(preview('a minute before midnight').query()).toBeNull()
+    expect(entry('a minute after midnight', 'tide log entry 29').query()).not.toBeNull()
     await expect.element(entry('a minute before midnight', 'the evening ebb')).toBeVisible()
+    expect(preview('a minute after midnight').query()).toBeNull()
     await userEvent.keyboard('{ArrowUp}')
     await expect.element(entry('a minute after midnight', 'tide log entry 29')).toBeVisible()
 
@@ -4820,6 +4865,239 @@ describe('tool outcomes', () => {
       await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
     })
   }
+})
+
+describe('settings page', () => {
+  const probeSettingsSchema = z.object({
+    wrap: z.boolean().default(false).meta({title: 'Wrap lines', description: 'Long lines wrap instead of scrolling.'}),
+    density: z.enum(['compact', 'cozy']).default('cozy').meta({title: 'Density'}),
+    theme: z.enum(['plain', 'ocean', 'forest', 'dusk']).default('plain').meta({title: 'Theme'}),
+    fontSize: z.number().int().min(10).max(24).default(13).meta({title: 'Font size'}),
+    greeting: z.string().default('').meta({title: 'Greeting', description: 'Shown above the notes.'}),
+  })
+
+  function SchemeProbe(): JSX.Element {
+    const scheme = getHostApi().useColorScheme()
+    const settings = settingsProbe.useSettings()
+    return (
+      <>
+        <p>Widget colors: {scheme()}</p>
+        <p>
+          {`Probe settings: wrap=${settings().wrap} density=${settings().density} theme=${settings().theme} fontSize=${settings().fontSize} greeting=${settings().greeting}`}
+        </p>
+      </>
+    )
+  }
+
+  const settingsProbe = defineExtension({
+    name: 'settings-probe',
+    settings: probeSettingsSchema,
+    Surface: SchemeProbe,
+    views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
+  }).client(() => ({value: {}}))
+
+  const coreBase = bootedCore('settings-page')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+  afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
+
+  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const gear = () => page.getByRole('link', {name: 'Settings'})
+  const back = () => page.getByRole('button', {name: 'Back to chat'})
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
+  const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
+  const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
+  const notesShown = () => page.getByRole('checkbox', {name: /^Notes/})
+  const command = (label: string) => page.getByRole('button', {name: label, exact: true})
+  const clash = () => page.getByRole('status').getByText(/is also/)
+  const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
+  const probeValues = (values: string) => page.getByText(`Probe settings: ${values}`, {exact: true})
+  const PROBE_DEFAULTS = 'wrap=false density=cozy theme=plain fontSize=13 greeting='
+  const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
+  const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
+  const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
+  const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
+  const skin = (name: string) => page.getByRole('radio', {name, exact: true})
+  const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
+  const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
+  const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all settings?'})
+
+  test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
+    await page.viewport(1000, 900)
+    localStorage.removeItem('conciv:settings-tab')
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(notesTab()).toBeVisible()
+
+    await gear().click()
+    await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('general'))
+    await expect
+      .element(page.getByRole('tablist', {name: 'Settings sections'}))
+      .toHaveAttribute('aria-orientation', 'vertical')
+
+    const tabPaths: Record<string, string> = {
+      General: 'general',
+      Views: 'views',
+      Shortcuts: 'shortcuts',
+      'Settings probe': 'extensions/settings-probe',
+      Advanced: 'advanced',
+    }
+    for (const name of ['Views', 'Shortcuts', 'Settings probe', 'Advanced']) {
+      await tab(name).click()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
+    }
+    for (const name of ['Settings probe', 'Shortcuts', 'Views', 'General']) {
+      await userEvent.keyboard('{ArrowUp}')
+      await expect.element(tab(name)).toHaveFocus()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
+    }
+
+    await colorMode().getByText('Dark', {exact: true}).click()
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await tab('Views').click()
+    await expect.element(notesShown()).toBeChecked()
+    await page.getByText(/^Notes/).click()
+    await expect.element(notesShown()).not.toBeChecked()
+
+    await back().click()
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    await expect.element(notesTab()).not.toBeInTheDocument()
+
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+    await tab('Shortcuts').click()
+    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
+    harness.back()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+    await back().click()
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+
+    harness.dispose()
+    document.documentElement.style.setProperty('--conciv-skin', 'terminal')
+    harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
+    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
+    await expect.element(skin('Terminal')).toBeChecked()
+    document.documentElement.style.removeProperty('--conciv-skin')
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
+    await expect.element(skin('Conciv')).toBeChecked()
+
+    await tab('Settings probe').click()
+    await expect.element(page.getByRole('heading', {name: 'Settings probe'})).toBeVisible()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).toBeChecked()
+    await page.getByRole('radiogroup', {name: 'Density'}).getByText('Compact', {exact: true}).click()
+    await page.getByRole('combobox', {name: 'Theme'}).click()
+    await page.getByRole('option', {name: 'Ocean'}).click()
+    await fontSize().click()
+    await userEvent.keyboard('{End}{Backspace}{Backspace}16{Enter}')
+    await greeting().click()
+    await userEvent.keyboard('hi')
+    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}/settings?open=true`, [settingsProbe])
+    await expect.element(tab('Settings probe'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('extensions/settings-probe'))
+    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
+    await expect.element(wrapLines()).toBeChecked()
+    await expect
+      .element(page.getByRole('radiogroup', {name: 'Density'}).getByRole('radio', {name: 'Compact'}))
+      .toBeChecked()
+    await expect.element(page.getByRole('combobox', {name: 'Theme'})).toHaveTextContent('Ocean')
+    await expect.element(fontSize()).toHaveValue('16')
+    await expect.element(greeting()).toHaveValue('hi')
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('extensions/nothing-here')}?open=true`, [settingsProbe])
+    await expect.element(tab('General'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('general'))
+
+    await tab('Shortcuts').click()
+    await command('Quick terminal').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(command('Quick terminal')).toHaveFocus()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(clash()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(saveClash()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(clash()).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+    expect(harness.pathname()).toBe(settingsPath('shortcuts'))
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}')
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(quickTerminal(), {timeout: 8000}).toBeVisible()
+    await quickTerminal().getByRole('button', {name: 'Split pane', exact: true}).hover()
+    await expect
+      .element(page.getByRole('tooltip'), {timeout: 3000})
+      .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
+    await expect.element(probeValues(PROBE_CHANGED), {timeout: 8000}).toBeInTheDocument()
+    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+
+    await resetAll().click()
+    await expect.element(resetDialog()).toBeVisible()
+    await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
+    expect(harness.pathname()).toBe(settingsPath('advanced/reset'))
+    await userEvent.keyboard('{Escape}')
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath('advanced'))
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await resetAll().click()
+    await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
+    await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath('advanced'))
+    await expect.element(probe('light')).toBeInTheDocument()
+
+    await tab('Advanced').click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(gear()).toHaveFocus()
+    await expect.element(notesTab()).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [settingsProbe], {
+      host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
+    })
+    await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).toBeVisible()
+    await expect.element(saveClash()).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+  }, 60_000)
 })
 
 function pickerRouter(entry: string, view: () => JSX.Element) {

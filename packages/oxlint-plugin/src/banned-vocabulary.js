@@ -29,6 +29,7 @@ const DEV_BUNDLER_BRIDGE_PATHS = [
   'packages/core/src/api/rpc/router.ts',
   'packages/core/src/api/rpc/mount.ts',
   'packages/protocol/src/bundler-types.ts',
+  'packages/extension/src/vite-bridge.ts',
   'packages/plugin/src/',
 ]
 

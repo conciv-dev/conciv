@@ -1,5 +1,5 @@
 import {createMemo, createUniqueId, mapArray, Show, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createStore, reconcile} from 'solid-js/store'
 import {
   Button,
   ByteSize,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   TooltipIconButton,
   TruncatedText,
+  TruncatedTextGroup,
   VirtualList,
 } from '@conciv/ui-kit-system'
 import {Markdown} from '@conciv/ui-kit-chat'
@@ -64,7 +65,7 @@ type PickerSession = SessionMeta | SessionHit
 
 type Elsewhere = {cwd: string; project: string; resume: string | null}
 
-type PickerRow = {kind: 'header'; name: Bucket} | {kind: 'session'; session: PickerSession}
+type PickerRow = Bucket | PickerSession
 
 type SessionPage = {next: HarnessListCursor | null}
 
@@ -79,13 +80,17 @@ function pickerRows(list: PickerSession[], now: number): PickerRow[] {
   return BUCKETS.flatMap((name): PickerRow[] => {
     const sessions = byBucket[name]
     if (sessions === undefined) return []
-    return [{kind: 'header', name}, ...sessions.map((session): PickerRow => ({kind: 'session', session}))]
+    return [name, ...sessions]
   })
 }
 
 function rowSize(row: PickerRow): number {
-  if (row.kind === 'header') return HEADER_ROW_SIZE
-  return excerptOf(row.session) === null ? SESSION_ROW_SIZE : EXCERPT_ROW_SIZE
+  if (typeof row === 'string') return HEADER_ROW_SIZE
+  return excerptOf(row) === null ? SESSION_ROW_SIZE : EXCERPT_ROW_SIZE
+}
+
+function rowKey(row: PickerRow): string {
+  return typeof row === 'string' ? row : row.id
 }
 
 function excerptOf(session: PickerSession): string | null {
@@ -166,6 +171,7 @@ export function SessionSelector(props: {
   const list = useInfiniteQuery(() => ({
     ...(search() === '' ? listOptions() : searchOptions(search())),
     placeholderData: keepPreviousData,
+    reconcile: (previous, next) => reconcile(structuredClone(next), {key: 'id'})(previous),
   }))
   const active = useQuery(() => {
     const sessionId = props.activeId()
@@ -204,7 +210,7 @@ export function SessionSelector(props: {
   let scrollToRow: ((index: number) => void) | undefined
   const scrollToItem = (index: number) => {
     const id = collection().items[index]?.id
-    const row = rows().findIndex((candidate) => candidate.kind === 'session' && candidate.session.id === id)
+    const row = rows().findIndex((candidate) => typeof candidate !== 'string' && candidate.id === id)
     if (row >= 0) scrollToRow?.(row)
   }
 
@@ -267,7 +273,6 @@ export function SessionSelector(props: {
   const highlighted = (value: string | null) => {
     setPicker('highlighted', value)
     if (value === null) return settle.cancel()
-    if (picker.open) return setPicker('previewed', value)
     settle.maybeExecute(value)
   }
   const previewTarget = createMemo(() => previewOf(sessionOf(picker.previewed)), null, {equals: isEqual})
@@ -402,64 +407,67 @@ export function SessionSelector(props: {
               {search() ? 'No sessions match' : 'No other sessions yet'}
             </div>
           </Show>
-          <VirtualList
-            class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
-            rows={rows()}
-            sizeOf={rowSize}
-            more={list.hasNextPage}
-            moreRowSize={MORE_ROW_SIZE}
-            onReachMore={loadMore}
-            onScroller={(scroll) => {
-              scrollToRow = scroll
-            }}
-            moreRow={
-              <Show
-                when={list.isFetchNextPageError}
-                fallback={
-                  <div
-                    class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 min-h-11 items-center"
-                    role="status"
-                    aria-busy="true"
-                  >
-                    <span class="rounded-chat-pill bg-chat-text-3 shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
-                    Loading more…
-                  </div>
-                }
-              >
-                <div
-                  class="text-[0.75rem] text-chat-text-3 px-2 py-1.5 flex gap-2 items-center justify-between"
-                  role="status"
+          <TruncatedTextGroup>
+            <VirtualList
+              class="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+              rows={rows()}
+              sizeOf={rowSize}
+              keyOf={rowKey}
+              more={list.hasNextPage}
+              moreRowSize={MORE_ROW_SIZE}
+              onReachMore={loadMore}
+              onScroller={(scroll) => {
+                scrollToRow = scroll
+              }}
+              moreRow={
+                <Show
+                  when={list.isFetchNextPageError}
+                  fallback={
+                    <div
+                      class="text-[0.75rem] text-chat-text-3 px-2 flex gap-2 min-h-11 items-center"
+                      role="status"
+                      aria-busy="true"
+                    >
+                      <span class="rounded-chat-pill bg-chat-text-3 shrink-0 size-1.75 anim-pulse" aria-hidden="true" />
+                      Loading more…
+                    </div>
+                  }
                 >
-                  <span>Couldn't load more sessions</span>
-                  <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
-                    Retry
-                  </Button>
-                </div>
-              </Show>
-            }
-          >
-            {(row) => (
-              <Show
-                when={row.kind === 'session' ? row.session : undefined}
-                fallback={
                   <div
-                    class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]"
-                    aria-hidden="true"
+                    class="text-[0.75rem] text-chat-text-3 px-2 py-1.5 flex gap-2 items-center justify-between"
+                    role="status"
                   >
-                    {row.kind === 'header' ? row.name : ''}
+                    <span>Couldn't load more sessions</span>
+                    <Button variant="outline" size="sm" onClick={() => void list.fetchNextPage()}>
+                      Retry
+                    </Button>
                   </div>
-                }
-              >
-                {(session) => (
-                  <SessionOption
-                    session={session()}
-                    suffix={harnessSuffix(session())}
-                    copied={resumeCopyOf(session().id)?.announcement() ?? ''}
-                  />
-                )}
-              </Show>
-            )}
-          </VirtualList>
+                </Show>
+              }
+            >
+              {(row) => (
+                <Show
+                  when={typeof row === 'string' ? undefined : row}
+                  fallback={
+                    <div
+                      class="text-[0.6875rem] text-chat-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]"
+                      aria-hidden="true"
+                    >
+                      {typeof row === 'string' ? row : ''}
+                    </div>
+                  }
+                >
+                  {(session) => (
+                    <SessionOption
+                      session={session()}
+                      suffix={harnessSuffix(session())}
+                      copied={resumeCopyOf(session().id)?.announcement() ?? ''}
+                    />
+                  )}
+                </Show>
+              )}
+            </VirtualList>
+          </TruncatedTextGroup>
         </Combobox.Content>
       </Combobox.Positioner>
       <SessionPreview
@@ -508,16 +516,18 @@ function SessionOption(props: {session: PickerSession; suffix: string; copied: s
         {elsewhere() ? `, in ${elsewhere()?.project}, select to copy the command that opens it there` : ''}
         {props.session.running ? `, ${RUNNING_LABEL}` : ''}
       </span>
-      <Tooltip.Root
-        open={props.copied !== ''}
-        lazyMount
-        unmountOnExit
-        positioning={{placement: 'top-end', flip: false, getAnchorElement: () => row.element ?? null}}
-      >
-        <Tooltip.Positioner>
-          <Tooltip.Content>{props.copied}</Tooltip.Content>
-        </Tooltip.Positioner>
-      </Tooltip.Root>
+      <Show when={props.copied}>
+        {(copied) => (
+          <Tooltip.Root
+            open
+            positioning={{placement: 'top-end', flip: false, getAnchorElement: () => row.element ?? null}}
+          >
+            <Tooltip.Positioner>
+              <Tooltip.Content>{copied()}</Tooltip.Content>
+            </Tooltip.Positioner>
+          </Tooltip.Root>
+        )}
+      </Show>
       <div class="flex flex-1 flex-col gap-px min-w-0">
         <TruncatedText text={props.session.title}>
           <Combobox.ItemText>

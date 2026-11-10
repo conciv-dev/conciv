@@ -6,14 +6,14 @@ export type Launcher = 'native' | 'mascot' | false
 
 export type ConcivSettings = {
   modal: {enabled: boolean; position: TriggerPosition}
-  quickTerminal: {enabled: boolean; hotkeys: string[]}
+  quickTerminal: {enabled: boolean; hotkeys: string[] | null}
   defaultOpen: boolean
   launcher: Launcher
+  fromHost: {defaultOpen: boolean; launcher: boolean}
   surface: ConcivSurface
   transport: ChatTransportPreference
 }
 
-const DEFAULT_HOTKEYS = ['Mod+`']
 const DEFAULT_POSITION: TriggerPosition = 'bottom-right'
 
 const PositionSchema = z.enum(['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'])
@@ -34,11 +34,11 @@ function launcherOf(launcher: unknown): Launcher {
   return 'mascot'
 }
 
-function hotkeysOf(quickTerminal: unknown): string[] {
-  if (!isRecord(quickTerminal)) return DEFAULT_HOTKEYS
+function hotkeysOf(quickTerminal: unknown): string[] | null {
+  if (!isRecord(quickTerminal)) return null
   const hotkey = quickTerminal.hotkey
   if (Array.isArray(hotkey)) return hotkey.map(String)
-  return hotkey ? [String(hotkey)] : DEFAULT_HOTKEYS
+  return hotkey ? [String(hotkey)] : null
 }
 
 const TransportSchema = z.enum(['auto', 'websocket', 'fetch']).default('auto').catch('auto')
@@ -65,6 +65,7 @@ export function parseConcivSettings(raw: string): ConcivSettings {
     quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
     defaultOpen: cfg.defaultOpen === true,
     launcher: launcherOf(cfg.launcher),
+    fromHost: {defaultOpen: Object.hasOwn(cfg, 'defaultOpen'), launcher: Object.hasOwn(cfg, 'launcher')},
     surface: cfg.surface === 'dock' ? 'dock' : 'page',
     transport: transportOf(cfg.transport),
   }

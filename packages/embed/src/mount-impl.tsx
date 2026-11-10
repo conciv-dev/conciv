@@ -1,5 +1,6 @@
 import {createEffect, createRoot, createSignal, onCleanup} from 'solid-js'
 import {render} from 'solid-js/web'
+import {makeEventListener} from '@solid-primitives/event-listener'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {engineHeaders, makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {acquirePushChannel} from '@conciv/client'
@@ -226,9 +227,14 @@ function bootNormal(config: BootNormalConfig): BootResult {
     void router.navigate({href, replace: true})
   }
 
+  const stopFlushingWhenHidden = makeEventListener(document, 'visibilitychange', () => {
+    if (document.visibilityState === 'hidden') storage.flush()
+  })
+
   const disposers = [
     closeConnection,
     unsubscribeNavigation,
+    stopFlushingWhenHidden,
     storage.dispose,
     activeSession.dispose,
     disposeApp,

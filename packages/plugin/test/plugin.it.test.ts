@@ -40,7 +40,8 @@ import {makeEngineBooter} from '../src/core/boot.js'
 import {generateExtensionsEntrySource, writeExtensionsEntry} from '../src/core/extensions-entry.js'
 import {watchExtensionsDir} from '../src/core/extensions-watch.js'
 import {CONCIV_DEFAULT_PORT, withConciv} from '../src/core/nextjs.js'
-import {makeViteBridge, makeViteHook} from '../src/core/vite.js'
+import {makeViteBridge} from '@conciv/extension/vite'
+import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 import {
   capturedLogger,

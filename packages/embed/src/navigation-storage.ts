@@ -16,7 +16,7 @@ function parseNavigation(raw: string): NavigationState | null {
   }
 }
 
-export type NavigationStorage = WebStorage & {restored: Promise<void>; dispose: () => void}
+export type NavigationStorage = WebStorage & {restored: Promise<void>; flush: () => void; dispose: () => void}
 
 type NavigationStorageState = {cache: string | null; lastStamp: number; wroteLocally: boolean; cancelled: boolean}
 
@@ -30,13 +30,13 @@ export function makeNavigationStorage(
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
     return state.lastStamp
   }
-  const write = new Debouncer(
-    (navigation: NavigationState, updatedAt: number) => {
-      if (!trust.isTrusted()) return
-      void rpc.navigation.set({...navigation, updatedAt}).catch(() => {})
-    },
-    {wait: WRITE_DELAY_MS},
-  )
+  const send = (navigation: NavigationState, updatedAt: number): void => {
+    if (!trust.isTrusted()) return
+    rpc.navigation.set({...navigation, updatedAt}).catch((error: unknown) => {
+      console.warn('[conciv] could not save the navigation', error)
+    })
+  }
+  const write = new Debouncer(send, {wait: WRITE_DELAY_MS})
   const restored = trust.ready
     .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
     .catch(() => null)
@@ -56,6 +56,7 @@ export function makeNavigationStorage(
       if (parsed) write.maybeExecute(parsed, stamp())
     },
     restored,
+    flush: () => write.flush(),
     dispose: () => {
       state.cancelled = true
       write.cancel()

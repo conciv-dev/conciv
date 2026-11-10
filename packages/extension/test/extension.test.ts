@@ -7,8 +7,11 @@ import {defineAttachment} from '../src/define-attachment.js'
 import {collectAttachmentCards, collectToolRenderers, collectClientEffects} from '../src/collect-client.js'
 import {z} from 'zod'
 import {defineTool, type ClientToolCtx, isToolError, toolError} from '../src/define-tool.js'
+import {createSettingsStore} from '../src/settings-store.js'
+import type {SettingsSnapshot} from '@conciv/contract'
 import {
   type ClientEffect,
+  type SettingsState,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
   type ToolRequest,
@@ -248,6 +251,59 @@ describe('define extension', () => {
       return {context: {factor: 10}, app, dispose: () => {}}
     })
     expect(ext.__server).toBeTypeOf('function')
+  })
+
+  const terminalSettings = z.object({
+    fontSize: z.number().int().min(10).max(24).default(13).meta({title: 'Font size'}),
+    cursor: z.enum(['block', 'bar', 'underline']).default('block'),
+    copyOnSelect: z.boolean().default(false),
+    shell: z.string().default(''),
+  })
+
+  test('settings parse through the schema: defaults fill gaps, a malformed value falls back, unknown keys drop', () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings, icon: () => null})
+    expect(ext.settings).toBe(terminalSettings)
+    expect(ext.icon).toBeTypeOf('function')
+    expect(ext.parseSettings({fontSize: 'huge', cursor: 'bar', stray: true})).toEqual({
+      fontSize: 13,
+      cursor: 'bar',
+      copyOnSelect: false,
+      shell: '',
+    })
+    expect(ext.parseSettings(null)).toEqual({fontSize: 13, cursor: 'block', copyOnSelect: false, shell: ''})
+    expect(defineExtension({name: 'plain'}).parseSettings({anything: 1})).toEqual({})
+  })
+
+  test('readSettings serves the stored values parsed, now and on every change', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const saved: {snapshot: SettingsSnapshot; listeners: ((snapshot: SettingsSnapshot) => void)[]} = {
+      snapshot: {generation: 'extension-test', version: 1, value: {fontSize: 16, shell: 7}},
+      listeners: [],
+    }
+    const commit = (value: Record<string, unknown>): SettingsSnapshot => {
+      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value}
+      saved.listeners.forEach((listener) => listener(saved.snapshot))
+      return saved.snapshot
+    }
+    const state: SettingsState = {
+      read: async () => saved.snapshot,
+      set: async (key, value) => commit({...saved.snapshot.value, [key]: value}),
+      delete: async () => saved.snapshot,
+      subscribe: async (listener) => {
+        saved.listeners.push(listener)
+        return () => undefined
+      },
+    }
+    const reader = ext.readSettings(createSettingsStore(async () => state))
+    expect(await reader.all()).toEqual({fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''})
+    const changes: unknown[] = []
+    await reader.onChange((value) => changes.push(value))
+    await state.set('cursor', 'nope')
+    await state.set('copyOnSelect', true)
+    expect(changes).toEqual([
+      {fontSize: 16, cursor: 'block', copyOnSelect: false, shell: ''},
+      {fontSize: 16, cursor: 'block', copyOnSelect: true, shell: ''},
+    ])
   })
 })
 

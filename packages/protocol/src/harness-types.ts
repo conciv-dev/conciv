@@ -121,8 +121,6 @@ export type HarnessResumeInput = {cwd: string; nativeId: HarnessSessionId}
 
 export type HarnessResume = {command(input: HarnessResumeInput): {bin: string; args: string[]}}
 
-export type HarnessSessionSummary = {meta: HarnessSessionMeta; tail: ChatMessage[]}
-
 export type HarnessListCursor = z.infer<typeof HarnessListCursorSchema>
 
 export type HarnessListPage = {after: HarnessListCursor | null; limit: number}
@@ -161,8 +159,15 @@ export type HarnessTranscriptPaths =
       transcriptRoot(cwd: string): string
     }
 
+export type TranscriptCursor = string
+
+export type TranscriptPage = {messages: ChatMessage[]; earlier: TranscriptCursor | null}
+
+export type TranscriptTailOptions = {limit: number; before: TranscriptCursor | null; signal?: AbortSignal}
+
 export type HarnessHistory = HarnessTranscriptPaths & {
-  messages(cwd: string, sessionId: HarnessSessionId): Promise<ChatMessage[]>
+  messages(cwd: string, sessionId: HarnessSessionId, options?: {signal?: AbortSignal}): Promise<ChatMessage[]>
+  tail(cwd: string, sessionId: HarnessSessionId, options: TranscriptTailOptions): Promise<TranscriptPage>
   observe(cwd: string, sessionId: HarnessSessionId): TranscriptHandle
 
   withinProject?(cwd: string, sessionId: HarnessSessionId): boolean
@@ -174,6 +179,4 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   list(scope: HarnessListScope, page: HarnessListPage): Promise<HarnessSessionPage>
 
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
-
-  summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
 }

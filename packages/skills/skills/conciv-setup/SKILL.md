@@ -146,8 +146,8 @@ import {mountConciv} from '@conciv/embed'
 mountConciv([myExtension])
 ```
 
-(Real `mountConciv` call site: `packages/extensions/tanstack/test/host/main.tsx:5` (import) and
-`packages/extensions/tanstack/test/host/main.tsx:155` (call).)
+(Real `mountConciv` call site: `apps/site/src/lib/mount-live-widget.ts:28` (import) and
+`apps/site/src/lib/mount-live-widget.ts:33` (call).)
 
 For a framework component that owns mount/unmount through its own lifecycle, wrap `createConciv` —
 `@conciv/react`'s `ConcivWidget` is the reference shape: it mounts on a ref'd div in an effect, tears

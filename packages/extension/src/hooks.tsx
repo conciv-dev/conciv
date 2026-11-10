@@ -1,5 +1,6 @@
 import {onCleanup, onMount, splitProps, useContext, type Component, type JSX} from 'solid-js'
 import {HostApiContext, use, type HostWiring} from './host-context.js'
+import {useScope} from './use-scope.js'
 
 export {useExtensionValue} from './host-context.js'
 
@@ -19,6 +20,7 @@ function layerComponent(hides: boolean, hook: string): Component<{when: boolean;
 
 const hostApi = {
   useRpc: () => use('rpc', 'useRpc'),
+  useScope,
   useApiBase: () => use('apiBase', 'useApiBase'),
   useToast: () => use('toast', 'useToast'),
   useOpenEditor: () => use('openEditor', 'useOpenEditor'),

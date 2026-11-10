@@ -1,7 +1,7 @@
 import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
 import {z} from 'zod'
-import {browserRpcConnection, forgetMagicLinkCode, makeBrowserRpcClient, readMagicLinkCode} from '@conciv/contract'
+import {makeBrowserRpcClient} from '@conciv/contract'
 import {collectAttachmentCards, type AnyExtension} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
@@ -15,6 +15,7 @@ import {
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 import {makeHostGrab} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
+import {startPageHost} from './page-host.js'
 
 const attachDetail = z.object({name: z.string(), type: z.string(), text: z.string()})
 
@@ -89,10 +90,6 @@ function MountedComposerSlot(props: {extension: AnyExtension; clientValue: objec
   )
 }
 
-function metaContent(name: string): string {
-  return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
-}
-
 function AttachFixtureForm(props: {attach: (file: File) => void}): JSX.Element {
   const [name, setName] = createSignal('')
   const [type, setType] = createSignal('')
@@ -146,25 +143,16 @@ function installStorageFixtures(): void {
   document.head.appendChild(fontStyle)
 }
 
-async function loginHost(apiBase: string): Promise<void> {
-  const {trust} = browserRpcConnection(apiBase)
-  const code = readMagicLinkCode()
-  if (!(await trust.requestTrust()) && code !== undefined) await trust.requestTrustWithCode(code)
-  forgetMagicLinkCode()
-}
-
 export function startHost(extension: AnyExtension): void {
-  const apiBase = metaContent('conciv-api-base')
-  void loginHost(apiBase)
-    .catch((error: unknown) => console.error('[conciv testkit] the host could not log in to the engine', error))
-    .then(() => mountHost(extension, apiBase))
+  void startPageHost(extension).then((host) => mountHost(extension, host))
 }
 
-function mountHost(extension: AnyExtension, apiBase: string): void {
+function mountHost(
+  extension: AnyExtension,
+  {apiBase, session, clientValue}: Awaited<ReturnType<typeof startPageHost>>,
+): void {
   installStorageFixtures()
-  const session = metaContent('conciv-session')
   const {rpc} = makeBrowserRpcClient(apiBase)
-  const clientValue = extension.__client?.()?.value ?? {}
   const cards = collectAttachmentCards([extension])
   const showCardAttachment = (file: File): void => {
     const adapter = createDocumentAttachmentAdapter(file.type)

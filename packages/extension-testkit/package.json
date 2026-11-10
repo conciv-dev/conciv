@@ -17,6 +17,7 @@
     "./connect-handshake": "./src/connect-handshake.ts",
     "./core-kit": "./src/core-kit.ts",
     "./framework-fake": "./src/framework-fake.ts",
+    "./host": "./src/host/page-host.ts",
     "./host/grab": "./src/host/grab.ts",
     "./widget-suite": "./src/widget-suite.ts",
     "./test-host": "./src/test-host-config.ts",
@@ -41,6 +42,7 @@
   },
   "dependencies": {
     "@conciv/browser-fixture": "workspace:*",
+    "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
@@ -48,6 +50,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/page": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",

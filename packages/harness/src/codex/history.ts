@@ -1,4 +1,4 @@
-import {existsSync, readdirSync, readFileSync, type Dirent} from 'node:fs'
+import {existsSync, readdirSync, type Dirent} from 'node:fs'
 import {stat} from 'node:fs/promises'
 import {join} from 'node:path'
 import {DatabaseSync, type SQLInputValue} from 'node:sqlite'
@@ -12,6 +12,8 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
   TranscriptHandle,
+  TranscriptPage,
+  TranscriptTailOptions,
 } from '@conciv/protocol/harness-types'
 import {realpathOrSelf, sameCwd} from '../_shared/cwd.js'
 import {containedPath} from '../_shared/contained-path.js'
@@ -20,6 +22,8 @@ import {pageAfter} from '../_shared/page.js'
 import {whenMissing} from '../_shared/when-missing.js'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
 import {foldJsonlFile} from '../_shared/fold-jsonl-file.js'
+import {tailLines} from '../_shared/tail-lines.js'
+import {readHead} from '../_shared/read-head.js'
 import {codexHome} from './models.js'
 
 const MAX_TITLE = 80
@@ -170,7 +174,7 @@ function hasCall(message: ChatMessage, callId: string): boolean {
 type SpineEvent =
   | {kind: 'user'; text: string}
   | {kind: 'assistant'; text: string}
-  | {kind: 'call'; part: ChatPart}
+  | {kind: 'call'; callId: string; part: ChatPart}
   | {kind: 'output'; callId: string; part: ChatPart}
 
 function spineEvent(payload: unknown): SpineEvent | null {
@@ -184,6 +188,7 @@ function spineEvent(payload: unknown): SpineEvent | null {
   if (call.success) {
     return {
       kind: 'call',
+      callId: call.data.call_id,
       part: {
         type: 'tool-call',
         id: call.data.call_id,
@@ -198,6 +203,7 @@ function spineEvent(payload: unknown): SpineEvent | null {
   if (custom.success) {
     return {
       kind: 'call',
+      callId: custom.data.call_id,
       part: {
         type: 'tool-call',
         id: custom.data.call_id,
@@ -222,53 +228,55 @@ function spineEvent(payload: unknown): SpineEvent | null {
   }
 }
 
-type CodexSpine = {messages: ChatMessage[]; opened: number; sessionId: string}
+type CodexSpine = {messages: ChatMessage[]; sessionId: string}
 
-function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: ChatPart[]): void {
-  spine.opened += 1
-  spine.messages.push({id: `${spine.sessionId}:h${spine.opened}`, role, parts})
+function openMessage(spine: CodexSpine, role: 'user' | 'assistant', parts: ChatPart[], offset: number): void {
+  spine.messages.push({id: `${spine.sessionId}:o${offset}`, role, parts})
 }
 
-function appendAssistant(spine: CodexSpine, part: ChatPart): void {
+function appendAssistant(spine: CodexSpine, part: ChatPart, offset: number): void {
   const last = spine.messages.at(-1)
   if (last?.role === 'assistant') last.parts.push(part)
-  else openMessage(spine, 'assistant', [part])
+  else openMessage(spine, 'assistant', [part], offset)
 }
 
-function attachOutput(spine: CodexSpine, callId: string, part: ChatPart): void {
+function attachOutput(spine: CodexSpine, callId: string, part: ChatPart, offset: number): void {
   const owner = spine.messages.findLast((message) => hasCall(message, callId))
   if (owner) owner.parts.push(part)
-  else appendAssistant(spine, part)
+  else appendAssistant(spine, part, offset)
 }
 
-function applyEvent(spine: CodexSpine, event: SpineEvent): void {
+function applyEvent(spine: CodexSpine, event: SpineEvent, offset: number): CodexSpine {
   if (event.kind === 'user') {
-    if (event.text.trim()) openMessage(spine, 'user', [{type: 'text', content: event.text}])
-    return
+    if (event.text.trim()) openMessage(spine, 'user', [{type: 'text', content: event.text}], offset)
+    return spine
   }
   if (event.kind === 'assistant') {
-    if (event.text.trim()) appendAssistant(spine, {type: 'text', content: event.text})
-    return
+    if (event.text.trim()) appendAssistant(spine, {type: 'text', content: event.text}, offset)
+    return spine
   }
   if (event.kind === 'call') {
-    appendAssistant(spine, event.part)
-    return
+    appendAssistant(spine, event.part, offset)
+    return spine
   }
-  attachOutput(spine, event.callId, event.part)
+  attachOutput(spine, event.callId, event.part, offset)
+  return spine
 }
 
 function emptySpine(sessionId: string): CodexSpine {
-  return {messages: [], opened: 0, sessionId}
+  return {messages: [], sessionId}
 }
 
-function foldLine(spine: CodexSpine, line: string): CodexSpine {
+function lineEvent(line: string): SpineEvent | null {
   const trimmed = line.trim()
-  if (!trimmed) return spine
+  if (!trimmed) return null
   const payload = payloadOf(trimmed)
-  if (!payload) return spine
-  const event = spineEvent(payload)
-  if (event) applyEvent(spine, event)
-  return spine
+  return payload ? spineEvent(payload) : null
+}
+
+function foldLine(spine: CodexSpine, line: string, offset: number): CodexSpine {
+  const event = lineEvent(line)
+  return event ? applyEvent(spine, event, offset) : spine
 }
 
 function spineMessages(spine: CodexSpine): ChatMessage[] {
@@ -313,40 +321,37 @@ export function rolloutPath(sessionId: string): string | null {
   return persistedRollout(sessionId) ?? scanForRollout(sessionId)
 }
 
-function readRollout(path: string): string {
+function recordedCwd(path: string): string | null {
   try {
-    return readFileSync(path, 'utf8')
+    return rolloutCwd(readHead(path))
   } catch (error) {
-    return whenMissing('')(error)
+    return whenMissing(null)(error)
   }
 }
 
-function projectRollout(cwd: string, sessionId: string): {path: string; raw: string} | null {
-  const path = rolloutPath(sessionId)
-  if (!path) return null
-  const raw = readRollout(path)
-  if (!raw) return null
-  const found = rolloutCwd(raw)
-  return found !== null && sameCwd(found, cwd) ? {path, raw} : null
-}
-
 function rolloutWithinProject(cwd: string, sessionId: string): boolean {
-  return projectRollout(cwd, sessionId) !== null
+  const path = rolloutPath(sessionId)
+  const found = path === null ? null : recordedCwd(path)
+  return found !== null && sameCwd(found, cwd)
 }
 
 type RolloutFold = {spine: CodexSpine; cwd: string | null | undefined}
 
-function foldRolloutLine(state: RolloutFold, line: string): RolloutFold {
+function foldRolloutLine(state: RolloutFold, line: string, offset: number): RolloutFold {
   if (state.cwd === undefined) state.cwd = sessionMetaCwd(line)
-  state.spine = foldLine(state.spine, line)
+  state.spine = foldLine(state.spine, line, offset)
   return state
 }
 
-async function transcriptMessages(cwd: string, sessionId: string): Promise<ChatMessage[]> {
+async function transcriptMessages(
+  cwd: string,
+  sessionId: string,
+  options: {signal?: AbortSignal} = {},
+): Promise<ChatMessage[]> {
   const path = rolloutPath(sessionId)
   if (!path) return []
   const empty: RolloutFold = {spine: emptySpine(sessionId), cwd: undefined}
-  const folded = await foldJsonlFile(path, empty, foldRolloutLine).catch(whenMissing(null))
+  const folded = await foldJsonlFile(path, empty, foldRolloutLine, options).catch(whenMissing(null))
   if (folded === null || typeof folded.cwd !== 'string' || !sameCwd(folded.cwd, cwd)) return []
   return folded.spine.messages
 }
@@ -406,8 +411,55 @@ function observeTranscript(cwd: string, sessionId: string): TranscriptHandle {
   })
 }
 
+type EventLine = {event: SpineEvent; offset: number}
+
+function eventScanner(): (line: string, offset: number) => {line: EventLine; boundary: boolean; first: false} | null {
+  const unanswered = new Set<string>()
+  return (line, offset) => {
+    const event = lineEvent(line)
+    if (event === null) return null
+    const boundary = event.kind === 'user' && event.text.trim() !== '' && unanswered.size === 0
+    if (event.kind === 'output') unanswered.add(event.callId)
+    if (event.kind === 'call') unanswered.delete(event.callId)
+    return {line: {event, offset}, boundary, first: false}
+  }
+}
+
+const ByteCursorSchema = z.string().regex(/^\d+$/).transform(Number)
+
+const NO_PAGE: TranscriptPage = {messages: [], earlier: null}
+
+async function rolloutTail(
+  path: string,
+  cwd: string,
+  sessionId: string,
+  options: TranscriptTailOptions,
+  end: number | null,
+) {
+  const found = recordedCwd(path)
+  if (found === null || !sameCwd(found, cwd)) return NO_PAGE
+  return tailLines({
+    path,
+    end,
+    limit: options.limit,
+    signal: options.signal,
+    scan: eventScanner(),
+    fold: (lines) =>
+      lines.reduce((spine, line) => applyEvent(spine, line.event, line.offset), emptySpine(sessionId)).messages,
+    cursor: (line) => String(line.offset),
+  })
+}
+
+async function transcriptTail(cwd: string, sessionId: string, options: TranscriptTailOptions): Promise<TranscriptPage> {
+  const end = options.before === null ? null : ByteCursorSchema.safeParse(options.before)
+  const path = rolloutPath(sessionId)
+  if (path === null || end?.success === false) return NO_PAGE
+  return rolloutTail(path, cwd, sessionId, options, end?.data ?? null).catch(whenMissing(NO_PAGE))
+}
+
 export const codexHistory: HarnessHistory = {
   messages: transcriptMessages,
+  tail: transcriptTail,
   observe: observeTranscript,
   withinProject: rolloutWithinProject,
   contextTokens: contextTokensFromTranscript,

@@ -184,7 +184,8 @@ function retryPlugin(socket: ReconnectingWebSocket, lifetime: AbortSignal): Clie
     default: {
       retry: (options) => (isStreamingCall(options.path) ? Number.POSITIVE_INFINITY : CONNECTION_LOSS_RETRIES),
       retryDelay: (options) => retryDelay(socket, lifetime, options),
-      shouldRetry: (options) => isRetryableRpcFailure(!lifetime.aborted, options.error),
+      shouldRetry: (options) =>
+        !lifetime.aborted && options.signal?.aborted !== true && !(options.error instanceof ORPCError),
     },
   })
 }

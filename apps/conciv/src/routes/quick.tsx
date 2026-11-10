@@ -1,6 +1,6 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
 import {useQuery, useMutation} from '@tanstack/solid-query'
-import {createHotkey} from '@tanstack/solid-hotkeys'
+import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
 import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'
 import ChevronUp from 'lucide-solid/icons/chevron-up'
@@ -8,7 +8,8 @@ import Columns2 from 'lucide-solid/icons/columns-2'
 import PictureInPicture2 from 'lucide-solid/icons/picture-in-picture-2'
 import X from 'lucide-solid/icons/x'
 import type {RpcClient} from '@conciv/contract'
-import {useAppData, useConnectionGeneration, useRpc, useSuppressed} from '../app/context.js'
+import {useAppData, useConnectionGeneration, usePreferences, useRpc, useSuppressed} from '../app/context.js'
+import {toRawHotkey} from '../lib/hotkey.js'
 import {useEngineReachability} from '../app/reachability.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../pane/chat-pane.js'
@@ -70,7 +71,12 @@ function onGutterDown(e: PointerEvent) {
   window.addEventListener('pointerup', up)
 }
 
-export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onClose: () => void}): JSX.Element {
+export function QuickTerminalHeader(props: {
+  splitShortcut: string | undefined
+  onPip: () => void
+  onSplit: () => void
+  onClose: () => void
+}): JSX.Element {
   return (
     <header class="px-4.5 py-3 border-b border-b-chat-line-soft flex shrink-0 gap-3 items-center">
       <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">
@@ -86,7 +92,7 @@ export function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => vo
       <TooltipIconButton tooltip="Pop out to a window" class={CLOSE} onClick={props.onPip}>
         <PictureInPicture2 class="size-5 block" aria-hidden="true" />
       </TooltipIconButton>
-      <TooltipIconButton tooltip="Split pane (Mod+D)" class={CLOSE} onClick={props.onSplit}>
+      <TooltipIconButton tooltip="Split pane" shortcut={props.splitShortcut} class={CLOSE} onClick={props.onSplit}>
         <Columns2 class="size-5 block" aria-hidden="true" />
       </TooltipIconButton>
       <TooltipIconButton tooltip="Close quick terminal" class={CLOSE} onClick={props.onClose}>
@@ -106,6 +112,7 @@ function QuickLayer(): JSX.Element {
   const appData = useAppData()
   const rpc = useRpc()
   const suppressed = useSuppressed()
+  const preferences = usePreferences()
   const router = useRouter()
   const generation = useConnectionGeneration()
   const search = Route.useSearch()
@@ -193,7 +200,16 @@ function QuickLayer(): JSX.Element {
     onCollapse: () => router.history.back(),
   })
 
-  createHotkey({key: 'D', mod: true}, () => addFreshPane())
+  createHotkeys(() =>
+    preferences
+      .shortcut('quickNewPane')
+      .map((binding) => ({hotkey: toRawHotkey(binding), callback: () => addFreshPane()})),
+  )
+
+  const splitBinding = () => {
+    const binding = preferences.shortcut('quickNewPane')[0]
+    return binding ? formatForDisplay(binding) : undefined
+  }
 
   let restoreFocus: HTMLElement | null = null
   onMount(() => {
@@ -216,6 +232,7 @@ function QuickLayer(): JSX.Element {
         <EngineStaleNotice />
         <EngineUnreachableNotice />
         <QuickTerminalHeader
+          splitShortcut={splitBinding()}
           onPip={() => {
             const id = paneIds()[focusedIndex()]
             if (!id) return

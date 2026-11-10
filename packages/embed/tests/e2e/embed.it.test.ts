@@ -1469,6 +1469,27 @@ test.describe('reload continuity', () => {
         },
       )
     })
+
+    test('the session menu state a reload restores is the one on screen right before it', async ({page}) => {
+      test.setTimeout(240_000)
+      const sessionId = await openPanelOnNewSession(page, suite)
+      const title = `session under test ${sessionId.slice(-12)}`
+      const sessionPicker = page.getByRole('button', {name: /^Session: /})
+
+      await page.getByRole('button', {name: 'Session options'}).click()
+      await expect(sessionPicker).toBeVisible()
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await expect(sessionPicker).toBeVisible()
+
+      await sessionPicker.click()
+      await page.getByRole('option', {name: new RegExp(title)}).click()
+      await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden()
+      await page.reload({waitUntil: 'domcontentloaded'})
+
+      await expect(page.getByRole('button', {name: `${title}, session options`})).toBeVisible()
+      await expect(page.getByRole('dialog', {name: 'Session options'})).toBeHidden()
+      await switchToSessionByTitle(page, title)
+    })
   })
 })
 
