@@ -63,6 +63,23 @@ const CatalogConfigSchema = z.object({
     .default(24)
     .describe('the most app components the list shows in full before it counts the rest'),
   hintConfidence: z.number().min(0).max(1).default(0.5).describe('the lowest score a hint is given at'),
+  tokens: z
+    .array(z.enum(['css']))
+    .default(['css'])
+    .describe('the token sources to read; none turns token drift off and keeps every paint row'),
+  tokenFiles: z
+    .array(z.string())
+    .default([])
+    .describe('the stylesheets to read tokens from, relative to the project root; none reads the kit exported ones'),
+})
+
+const SchemeSchema = z.enum(['light', 'dark'])
+
+const TokenSchema = z.object({
+  name: z.string().describe('the custom property, dashes included'),
+  value: z.string().describe('the declared value for its scheme'),
+  scheme: z.enum([...SchemeSchema.options, 'any']),
+  source: z.string().describe('the stylesheet that declares it'),
 })
 
 export const CatalogSchemas = {
@@ -74,6 +91,8 @@ export const CatalogSchemas = {
   NodeRef: NodeRefSchema,
   Hint: HintSchema,
   CatalogConfig: CatalogConfigSchema,
+  Scheme: SchemeSchema,
+  Token: TokenSchema,
 }
 
 type PropSketch = z.output<typeof PropSketchSchema>
@@ -84,6 +103,8 @@ type Ranked = z.output<typeof RankedSchema>
 type NodeRef = z.output<typeof NodeRefSchema>
 type Hint = z.output<typeof HintSchema>
 type CatalogConfig = z.output<typeof CatalogConfigSchema>
+type Scheme = z.output<typeof SchemeSchema>
+type Token = z.output<typeof TokenSchema>
 type CatalogFlag = 'prefer' | 'do-not-use' | 'clear'
 type Catalog = {
   list(input: {live?: string[]}): Promise<Ranked[]>
@@ -94,6 +115,8 @@ type Catalog = {
   scanIfStale(): Promise<void>
 }
 type ComponentSource = {name: string; scan(input: {cwd: string}): Promise<Scan>}
+type TokenSource = {name: string; read(input: {cwd: string}): Promise<Token[]>}
+type TokenMap = {kitTokenFor(input: {kind: string; value: string; scheme: Scheme}): Token | null}
 type Hinter = {name: string; hint(input: {design: Design; ranked: Ranked[]; config: CatalogConfig}): Map<string, Hint>}
 
 export type {
@@ -109,4 +132,8 @@ export type {
   PropSketch,
   Ranked,
   Scan,
+  Scheme,
+  Token,
+  TokenMap,
+  TokenSource,
 }

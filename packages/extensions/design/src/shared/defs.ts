@@ -7,7 +7,7 @@ import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
 import {designTool} from './design-tool.js'
-import {CatalogSchemas} from './catalog-defs.js'
+import {CatalogSchemas, type TokenSource} from './catalog-defs.js'
 import {componentsDef} from './components-def.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -222,7 +222,7 @@ const IdNodeSchema = z.object({
 
 export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
-const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow', 'paint'])
+const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow', 'paint', 'token-drift'])
 
 const GateRowSchema = z.object({
   node: z.string(),
@@ -237,6 +237,11 @@ const GateRowSchema = z.object({
   magnitude: MagnitudeSchema,
   width: z.number().optional().describe('the page width a reflow row was measured at'),
   token: z.string().nullable().optional().describe('the design token a paint row field is bound to'),
+  component: z.string().optional().describe('on a token-drift row, the component that renders the element'),
+  kitToken: z.string().optional().describe('on a token-drift row, the kit token the page value is'),
+  designToken: z.string().optional().describe('on a token-drift row, the design variable the field is bound to'),
+  pageValue: z.string().optional().describe('the value the page shows, while the round is classified'),
+  designValue: z.string().optional().describe('the value the design wants, while the round is classified'),
 })
 
 const ReflowSchema = z.object({
@@ -397,6 +402,7 @@ const MeasureResultSchema = z.object({
   queries: z.array(z.number()).default([]).describe('the widths the media and container queries of the page name'),
   sheets: z.string().default('').describe('sha256 of the page stylesheets'),
   framework: z.enum(['react', 'solid']).nullable().default(null).describe('react with a fiber, solid with vite ids'),
+  scheme: CatalogSchemas.Scheme.default('light').describe('the prefers-color-scheme of the page when it was measured'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
 })
@@ -530,7 +536,7 @@ export type Measurer = {
 
 export type Measured = Pick<
   z.output<typeof MeasureResultSchema>,
-  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks'
+  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks' | 'scheme'
 > & {live: LiveComponent; raster: Raster; path: CapturePath; sources: MeasureSource[]; framework: 'react' | 'solid'}
 
 export type Pairer = (input: {
@@ -566,4 +572,5 @@ export type DesignRuntime = {
   measurer: Measurer
   pairer: Pairer
   comparator: string
+  tokens: TokenSource[]
 }

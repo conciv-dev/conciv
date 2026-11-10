@@ -350,6 +350,8 @@ function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; liv
       text: `wrong ${found.kind} at [${look.node}]: ${found.token === null ? found.expected : `${found.token} (${found.expected})`} expected, ${found.found} found`,
       magnitude: 'paint',
       token: found.token,
+      pageValue: found.found,
+      designValue: found.expected,
     }))
   })
 }

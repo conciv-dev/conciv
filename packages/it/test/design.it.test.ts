@@ -46,6 +46,8 @@ import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
 import {createCatalog} from '../../extensions/design/src/server/catalog/catalog.js'
 import {backfillRelation} from '../../extensions/design/src/server/catalog/backfill-relation.js'
+import {createCssTokenSource} from '../../extensions/design/src/server/catalog/token-source.js'
+import {createTokenMap} from '../../extensions/design/src/server/catalog/token-map.js'
 import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from './fixtures/design/render-targets.js'
@@ -513,6 +515,7 @@ describe('voter', () => {
       sheets: '',
       framework: 'react',
       masks: [],
+      scheme: 'light',
     }
     const paired = await createVotePairer()({
       design,
@@ -992,6 +995,133 @@ describe('node components', () => {
       closeHomeDb(home)
       orm.$client.close()
       await rm(homeDir, {recursive: true, force: true})
+    }
+  })
+})
+
+describe('token drift', () => {
+  const DRIFT_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=8-1'
+  const BLUE = {r: 0x42 / 255, g: 0x6b / 255, b: 0xf2 / 255, a: 1}
+  const RowsSchema = z.array(z.record(z.string(), z.unknown()))
+
+  function boundBox(input: {id: string; name: string; y: number}): unknown {
+    return {
+      id: input.id,
+      name: input.name,
+      type: 'FRAME',
+      absoluteBoundingBox: {x: 40, y: input.y, width: 200, height: 48},
+      fills: [{type: 'SOLID', color: BLUE}],
+      cornerRadius: 16,
+      boundVariables: {topLeftRadius: {type: 'VARIABLE_ALIAS', id: 'radius/xl'}},
+      children: [],
+    }
+  }
+
+  const DRIFT_DOCUMENT = {
+    name: 'it fixture',
+    lastModified: '2026-11-10T00:00:00Z',
+    version: '1',
+    nodes: {
+      '8:1': {
+        document: figmaFrame({
+          id: '8:1',
+          name: 'Drift',
+          box: {x: 0, y: 0, w: 1280, h: 720},
+          children: [boundBox({id: '8:2', name: 'Chip', y: 40}), boundBox({id: '8:3', name: 'Loose', y: 160})],
+        }),
+      },
+    },
+  }
+
+  async function driftRound(on: Kit) {
+    await on.goto('drift')
+    const image = join(on.targetsDir, 'drift-figma.png')
+    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const got = await on.call('design_get', {figma: DRIFT_LINK, image, document: DRIFT_DOCUMENT})
+    return {got, checked: roundOf(await on.call('design_check', {}))}
+  }
+
+  async function paired(input: {on: Kit; target: string}) {
+    const read = async (query: {from: string; select: string[]}) =>
+      RowsSchema.parse(
+        await input.on.rpc.registry.call({
+          name: 'design_query',
+          input: {...query, where: `target == "${input.target}"`, order: [{field: 'seq', dir: 'asc'}]},
+        }),
+      )
+    return {
+      fom: await read({from: 'fom', select: ['round', 'id', 'node', 'source', 'instance', 'confidence', 'margin']}),
+      votes: await read({
+        from: 'votes',
+        select: ['round', 'node', 'candidate', 'path', 'dom', 'src', 'cssom', 'total', 'won'],
+      }),
+    }
+  }
+
+  function painted(rows: ReturnType<typeof roundOf>['rows']): string[][] {
+    return rows.filter((row) => row.magnitude === 'paint').map((row) => [row.node, row.kind])
+  }
+
+  it('a kit token mismatch inside a known component is one drift row and replaces its paint row', async () => {
+    const {checked} = await driftRound(kit)
+    const drift = checked.rows.filter((row) => row.magnitude === 'token-drift')
+    expect(drift.map((row) => [row.node, row.component, row.kitToken, row.designToken, row.text])).toEqual([
+      [
+        '8:2',
+        'Chip',
+        '--chat-radius-lg',
+        'radius/xl',
+        'Chip uses --chat-radius-lg (11px); the design wants radius/xl (16px)',
+      ],
+    ])
+    expect(painted(checked.rows)).toEqual([['8:3', 'radius']])
+    expect((await call('design_status', {})).rows).toEqual(checked.rows)
+  })
+
+  it('reads a light-dark token as one token per scheme and matches page values by kind', async () => {
+    const homeDir = await mkdtemp(join(tmpdir(), 'conciv-tokens-home-'))
+    const home = openHomeDb(homeDir)
+    const orm = openDb({
+      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-tokens-state-')),
+      extensions: [{name: 'design', migrations}],
+    })
+    const db = {
+      orm,
+      tables: designTables(extensionTable('design')),
+      sources: () => [],
+      read: async () => [],
+      write: async () => [],
+    }
+    try {
+      const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
+      const files = [fileURLToPath(new URL('../../ui-kit-system/src/tokens.css', import.meta.url))]
+      const map = createTokenMap({tokens: await createCssTokenSource({files, catalog}).read({cwd: HOST_ROOT})})
+      expect([
+        map.kitTokenFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'dark'})?.name,
+        map.kitTokenFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'light'})?.name,
+        map.kitTokenFor({kind: 'radius', value: '11px', scheme: 'light'})?.name,
+        map.kitTokenFor({kind: 'font family', value: 'source sans 3', scheme: 'dark'})?.name,
+      ]).toEqual(['--chat-panel', undefined, '--chat-radius-lg', '--chat-font'])
+    } finally {
+      closeHomeDb(home)
+      orm.$client.close()
+      await rm(homeDir, {recursive: true, force: true})
+    }
+  })
+
+  it('catalog tokens off gives the paint rows back and pairs exactly as with tokens on', async () => {
+    const bare = await boot({config: {catalog: {tokens: []}}})
+    try {
+      const off = await driftRound(bare)
+      expect(off.checked.rows.filter((row) => row.magnitude === 'token-drift')).toEqual([])
+      expect(off.checked.rows.filter((row) => row.magnitude === 'paint').map((row) => row.text)).toEqual([
+        'token radius/xl wrong on 2 nodes: [8:2, 8:3] (radius)',
+      ])
+      const on = await driftRound(kit)
+      expect(on.checked.rows.filter((row) => row.magnitude === 'token-drift').map((row) => row.node)).toEqual(['8:2'])
+      expect(await paired({on: bare, target: off.got.target})).toEqual(await paired({on: kit, target: on.got.target}))
+    } finally {
+      await bare.dispose()
     }
   })
 })

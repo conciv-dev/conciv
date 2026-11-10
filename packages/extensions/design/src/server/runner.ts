@@ -1,5 +1,6 @@
 import {toolError} from '@conciv/extension'
 import type {DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {Component} from '../shared/catalog-defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
 import {walk} from '../shared/tree.js'
@@ -12,6 +13,8 @@ import {widthsOf} from './widths.js'
 import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
+import {classifyDrift} from './catalog/drift.js'
+import {createTokenMap} from './catalog/token-map.js'
 
 export function createRunner(runtime: DesignRuntime): Runner {
   const {store, measurer} = runtime
@@ -56,13 +59,15 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const {rendered} = coverage
     if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
-    if (unsettled === null)
-      await store.writeIds({
-        id: record.id,
-        ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
-        round,
-        revoted: mapped.reasons,
-      })
+    const relation =
+      unsettled === null
+        ? await store.writeIds({
+            id: record.id,
+            ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
+            round,
+            revoted: mapped.reasons,
+          })
+        : new Map<string, Component>()
     const widths = widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
     const results = []
     const failures = []
@@ -86,12 +91,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
       page,
       mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
     })
-    const rows = [...gate.rows, ...images.rows, ...failures]
+    const listed = [...gate.rows, ...images.rows, ...failures]
+    const rows = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
+    const replaced = listed.length - rows.filter((row) => row.magnitude !== 'token-drift').length
     const counts = {
       ...gate.counts,
       reflow: failures.length,
-      paint: (gate.counts.paint ?? 0) + images.rows.length,
-      rows: gate.counts.rows + images.rows.length + failures.length,
+      paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
+      rows: gate.counts.rows + images.rows.length + failures.length - replaced,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const earlier =
@@ -164,6 +171,18 @@ async function gatedOf(input: Parameters<typeof mappingOf>[0]) {
 }
 
 const TOLERANCES = designConfig.tolerances
+
+async function drifted(input: {
+  runtime: DesignRuntime
+  rows: Round['rows']
+  relation: Map<string, Component>
+  scheme: Measured['scheme']
+}): Promise<Round['rows']> {
+  const {runtime, relation} = input
+  const read = relation.size === 0 ? [] : runtime.tokens.map((source) => source.read({cwd: runtime.cwd}))
+  const tokens = createTokenMap({tokens: (await Promise.all(read)).flat()})
+  return classifyDrift({rows: input.rows, relation, tokens, scheme: input.scheme})
+}
 
 function unsettledReason(input: {measured: Measured; rendered: number; settled: Round | undefined}): string | null {
   const {measured, rendered, settled} = input

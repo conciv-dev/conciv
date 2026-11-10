@@ -60,6 +60,8 @@ type Winner = {
 }
 type Measuring = Omit<MeasureResult, 'queries' | 'sheets'>
 type Framework = NonNullable<MeasureResult['framework']>
+
+const DARK_SCHEME = '(prefers-color-scheme: dark)'
 type MirrorLimits = NonNullable<MeasureResult['limits']>
 type LiveStyles = LiveComponent['styles']
 type LiveBorder = LiveStyles['border']
@@ -225,6 +227,7 @@ async function measureLive(input: {size: Size}): Promise<Measuring> {
     opinion: false,
     overflowX: sidewaysScroll(document),
     framework: pageFramework(),
+    scheme: pageScheme(),
     ...(longest === null ? {} : {longestTask: longest}),
   }
 }
@@ -268,6 +271,7 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
     opinion: opinion !== null,
     overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
+    scheme: pageScheme(),
   }
 }
 
@@ -313,6 +317,10 @@ function drawnAt(input: {source: CanvasImageSource; width: number; height: numbe
   canvas.getContext('2d')?.drawImage(input.source, 0, 0, input.width, input.height)
   const url = canvas.toDataURL('image/png')
   return url.slice(url.indexOf(DATA_URL_COMMA) + 1)
+}
+
+function pageScheme(): MeasureResult['scheme'] {
+  return matchMedia(DARK_SCHEME).matches ? 'dark' : 'light'
 }
 
 function pageFramework(): Framework | null {

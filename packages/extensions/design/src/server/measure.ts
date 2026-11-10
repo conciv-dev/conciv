@@ -126,6 +126,7 @@ function measuredFrom(reply: MeasureReply): Measured {
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
     framework: frameworkOf(reply),
     masks: reply.masks,
+    scheme: reply.scheme,
   }
 }
 

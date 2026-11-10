@@ -1,5 +1,6 @@
 import cardStyles from './card.module.css'
 import {Cards} from './Cards'
+import {Chip} from './Chip'
 import {Stripe} from './Stripe'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
@@ -30,6 +31,7 @@ export function App() {
   const requested = new URLSearchParams(location.search).get('variant')
   document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
+  if (requested === 'drift') return <DriftPage data-conciv-key="k8rCfA" />
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
   if (requested === 'tech') return <main className="tech" data-conciv-key="tEcHlP" />
@@ -121,6 +123,15 @@ function PaintedCards() {
         <p data-conciv-key="u0iLAw">9000</p>
       </article>
     </section>
+  )
+}
+
+function DriftPage() {
+  return (
+    <main className="drift" data-conciv-key="JphxEg">
+      <Chip data-conciv-key="yPfAfw" />
+      <span className="loose" data-conciv-key="Sh110A" />
+    </main>
   )
 }
 

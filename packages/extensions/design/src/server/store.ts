@@ -440,6 +440,9 @@ function rowOf(row: GateRow): Omit<RowRow, 'seq' | 'target_id' | 'run_id' | 'rou
     width: row.width ?? null,
     text: row.text,
     token: row.token ?? null,
+    component: row.component ?? null,
+    kit_token: row.kitToken ?? null,
+    design_token: row.designToken ?? null,
     confidence: row.confidence,
     margin: row.margin,
   }
@@ -455,9 +458,19 @@ function gateRowOf(row: RowRow): Record<string, unknown> {
     repeat: _repeat,
     width,
     token,
+    component,
+    kit_token: kitToken,
+    design_token: designToken,
     ...rest
   } = row
-  return {...rest, ...(width === null ? {} : {width}), ...(token === null ? {} : {token})}
+  return {
+    ...rest,
+    ...(width === null ? {} : {width}),
+    ...(token === null ? {} : {token}),
+    ...(component === null ? {} : {component}),
+    ...(kitToken === null ? {} : {kitToken}),
+    ...(designToken === null ? {} : {designToken}),
+  }
 }
 
 async function readRaw(input: {state: Storage; key: string | null}): Promise<Uint8Array | null> {

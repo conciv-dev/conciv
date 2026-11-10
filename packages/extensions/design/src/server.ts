@@ -26,6 +26,7 @@ import {createCatalog} from './server/catalog/catalog.js'
 import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
 import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
 import {backfillRelation} from './server/catalog/backfill-relation.js'
+import {createCssTokenSource} from './server/catalog/token-source.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -58,6 +59,7 @@ const design = defineExtension({
     sources: config.catalog.sources.map((source) => componentSources[source]),
   })
   const backfilled = backfillRelation({db, catalog}).catch(() => 0)
+  const tokenSources = {css: createCssTokenSource({files: config.catalog.tokenFiles, catalog})}
   const runtime: DesignRuntime = {
     cwd: server.cwd,
     home,
@@ -77,6 +79,7 @@ const design = defineExtension({
     measurer,
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,
+    tokens: config.catalog.tokens.map((source) => tokenSources[source]),
   }
   const differ = createDiffer({
     show: config.show,
