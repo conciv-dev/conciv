@@ -353,10 +353,12 @@ function RoundBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
                           }}
                           data-conciv-key="vBKgIg"
                         >
-                          <span class="flex gap-2 items-center" data-conciv-key="QnDGfQ">
-                            <StatusDot tone={DOTS[problem.magnitude] ?? 'dim'} />
+                          <span class="flex gap-2 items-start" data-conciv-key="QnDGfQ">
+                            <span class="flex shrink-0 h-5 items-center" data-conciv-key="PbDotB">
+                              <StatusDot tone={DOTS[problem.magnitude] ?? 'dim'} />
+                            </span>
                             <span
-                              class="text-sm text-chat-text-hi font-semibold grow w-0 truncate"
+                              class="text-sm text-chat-text-hi leading-5 font-semibold grow w-0 [overflow-wrap:anywhere]"
                               data-conciv-key="VD8MhA"
                             >
                               {problem.name}
