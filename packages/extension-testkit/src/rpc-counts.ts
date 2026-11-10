@@ -3,7 +3,7 @@ import {rpcObserverFor} from './rpc-observer.js'
 
 export type RpcCallCursor = {
   startedSince: (path: readonly string[]) => number
-  completedSince: (path: readonly string[]) => number
+  servedSince: (path: readonly string[]) => number
   socketsSince: () => number
 }
 
@@ -13,7 +13,7 @@ export function rpcCallCursor(page: Page): RpcCallCursor {
   const socketsBefore = observer.socketCount()
   return {
     startedSince: (path) => observer.startedCount({path, since}),
-    completedSince: (path) => observer.completedCount({path, since}),
+    servedSince: (path) => observer.completedCount({path, since, served: true}),
     socketsSince: () => observer.socketCount() - socketsBefore,
   }
 }

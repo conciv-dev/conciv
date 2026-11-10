@@ -9,6 +9,9 @@ import {
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 
 const CUT_CLOSE_CODE = 1011
+const NORMAL_CLOSE_CODE = 1000
+const APPLICATION_CLOSE_MIN = 3000
+const APPLICATION_CLOSE_MAX = 4999
 const FAILURE_BODY = {json: {}, meta: []}
 
 const serializer = new StandardRPCSerializer(new StandardRPCJsonSerializer())
@@ -28,7 +31,7 @@ export type RpcSocketRule = (call: RpcSocketCall) => RpcSocketVerdict
 
 export type RpcSocketEvent =
   | {kind: 'request'; requestId: string; path: readonly string[]; input: unknown}
-  | {kind: 'response'; requestId: string; status: number}
+  | {kind: 'response'; requestId: string; status: number; served: boolean}
 
 export type RpcSocketListener = (event: RpcSocketEvent) => void
 
@@ -96,24 +99,39 @@ function connect(route: WebSocketRoute, state: SocketState): void {
   state.opened += 1
   const socketId = `ws-${state.opened}`
   state.live.add(route)
-  route.onClose(() => state.live.delete(route))
   const server = route.connectToServer()
   const outbound = {tail: Promise.resolve()}
   const inbound = {tail: Promise.resolve()}
   const emit = (event: RpcSocketEvent): void => {
     for (const listener of state.listeners) listener(event)
   }
+  route.onClose((code, reason) => {
+    state.live.delete(route)
+    outbound.tail = outbound.tail
+      .then(() => server.close(forwardableClose(code, reason)))
+      .catch((error: unknown) => console.error('[extension-testkit] a page close could not reach the engine', error))
+  })
   route.onMessage((message) => {
     outbound.tail = outbound.tail
       .then(() => sendOutbound(message, socketId, {route, forward: () => server.send(message), state, emit}))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc frame could not be routed', error))
   })
   server.onMessage((message) => {
-    route.send(message)
     inbound.tail = inbound.tail
       .then(() => observeInbound(message, socketId, emit))
       .catch((error: unknown) => console.error('[extension-testkit] an rpc reply could not be decoded', error))
+      .then(() => route.send(message))
   })
+}
+
+function forwardableClose(code: number | undefined, reason: string | undefined): {code?: number; reason?: string} {
+  if (
+    code === undefined ||
+    (code !== NORMAL_CLOSE_CODE && (code < APPLICATION_CLOSE_MIN || code > APPLICATION_CLOSE_MAX))
+  ) {
+    return {}
+  }
+  return reason === undefined ? {code} : {code, reason}
 }
 
 type Outbound = {
@@ -142,8 +160,8 @@ async function sendOutbound(message: Message, socketId: string, outbound: Outbou
     reply: async (status) => {
       const failure = await encodeResponseMessage(id, MessageType.RESPONSE, {status, headers: {}, body: FAILURE_BODY})
       if (typeof failure !== 'string') throw new Error('the injected rpc failure frame encoded to binary')
+      outbound.emit({kind: 'response', requestId, status, served: false})
       outbound.route.send(failure)
-      outbound.emit({kind: 'response', requestId, status})
     },
     cut: () => void outbound.route.close({code: CUT_CLOSE_CODE}),
   }
@@ -155,5 +173,5 @@ async function observeInbound(message: Message, socketId: string, emit: (event: 
   const decoded = await decodeResponseMessage(message).catch(() => null)
   if (decoded === null || decoded[1] !== MessageType.RESPONSE) return
   const [id, , payload] = decoded
-  emit({kind: 'response', requestId: `${socketId}:${id}`, status: payload.status})
+  emit({kind: 'response', requestId: `${socketId}:${id}`, status: payload.status, served: true})
 }

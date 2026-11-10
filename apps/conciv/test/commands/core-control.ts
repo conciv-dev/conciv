@@ -317,7 +317,7 @@ function restoreHubCli(state: FileState): void {
 const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => {
   const calls = stateOf(ctx).rpcCalls
   if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
-  return calls.completedSince(path)
+  return calls.servedSince(path)
 }
 
 type Injector = {repair: () => void; dispose: () => Promise<void>}

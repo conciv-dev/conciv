@@ -17,6 +17,7 @@ export type RpcCallFilter = {
   path: readonly string[]
   input?: RpcInputPattern
   status?: number
+  served?: boolean
   since?: number
   timeout?: number
 }
@@ -35,6 +36,7 @@ type CallState = {
   startedAt: number
   completedAt: number | null
   completed: boolean
+  served: boolean
 }
 
 type Waiter = {
@@ -82,6 +84,7 @@ function matches(state: CallState, filter: Omit<RpcCallFilter, 'timeout'>, stamp
   if (filter.since !== undefined && !newerThan(state, filter.since, stamp)) return false
   if (!samePath(state.record.procedurePath, filter.path)) return false
   if (filter.input !== undefined && !matchesPattern(state.record.input, filter.input)) return false
+  if (filter.served !== undefined && state.served !== filter.served) return false
   return filter.status === undefined || state.record.status === filter.status
 }
 
@@ -107,6 +110,7 @@ export function observeRpc(page: Page): RpcObserver {
         startedAt: (sequence.next += 1),
         completedAt: null,
         completed: false,
+        served: false,
       }
       calls.set(event.requestId, state)
       return
@@ -116,6 +120,7 @@ export function observeRpc(page: Page): RpcObserver {
     state.completedAt = sequence.next += 1
     state.record.status = event.status
     state.completed = true
+    state.served = event.served
     notify(state)
   }
 

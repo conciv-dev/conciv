@@ -20,6 +20,11 @@ import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {gateRpcCalls} from '../src/rpc-fault.js'
 import {rpcObserverFor, observeRpc} from '../src/rpc-observer.js'
+import {rpcSocketFor} from '../src/rpc-socket.js'
+import {os} from '@orpc/server'
+import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
+import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
+import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {launch} from '../src/launch.js'
 import {settleTeardown} from '../src/settle-teardown.js'
@@ -405,6 +410,63 @@ describe('page rpc observer', () => {
       await api.dispose()
     }
   })
+})
+
+describe('rpc socket routing', () => {
+  const CLOSE_EVENT = 'conciv-test:close-rpc-socket'
+
+  browserTest(
+    'a socket the page closes is closed on the engine too, ending the calls it carried',
+    async ({browser}) => {
+      const started = Promise.withResolvers<void>()
+      const ended = Promise.withResolvers<void>()
+      const router = {
+        wait: os.handler(
+          ({signal}) =>
+            new Promise<null>((resolve) => {
+              started.resolve()
+              signal?.addEventListener('abort', () => {
+                ended.resolve()
+                resolve(null)
+              })
+            }),
+        ),
+      }
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        await rpcSocketFor(page).installed
+        const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(undefined)
+        const frame = await encodeRequestMessage('1', MessageType.REQUEST, {
+          url: new URL('http://orpc/wait'),
+          method: 'POST',
+          headers: {},
+          body,
+        })
+        if (typeof frame !== 'string') throw new Error('the rpc request frame encoded to binary')
+        await page.evaluate(
+          ({url, frame, closeEvent}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('open', () => {
+                socket.send(frame)
+                resolve()
+              })
+              window.addEventListener(closeEvent, () => socket.close(1000))
+            }),
+          {url: served.wsUrl, frame, closeEvent: CLOSE_EVENT},
+        )
+        await started.promise
+        await page.evaluate((closeEvent) => window.dispatchEvent(new Event(closeEvent)), CLOSE_EVENT)
+        await ended.promise
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
 })
 
 describe('rpc observer dispose', () => {
