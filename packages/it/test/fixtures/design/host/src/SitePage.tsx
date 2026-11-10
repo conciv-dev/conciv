@@ -18,3 +18,17 @@ export function SiteHandPage() {
     </main>
   )
 }
+
+export function SiteMovedPage() {
+  return (
+    <main className="drift" data-conciv-key="sTvMnA">
+      <Pill />
+      <span className="badge" data-conciv-key="sTvBdg" />
+      <MovedBadge />
+    </main>
+  )
+}
+
+function MovedBadge() {
+  return <Badge style={{top: 400}} />
+}

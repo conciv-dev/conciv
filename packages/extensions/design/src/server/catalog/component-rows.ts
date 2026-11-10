@@ -22,6 +22,7 @@ export function createComponentRows(input: {
       if (!ranked.some((component) => component.tier === KIT)) return []
       const walked = await catalog.list({hidden: true})
       const lost = lostComponents({earlier, ranked})
+      const standing = reads.sites().flatMap((site) => (site.src.site === undefined ? [] : [siteOf(site.src.site)]))
       const hints = new Map(
         Object.entries(groupBy(ranked, (component) => component.framework ?? NO_FRAMEWORK)).map(
           ([framework, usable]) => [
@@ -40,7 +41,7 @@ export function createComponentRows(input: {
               : walked.find((candidate) => sameFile({walked: candidate.file, source: file, cwd}))
           const claim = claimOf({
             related: relation.get(node.id),
-            lost: lost.get(node.id),
+            lost: gone({component: lost.get(node.id), standing, cwd}),
             hint: hints.get(host?.framework ?? NO_FRAMEWORK)?.get(node.id),
             ranked,
             walked,
@@ -80,6 +81,8 @@ const NO_FRAMEWORK = ''
 
 type Claim = {component: Ranked; lost: boolean}
 
+type Called = {file: string; line: number}
+
 function lostComponents(input: {earlier: Map<string, Component>[]; ranked: Ranked[]}): Map<string, Ranked> {
   const kit = keyBy(
     input.ranked.filter((component) => component.tier === KIT),
@@ -93,6 +96,20 @@ function lostComponents(input: {earlier: Map<string, Component>[]; ranked: Ranke
       }),
     ),
   )
+}
+
+function gone(input: {component: Ranked | undefined; standing: Called[]; cwd: string}): Ranked | undefined {
+  const {component, standing, cwd} = input
+  if (component === undefined) return undefined
+  const called = component.sites.some((site) =>
+    standing.some((now) => now.line === site.line && sameFile({walked: site.file, source: now.file, cwd})),
+  )
+  return called ? undefined : component
+}
+
+function siteOf(site: string): Called {
+  const file = fileOf(site)
+  return {file, line: Number(site.slice(file.length + SOURCE_SEPARATOR.length))}
 }
 
 function claimOf(input: {

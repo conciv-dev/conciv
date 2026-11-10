@@ -314,6 +314,20 @@ describe('catalog component rows', () => {
         },
       ])
     })
+    it('lists no row while the call site of a kit component stands and its pairing moved to a sibling, and the row once the call is gone', async () => {
+      expect((await siteRounds(['site-kit', 'site-moved', 'site-hand'])).map((round) => round.rows)).toEqual([
+        [],
+        [],
+        [
+          [
+            '19:3',
+            'Badge',
+            './ui-kit/Badge.tsx',
+            "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
+          ],
+        ],
+      ])
+    })
   })
 
   it('lists no row for a component the page lost while the component is do-not-use, and the row once cleared', async () => {

@@ -647,7 +647,7 @@ export type DesignRuntime = {
 export type ComponentRows = {
   rows(input: {
     design: Design
-    reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named' | 'getSRC'>
+    reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named' | 'getSRC' | 'sites'>
     relation: Map<string, Component>
     earlier: Map<string, Component>[]
   }): Promise<GateRow[]>
