@@ -1,12 +1,14 @@
 import type {MessagePort} from 'node:worker_threads'
-import {createBirpc} from 'birpc'
-import {z} from 'zod'
+import {createORPCClient} from '@orpc/client'
+import {RPCLink} from '@orpc/client/message-port'
+import type {RouterClient} from '@orpc/server'
 import {createQuickJSIsolateDriver} from '@tanstack/ai-isolate-quickjs'
 import type {ExecutionResult, ToolBinding} from '@tanstack/ai-code-mode'
+import type {ToolRouter} from './quickjs-thread.js'
 
-type HostCalls = {call: (name: string, args: unknown) => Promise<string>}
+type Host = RouterClient<ToolRouter>
 
-type QuickJSTask = {
+export type QuickJSTask = {
   code: string
   names: string[]
   timeout: number
@@ -15,13 +17,8 @@ type QuickJSTask = {
   port: MessagePort
 }
 
-const ResultValueSchema = z.object({value: z.unknown().optional()})
-
 export default async function runQuickJS(task: QuickJSTask): Promise<ExecutionResult> {
-  const host = createBirpc<HostCalls>(
-    {},
-    {post: (data) => task.port.postMessage(data), on: (listener) => task.port.on('message', listener), timeout: -1},
-  )
+  const host: Host = createORPCClient(new RPCLink({port: task.port}))
   const context = await createQuickJSIsolateDriver(task).createContext({
     bindings: Object.fromEntries(task.names.map((name) => [name, bindingOver(host, name)])),
     timeout: task.timeout,
@@ -37,11 +34,11 @@ export default async function runQuickJS(task: QuickJSTask): Promise<ExecutionRe
   }))
 }
 
-function bindingOver(host: HostCalls, name: string): ToolBinding {
+function bindingOver(host: Host, name: string): ToolBinding {
   return {
     name,
     description: name,
     inputSchema: {},
-    execute: async (args) => ResultValueSchema.parse(JSON.parse(await host.call(name, args))).value,
+    execute: (args) => host.call({name, args}),
   }
 }

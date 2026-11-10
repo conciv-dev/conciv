@@ -243,9 +243,6 @@ catalogs:
     bippy:
       specifier: 0.6.1
       version: 0.6.1
-    birpc:
-      specifier: ^4.2.0
-      version: 4.2.0
     citty:
       specifier: ^0.2.2
       version: 0.2.2
@@ -1816,6 +1813,12 @@ importers:
       '@opencode-ai/sdk':
         specifier: ^1.19.4
         version: 1.19.5
+      '@orpc/client':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/server':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -1837,9 +1840,6 @@ importers:
       '@tanstack/ai-solid':
         specifier: 'catalog:'
         version: 1.0.1(@opentelemetry/api@1.9.1)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
-      birpc:
-        specifier: 'catalog:'
-        version: 4.2.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -12660,9 +12660,6 @@ packages:
     resolution: {integrity: sha512-ky4m94Y/KfsddjGkKTsV4uFjZqkJjpOjQ2t5gKPdX6XH1MNxMNX5FrVefsxV4lpjemEmEdwe0e0YbzAMNs3oUQ==}
     peerDependencies:
       react: '>=17.0.1'
-
-  birpc@4.2.0:
-    resolution: {integrity: sha512-KxgKcZPfrtzJDDALHPguGpGJUrzdgpymyiQQgzFjWreHMOpWrnFNVREr5J48x2DBh8ZVioscrV1SBkDipGiX+Q==}
 
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
@@ -26144,8 +26141,6 @@ snapshots:
   bippy@0.6.1(react@19.3.1):
     dependencies:
       react: 19.3.1
-
-  birpc@4.2.0: {}
 
   blake3-wasm@2.1.5: {}
 

@@ -100,7 +100,6 @@ catalog:
   ai-motion: 0.4.8
   # held at the version react-grab 0.2.0 uses, one copy; bippy 0.7's main entry imports react
   bippy: 0.6.1
-  birpc: ^4.2.0
   citty: '^0.2.2'
   class-variance-authority: '^0.7.1'
   culori: ^4.0.2
