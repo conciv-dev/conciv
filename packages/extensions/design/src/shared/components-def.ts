@@ -21,6 +21,10 @@ export const componentsDef = designTool({
   }),
   output: z.object({
     text: z.string(),
+    preview: z
+      .string()
+      .optional()
+      .describe('with show: the dev-server path that renders the component alone, or error: and its first line'),
     components: z.array(CatalogSchemas.Ranked).optional(),
     component: CatalogSchemas.Component.extend({nodes: z.array(CatalogSchemas.NodeRef)}).optional(),
   }),

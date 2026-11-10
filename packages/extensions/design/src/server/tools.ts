@@ -183,7 +183,7 @@ async function listed(asked: {input: ComponentsInput; ctx: DesignContext; sessio
   await Promise.all(marks.flatMap((mark) => (mark.name === undefined ? [] : [ctx.catalog.flag(mark.name, mark.flag)])))
   if (input.show !== undefined) {
     const component = await ctx.catalog.show(input.show)
-    return {text: shownText(component), component}
+    return {text: shownText(component), component, preview: component.preview}
   }
   const {store} = ctx.design
   const record = await targetBehind({link: input.link, session, store})

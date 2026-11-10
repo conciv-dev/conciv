@@ -2,13 +2,13 @@ import {createHash} from 'node:crypto'
 import {dirname, extname, isAbsolute, join, relative} from 'node:path'
 import {minBy, uniqBy} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
-import {parse as parseHtml} from 'parse5'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {z} from 'zod'
 import type {Component, ModuleEdge, PropSketch, Scan} from '../../shared/catalog-defs.js'
 import {viteEntries} from './entries.js'
 import {parseModule} from './parse-module.js'
+import {moduleScripts} from './module-scripts.js'
 
 export async function walkProject(input: {cwd: string}): Promise<Scan> {
   const {cwd} = input
@@ -133,7 +133,7 @@ async function read(input: {item: Item; disk: Storage}): Promise<Read> {
   const extension = extname(item.file)
   if (extension === HTML_EXTENSION) {
     const html = await text({disk, file: item.file})
-    return {...item, parsed: null, requests: html === null ? [] : scripts(parseHtml(html))}
+    return {...item, parsed: null, requests: html === null ? [] : moduleScripts(html)}
   }
   if (!CODE_EXTENSIONS.has(extension)) return {...item, parsed: null, requests: []}
   const dependency = item.file.includes(NODE_MODULES)
@@ -180,20 +180,6 @@ function projectPath(input: {cwd: string; file: string}): string {
 
 function bare(request: string): boolean {
   return !request.startsWith('.') && !request.startsWith('/')
-}
-
-function scripts(node: HtmlNode): string[] {
-  const own =
-    node.nodeName === 'script' && attribute(node, 'type') === 'module' && attribute(node, 'src') !== null
-      ? [attribute(node, 'src') ?? '']
-      : []
-  return [...own, ...(node.childNodes ?? []).flatMap((child) => scripts(child))]
-}
-
-type HtmlNode = {nodeName: string; attrs?: {name: string; value: string}[]; childNodes?: HtmlNode[]}
-
-function attribute(node: HtmlNode, name: string): string | null {
-  return node.attrs?.find((attr) => attr.name === name)?.value ?? null
 }
 
 function definedIn(visit: Visit): Definition[] {

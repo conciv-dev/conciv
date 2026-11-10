@@ -1,0 +1,10 @@
+.chip {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  display: block;
+  width: 200px;
+  height: 48px;
+  border-radius: var(--chat-radius-md);
+  background: #426bf2;
+}

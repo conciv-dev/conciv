@@ -1,0 +1,1 @@
+ALTER TABLE `components` ADD `preview_error` text;

@@ -82,6 +82,8 @@ const TokenSchema = z.object({
   source: z.string().describe('the stylesheet that declares it'),
 })
 
+export const PREVIEW_ROUTE = '/__conciv/preview/'
+
 export const CatalogSchemas = {
   PropSketch: PropSketchSchema,
   Component: ComponentSchema,
@@ -108,7 +110,7 @@ type Token = z.output<typeof TokenSchema>
 type CatalogFlag = 'prefer' | 'do-not-use' | 'clear'
 type Catalog = {
   list(input: {live?: string[]}): Promise<Ranked[]>
-  show(name: string): Promise<Component & {nodes: NodeRef[]}>
+  show(name: string): Promise<Component & {nodes: NodeRef[]; preview: string}>
   flag(name: string, flag: CatalogFlag): Promise<void>
   componentOf(source: string): Promise<Component | null>
   componentsOf(sources: string[]): Promise<Map<string, Component>>

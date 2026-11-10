@@ -27,6 +27,7 @@ import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
 import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
 import {backfillRelation} from './server/catalog/backfill-relation.js'
 import {createCssTokenSource} from './server/catalog/token-source.js'
+import {createPreviewServer} from './server/catalog/preview-server.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -44,6 +45,7 @@ const design = defineExtension({
   sources: designSources,
   migrations,
   cliCommands: DESIGN_COMMANDS,
+  devServer: createPreviewServer,
 }).server((server) => {
   const {config, db} = server
   const state = createStorage({driver: fsDriver({base: join(server.stateDir, 'design')})})

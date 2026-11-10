@@ -1,4 +1,5 @@
 import cardStyles from './card.module.css'
+import {Broken} from './Broken'
 import {Cards} from './Cards'
 import {Chip} from './Chip'
 import {Stripe} from './Stripe'
@@ -31,6 +32,7 @@ export function App() {
   const requested = new URLSearchParams(location.search).get('variant')
   document.documentElement.className = (requested === null ? undefined : LOOK_CLASSES[requested]) ?? ''
   if (requested === 'empty') return null
+  if (requested === 'broken') return <Broken data-conciv-key="f-BlcQ" />
   if (requested === 'drift') return <DriftPage data-conciv-key="k8rCfA" />
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />

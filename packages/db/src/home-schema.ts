@@ -42,6 +42,7 @@ export const components = sqliteTable(
     story: text('story'),
     lines: text('lines', {mode: 'json'}).$type<{start: number; end: number}>().notNull(),
     imports: integer('imports').notNull(),
+    previewError: text('preview_error'),
     scannedAt: integer('scanned_at').notNull(),
   },
   (self) => [primaryKey({columns: [self.project, self.tree, self.id]})],

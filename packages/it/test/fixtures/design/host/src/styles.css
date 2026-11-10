@@ -219,21 +219,13 @@ button {
   background: #426bf2;
 }
 
-.chip,
 .loose {
   position: absolute;
+  top: 160px;
   left: 40px;
   display: block;
   width: 200px;
   height: 48px;
   border-radius: var(--chat-radius-md);
   background: #426bf2;
-}
-
-.chip {
-  top: 40px;
-}
-
-.loose {
-  top: 160px;
 }

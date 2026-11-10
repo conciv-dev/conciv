@@ -9,6 +9,7 @@ import {promisify} from 'node:util'
 import react from '@vitejs/plugin-react'
 import {differenceCiede2000} from 'culori'
 import {chromium, type Browser, type Page} from 'playwright'
+import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
@@ -1124,6 +1125,38 @@ describe('token drift', () => {
       expect(await paired({on: bare, target: off.got.target})).toEqual(await paired({on: kit, target: on.got.target}))
     } finally {
       await bare.dispose()
+    }
+  })
+})
+
+describe('component previews', () => {
+  async function previewed(name: string) {
+    const shown = await call('design_components', {show: name})
+    const id = shown.component?.id ?? ''
+    const tab = await kit.browser.newPage()
+    const reply = await tab.goto(new URL(`/__conciv/preview/${id}`, kit.origin).href)
+    return {id, shown, tab, status: reply?.status()}
+  }
+
+  it('renders a component alone at its preview route, the path design_components show returns', async () => {
+    const {id, shown, tab, status} = await previewed('Chip')
+    try {
+      expect([status, shown.preview]).toEqual([200, `/__conciv/preview/${id}`])
+      await expectLocator(tab.locator('#conciv-preview .chip')).toBeVisible()
+    } finally {
+      await tab.close()
+    }
+  })
+
+  it('a component that throws shows the first line of its error and the catalog lists it', async () => {
+    const {tab} = await previewed('Broken')
+    try {
+      await expectLocator(tab.locator('#conciv-preview')).toHaveText('error: broken on purpose')
+      await expect
+        .poll(async () => (await call('design_components', {show: 'Broken'})).preview)
+        .toBe('error: broken on purpose')
+    } finally {
+      await tab.close()
     }
   })
 })

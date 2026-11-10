@@ -4,6 +4,7 @@ import {componentFlags, components, componentScans, componentSites, type HomeDb}
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {
   CatalogSchemas,
+  PREVIEW_ROUTE,
   type Catalog,
   type Component,
   type ComponentSource,
@@ -138,7 +139,14 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
         })
         .from(nodeComponents)
         .where(eq(nodeComponents.component_id, component.id))
-      return {...component, nodes}
+      const key = await project
+      const stored = home
+        .select({error: components.previewError})
+        .from(components)
+        .where(and(eq(components.project, key), eq(components.tree, cwd), eq(components.id, component.id)))
+        .get()
+      const error = stored?.error ?? null
+      return {...component, nodes, preview: error === null ? `${PREVIEW_ROUTE}${component.id}` : `${ERROR}${error}`}
     },
     async flag(name, flag) {
       const component = await named(name)
@@ -169,6 +177,7 @@ type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
 type Counted = Component & {imports: number}
 
 const CLEAR = 'clear'
+const ERROR = 'error: '
 const SOURCE_SEPARATOR = ':'
 
 function union(scans: Scan[]): Scan {
