@@ -1,0 +1,1610 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>conciv settings, variant A (Devframe-like)</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600&display=swap"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #0a0a0b;
+        color: #d8d2ce;
+        font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+        padding: 48px 32px;
+      }
+      .page-title {
+        font-family: Archivo, sans-serif;
+        font-size: 28px;
+        font-weight: 600;
+        color: #f0ebe8;
+        margin: 0 0 6px;
+      }
+      .page-sub {
+        margin: 0 0 40px;
+        color: #a29c9c;
+        font-size: 14px;
+      }
+      .board {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 56px 40px;
+      }
+      .frame {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .frame-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #8d8887;
+      }
+
+      .p {
+        --panel: #17161a;
+        --sunk: rgba(0, 0, 0, 0.35);
+        --text: #d8d2ce;
+        --hi: #f0ebe8;
+        --t2: #a29c9c;
+        --dim: #8d8887;
+        --fill: rgba(255, 255, 255, 0.03);
+        --fill2: rgba(255, 255, 255, 0.08);
+        --line: #272428;
+        --soft: #232025;
+        --line2: #322e33;
+        --accent: #c9857f;
+        --danger: #d98070;
+        --ok: #6fbf8b;
+        --on: #14100f;
+        width: 480px;
+        height: 760px;
+        background: var(--panel);
+        color: var(--text);
+        font-size: 13px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6);
+      }
+      .p.light {
+        --panel: #f6f7f9;
+        --sunk: rgba(15, 18, 24, 0.05);
+        --text: #1d2127;
+        --hi: #0b0d10;
+        --t2: #565b63;
+        --dim: #6b717a;
+        --fill: #ffffff;
+        --fill2: rgba(15, 18, 24, 0.06);
+        --line: rgba(15, 18, 24, 0.12);
+        --soft: rgba(15, 18, 24, 0.08);
+        --line2: rgba(15, 18, 24, 0.18);
+        --accent: #2563eb;
+        --danger: #dc2626;
+        --ok: #16a34a;
+        --on: #ffffff;
+        box-shadow: 0 16px 44px rgba(15, 18, 24, 0.18);
+      }
+      .hd {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 52px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--soft);
+        flex: none;
+      }
+      .hd.root {
+        padding-left: 16px;
+      }
+      .ttl {
+        font-family: Archivo, ui-sans-serif, sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--hi);
+        flex: 1;
+      }
+      .ib {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        background: none;
+        border: 0;
+        border-radius: 4px;
+        color: var(--t2);
+        text-decoration: none;
+        cursor: pointer;
+        flex: none;
+      }
+      .ib:hover {
+        background: var(--fill2);
+        color: var(--hi);
+      }
+      .ib.sm {
+        width: 30px;
+        height: 30px;
+      }
+      .ib.pinned {
+        color: var(--accent);
+      }
+      .ml {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 9.5px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .bd {
+        flex: 1;
+        overflow: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      .grp {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .lead {
+        color: var(--t2);
+        font-size: 12px;
+        line-height: 1.4;
+        margin: 0;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--fill);
+        display: flex;
+        flex-direction: column;
+      }
+      .card.danger {
+        border-color: color-mix(in oklch, var(--danger) 32%, transparent);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 46px;
+        padding: 10px 12px;
+        color: inherit;
+        text-decoration: none;
+        background: none;
+        border: 0;
+        font: inherit;
+        text-align: left;
+        width: 100%;
+      }
+      .row + .row {
+        border-top: 1px solid var(--soft);
+      }
+      a.row:hover,
+      button.row:hover {
+        background: var(--fill2);
+        cursor: pointer;
+      }
+      .row.tab {
+        gap: 10px;
+        min-height: 44px;
+        padding: 6px 6px 6px 4px;
+      }
+      .row.tab.off .name {
+        color: var(--dim);
+      }
+      .row.key {
+        gap: 10px;
+        min-height: 42px;
+        padding: 6px 8px 6px 12px;
+      }
+      .row.key.rec {
+        background: color-mix(in oklch, var(--accent) 10%, transparent);
+        box-shadow: inset 2px 0 0 var(--accent);
+      }
+      .row.key .recl {
+        display: none;
+      }
+      .row.key.rec .recl {
+        display: inline;
+      }
+      .row.key.rec .keys,
+      .row.key.rec .none {
+        display: none;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+      }
+      .stack + .stack {
+        border-top: 1px solid var(--soft);
+      }
+      .ico {
+        width: 16px;
+        height: 16px;
+        color: var(--t2);
+        flex: none;
+      }
+      .chev {
+        width: 14px;
+        height: 14px;
+        color: var(--dim);
+        flex: none;
+      }
+      .grow {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .lbl {
+        color: var(--hi);
+        font-size: 13px;
+        font-weight: 500;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .hint {
+        color: var(--t2);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+      .val,
+      .meta,
+      .pkg {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--t2);
+        white-space: nowrap;
+      }
+      .meta,
+      .pkg {
+        font-size: 10.5px;
+        color: var(--dim);
+      }
+      .name {
+        flex: 1;
+        min-width: 0;
+        color: var(--hi);
+        font-size: 13px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .row.key .name {
+        font-weight: 400;
+      }
+      .num {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        color: var(--dim);
+        width: 14px;
+        text-align: right;
+        flex: none;
+      }
+      .grip {
+        width: 18px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        color: var(--dim);
+        cursor: grab;
+        flex: none;
+        background: none;
+        border: 0;
+        padding: 0;
+      }
+      .chip {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 9px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 1px 5px;
+        border-radius: 3px;
+        border: 1px solid var(--line2);
+        color: var(--t2);
+        font-weight: 400;
+      }
+      .chip.ok {
+        color: var(--ok);
+        border-color: color-mix(in oklch, var(--ok) 40%, transparent);
+      }
+      .seg {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        padding: 2px;
+        gap: 2px;
+        background: var(--sunk);
+        border: 1px solid var(--soft);
+        border-radius: 4px;
+      }
+      .seg button {
+        border: 0;
+        background: none;
+        color: var(--t2);
+        font: inherit;
+        font-size: 12px;
+        height: 30px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .seg button.on {
+        background: var(--fill2);
+        color: var(--hi);
+        box-shadow: inset 0 0 0 1px var(--line2);
+      }
+      .skins {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .skin {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: none;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      .skin.on {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+      .prev {
+        height: 58px;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .bar {
+        height: 5px;
+        border-radius: 2px;
+      }
+      .cap {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px 9px;
+        border-top: 1px solid var(--soft);
+        font-size: 12px;
+        color: var(--hi);
+      }
+      .sw {
+        width: 32px;
+        height: 18px;
+        border-radius: 999px;
+        background: var(--fill2);
+        border: 1px solid var(--line2);
+        position: relative;
+        flex: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .sw span {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--dim);
+        transition: left 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .sw.on {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .sw.on span {
+        left: 16px;
+        background: var(--on);
+      }
+      .tab .sw {
+        margin-right: 6px;
+      }
+      .radio {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        border: 1px solid var(--line2);
+        flex: none;
+        display: grid;
+        place-items: center;
+      }
+      .row.on .radio {
+        border-color: var(--accent);
+      }
+      .row.on .radio::after {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--accent);
+      }
+      .selw {
+        position: relative;
+        display: flex;
+      }
+      .sel {
+        appearance: none;
+        height: 32px;
+        min-width: 150px;
+        padding: 0 28px 0 10px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: var(--sunk);
+        color: var(--hi);
+        font: inherit;
+        font-size: 12px;
+      }
+      .selw svg {
+        position: absolute;
+        right: 10px;
+        top: 11px;
+        pointer-events: none;
+        color: var(--dim);
+      }
+      .code {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 4px 0 10px;
+        height: 34px;
+        border: 1px solid var(--soft);
+        border-radius: 4px;
+        background: var(--sunk);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--text);
+      }
+      .code span {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .btn {
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        flex: none;
+      }
+      .btn:hover {
+        background: var(--fill2);
+      }
+      .btn.d {
+        border-color: color-mix(in oklch, var(--danger) 42%, transparent);
+        color: var(--danger);
+      }
+      .btn.d:hover {
+        background: color-mix(in oklch, var(--danger) 10%, transparent);
+      }
+      .btn.d.on {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: var(--on);
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 34px;
+        padding: 0 10px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: var(--sunk);
+        color: var(--dim);
+      }
+      .search input {
+        flex: 1;
+        border: 0;
+        background: none;
+        color: var(--hi);
+        font: inherit;
+        font-size: 13px;
+        outline: none;
+      }
+      .search input::placeholder {
+        color: var(--dim);
+      }
+      .keys {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+      }
+      .kbd {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10.5px;
+        min-width: 18px;
+        height: 20px;
+        display: inline-grid;
+        place-items: center;
+        padding: 0 5px;
+        color: var(--text);
+        border: 1px solid var(--line2);
+        border-bottom-width: 2px;
+        border-radius: 3px;
+        background: var(--fill);
+      }
+      .none {
+        font-size: 12px;
+        color: var(--dim);
+      }
+      .recl {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--accent);
+      }
+      .note {
+        display: flex;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px dashed var(--line2);
+        border-radius: 8px;
+        color: var(--t2);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .note code {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+        color: var(--hi);
+      }
+      .ft {
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 34px;
+        padding: 0 16px;
+        border-top: 1px solid var(--soft);
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--ok);
+        display: inline-block;
+        margin-right: 6px;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent, #c9857f);
+        outline-offset: 1px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 4px 12px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 11px;
+      }
+      .lock {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10.5px;
+        color: var(--dim);
+      }
+      .row.locked .lbl {
+        color: var(--t2);
+      }
+      .from {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        color: var(--dim);
+      }
+      .numf {
+        width: 64px;
+        height: 30px;
+        padding: 0 8px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: var(--sunk);
+        color: var(--hi);
+        font: inherit;
+        font-size: 12px;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+      }
+      .txtf {
+        width: 170px;
+        height: 30px;
+        padding: 0 8px;
+        border: 1px solid var(--line2);
+        border-radius: 4px;
+        background: var(--sunk);
+        color: var(--hi);
+        font: inherit;
+        font-size: 12px;
+      }
+      .seg.n2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .seg.n3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .reset {
+        background: none;
+        border: 0;
+        color: var(--dim);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      .reset:hover {
+        color: var(--hi);
+      }
+      .doc {
+        width: 560px;
+        background: #111013;
+        border: 1px solid #272428;
+        border-radius: 12px;
+        padding: 20px 22px;
+        color: #d8d2ce;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .doc h2 {
+        font-family: Archivo, sans-serif;
+        font-size: 16px;
+        margin: 0 0 8px;
+        color: #f0ebe8;
+      }
+      .doc h3 {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10.5px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #8d8887;
+        margin: 18px 0 6px;
+      }
+      .doc pre {
+        margin: 0;
+        background: #0a0a0b;
+        border: 1px solid #232025;
+        border-radius: 6px;
+        padding: 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: #d8d2ce;
+        overflow: auto;
+      }
+      .doc .k {
+        color: #c9857f;
+      }
+      .doc .s {
+        color: #9cc59a;
+      }
+      .doc .c {
+        color: #8d8887;
+      }
+      .doc table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+      }
+      .doc td {
+        border-top: 1px solid #232025;
+        padding: 5px 6px;
+        vertical-align: top;
+      }
+      .doc td:first-child {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #f0ebe8;
+        white-space: nowrap;
+      }
+      .doc ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .tb {
+        display: flex;
+        gap: 2px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--soft);
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex: none;
+      }
+      .tb::-webkit-scrollbar {
+        display: none;
+      }
+      .tb button {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        padding: 0 9px;
+        border: 0;
+        background: none;
+        color: var(--t2);
+        font: inherit;
+        font-size: 12.5px;
+        white-space: nowrap;
+        cursor: pointer;
+        box-shadow: inset 0 -2px 0 transparent;
+        flex: none;
+      }
+      .tb button:hover {
+        color: var(--hi);
+      }
+      .tb button.on {
+        color: var(--hi);
+        box-shadow: inset 0 -2px 0 var(--accent);
+      }
+      .tb button.on svg {
+        color: var(--accent);
+      }
+      .tb svg {
+        width: 14px;
+        height: 14px;
+      }
+      .p {
+        --warn: #d6a25e;
+      }
+      .p.light {
+        --warn: #b45309;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn.w {
+        border-color: color-mix(in oklch, var(--warn) 42%, transparent);
+        color: var(--warn);
+      }
+      .btn.w:hover {
+        background: color-mix(in oklch, var(--warn) 10%, transparent);
+      }
+      .cb {
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        border: 1px solid var(--line2);
+        background: none;
+        padding: 0;
+        flex: none;
+        cursor: pointer;
+        position: relative;
+      }
+      .cb.on {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .cb.on::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 4px;
+        height: 8px;
+        border: solid var(--on);
+        border-width: 0 1.6px 1.6px 0;
+        transform: rotate(45deg);
+      }
+      .row.tab .ico,
+      .row.key.head .ico {
+        width: 15px;
+        height: 15px;
+      }
+      .row.child {
+        padding-left: 30px;
+        box-shadow: inset 18px 0 0 -16px var(--line2);
+      }
+      .row.key.head {
+        min-height: 36px;
+        color: var(--t2);
+      }
+      .row.key.head .name {
+        font-weight: 600;
+      }
+      .keyname {
+        background: none;
+        border: 0;
+        padding: 0;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        color: var(--hi);
+      }
+      .ib.xs {
+        width: 22px;
+        height: 22px;
+      }
+      .warnrow {
+        min-height: 0;
+        padding: 8px 12px;
+        gap: 8px;
+        color: var(--warn);
+        font-size: 12px;
+        background: color-mix(in oklch, var(--warn) 7%, transparent);
+      }
+      .warnrow b {
+        color: var(--hi);
+        font-weight: 500;
+      }
+      .ghd {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .ext .ch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--soft);
+      }
+      .ext .ch .lbl {
+        font-weight: 600;
+      }
+      .lockrow {
+        min-height: 0;
+        padding: 8px 12px;
+        gap: 8px;
+        font-size: 11.5px;
+        color: var(--dim);
+      }
+      .lockrow code {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10.5px;
+        color: var(--t2);
+      }
+      .numw {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .chip {
+        margin-left: 2px;
+      }
+
+      .bd > * {
+        flex: none;
+      }
+      .ft > .ml:first-child {
+        white-space: nowrap;
+      }
+      .ft .route {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+        padding-left: 12px;
+      }
+      .keyname {
+        flex: 1;
+        min-width: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="page-title">conciv settings</h1>
+    <p class="page-sub">
+      <b>Variant A, Devframe-like.</b> Widget panel at 480px. One settings view with tabs; every option of a tab is on
+      screen at once, nothing to drill into. Views, Shortcuts and Extensions fill themselves from what each extension
+      declares (<code>views</code>, <code>commands</code>, a zod <code>settings</code> schema). Each tab is a nested
+      route (<code>/panel/$sessionId/settings/&lt;tab&gt;</code>, shown in the footer), so back, reload and links land
+      on the same tab. Click any tab inside any frame to switch it.
+    </p>
+    <div class="board" id="board"></div>
+
+    <script>
+      const I = {
+        back: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5"/></svg>',
+        close:
+          '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+        chev: '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5"/></svg>',
+        appearance:
+          '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2v12"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg>',
+        agent:
+          '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M5 7l2 1.5L5 10M8.5 10.5h2.5"/></svg>',
+        tabs: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 10h12M6 10v3.5M10 10v3.5"/></svg>',
+        keys: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h1M7 6.5h1M10 6.5h2M5 9.5h6"/></svg>',
+        shield:
+          '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 1.8l5.2 2v4c0 3-2.2 5.2-5.2 6.4C5 13 2.8 10.8 2.8 7.8v-4z"/></svg>',
+        rec: '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.5" fill="currentColor" stroke="none"/></svg>',
+        phone:
+          '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5"/><path d="M7 12.2h2"/></svg>',
+        tests:
+          '<svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2v4.5L2.8 12.5a1 1 0 0 0 .9 1.5h8.6a1 1 0 0 0 .9-1.5L10 6.5V2M5 2h6"/></svg>',
+        lock: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>',
+        grip: '<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.1"/><circle cx="7" cy="3" r="1.1"/><circle cx="3" cy="7" r="1.1"/><circle cx="7" cy="7" r="1.1"/><circle cx="3" cy="11" r="1.1"/><circle cx="7" cy="11" r="1.1"/></svg>',
+        pin: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4l-.6 4 2.6 2.5H4l2.6-2.5zM8 9v4.5"/></svg>',
+        caret:
+          '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2 3.5l3 3 3-3"/></svg>',
+      }
+
+      const EXTENSIONS = [
+        {
+          name: 'recorder',
+          title: 'Recorder',
+          icon: I.rec,
+          views: [{id: 'recorder', label: 'Recorder'}],
+          commands: [{name: 'Save the last session replay'}, {name: 'Start or stop recording'}],
+          settings: {
+            masking: {
+              type: 'enum',
+              options: ['none', 'inputs', 'sensitive'],
+              labels: ['None', 'Inputs', 'Sensitive'],
+              default: 'none',
+              title: 'Mask in replays',
+              description: 'What the replay hides before the agent sees it.',
+            },
+            windowMinutes: {
+              type: 'number',
+              min: 1,
+              max: 60,
+              default: 10,
+              value: 15,
+              title: 'Keep the last',
+              unit: 'minutes',
+              description: 'Older events are dropped.',
+            },
+            console: {
+              type: 'boolean',
+              default: true,
+              title: 'Capture console',
+              description: 'Console messages ride along with the replay.',
+            },
+          },
+        },
+        {
+          name: 'ios',
+          title: 'iOS',
+          icon: I.phone,
+          views: [{id: 'ios', label: 'Simulator'}],
+          commands: [{name: 'Build and run in the simulator'}],
+          settings: {
+            simulator: {
+              type: 'enum',
+              options: ['iPhone 17 Pro', 'iPhone 17', 'iPad Pro 13'],
+              default: 'iPhone 17 Pro',
+              title: 'Simulator',
+              description: 'Device the app boots on.',
+            },
+            buildMode: {
+              type: 'enum',
+              options: ['xcodebuild', 'swiftc'],
+              default: 'xcodebuild',
+              title: 'Build with',
+              description: 'swiftc is faster for single-file apps.',
+              locked: 'vite.config.ts',
+            },
+            bundleId: {
+              type: 'string',
+              default: '',
+              value: 'dev.conciv.example',
+              title: 'Bundle id',
+              locked: 'vite.config.ts',
+            },
+          },
+        },
+        {
+          name: 'test-runner',
+          title: 'Tests',
+          icon: I.tests,
+          views: [{id: 'tests', label: 'Tests'}],
+          commands: [{name: 'Run all tests'}, {name: 'Rerun failed tests'}],
+        },
+        {name: 'whiteboard', title: 'Whiteboard', views: [{id: 'whiteboard', label: 'Whiteboard'}], commands: []},
+        {
+          name: 'design',
+          title: 'Design',
+          views: [{id: 'design', label: 'Design'}],
+          commands: [{name: 'Compare with the design'}],
+        },
+      ]
+
+      function apiDoc() {
+        return (
+          '<div class="frame" id="api"><span class="frame-name">How an extension adds to settings</span><div class="doc">' +
+          '<h2>One declaration, three tabs</h2>' +
+          '<pre><span class="k">export default</span> defineExtension({\n  name: <span class="s">\'recorder\'</span>,\n  views: [{id: <span class="s">\'recorder\'</span>, label: <span class="s">\'Recorder\'</span>, Component}],   <span class="c">// Views tab</span>\n  commands: [{name: <span class="s">\'Start or stop recording\'</span>, run}],   <span class="c">// Shortcuts tab</span>\n  settings: z.object({                                  <span class="c">// Extensions tab</span>\n    masking: z.enum([<span class="s">\'none\'</span>, <span class="s">\'inputs\'</span>, <span class="s">\'sensitive\'</span>]).default(<span class="s">\'none\'</span>)\n      .meta({title: <span class="s">\'Mask in replays\'</span>, description: <span class="s">\'…\'</span>}),\n    windowMinutes: z.number().int().min(1).max(60).default(10)\n      .meta({title: <span class="s">\'Keep the last\'</span>, unit: <span class="s">\'minutes\'</span>}),\n    console: z.boolean().default(<span class="s">true</span>).meta({title: <span class="s">\'Capture console\'</span>}),\n  }),\n})\n\n<span class="c">// client and server read the resolved value, live</span>\nclient.settings.get(<span class="s">\'masking\'</span>)</pre>' +
+          '<h3>Schema to control</h3><table>' +
+          '<tr><td>z.boolean()</td><td>Switch</td></tr>' +
+          '<tr><td>z.enum([...]) up to 3</td><td>Segmented control</td></tr>' +
+          '<tr><td>z.enum([...]) more</td><td>Select</td></tr>' +
+          '<tr><td>z.number()</td><td>Number field, min/max from the schema</td></tr>' +
+          '<tr><td>z.string()</td><td>Text field</td></tr>' +
+          '<tr><td>anything else</td><td>Not shown; the extension can pass its own <code>SettingsComponent</code></td></tr></table>' +
+          '<h3>Rules</h3><ul>' +
+          '<li>Keys are namespaced by extension: <code>recorder.masking</code>. No collisions.</li>' +
+          '<li>A value equal to the default is not stored. Reset deletes the key.</li>' +
+          '<li>A value set in <code>conciv({extensions})</code> in the project config wins and shows locked.</li>' +
+          '<li>The same schema validates writes on the server; bad stored values fall back to the default.</li>' +
+          '<li>Agents read and change settings through the same server call, behind the approval gate.</li></ul>' +
+          '</div></div>'
+        )
+      }
+
+      const TABS = [
+        {
+          id: 'general',
+          label: 'General',
+          icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4.5h7M12 4.5h1.5M2.5 11.5h1.5M6.5 11.5h7"/><circle cx="10.5" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg>',
+        },
+        {
+          id: 'views',
+          label: 'Views',
+          icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 10h12M6 10v3.5M10 10v3.5"/></svg>',
+        },
+        {
+          id: 'shortcuts',
+          label: 'Shortcuts',
+          icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="1.5" y="4" width="13" height="8" rx="1.5"/><path d="M4 6.5h1M7 6.5h1M10 6.5h2M5 9.5h6"/></svg>',
+        },
+        {
+          id: 'extensions',
+          label: 'Extensions',
+          icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M6 2.5h4v2a1.5 1.5 0 0 0 3 0V6h1.5v4H13a1.5 1.5 0 0 0 0 3v1.5H2.5V6H6z"/></svg>',
+        },
+        {
+          id: 'advanced',
+          label: 'Advanced',
+          icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M8 1.8l5.2 2v4c0 3-2.2 5.2-5.2 6.4C5 13 2.8 10.8 2.8 7.8v-4z"/></svg>',
+        },
+      ]
+
+      const ICON_RESET =
+        '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5v3h3"/></svg>'
+      const ICON_OUT =
+        '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 2.5H3.5v11H6M10 5l3 3-3 3M13 8H6.5"/></svg>'
+      const ICON_WARN =
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.5"/></svg>'
+      const ICON_X =
+        '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+
+      function group(label, inner) {
+        return (
+          '<section class="grp"><span class="ml">' + label + '</span><div class="card">' + inner + '</div></section>'
+        )
+      }
+      function sw(on, label) {
+        return (
+          '<button class="sw' +
+          (on ? ' on' : '') +
+          '" data-toggle role="switch" aria-checked="' +
+          on +
+          '" aria-label="' +
+          label +
+          '"><span></span></button>'
+        )
+      }
+      function seg(groupId, labels, selected) {
+        return (
+          '<div class="seg n' +
+          labels.length +
+          '" role="radiogroup">' +
+          labels
+            .map(function (l, i) {
+              return (
+                '<button class="' +
+                (i === selected ? 'on' : '') +
+                '" data-group="' +
+                groupId +
+                '" role="radio" aria-checked="' +
+                (i === selected) +
+                '">' +
+                l +
+                '</button>'
+              )
+            })
+            .join('') +
+          '</div>'
+        )
+      }
+      function select(options, value) {
+        return (
+          '<span class="selw"><select class="sel">' +
+          options
+            .map(function (o) {
+              return '<option' + (o === value ? ' selected' : '') + '>' + o + '</option>'
+            })
+            .join('') +
+          '</select>' +
+          I.caret +
+          '</span>'
+        )
+      }
+      function line(title, hint, control) {
+        return (
+          '<div class="row"><span class="grow"><span class="lbl">' +
+          title +
+          '</span>' +
+          (hint ? '<span class="hint">' + hint + '</span>' : '') +
+          '</span>' +
+          control +
+          '</div>'
+        )
+      }
+      function stack(title, hint, control) {
+        return (
+          '<div class="stack"><span class="grow"><span class="lbl">' +
+          title +
+          '</span>' +
+          (hint ? '<span class="hint">' + hint + '</span>' : '') +
+          '</span>' +
+          control +
+          '</div>'
+        )
+      }
+
+      function settingControl(ext, key, s) {
+        const value = s.value !== undefined ? s.value : s.default
+        if (s.locked) {
+          return (
+            '<div class="row locked"><span class="grow"><span class="lbl">' +
+            s.title +
+            '</span>' +
+            (s.description ? '<span class="hint">' + s.description + '</span>' : '') +
+            '<span class="lock">' +
+            I.lock +
+            'Set in ' +
+            s.locked +
+            '</span></span><span class="val">' +
+            String(value) +
+            '</span></div>'
+          )
+        }
+        const changed = s.value !== undefined && s.value !== s.default
+        const hint =
+          (s.description || '') + (changed ? ' <button class="reset">Reset to ' + s.default + '</button>' : '')
+        if (s.type === 'boolean') return line(s.title, hint, sw(value, s.title))
+        if (s.type === 'enum' && s.options.length <= 3 && s.labels)
+          return stack(s.title, hint, seg(ext.name + key, s.labels, s.options.indexOf(value)))
+        if (s.type === 'enum') return line(s.title, hint, select(s.options, value))
+        if (s.type === 'number')
+          return line(
+            s.title,
+            hint,
+            '<span class="numw"><input class="numf" type="number" min="' +
+              s.min +
+              '" max="' +
+              s.max +
+              '" value="' +
+              value +
+              '" aria-label="' +
+              s.title +
+              '"><span class="meta">' +
+              (s.unit || '') +
+              '</span></span>',
+          )
+        return line(s.title, hint, '<input class="txtf" value="' + value + '" aria-label="' + s.title + '">')
+      }
+
+      function generalTab() {
+        const skins =
+          '<div class="skins">' +
+          '<button class="skin on" data-group="skin" aria-pressed="true"><div class="prev" style="background:#17161a"><div class="bar" style="width:60%;background:#322e33"></div><div class="bar" style="width:85%;background:#272428"></div><div class="bar" style="width:24px;background:#c9857f;margin-top:auto"></div></div><div class="cap"><span>Conciv</span><span class="ml">default</span></div></button>' +
+          '<button class="skin" data-group="skin" aria-pressed="false"><div class="prev" style="background:#0e1110"><div class="bar" style="width:60%;background:#2e3a33;border-radius:0"></div><div class="bar" style="width:85%;background:#222b26;border-radius:0"></div><div class="bar" style="width:24px;background:#5fd39a;margin-top:auto;border-radius:0"></div></div><div class="cap"><span>Terminal</span><span class="ml">mono</span></div></button></div>'
+        return (
+          group(
+            'Appearance',
+            stack('Color mode', 'Auto follows the page, then your system.', seg('mode', ['Auto', 'Light', 'Dark'], 0)) +
+              stack('Skin', 'Shapes, type and accent of the panel.', skins),
+          ) +
+          group(
+            'Panel',
+            line(
+              'Launcher',
+              'The button that opens conciv on the page.',
+              select(['Mascot', 'Native', 'Hidden'], 'Mascot'),
+            ) +
+              line('Open on page load', '', sw(false, 'Open on page load')) +
+              line(
+                'Close on outside click',
+                'Clicking the page closes the panel.',
+                sw(false, 'Close on outside click'),
+              ),
+          ) +
+          group(
+            'New sessions',
+            line(
+              'Coding agent',
+              'Claude Code and Codex found on PATH.',
+              select(['Claude Code', 'Codex'], 'Claude Code'),
+            ) +
+              line(
+                'Model',
+                'Change it per session from the composer.',
+                select(['Opus 5.5', 'Sonnet 5.5', 'Haiku 5.5'], 'Opus 5.5'),
+              ) +
+              stack('Effort', '', seg('effort', ['Low', 'Medium', 'High'], 2)),
+          ) +
+          group(
+            'Other agents',
+            stack(
+              'Connect over MCP',
+              'Any MCP client can drive this page with this address and token.',
+              '<div class="code"><span>http://127.0.0.1:4599/api/mcp</span><button class="btn">Copy</button></div><div class="code"><span>Bearer ••••••••••••••••</span><button class="btn">Copy</button></div>',
+            ),
+          )
+        )
+      }
+
+      function viewRow(label, opts) {
+        const o = opts || {}
+        return (
+          '<div class="row tab' +
+          (o.off ? ' off' : '') +
+          (o.child ? ' child' : '') +
+          '"><button class="grip" aria-label="Reorder ' +
+          label +
+          '">' +
+          I.grip +
+          '</button><button class="cb' +
+          (o.off ? '' : ' on') +
+          '" data-check role="checkbox" aria-checked="' +
+          !o.off +
+          '" aria-label="Show ' +
+          label +
+          '"></button>' +
+          (o.icon || '') +
+          '<span class="name">' +
+          label +
+          (o.tag ? '<span class="chip">' + o.tag + '</span>' : '') +
+          '</span><button class="ib sm' +
+          (o.pinned ? ' pinned' : '') +
+          '" data-pin aria-label="Pin ' +
+          label +
+          '" aria-pressed="' +
+          !!o.pinned +
+          '">' +
+          I.pin +
+          '</button></div>'
+        )
+      }
+
+      function viewsTab() {
+        const core = viewRow('Chat', {pinned: true, icon: I.agent})
+        const ext = EXTENSIONS.map(function (e) {
+          if (e.views.length === 1)
+            return viewRow(e.views[0].label, {icon: e.icon || I.tabs, off: e.name === 'whiteboard', tag: e.name})
+          return (
+            viewRow(e.title, {icon: e.icon, tag: 'group'}) +
+            e.views
+              .map(function (v) {
+                return viewRow(v.label, {child: true})
+              })
+              .join('')
+          )
+        }).join('')
+        return (
+          '<p class="lead">What shows in the tab bar, and in what order. Drag a row, or focus it and press Alt + arrow keys. Each extension\'s views show up here by themselves. Hidden views stay in the command menu.</p>' +
+          '<section class="grp"><div class="ghd"><span class="ml">conciv</span></div><div class="card">' +
+          core +
+          '</div></section>' +
+          '<section class="grp"><div class="ghd"><span class="ml">Extensions</span><button class="reset">Reset order</button></div><div class="card" data-tabs>' +
+          ext +
+          '</div></section>'
+        )
+      }
+
+      function keyRow(name, keys, opts) {
+        const o = opts || {}
+        const right = keys
+          ? '<span class="keys">' +
+            keys
+              .map(function (x) {
+                return '<span class="kbd">' + x + '</span>'
+              })
+              .join('') +
+            '</span><button class="ib xs" aria-label="Clear ' +
+            name +
+            '">' +
+            ICON_X +
+            '</button>'
+          : '<span class="none">Add shortcut</span>'
+        return (
+          '<div class="row key' +
+          (o.child ? ' child' : '') +
+          (o.rec ? ' rec' : '') +
+          '"><button class="name keyname" data-rec>' +
+          name +
+          '</button><span class="recl">Press keys, Esc to cancel</span>' +
+          right +
+          '</div>'
+        )
+      }
+
+      function shortcutsTab() {
+        const preset = {
+          'Run all tests': ['⌘', '⇧', 'T'],
+          'Start or stop recording': ['⌘', '⇧', 'R'],
+          'Compare with the design': ['⌘', '⇧', 'C'],
+        }
+        const ext = EXTENSIONS.filter(function (e) {
+          return e.commands.length
+        })
+          .map(function (e) {
+            return (
+              '<div class="row key head">' +
+              (e.icon || I.tabs) +
+              '<span class="name">' +
+              e.title +
+              '</span><span class="from">extension</span></div>' +
+              e.commands
+                .map(function (c) {
+                  return keyRow(c.name, preset[c.name], {child: true})
+                })
+                .join('')
+            )
+          })
+          .join('')
+        return (
+          '<label class="search"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input type="search" placeholder="Search commands" aria-label="Search commands"></label>' +
+          '<div class="card">' +
+          keyRow('Open or close conciv', ['⌘', '.']) +
+          keyRow('Command menu', ['⌘', 'K']) +
+          keyRow('Open settings', null) +
+          keyRow('Quick terminal', ['⌘', '`']) +
+          keyRow('New session', ['⌘', '⇧', 'O']) +
+          keyRow('Pick an element on the page', ['⌘', '⇧', 'C'], {rec: true}) +
+          '<div class="row warnrow">' +
+          ICON_WARN +
+          '<span>⌘⇧C is also <b>Compare with the design</b>. Saving moves it here.</span></div>' +
+          keyRow('Stop the agent', ['Esc']) +
+          ext +
+          '</div>'
+        )
+      }
+
+      function extensionsTab() {
+        return (
+          '<p class="lead">Each extension that declares settings gets a section here by itself, built from its schema.</p>' +
+          EXTENSIONS.filter(function (e) {
+            return e.settings
+          })
+            .map(function (e) {
+              const changed = Object.values(e.settings).some(function (s) {
+                return !s.locked && s.value !== undefined && s.value !== s.default
+              })
+              const rows = Object.keys(e.settings)
+                .map(function (k) {
+                  return settingControl(e, k, e.settings[k])
+                })
+                .join('')
+              const locked = Object.values(e.settings).some(function (s) {
+                return s.locked
+              })
+              return (
+                '<section class="card ext"><div class="ch">' +
+                e.icon +
+                '<span class="lbl">' +
+                e.title +
+                '</span><span class="pkg">@conciv/extension-' +
+                e.name +
+                '</span><span style="flex:1"></span>' +
+                (changed ? '<button class="reset">Reset</button>' : '') +
+                '</div>' +
+                rows +
+                (locked
+                  ? '<div class="row lockrow">' +
+                    I.lock +
+                    '<span>Locked rows come from <code>conciv({extensions: {' +
+                    e.name +
+                    '}})</code> in the project config.</span></div>'
+                  : '') +
+                '</section>'
+              )
+            })
+            .join('')
+        )
+      }
+
+      function advancedTab() {
+        return (
+          group(
+            'Signed-in browsers',
+            line(
+              'Firefox on macOS <span class="chip ok">this browser</span>',
+              'Signed in today, 09:41',
+              '<button class="btn d">' + ICON_OUT + 'Sign out</button>',
+            ) +
+              line(
+                'Chrome on macOS',
+                'Signed in 3 days ago',
+                '<button class="btn d">' + ICON_OUT + 'Sign out</button>',
+              ) +
+              line(
+                'Via Vite DevTools',
+                'Signed in yesterday',
+                '<button class="btn d">' + ICON_OUT + 'Sign out</button>',
+              ),
+          ) +
+          group(
+            'Reset',
+            line(
+              'Views',
+              'Show every view again, in the default order.',
+              '<button class="btn w">' + ICON_RESET + 'Reset views</button>',
+            ) +
+              line(
+                'Shortcuts',
+                'Back to the default keys.',
+                '<button class="btn w">' + ICON_RESET + 'Reset shortcuts</button>',
+              ) +
+              line(
+                'Extension settings',
+                'Values from the project config stay.',
+                '<button class="btn w">' + ICON_RESET + 'Reset extensions</button>',
+              ) +
+              line(
+                'Everything',
+                'All settings for this project. Chats and history are kept.',
+                '<button class="btn d" data-arm data-idle="Reset all" data-armed="Click again">Reset all</button>',
+              ),
+          )
+        )
+      }
+
+      const TAB_BODY = {
+        general: generalTab,
+        views: viewsTab,
+        shortcuts: shortcutsTab,
+        extensions: extensionsTab,
+        advanced: advancedTab,
+      }
+
+      function panel(active, opts) {
+        const o = opts || {}
+        const bar =
+          '<nav class="tb" role="tablist">' +
+          TABS.map(function (t) {
+            return (
+              '<button role="tab" data-tab="' +
+              t.id +
+              '" class="' +
+              (t.id === active ? 'on' : '') +
+              '" aria-selected="' +
+              (t.id === active) +
+              '">' +
+              t.icon +
+              t.label +
+              '</button>'
+            )
+          }).join('') +
+          '</nav>'
+        return (
+          '<div class="p' +
+          (o.light ? ' light' : '') +
+          '"' +
+          (o.width ? ' style="width:' + o.width + 'px"' : '') +
+          '>' +
+          '<header class="hd root"><span class="ttl">Settings</span><button class="ib" aria-label="Close settings">' +
+          I.close +
+          '</button></header>' +
+          bar +
+          '<div class="bd">' +
+          TAB_BODY[active]() +
+          '</div>' +
+          '<footer class="ft"><span class="ml"><span class="dot"></span>Saved automatically</span><span class="ml route">/panel/$sessionId/settings/' +
+          active +
+          '</span></footer></div>'
+        )
+      }
+
+      function frame(id, name, active, opts) {
+        return (
+          '<div class="frame" id="' +
+          id +
+          '"><span class="frame-name">' +
+          name +
+          '</span>' +
+          panel(active, opts) +
+          '</div>'
+        )
+      }
+
+      document.getElementById('board').innerHTML = [
+        frame('general', 'General', 'general'),
+        frame('views', 'Views', 'views'),
+        frame('shortcuts', 'Shortcuts', 'shortcuts'),
+        frame('extensions', 'Extensions (generated)', 'extensions'),
+        frame('advanced', 'Advanced', 'advanced'),
+        frame('light', 'General (light)', 'general', {light: true}),
+        frame('docked', 'Docked wide (760px)', 'extensions', {width: 760}),
+        apiDoc(),
+      ].join('')
+
+      document.addEventListener('click', function (event) {
+        const tab = event.target.closest('[data-tab]')
+        if (!tab) return
+        const p = tab.closest('.p')
+        const light = p.classList.contains('light')
+        const width = p.style.width ? parseInt(p.style.width, 10) : 0
+        p.outerHTML = panel(tab.dataset.tab, {light: light, width: width})
+      })
+      document.addEventListener('click', function (event) {
+        const box = event.target.closest('[data-check]')
+        if (!box) return
+        const on = box.classList.toggle('on')
+        box.setAttribute('aria-checked', String(on))
+        box.closest('.row').classList.toggle('off', !on)
+      })
+
+      function renumber(card) {
+        let count = 0
+        card.querySelectorAll('.row.tab').forEach(function (row) {
+          const shown = !row.classList.contains('off')
+          if (shown) count += 1
+          row.querySelector('.num').textContent = shown ? String(count) : ''
+        })
+      }
+
+      document.addEventListener('click', function (event) {
+        const target = event.target.closest('button')
+        if (!target) return
+        if (target.dataset.group) {
+          target
+            .closest('.p')
+            .querySelectorAll('[data-group="' + target.dataset.group + '"]')
+            .forEach(function (item) {
+              const on = item === target
+              item.classList.toggle('on', on)
+              if (item.hasAttribute('aria-checked')) item.setAttribute('aria-checked', String(on))
+              if (item.hasAttribute('aria-pressed')) item.setAttribute('aria-pressed', String(on))
+            })
+          return
+        }
+        if (target.hasAttribute('data-toggle')) {
+          const on = target.classList.toggle('on')
+          target.setAttribute('aria-checked', String(on))
+          return
+        }
+        if (target.hasAttribute('data-pin')) {
+          target.setAttribute('aria-pressed', String(target.classList.toggle('pinned')))
+          return
+        }
+        if (target.hasAttribute('data-rec')) {
+          const row = target.closest('.row')
+          const was = row.classList.contains('rec')
+          target
+            .closest('.p')
+            .querySelectorAll('.row.rec')
+            .forEach(function (r) {
+              r.classList.remove('rec')
+            })
+          if (!was) row.classList.add('rec')
+          return
+        }
+        if (target.hasAttribute('data-arm')) {
+          const armed = target.classList.toggle('on')
+          target.textContent = armed ? target.dataset.armed : target.dataset.idle
+        }
+      })
+    </script>
+  </body>
+</html>

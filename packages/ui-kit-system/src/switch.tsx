@@ -226,7 +226,8 @@ function Control(props: ComponentProps<typeof Ark.Control>) {
   }
 
   const press = (event: PointerEvent & {currentTarget: HTMLElement}): void => {
-    if (api().disabled || event.button !== 0 || grip.pointerId !== undefined) return
+    if (api().disabled || event.currentTarget.hasAttribute('data-readonly')) return
+    if (event.button !== 0 || grip.pointerId !== undefined) return
     event.currentTarget.setPointerCapture(event.pointerId)
     const pointer = localX({element: event.currentTarget, clientX: event.clientX})
     Object.assign(grip, {
