@@ -1,7 +1,7 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
 import {execFile} from 'node:child_process'
 import {createHash} from 'node:crypto'
-import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -1455,8 +1455,11 @@ describe('design_check image rows', () => {
   const folder = join(kit.hostRoot, 'public', 'design')
   const frame = join(kit.targetsDir, 'picture-frame.png')
 
+  const found: string[] = []
+
   beforeAll(async () => {
     await mkdir(folder, {recursive: true})
+    found.push(...(await readdir(folder)))
     await writeFile(
       join(folder, 'same.png'),
       picture.painted({width: PICTURE.w * 2, height: PICTURE.h * 2, turned: false}),
@@ -1465,7 +1468,10 @@ describe('design_check image rows', () => {
     await writeFile(frame, picture.framed())
   })
 
-  afterAll(() => rm(folder, {recursive: true, force: true}))
+  afterAll(async () => {
+    const written = (await readdir(folder)).filter((name) => !found.includes(name))
+    await Promise.all(written.map((name) => rm(join(folder, name), {force: true})))
+  })
 
   const imageRows = async (src: string): Promise<ReturnType<typeof roundOf>['rows']> => {
     await goto(`/?variant=picture&src=${encodeURIComponent(src)}`)
