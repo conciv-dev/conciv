@@ -41,6 +41,7 @@ import {
   ToolProvider,
   useThread,
   Composer,
+  ComposerActions,
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
@@ -708,12 +709,24 @@ describe('chat pane', () => {
 
 const LONG_ACTION_NAME = 'long-composer-action'
 const LONG_ACTION_LABEL = 'AN_EXTENSION_COMPOSER_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
+const PINNED_ACTION_TOOLTIP = 'Run the pinned extension action'
+const [pinnedActionRuns, setPinnedActionRuns] = createSignal(0)
 
 const longComposerAction = defineExtension({
   name: LONG_ACTION_NAME,
   Component: () => (
     <Show when={getExtensionApi(LONG_ACTION_NAME).useSlot() === 'composer'}>
       <span>{LONG_ACTION_LABEL}</span>
+      <ComposerActions.ActionButton
+        visible="always"
+        tooltip={PINNED_ACTION_TOOLTIP}
+        onClick={() => setPinnedActionRuns((runs) => runs + 1)}
+      >
+        P
+      </ComposerActions.ActionButton>
+      <Show when={pinnedActionRuns() > 0}>
+        <p>the pinned extension action ran</p>
+      </Show>
     </Show>
   ),
 })
@@ -791,10 +804,14 @@ describe('composer overflow', () => {
     await expect.element(newSessionItem()).not.toBeInTheDocument()
   })
 
-  test('a long extension action in the row leaves the message input visible and typeable', async () => {
+  test('a long extension action in the row leaves the message input and a pinned action reachable', async () => {
     await mountComposer(undefined, [longComposerAction])
 
     await expect.element(page.getByText(LONG_ACTION_LABEL)).toBeVisible()
+    const pinnedAction = page.getByRole('button', {name: PINNED_ACTION_TOOLTIP})
+    await expect.element(pinnedAction).toBeVisible()
+    await userEvent.click(pinnedAction)
+    await expect.element(page.getByText('the pinned extension action ran')).toBeVisible()
     await expect.element(input()).toBeVisible()
     await userEvent.click(input())
     await userEvent.keyboard('still typeable')

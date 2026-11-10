@@ -34,7 +34,7 @@ const TRIGGER_TOOLTIP = 'More composer actions'
 const TRIGGER_CLASS = 'size-8 shrink-0'
 const ACTION_CLASS = 'size-8'
 const REGION_CLASS = 'empty:hidden flex gap-1 items-center shrink-0'
-const CHILDREN_CLASS = 'empty:hidden flex gap-1 items-center min-w-0 overflow-x-clip'
+const CHILDREN_CLASS = 'empty:hidden flex flex-wrap gap-1 items-center min-w-0 overflow-x-clip'
 
 const NO_MENU_CONTENT: ActionMenuEntry[] = []
 
