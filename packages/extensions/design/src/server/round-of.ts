@@ -1,6 +1,5 @@
-import type {ExtensionDb} from '@conciv/extension'
 import {RoundSchema, type Round} from '../shared/defs.js'
-import type {designTables} from './tables.js'
+import type {storeTables} from './runs/store-tables.js'
 
 export function roundOf(input: Stored): Round {
   const {head, rows: listed} = input
@@ -142,7 +141,7 @@ function gateRowOf(row: RowRow): Record<string, unknown> {
   }
 }
 
-type Tables = ExtensionDb<ReturnType<typeof designTables>>['tables']
+type Tables = typeof storeTables
 
 type RowRow = Tables['rows']['$inferSelect']
 

@@ -1,17 +1,17 @@
 import {and, eq} from 'drizzle-orm'
 import {uniq, uniqBy} from 'es-toolkit'
-import type {ExtensionDb} from '@conciv/extension'
 import type {Catalog, Component} from '../../shared/catalog-defs.js'
-import type {designTables} from '../tables.js'
+import type {openStore} from '../runs/open-store.js'
+import type {storeTables} from '../runs/store-tables.js'
 
 export async function relateRound(input: {
   db: DesignDb
   catalog: Catalog
   targetId: string
-  runId: number | null
+  runId: number
   round: number
   sites: {node: string; source: string}[]
-}): Promise<Map<string, Component>> {
+}): Promise<{relation: Map<string, Component>; write: (tx: Transaction) => void}> {
   const {db, catalog, targetId, runId, round} = input
   const {node_components: nodeComponents} = db.tables
   const sourced = uniqBy(input.sites, (row) => `${row.node}\n${row.source}`)
@@ -20,9 +20,11 @@ export async function relateRound(input: {
     const component = components.get(row.source)
     return component === undefined ? [] : [{...row, component}]
   })
-  db.orm.transaction((tx) => {
+  const write = (tx: Transaction): void => {
     tx.delete(nodeComponents)
-      .where(and(eq(nodeComponents.target_id, targetId), eq(nodeComponents.round, round)))
+      .where(
+        and(eq(nodeComponents.run_id, runId), eq(nodeComponents.target_id, targetId), eq(nodeComponents.round, round)),
+      )
       .run()
     related.forEach(({node, source, component}) =>
       tx
@@ -39,8 +41,10 @@ export async function relateRound(input: {
         })
         .run(),
     )
-  })
-  return new Map(related.map(({node, component}) => [node, component]))
+  }
+  return {relation: new Map(related.map(({node, component}) => [node, component])), write}
 }
 
-type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
+type DesignDb = {orm: ReturnType<typeof openStore>['orm']; tables: typeof storeTables}
+
+type Transaction = Parameters<Parameters<DesignDb['orm']['transaction']>[0]>[0]

@@ -58,6 +58,14 @@ export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
 
 export type RunStatus = LibraryRunStatus
 
+export const RUN_STATUSES = [
+  'running',
+  'interrupted',
+  'completed',
+  'failed',
+  'aborted',
+] as const satisfies readonly RunStatus[]
+
 const RunPhaseSchema = z.enum(['running', 'stopping', 'completed', 'failed', 'aborted'])
 
 export type RunPhase = z.infer<typeof RunPhaseSchema>

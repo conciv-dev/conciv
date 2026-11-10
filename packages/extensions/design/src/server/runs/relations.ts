@@ -62,12 +62,11 @@ export const runsRelations = defineRelations(storeTables, (r) => {
     notes: child('notes'),
     nodes: child('nodes'),
     artifacts: {run: r.one.runs({from: r.artifacts.run_id, to: r.runs.run_id})},
-    lanes: {run: r.one.runs({from: r.lanes.run_id, to: r.runs.run_id, optional: false})},
     judgements: {run: ofRun('judgements')},
     reports: {artifact: r.one.artifacts({from: r.reports.artifact_id, to: r.artifacts.artifact_id})},
   }
 })
 
-type Child = Exclude<keyof typeof storeTables, 'runs' | 'targets' | 'artifacts' | 'lanes' | 'reports'>
+type Child = Exclude<keyof typeof storeTables, 'runs' | 'targets' | 'artifacts' | 'reports'>
 
 type Rounded = Exclude<Child, 'nodes' | 'judgements'>

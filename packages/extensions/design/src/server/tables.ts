@@ -11,27 +11,29 @@ import {
   type SQLiteColumn,
   type SQLiteTableFn,
 } from 'drizzle-orm/sqlite-core'
+import {RUN_STATUSES} from '@conciv/protocol/chat-event-types'
+import type {TokenUsage} from '@conciv/protocol/usage-types'
 import {BROKEN_BY, DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
 import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {MAGNITUDES} from '../shared/magnitudes.js'
 import {RUN_VERDICTS} from '../shared/run-verdicts.js'
+import {Arm} from '../shared/arm.js'
 import type {ToolReply} from '../shared/tool-reply.js'
 
-export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run') {
-  const runId = () => (store === 'runs' ? integer().notNull() : integer())
-  const keyOf = (self: Keyed): Key => (store === 'runs' ? [self.run_id, self.target_id] : [self.target_id])
-  const runsOnly = <Entry>(entries: Entry[]): Entry[] => (store === 'runs' ? entries : [])
+export function designTables(table: SQLiteTableFn) {
+  const runId = () => integer().notNull()
+  const keyOf = (self: Keyed): Key => [self.run_id, self.target_id]
   const ofRun = (self: {run_id: SQLiteColumn}) =>
     foreignKey({columns: [self.run_id], foreignColumns: [runs.run_id]}).onDelete('cascade')
-  const owned = (self: Keyed) =>
-    runsOnly([ofRun(self), foreignKey({columns: keyOf(self), foreignColumns: keyOf(targets)}).onDelete('cascade')])
+  const owned = (self: Keyed) => [
+    ofRun(self),
+    foreignKey({columns: keyOf(self), foreignColumns: keyOf(targets)}).onDelete('cascade'),
+  ]
   const inRound = (self: Rounded) => [
     ...owned(self),
-    ...runsOnly([
-      foreignKey({columns: [...keyOf(self), self.round], foreignColumns: [...keyOf(rounds), rounds.round]}).onDelete(
-        'cascade',
-      ),
-    ]),
+    foreignKey({columns: [...keyOf(self), self.round], foreignColumns: [...keyOf(rounds), rounds.round]}).onDelete(
+      'cascade',
+    ),
   ]
   const byRound = (name: string) => (self: Rounded) => [
     ...inRound(self),
@@ -42,8 +44,8 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
     {
       run_id: integer().primaryKey({autoIncrement: true}),
       target_id: text(),
-      model: text().notNull(),
-      prompt_head: text().notNull(),
+      model: text(),
+      prompt_head: text(),
       started: integer().notNull(),
       ended: integer(),
       cost: real(),
@@ -58,10 +60,21 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
       tools_fingerprint: text(),
       source_path: text(),
       source_run_id: integer(),
+      session_id: text(),
+      status: text({enum: RUN_STATUSES}),
+      arm: text({enum: ARMS}),
+      harness: text(),
+      agent_id: text(),
+      usage: text({mode: 'json'}).$type<TokenUsage>(),
+      error: text(),
+      error_code: text(),
     },
     (self) => [
       uniqueIndex('runs_source').on(self.source_path, self.source_run_id),
+      index('runs_by_session').on(self.session_id, self.status),
       check('runs_verdict', inArray(self.verdict, [...RUN_VERDICTS]).inlineParams()),
+      check('runs_status', inArray(self.status, [...RUN_STATUSES]).inlineParams()),
+      check('runs_arm', inArray(self.arm, [...ARMS]).inlineParams()),
     ],
   )
   const targets = table(
@@ -84,7 +97,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
     },
     (self) => [
       primaryKey({columns: keyOf(self)}),
-      ...runsOnly([ofRun(self)]),
+      ofRun(self),
       check('targets_widget', inArray(self.widget, [...WIDGETS]).inlineParams()),
     ],
   )
@@ -128,12 +141,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
       ids: text({mode: 'json'}).$type<IdTree>(),
       at: integer().notNull(),
     },
-    (self) => [
-      ...owned(self),
-      store === 'runs'
-        ? uniqueIndex('rounds_round').on(self.run_id, self.target_id, self.round)
-        : index('rounds_by_round').on(self.run_id, self.target_id, self.round),
-    ],
+    (self) => [...owned(self), uniqueIndex('rounds_round').on(self.run_id, self.target_id, self.round)],
   )
   return {
     targets,
@@ -293,52 +301,6 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
       },
       owned,
     ),
-    fom_nodes: table('fom_nodes', {
-      seq: integer().notNull(),
-      target_id: text().notNull(),
-      run_id: runId(),
-      id: text().notNull(),
-      node: text().notNull(),
-      name: text(),
-      instance: text(),
-      source: text(),
-      site: text(),
-      confidence: real().notNull(),
-      margin: real().notNull(),
-      round: integer().notNull(),
-      voted_round: integer(),
-      revoted_round: integer(),
-      reason: text(),
-      at: integer().notNull(),
-      type: text(),
-      within: text(),
-      depth: integer(),
-      x: real(),
-      y: real(),
-      w: real(),
-      h: real(),
-      fill_kind: text({enum: FILL_KINDS}),
-      fill: text(),
-      fill_opacity: real(),
-      stroke: text(),
-      stroke_weight: real(),
-      radius: real(),
-      font_family: text(),
-      font_weight: real(),
-      font_size: real(),
-      line_height: real(),
-      text_align: text(),
-      text: text(),
-      opacity: real(),
-      image: integer({mode: 'boolean'}),
-      asset: text(),
-      token_fill: text(),
-      token_stroke: text(),
-      token_radius: text(),
-      token_font: text(),
-      token_gap: text(),
-      token_padding: text(),
-    }),
     votes: table(
       'votes',
       {
@@ -426,6 +388,8 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
     ),
   }
 }
+
+const ARMS = [Arm.TOOLS, Arm.CONTROL] as const
 
 const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 

@@ -1,4 +1,5 @@
 import {brokenRoundsView} from './broken-rounds.js'
+import {fomNodesView} from './fom-nodes.js'
 import {hintVsDrawnView} from './hint-vs-drawn.js'
 import {judgedView} from './judged.js'
 import {kitPerRoundView} from './kit-per-round.js'
@@ -22,4 +23,5 @@ export const runsViews = {
   lowest_rendered: lowestRenderedView,
   judged: judgedView,
   wave_summary: waveSummaryView,
+  fom_nodes: fomNodesView,
 }

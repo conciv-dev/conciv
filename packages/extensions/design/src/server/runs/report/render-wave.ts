@@ -3,7 +3,12 @@ export function renderWave(input: {
   summary: Record<string, unknown>[]
   judged: Record<string, unknown>[]
 }): string {
-  const widths = input.summary.map((row) => [`## ${String(row.width)}`, '', ...table([row]), ''])
+  const widths = input.summary.map((row) => [
+    `## ${String(row.arm ?? '')} ${String(row.width)}`,
+    '',
+    ...table([row]),
+    '',
+  ])
   return [`# ${input.wave}`, '', ...widths.flat(), '## runs', '', ...table(input.judged), ''].join('\n')
 }
 

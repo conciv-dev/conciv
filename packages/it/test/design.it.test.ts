@@ -1,8 +1,7 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
 import {execFile} from 'node:child_process'
-import {createHash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -16,15 +15,7 @@ import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {
-  catalogSources,
-  closeHomeDb,
-  componentScans,
-  extensionTable,
-  openDb,
-  openHomeDb,
-  sourceCatalog,
-} from '@conciv/db'
+import {catalogSources, closeHomeDb, componentScans, openDb, openHomeDb, sourceCatalog} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
 import {extensionDb} from '@conciv/extension/db'
 import type {} from '@conciv/extension-design/client'
@@ -42,13 +33,11 @@ import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
-import {designTables} from '../../extensions/design/src/server/tables.js'
-import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
-import {storeArtifacts} from '../../extensions/design/src/server/runs/import/store-artifacts.js'
+import {storeArtifacts} from '../../extensions/design/src/server/runs/artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -70,8 +59,6 @@ import {picture} from './fixtures/design/picture.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
 
-const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url))
-const DESIGN_PACKAGE = fileURLToPath(new URL('../../extensions/design/package.json', import.meta.url))
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
 const APP_FILE = fileURLToPath(new URL('fixtures/design/host/src/App.tsx', import.meta.url))
@@ -266,22 +253,24 @@ describe('paddle disposal', () => {
 })
 
 describe('store', () => {
-  it('puts a design, keeps its mapping and rounds, and clears them', async () => {
-    const orm = openDb({
-      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-design-store-')),
-      extensions: [{name: 'design', migrations}],
-    })
-    const db = {
-      orm,
-      tables: designTables(extensionTable('design')),
-      sources: () => [],
-      read: async () => [],
-      write: async () => [],
-    }
+  it('puts a design, keeps its mapping and rounds, and reads the latest run of a target', async () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-store-home-'))
+    const opened = openStore(homeDir)
+    const db = {orm: opened.orm, tables: storeTables}
+    const [run] = opened.orm
+      .insert(storeTables.runs)
+      .values({started: 1, status: 'running', project_key: 'p'})
+      .returning()
+      .all()
     const home = openHomeDb(homeDir)
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
-    const store = createStore({db, state: createStorage({driver: memoryDriver()}), run: async () => null, catalog})
+    const store = createStore({
+      db,
+      state: createStorage({driver: memoryDriver()}),
+      runs: {of: async () => run?.run_id ?? null},
+      project: Promise.resolve('p'),
+      catalog,
+    })
     const design: Design = {
       id: 'store-1',
       source: {kind: 'figma', ref: 'key/1:2'},
@@ -340,9 +329,8 @@ describe('store', () => {
     expect(await store.image({id: 'store-1', round: 1, kind: 'live'})).not.toBeNull()
     expect(await store.image({id: 'store-1', round: 1, kind: 'diff'})).toBeNull()
     expect((await store.current('session-b'))?.id).toBe('store-1')
-    await store.clear('store-1')
-    expect(await store.rounds('store-1')).toEqual([])
     closeHomeDb(home)
+    opened.close()
     await rm(homeDir, {recursive: true, force: true})
   })
 })
@@ -633,20 +621,11 @@ describe('catalog store', () => {
   async function openCatalog() {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-catalog-home-'))
     const home = openHomeDb(homeDir)
-    const orm = openDb({
-      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-catalog-state-')),
-      extensions: [{name: 'design', migrations}],
-    })
-    const db = {
-      orm,
-      tables: designTables(extensionTable('design')),
-      sources: () => [],
-      read: async () => [],
-      write: async () => [],
-    }
+    const store = openStore(homeDir)
+    const db = {orm: store.orm, tables: storeTables}
     opened.push(async () => {
       closeHomeDb(home)
-      orm.$client.close()
+      store.close()
       await rm(homeDir, {recursive: true, force: true})
     })
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
@@ -887,12 +866,15 @@ describe('catalog hints on design_get', () => {
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
 
-  it('lists the hinted nodes in hint_vs_drawn once the run is imported, a round or none', async () => {
-    await kit.rpc.extensions.run({name: 'design:run', args: ['start', 'it-hint-model', 'it-head'], options: {}})
+  it('lists the hinted nodes in hint_vs_drawn of the running run, a round or none', async () => {
     const got = await hintedTarget()
-    const {runId} = z
-      .object({runId: z.number()})
-      .parse(await kit.rpc.extensions.run({name: 'design:run-import', args: [kit.stateRoot], options: {}}))
+    const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
+      await kit.rpc.db.read({
+        from: 'design_stored_runs',
+        where: `session_id == "${kit.session}" && status == "running"`,
+        select: ['run'],
+      }),
+    )
     const rows = z.array(z.object({node: z.string(), hint: z.string()})).parse(
       await kit.rpc.db.read({
         from: 'design_hint_vs_drawn',
@@ -959,20 +941,14 @@ describe('node components', () => {
   it('backfills stored rounds once, skipping a source no component holds', async () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-relation-home-'))
     const home = openHomeDb(homeDir)
-    const orm = openDb({
-      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-relation-state-')),
-      extensions: [{name: 'design', migrations}],
-    })
-    const db = {
-      orm,
-      tables: designTables(extensionTable('design')),
-      sources: () => [],
-      read: async () => [],
-      write: async () => [],
-    }
+    const store = openStore(homeDir)
+    const {orm} = store
+    const db = {orm, tables: storeTables}
     try {
       const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
-      const stored = {target_id: 'stored-1', confidence: 1, margin: 1, round: 2, at: 1}
+      const [run = 0] = seededRuns(store)
+      await orm.insert(storeTables.rounds).values({target_id: 't', run_id: run, round: 2, tree: '', at: 1})
+      const stored = {target_id: 't', run_id: run, confidence: 1, margin: 1, round: 2, at: 1}
       await orm.insert(db.tables.fom).values([
         {...stored, id: 'stat', node: '7:1', source: 'src/XrayPage.tsx:11:7'},
         {...stored, id: 'markup', node: '7:2', source: 'index.html:3:1'},
@@ -981,12 +957,12 @@ describe('node components', () => {
       const rows = await orm.select().from(db.tables.node_components)
       const stat = await catalog.componentOf('src/XrayPage.tsx:11:7')
       expect(rows.map((row) => [row.target_id, row.round, row.node, row.component_id])).toEqual([
-        ['stored-1', 2, '7:1', stat?.id],
+        ['t', 2, '7:1', stat?.id],
       ])
       expect(await backfillRelation({db, catalog})).toBe(0)
     } finally {
       closeHomeDb(home)
-      orm.$client.close()
+      store.close()
       await rm(homeDir, {recursive: true, force: true})
     }
   })
@@ -1088,17 +1064,8 @@ describe('token drift', () => {
   it('reads a light-dark token as one token per scheme and matches page values by kind', async () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-tokens-home-'))
     const home = openHomeDb(homeDir)
-    const orm = openDb({
-      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-tokens-state-')),
-      extensions: [{name: 'design', migrations}],
-    })
-    const db = {
-      orm,
-      tables: designTables(extensionTable('design')),
-      sources: () => [],
-      read: async () => [],
-      write: async () => [],
-    }
+    const store = openStore(homeDir)
+    const db = {orm: store.orm, tables: storeTables}
     try {
       const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
       const files = [fileURLToPath(new URL('../../ui-kit-system/src/tokens.css', import.meta.url))]
@@ -1111,7 +1078,7 @@ describe('token drift', () => {
       ]).toEqual([['--chat-panel', '--chat-panel-sunk'], [], ['--chat-radius-lg'], ['--chat-font']])
     } finally {
       closeHomeDb(home)
-      orm.$client.close()
+      store.close()
       await rm(homeDir, {recursive: true, force: true})
     }
   })
@@ -1496,44 +1463,9 @@ describe('design_check image rows', () => {
 
 const NamedSchema = z.array(z.looseObject({name: z.string()}))
 
-function migrated(list: typeof migrations): DatabaseSync {
-  const client = new DatabaseSync(':memory:')
-  list.flatMap((migration) => migration.sql).forEach((statement) => client.exec(statement))
-  return client
-}
-
 function pragma(input: {client: DatabaseSync; statement: string}): unknown[] {
   return input.client.prepare(input.statement).all()
 }
-
-describe('run database schema', () => {
-  it('migrates a run database forward with the reply column and the round indexes', () => {
-    const client = migrated(migrations)
-    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
-    expect(names('PRAGMA index_list(design_rows)')).toContain('rows_by_round')
-    expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
-    expect(names('PRAGMA table_info(design_node_components)')).toContain('run_id')
-    expect(names('PRAGMA table_info(design_fom_nodes)')).toContain('fill_kind')
-  })
-})
-
-describe('a run database from either branch', () => {
-  it.each(['twentyeight-figma7-1', 'catalog-era'])('opens %s and migrates it to the merged tables', async (name) => {
-    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-forward-'))
-    await mkdir(join(stateRoot, '.conciv'))
-    const source = new DatabaseSync(fileURLToPath(new URL(`fixtures/runs/${name}/.conciv/conciv.db`, import.meta.url)))
-    source.exec(`VACUUM INTO '${join(stateRoot, '.conciv', 'conciv.db')}'`)
-    source.close()
-    const orm = openDb({stateRoot, extensions: [{name: 'design', migrations}]})
-    const client = orm.$client
-    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
-    expect(names('PRAGMA table_info(design_rounds)')).toEqual(expect.arrayContaining(['broken_by', 'drift']))
-    expect(names('PRAGMA index_list(design_rows)')).toContain('rows_by_round')
-    expect(names('PRAGMA table_info(design_fom)')).toContain('site')
-    client.close()
-    await rm(stateRoot, {recursive: true, force: true})
-  })
-})
 
 type Store = ReturnType<typeof openStore>
 
@@ -1575,7 +1507,6 @@ const STORED = [
   'node_components',
   'notes',
   'artifacts',
-  'lanes',
   'judgements',
   'reports',
 ]
@@ -1592,6 +1523,7 @@ const VIEWS = [
   'kit_per_round',
   'judged',
   'wave_summary',
+  'fom_nodes',
 ]
 
 function seededRuns(store: Store): number[] {
@@ -1680,6 +1612,7 @@ describe('the runs store', () => {
       expect(await sources.read({from: 'design_wave_summary', where: 'wave == "thirty"'})).toEqual([
         {
           wave: 'thirty',
+          arm: null,
           width: 390,
           runs: 2,
           done: 1,
@@ -1734,128 +1667,66 @@ describe('the runs store', () => {
   })
 })
 
-const ProvenanceSchema = z.array(
-  z.object({
-    model: z.string(),
-    project_key: z.string(),
-    branch: z.string().nullable(),
-    head: z.string().nullable(),
-    wave: z.string().nullable(),
-    lane: z.string().nullable(),
-    tools_head: z.string().nullable(),
-    tools_version: z.string().nullable(),
-    tools_fingerprint: z.string().nullable(),
-    verdict: z.string().nullable(),
-    cost: z.number().nullable(),
-  }),
-)
-
-const PROVENANCE = [
-  'model',
-  'project_key',
-  'branch',
-  'head',
-  'wave',
-  'lane',
-  'tools_head',
-  'tools_version',
-  'tools_fingerprint',
-  'verdict',
-  'cost',
-]
-
 async function git(input: {cwd: string; args: string[]}): Promise<string> {
   return (await promisify(execFile)('git', input.args, {cwd: input.cwd})).stdout.trim()
 }
 
-describe('run start and run end', () => {
-  it('writes the git branch, head, project key and tool version of a git project, and closes with the verdict', async () => {
-    const run = (args: string[], options: Record<string, string | number>) =>
-      kit.rpc.extensions.run({name: 'design:run', args, options})
-    await run(['start', 'it-model', 'it-head'], {wave: 'thirty', lane: 'figma7-1'})
-    await run(['end', 'done'], {cost: 2})
-    const [row] = ProvenanceSchema.parse(
-      await kit.rpc.db.read({from: 'design_runs', where: 'model == "it-model"', select: PROVENANCE}),
-    )
-    const [remote, branch, head] = await Promise.all([
-      git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']}),
-      git({cwd: kit.hostRoot, args: ['rev-parse', '--abbrev-ref', 'HEAD']}),
-      git({cwd: kit.hostRoot, args: ['rev-parse', 'HEAD']}),
-    ])
-    expect(row).toEqual({
-      model: 'it-model',
-      project_key: `${remote}#packages/it/test/fixtures/design/host/`,
-      branch,
-      head,
-      wave: 'thirty',
-      lane: 'figma7-1',
-      tools_head: head,
-      tools_version: z.object({version: z.string()}).parse(JSON.parse(await readFile(DESIGN_PACKAGE, 'utf8'))).version,
-      tools_fingerprint: expect.any(String),
-      verdict: 'done',
-      cost: 2,
-    })
-  })
+const CliRowsSchema = z.object({ok: z.literal(true), data: z.array(z.record(z.string(), z.unknown()))})
 
-  it('keys a project without git by its package name, with no branch, head, wave or lane', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-'))
-    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-state-'))
-    const home = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-home-'))
-    await writeFile(join(cwd, 'package.json'), JSON.stringify({name: 'no-git-host'}))
-    const orm = openDb({stateRoot, extensions: [design]})
-    const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
-    await commands.find((command) => command.name === 'design:run')?.run({args: ['start', 'm', 'p'], options: {}})
-    const [row] = ProvenanceSchema.parse(await sources.read({from: 'design_runs', select: PROVENANCE}))
-    expect([row?.project_key, row?.branch, row?.head, row?.wave, row?.lane]).toEqual([
-      'no-git-host',
-      null,
-      null,
-      null,
-      null,
-    ])
-    orm.$client.close()
-    await Promise.all([cwd, stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
-  })
+async function homeQuery(input: {home: string; args: string[]}): Promise<Record<string, unknown>[]> {
+  const cwd = await tempDir('conciv-no-project-')
+  const printed = await promisify(execFile)(
+    process.execPath,
+    [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'db', 'query', ...input.args],
+    {cwd, env: {...process.env, CONCIV_HOME: input.home}},
+  )
+  return CliRowsSchema.parse(JSON.parse(printed.stdout)).data
+}
 
-  it('keys an untracked copy inside a git checkout by its package name, with no branch or head', async () => {
-    const waveDir = await mkdtemp(join(FIXTURES, 'untracked-'))
-    importedDirs.push(waveDir)
-    const cwd = join(waveDir, 'copy')
-    await cp(HOST_ROOT, cwd, {
-      recursive: true,
-      filter: (source) => !['node_modules', '.conciv'].includes(basename(source)),
+describe('the store is written at the source', () => {
+  it('opens a running run with its provenance at the first design_get of a session, and writes its rounds there', async () => {
+    await goto('target')
+    await cardsTarget()
+    roundOf(await call('design_check', {}))
+    const runs = await homeQuery({
+      home: kit.home,
+      args: [
+        '--from',
+        'design_stored_runs',
+        '--where',
+        `session_id == "${kit.session}"`,
+        '--select',
+        'run,status,session_id,project_key,harness,agent_id',
+      ],
     })
-    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-state-'))
-    const home = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-home-'))
-    const orm = openDb({stateRoot, extensions: [design]})
-    const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
-    await commands.find((command) => command.name === 'design:run')?.run({args: ['start', 'm', 'p'], options: {}})
-    const [row] = ProvenanceSchema.parse(await sources.read({from: 'design_runs', select: PROVENANCE}))
-    expect([row?.project_key, row?.branch, row?.head]).toEqual(['design-fixture-host', null, null])
-    orm.$client.close()
-    await Promise.all([stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
+    const remote = await git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']})
+    expect(runs).toEqual([
+      {
+        run: expect.any(Number),
+        status: 'running',
+        session_id: kit.session,
+        project_key: `${remote}#packages/it/test/fixtures/design/host/`,
+        harness: expect.any(String),
+        agent_id: kit.session,
+      },
+    ])
+    const rounds = await homeQuery({
+      home: kit.home,
+      args: ['--from', 'design_stored_rounds', '--where', `run == ${String(runs[0]?.run)}`, '--select', 'round'],
+    })
+    expect(rounds.length).toBeGreaterThan(0)
+    const project = new DatabaseSync(join(kit.stateRoot, '.conciv', 'conciv.db'), {readOnly: true})
+    const tables = NamedSchema.parse(project.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'design_%'").all())
+    project.close()
+    expect(tables).toEqual([])
   })
 })
 
 const BACKFILL = 'runs_backfill_wave_lane'
 
-const TARGET_IDS_MOVED = 'ALTER TABLE design_targets DROP COLUMN ids'
-
-const RUN_FIXTURE = fileURLToPath(new URL('fixtures/runs/twentysix-figma7-1/', import.meta.url))
-
-const ImportedSchema = z.object({runId: z.number(), imported: z.boolean(), copied: z.record(z.string(), z.number())})
-
-const CountSchema = z.object({count: z.number()})
-
 const importedDirs: string[] = []
 
 afterAll(() => Promise.all(importedDirs.map((dir) => rm(dir, {recursive: true, force: true}))))
-
-async function runImport(input: {dir: string; options?: Record<string, string | string[]>}) {
-  return ImportedSchema.parse(
-    await kit.rpc.extensions.run({name: 'design:run-import', args: [input.dir], options: input.options ?? {}}),
-  )
-}
 
 async function tempDir(prefix: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix))
@@ -1863,213 +1734,7 @@ async function tempDir(prefix: string): Promise<string> {
   return dir
 }
 
-async function fixtureCopy(statement: string): Promise<string> {
-  const dir = await tempDir('conciv-run-project-')
-  await mkdir(join(dir, '.conciv'))
-  const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-  source.exec(`VACUUM INTO '${join(dir, '.conciv', 'conciv.db')}'`)
-  source.close()
-  const copy = new DatabaseSync(join(dir, '.conciv', 'conciv.db'))
-  copy.exec(`${TARGET_IDS_MOVED};${statement}`)
-  copy.close()
-  return dir
-}
-
-const CURRENT_FIXTURE = await fixtureCopy('')
-
-function fixtureCount(input: {table: string; where?: string}): number {
-  const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-  const {count} = CountSchema.parse(
-    source.prepare(`SELECT count(*) AS count FROM ${input.table} ${input.where ?? ''}`).get(),
-  )
-  source.close()
-  return count
-}
-
-async function storedCount(input: {from: string; runId: number}): Promise<number> {
-  return (await kit.rpc.db.read({from: input.from, where: `run == ${input.runId}`})).length
-}
-
-function sha256(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex')
-}
-
-describe('run import', () => {
-  const COPIED = ['design_stored_rounds', 'design_stored_rows', 'design_stored_votes', 'design_stored_tool_calls']
-
-  it('imports a finished run once, its rounds, rows and votes under one run id, and returns that id again', async () => {
-    const expected = ['design_rounds', 'design_rows', 'design_votes', 'design_tool_calls'].map((table) =>
-      fixtureCount({table}),
-    )
-    const first = await runImport({dir: CURRENT_FIXTURE})
-    const counted = () => Promise.all(COPIED.map((from) => storedCount({from, runId: first.runId})))
-    expect(await counted()).toEqual(expected)
-    const again = await runImport({dir: CURRENT_FIXTURE})
-    expect([again.imported, again.runId]).toEqual([false, first.runId])
-    expect(await counted()).toEqual(expected)
-  })
-
-  it('imports a live database that lacks a newer column with null in it', async () => {
-    const dir = await fixtureCopy(
-      "ALTER TABLE design_runs ADD COLUMN lane text; UPDATE design_runs SET lane = 'figma7-1'",
-    )
-    const {runId} = await runImport({dir})
-    expect(
-      await kit.rpc.db.read({from: 'design_stored_runs', where: `run == ${runId}`, select: ['wave', 'lane']}),
-    ).toEqual([{wave: null, lane: 'figma7-1'}])
-  })
-
-  it('refuses a live database with a column the store lacks, naming it, and copies nothing', async () => {
-    const dir = await fixtureCopy('ALTER TABLE design_rows ADD COLUMN surprise TEXT')
-    await expect(runImport({dir})).rejects.toThrow('design_rows.surprise')
-    expect(await kit.rpc.db.read({from: 'design_stored_runs', where: `source_path == "${dir}"`})).toEqual([])
-  })
-
-  it('stores the design, a screenshot per width, the source tar and the transcript with checksums and lifetimes, and the lane', async () => {
-    const dir = await fixtureCopy("UPDATE design_runs SET verdict = 'done'")
-    const inputs = await tempDir('conciv-run-artifacts-')
-    const widths = [390, 1280]
-    await Promise.all(
-      ['screenshots', 'design', 'source'].map((folder) => mkdir(join(inputs, folder), {recursive: true})),
-    )
-    await Promise.all([
-      ...widths.flatMap((width) => [
-        writeFile(join(inputs, 'screenshots', `${width}.png`), `shot ${width}`),
-        writeFile(join(inputs, 'design', `${width}.png`), `design ${width}`),
-      ]),
-      writeFile(join(inputs, 'source', 'App.tsx'), 'export function App() {}'),
-      writeFile(join(inputs, 'transcript.jsonl'), '{"turn":1}'),
-    ])
-    const {runId} = await runImport({
-      dir,
-      options: {
-        screenshots: join(inputs, 'screenshots'),
-        design: join(inputs, 'design'),
-        source: join(inputs, 'source'),
-        transcript: join(inputs, 'transcript.jsonl'),
-        lane: dir,
-        lifetime: ['screenshot=7'],
-      },
-    })
-    const rows = z
-      .array(
-        z.object({
-          kind: z.string(),
-          width: z.number().nullable(),
-          path: z.string(),
-          size: z.number(),
-          checksum: z.string(),
-          lifetime: z.string(),
-        }),
-      )
-      .parse(
-        await kit.rpc.db.read({
-          from: 'design_stored_artifacts',
-          where: `run == ${runId}`,
-          select: ['kind', 'width', 'path', 'size', 'checksum', 'lifetime'],
-        }),
-      )
-    expect(new Set(rows.map((row) => `${row.kind} ${row.width} ${row.lifetime}`))).toEqual(
-      new Set([
-        'design 390 infinite',
-        'design 1280 infinite',
-        'screenshot 390 7',
-        'screenshot 1280 7',
-        'source null infinite',
-        'transcript null 90',
-      ]),
-    )
-    const stored = await Promise.all(rows.map((row) => readFile(join(kit.home, 'artifacts', row.path))))
-    expect(stored.map((bytes) => [sha256(bytes), bytes.length])).toEqual(rows.map((row) => [row.checksum, row.size]))
-    expect(rows.every((row) => row.path.startsWith(`${runId}/`))).toBe(true)
-    const screenshot = rows.find((row) => row.kind === 'screenshot' && row.width === 390)
-    expect(screenshot?.checksum).toBe(sha256(await readFile(join(inputs, 'screenshots', '390.png'))))
-    expect(await kit.rpc.db.read({from: 'design_stored_lanes', where: `run == ${runId}`, select: ['path']})).toEqual([
-      {path: dir},
-    ])
-  })
-
-  it('answers run_summary per width with the round, verdict and rows of the final gate', async () => {
-    const GateSchema = z.object({
-      variants: z.array(
-        z.object({target: z.string(), round: z.number(), verdict: z.string(), counts: z.object({rows: z.number()})}),
-      ),
-    })
-    const gate = GateSchema.parse(JSON.parse(await readFile(join(RUN_FIXTURE, 'gate-final.json'), 'utf8')))
-    const {runId} = await runImport({dir: CURRENT_FIXTURE})
-    const rows = await kit.rpc.db.read({
-      from: 'design_run_summary',
-      where: `run == ${runId}`,
-      select: ['target', 'round', 'verdict', 'rows'],
-      order: [{field: 'width', dir: 'desc'}],
-    })
-    expect(rows).toEqual(
-      gate.variants.map((variant) => ({
-        target: variant.target,
-        round: variant.round,
-        verdict: variant.verdict,
-        rows: variant.counts.rows,
-      })),
-    )
-    expect(await kit.rpc.db.read({from: 'design_mispairs', where: 'run == 0'})).toEqual([])
-    await expect(kit.rpc.db.write({into: 'design_stored_runs', values: {model: 'm'}})).rejects.toThrow(
-      'design_stored_runs is read-only',
-    )
-  })
-
-  it('answers the wave questions: broken rounds, page-height rows and the lowest rendered count per width', async () => {
-    const broken = fixtureCount({table: 'design_rounds', where: 'WHERE broken IS NOT NULL'})
-    const page = fixtureCount({table: 'design_rows', where: "WHERE kind = 'page'"})
-    const targets = fixtureCount({table: 'design_targets'})
-    const {runId} = await runImport({dir: CURRENT_FIXTURE})
-    const counts = await Promise.all(
-      ['design_broken_rounds', 'design_page_height_rows', 'design_lowest_rendered'].map((from) =>
-        storedCount({from, runId}),
-      ),
-    )
-    expect(counts).toEqual([broken, page, targets])
-  })
-
-  it('reads the run summary of an imported run through the CLI, filtered by cost', async () => {
-    const {runId} = await runImport({dir: CURRENT_FIXTURE})
-    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-    const widths = z
-      .array(z.object({width: z.number()}))
-      .parse(source.prepare('SELECT width FROM design_targets ORDER BY width').all())
-    source.close()
-    const printed = await promisify(execFile)(
-      process.execPath,
-      [
-        fileURLToPath(import.meta.resolve('@conciv/cli/bin')),
-        'db',
-        'query',
-        '--from',
-        'design_run_summary',
-        '--where',
-        `run == ${runId} && cost > 2`,
-        '--select',
-        'run,width,verdict',
-        '--order',
-        'width',
-      ],
-      {cwd: kit.stateRoot, env: {...process.env, CONCIV_STATE_ROOT: kit.stateRoot}},
-    )
-    const SummarySchema = z.object({
-      ok: z.literal(true),
-      data: z.array(z.object({run: z.number(), width: z.number(), verdict: z.string()})),
-    })
-    const {data} = SummarySchema.parse(JSON.parse(printed.stdout))
-    expect(data.map((row) => [row.run, row.width])).toEqual(widths.map((row) => [runId, row.width]))
-  })
-
-  it('imports a tool call that names a round the run never stored', async () => {
-    const dir = await fixtureCopy(
-      "INSERT INTO design_tool_calls (run_id, target_id, tool, round, input, reply_bytes, duration_ms, at) SELECT run_id, target_id, 'design_status', 0, '{}', 0, 0, at FROM design_rounds LIMIT 1",
-    )
-    const {runId, copied} = await runImport({dir})
-    expect([copied.design_tool_calls, await storedCount({from: 'design_stored_tool_calls', runId})]).toEqual([28, 28])
-  })
-
+describe('the runs store migrations', () => {
   it('backfills the wave and lane of a stored run from the run dir name in its source path', async () => {
     const home = await tempDir('conciv-runs-backfill-')
     const store = openStore(home)
@@ -2143,53 +1808,18 @@ describe('runs gc', () => {
       expect([existsSync(expired), existsSync(kept)]).toEqual([false, true])
     })
   })
-
-  it('with --state removes a registered lane dir, leaves an unregistered dir and never reads source_path', async () => {
-    await withHome(async ({store, sources, command}) => {
-      const [registered, unregistered] = seededRuns(store)
-      const lane = await tempDir('conciv-gc-lane-')
-      const other = await tempDir('conciv-gc-other-')
-      store.orm
-        .insert(storeTables.lanes)
-        .values({run_id: registered ?? 0, path: lane, registered: 0})
-        .run()
-      store.orm.$client
-        .prepare('UPDATE design_runs SET source_path = ?, source_run_id = 1 WHERE run_id = ?')
-        .run(other, unregistered ?? 0)
-      expect(GcSchema.parse(await command('runs-gc').run({args: [], options: {state: true}}))).toEqual({
-        removed: [lane],
-        kept: 0,
-      })
-      expect([existsSync(lane), existsSync(other)]).toEqual([false, true])
-      expect(await sources.read({from: 'design_stored_runs', select: ['run']})).toHaveLength(2)
-    })
-  })
 })
 
 describe('report', () => {
   it('writes the wave report whose cells equal the wave_summary and judged reads, and records it', async () => {
-    await withHome(async ({home, sources, command}) => {
-      const lanes = ['figma7-1', 'figma7-2']
-      const dirs = await Promise.all(
-        lanes.map((lane) =>
-          fixtureCopy(
-            `ALTER TABLE design_runs ADD COLUMN wave text; ALTER TABLE design_runs ADD COLUMN lane text; UPDATE design_runs SET wave = 'it-wave', lane = '${lane}'`,
-          ),
-        ),
-      )
-      const imported = await Promise.all(
-        dirs.map(async (dir) => ImportedSchema.parse(await command('run-import').run({args: [dir], options: {}}))),
-      )
-      const [first] = imported
-      const [judgedTarget] = z
-        .array(z.object({target: z.string(), width: z.number()}))
-        .parse(await sources.read({from: 'design_judged', where: `run == ${first?.runId}`, limit: 1}))
+    await withHome(async ({home, store, sources, command}) => {
+      const [first] = seededRuns(store)
       await sources.write({
         into: 'design_stored_judgements',
-        values: {run: first?.runId, ...judgedTarget, score: 4, reason: 'close', judge_model: 'opus', at: 1},
+        values: {run: first, target: 't', width: 390, score: 4, reason: 'close', judge_model: 'opus', at: 1},
       })
-      const printed = z.string().parse(await command('report').run({args: ['it-wave'], options: {}}))
-      expect(printed).toBe(join(home, 'artifacts', 'reports', 'it-wave.md'))
+      const printed = z.string().parse(await command('report').run({args: ['thirty'], options: {}}))
+      expect(printed).toBe(join(home, 'artifacts', 'reports', 'thirty.md'))
       const cells = (await readFile(printed, 'utf8'))
         .split('\n')
         .filter((line) => line.startsWith('| ') && !line.startsWith('| -'))
@@ -2198,14 +1828,26 @@ describe('report', () => {
         rows.flatMap((row) => [Object.keys(row), Object.values(row).map((value) => String(value ?? ''))])
       const summary = await sources.read({
         from: 'design_wave_summary',
-        where: 'wave == "it-wave"',
-        select: ['width', 'runs', 'done', 'median_rows', 'median_pixels', 'median_cost', 'median_lowest_rendered'],
-        order: [{field: 'width', dir: 'asc'}],
+        where: 'wave == "thirty"',
+        select: [
+          'arm',
+          'width',
+          'runs',
+          'done',
+          'median_rows',
+          'median_pixels',
+          'median_cost',
+          'median_lowest_rendered',
+        ],
+        order: [
+          {field: 'arm', dir: 'asc'},
+          {field: 'width', dir: 'asc'},
+        ],
       })
       const judged = await sources.read({
         from: 'design_judged',
-        where: 'wave == "it-wave"',
-        select: ['run', 'lane', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
+        where: 'wave == "thirty"',
+        select: ['run', 'lane', 'arm', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
         order: [
           {field: 'run', dir: 'asc'},
           {field: 'target', dir: 'asc'},
@@ -2232,7 +1874,7 @@ describe('report', () => {
           where: `artifact_id == ${report?.artifact_id}`,
           select: ['kind', 'path'],
         }),
-      ).toEqual([{kind: 'report', path: join('reports', 'it-wave.md')}])
+      ).toEqual([{kind: 'report', path: join('reports', 'thirty.md')}])
     })
   })
 })

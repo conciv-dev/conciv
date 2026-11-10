@@ -1,14 +1,14 @@
 import {and, eq} from 'drizzle-orm'
-import type {ExtensionDb} from '@conciv/extension'
 import type {IdTree} from '../shared/defs.js'
 import {walk} from '../shared/tree.js'
-import type {designTables} from './tables.js'
+import type {openStore} from './runs/open-store.js'
+import type {storeTables} from './runs/store-tables.js'
 
 export function writeFom(written: {
   tx: Transaction
   fom: DesignDb['tables']['fom']
   id: string
-  runId: number | null
+  runId: number
   round: number
   ids: {tree: IdTree; revoted: Record<string, string>}
   names: Map<string, string>
@@ -19,7 +19,7 @@ export function writeFom(written: {
   const {tree, revoted} = written.ids
   const carried = new Map(written.before.map((row) => [`${row.id}/${row.node}`, row]))
   tx.delete(fom)
-    .where(and(eq(fom.target_id, id), eq(fom.round, round)))
+    .where(and(eq(fom.run_id, runId), eq(fom.target_id, id), eq(fom.round, round)))
     .run()
   for (const {node: site} of walk(tree.root)) {
     for (const entry of site.fom) {
@@ -49,7 +49,7 @@ export function writeFom(written: {
   }
 }
 
-type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
+type DesignDb = {orm: ReturnType<typeof openStore>['orm']; tables: typeof storeTables}
 
 type FomRow = DesignDb['tables']['fom']['$inferSelect']
 

@@ -1,4 +1,4 @@
-import type {designTables} from '../server/tables.js'
+import type {storeTables} from '../server/runs/store-tables.js'
 import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord, Widget} from './defs.js'
 import type {Component, Ranked} from './catalog-defs.js'
 import type {ToolReply} from './tool-reply.js'
@@ -35,7 +35,6 @@ export type Store = {
   }): Promise<Round>
   round(input: {id: string; round: number}): Promise<Round | null>
   rounds(id: string): Promise<Round[]>
-  clear(id: string): Promise<void>
   current(session: string): Promise<TargetRecord | null>
   variants(session: string): Promise<TargetRecord[]>
   group(ids: string[]): Promise<void>
@@ -60,4 +59,4 @@ type Label = {
   by: string
 }
 
-type Look = Omit<ReturnType<typeof designTables>['nodes']['$inferSelect'], 'seq' | 'target_id' | 'run_id'>
+type Look = Omit<(typeof storeTables)['nodes']['$inferSelect'], 'seq' | 'target_id' | 'run_id'>

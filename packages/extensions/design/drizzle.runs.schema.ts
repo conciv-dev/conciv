@@ -18,7 +18,6 @@ export const {
   notes,
   node_components,
   artifacts,
-  lanes,
   judgements,
   reports,
 } = storeTables
@@ -35,4 +34,5 @@ export const {
   lowest_rendered,
   judged,
   wave_summary,
+  fom_nodes,
 } = runsViews

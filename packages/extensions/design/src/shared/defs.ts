@@ -5,6 +5,7 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
 import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import type {Store} from './store.js'
+import type {createSessionRuns} from '../server/runs/session-runs.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
 import {CatalogSchemas, type Component, type TokenSource} from './catalog-defs.js'
@@ -617,6 +618,7 @@ export type DesignRuntime = {
   project: Storage
   files: Storage
   store: Store
+  runs: ReturnType<typeof createSessionRuns>
   adapters: TargetAdapter[]
   measurer: Measurer
   pairer: Pairer

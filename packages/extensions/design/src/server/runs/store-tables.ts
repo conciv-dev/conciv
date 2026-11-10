@@ -6,11 +6,11 @@ import {designTables} from '../tables.js'
 
 const table = extensionTable('design')
 
-const {fom_nodes: _view, ...tables} = designTables(table, 'runs')
+const tables = designTables(table)
 
 const {runs} = tables
 
-const ARTIFACT_KINDS = ['design', 'screenshot', 'source', 'transcript', 'report'] as const
+const ARTIFACT_KINDS = ['design', 'screenshot', 'source', 'transcript', 'report', 'source_diff'] as const
 
 const {score} = designConfig.runs
 
@@ -33,14 +33,6 @@ const artifacts = table(
 export const storeTables = {
   ...tables,
   artifacts,
-  lanes: table('lanes', {
-    run_id: integer()
-      .notNull()
-      .unique()
-      .references(() => runs.run_id, {onDelete: 'cascade'}),
-    path: text().notNull(),
-    registered: integer().notNull(),
-  }),
   judgements: table(
     'judgements',
     {

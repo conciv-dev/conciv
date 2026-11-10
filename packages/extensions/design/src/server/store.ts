@@ -1,7 +1,8 @@
-import {and, asc, desc, eq, inArray, isNotNull, max} from 'drizzle-orm'
+import {and, asc, desc, eq, inArray, isNotNull, max, type SQL} from 'drizzle-orm'
 import {keyBy, uniqBy} from 'es-toolkit'
+import type {SQLiteColumn} from 'drizzle-orm/sqlite-core'
 import type {Storage} from 'unstorage'
-import {toolError, type ExtensionDb} from '@conciv/extension'
+import {toolError} from '@conciv/extension'
 import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
 import type {Catalog} from '../shared/catalog-defs.js'
@@ -11,17 +12,20 @@ import {nodeLooks} from './node-look.js'
 import {writeFom} from './write-fom.js'
 import {relateRound} from './catalog/relate.js'
 import {roundOf} from './round-of.js'
-import type {designTables} from './tables.js'
+import type {openStore} from './runs/open-store.js'
+import type {storeTables} from './runs/store-tables.js'
 
 export function createStore(input: {
   db: DesignDb
   state: Storage
-  run: () => Promise<number | null>
+  runs: {of: (sessionId: string) => Promise<number | null>}
+  project: Promise<string>
   catalog: Catalog
 }): Store {
-  const {state, run, catalog} = input
+  const {state, runs, catalog} = input
   const {orm, tables} = input.db
   const {
+    runs: runRows,
     targets,
     rounds,
     rows,
@@ -38,26 +42,79 @@ export function createStore(input: {
     labels,
   } = tables
 
+  const pending = new Map<string, ((tx: Transaction) => void)[]>()
+
+  function later(deferred: {key: string; write: (tx: Transaction) => void}): void {
+    pending.set(deferred.key, [...(pending.get(deferred.key) ?? []), deferred.write])
+  }
+
+  async function ofProject(): Promise<SQL | undefined> {
+    const key = await input.project
+    return inArray(targets.run_id, orm.select({run: runRows.run_id}).from(runRows).where(eq(runRows.project_key, key)))
+  }
+
   async function target(id: string): Promise<TargetRow | undefined> {
-    const [found] = await orm.select().from(targets).where(eq(targets.target_id, id))
+    const [found] = await orm
+      .select()
+      .from(targets)
+      .where(and(eq(targets.target_id, id), await ofProject()))
+      .orderBy(desc(targets.run_id))
+      .limit(1)
     return found
   }
 
+  async function held(): Promise<TargetRow[]> {
+    const latest = await orm
+      .select()
+      .from(targets)
+      .where(await ofProject())
+      .orderBy(desc(targets.run_id))
+    return uniqBy(latest, (row) => row.target_id).toSorted((a, b) => a.at - b.at)
+  }
+
   async function list(): Promise<TargetRecord[]> {
-    return (await orm.select().from(targets).orderBy(asc(targets.at))).map(recordOf)
+    return (await held()).map(recordOf)
+  }
+
+  async function runOf(id: string): Promise<{run: number; row: TargetRow}> {
+    const found = await target(id)
+    if (found === undefined) throw toolError('no-target', {message: `no design ${id} is registered; call design_get`})
+    const run = await runs.of(found.session)
+    if (run === null)
+      throw toolError('no-target', {message: `the run that held ${id} has ended; call design_get again`})
+    if (run === found.run_id) return {run, row: found}
+    const looks = await orm
+      .select()
+      .from(nodes)
+      .where(and(eq(nodes.run_id, found.run_id), eq(nodes.target_id, id)))
+    const moved = {...found, run_id: run}
+    orm.transaction((tx) => {
+      tx.insert(targets).values(moved).run()
+      for (const {seq: _seq, ...look} of looks)
+        tx.insert(nodes)
+          .values({...look, run_id: run})
+          .run()
+    })
+    return {run, row: moved}
+  }
+
+  function keyed(table: Keyed, row: {run_id: number; target_id: string}): SQL | undefined {
+    return and(eq(table.run_id, row.run_id), eq(table.target_id, row.target_id))
   }
 
   async function roundsOf(where: {id: string; round?: number}): Promise<Round[]> {
-    const [heads, listedRows, listedMissing, listedCandidates, listedWidths, listedRegions, names] = await Promise.all([
-      orm.select().from(rounds).where(eq(rounds.target_id, where.id)).orderBy(asc(rounds.seq)),
-      orm.select().from(rows).where(eq(rows.target_id, where.id)).orderBy(asc(rows.seq)),
-      orm.select().from(missing).where(eq(missing.target_id, where.id)).orderBy(asc(missing.seq)),
-      orm.select().from(candidates).where(eq(candidates.target_id, where.id)).orderBy(asc(candidates.seq)),
-      orm.select().from(widths).where(eq(widths.target_id, where.id)).orderBy(asc(widths.seq)),
-      orm.select().from(regions).where(eq(regions.target_id, where.id)).orderBy(asc(regions.seq)),
-      namesOf(where.id),
+    const found = await target(where.id)
+    if (found === undefined) return []
+    const [heads, listedRows, listedMissing, listedCandidates, listedWidths, listedRegions] = await Promise.all([
+      orm.select().from(rounds).where(keyed(rounds, found)).orderBy(asc(rounds.seq)),
+      orm.select().from(rows).where(keyed(rows, found)).orderBy(asc(rows.seq)),
+      orm.select().from(missing).where(keyed(missing, found)).orderBy(asc(missing.seq)),
+      orm.select().from(candidates).where(keyed(candidates, found)).orderBy(asc(candidates.seq)),
+      orm.select().from(widths).where(keyed(widths, found)).orderBy(asc(widths.seq)),
+      orm.select().from(regions).where(keyed(regions, found)).orderBy(asc(regions.seq)),
     ])
-    const byRound = <T extends {round: number}>(found: T[]) => Map.groupBy(found, (entry) => entry.round)
+    const names = namesIn(found)
+    const byRound = <T extends {round: number}>(listed: T[]) => Map.groupBy(listed, (entry) => entry.round)
     const rowsBy = byRound(listedRows)
     const missingBy = byRound(listedMissing)
     const candidatesBy = byRound(listedCandidates)
@@ -81,28 +138,29 @@ export function createStore(input: {
 
   async function namesOf(id: string): Promise<Map<string, string>> {
     const found = await target(id)
-    if (found === undefined) return new Map()
-    return new Map([...walk(found.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
+    return found === undefined ? new Map() : namesIn(found)
   }
 
   async function fomAt(where: {id: string; round?: number}): Promise<FomRow[]> {
+    const found = await target(where.id)
+    if (found === undefined) return []
     const [last] = await orm
       .select({round: max(fom.round)})
       .from(fom)
-      .where(eq(fom.target_id, where.id))
+      .where(keyed(fom, found))
     const round = where.round ?? last?.round ?? null
     if (round === null) return []
     return orm
       .select()
       .from(fom)
-      .where(and(eq(fom.target_id, where.id), eq(fom.round, round)))
+      .where(and(keyed(fom, found), eq(fom.round, round)))
       .orderBy(asc(fom.seq))
   }
 
   async function mappingOf(where: {id: string; round?: number}): Promise<Mapping> {
-    const held = await fomAt(where)
+    const stored = await fomAt(where)
     return Object.fromEntries(
-      Object.entries(Object.groupBy(held, (row) => row.id)).map(([key, grouped]) => [
+      Object.entries(Object.groupBy(stored, (row) => row.id)).map(([key, grouped]) => [
         key,
         {
           nodes: (grouped ?? []).map((row) => ({
@@ -119,11 +177,13 @@ export function createStore(input: {
 
   return {
     put: async ({design, image, session, route, widget = 'hidden', notes: told = []}) => {
-      const path = `${design.id}/${TARGET_IMAGE}`
+      const run = await runs.of(session)
+      if (run === null) throw toolError('no-target', {message: 'no run is open for this session; call design_get'})
+      const path = `${run}/${design.id}/${TARGET_IMAGE}`
       await state.setItemRaw(path, image)
       const row = {
         target_id: design.id,
-        run_id: await run(),
+        run_id: run,
         session,
         link: design.source.ref,
         route: route ?? null,
@@ -138,8 +198,11 @@ export function createStore(input: {
         at: Date.now(),
       }
       orm.transaction((tx) => {
-        tx.insert(targets).values(row).onConflictDoUpdate({target: targets.target_id, set: row}).run()
-        tx.delete(nodes).where(eq(nodes.target_id, design.id)).run()
+        tx.insert(targets)
+          .values(row)
+          .onConflictDoUpdate({target: [targets.run_id, targets.target_id], set: row})
+          .run()
+        tx.delete(nodes).where(keyed(nodes, row)).run()
         for (const {gradient: _gradient, lineAuto: _auto, ...look} of nodeLooks(design))
           tx.insert(nodes)
             .values({...look, target_id: design.id, run_id: row.run_id})
@@ -155,7 +218,14 @@ export function createStore(input: {
     },
     image: async ({id, round, kind}) => {
       if (round === undefined) return readRaw({state, key: (await target(id))?.image ?? null})
-      const [head] = await roundsHead({id, round})
+      const found = await target(id)
+      if (found === undefined) return null
+      const [head] = await orm
+        .select()
+        .from(rounds)
+        .where(and(keyed(rounds, found), eq(rounds.round, round)))
+        .orderBy(desc(rounds.seq))
+        .limit(1)
       return readRaw({state, key: (kind === 'diff' ? head?.diff : head?.live) ?? null})
     },
     mapping: (id) => mappingOf({id}),
@@ -164,12 +234,13 @@ export function createStore(input: {
         const source = row.source ?? row.site
         return source === null ? [] : [source]
       }),
-    writeRelation: async ({id, round, tree}) =>
-      relateRound({
+    writeRelation: async ({id, round, tree}) => {
+      const runId = (await runOf(id)).run
+      const {relation, write} = await relateRound({
         db: input.db,
         catalog,
         targetId: id,
-        runId: await run(),
+        runId,
         round,
         sites: [...walk(tree.root)].flatMap(({node: site}) => {
           const {at: loc} = site.src
@@ -177,31 +248,41 @@ export function createStore(input: {
           if (source === undefined) return []
           return site.fom.map((entry) => ({node: entry.nodeId, source}))
         }),
-      }),
+      })
+      later({key: roundKey({run: runId, id, round}), write})
+      return relation
+    },
     writeVotes: async ({id, round, votes: cast}) => {
-      const runId = await run()
+      const runId = (await runOf(id)).run
       const names = await namesOf(id)
       const at = Date.now()
-      orm.transaction((tx) => {
-        for (const ballot of cast)
-          tx.insert(votes)
-            .values({...ballot, name: names.get(ballot.node) ?? null, target_id: id, run_id: runId, round, at})
-            .run()
+      later({
+        key: roundKey({run: runId, id, round}),
+        write: (tx) => {
+          for (const ballot of cast)
+            tx.insert(votes)
+              .values({...ballot, name: names.get(ballot.node) ?? null, target_id: id, run_id: runId, round, at})
+              .run()
+        },
       })
     },
     writeLabel: async ({target: targetId, round, node, id, verdict, by}) => {
-      await orm.insert(labels).values({target_id: targetId, run_id: await run(), round, node, id, verdict, by})
+      await orm
+        .insert(labels)
+        .values({target_id: targetId, run_id: (await runOf(targetId)).run, round, node, id, verdict, by})
     },
     writeToolCall: async ({session, tool, round, input: given, reply, replyBytes, durationMs, error}) => {
-      const [own] = await orm
+      const run = await runs.of(session)
+      if (run === null) return
+      const [latest] = await orm
         .select({id: targets.target_id})
         .from(targets)
-        .where(eq(targets.session, session))
+        .where(and(eq(targets.run_id, run), eq(targets.session, session)))
         .orderBy(desc(targets.at))
         .limit(1)
       await orm.insert(toolCalls).values({
-        target_id: own?.id ?? null,
-        run_id: await run(),
+        target_id: latest?.id ?? null,
+        run_id: run,
         tool,
         round,
         input: given,
@@ -213,53 +294,63 @@ export function createStore(input: {
       })
     },
     ids: async ({id, round}) => {
-      const [held] = await orm
+      const found = await target(id)
+      if (found === undefined) return null
+      const [stored] = await orm
         .select({ids: rounds.ids, round: rounds.round})
         .from(rounds)
-        .where(and(eq(rounds.target_id, id), round === undefined ? isNotNull(rounds.ids) : eq(rounds.round, round)))
+        .where(and(keyed(rounds, found), round === undefined ? isNotNull(rounds.ids) : eq(rounds.round, round)))
         .orderBy(desc(rounds.seq))
         .limit(1)
-      if (held?.ids === undefined || held.ids === null) return null
-      return {...held.ids, root: attached({node: held.ids.root, mapping: await mappingOf({id, round: held.round})})}
+      if (stored?.ids === undefined || stored.ids === null) return null
+      return {
+        ...stored.ids,
+        root: attached({node: stored.ids.root, mapping: await mappingOf({id, round: stored.round})}),
+      }
     },
-    looks: async (id) =>
-      (await orm.select().from(nodes).where(eq(nodes.target_id, id)).orderBy(asc(nodes.seq))).map(
+    looks: async (id) => {
+      const found = await target(id)
+      if (found === undefined) return []
+      return (await orm.select().from(nodes).where(keyed(nodes, found)).orderBy(asc(nodes.seq))).map(
         ({seq: _seq, target_id: _target, run_id: _run, ...look}) => look,
-      ),
+      )
+    },
     relation: async ({id, round}) => {
+      const found = await target(id)
+      if (found === undefined) return new Map()
       const related = await orm
         .select({node: nodeComponents.node, component: nodeComponents.component_id})
         .from(nodeComponents)
-        .where(and(eq(nodeComponents.target_id, id), eq(nodeComponents.round, round)))
+        .where(and(keyed(nodeComponents, found), eq(nodeComponents.round, round)))
       const components = keyBy(await catalog.list({hidden: true}), (component) => component.id)
       return new Map(
         related.flatMap(({node, component}) => {
-          const found = components[component]
-          return found === undefined ? [] : [[node, found]]
+          const named = components[component]
+          return named === undefined ? [] : [[node, named]]
         }),
       )
     },
     unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
     writeUnsettledCount: async ({id, count}) => {
-      await orm.update(targets).set({unsettled: count}).where(eq(targets.target_id, id))
+      const {row} = await runOf(id)
+      await orm.update(targets).set({unsettled: count}).where(keyed(targets, row))
     },
     writeRound: async ({id, round, live, diff, notes: told = [], ids}) => {
       const written = RoundSchema.parse(round)
       const names = await namesOf(id)
       const before = await fomAt({id})
-      const livePath = live.length > 0 ? `${id}/live/${round.round}.png` : null
-      const diffPath = diff.length > 0 ? `${id}/diff/${round.round}.png` : null
+      const {run: runId, row: found} = await runOf(id)
+      const livePath = live.length > 0 ? `${runId}/${id}/live/${round.round}.png` : null
+      const diffPath = diff.length > 0 ? `${runId}/${id}/diff/${round.round}.png` : null
       if (livePath !== null) await state.setItemRaw(livePath, live)
       if (diffPath !== null) await state.setItemRaw(diffPath, diff)
-      const runId = await run()
       const earlier = await orm
         .select()
         .from(rows)
-        .where(and(eq(rows.target_id, id), eq(rows.round, written.round - 1)))
+        .where(and(keyed(rows, found), eq(rows.round, written.round - 1)))
       const repeats = new Map(earlier.map((row) => [rowKey(row), row.repeat + 1]))
       orm.transaction((tx) => {
         const own = {target_id: id, run_id: runId, round: written.round}
-        if (ids !== undefined) writeFom({tx, fom, id, runId, round: written.round, ids, names, before, at: written.at})
         for (const text of told)
           tx.insert(notes)
             .values({...own, text})
@@ -302,6 +393,10 @@ export function createStore(input: {
             ids: ids === undefined ? null : {...ids.tree, root: attached({node: ids.tree.root, mapping: {}})},
           })
           .run()
+        if (ids !== undefined) writeFom({tx, fom, id, runId, round: written.round, ids, names, before, at: written.at})
+        const key = roundKey({run: runId, id, round: written.round})
+        for (const write of pending.get(key) ?? []) write(tx)
+        pending.delete(key)
         for (const row of written.rows)
           tx.insert(rows)
             .values({
@@ -354,28 +449,16 @@ export function createStore(input: {
     },
     round: async ({id, round}) => (await roundsOf({id, round})).at(-1) ?? null,
     rounds: (id) => roundsOf({id}),
-    clear: async (id) => {
-      orm.transaction((tx) => {
-        tx.delete(targets).where(eq(targets.target_id, id)).run()
-        tx.delete(rounds).where(eq(rounds.target_id, id)).run()
-        tx.delete(rows).where(eq(rows.target_id, id)).run()
-        tx.delete(fom).where(eq(fom.target_id, id)).run()
-        tx.delete(votes).where(eq(votes.target_id, id)).run()
-        for (const table of [missing, candidates, widths, regions, nodes, nodeComponents])
-          tx.delete(table).where(eq(table.target_id, id)).run()
-      })
-      await Promise.all((await state.getKeys(id)).map((key) => state.removeItem(key)))
-    },
     current: async (session) => {
       const records = await list()
       return records.filter((entry) => entry.session === session).at(-1) ?? records.at(-1) ?? null
     },
     variants: async (session) => {
-      const held = await orm.select().from(targets).orderBy(asc(targets.at))
-      const last = held.filter((entry) => entry.session === session).at(-1) ?? held.at(-1)
+      const all = await held()
+      const last = all.filter((entry) => entry.session === session).at(-1) ?? all.at(-1)
       if (last === undefined) return []
       if (last.lead === null) return [recordOf(last)]
-      return held
+      return all
         .filter((entry) => entry.lead === last.lead)
         .map(recordOf)
         .toSorted((a, b) => b.width - a.width)
@@ -383,22 +466,19 @@ export function createStore(input: {
     group: async (ids) => {
       const [lead] = ids
       if (lead === undefined) return
-      await orm.update(targets).set({lead}).where(inArray(targets.target_id, ids))
+      const {run} = await runOf(lead)
+      await orm
+        .update(targets)
+        .set({lead})
+        .where(and(eq(targets.run_id, run), inArray(targets.target_id, ids)))
     },
     list,
   }
-
-  function roundsHead(where: {id: string; round: number}) {
-    return orm
-      .select()
-      .from(rounds)
-      .where(and(eq(rounds.target_id, where.id), eq(rounds.round, where.round)))
-      .orderBy(desc(rounds.seq))
-      .limit(1)
-  }
 }
 
-type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
+type DesignDb = {orm: ReturnType<typeof openStore>['orm']; tables: typeof storeTables}
+
+type Keyed = {run_id: SQLiteColumn; target_id: SQLiteColumn}
 
 type TargetRow = DesignDb['tables']['targets']['$inferSelect']
 
@@ -408,7 +488,17 @@ type RowRow = Tables['rows']['$inferSelect']
 
 type FomRow = DesignDb['tables']['fom']['$inferSelect']
 
+type Transaction = Parameters<Parameters<DesignDb['orm']['transaction']>[0]>[0]
+
 const TARGET_IMAGE = 'target.png'
+
+function roundKey(input: {run: number; id: string; round: number}): string {
+  return JSON.stringify([input.run, input.id, input.round])
+}
+
+function namesIn(found: TargetRow): Map<string, string> {
+  return new Map([...walk(found.design.root)].map(({node}) => [node.id, node.figma?.name ?? '']))
+}
 
 function recordOf(row: TargetRow): TargetRecord {
   return {

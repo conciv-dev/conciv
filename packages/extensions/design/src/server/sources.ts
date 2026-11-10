@@ -1,7 +1,10 @@
+import {mapValues} from 'es-toolkit'
 import type {Source} from '@conciv/extension'
-import type {designTables} from './tables.js'
+import {storeTables} from './runs/store-tables.js'
+import {fomNodesView} from './runs/views/fom-nodes.js'
 
-export function designSources(tables: ReturnType<typeof designTables>): Record<string, Source> {
+export function designSources(): Record<string, Source> {
+  const fomNodes = fomNodesView
   const {
     targets,
     rounds,
@@ -10,7 +13,6 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     widths,
     regions,
     rows,
-    fom_nodes: fomNodes,
     nodes,
     votes,
     tool_calls: toolCalls,
@@ -18,8 +20,8 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
     labels,
     notes,
     node_components: nodeComponents,
-  } = tables
-  return {
+  } = storeTables
+  const sources: Record<string, Source> = {
     targets: {
       table: targets,
       fields: {
@@ -301,6 +303,11 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         tools_head: runs.tools_head,
         tools_version: runs.tools_version,
         tools_fingerprint: runs.tools_fingerprint,
+        session_id: runs.session_id,
+        status: runs.status,
+        arm: runs.arm,
+        harness: runs.harness,
+        agent_id: runs.agent_id,
       },
     },
     labels: {
@@ -336,6 +343,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
       fields: {
         seq: nodeComponents.seq,
         target: nodeComponents.target_id,
+        run: nodeComponents.run_id,
         round: nodeComponents.round,
         node: nodeComponents.node,
         component_id: nodeComponents.component_id,
@@ -343,4 +351,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
       },
     },
   }
+  return mapValues(sources, (source) => ({...source, database: RUNS}))
 }
+
+const RUNS = 'runs'

@@ -1,14 +1,13 @@
 import {join} from 'node:path'
 import type {ExtensionDb} from '@conciv/extension'
 import {designConfig} from '../../../shared/tolerances.js'
-import type {designTables} from '../../tables.js'
 import {openStore} from '../open-store.js'
 import {storeTables} from '../store-tables.js'
-import {storeArtifacts} from '../import/store-artifacts.js'
+import {storeArtifacts} from '../artifacts.js'
 import {reportQueries} from '../report/queries.js'
 import {renderWave} from '../report/render-wave.js'
 
-export async function report(input: {db: ExtensionDb<ReturnType<typeof designTables>>; home: string; wave: string}) {
+export async function report(input: {db: Pick<ExtensionDb<Record<never, never>>, 'read'>; home: string; wave: string}) {
   const {db, home, wave} = input
   const queries = reportQueries(wave)
   const [summary = [], judged = []] = await Promise.all(queries.map((query) => db.read(query)))

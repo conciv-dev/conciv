@@ -4,36 +4,25 @@ import {inArray} from 'drizzle-orm'
 import {openStore} from '../open-store.js'
 import {storeTables} from '../store-tables.js'
 
-export function runsGc(input: {home: string; state: boolean}) {
-  const {artifacts, lanes} = storeTables
+export function runsGc(input: {home: string}) {
+  const {artifacts} = storeTables
   const store = openStore(input.home)
   try {
     const now = Date.now()
     const stored = store.orm.select().from(artifacts).all()
     const expired = stored.filter((artifact) => expiredAt(artifact) <= now)
-    const registered = input.state ? store.orm.select().from(lanes).all() : []
     const files = expired.map((artifact) => join(input.home, ARTIFACTS, artifact.path))
     files.forEach((file) => rmSync(file, {force: true}))
-    registered.forEach((lane) => rmSync(lane.path, {recursive: true, force: true}))
-    store.orm.transaction((tx) => {
-      tx.delete(artifacts)
-        .where(
-          inArray(
-            artifacts.artifact_id,
-            expired.map((artifact) => artifact.artifact_id),
-          ),
-        )
-        .run()
-      tx.delete(lanes)
-        .where(
-          inArray(
-            lanes.run_id,
-            registered.map((lane) => lane.run_id),
-          ),
-        )
-        .run()
-    })
-    return {removed: [...files, ...registered.map((lane) => lane.path)], kept: stored.length - expired.length}
+    store.orm
+      .delete(artifacts)
+      .where(
+        inArray(
+          artifacts.artifact_id,
+          expired.map((artifact) => artifact.artifact_id),
+        ),
+      )
+      .run()
+    return {removed: files, kept: stored.length - expired.length}
   } finally {
     store.close()
   }

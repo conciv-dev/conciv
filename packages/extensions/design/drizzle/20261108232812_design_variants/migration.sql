@@ -1,1 +1,0 @@
-ALTER TABLE `design_targets` ADD `lead` text;

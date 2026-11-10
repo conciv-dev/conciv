@@ -6,7 +6,6 @@ import {readMigrationFiles} from 'drizzle-orm/migrator'
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
 const header = "import type {MigrationMeta} from 'drizzle-orm/migrator'"
 
-writeMigrations({folder: 'drizzle', name: 'migrations', file: 'migrations.gen.ts'})
 writeMigrations({folder: 'drizzle-runs', name: 'runsMigrations', file: 'runs-migrations.gen.ts'})
 
 function writeMigrations(input: {folder: string; name: string; file: string}): void {

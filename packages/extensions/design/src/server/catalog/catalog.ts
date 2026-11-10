@@ -1,7 +1,7 @@
 import {and, desc, eq} from 'drizzle-orm'
 import {countBy, groupBy, minBy, takeRightWhile, uniq, uniqBy} from 'es-toolkit'
 import {componentFlags, components, componentScans, componentSites, type HomeDb} from '@conciv/db'
-import {toolError, type ExtensionDb} from '@conciv/extension'
+import {toolError} from '@conciv/extension'
 import {
   CatalogSchemas,
   PREVIEW_ROUTE,
@@ -11,7 +11,8 @@ import {
   type Ranked,
   type Scan,
 } from '../../shared/catalog-defs.js'
-import type {designTables} from '../tables.js'
+import type {openStore} from '../runs/open-store.js'
+import type {storeTables} from '../runs/store-tables.js'
 import {projectFingerprint} from './fingerprint.js'
 import {projectKey} from './project-key.js'
 import {rankComponents} from './rank.js'
@@ -175,7 +176,7 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
   }
 }
 
-type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
+type DesignDb = {orm: ReturnType<typeof openStore>['orm']; tables: typeof storeTables}
 
 type Counted = Component & {imports: number; previewError: string | null}
 

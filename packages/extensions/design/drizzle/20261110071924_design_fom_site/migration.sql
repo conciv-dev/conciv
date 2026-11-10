@@ -1,1 +1,0 @@
-ALTER TABLE `design_fom` ADD `site` text;

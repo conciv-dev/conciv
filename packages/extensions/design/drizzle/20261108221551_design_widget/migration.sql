@@ -1,1 +1,0 @@
-ALTER TABLE `design_targets` ADD `widget` text DEFAULT 'hidden' NOT NULL;

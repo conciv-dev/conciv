@@ -6,13 +6,16 @@ export function reportQueries(wave: string): SourceRead[] {
     {
       from: 'wave_summary',
       where,
-      select: ['width', 'runs', 'done', 'median_rows', 'median_pixels', 'median_cost', 'median_lowest_rendered'],
-      order: [{field: 'width', dir: 'asc'}],
+      select: ['arm', 'width', 'runs', 'done', 'median_rows', 'median_pixels', 'median_cost', 'median_lowest_rendered'],
+      order: [
+        {field: 'arm', dir: 'asc'},
+        {field: 'width', dir: 'asc'},
+      ],
     },
     {
       from: 'judged',
       where,
-      select: ['run', 'lane', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
+      select: ['run', 'lane', 'arm', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
       order: [
         {field: 'run', dir: 'asc'},
         {field: 'target', dir: 'asc'},

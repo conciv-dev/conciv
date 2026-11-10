@@ -1,8 +1,8 @@
 import {createHash} from 'node:crypto'
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
-import type {openStore} from '../open-store.js'
-import {storeTables} from '../store-tables.js'
+import type {openStore} from './open-store.js'
+import {storeTables} from './store-tables.js'
 
 export function storeArtifacts(input: {
   tx: Tx

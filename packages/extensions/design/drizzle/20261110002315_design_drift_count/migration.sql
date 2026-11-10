@@ -1,1 +1,0 @@
-ALTER TABLE `design_rounds` ADD `drift` integer DEFAULT 0 NOT NULL;

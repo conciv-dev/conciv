@@ -1,1 +1,0 @@
-ALTER TABLE `design_rows` ADD `specifier` text;

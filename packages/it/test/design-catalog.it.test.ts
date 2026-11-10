@@ -5,15 +5,15 @@ import {fileURLToPath} from 'node:url'
 import {PNG} from 'pngjs'
 import {afterAll, afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {closeHomeDb, extensionTable, openDb, openHomeDb} from '@conciv/db'
+import {closeHomeDb, openHomeDb} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {XrayRouter} from '@conciv/extension-design/server'
 import type {Design, DesignNode, IdNode} from '@conciv/extension-design/defs'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {readIds} from '../../extensions/design/src/shared/id-tree.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
-import {designTables} from '../../extensions/design/src/server/tables.js'
-import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
+import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
+import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
 import {createCatalog} from '../../extensions/design/src/server/catalog/catalog.js'
 import {createComponentRows} from '../../extensions/design/src/server/catalog/component-rows.js'
@@ -128,12 +128,15 @@ describe('catalog component rows', () => {
     expect(await componentRows({on: kit, page: 'drift-hand'})).toEqual([['10:2', 'Chip', './Chip.tsx', CHIP_ROW]])
   })
 
-  it('reads the component rows of an imported run from lost_components', async () => {
-    await kit.rpc.extensions.run({name: 'design:run', args: ['start', 'it-model', 'it-head'], options: {}})
+  it('reads the component rows of the running run from lost_components', async () => {
     await componentRows({on: kit, page: 'drift-hand'})
-    const {runId} = z
-      .object({runId: z.number()})
-      .parse(await kit.rpc.extensions.run({name: 'design:run-import', args: [kit.stateRoot], options: {}}))
+    const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
+      await kit.rpc.db.read({
+        from: 'design_stored_runs',
+        where: `session_id == "${kit.session}" && status == "running"`,
+        select: ['run'],
+      }),
+    )
     const rows = await kit.rpc.db.read({
       from: 'design_lost_components',
       where: `component == "Chip" && run == ${runId}`,
@@ -406,20 +409,11 @@ describe('a component row where the component can be used', () => {
   async function catalogAt(cwd: string) {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-catalog-home-'))
     const home = openHomeDb(homeDir)
-    const orm = openDb({
-      stateRoot: await mkdtemp(join(tmpdir(), 'conciv-catalog-state-')),
-      extensions: [{name: 'design', migrations}],
-    })
-    const db = {
-      orm,
-      tables: designTables(extensionTable('design')),
-      sources: () => [],
-      read: async () => [],
-      write: async () => [],
-    }
+    const store = openStore(homeDir)
+    const db = {orm: store.orm, tables: storeTables}
     opened.push(async () => {
       closeHomeDb(home)
-      orm.$client.close()
+      store.close()
       await rm(homeDir, {recursive: true, force: true})
     })
     return createCatalog({home, db, cwd, sources: [createViteOxcSource()]})
