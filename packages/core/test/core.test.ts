@@ -18,7 +18,7 @@ import {dirname, join} from 'node:path'
 import {text as bodyText} from 'node:stream/consumers'
 import {randomUUID} from 'node:crypto'
 import {setImmediate, setTimeout as wait} from 'node:timers/promises'
-import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
+import {describe, it, expect, afterAll, afterEach, onTestFinished, test, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
@@ -148,6 +148,11 @@ describe('api native page document', () => {
 })
 
 describe('chat plane', () => {
+  afterAll(() => {
+    const report = z.object({workers: z.array(z.unknown())}).parse(process.report.getReport())
+    expect(report.workers).toEqual([])
+  })
+
   it('unserializable values become "value could not be serialized"; small values pass through unchanged', () => {
     const circular: Record<string, unknown> = {}
     circular.self = circular
@@ -369,8 +374,8 @@ describe('chat plane', () => {
     root = tempDir(),
     overrides: Partial<Parameters<typeof createChatPlane>[0]> = {},
   ): Promise<ChatPlane> {
-    const db = openDatabase(root)
-    return createChatPlane({
+    const db = openDb(root)
+    const chat = await createChatPlane({
       db,
       stateRoot: root,
       hubAccess: 'session',
@@ -386,6 +391,11 @@ describe('chat plane', () => {
       log: () => undefined,
       ...overrides,
     })
+    onTestFinished(async () => {
+      await chat.endAllRuns()
+      db.$client.close()
+    })
+    return chat
   }
 
   const noUpgrade = defineWebSocketHelper(async () => undefined)
