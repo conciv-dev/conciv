@@ -550,3 +550,8 @@ A text node pairs with the element whose only text it is (2026-11-10). When a de
 an element whose text content, trimmed, is that node's text and which holds no other element with text, the text node
 pairs to that element's text, measured as the range box of its text, and its look rows read the element's font, colour
 and line height. The agent is never asked to wrap a button's label in a span.
+
+A check reloads a page that threw before the last edit (2026-11-10). When the last stored round is `broken` with a
+runtime error and a file under the project changed after that error, `design_check` reloads the page once before it
+measures, so a fix the framework could not apply to an unmounted root is seen. A page that throws again after the
+reload is `broken` with the new error.
