@@ -4,7 +4,6 @@ import {
   type BrowserRpcClient,
   type PersistedAttachment,
   type RpcClient,
-  browserRpcConnection,
   makeBrowserRpcClient,
   type EngineTokenSource,
 } from '@conciv/contract'
@@ -267,7 +266,6 @@ function AnnounceLog(props: {entries: () => string[]}): JSX.Element {
 }
 
 export function mountPane(options: PaneMountOptions, view: (pane: PaneContextValue) => JSX.Element): PaneMount {
-  browserRpcConnection(options.base)
   const instances = createInstances(options.extensions ?? [])
   const [announced, setAnnounced] = createSignal<string[]>([])
   const [width, setWidth] = createSignal(options.width ?? DEFAULT_PANE_WIDTH_PX)

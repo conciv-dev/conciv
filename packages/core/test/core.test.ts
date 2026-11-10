@@ -39,6 +39,7 @@ import {
   SOCKET_TRUST_FRAME,
   type EngineStaleness,
   type HeldBrowserRpcLink,
+  type TrustStatus,
 } from '@conciv/contract'
 import {revokeBrowsers} from '@conciv/protocol/engine-trust'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -964,8 +965,9 @@ describe('browser rpc over one websocket', () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
     const served = await engine(root)
     const client = makeBrowserRpcClient(served.origin)
+    const connection = browserRpcConnection(served.origin)
     try {
-      const {trust} = browserRpcConnection(served.origin)
+      const {trust} = connection
       const {rpc} = client
       await expect(rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
       expect(await trust.requestTrust()).toBe(false)
@@ -983,6 +985,7 @@ describe('browser rpc over one websocket', () => {
       expect(served.wire).toEqual({httpRpc: 0, sockets: 1})
       for (const held of probes) held.release()
     } finally {
+      connection.release()
       client.close()
       await served.stop()
       rmSync(root, {recursive: true, force: true})
@@ -997,8 +1000,9 @@ describe('browser rpc over one websocket', () => {
     const unsubscribe = subscribeRpcReachability(first.origin, (reachable) => votes.push(reachable))
     const restarted: {current: Awaited<ReturnType<typeof engine>> | null} = {current: null}
     const client = makeBrowserRpcClient(first.origin)
+    const connection = browserRpcConnection(first.origin)
     try {
-      expect(await browserRpcConnection(first.origin).trust.requestTrustWithToken(token)).toBe(true)
+      expect(await connection.trust.requestTrustWithToken(token)).toBe(true)
       const changes = await client.rpc.sessions.changes()
       expect((await changes.next()).done).toBe(false)
       await first.stop()
@@ -1011,6 +1015,7 @@ describe('browser rpc over one websocket', () => {
       expect(restarted.current.wire.httpRpc).toBe(0)
     } finally {
       unsubscribe()
+      connection.release()
       client.close()
       await restarted.current?.stop()
       rmSync(root, {recursive: true, force: true})
@@ -1046,9 +1051,11 @@ describe('browser rpc over one websocket', () => {
     const firstClient = makeBrowserRpcClient(first.origin)
     const sharingClient = makeBrowserRpcClient(first.origin)
     const secondClient = makeBrowserRpcClient(second.origin)
+    const firstLogin = browserRpcConnection(first.origin)
+    const secondLogin = browserRpcConnection(second.origin)
     try {
-      expect(await browserRpcConnection(first.origin).trust.requestTrustWithToken(first.made.agentToken)).toBe(true)
-      expect(await browserRpcConnection(second.origin).trust.requestTrustWithToken(second.made.agentToken)).toBe(true)
+      expect(await firstLogin.trust.requestTrustWithToken(first.made.agentToken)).toBe(true)
+      expect(await secondLogin.trust.requestTrustWithToken(second.made.agentToken)).toBe(true)
       expect(await firstClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       expect(await secondClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       expect(await sharingClient.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
@@ -1060,6 +1067,8 @@ describe('browser rpc over one websocket', () => {
         {httpRpc: 0, sockets: 1},
       ])
     } finally {
+      firstLogin.release()
+      secondLogin.release()
       firstClient.close()
       secondClient.close()
       await first.stop()
@@ -1069,21 +1078,45 @@ describe('browser rpc over one websocket', () => {
     }
   }, 20_000)
 
+  test('a trust observer keeps hearing its base after the last client released it and a new client opened', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const served = await engine(root)
+    const observer = browserRpcConnection(served.origin)
+    const heard: TrustStatus[] = []
+    const stopObserving = observer.trust.subscribe((status) => heard.push(status))
+    const first = makeBrowserRpcClient(served.origin)
+    const second = makeBrowserRpcClient(served.origin)
+    try {
+      await expect(first.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      first.close()
+      await expect(second.rpc.sessions.list(undefined)).rejects.toMatchObject({status: 401})
+      const login = browserRpcConnection(served.origin)
+      expect(await login.trust.requestTrustWithToken(served.made.agentToken)).toBe(true)
+      login.release()
+      expect(heard).toEqual(['trusted'])
+      expect(await second.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
+    } finally {
+      stopObserving()
+      observer.release()
+      second.close()
+      await served.stop()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
+
   test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
     const served = await engine(root)
-    const client = makeBrowserRpcClient(served.origin)
+    const {trust, release} = browserRpcConnection(served.origin)
     try {
-      const {trust} = browserRpcConnection(served.origin)
       expect(await trust.requestTrustWithToken(served.made.trustBrowser(requester, Date.now()))).toBe(true)
-      expect(await client.rpc.sessions.list(undefined)).toMatchObject({sessions: []})
       revokeBrowsers(concivStateDir(root), 'all')
       await vi.waitFor(() => expect(trust.status()).toBe('revoked'), {timeout: 5_000})
       expect(await trust.requestTrust()).toBe(false)
       expect(trust.status()).toBe('untrusted')
       expect(served.wire).toEqual({httpRpc: 0, sockets: 2})
     } finally {
-      client.close()
+      release()
       await served.stop()
       rmSync(root, {recursive: true, force: true})
     }

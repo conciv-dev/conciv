@@ -34,7 +34,11 @@ function trustStatus(trust: EngineTrust): Accessor<TrustStatus> {
 }
 
 export function createEngineLogin(options: {apiBase: Accessor<string>; tokenSource?: EngineTokenSource}): EngineLogin {
-  const trust = createMemo(() => browserRpcConnection(options.apiBase()).trust)
+  const trust = createMemo(() => {
+    const connection = browserRpcConnection(options.apiBase())
+    onCleanup(connection.release)
+    return connection.trust
+  })
   const status = createMemo(() => trustStatus(trust()))
   return {
     trust,

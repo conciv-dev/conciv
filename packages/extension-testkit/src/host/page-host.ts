@@ -27,10 +27,14 @@ function metaContent(name: string): string {
 }
 
 async function loginHost(apiBase: string): Promise<void> {
-  const {trust} = browserRpcConnection(apiBase)
-  const code = readMagicLinkCode()
-  if (!(await trust.requestTrust()) && code !== undefined) await trust.requestTrustWithCode(code)
-  forgetMagicLinkCode()
+  const {trust, release} = browserRpcConnection(apiBase)
+  try {
+    const code = readMagicLinkCode()
+    if (!(await trust.requestTrust()) && code !== undefined) await trust.requestTrustWithCode(code)
+    forgetMagicLinkCode()
+  } finally {
+    release()
+  }
 }
 
 function servePagePlane(input: {

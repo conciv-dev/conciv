@@ -60,10 +60,17 @@ type TrustState = {key: string; status: TrustStatus; token: string | undefined; 
 export type BrowserRpcConnection = {
   link: ClientLink<RpcClientContext>
   trust: EngineTrust
-  close: () => void
+  release: () => void
 }
 
-type ConnectionEntry = BrowserRpcConnection & {state: TrustState; reconnect: () => void; holders: Set<object>}
+type ConnectionEntry = {
+  link: ClientLink<RpcClientContext>
+  trust: EngineTrust
+  state: TrustState
+  reconnect: () => void
+  close: () => void
+  holders: Set<object>
+}
 
 export type ReachabilityListener = (reachable: boolean) => void
 
@@ -118,13 +125,16 @@ export function forgetMagicLinkCode(): void {
 const REACHABILITY_EVENT = 'reachability'
 
 export function subscribeRpcReachability(apiBase: string, listener: ReachabilityListener): () => void {
-  const {events} = connectionEntry(apiBase).state
+  const key = normalizeApiBase(apiBase)
+  const release = holdConnection(key)
+  const {events} = connectionEntry(key).state
   const handler = (event: Event): void => {
     if (event instanceof CustomEvent && typeof event.detail === 'boolean') listener(event.detail)
   }
   events.addEventListener(REACHABILITY_EVENT, handler)
   return () => {
     events.removeEventListener(REACHABILITY_EVENT, handler)
+    release()
   }
 }
 
@@ -206,8 +216,8 @@ function refusedStatus(token: string | undefined): TrustStatus {
   return token === undefined || token === '' ? 'untrusted' : 'revoked'
 }
 
-function bearer(state: TrustState): Record<string, string> {
-  return state.token === undefined ? {} : {authorization: `Bearer ${state.token}`}
+function bearer(token: string | undefined): Record<string, string> {
+  return token === undefined ? {} : {authorization: `Bearer ${token}`}
 }
 
 function sessionHeaders(options: ClientOptions<RpcClientContext>): Record<string, string> {
@@ -345,7 +355,10 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
     connectionTimeout: CONNECTION_TIMEOUT_MS,
     shouldReconnectOnClose: (event) => event.code !== REVOKED_SOCKET_CLOSE_CODE,
     startClosed: true,
-    WebSocket: trustingWebSocket(() => state),
+    WebSocket: trustingWebSocket(
+      () => state.token,
+      (sent) => distrust(state, sent),
+    ),
   })
   const vote = (reachable: boolean): void => {
     if (!lifetime.signal.aborted) state.events.dispatchEvent(new CustomEvent(REACHABILITY_EVENT, {detail: reachable}))
@@ -400,7 +413,10 @@ function closeEntry(entry: ConnectionEntry): void {
 }
 
 export function browserRpcConnection(apiBase: string): BrowserRpcConnection {
-  return connectionEntry(apiBase)
+  const key = normalizeApiBase(apiBase)
+  const release = holdConnection(key)
+  const {link, trust} = connectionEntry(key)
+  return {link, trust, release}
 }
 
 function holdConnection(key: string): () => void {
@@ -412,35 +428,50 @@ function holdConnection(key: string): () => void {
   }
 }
 
-export function resetBrowserRpcConnection(apiBase: string): BrowserRpcConnection {
-  const entry = connectionEntry(apiBase)
-  entry.reconnect()
-  return entry
+export function resetBrowserRpcConnection(apiBase: string): void {
+  connections().get(normalizeApiBase(apiBase))?.reconnect()
 }
 
 export function engineHeaders(apiBase: string): Record<string, string> {
-  return bearer(connectionEntry(apiBase).state)
+  const key = normalizeApiBase(apiBase)
+  return bearer(connections().get(key)?.state.token ?? readStoredToken(key))
 }
 
-function trustingWebSocket(currentState: () => TrustState): typeof WebSocket {
+function trustingWebSocket(
+  currentToken: () => string | undefined,
+  revoked: (sent: string | undefined) => void,
+): typeof WebSocket {
   return new Proxy(WebSocket, {
     construct: (target, args) => {
       const socket: WebSocket = Reflect.construct(target, args)
       const sent: {token: string | undefined} = {token: undefined}
       socket.addEventListener('open', () => {
-        sent.token = currentState().token
+        sent.token = currentToken()
         socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: sent.token ?? ''}))
       })
       socket.addEventListener('close', (event) => {
-        if (event.code === REVOKED_SOCKET_CLOSE_CODE) distrust(currentState(), sent.token)
+        if (event.code === REVOKED_SOCKET_CLOSE_CODE) revoked(sent.token)
       })
       return socket
     },
   })
 }
 
+function forgetRevoked(key: string, sent: string | undefined): void {
+  const entry = connections().get(key)
+  if (entry) {
+    distrust(entry.state, sent)
+    return
+  }
+  if (sent !== undefined && readStoredToken(key) === sent) writeStoredToken(key, undefined)
+}
+
 export function engineWebSocket(apiBase: string): typeof WebSocket {
-  return trustingWebSocket(() => connectionEntry(apiBase).state)
+  const key = normalizeApiBase(apiBase)
+  return trustingWebSocket(
+    () => connections().get(key)?.state.token ?? readStoredToken(key),
+    (sent) => forgetRevoked(key, sent),
+  )
 }
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
@@ -453,7 +484,7 @@ const NOT_HELD: HeldConnection = {key: null, release: () => {}}
 
 export function heldBrowserRpcLink(currentApiBase: () => string | null, session?: SessionAccessor): HeldBrowserRpcLink {
   const held: {current: HeldConnection} = {current: NOT_HELD}
-  const hold = (apiBase: string): BrowserRpcConnection => {
+  const hold = (apiBase: string): ConnectionEntry => {
     const key = normalizeApiBase(apiBase)
     if (held.current.key !== key) {
       held.current.release()

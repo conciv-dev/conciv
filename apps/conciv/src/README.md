@@ -26,7 +26,7 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 ## Side Effects
 
 - `entry-standalone.tsx:start`: writes `window.__CONCIV_API_BASE__`, reads `window.location.search`, creates browser history, renders into `#app`, opens an rpc client with `makeBrowserRpcClient(apiBase)`
-- `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to `browserRpcConnection(apiBase).trust` from `@conciv/contract`
+- `router.tsx:watchEngine`: calls `setupEngineReachability(apiBase)` from `@conciv/client` and subscribes to the trust of the connection it holds through `browserRpcConnection(apiBase)` from `@conciv/contract`, releasing it when the watch stops
 - `router.tsx:disposeExtensionInstances`: `console.error` on teardown failure
 
 ## Verification
