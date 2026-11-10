@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {orderBy} from 'es-toolkit'
-import {pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
@@ -29,24 +29,37 @@ export function makeJournal(db: ConcivDb): Journal {
 }
 
 type Pending<T> = {
-  await(id: string, timeoutMs: number): Promise<T>
+  await(id: string, owner: string, timeoutMs: number): Promise<T>
   resolve(id: string, value: T): boolean
+  abandon(owner: string, reason: Error): void
   idle(): boolean
 }
 
-function makePending<T>(): Pending<T> {
-  const waiters = new Map<string, (value: T) => void>()
+type Waiter<T> = {owner: string; settle: (value: T) => void; fail: (reason: Error) => void}
 
-  function awaitReply(id: string, timeoutMs: number): Promise<T> {
+function makePending<T>(): Pending<T> {
+  const waiters = new Map<string, Waiter<T>>()
+
+  function awaitReply(id: string, owner: string, timeoutMs: number): Promise<T> {
     return new Promise<T>((settle, reject) => {
       const timer = setTimeout(() => {
         waiters.delete(id)
         reject(new Error('pending request timed out'))
       }, timeoutMs)
-      waiters.set(id, (value) => {
+      const done = (): void => {
         clearTimeout(timer)
         waiters.delete(id)
-        settle(value)
+      }
+      waiters.set(id, {
+        owner,
+        settle: (value) => {
+          done()
+          settle(value)
+        },
+        fail: (reason) => {
+          done()
+          reject(reason)
+        },
       })
     })
   }
@@ -54,11 +67,16 @@ function makePending<T>(): Pending<T> {
   function resolve(id: string, value: T): boolean {
     const waiter = waiters.get(id)
     if (!waiter) return false
-    waiter(value)
+    waiter.settle(value)
     return true
   }
 
-  return {await: awaitReply, resolve, idle: () => waiters.size === 0}
+  function abandon(owner: string, reason: Error): void {
+    const owned = [...waiters.values()].filter((waiter) => waiter.owner === owner)
+    owned.forEach((waiter) => waiter.fail(reason))
+  }
+
+  return {await: awaitReply, resolve, abandon, idle: () => waiters.size === 0}
 }
 
 export type PageAnswer = {result: Record<string, unknown>; capture?: PageCaptureBundle}
@@ -116,6 +134,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     page.browserTabs.set(id, {id, order: subscribed.count, emit, focus})
     return () => {
       page.browserTabs.delete(id)
+      page.pending.abandon(id, pageFailure('no-widget', `browser tab ${id} closed before it replied`))
       dropIfIdle(sessionId, page)
     }
   }
@@ -159,9 +178,9 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const settled = pageOf(sessionId)
     tab.emit({requestId, ...query})
     const outcome = await settled.pending
-      .await(requestId, ms)
-      .catch(() => {
-        throw pageFailure('timeout', 'page did not reply (no widget connected?)')
+      .await(requestId, tab.id, ms)
+      .catch((error: unknown) => {
+        throw isPageFailure(error) ? error : pageFailure('timeout', 'page did not reply (no widget connected?)')
       })
       .finally(() => dropIfIdle(sessionId, settled))
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)

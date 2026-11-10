@@ -642,18 +642,19 @@ describe('page bus and the session scope', () => {
     return typeof frame.requestId === 'string' ? frame.requestId : null
   }
 
-  it('a reply still settles the in-flight ask after the asking widget unsubscribes and a fresh one attaches', async () => {
+  it('an ask in flight fails at once when its browser tab unsubscribes, and its late reply settles nothing', async () => {
     const bus = makePageBus(2000)
     const frames: unknown[] = []
     const unsubscribe = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
     const answered = bus.ask(SESSION_A, {name: 'fixture_click', input: {}, agentId: SESSION_A})
-    await Promise.resolve()
-    unsubscribe()
     bus.subscribe(SESSION_A, () => {})
+    unsubscribe()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
     const requestId = frames.map(requestIdOf).find((found) => found !== null)
-    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(true)
-    await expect(answered).resolves.toEqual({result: {clicked: 'yes'}})
-  }, 10_000)
+    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
+  })
 
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()

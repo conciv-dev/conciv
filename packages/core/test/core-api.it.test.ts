@@ -3968,6 +3968,7 @@ describe('outside sessions', () => {
       const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
       async function browserTab(pathname: string) {
         const heard: string[] = []
+        const answers = {silent: false}
         const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
         const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
         await once(socket, 'open')
@@ -3982,6 +3983,7 @@ describe('outside sessions', () => {
             if (frame.channel === 'ready') ready.resolve()
             if (frame.channel !== 'page' || frame.requestId === undefined) continue
             heard.push(pathname)
+            if (answers.silent) continue
             const result = {...route, href: `http://localhost:5173${pathname}`, pathname, search: ''}
             await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
           }
@@ -3989,7 +3991,10 @@ describe('outside sessions', () => {
         answering().catch(() => {})
         await ready.promise
         pages.push(() => socket.close())
-        return {heard, report, close: () => socket.close()}
+        const silence = () => {
+          answers.silent = true
+        }
+        return {heard, report, silence, close: () => socket.close()}
       }
       const first = await browserTab('/first')
       const second = await browserTab('/second')
@@ -4013,6 +4018,12 @@ describe('outside sessions', () => {
       first.close()
       await vi.waitFor(async () => expect((await listTabs()).tabs[0]?.browserTabs).toHaveLength(1), {timeout: 3000})
       expect(await routed()).toBe('http://localhost:5173/second')
+      second.silence()
+      const waited = second.heard.length
+      const inFlight = routed().then(String, String)
+      await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
+      second.close()
+      expect(await inFlight).toMatch(/browser tab b\d+ closed before it replied/)
     })
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
