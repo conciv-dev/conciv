@@ -120,18 +120,17 @@
 **Files:**
 
 - Create: `packages/it/src/trial/{trial.ts (bin), serve.ts, wave.ts, judge.ts, rescore.ts, lane.ts, host-server.ts, open.ts, inject-widget.ts, read-commands.ts}` porting the pieces of `scripts/design-trial.ts`
-- Create: `packages/it/test/fixtures/trials/figma7/{src/, assets/, prompt.md, head.txt}`, the wave 28 inputs
 - Delete: `packages/it/scripts/design-trial.ts`; `package.json` `trial` script points at the bin
-- Test: the `trial` and `run start and run end` describes in `packages/it/test/design.it.test.ts`
+- Test: `packages/it/test/trial.it.test.ts`
 
 **Interfaces:**
 
-- Produces: `pnpm trial serve --project <dir> … [commands…]` with the commands `get`, `check`, `status`, `screenshot`, `run start <model> <head file>`, `turn <prompt file>`, `run end [<verdict> [<cost>]]`, `quit`, ending with `conciv design:run-import` of the project and printing `store run <id>`; `pnpm trial wave <name> --runs <n> --model <m> --design <kind:ref>… --trial <dir> [--route] [--lane-root] [--no-agent]` printing `<lane> store run <id>` per lane; `pnpm trial judge <wave> [--model opus]` writing `design_stored_judgements`; `pnpm trial rescore <run> <round>` replaying the pairer from `design_stored_nodes`, `design_stored_fom`, `design_stored_votes` and printing rows before and after. The turn limit is `designConfig.runs.turnMs`.
+- Produces: `trial serve --project <dir> …` (today's flags) ending with `run import` of the project with its artifacts and printing the store run id; `trial wave <name> --runs <n> --model <m> --design <ref>… --lane-root <dir>`; `trial judge <wave> [--model opus]` writing through `db write --into design_judgements`; `trial rescore <run> <round>` replaying the pairer from `design_stored_nodes`, `design_stored_fom`, `design_stored_votes` and printing rows before and after.
 
-- [x] Step 1: Failing IT: `trial serve` with no agent and two stdin commands lands a run in `design_run_summary` and `design_stored_artifacts` has a `design` and a `screenshot` per width; `trial wave` with `--runs 1 --no-agent` lands a run with its wave, lane and the `design_status` verdict; `trial judge` on a run with a missing artifact names it and writes nothing; `trial rescore` on an imported run prints a before/after count; an untracked copy is keyed by its package name with no branch or head.
-- [x] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commits `it: the trial harness is a CLI that runs, judges and rescores through the store`, `it: a wave drives each lane's agent and lands its runs in the store`, `design: an untracked copy is keyed by its package name`, `it: the transcript page size is config`.
+- [ ] Step 1: Failing IT: `trial serve` with no agent and two stdin commands against the fixture project lands a run in `design_run_summary` and `design_stored_artifacts` has a `design` and a `screenshot` per width; `trial judge` on a run with a missing artifact names it and writes nothing; `trial rescore` on an imported run prints a before/after count.
+- [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `it: the trial harness is a CLI that runs, judges and rescores through the store`.
 
 ### Task 7: wave thirty through the product
 
-- [ ] From `packages/it`, with the Figma key from `~/.zshrc`: `pnpm trial wave thirty --runs 6 --model sonnet --trial test/fixtures/trials/figma7 --route '/?variant=agency' --design figma:https://www.figma.com/design/V1Ty9hzxZiyT32hKXNekD0/x?node-id=50-533 --design figma:https://www.figma.com/design/V1Ty9hzxZiyT32hKXNekD0/x?node-id=100-1106 --design figma:https://www.figma.com/design/V1Ty9hzxZiyT32hKXNekD0/x?node-id=100-1468`; `pnpm trial judge thirty`; `conciv design:report thirty`; `conciv design:runs-gc --state`.
+- [ ] `pnpm trial wave thirty --runs 6 --model sonnet --design <the figma7 refs the wave 28 lanes used>`; `pnpm trial judge thirty`; `conciv tools design report thirty`; `conciv tools design runs gc --state`.
 - [ ] Report: the report path, `conciv db query --from design_wave_summary --where 'wave == "thirty"'` output, disk before and after. No table outside the report.
