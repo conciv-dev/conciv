@@ -68,6 +68,7 @@
     "oxc-parser": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/babel__core": "^7.20.5",

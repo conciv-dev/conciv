@@ -75,6 +75,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@hono/node-server": "catalog:",

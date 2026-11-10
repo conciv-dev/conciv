@@ -1,12 +1,17 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "..",
     "noEmit": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "incremental": false
   },
   "include": ["fixtures/react-app.tsx", "page.browser.test.tsx"],
-  "references": [{"path": "../tsconfig.refs.json"}]
+  "references": [
+    {
+      "path": "../tsconfig.refs.json"
+    }
+  ]
 }

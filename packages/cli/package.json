@@ -57,6 +57,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-design": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

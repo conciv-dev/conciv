@@ -42,6 +42,7 @@
     "@tanstack/solid-pacer": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

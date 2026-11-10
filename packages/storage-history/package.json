@@ -40,6 +40,7 @@
     "@tanstack/history": "^1.162.5"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",

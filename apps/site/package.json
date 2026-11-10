@@ -67,6 +67,7 @@
     "@conciv/extension-compiler": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/try": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/mdx": "^2.0.14",

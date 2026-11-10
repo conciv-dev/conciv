@@ -1,5 +1,5 @@
 {
-  "extends": "../../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
     "rootDir": ".",
@@ -7,7 +7,10 @@
     "types": ["node", "vite/client"],
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "outDir": ".tsc-refs"
+    "outDir": ".tsc-refs",
+    "noEmit": false,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsc-refs/tsconfig.refs.tsbuildinfo"
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vitest.config.ts"],
   "exclude": ["test/fixtures/react-app.tsx", "test/page.browser.test.tsx"]

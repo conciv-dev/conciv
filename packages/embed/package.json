@@ -73,6 +73,7 @@
     "@conciv/extension-try-it": "workspace:*",
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@orpc/server": "catalog:",

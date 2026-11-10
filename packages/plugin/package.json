@@ -90,6 +90,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitejs/devtools": "catalog:",

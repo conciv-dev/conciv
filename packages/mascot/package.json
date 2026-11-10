@@ -115,6 +115,7 @@
     "gsap": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",
     "@solidjs/testing-library": "catalog:",

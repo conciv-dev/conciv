@@ -16,6 +16,10 @@
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "${configDir}/.tsbuildinfo",
+    "rootDir": "${configDir}"
   }
 }

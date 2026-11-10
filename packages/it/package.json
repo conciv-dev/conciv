@@ -81,6 +81,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",

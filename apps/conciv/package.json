@@ -63,6 +63,7 @@
     "@conciv/extension-whiteboard": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/storage-history": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

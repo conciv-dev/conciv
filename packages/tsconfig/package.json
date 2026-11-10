@@ -1,0 +1,25 @@
+{
+  "name": "@conciv/tsconfig",
+  "version": "0.0.21",
+  "private": true,
+  "description": "Internal shared TypeScript presets for the aidx monorepo: base, Solid, React and declaration build configs.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/tsconfig"
+  },
+  "files": [
+    "tsconfig.base.json",
+    "tsconfig.solid.json",
+    "tsconfig.react.json",
+    "tsconfig.build.json"
+  ],
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.solid.json": "./tsconfig.solid.json",
+    "./tsconfig.react.json": "./tsconfig.react.json",
+    "./tsconfig.build.json": "./tsconfig.build.json"
+  }
+}

@@ -1,13 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
     "types": ["node"]
   },
   "include": ["uno.config.ts", "src/**/*.ts", "src/**/*.tsx"]

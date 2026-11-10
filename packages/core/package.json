@@ -95,6 +95,7 @@
   "devDependencies": {
     "@conciv/ai": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@jridgewell/gen-mapping": "^0.3.13",

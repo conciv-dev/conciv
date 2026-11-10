@@ -1,14 +1,11 @@
 {
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "noEmit": false,
-    "emitDeclarationOnly": true,
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "dist",
-    "incremental": false
-  },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/cards/**"]
+  "extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"],
+  "exclude": [
+    "${configDir}/src/**/*.stories.*",
+    "${configDir}/src/**/*.test.*",
+    "${configDir}/src/**/fixtures.*",
+    "${configDir}/src/**/*.fixtures.*",
+    "${configDir}/src/cards",
+    "${configDir}/src/cards.tsx"
+  ]
 }
