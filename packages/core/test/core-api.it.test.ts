@@ -3844,9 +3844,14 @@ describe('token charset', () => {
 
 const tempDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix))
 
-function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess?: HubAccess): Promise<Engine> {
-  const options = hubAccess === undefined ? {stateRoot: root} : {stateRoot: root, hubAccess}
-  return start({options, root, launchEditor: () => {}, harness: createFakeHarness(), homeDir})
+function bootAt(homeDir: string, root = tempDir('conciv-outside-'), hubAccess: HubAccess = 'session'): Promise<Engine> {
+  return start({
+    options: {stateRoot: root, hubAccess},
+    root,
+    launchEditor: () => {},
+    harness: createFakeHarness(),
+    homeDir,
+  })
 }
 
 describe('outside sessions', () => {
@@ -3979,7 +3984,7 @@ describe('outside agent consent', () => {
     return home
   }
 
-  async function boot(hubAccess?: HubAccess, home = tempDir('conciv-home-')): Promise<string> {
+  async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
     const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
     engines.push(engine)
@@ -4177,7 +4182,7 @@ describe('outside agent consent', () => {
     const probe = defineExtension({name: 'Consent Probe'}).server(() => ({context: {}, router}))
     const root = tempDir('conciv-consent-')
     const engine = await start({
-      options: {stateRoot: root},
+      options: {stateRoot: root, hubAccess: 'session'},
       root,
       launchEditor: () => {},
       harness: createFakeHarness(),
@@ -4238,7 +4243,7 @@ describe('outside agent consent', () => {
 
   it('an Allow clicked after the agent disconnected still refuses the call that waited for it, at both doors', async () => {
     const home = connectedHome()
-    const base = await boot(undefined, home)
+    const base = await boot('session', home)
     const forget = () => withHomeDb(home, (db) => removeHubConnection(db, 'codex'))
     const sessionId = await newSession(base)
     const overMcp = hubCall(base, sessionId)
@@ -4261,7 +4266,7 @@ describe('outside agent consent', () => {
     'an Allow clicked while the home db is unreadable never admits a later call, even across a disconnect',
     async () => {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const waiting = hubCall(base, sessionId)
       await vi.waitFor(async () => expect(await pendingOf(base, sessionId)).toHaveLength(1), {timeout: 3000})
@@ -4285,7 +4290,7 @@ describe('outside agent consent', () => {
     process.env.PATH = tempDir('conciv-no-agents-')
     try {
       const home = connectedHome()
-      const base = await boot(undefined, home)
+      const base = await boot('session', home)
       const sessionId = await newSession(base)
       const allowed = hubCall(base, sessionId)
       await decideOutside(base, sessionId, true)

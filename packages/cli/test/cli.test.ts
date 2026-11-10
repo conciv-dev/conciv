@@ -1054,8 +1054,13 @@ describe('cli', () => {
     extensions?: Parameters<typeof startEngine>[0]['extensions'],
   ) {
     const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
-    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
-    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home, extensions})
+    const engine = await startEngine({
+      options: {harnessBin: 'true', stateRoot: root, systemPrompt: false, hubAccess: 'session'},
+      root,
+      launchEditor: () => {},
+      homeDir: home,
+      extensions,
+    })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
