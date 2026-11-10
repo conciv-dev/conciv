@@ -136,10 +136,10 @@ function fieldValue(el: Element): string {
   return isSensitiveField(el) ? MASKED_VALUE : el.value
 }
 
-function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): PageResult {
+async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
   const element = ctx.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
-  return outcomeOf(setChecked({element, checked, agent: ctx.agentId}))
+  return outcomeOf(await setChecked({element, checked, agent: ctx.agentId}))
 }
 
 const INSERT_POS: Record<string, InsertPosition> = {
@@ -409,9 +409,9 @@ const submitTool = submitDef
 
 const fillTool = fillDef
   .client(
-    acting((input, ctx) => {
+    acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      const problem = fill({element, value: input.value, agent: ctx.agentId})
+      const problem = await fill({element, value: input.value, agent: ctx.agentId})
       if (problem) badArgs(problem)
       return ok({value: fieldValue(element)})
     }),
@@ -420,11 +420,11 @@ const fillTool = fillDef
 
 const selectTool = selectDef
   .client(
-    acting((input, ctx) => {
+    acting(async (input, ctx) => {
       const element = ctx.target(input)
       if (isDisabled(element)) badArgs('That element is disabled.')
       pointAt({element, agent: ctx.agentId})
-      return outcomeOf(select({element, value: input.value}))
+      return outcomeOf(await select({element, value: input.value}))
     }),
   )
   .render(actCard)
