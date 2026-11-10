@@ -10,6 +10,7 @@ import {designTool} from './design-tool.js'
 import {CatalogSchemas, type Component, type TokenSource} from './catalog-defs.js'
 import type {readIds} from './id-tree.js'
 import {componentsDef} from './components-def.js'
+import {MAGNITUDES} from './magnitudes.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
 const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
@@ -244,17 +245,7 @@ const IdNodeSchema = z.object({
 
 export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
-const MagnitudeSchema = z.enum([
-  'much',
-  'noticeably',
-  'slightly',
-  'pin',
-  'other',
-  'reflow',
-  'paint',
-  'token-drift',
-  'component',
-])
+const MagnitudeSchema = z.enum(MAGNITUDES)
 
 const GateRowSchema = z.object({
   node: z.string(),

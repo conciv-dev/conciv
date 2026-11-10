@@ -163,11 +163,12 @@ export function createStore(input: {
         const source = row.source ?? row.site
         return source === null ? [] : [source]
       }),
-    writeRelation: ({id, round, tree}) =>
+    writeRelation: async ({id, round, tree}) =>
       relateRound({
         db: input.db,
         catalog,
         targetId: id,
+        runId: await run(),
         round,
         sites: [...walk(tree.root)].flatMap(({node: site}) => {
           const {at: loc} = site.src

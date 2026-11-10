@@ -9,7 +9,14 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
   const [related] = await db.orm.select({seq: nodeComponents.seq}).from(nodeComponents).limit(1)
   if (related !== undefined) return 0
   const held = await db.orm
-    .select({targetId: fom.target_id, round: fom.round, node: fom.node, source: fom.source, site: fom.site})
+    .select({
+      targetId: fom.target_id,
+      runId: fom.run_id,
+      round: fom.round,
+      node: fom.node,
+      source: fom.source,
+      site: fom.site,
+    })
     .from(fom)
   const rounds = Object.values(Object.groupBy(held, (row) => `${row.targetId}\n${row.round}`))
   return rounds.reduce(async (written, sites = []) => {
@@ -19,6 +26,7 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
       db,
       catalog,
       targetId: first.targetId,
+      runId: first.runId,
       round: first.round,
       sites: sites.flatMap((row) => {
         const source = row.source ?? row.site

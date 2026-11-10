@@ -3,6 +3,7 @@ import {execFile} from 'node:child_process'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
+import {DatabaseSync} from 'node:sqlite'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
 import {promisify} from 'node:util'
@@ -32,6 +33,7 @@ import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
+import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -1202,5 +1204,43 @@ describe('design_check on a page that breaks the widget or the build', () => {
     expect([broken.verdict, compile?.file, typeof compile?.line]).toEqual(['broken', 'src/Cards.tsx', 'number'])
     await goto('target')
     expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
+  })
+})
+
+const NamedSchema = z.array(z.looseObject({name: z.string()}))
+const ForeignSchema = z.array(z.looseObject({table: z.string(), from: z.string()}))
+
+function migrated(list: typeof migrations): DatabaseSync {
+  const client = new DatabaseSync(':memory:')
+  list.flatMap((migration) => migration.sql).forEach((statement) => client.exec(statement))
+  return client
+}
+
+function pragma(input: {client: DatabaseSync; statement: string}): unknown[] {
+  return input.client.prepare(input.statement).all()
+}
+
+describe('runs store schema', () => {
+  it('keys every child row to its run, target and round, and indexes the round lookups', () => {
+    const client = migrated(runsMigrations)
+    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
+    const parents = (table: string) =>
+      ForeignSchema.parse(pragma({client, statement: `PRAGMA foreign_key_list(${table})`})).map((entry) => entry.table)
+    expect(names('PRAGMA index_list(design_rows)')).toEqual(expect.arrayContaining(['rows_by_round', 'rows_by_node']))
+    expect(new Set(parents('design_rounds'))).toEqual(new Set(['design_runs', 'design_targets']))
+    expect(new Set(parents('design_rows'))).toEqual(new Set(['design_runs', 'design_targets', 'design_rounds']))
+    expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
+    expect(() =>
+      client.exec(`INSERT INTO design_runs (model, prompt_head, started, verdict) VALUES ('m', 'p', 1, 'fine')`),
+    ).toThrow('CHECK constraint failed: runs_verdict')
+  })
+
+  it('migrates a run database forward with the reply column and the round indexes', () => {
+    const client = migrated(migrations)
+    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
+    expect(names('PRAGMA index_list(design_rows)')).toContain('rows_by_round')
+    expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
+    expect(names('PRAGMA table_info(design_node_components)')).toContain('run_id')
+    expect(names('PRAGMA table_info(design_fom_nodes)')).toContain('fill_kind')
   })
 })

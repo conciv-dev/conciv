@@ -8,10 +8,11 @@ export async function relateRound(input: {
   db: DesignDb
   catalog: Catalog
   targetId: string
+  runId: number | null
   round: number
   sites: {node: string; source: string}[]
 }): Promise<Map<string, Component>> {
-  const {db, catalog, targetId, round} = input
+  const {db, catalog, targetId, runId, round} = input
   const {node_components: nodeComponents} = db.tables
   const sourced = uniqBy(input.sites, (row) => `${row.node}\n${row.source}`)
   const components = await catalog.componentsOf(uniq(sourced.map((row) => row.source)))
@@ -24,7 +25,10 @@ export async function relateRound(input: {
       .where(and(eq(nodeComponents.target_id, targetId), eq(nodeComponents.round, round)))
       .run()
     related.forEach(({node, source, component}) =>
-      tx.insert(nodeComponents).values({target_id: targetId, round, node, component_id: component.id, source}).run(),
+      tx
+        .insert(nodeComponents)
+        .values({target_id: targetId, run_id: runId, round, node, component_id: component.id, source})
+        .run(),
     )
   })
   return new Map(related.map(({node, component}) => [node, component]))

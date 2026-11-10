@@ -1,6 +1,10 @@
 import {desc, eq, isNull} from 'drizzle-orm'
+import {z} from 'zod'
 import type {ExtensionDb} from '@conciv/extension'
+import {RUN_VERDICTS} from '../shared/run-verdicts.js'
 import type {designTables} from './tables.js'
+
+const RunVerdict = z.enum(RUN_VERDICTS)
 
 export function createRuns(db: ExtensionDb<ReturnType<typeof designTables>>) {
   const {orm, tables} = db
@@ -31,7 +35,7 @@ export function createRuns(db: ExtensionDb<ReturnType<typeof designTables>>) {
       if (run === null) throw new Error('no run is open; call runs start first')
       const [row] = await orm
         .update(runs)
-        .set({ended: Date.now(), verdict: input.verdict, cost: input.cost})
+        .set({ended: Date.now(), verdict: RunVerdict.parse(input.verdict), cost: input.cost})
         .where(eq(runs.run_id, run))
         .returning()
       return row
