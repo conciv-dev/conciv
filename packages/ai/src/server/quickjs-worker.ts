@@ -36,7 +36,7 @@ export default async function runQuickJS(task: QuickJSTask): Promise<ExecutionRe
     const result = await execution(task, host).catch(failedRun)
     const retiring = retiringError(result)
     if (retiring === null) return result
-    await host.retire({error: retiring, logs: result.logs ?? []}).catch(() => undefined)
+    await host.retire({error: retiring, logs: result.logs ?? []})
     return await new Promise<never>(() => {})
   } finally {
     task.port.close()

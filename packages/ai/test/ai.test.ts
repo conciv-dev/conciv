@@ -545,7 +545,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   describe('quickjs code mode runs on a warm worker and shares no state between runs', () => {
     const isWorkerCreated = (message: unknown): message is {worker: Worker} =>
       typeof message === 'object' && message !== null && 'worker' in message && message.worker instanceof Worker
-    const workersFromHere = () => {
+    const trackedWorkers = () => {
       const live = new Set<Worker>()
       const track = (message: unknown) => {
         if (!isWorkerCreated(message)) return
@@ -556,6 +556,10 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       onTestFinished(() => {
         unsubscribe('worker_threads', track)
       })
+      return live
+    }
+    const workersFromHere = () => {
+      const live = trackedWorkers()
       return () => [...live].map((worker) => worker.threadId)
     }
     const LIMITS = {timeout: 10_000, memoryLimit: 64}
@@ -677,6 +681,50 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       await closing
       expect(logged).toEqual(['[ai] the QuickJS worker failed: Error: the worker failed'])
       expect(ours()).toEqual([])
+    })
+
+    async function heldRun() {
+      const live = trackedWorkers()
+      const logged: string[] = []
+      const entered = Promise.withResolvers<void>()
+      const hold = binding('hold', () => {
+        entered.resolve()
+        return new Promise<never>(() => {})
+      })
+      const driver = quickJSThreadDriver({...LIMITS, maxStackSize: 1024 * 1024}, (message) => logged.push(message))
+      onTestFinished(() => driver.dispose())
+      const context = await driver.createContext({bindings: {hold}})
+      const running = context.execute('globalThis.leak = 1; await hold({})')
+      await entered.promise
+      const [worker] = live
+      if (worker === undefined) throw new Error('the run has no worker')
+      const next = async () => {
+        const fresh = await driver.createContext({bindings: {}})
+        return fresh.execute('return typeof leak')
+      }
+      return {driver, worker, running, logged, next}
+    }
+
+    it('a worker that dies with a tool call in flight fails that run, logs it, and the next run works', async () => {
+      const {worker, running, logged, next} = await heldRun()
+      await worker.terminate()
+      expect(await running).toMatchObject({success: false})
+      expect(logged.filter((message) => message.startsWith('[ai] the QuickJS worker failed'))).toHaveLength(1)
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('a worker that throws with a tool call in flight fails that run, logs it, and the next run works', async () => {
+      const {worker, running, logged, next} = await heldRun()
+      worker.emit('error', new Error('the worker threw'))
+      expect(await running).toMatchObject({success: false, error: {message: 'the worker threw'}})
+      expect(logged).toContain('[ai] the QuickJS worker failed: Error: the worker threw')
+      expect(await next()).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('disposing the driver during a run stops that run', async () => {
+      const {driver, running} = await heldRun()
+      await driver.dispose()
+      expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
     })
 
     it('concurrent runs run side by side and each sees only its own globals', async () => {
