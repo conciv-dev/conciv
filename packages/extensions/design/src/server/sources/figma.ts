@@ -3,14 +3,8 @@ import type {Storage} from 'unstorage'
 import {toolError} from '@conciv/extension'
 import {z} from 'zod'
 import {range} from 'es-toolkit'
-import {
-  DESIGN_TOOLS,
-  type Box,
-  type Design,
-  type DesignNode,
-  type Raster,
-  type TargetAdapter,
-} from '../../shared/defs.js'
+import {type Box, type Design, type DesignNode, type Raster, type TargetAdapter} from '../../shared/defs.js'
+import {DESIGN_TOOLS} from '../../shared/design-tools.js'
 import {box as boxes} from '../../shared/box.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {createRaster} from '../raster.js'

@@ -4,14 +4,8 @@ import {isPageVerbError} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {captureDef, PageCaptureSchema} from '@conciv/extension-page/defs'
-import {
-  DESIGN_TOOLS,
-  LiveComponentsSchema,
-  type LiveComponent,
-  type Measured,
-  type Measurer,
-  type Raster,
-} from '../shared/defs.js'
+import {LiveComponentsSchema, type LiveComponent, type Measured, type Measurer, type Raster} from '../shared/defs.js'
+import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {designConfig} from '../shared/tolerances.js'
 import {OVERLAYS} from '../shared/overlays.js'
 import {createRaster} from './raster.js'

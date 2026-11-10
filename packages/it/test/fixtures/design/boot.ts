@@ -13,7 +13,7 @@ import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {} from '@conciv/extension-design/client'
-import {DESIGN_TOOLS} from '@conciv/extension-design/defs'
+import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {unplugin} from '../../../src/plugin-instance.js'
 import {renderTargets} from './render-targets.js'
 

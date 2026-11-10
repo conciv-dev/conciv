@@ -44,6 +44,10 @@
       "types": "./dist/shared/defs.d.ts",
       "import": "./dist/shared/defs.js"
     },
+    "./design-tools": {
+      "types": "./dist/shared/design-tools.d.ts",
+      "import": "./dist/shared/design-tools.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {

@@ -15,7 +15,6 @@ import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
 import type {XrayRouter} from '@conciv/extension-design/server'
 import {
-  DESIGN_TOOLS,
   type Box,
   type Design,
   type DesignNode,
@@ -24,6 +23,7 @@ import {
   type Raster,
   type Round,
 } from '@conciv/extension-design/defs'
+import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'

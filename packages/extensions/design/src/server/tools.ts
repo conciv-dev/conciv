@@ -1,7 +1,8 @@
 import {z} from 'zod'
 import type {AnyToolBuilder, ExtensionDb} from '@conciv/extension'
 import {defineTool} from '@conciv/extension/tool'
-import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
+import {DESIGN_TOOL_PREFIX, DESIGN_VERDICTS, type DesignRuntime, type Differ} from '../shared/defs.js'
+import {DESIGN_TOOLS} from '../shared/design-tools.js'
 
 const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
