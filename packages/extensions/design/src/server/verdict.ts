@@ -92,6 +92,7 @@ function reasonsOf(input: {round: Round; required: Map<string, string>}): string
     ...(missing.length > 0
       ? [`${missing.length} required nodes are not rendered: ${missing.slice(0, MISSING_SHOWN).join('; ')}.`]
       : []),
+    ...(reflow.some((row) => row.width === undefined) ? [WRAP_RULE] : []),
     ...(reflow.length > 0
       ? [
           `${reflow.length} reflow rows are left: ${reflow
@@ -104,6 +105,9 @@ function reasonsOf(input: {round: Round; required: Map<string, string>}): string
 }
 
 const MISSING_SHOWN = 10
+
+const WRAP_RULE =
+  'When a text wraps to more lines than the frame, tighten its letter-spacing until it breaks where the frame breaks; never shrink the font.'
 
 const IMPLIED = 'implied group'
 

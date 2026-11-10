@@ -262,6 +262,15 @@ button {
   margin-bottom: -1px;
 }
 
+.wrap {
+  padding: 40px;
+}
+
+.wrap-text {
+  margin: 0;
+  font: 32px/40px monospace;
+}
+
 .slowfont {
   padding: 40px;
 }

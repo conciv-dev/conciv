@@ -5,6 +5,7 @@ import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
 import {nodeLooks} from './node-look.js'
+import {wrapsOf} from './wraps.js'
 
 export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): Gate {
   const {reads} = input
@@ -21,12 +22,29 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
       const element = first(record.id)
       return {record, box: element === undefined ? null : rounded(element.bounds)}
     })
+  const wraps = wrapsOf({design: input.design, first})
+  const within = (id: string, above: string): boolean => {
+    const parent = byId.get(id)?.parent ?? null
+    return parent !== null && (parent === above || within(parent, above))
+  }
+  const causes = (id: string): string =>
+    wraps
+      .filter((wrap) => within(wrap.node, id))
+      .map((wrap) => `; ${byId.get(wrap.node)?.name ?? ''} [${wrap.node}] ${wrapped(wrap)}`)
+      .join('')
+  const wrapRows = wraps.flatMap((wrap): GateRow[] => {
+    const record = byId.get(wrap.node)
+    const element = first(wrap.node)
+    if (record === undefined || element === undefined) return []
+    const base = {node: record.id, ...reads.named(record.id), kind: record.kind, name: record.name}
+    return [{...base, text: `${labelOf({record, element})}: ${wrapped(wrap)}`, magnitude: 'reflow'}]
+  })
   const rows = records.flatMap((record) => {
     const element = first(record.id)
     if (element === undefined) return []
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
-    return rowsOf({record, element, parent, parentElement, kidsOf}).map((row) =>
+    return rowsOf({record, element, parent, parentElement, kidsOf, causes}).map((row) =>
       worded({record, named: reads.named(record.id), row}),
     )
   })
@@ -42,7 +60,7 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     revoted: 0,
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
-  const painted = [...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
+  const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
   return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
 }
 
@@ -156,9 +174,10 @@ function rowsOf(input: {
   parent: Record | undefined
   parentElement: LiveComponent | undefined
   kidsOf: (id: string) => Placed[]
+  causes: (id: string) => string
 }): Row[] {
   const {record: r, element: d, parent, parentElement: pd, kidsOf} = input
-  const label = `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
+  const label = labelOf({record: r, element: d})
   const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
   const pinsWidth = d.styles.sizing.width === 'fixed'
   const pinsHeight = d.styles.sizing.height === 'fixed'
@@ -190,7 +209,7 @@ function rowsOf(input: {
     ...(!flat && r.box.h > FLAT_PX && (hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || farH)
       ? [
           {
-            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${hh < 1 ? 'shorter' : 'taller'} than the design`}`,
+            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${hh < 1 ? 'shorter' : 'taller'} than the design`}${hh > 1 ? input.causes(r.id) : ''}`,
             measured: {a: box.h, b: r.box.h, position: false},
           },
         ]
@@ -202,6 +221,15 @@ function rowsOf(input: {
       ? []
       : positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)})),
   ]
+}
+
+function labelOf(input: {record: Record; element: LiveComponent}): string {
+  const {record: r, element: d} = input
+  return `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
+}
+
+function wrapped(wrap: {lines: number; frame: number}): string {
+  return `wraps to ${wrap.lines} lines, the frame has ${wrap.frame}`
 }
 
 function widthWord(input: {rendered: number; design: number; tol: number; far: boolean}): string | null {

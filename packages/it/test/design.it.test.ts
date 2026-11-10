@@ -35,6 +35,7 @@ import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.
 import {boot} from './fixtures/design/boot.js'
 import {bareButton} from './fixtures/design/bare-button.js'
 import {sideMargin} from './fixtures/design/side-margin.js'
+import {wrapText} from './fixtures/design/wrap-text.js'
 import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
@@ -546,6 +547,27 @@ describe('design_check at a width other than the tab', () => {
     await call('design_get', {figma: sideMargin.link, image, document: sideMargin.document})
     const checked = roundOf(await call('design_check', {}))
     expect(checked.rows.filter((row) => row.node === sideMargin.panel).map((row) => row.text)).toEqual([])
+  })
+})
+
+describe('design_check on a paragraph that wraps', () => {
+  const wrapRows = async (width: number): Promise<string[]> => {
+    await goto(`/?variant=wrap&width=${width}`)
+    const image = join(kit.targetsDir, 'wrap-text.png')
+    await writeFile(image, blankPng({width: wrapText.frame.w, height: wrapText.frame.h}))
+    await call('design_get', {figma: wrapText.link, image, document: wrapText.document})
+    const checked = roundOf(await call('design_check', {}))
+    return checked.rows.filter((row) => row.magnitude === 'reflow').map((row) => row.text)
+  }
+
+  it('names the text and its line counts when it wraps to one more line than the frame', async () => {
+    expect(await wrapRows(640)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: wraps to 4 lines, the frame has 3`,
+    ])
+  })
+
+  it('has no wrap row once the paragraph is as wide as the frame', async () => {
+    expect(await wrapRows(800)).toEqual([])
   })
 })
 

@@ -99,7 +99,7 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     const rows = [...gate.rows, ...images.rows, ...failures]
     const counts = {
       ...gate.counts,
-      reflow: failures.length,
+      reflow: gate.counts.reflow + failures.length,
       paint: (gate.counts.paint ?? 0) + images.rows.length,
       rows: gate.counts.rows + images.rows.length + failures.length,
     }

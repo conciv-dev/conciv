@@ -26,6 +26,7 @@ const CONTAINER_CSS =
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
 const SLOW_FONT_CSS = "@import url('/slow-font.css');"
 const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
+const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
 const TYPE_SIZES = [12, 16, 24, 32]
 const TYPE_STRINGS = ['Export the quarterly report', 'EXPORT', '1,240.00']
 
@@ -79,6 +80,15 @@ export function App() {
     return (
       <main className="sidemargin" data-conciv-key="sDmGmn">
         <div className="sidemargin-panel" data-conciv-key="sDmGpn" />
+      </main>
+    )
+  }
+  if (requested === 'wrap') {
+    return (
+      <main className="wrap" data-conciv-key="wRaPmn">
+        <p className="wrap-text" style={{width: Number(new URLSearchParams(location.search).get('width'))}} data-conciv-key="wRaPtx">
+          {WRAP_TEXT}
+        </p>
       </main>
     )
   }
