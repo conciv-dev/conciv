@@ -2239,8 +2239,6 @@ const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url))
 
 const STORE_RUN = 'store run '
 
-const TRIAL_FIXTURE = fileURLToPath(new URL('fixtures/trials/figma7/', import.meta.url))
-
 async function trial(input: {args: string[]; home: string; stdin?: string}): Promise<string> {
   const running = promisify(execFile)(
     process.execPath,
@@ -2285,42 +2283,6 @@ describe('trial', () => {
     expect(new Set(artifacts.map((row) => `${row.kind} ${row.width}`))).toEqual(
       new Set(['source null', ...widths.flatMap(({width}) => [`design ${width}`, `screenshot ${width}`])]),
     )
-  })
-
-  it('wave prepares a lane from the trial fixture, closes its run with the design status and lands it in the store', async () => {
-    const home = await tempDir('conciv-wave-home-')
-    const waveDir = await mkdtemp(join(FIXTURES, 'wave-'))
-    importedDirs.push(waveDir)
-    const name = basename(waveDir)
-    const printed = await trial({
-      home,
-      args: [
-        'wave',
-        name,
-        '--runs',
-        '1',
-        '--model',
-        'it-model',
-        '--no-agent',
-        '--trial',
-        TRIAL_FIXTURE,
-        '--route',
-        '/?variant=target',
-        '--design',
-        `image:${target('u1-1280')}`,
-      ],
-    })
-    const line = printed.split('\n').find((each) => each.startsWith(`lane-1 ${STORE_RUN}`))
-    if (line === undefined) throw new Error(`trial wave printed no store run for lane-1:\n${printed}`)
-    const runId = Number(line.slice(`lane-1 ${STORE_RUN}`.length))
-    const {sources} = homeCatalog(home)
-    expect(
-      await sources.read({
-        from: 'design_stored_runs',
-        where: `run == ${runId}`,
-        select: ['model', 'wave', 'lane', 'verdict'],
-      }),
-    ).toEqual([{model: 'it-model', wave: name, lane: 'lane-1', verdict: 'not-yet'}])
   })
 
   it('judge names every width of a run whose design or screenshot is missing and writes no judgement', async () => {

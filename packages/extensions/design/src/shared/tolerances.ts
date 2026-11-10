@@ -129,7 +129,6 @@ export const designConfig = Object.assign(
     runs: {
       lifetimes: {design: 'infinite', screenshot: 30, source: 'infinite', transcript: 90, report: 'infinite'},
       score: {lowest: 1, highest: 5},
-      turnMs: 2_400_000,
     },
     propertyAliases,
     folded,
