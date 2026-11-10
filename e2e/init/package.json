@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@conciv/cli": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:",
