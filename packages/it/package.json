@@ -63,8 +63,7 @@
     "lint": "oxlint --ignore-pattern 'test/fixtures/design/host/**' --ignore-pattern 'test/fixtures/design/provenance/**'",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "test": "vitest run && playwright test",
-    "trial": "tsx scripts/design-trial.ts"
+    "test": "vitest run && playwright test"
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",

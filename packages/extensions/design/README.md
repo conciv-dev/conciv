@@ -86,7 +86,7 @@ src/
   (decorations and zero-size nodes are not required), nothing sticks out, nothing scrolls sideways and every reflow
   tag holds at 1024 and 768; `stalled` when `much` is above 0 and has not fallen for two rounds; else `not yet`. The
   reasons say which condition failed with the numbers. Pixels are reported, never judged. Each round also stores `progress`, which the replies leave
-  out unless the config's `show` lists `progress` (the trial's `--show progress`). It is null on round 1;
+  out unless the config's `show` lists `progress`. It is null on round 1;
   after it, it compares with the round before: rows `closed`, `opened` and `kept` (with `repeat`), nodes `gained` and
   `lost`, pixel share `now` and `before`, and `changed`: the share of screenshot pixels that changed (anti-aliasing left
   out) and the changed regions (tiles of 8 px joined across 2 empty tiles, under 4 px a side or 24 px² dropped, only the
@@ -126,14 +126,6 @@ Each delta names the source that measured it, and each report lists the sources 
 - `takumi`: the same snapshot laid out by takumi in wasm, when the page's fonts are fetchable web fonts and its
   styles stay inside takumi's subset. The value is stored as the delta's `opinion` and shown in the overlay beside
   the mirror's; it never changes a count, the score or the stop.
-
-## Trials
-
-Run from `packages/it` with `pnpm trial --route '/?variant=<name>' --width <px> (--figma <link> [--image <png>
---document <json>] | --image <png>) [--agent] [--blind] [--state <dir>]`. The trial registers the design through
-`design_get` and prints `target <id> <w>x<h> nodes <count> tab <width>`, then reads commands from its arguments or
-stdin: `get [file]`, `check [file]`, `status [file]` (each prints the tool's JSON, or writes it to the file),
-`screenshot <file>` and `quit`. `pnpm trial --render <dir>` writes the fixture's design images.
 
 ## OCR engine
 
