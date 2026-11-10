@@ -6,7 +6,7 @@ Build-time scripts: copy the widget bundle, build a JSON manifest of the site's 
 
 ## Interface
 
-- `copy-widget-bundle.mjs`: copies `packages/embed/dist/conciv-widget.global.js` to `public/conciv-widget.global.js`
+- `copy-widget-bundle.mjs`: copies `packages/embed/dist/conciv-widget.global.js` and its `widget/` chunk directory to `public/`
 - `buildManifest(siteDir)` (`build-source-manifest.mjs`): maps text files under `src/` plus `package.json` to their contents; run directly it writes `public/site-source.json`
 - `highlight-snippets.ts`: renders `FRAMEWORK_SNIPPETS` with shiki, twoslash and `codeToKeyedTokens`, writes `MAGIC_MOVE_STEPS` and `SNIPPET_TWOSLASH`; run by `pnpm gen:snippets`
 

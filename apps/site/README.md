@@ -35,13 +35,13 @@ Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on pus
 
 - `vite.config.ts:dropOnnxRuntimeWasmFromServerBundle`: `assets/ort-*.wasm` files are removed from the SSR bundle
 - `vite.config.ts`: prerender skips paths starting with `/assets/`
-- `package.json:build`: `packages/embed` must be built first; `copy-widget-bundle.mjs` copies its `dist/conciv-widget.global.js`
+- `package.json:build`: `packages/embed` must be built first; `copy-widget-bundle.mjs` copies its `dist/conciv-widget.global.js` and `dist/widget/` chunks
 - `wrangler.jsonc`: production has `workers_dev: false` and `preview_urls: false`
 
 ## Side Effects
 
 - `package.json:deploy`: `wrangler deploy` publishes the Worker to Cloudflare
-- `package.json:build`: writes `public/conciv-widget.global.js` and `public/site-source.json`
+- `package.json:build`: writes `public/conciv-widget.global.js`, `public/widget/` and `public/site-source.json`
 
 ## Verification
 

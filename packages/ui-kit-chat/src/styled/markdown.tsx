@@ -4,7 +4,6 @@ import {mapValues} from 'es-toolkit'
 import {Highlight} from '@conciv/ui-kit-system'
 import {Streamdown, type HastElement, type HighlightCode} from '@conciv/solid-streamdown'
 import type {WorkerToMainMessage} from './highlight-shared.js'
-import HighlightWorkerConstructor from './highlight-worker.ts?worker&inline'
 
 const MAX_CACHE_ENTRIES = 512
 
@@ -45,7 +44,7 @@ type HighlightBackend = {
 
 type DeferredHighlight = {key: string; code: string}
 
-function createWorkerBackend(worker: Worker): HighlightBackend {
+function createWorkerBackend(worker: Promise<Worker | null>): HighlightBackend {
   let precompiledLanguages: Set<string> | null = null
   let regexLanguages: Set<string> | null = null
   let nextId = 0
@@ -71,10 +70,10 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
       if (deferred === null || deferred === undefined) return
       if (!(deferred.key in highlights.store)) postHighlight(deferred.key, language, deferred.code, true)
     })
-    worker.postMessage({type: 'highlight', id, code, lang: language})
+    void worker.then((ready) => ready?.postMessage({type: 'highlight', id, code, lang: language}))
   }
 
-  worker.addEventListener('message', (event: MessageEvent<WorkerToMainMessage>) => {
+  function onMessage(event: MessageEvent<WorkerToMainMessage>): void {
     const message = event.data
     if (message.type === 'ready') {
       if (message.core === 'precompiled') precompiledLanguages = new Set(message.languages)
@@ -86,7 +85,9 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
     if (!callback) return
     resultCallbacks.delete(message.id)
     callback(message.pre)
-  })
+  }
+
+  void worker.then((ready) => ready?.addEventListener('message', onMessage))
 
   return {
     isSupported(language) {
@@ -108,11 +109,9 @@ function createWorkerBackend(worker: Worker): HighlightBackend {
 
 function createBackend(): HighlightBackend | null {
   if (typeof Worker === 'undefined') return null
-  try {
-    return createWorkerBackend(new HighlightWorkerConstructor())
-  } catch {
-    return null
-  }
+  return createWorkerBackend(
+    import('./highlight-worker.ts?worker&inline').then((module) => new module.default()).catch(() => null),
+  )
 }
 
 let backend: HighlightBackend | null = null

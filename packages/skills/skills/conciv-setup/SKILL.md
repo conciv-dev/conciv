@@ -94,8 +94,9 @@ The plugin does not add a `<script>` tag either way. There is no published `@con
 package — the CLI's own webpack/Rspack init card names one, but that's a known upstream docs bug; the
 widget bundle you need to serve is `conciv-widget.global.js`, built as part of `@conciv/embed`'s
 `dist/` (published in its npm tarball, `packages/embed/package.json`'s `files` field is `["dist"]`).
-Copy or proxy `node_modules/@conciv/embed/dist/conciv-widget.global.js` to a static path and point
-`widgetUrl` at it (`apps/site/content/docs/quick-start/webpack.mdx:53-57`,
+Copy or proxy `node_modules/@conciv/embed/dist/conciv-widget.global.js` together with the
+`dist/widget/` chunk directory beside it (the file is a small loader that imports its chunks from
+`widget/` next to its own URL) to a static path on the same origin, and point `widgetUrl` at it (`apps/site/content/docs/quick-start/webpack.mdx:53-57`,
 `packages/cli/src/init/steps/framework/webpack-family.ts:35`):
 
 ```ts

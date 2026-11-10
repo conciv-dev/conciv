@@ -11,7 +11,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - MCP tool `discover_tools` (`mcp.ts`, `DISCOVER_TOOL_NAME`): typed signatures for `{toolNames}`; registered only when `runner.discover` is not null
 - MCP tools for each `runner.asking` entry (`mcp.ts`): run through `runDirect`
 - WS `GET /push-ws?sessionId=` (`push.ts`, `pushRoutes`; path `PUSH_WS_PATH`): frames on channels `ready`, `page` and `chat`; the client sends `PageServingFrameSchema` frames (`{channel: 'page-serving', serving}`) to start or stop page queries on that socket
-- HTTP `GET /` and `GET /:file` (`native-page.ts`, `makeNativePageApp`): host HTML and `conciv-widget-native.global.js` (or its .map)
+- HTTP `GET /`, `GET /:file` and `GET /widget/:file` (`native-page.ts`, `makeNativePageApp`): host HTML, the `conciv-widget-native.global.js` loader, and the widget's ESM chunks from the bundle dir's `widget/` folder
 - `NATIVE_PAGE_PATH` = '/native' (`native-page.ts`)
 - HTTP `GET /` (`tabs.ts`, default export `app`, mounted at `/api/tabs`): `TabsSchema` from `@conciv/protocol/chat-types`, the sessions with a page-bus subscriber plus the project name, root and git branch (read from the nearest `.git` at or above the root, a worktree `gitdir:` file included); with `?session=<id>` it answers `TabOpenSchema` (`{open, instructions, tools}`) instead, `tools` being the session's discover output (empty when not open), with no page probe and no session listing
 - `TabsVars` (`tabs.ts`)
@@ -38,7 +38,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `GET /api/tabs` (`tabs.ts`): each open session's `page_route` probe is raced against 1500 ms; a timeout or any page error gives `page: null` and the session stays listed; `package.json` and `.git/HEAD` (or a worktree's `gitdir:` file) are re-read on every request, anything unreadable gives null; an invalid `session` query is ignored
 - `pushRoutes` (`push.ts`): closes with 1008 when `sessionId` fails `SessionId.safeParse`
 - `pushRoutes` (`push.ts`): a socket subscribes to its session's page queries only after a `page-serving` frame with `serving: true`, and sends `ready` at that point; `serving: false` unsubscribes it; chat events stream from open regardless
-- `makeNativePageApp` (`native-page.ts`): only the two `NativeFileSchema` filenames are served; anything else is 404
+- `makeNativePageApp` (`native-page.ts`): `/:file` serves only `NativeFileSchema` (the loader); `/widget/:file` serves only names matching `ChunkFileSchema` (no slash, no `..` segment, `.js`); anything else is 404
 
 ## Side Effects
 

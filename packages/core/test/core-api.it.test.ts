@@ -1189,11 +1189,14 @@ describe('api native page', () => {
   const BUNDLE = 'conciv-widget-native.global.js'
 
   describe('token-scoped native page', () => {
-    it('serves the native page under /t/<token> with a prefix-relative bundle, and unprefixed as an open page', async () => {
+    it('serves the native page under /t/<token> with a prefix-relative bundle and its widget chunks, and unprefixed as an open page', async () => {
       const root = mkdtempSync(join(tmpdir(), 'conciv-native-token-'))
       const nativeDir = mkdtempSync(join(tmpdir(), 'conciv-native-dist-'))
       const endpointDir = mkdtempSync(join(tmpdir(), 'conciv-native-ep-'))
       writeFileSync(join(nativeDir, BUNDLE), 'globalThis.__conciv_native_loaded = true')
+      mkdirSync(join(nativeDir, 'widget'))
+      writeFileSync(join(nativeDir, 'widget', 'mount-impl-Ab_9.js'), 'export const chunk = 1')
+      writeFileSync(join(nativeDir, 'secret.txt'), 'outside the chunk dir')
       const token = '9bfa1f66-6060-4c6e-8a2e-4a0e0c3d5b1a'
       const engine = await start({
         options: {harnessBin: 'true', stateRoot: root, systemPrompt: false},
@@ -1220,6 +1223,13 @@ describe('api native page', () => {
         const script = await fetch(resolved)
         expect(script.status).toBe(200)
         expect(script.headers.get('content-type')).toContain('javascript')
+
+        const chunk = await fetch(new URL('widget/mount-impl-Ab_9.js', resolved))
+        expect(chunk.status).toBe(200)
+        expect(chunk.headers.get('content-type')).toContain('javascript')
+        expect(await chunk.text()).toBe('export const chunk = 1')
+        expect((await fetch(new URL('widget/..%2Fsecret.txt', resolved))).status).toBe(404)
+        expect((await fetch(new URL('widget/missing-chunk.js', resolved))).status).toBe(404)
 
         const unprefixed = await fetch(`${origin}/native`)
         expect(unprefixed.status).toBe(200)

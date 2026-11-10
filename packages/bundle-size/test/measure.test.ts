@@ -27,7 +27,7 @@ async function scaffold(entries: {dir: string; name: string; isPrivate?: boolean
   root = await mkdtemp(join(tmpdir(), 'conciv-bundle-size-'))
   await mkdir(join(root, 'packages/extensions'), {recursive: true})
   for (const entry of entries) {
-    await mkdir(join(root, entry.dir, 'dist'), {recursive: true})
+    await mkdir(join(root, entry.dir, 'dist/widget'), {recursive: true})
     await writeFile(
       join(root, entry.dir, 'package.json'),
       JSON.stringify({name: entry.name, private: entry.isPrivate ?? false}),
@@ -53,12 +53,35 @@ test('measureSizes reports published dists only, with gzip and raw bytes', async
   expect(core?.gzip).toBeLessThan(core?.raw ?? 0)
 })
 
-test('measureSizes lists the embed widget bundle as its own entry', async () => {
+test('measureSizes splits the embed widget into its first load and its lazy chunks', async () => {
+  const loader = 'import(new URL("widget/conciv-widget-a1.js", document.currentScript.src).href)\n'
+  const entry = 'import{t}from"./shared-b2.js";import(`./mount-impl-c3.js`);t()'
+  const shared = 'export const t=()=>1'
+  const mountImpl = 'import{t}from"./shared-b2.js";export const m=()=>import(`./mermaid-d4.js`)'
+  const mermaid = 'export const diagram="x".repeat(9)'.repeat(40)
   await scaffold([
-    {dir: 'packages/embed', name: '@conciv/embed', dist: {'conciv-widget.global.js': 'widget'.repeat(100)}},
+    {
+      dir: 'packages/embed',
+      name: '@conciv/embed',
+      dist: {
+        'conciv-widget.global.js': loader,
+        'widget/conciv-widget-a1.js': entry,
+        'widget/shared-b2.js': shared,
+        'widget/mount-impl-c3.js': mountImpl,
+        'widget/mermaid-d4.js': mermaid,
+      },
+    },
   ])
-  const names = measureSizes(root).map((size) => size.name)
-  expect(names).toEqual(['widget bundle (packages/embed/dist/conciv-widget.global.js)', '@conciv/embed'])
+  const sizes = measureSizes(root)
+  expect(sizes.map((size) => size.name)).toEqual([
+    'widget first load (packages/embed/dist/conciv-widget.global.js)',
+    'widget lazy chunks (packages/embed/dist/widget)',
+    '@conciv/embed',
+  ])
+  expect(sizes[0]?.files).toBe(4)
+  expect(sizes[0]?.raw).toBe(loader.length + entry.length + shared.length + mountImpl.length)
+  expect(sizes[1]?.files).toBe(1)
+  expect(sizes[1]?.raw).toBe(mermaid.length)
 })
 
 test('renderSizes diffs gzip sizes against a baseline', () => {
