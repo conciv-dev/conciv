@@ -6,7 +6,7 @@ The server-side chat runtime. It runs turns through the TanStack `chat()` pipeli
 
 ## Interface
 
-- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, disposes the code mode driver, then rethrows any failed cancel writes and a failed driver dispose together as one `AggregateError`), the driver comes from `config.codeDriver` when given, else `loadIsolateDriver`, `settled`, `hydrate`, `record`, `codeRunner`).
+- `chat-server.ts:createChatServer` - async factory returning a `ChatServer` (delivery plus `stop`, `endRuns`, `endAllRuns` (ends every live run on every thread the way `endRuns` does, waits for all of them to settle, disposes the code mode driver, then rethrows any failed cancel writes and a failed driver dispose together as one `AggregateError`), `settled`, `hydrate`, `record`, `codeRunner`).
 - `chat-server.ts:record` - folds the given chunks through a `StreamProcessor` and appends the assistant messages to the thread the same way a stopped turn is saved, skipping tool calls the thread already holds.
 - `chat-server.ts:TurnPlan.reasoning` - passed to `chat({reasoning})`; the adapter maps it for its model (`--effort` or `MAX_THINKING_TOKENS` for claude-code) and drops it for a model it has no reasoning data for.
 - `chat-server.ts:ChatStores` / `TurnHooks` / `TurnPlan` / `ChatServerConfig` / `ChatThread` / `CodeRunner` / `Approvals` - exported types.

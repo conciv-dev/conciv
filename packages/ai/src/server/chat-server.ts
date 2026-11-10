@@ -42,7 +42,6 @@ import {imageToolProvisioner} from './image-tool-results.js'
 import {childCards} from './child-cards.js'
 import {compactionStamp} from './compaction-stamp.js'
 import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './code-mode.js'
-import type {CodeDriver} from './quickjs-thread.js'
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 
@@ -85,7 +84,6 @@ export type ChatServerConfig = {
   codeModeResult: (value: unknown) => unknown
   firstOutputTimeoutMs: number
   log: (message: string) => void
-  codeDriver?: (log: (message: string) => void) => Promise<CodeDriver | null>
 }
 
 const ThreadPageSchema = z.discriminatedUnion('truncated', [
@@ -352,7 +350,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver = await (config.codeDriver ?? loadIsolateDriver)(config.log)
+  const driver = await loadIsolateDriver(config.log)
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
