@@ -13,6 +13,8 @@ const HARD_STOP_GRACE_MS = 1000
 
 const SPARE_IDLE_MS = 60_000
 
+const CLOSE_PASSES = 3
+
 const WORKER_FILE = new URL(`./quickjs-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url)
 
 type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: number}
@@ -61,7 +63,7 @@ export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): Code
     dispose: async () => {
       const closing = held.open
       held.open = null
-      if (closing !== null) await closePool(closing)
+      if (closing !== null) await closePool(closing, log)
     },
   }
 }
@@ -77,11 +79,19 @@ export function openPool(log: Log): OpenPool {
   return {pool, closed: new AbortController()}
 }
 
-export async function closePool(open: OpenPool): Promise<void> {
+export async function closePool(open: OpenPool, log: Log, passes = CLOSE_PASSES): Promise<void> {
   open.closed.abort()
-  const threads = open.pool.threads.filter(running)
+  const threads = open.pool.threads
   await Promise.all([open.pool.destroy(), ...threads.map(exitOf)])
-  if (open.pool.threads.length > 0) await closePool(open)
+  const left = open.pool.threads
+  if (left.length === 0) return
+  const respawned = left.some((thread) => !threads.includes(thread))
+  if (respawned && passes > 1) {
+    await closePool(open, log, passes - 1)
+    return
+  }
+  log(`[ai] the QuickJS pool still held ${left.length} worker(s) after shutting down; terminating them`)
+  await Promise.all(left.map(async (thread) => thread.terminate()))
 }
 
 function threadContext(
@@ -147,14 +157,11 @@ function abortedWith(reason: unknown, timedOut: AbortSignal, retired: Retired): 
 }
 
 async function exited(pool: Piscina, threads: Worker[]): Promise<void> {
-  await Promise.all(threads.filter((thread) => running(thread) && !pool.threads.includes(thread)).map(exitOf))
-}
-
-function running(thread: Worker): boolean {
-  return thread.threadId !== -1
+  await Promise.all(threads.filter((thread) => !pool.threads.includes(thread)).map(exitOf))
 }
 
 function exitOf(thread: Worker): Promise<void> {
+  if (thread.threadId === -1) return Promise.resolve()
   return new Promise((exit) => thread.once('exit', () => exit()))
 }
 

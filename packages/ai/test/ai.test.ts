@@ -256,7 +256,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   })
 
   it(
-    'a failed cancel write still ends every live run and endAllRuns settles them before it rejects',
+    'a failed cancel write and a failed driver dispose both reach the one AggregateError endAllRuns rejects with, after every live run ended',
     {timeout: 15_000},
     async () => {
       const db = chatDb()
@@ -279,7 +279,20 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         started: () => undefined,
         end: async () => undefined,
       }
-      const server = await chatServer(hooks, () => undefined, db)
+      const quickJS = quickJSThreadDriver(
+        {timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024},
+        () => undefined,
+      )
+      const disposals = {count: 0}
+      const codeDriver = async () => ({
+        createContext: quickJS.createContext,
+        dispose: async () => {
+          await quickJS.dispose()
+          disposals.count += 1
+          if (disposals.count === 1) throw new Error('driver dispose failed')
+        },
+      })
+      const server = await chatServer(hooks, () => undefined, db, codeDriver)
       const driven = [...started.keys()].map((threadId) =>
         server.drive({threadId, runId: `${threadId}-run`, kind: 'chat'}, [
           {id: 'user-hi', role: 'user', content: 'hi'},
@@ -287,15 +300,24 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       )
       await Promise.all([...started.values()].map((gate) => gate.promise))
       const outcome = await server.endAllRuns().then(
-        () => 'resolved',
-        (error: unknown) => (error instanceof AggregateError ? 'aggregate' : String(error)),
+        () => ['resolved'],
+        (error: unknown) =>
+          error instanceof AggregateError
+            ? error.errors.map((each: unknown) => (each instanceof Error ? each.message : String(each)))
+            : [String(error)],
       )
       const runs = db.$client.prepare('SELECT thread_id, status FROM chat_runs ORDER BY thread_id').all()
       expect.soft(runs).toEqual([
         {thread_id: 'one', status: 'aborted'},
         {thread_id: 'two', status: 'aborted'},
       ])
-      expect.soft(outcome).toBe('aggregate')
+      expect
+        .soft(outcome)
+        .toEqual([
+          'conciv: cancelling the runs of thread one failed',
+          'conciv: cancelling the runs of thread two failed',
+          'driver dispose failed',
+        ])
       await Promise.all(driven)
     },
   )
@@ -528,7 +550,12 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     ])
   }
 
-  async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
+  async function chatServer(
+    hooks: TurnHooks,
+    log: (message: string) => void,
+    db = chatDb(),
+    codeDriver?: Parameters<typeof createChatServer>[0]['codeDriver'],
+  ) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
     const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
@@ -537,6 +564,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       codeModeResult: (value) => value,
       firstOutputTimeoutMs: 30_000,
       log,
+      codeDriver,
     })
     onTestFinished(() => server.endAllRuns())
     return server
@@ -670,15 +698,25 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       expect(ours()).toEqual([survivor])
     })
 
-    it('a worker that errors while its pool shuts down never throws on the server thread and leaves no worker', async () => {
+    it('a worker that errors while its pool shuts down never throws on the server thread, and the worker piscina respawns is shut down too', async () => {
       const ours = workersFromHere()
       const logged: string[] = []
-      const open = openPool((message) => logged.push(message))
+      const log = (message: string) => logged.push(message)
+      const open = openPool(log)
       const [thread] = open.pool.threads
       if (thread === undefined) throw new Error('the pool booted no worker')
-      const closing = closePool(open)
+      const respawned: Worker[] = []
+      const track = (message: unknown) => {
+        if (isWorkerCreated(message)) respawned.push(message.worker)
+      }
+      subscribe('worker_threads', track)
+      onTestFinished(() => {
+        unsubscribe('worker_threads', track)
+      })
+      const closing = closePool(open, log)
       expect(() => thread.emit('error', new Error('the worker failed'))).not.toThrow()
       await closing
+      expect(respawned).toHaveLength(1)
       expect(logged).toEqual(['[ai] the QuickJS worker failed: Error: the worker failed'])
       expect(ours()).toEqual([])
     })
