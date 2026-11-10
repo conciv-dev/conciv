@@ -102,6 +102,9 @@ catalogs:
     '@tanstack/ai-codex':
       specifier: 1.0.1
       version: 1.0.1
+    '@tanstack/ai-event-client':
+      specifier: 1.0.1
+      version: 1.0.1
     '@tanstack/ai-isolate-node':
       specifier: 1.1.0
       version: 1.1.0
@@ -171,6 +174,9 @@ catalogs:
     '@tanstack/solid-virtual':
       specifier: ^3.13.51
       version: 3.13.51
+    '@tanstack/store':
+      specifier: 0.11.2
+      version: 0.11.2
     '@tiptap/core':
       specifier: ^3.32.1
       version: 3.32.1
@@ -1828,6 +1834,9 @@ importers:
       '@tanstack/ai-code-mode':
         specifier: 'catalog:'
         version: 1.1.0(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-event-client':
+        specifier: 'catalog:'
+        version: 1.0.1
       '@tanstack/ai-isolate-quickjs':
         specifier: 'catalog:'
         version: 1.1.0(@tanstack/ai-code-mode@1.1.0(patch_hash=a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7))
@@ -1837,9 +1846,9 @@ importers:
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)
-      '@tanstack/ai-solid':
+      '@tanstack/store':
         specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
+        version: 0.11.2
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)
@@ -1874,6 +1883,9 @@ importers:
       '@tanstack/ai-sandbox-local-process':
         specifier: 'catalog:'
         version: 1.0.0(patch_hash=59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f)(@tanstack/ai-sandbox@1.2.0(patch_hash=1f0bbb1c2df79421e9d78a7fca119ecc8e5f5574b4c2904b53fab831b1e40978)(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.0.5)(zod@4.6.7))
+      '@tanstack/ai-solid':
+        specifier: 'catalog:'
+        version: 1.0.1(@opentelemetry/api@1.9.1)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

@@ -105,6 +105,8 @@
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
     "@tanstack/ai-mcp",
+    "@tanstack/ai-event-client",
+    "@tanstack/store",
     "collections",
     "@conciv/app-extensions",
     "conciv",
