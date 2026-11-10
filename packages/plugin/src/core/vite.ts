@@ -11,7 +11,7 @@ import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_DOCK_ROUTE, EXTENSIONS_ROUTE, htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
-import type {AnyExtension} from '@conciv/extension'
+import type {AnyExtension, ExtensionDevServer} from '@conciv/extension'
 import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
@@ -109,6 +109,31 @@ function mountWidget(
     route: '',
     handle: makeWidgetInject(apiBase, widgetConfig),
   })
+}
+
+function serveExtensions(
+  server: ViteDevServer,
+  options: ConcivConfig,
+  extensions: AnyExtension[],
+): ExtensionDevServer[] {
+  const input = {
+    root: server.config.root,
+    homeDir: options.homeDir,
+    plugins: server.config.plugins.map((plugin) => plugin.name),
+    html: ({url, html}: {url: string; html: string}) => server.transformIndexHtml(url, html),
+  }
+  const served = extensions.flatMap((extension) => (extension.devServer ? [extension.devServer(input)] : []))
+  const handlers = served.flatMap((extension) => (extension.middleware ? [extension.middleware] : []))
+  if (handlers.length > 0)
+    server.middlewares.use((request, response, next) => {
+      const run = (index: number): void => {
+        const handler = handlers[index]
+        if (!handler) return next()
+        Promise.resolve(handler(request, response, () => run(index + 1))).catch(next)
+      }
+      run(0)
+    })
+  return served
 }
 
 function devOrigins(server: ViteDevServer): string[] {
@@ -245,6 +270,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let managedExcludes: string[] = []
   let docked = false
   let devServer: ViteDevServer | undefined
+  let served: ExtensionDevServer[] = []
   return {
     name: 'conciv',
     apply: 'serve',
@@ -311,10 +337,19 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     resolveId(id) {
-      return resolveExtensionsModule(id)
+      return (
+        resolveExtensionsModule(id) ??
+        served.map((extension) => extension.resolveId?.(id) ?? null).find((found) => found !== null)
+      )
     },
-    load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
+    async load(id) {
+      const own = loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry, builtins.dedupeEntry)
+      if (own !== null && own !== undefined) return own
+      for (const extension of served) {
+        const loaded = await extension.load?.(id)
+        if (loaded !== null && loaded !== undefined) return loaded
+      }
+      return null
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -335,6 +370,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
+      served = serveExtensions(server, options, extensions)
       engine = await bootEngine(
         server,
         options,

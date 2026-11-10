@@ -8,6 +8,7 @@ import type {
   ConnectGate,
   ExtensionCliCommands,
   ExtensionCommand,
+  ExtensionDevServerFactory,
   ExtensionMigrations,
   ExtensionSourcesFactory,
   ExtensionTables,
@@ -51,6 +52,7 @@ export type ExtensionMeta<
   Surface?: Component
   systemPrompt?: string | SystemPromptFactory<Exclude<ConfigOf<Schema>, undefined>>
   connectGate?: ConnectGate
+  devServer?: ExtensionDevServerFactory
 }
 
 export type ExtensionBuilder<
@@ -75,6 +77,7 @@ export type ExtensionBuilder<
   commands?: readonly ExtensionCommand[]
   cliCommands?: ExtensionCliCommands<Tables>
   views?: readonly ExtensionView[]
+  devServer?: ExtensionDevServerFactory
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(server: ServerApi<ConfigOf<Schema>, Tables>): ServerResult<unknown> | Promise<ServerResult<unknown>>
@@ -182,6 +185,7 @@ export function defineExtension<
     commands: meta.commands,
     cliCommands: meta.cliCommands,
     views: meta.views,
+    devServer: meta.devServer,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
     useContext,
     client(factory: () => ClientFactoryResult<object>) {

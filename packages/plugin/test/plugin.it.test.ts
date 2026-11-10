@@ -25,6 +25,7 @@ import {DevTools} from '@vitejs/devtools'
 import {createServer, type Plugin, type PluginOption, type ViteDevServer} from 'vite'
 import type {Engine} from '@conciv/core/start'
 import {EXTENSIONS_RESOLVED_ID, NO_BUILTINS, type Builtins} from '@conciv/extension-compiler/extensions'
+import {defineExtension} from '@conciv/extension'
 import ios from '@conciv/extension-ios'
 import recorder from '@conciv/extension-recorder'
 import terminal from '@conciv/extension-terminal'
@@ -705,6 +706,37 @@ describe('native page vite boot', () => {
       await expectLocator(chat.getByText('Recording is paused by your content blocker')).toBeHidden()
       await blockedPage.close()
     }, 90_000)
+  })
+})
+
+describe('extension dev server', () => {
+  describe('an extension that serves a dev-server route and a virtual module', () => {
+    const servers = devServers()
+
+    afterEach(() => servers.stopAll())
+
+    it('answers its route through the vite plugin and loads its virtual module', async () => {
+      const stub = defineExtension({
+        name: 'stub-dev-server',
+        devServer: ({root, plugins}) => ({
+          middleware: (request, response, next) => {
+            if (request.url !== '/__stub/hello') return next()
+            response.end(`hello from ${root} with ${plugins.includes('conciv')}`)
+          },
+          resolveId: (id) => (id === 'virtual:stub' ? '\0virtual:stub' : null),
+          load: (id) => (id === '\0virtual:stub' ? 'export const stub = 42' : null),
+        }),
+      })
+      const {server} = await servers.start(
+        {widget: false, devEndpointDir: servers.tempDir('conciv-vite-endpoint-')},
+        {serverExtensions: [stub], clientEntries: []},
+      )
+      const origin = server.resolvedUrls?.local[0] ?? ''
+      const routed = await fetch(new URL('/__stub/hello', origin))
+      expect(await routed.text()).toBe(`hello from ${server.config.root} with true`)
+      const loaded = await fetch(new URL('/@id/virtual:stub', origin))
+      expect(await loaded.text()).toContain('export const stub = 42')
+    }, 30_000)
   })
 })
 

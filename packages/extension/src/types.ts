@@ -1,3 +1,4 @@
+import type {IncomingMessage, ServerResponse} from 'node:http'
 import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types'
@@ -151,6 +152,21 @@ export type ServerApi<Config, Tables extends ExtensionTables = Record<never, nev
   page: {ask: (request: PageAskRequest) => Promise<unknown>}
   upgradeWebSocket: UpgradeWebSocket
 }
+
+export type ExtensionDevServerInput = {
+  root: string
+  homeDir: string | undefined
+  plugins: string[]
+  html(input: {url: string; html: string}): Promise<string>
+}
+
+export type ExtensionDevServer = {
+  middleware?(request: IncomingMessage, response: ServerResponse, next: () => void): void | Promise<void>
+  resolveId?(id: string): string | null
+  load?(id: string): string | null | Promise<string | null>
+}
+
+export type ExtensionDevServerFactory = (input: ExtensionDevServerInput) => ExtensionDevServer
 
 export type ServerResult<Context> = {
   context: Context
