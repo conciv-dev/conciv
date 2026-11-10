@@ -55,10 +55,10 @@ import {
 } from '@conciv/extension'
 import {createToolRegistry} from '@conciv/extension/registry'
 import {type HarnessAdapter, defineHarness, resolveHarnessModels} from '@conciv/harness'
-import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {CHAT_SSE_PATH, CONCIV_SESSION_HEADER, HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
-import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH, PushFrameSchema} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
@@ -300,6 +300,37 @@ describe('chat plane', () => {
     expect.soft(runs).toEqual([{status: 'aborted'}])
     expect.soft(logged).not.toMatch(/DrizzleQueryError|database is not open/)
   })
+
+  it('a push socket that opens while a run is going is told about that run', async () => {
+    const cli = fakeCli('streaming')
+    const engine = await bootEngine(tempDir(), {harness: cliHarness(cli)})
+    onTestFinished(async () => {
+      cli.release()
+      await engine.stop()
+    })
+    const id = sessionId('late-push')
+    const turn = await fetch(`http://127.0.0.1:${engine.port}/t/${engine.agentToken}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: turnBody(id, 'late-push-run', 'keep talking'),
+    })
+    await readUntil(turn, ChatEventType.TEXT_MESSAGE_CONTENT)
+    const socket = new WebSocket(`ws://127.0.0.1:${engine.port}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${id}`)
+    onTestFinished(() => socket.close())
+    const announced = new Promise<string | null>((resolve) => {
+      socket.addEventListener('message', (event) => {
+        const frame = PushFrameSchema.safeParse(JSON.parse(String(event.data)))
+        if (!frame.success || frame.data.channel !== 'chat') return
+        const run = sessionRunEvent.parse(frame.data.chunk)
+        if (run !== null) resolve(run.runId)
+      })
+      socket.addEventListener('close', () => resolve(null))
+    })
+    socket.addEventListener('open', () =>
+      socket.send(JSON.stringify({type: SOCKET_TRUST_FRAME, token: engine.agentToken})),
+    )
+    expect(await announced).toBe('late-push-run')
+  }, 10_000)
 
   type CliStep = 'reply' | 'partial' | 'streaming' | 'tooling'
 
