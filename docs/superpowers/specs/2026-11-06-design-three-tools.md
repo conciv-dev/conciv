@@ -539,3 +539,9 @@ An image row compares pictures, not file names (2026-11-10). A node with an imag
 page element whose picture is the same picture at any size: the two are scaled to the smaller box and compared with
 the paint tolerance the look rows already use. A different file with the same picture is a match; the same file with
 a different picture is a `wrong image` row. The row's text names both pictures when they differ.
+
+A page that throws while rendering is the verdict `broken` (2026-11-10). When the page under check reports an
+uncaught error or an unhandled rejection between navigation and settle, or renders no design node while the console
+holds such an error, `design_check` answers `verdict: broken` with the error's first line, file and position when the
+stack has them, no rows, and the rule 'fix the runtime error first; nothing else was measured'. The round is stored
+with that verdict so the x-ray shows it, the same way a page that does not compile is.
