@@ -495,7 +495,6 @@ every other width are inferred from that frame's layout tags. Omri: use the vari
 - At a variant's width, the page is measured against that variant's nodes: layout rows, paint rows, image rows, assets.
   `design_nodes` holds every variant's nodes, keyed by target. A conciv id pairs per variant; the Figma node ids differ
   across frames, the id in the page does not, so `getFOM(id)` answers per target.
-- Between two variant widths the reflow rows stay inferred, from the nearest variant above the measured width.
 - `design_status` shows the verdict per variant; `done` is every variant done. `design_check` reports rows grouped by
   variant.
 - Assets are exported once per Figma node id; a picture shared by three frames is three node ids and three files.
@@ -568,3 +567,8 @@ tallest element past the frame is <element> at <source line>, N px'. The element
 furthest below the frame's bottom among elements whose own height exceeds the frame's and none of whose children's
 does, so the element that grew is named, not the sections that hold it. The coverage sentence follows it, not the
 other way round.
+
+A design with frames is measured at its frames' widths only (2026-11-10). A breakpoint width (a tag's `breakpoint`, a
+page query) between two frames is not measured: its rows compared the page against a breakpoint inferred from one
+frame's children (the sum of their drawn widths), while the design's next frame says what the page does there. A
+single-frame design keeps its breakpoint widths.
