@@ -76,6 +76,7 @@ export async function bootDesignHost(options: {config?: DesignConfigInput} = {})
     apiBase,
     session,
     stateRoot,
+    home: homeDir,
     token,
     targetsDir,
     hostRoot: HOST_ROOT,
@@ -125,6 +126,7 @@ type Kit = {
   apiBase: string
   session: SessionId
   stateRoot: string
+  home: string
   token: string
   targetsDir: string
   hostRoot: string

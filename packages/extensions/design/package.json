@@ -85,6 +85,7 @@
     "get-tsconfig": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
+    "modern-tar": "catalog:",
     "onnxruntime-web": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:",

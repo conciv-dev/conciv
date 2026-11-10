@@ -1,5 +1,6 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
 import {execFile} from 'node:child_process'
+import {createHash} from 'node:crypto'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
@@ -42,6 +43,7 @@ import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
+import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
@@ -879,6 +881,25 @@ describe('catalog hints on design_get', () => {
     ])
     const listed = await call('design_components', {})
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
+  })
+
+  it('lists the hinted nodes in hint_vs_drawn once the run is imported, a round or none', async () => {
+    await kit.rpc.extensions.run({name: 'design:run', args: ['start', 'it-hint-model', 'it-head'], options: {}})
+    const got = await hintedTarget()
+    const {runId} = z
+      .object({runId: z.number()})
+      .parse(await kit.rpc.extensions.run({name: 'design:run-import', args: [kit.stateRoot], options: {}}))
+    const rows = z.array(z.object({node: z.string(), hint: z.string()})).parse(
+      await kit.rpc.db.read({
+        from: 'design_hint_vs_drawn',
+        where: `run == ${runId} && target == "${got.target}"`,
+        select: ['node', 'hint'],
+      }),
+    )
+    expect(new Set(rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
+    await expect(
+      kit.rpc.db.write({into: 'design_stored_notes', values: {target: 't', run: 1, text: 'x'}}),
+    ).rejects.toThrow('design_stored_notes is read-only')
   })
 
   it('stores the reply design_get returned whole, beside its input', async () => {
@@ -1784,5 +1805,258 @@ describe('run start and run end', () => {
     ])
     orm.$client.close()
     await Promise.all([cwd, stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
+  })
+})
+
+const BACKFILL = 'runs_backfill_wave_lane'
+
+const TARGET_IDS_MOVED = 'ALTER TABLE design_targets DROP COLUMN ids'
+
+const RUN_FIXTURE = fileURLToPath(new URL('fixtures/runs/twentysix-figma7-1/', import.meta.url))
+
+const ImportedSchema = z.object({runId: z.number(), imported: z.boolean(), copied: z.record(z.string(), z.number())})
+
+const CountSchema = z.object({count: z.number()})
+
+const importedDirs: string[] = []
+
+afterAll(() => Promise.all(importedDirs.map((dir) => rm(dir, {recursive: true, force: true}))))
+
+async function runImport(input: {dir: string; options?: Record<string, string | string[]>}) {
+  return ImportedSchema.parse(
+    await kit.rpc.extensions.run({name: 'design:run-import', args: [input.dir], options: input.options ?? {}}),
+  )
+}
+
+async function tempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  importedDirs.push(dir)
+  return dir
+}
+
+async function fixtureCopy(statement: string): Promise<string> {
+  const dir = await tempDir('conciv-run-project-')
+  await mkdir(join(dir, '.conciv'))
+  const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+  source.exec(`VACUUM INTO '${join(dir, '.conciv', 'conciv.db')}'`)
+  source.close()
+  const copy = new DatabaseSync(join(dir, '.conciv', 'conciv.db'))
+  copy.exec(`${TARGET_IDS_MOVED};${statement}`)
+  copy.close()
+  return dir
+}
+
+const CURRENT_FIXTURE = await fixtureCopy('')
+
+function fixtureCount(input: {table: string; where?: string}): number {
+  const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+  const {count} = CountSchema.parse(
+    source.prepare(`SELECT count(*) AS count FROM ${input.table} ${input.where ?? ''}`).get(),
+  )
+  source.close()
+  return count
+}
+
+async function storedCount(input: {from: string; runId: number}): Promise<number> {
+  return (await kit.rpc.db.read({from: input.from, where: `run == ${input.runId}`})).length
+}
+
+function sha256(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+describe('run import', () => {
+  const COPIED = ['design_stored_rounds', 'design_stored_rows', 'design_stored_votes', 'design_stored_tool_calls']
+
+  it('imports a finished run once, its rounds, rows and votes under one run id, and returns that id again', async () => {
+    const expected = ['design_rounds', 'design_rows', 'design_votes', 'design_tool_calls'].map((table) =>
+      fixtureCount({table}),
+    )
+    const first = await runImport({dir: CURRENT_FIXTURE})
+    const counted = () => Promise.all(COPIED.map((from) => storedCount({from, runId: first.runId})))
+    expect(await counted()).toEqual(expected)
+    const again = await runImport({dir: CURRENT_FIXTURE})
+    expect([again.imported, again.runId]).toEqual([false, first.runId])
+    expect(await counted()).toEqual(expected)
+  })
+
+  it('imports a live database that lacks a newer column with null in it', async () => {
+    const dir = await fixtureCopy(
+      "ALTER TABLE design_runs ADD COLUMN lane text; UPDATE design_runs SET lane = 'figma7-1'",
+    )
+    const {runId} = await runImport({dir})
+    expect(
+      await kit.rpc.db.read({from: 'design_stored_runs', where: `run == ${runId}`, select: ['wave', 'lane']}),
+    ).toEqual([{wave: null, lane: 'figma7-1'}])
+  })
+
+  it('refuses a live database with a column the store lacks, naming it, and copies nothing', async () => {
+    const dir = await fixtureCopy('ALTER TABLE design_rows ADD COLUMN surprise TEXT')
+    await expect(runImport({dir})).rejects.toThrow('design_rows.surprise')
+    expect(await kit.rpc.db.read({from: 'design_stored_runs', where: `source_path == "${dir}"`})).toEqual([])
+  })
+
+  it('stores the design, a screenshot per width, the source tar and the transcript with checksums and lifetimes, and the lane', async () => {
+    const dir = await fixtureCopy("UPDATE design_runs SET verdict = 'done'")
+    const inputs = await tempDir('conciv-run-artifacts-')
+    const widths = [390, 1280]
+    await Promise.all(
+      ['screenshots', 'design', 'source'].map((folder) => mkdir(join(inputs, folder), {recursive: true})),
+    )
+    await Promise.all([
+      ...widths.flatMap((width) => [
+        writeFile(join(inputs, 'screenshots', `${width}.png`), `shot ${width}`),
+        writeFile(join(inputs, 'design', `${width}.png`), `design ${width}`),
+      ]),
+      writeFile(join(inputs, 'source', 'App.tsx'), 'export function App() {}'),
+      writeFile(join(inputs, 'transcript.jsonl'), '{"turn":1}'),
+    ])
+    const {runId} = await runImport({
+      dir,
+      options: {
+        screenshots: join(inputs, 'screenshots'),
+        design: join(inputs, 'design'),
+        source: join(inputs, 'source'),
+        transcript: join(inputs, 'transcript.jsonl'),
+        lane: dir,
+        lifetime: ['screenshot=7'],
+      },
+    })
+    const rows = z
+      .array(
+        z.object({
+          kind: z.string(),
+          width: z.number().nullable(),
+          path: z.string(),
+          size: z.number(),
+          checksum: z.string(),
+          lifetime: z.string(),
+        }),
+      )
+      .parse(
+        await kit.rpc.db.read({
+          from: 'design_stored_artifacts',
+          where: `run == ${runId}`,
+          select: ['kind', 'width', 'path', 'size', 'checksum', 'lifetime'],
+        }),
+      )
+    expect(new Set(rows.map((row) => `${row.kind} ${row.width} ${row.lifetime}`))).toEqual(
+      new Set([
+        'design 390 infinite',
+        'design 1280 infinite',
+        'screenshot 390 7',
+        'screenshot 1280 7',
+        'source null infinite',
+        'transcript null 90',
+      ]),
+    )
+    const stored = await Promise.all(rows.map((row) => readFile(join(kit.home, 'artifacts', row.path))))
+    expect(stored.map((bytes) => [sha256(bytes), bytes.length])).toEqual(rows.map((row) => [row.checksum, row.size]))
+    expect(rows.every((row) => row.path.startsWith(`${runId}/`))).toBe(true)
+    const screenshot = rows.find((row) => row.kind === 'screenshot' && row.width === 390)
+    expect(screenshot?.checksum).toBe(sha256(await readFile(join(inputs, 'screenshots', '390.png'))))
+    expect(await kit.rpc.db.read({from: 'design_stored_lanes', where: `run == ${runId}`, select: ['path']})).toEqual([
+      {path: dir},
+    ])
+  })
+
+  it('answers run_summary per width with the round, verdict and rows of the final gate', async () => {
+    const GateSchema = z.object({
+      variants: z.array(
+        z.object({target: z.string(), round: z.number(), verdict: z.string(), counts: z.object({rows: z.number()})}),
+      ),
+    })
+    const gate = GateSchema.parse(JSON.parse(await readFile(join(RUN_FIXTURE, 'gate-final.json'), 'utf8')))
+    const {runId} = await runImport({dir: CURRENT_FIXTURE})
+    const rows = await kit.rpc.db.read({
+      from: 'design_run_summary',
+      where: `run == ${runId}`,
+      select: ['target', 'round', 'verdict', 'rows'],
+      order: [{field: 'width', dir: 'desc'}],
+    })
+    expect(rows).toEqual(
+      gate.variants.map((variant) => ({
+        target: variant.target,
+        round: variant.round,
+        verdict: variant.verdict,
+        rows: variant.counts.rows,
+      })),
+    )
+    expect(await kit.rpc.db.read({from: 'design_mispairs', where: 'run == 0'})).toEqual([])
+    await expect(kit.rpc.db.write({into: 'design_stored_runs', values: {model: 'm'}})).rejects.toThrow(
+      'design_stored_runs is read-only',
+    )
+  })
+
+  it('answers the wave questions: broken rounds, page-height rows and the lowest rendered count per width', async () => {
+    const broken = fixtureCount({table: 'design_rounds', where: 'WHERE broken IS NOT NULL'})
+    const page = fixtureCount({table: 'design_rows', where: "WHERE kind = 'page'"})
+    const targets = fixtureCount({table: 'design_targets'})
+    const {runId} = await runImport({dir: CURRENT_FIXTURE})
+    const counts = await Promise.all(
+      ['design_broken_rounds', 'design_page_height_rows', 'design_lowest_rendered'].map((from) =>
+        storedCount({from, runId}),
+      ),
+    )
+    expect(counts).toEqual([broken, page, targets])
+  })
+
+  it('reads the run summary of an imported run through the CLI, filtered by cost', async () => {
+    const {runId} = await runImport({dir: CURRENT_FIXTURE})
+    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+    const widths = z
+      .array(z.object({width: z.number()}))
+      .parse(source.prepare('SELECT width FROM design_targets ORDER BY width').all())
+    source.close()
+    const printed = await promisify(execFile)(
+      process.execPath,
+      [
+        fileURLToPath(import.meta.resolve('@conciv/cli/bin')),
+        'db',
+        'query',
+        '--from',
+        'design_run_summary',
+        '--where',
+        `run == ${runId} && cost > 2`,
+        '--select',
+        'run,width,verdict',
+        '--order',
+        'width',
+      ],
+      {cwd: kit.stateRoot, env: {...process.env, CONCIV_STATE_ROOT: kit.stateRoot}},
+    )
+    const SummarySchema = z.object({
+      ok: z.literal(true),
+      data: z.array(z.object({run: z.number(), width: z.number(), verdict: z.string()})),
+    })
+    const {data} = SummarySchema.parse(JSON.parse(printed.stdout))
+    expect(data.map((row) => [row.run, row.width])).toEqual(widths.map((row) => [runId, row.width]))
+  })
+
+  it('imports a tool call that names a round the run never stored', async () => {
+    const dir = await fixtureCopy(
+      "INSERT INTO design_tool_calls (run_id, target_id, tool, round, input, reply_bytes, duration_ms, at) SELECT run_id, target_id, 'design_status', 0, '{}', 0, 0, at FROM design_rounds LIMIT 1",
+    )
+    const {runId, copied} = await runImport({dir})
+    expect([copied.design_tool_calls, await storedCount({from: 'design_stored_tool_calls', runId})]).toEqual([28, 28])
+  })
+
+  it('backfills the wave and lane of a stored run from the run dir name in its source path', async () => {
+    const home = await tempDir('conciv-runs-backfill-')
+    const store = openStore(home)
+    store.orm.$client.exec(
+      "INSERT INTO design_runs (model, prompt_head, started, source_path, source_run_id) VALUES ('m', 'p', 1, '/lanes/twentyfour-figma7-1/state', 1)",
+    )
+    const backfill = runsMigrations.find((migration) => migration.name.endsWith(BACKFILL))
+    backfill?.sql.forEach((statement) => store.orm.$client.exec(statement))
+    store.close()
+    const homeOrm = openHomeDb(home)
+    const sources = catalogSources({
+      orm: homeOrm,
+      sources: sourceCatalog({extension: 'design', sources: storeSources(), home}),
+    })
+    const read = await sources.read({from: 'design_stored_runs', select: ['wave', 'lane']})
+    closeHomeDb(homeOrm)
+    expect(read).toEqual([{wave: 'twentyfour', lane: 'figma7-1'}])
   })
 })
