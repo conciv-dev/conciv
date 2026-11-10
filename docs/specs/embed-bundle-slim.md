@@ -45,9 +45,9 @@ The ESM build (`vite.config.ts`, `mount.js` plus chunks, about 1.5 MB) is alread
    - The bootstrap file keeps its current name and still works from a plain `<script src>`. Chunks resolve relative to that script's URL: capture `document.currentScript.src` and use it as the chunk base, or use a Vite or Rolldown-supported equivalent (check the Vite 8 and Rolldown docs for IIFE plus split chunks, or ESM chunks behind a tiny classic-script loader).
    - Every place that serves or copies the bundle serves the chunks too:
      - `native-page.ts` must serve the chunk directory, and must still zod-parse the requested file name (see AGENTS.md);
-     - `copy-widget-bundle.mjs` must copy the chunk directory;
+     - the site's `copy-widget-bundle.mjs` is deleted instead (see Decisions);
      - the test helper that inlines the bundle text must load it by URL instead, or serve it.
-   - Target: the first-load bootstrap plus eager chunks at 2 MB or less. Lazy chunks only download when a message needs them.
+   - Target: the first-load bootstrap plus eager chunks at 2 MB gzip or less (shipped: 5.2 MB raw, 1.7 MB gzip). Lazy chunks only download when a message needs them.
 2. **Source maps:**
    - The IIFE builds emit no `.map` by default.
    - A release build (CI `pnpm release` path) may keep maps, but without `sourcesContent`.
@@ -55,13 +55,14 @@ The ESM build (`vite.config.ts`, `mount.js` plus chunks, about 1.5 MB) is alread
 3. **Turbo outputs:**
    - `e2e/nextjs` and `e2e/nextjs-component` exclude `.next/dev/**`.
    - Check every e2e app's `turbo.json` outputs for other dev caches.
-   - `apps/site` must not cache a second copy of the widget in its `dist/` if it can reference the embed output instead. If the site deploy needs the file in `dist/client`, keep it, but copy the slim bootstrap plus chunks.
+   - `apps/site` no longer copies the widget at all: nothing on the site loaded it (the site mounts through the ESM `@conciv/embed`).
 4. **Bundle-size gate:** `packages/bundle-size` measures the bootstrap plus eager chunks, and reports lazy chunks separately.
 
 ## Acceptance
 
-- `packages/embed/dist` after a build is 15 MB or less in total. Report the before and after numbers.
-- A turbo cache entry for an embed build is 5 MB or less. Report the before and after numbers.
+- `packages/embed/dist` after a build is about 30 MB in total (was 152 MB).
+- A turbo cache entry for an embed build is about 6.9 MB (was 33.5 MB).
+- The first load (loader, entry chunk and its static imports, plus the `mount-impl` chunk) is about 5.2 MB raw and 1.7 MB gzip.
 - Widget integration tests, the embed unit tests, core's native-page IT and the plugin IT all pass against the new layout.
 - In a real headless browser, mount the widget from the global bundle and check each of these:
   - a code block highlights;
@@ -70,3 +71,10 @@ The ESM build (`vite.config.ts`, `mount.js` plus chunks, about 1.5 MB) is alread
   - the network panel shows the mermaid and katex chunks fetched only when used.
 - The native page in the iOS example host still loads, checked through core's native-page IT.
 - `pnpm --filter @conciv/app test:perf` is no worse than on main.
+
+## Decisions
+
+Decided 2026-11-11 with Omri, after the implementation measured the result:
+
+- Ship the sizes as they are. The original targets (dist 15 MB, cache entry 5 MB, first load 2 MB raw) are not reachable without dropping features: the lazy chunks alone are about 19 MB, mostly every shiki grammar for tool-card code blocks (8.6 MB), mermaid with elk (about 7 MB) and themes. No grammar or elk cuts.
+- Delete the site's copy of the global widget bundle (`apps/site/scripts/copy-widget-bundle.mjs`, its build step and its `.gitignore` lines). The site mounts the widget through the ESM `@conciv/embed`, so `conciv.dev/conciv-widget.global.js` had no reader.
