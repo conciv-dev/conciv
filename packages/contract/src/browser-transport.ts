@@ -1,7 +1,12 @@
 import {createORPCClient, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
 import {RPCLink as FetchRpcLink} from '@orpc/client/fetch'
 import {ClientRetryPlugin, type ClientRetryPluginContext} from '@orpc/client/plugins'
-import type {ContractRouterClient} from '@orpc/contract'
+import {
+  getContractRouter,
+  getEventIteratorSchemaDetails,
+  isContractProcedure,
+  type ContractRouterClient,
+} from '@orpc/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {contract, SOCKET_TRUST_FRAME, type ExchangeResult} from './contract.js'
 
@@ -11,6 +16,7 @@ export type SessionAccessor = () => string | null
 
 const CONNECTION_LOSS_RETRIES = 12
 const CONNECTION_LOSS_RETRY_DELAY_MS = 250
+const STREAM_RETRY_MAX_DELAY_MS = 5_000
 const ENSURE_TRUSTED_TIMEOUT_MS = 60_000
 const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
@@ -129,11 +135,19 @@ export function isRetryableRpcFailure(alive: boolean, error: unknown): boolean {
   return alive && !(error instanceof ORPCError) && !isAbortedFailure(error)
 }
 
+function isStreamingCall(path: readonly string[]): boolean {
+  const procedure = getContractRouter(contract, path)
+  return isContractProcedure(procedure) && getEventIteratorSchemaDetails(procedure['~orpc'].outputSchema) !== undefined
+}
+
 function retryPlugin(alive: () => boolean, vote: ReachabilityListener): ClientRetryPlugin<RpcClientContext> {
   return new ClientRetryPlugin<RpcClientContext>({
     default: {
-      retry: CONNECTION_LOSS_RETRIES,
-      retryDelay: CONNECTION_LOSS_RETRY_DELAY_MS,
+      retry: (options) => (isStreamingCall(options.path) ? Number.POSITIVE_INFINITY : CONNECTION_LOSS_RETRIES),
+      retryDelay: (options) =>
+        isStreamingCall(options.path)
+          ? Math.min(CONNECTION_LOSS_RETRY_DELAY_MS * 2 ** options.attemptIndex, STREAM_RETRY_MAX_DELAY_MS)
+          : CONNECTION_LOSS_RETRY_DELAY_MS,
       shouldRetry: (options) => {
         const retryable = isRetryableRpcFailure(alive(), options.error)
         if (retryable) vote(false)

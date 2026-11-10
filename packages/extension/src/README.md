@@ -15,7 +15,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `imageResult` (`image-result.ts`)
 - `collectClientTools` / `collectClientEffects` / `collectToolRenderers` / `collectAttachmentCards` / `captureModeOf` (`collect-client.ts`)
 - `getExtensionApi` (`extension-api.ts`)
-- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
+- `getHostApi` / `HostApiProvider` (`hooks.tsx`, re-exported by `host.ts`): useRpc, useScope (namespaced `settings` mirrored from the engine over `settings.changes`, stream closed on owner cleanup), useApiBase, useToast, useOpenEditor, useDialog, usePopover, useSessionId, useGrab, useComposerInsert, useComposerAttach, useNewSession, useViewLock, useLeaveView, useSlot, useConnect, useColorScheme
 - `HostWiring` / `HostApiContext` / `use` / `useExtensionValue` (`host-context.ts`)
 - `MountedExtension` / `MountedSurface` / `MountedView` (`mount-extension.tsx`)
 - `ensureEffectsSurface` / `openSource` / `EFFECTS_SURFACE_ATTR` (`client-host.ts`)
@@ -27,7 +27,9 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `makeViteBridge(server)` (`vite-bridge.ts`, the `./vite` export): a `BundlerBridge` over a Vite dev server (config, resolve, module graph, transform, urls, reload, restart) whose `subscribe` reports `build-error`, `hmr-update` and `request-trace` diagnostics; the first subscribe wraps the client hot channel, watches file changes and unshifts a request-trace middleware
 - `makeCompositeRpcRouter` / `rpcFetchMiddleware` / `rpcWebsocketRoute` / `RPC_PREFIX` ('/rpc') / `RPC_WS_PATH` ('/rpc-ws') (`rpc-mount.ts`)
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
-- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` and the shared contract types
+- `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client
+- `createClientSettings(rpc, namespace, signal?)` (`settings-client.ts`): `{global, project}` stores that follow `settings.changes`, answer reads from the latest snapshot after the first one, run each store's calls in order, and ignore a snapshot older than the one held
+- `ExtensionSlot` (`types.ts`): 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'; plus `ServerApi` (its `scope(namespace).settings` is the engine side of the settings contract), `SettingsStore`, `Settings`, `SettingsRegistry` (declaration-merge it to type a namespace), `SettingsForNamespace`, `ExtensionScope`, `SettingsState` and the shared contract types
 
 ## Invariants
 

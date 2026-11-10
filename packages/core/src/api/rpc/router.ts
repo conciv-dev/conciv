@@ -100,6 +100,18 @@ export function makeRpcRouter(deps: RpcDeps) {
     auth: deps.auth,
     sessions: sessionsRouter(deps),
     chat: chatRouter(deps, sessionOs),
+    settings: {
+      all: os.settings.all.handler(({input}) => deps.settings.file(input.scope, input.namespace).read()),
+      set: os.settings.set.handler(({input}) =>
+        deps.settings.file(input.scope, input.namespace).set(input.key, input.value),
+      ),
+      delete: os.settings.delete.handler(({input}) =>
+        deps.settings.file(input.scope, input.namespace).delete(input.key),
+      ),
+      changes: os.settings.changes.handler(({input, signal}) =>
+        deps.settings.file(input.scope, input.namespace).changes(signal),
+      ),
+    },
     drafts: {
       get: os.drafts.get.handler(async ({input}) => {
         const rows = await db.select().from(drafts).where(eq(drafts.sessionId, input.sessionId))
