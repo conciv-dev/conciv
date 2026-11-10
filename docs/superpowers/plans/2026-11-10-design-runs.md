@@ -4,7 +4,7 @@
 
 **Goal:** Every trial run lands in one store by itself, with its provenance, and every wave number, judgement and report is a product of that store through the house query.
 
-**Architecture:** The live tables stay. The runs code and the trial harness are deleted and rebuilt: the host gains options and a home scope for extension commands plus a home catalog; the design extension gains provenance at `run start`, a strict import with artifacts, gc, report and views as sources; `packages/it` gains a real `trial` CLI (serve, wave, judge, rescore). Rewrite, not patch: each task deletes what it replaces.
+**Architecture:** The live tables stay. The runs code is deleted and rebuilt: the host gains options and a home scope for extension commands plus a home catalog; the design extension gains provenance at `run start`, a strict import with artifacts, gc, report and views as sources. Rewrite, not patch: each task deletes what it replaces.
 
 **Tech Stack:** TypeScript, drizzle-orm (sqlite, `sqliteView`, RQB v2), node:sqlite, `@bomb.sh/router` (CLI), zod, execa, Playwright, es-toolkit.
 
@@ -115,22 +115,4 @@
 - [ ] Step 1: Failing ITs: an artifact written with lifetime 0 days is removed and one with infinite kept; `--state` removes a registered lane dir and leaves an unregistered dir; `report` for a wave with two runs renders a table whose cells equal `wave_summary` and `judged` reads.
 - [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `design: gc deletes expired artifacts and lanes, report renders the store`.
 
-### Task 6: the `trial` CLI
-
-**Files:**
-
-- Create: `packages/it/src/trial/{trial.ts (bin), serve.ts, wave.ts, judge.ts, rescore.ts, lane.ts, host-server.ts, open.ts, inject-widget.ts, read-commands.ts}` porting the pieces of `scripts/design-trial.ts`
-- Delete: `packages/it/scripts/design-trial.ts`; `package.json` `trial` script points at the bin
-- Test: `packages/it/test/trial.it.test.ts`
-
-**Interfaces:**
-
-- Produces: `trial serve --project <dir> …` (today's flags) ending with `run import` of the project with its artifacts and printing the store run id; `trial wave <name> --runs <n> --model <m> --design <ref>… --lane-root <dir>`; `trial judge <wave> [--model opus]` writing through `db write --into design_judgements`; `trial rescore <run> <round>` replaying the pairer from `design_stored_nodes`, `design_stored_fom`, `design_stored_votes` and printing rows before and after.
-
-- [ ] Step 1: Failing IT: `trial serve` with no agent and two stdin commands against the fixture project lands a run in `design_run_summary` and `design_stored_artifacts` has a `design` and a `screenshot` per width; `trial judge` on a run with a missing artifact names it and writes nothing; `trial rescore` on an imported run prints a before/after count.
-- [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `it: the trial harness is a CLI that runs, judges and rescores through the store`.
-
-### Task 7: wave thirty through the product
-
-- [ ] `pnpm trial wave thirty --runs 6 --model sonnet --design <the figma7 refs the wave 28 lanes used>`; `pnpm trial judge thirty`; `conciv tools design report thirty`; `conciv tools design runs gc --state`.
-- [ ] Report: the report path, `conciv db query --from design_wave_summary --where 'wave == "thirty"'` output, disk before and after. No table outside the report.
+An agent uses the extension through MCP; a run is recorded by design:run start/end and imported with design:run-import.

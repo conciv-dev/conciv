@@ -2,8 +2,8 @@
 
 Supersedes `2026-11-10-design-runs-store-design.md`. That document grew by patches during one day; this one is the design the
 rewrite is built from. The runs code under `packages/extensions/design/src/server` (`runs.ts`, `commands.ts`, `runs-store.ts`,
-`runs-tables.ts`, `runs-sources.ts`, `import-run.ts`, `views.ts`, the runs part of `relations.ts`) and the trial harness
-`packages/it/scripts/design-trial.ts` are deleted and rewritten against it. The live tables in `tables.ts`, the host members of
+`runs-tables.ts`, `runs-sources.ts`, `import-run.ts`, `views.ts`, the runs part of `relations.ts`) is
+deleted and rewritten against it. The live tables in `tables.ts`, the host members of
 `@conciv/db` (a source over a view, a source in an attached database) and the catalog's `projectKey` stay.
 
 ## Intent
@@ -112,25 +112,13 @@ registers, with the same `db` and `home`. One file per command under `runs/comma
 The query is `conciv db query --from design_<source>`; the write is `conciv db write --into design_judgements`. No runs-specific
 query command exists.
 
-## The harness
+## How an agent runs
 
-`packages/it` owns the trial harness as a real CLI, `pnpm trial <command>`, in `packages/it/src/trial/` with one file per command
-and the server, browser and agent pieces it has today (`hostServer`, `open`, `injectWidget`, `readCommands`) kept as they are:
-
-| command                                                                      | does                                                                                                                                                                                                                                                               |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `trial serve …`                                                              | today's harness: one project, one agent, stdin commands. At the end it calls `run import` with the run's screenshots, source and transcript and prints the store run id. A run with no run row is reported, not imported                                           |
-| `trial wave <name> --runs <n> --model <m> --design <ref>… --lane-root <dir>` | prepares `<n>` lanes from the pristine host fixture, runs `trial serve` in each with `--wave <name> --lane <label>`, waits, and prints the store run ids. Lanes are deleted when their run is imported                                                             |
-| `trial judge <wave> [--model opus]`                                          | for every run of the wave and every measured width, shows the stored final screenshot and the design render to a blind model under two neutral file names, parses the score and reason, and writes them through `db write` into `design_judgements`                |
-| `trial rescore <run id> <round>`                                             | replays the pairer on the stored id tree and layer tables of that run and round (`design_stored_nodes`, `design_stored_fom`, `design_stored_votes`) on the current code and prints rows before and after, so a tool fix is measured against history without a lane |
-
-The harness never writes json, never reads a run dir after import, and never computes a table.
+An agent uses the extension through MCP; a run is recorded by design:run start/end and imported with design:run-import.
 
 ## What a wave looks like after this
 
 ```
-pnpm trial wave thirty --runs 6 --model sonnet --design figma:…   # six runs, six store ids
-pnpm trial judge thirty                                              # judgements rows
 conciv tools design report thirty                                    # <home>/artifacts/reports/thirty.md
 conciv db query --from design_wave_summary --where 'wave == "thirty"'
 conciv tools design runs gc --state
