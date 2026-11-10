@@ -21,6 +21,7 @@ export const box = {
   holds,
   nearestLine,
   mask,
+  outsideWindow,
 }
 
 type Point = {x: number; y: number}
@@ -148,6 +149,16 @@ function mask(input: {boxes: Box[]; within: Box}): Uint8Array {
   })
   return cells
 }
+
+function outsideWindow(input: {a: Box; b: Box}): boolean {
+  const {a, b} = input
+  const shared = area(intersection({a, b}) ?? {x: 0, y: 0, w: 0, h: 0})
+  const overlap = shared / (area(a) + area(b) - shared)
+  const apart = Math.hypot(centre(a).x - centre(b).x, centre(a).y - centre(b).y)
+  return overlap < WINDOW.overlapFloor && apart > WINDOW.nearCenterPx
+}
+
+const WINDOW = designConfig.tolerances.figmaPair
 
 function sharedLength(input: {start: number; length: number; otherStart: number; otherLength: number}): number {
   const {start, length, otherStart, otherLength} = input

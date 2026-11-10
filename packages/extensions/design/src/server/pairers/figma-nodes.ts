@@ -1,7 +1,8 @@
 import {formatHex, parse} from 'culori'
-import {groupBy} from 'es-toolkit'
+import {groupBy, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {Ballot, Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
+import {box as shapes} from '../../shared/box.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
 import {layoutVote} from './layout-vote.js'
@@ -128,9 +129,11 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
     }
-    votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: null}))
-    if (pick !== null && pick.score >= PAIR.threshold) ties.set(entry.node.id, pick.candidates)
     const inherited = sameBoxParent({vote, entry})
+    const tied = pick !== null && pick.score >= PAIR.threshold
+    if (!tied && inherited === undefined && displaced({vote, entry, offered: scored, votes})) return
+    votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: null}))
+    if (tied) ties.set(entry.node.id, pick.candidates)
     if (inherited !== undefined) paired({vote, node: entry.node.id, pick: {...inherited, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
@@ -145,6 +148,31 @@ function heldText(input: {vote: Vote; entry: Node}): Pick | null {
   if (held === undefined || text === '' || text !== normalized(entry.node.text)) return null
   const nested = vote.elements.some((other) => other.ancestors.has(held.path) && other.text.trim() !== '')
   return nested ? null : held
+}
+
+function displaced(input: {vote: Vote; entry: Node; offered: Scored[]; votes: Ballot[]}): boolean {
+  const {vote, entry} = input
+  const lines = [...walk(entry.node)]
+    .flatMap(({node}) => (node.kind === 'text' ? [normalized(node.text)] : []))
+    .filter(Boolean)
+  const carriers = vote.elements.flatMap((element) => {
+    const text = normalized(element.text)
+    if (vote.taken.has(element.path) || element.box.w * element.box.h === 0) return []
+    if (lines[0] === undefined) return pictured(entry.node) && element.img ? [element] : []
+    if (entry.node.kind === 'text' || !text.includes(lines[0])) return text === lines[0] ? [element] : []
+    const held = vote.byPath.get(
+      [element.path, ...element.chain].find((path) => holdsAll({vote, path, said: lines})) ?? '',
+    )
+    return held === undefined || vote.taken.has(held.path) ? [] : [held]
+  })
+  const scored = uniqBy(carriers, (element) => element.path)
+    .filter((element) => !input.offered.some((rival) => rival.path === element.path))
+    .flatMap((element) => scoreOf({vote, entry, element, anywhere: true}))
+  const pick = picked(scored)
+  if (pick === null) return false
+  paired({vote, node: entry.node.id, pick})
+  input.votes.push(...ballotsOf({node: entry.node.id, scored, byPath: vote.byPath, won: pick.path}))
+  return true
 }
 
 function sameBoxParent(input: {vote: Vote; entry: Node}): Pick | undefined {
@@ -303,14 +331,14 @@ function within(input: {vote: Vote; node: string; above: string}): boolean {
   return parent.id === input.above || within({...input, node: parent.id})
 }
 
-function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
+function scoreOf(input: {vote: Vote; entry: Node; element: Element; anywhere?: boolean}): Scored[] {
   const {vote, entry, element} = input
   const {node, box} = entry
   const shift = shiftOf({node: entry.parent, vote})
   const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
   const flowed = {...placed, y: placed.y - grownAbove({vote, entry})}
   const geo = iou({a: box, b: flowed})
-  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: flowed}) > PAIR.nearCenterPx) return []
+  if (input.anywhere !== true && shapes.outsideWindow({a: box, b: flowed})) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
@@ -544,11 +572,6 @@ function iou(input: {a: Box; b: Box}): number {
   if (w <= 0 || h <= 0) return 0
   const inter = w * h
   return inter / (a.w * a.h + b.w * b.h - inter)
-}
-
-function centerDistance(input: {a: Box; b: Box}): number {
-  const {a, b} = input
-  return Math.hypot(a.x + a.w / 2 - b.x - b.w / 2, a.y + a.h / 2 - b.y - b.h / 2)
 }
 
 function normalized(text: string): string {

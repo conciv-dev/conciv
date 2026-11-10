@@ -1,6 +1,7 @@
 import {formatHex, interpolate, parse} from 'culori'
 import {z} from 'zod'
 import type {Box, Counts, Coverage, Design, DesignNode, GateRow, LiveComponent} from '../shared/defs.js'
+import {box as shapes} from '../shared/box.js'
 import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
@@ -75,7 +76,7 @@ type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
 
 type Placed = {record: Record; box: Box | null}
 
-type Row = {head: string; measured?: {a: number; b: number; position: boolean}}
+type Row = {head: string; measured?: {a: number; b: number; position: boolean}; kind?: string}
 
 type Record = {
   id: string
@@ -225,9 +226,26 @@ function rowsOf(input: {
       : []),
     ...(parent === undefined || pd === undefined
       ? []
-      : positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)})),
+      : (displacedRow({label, r, box, parent, pd}) ??
+        positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)}))),
   ]
 }
+
+function displacedRow(input: {label: string; r: Record; box: Box; parent: Record; pd: LiveComponent}): Row[] | null {
+  const {label, r, box: drawn, parent} = input
+  const held = rounded(input.pd.bounds)
+  const place = {...r.box, x: r.box.x + held.x - parent.box.x, y: r.box.y + held.y - parent.box.y}
+  if (!shapes.outsideWindow({a: place, b: drawn})) return null
+  const dx = Math.round(drawn.x - place.x)
+  const dy = Math.round(drawn.y - place.y)
+  const across = dx === 0 ? [] : [`${Math.abs(dx)}px ${dx > 0 ? 'right' : 'left'}`]
+  const down = dy === 0 ? [] : [`${Math.abs(dy)}px ${dy > 0 ? 'below' : 'above'}`]
+  const where = `${[...across, ...down].join(' and ')}${down.length === 0 ? ' of' : ''}`
+  const far = Math.round(Math.hypot(dx, dy))
+  return [{head: `${label}: drawn ${where} its place`, measured: {a: far, b: 0, position: true}, kind: DISPLACED}]
+}
+
+const DISPLACED = 'displaced'
 
 function heightSide(input: {record: Record; element: LiveComponent}): Side | null {
   const {record: r, element: d} = input
@@ -345,7 +363,7 @@ function worded(input: {
   row: Row
 }): GateRow {
   const {record, named, row} = input
-  const base = {node: record.id, ...named, kind: record.kind, name: record.name}
+  const base = {node: record.id, ...named, kind: row.kind ?? record.kind, name: record.name}
   if (row.measured === undefined)
     return {...base, text: row.head, magnitude: row.head.includes('pins') ? 'pin' : 'other'}
   const magnitude = magnitudeOf(row.measured)

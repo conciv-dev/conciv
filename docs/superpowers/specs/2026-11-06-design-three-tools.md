@@ -616,3 +616,11 @@ A design with frames is measured at its frames' widths only (2026-11-10). A brea
 page query) between two frames is not measured: its rows compared the page against a breakpoint inferred from one
 frame's children (the sum of their drawn widths), while the design's next frame says what the page does there. A
 single-frame design keeps its breakpoint widths.
+
+A node drawn far from its place is a displaced row, not a node that is not rendered (2026-11-10). When no element
+inside a node's candidate window is offered to it, but an element outside the window carries it (a text node's own
+text, every text of a frame in the deepest element that holds them all, or an image node's picture element) and passes
+every other test of the vote (kind, anchor, not already taken), the node pairs with that element and counts as
+rendered. The gate gives it one row of kind `displaced` in place of its position rows: 'drawn N px right and M px
+below its place', naming the element, with the position magnitude of the distance. Its children are then looked for
+where it was drawn. 'Not rendered' is said only of a node no element of the page carries.
