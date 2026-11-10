@@ -533,6 +533,30 @@ describe('catalog walk', () => {
     ])
   })
 
+  it('gives a README sentence as one sentence without backticks or parentheses', async () => {
+    const sentences = await Promise.all(
+      ['Tooltip', 'TruncatedText', 'Button'].map(async (name) => (await named(name)).sentence ?? ''),
+    )
+    expect(
+      sentences.map((sentence) => [
+        sentence !== '',
+        sentence.includes('`') || sentence.includes('(') || sentence.includes(')'),
+        sentence.includes('. '),
+      ]),
+    ).toEqual([
+      [true, false, false],
+      [true, false, false],
+      [true, false, false],
+    ])
+  })
+
+  it('cuts a usage at the first closing tag inside its root element', async () => {
+    expect([(await named('Swap')).usage, (await named('Stat')).usage]).toEqual([
+      '<Swap.Root swap={on()}> <Swap.Indicator type="on">on</Swap.Indicator>',
+      '<Stat label="Nodes" />',
+    ])
+  })
+
   it('writes a file outside the project absolute and a project file relative, as the compiler does', async () => {
     expect([(await named('SegmentGroup')).file.startsWith('/'), (await named('Stat')).file]).toEqual([
       true,

@@ -94,6 +94,9 @@ const ALL_EXPORTS = '*'
 const LISTED_DEPTH = 1
 const README_MARKS = ['#', '-', '*', '|']
 const SENTENCE_END = '. '
+const ASIDE_OPEN = '('
+const ASIDE_CLOSE = ')'
+const CODE_MARK = '`'
 
 const PackageSchema = z.object({name: z.string().nullable().catch(null), version: z.string().nullable().catch(null)})
 
@@ -339,7 +342,7 @@ async function readmeLine(input: {dirs: string[]; names: string[]; disk: Storage
     .map((candidate) => candidate.trim())
     .find((candidate) => README_MARKS.some((mark) => candidate.startsWith(mark)) && namedFirst(candidate, input.names))
   if (line === undefined) return null
-  const marked = trimMarks(line)
+  const marked = plain(trimMarks(line))
   const end = marked.indexOf(SENTENCE_END)
   return end === -1 ? marked : marked.slice(0, end + 1)
 }
@@ -355,6 +358,26 @@ function namedFirst(line: string, names: string[]): boolean {
 
 function wordChar(char: string): boolean {
   return char.toLowerCase() !== char.toUpperCase() || (char >= '0' && char <= '9') || char === '_' || char === '$'
+}
+
+function plain(line: string): string {
+  const kept = [...line].reduce(
+    (state, char) => {
+      if (char === ASIDE_OPEN) return {...state, depth: state.depth + 1}
+      if (char === ASIDE_CLOSE) return {...state, depth: Math.max(0, state.depth - 1)}
+      if (state.depth === 0 && char !== CODE_MARK) state.chars.push(char)
+      return state
+    },
+    {depth: 0, chars: new Array<string>()},
+  )
+  return kept.chars
+    .join('')
+    .split(' ')
+    .filter(Boolean)
+    .join(' ')
+    .replaceAll(' ,', ',')
+    .replaceAll(' .', '.')
+    .replaceAll(' ;', ';')
 }
 
 function trimMarks(line: string): string {

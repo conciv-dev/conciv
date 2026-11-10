@@ -115,13 +115,17 @@ function lineAt(starts: number[], offset: number): number {
 
 function collectMarks(input: {program: Program; source: string; starts: number[]; declarations: boolean}): Marks {
   const marks: Marks = {markup: [], refs: [], elements: [], dynamic: [], title: null}
-  const tagged: {tag: string; start: number; end: number}[] = []
+  const tagged: {tag: string; start: number; end: number; opened: number}[] = []
+  const closings: Span[] = []
   const stamps: Span[] = []
   new Visitor({
     JSXElement: (node) => {
       marks.markup.push(node.start)
       const tag = tagRoot(node.openingElement.name)
-      if (tag !== null) tagged.push({tag, start: node.start, end: node.end})
+      if (tag !== null) tagged.push({tag, start: node.start, end: node.end, opened: node.openingElement.end})
+    },
+    JSXClosingElement: (node) => {
+      closings.push(node)
     },
     JSXAttribute: (node) => {
       if (node.name.type === 'JSXIdentifier' && node.name.name.startsWith(STAMP_PREFIX)) stamps.push(node)
@@ -151,12 +155,22 @@ function collectMarks(input: {program: Program; source: string; starts: number[]
       if (node.value.type === 'Literal' && typeof node.value.value === 'string') marks.title = node.value.value
     },
   }).visit(input.program)
-  marks.elements = tagged.map((element) => ({
+  marks.elements = tagged.map(({opened, ...element}) => ({
     ...element,
     line: lineAt(input.starts, element.start),
-    text: usageText({source: input.source, element, stamps}),
+    text: usageText({
+      source: input.source,
+      element: {start: element.start, end: cutAt({element, opened, closings})},
+      stamps,
+    }),
   }))
   return marks
+}
+
+function cutAt(input: {element: Span; opened: number; closings: Span[]}): number {
+  const {element, opened, closings} = input
+  const inside = closings.filter((closing) => closing.start >= opened && closing.end <= element.end)
+  return Math.min(element.end, ...inside.map((closing) => closing.end))
 }
 
 function usageText(input: {source: string; element: Span; stamps: Span[]}): string {
