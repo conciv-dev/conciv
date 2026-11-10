@@ -14,14 +14,14 @@ import {
   chmodSync,
 } from 'node:fs'
 import {createHash, randomUUID} from 'node:crypto'
-import {EventEmitter, on} from 'node:events'
+import {EventEmitter, on, once} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
 import {execFileSync} from 'node:child_process'
-import {request as httpRequest} from 'node:http'
+import {createServer, request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
-import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
@@ -4109,6 +4109,19 @@ describe('outside agent consent', () => {
     const home = tempDir('conciv-home-')
     const [runner, owner] = [await boot('open', home), await boot('session', home)]
     const [mine, theirs] = [await openTab(runner), await openTab(owner)]
+    const hung = createServer(() => {})
+    hung.listen(0, '127.0.0.1')
+    await once(hung, 'listening')
+    onTestFinished(() => {
+      hung.closeAllConnections()
+      hung.close()
+    })
+    const hungAddress = z.object({port: z.number()}).parse(hung.address())
+    const hungRoot = tempDir('conciv-hung-')
+    const hungBase = `http://127.0.0.1:${hungAddress.port}/t/${randomUUID()}`
+    withHomeDb(home, (db) =>
+      registerEngine(db, {id: randomUUID(), pid: process.pid, root: hungRoot, apiBase: hungBase}),
+    )
     const inPage = 'return [typeof external_tabs, typeof external_use_tab]'
     expect(String(await executeOverMcp(runner, {[CONCIV_SESSION_HEADER]: mine}, inPage))).toContain(
       '["function","undefined"]',
@@ -4116,6 +4129,7 @@ describe('outside agent consent', () => {
     const listed = await outside(runner, 'return await external_tabs({})')
     expect(listed).toContain(`"tab":"${mine}"`)
     expect(listed).toContain(`"tab":"${theirs}"`)
+    expect(listed).toContain(`"unreachable":[{"root":"${hungRoot}"`)
     expect(listed).not.toMatch(new RegExp(`${new URL(runner).pathname}|${new URL(owner).pathname}`))
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     const pick = `const picked = await external_use_tab({id: "${theirs}"});`

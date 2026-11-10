@@ -1426,29 +1426,38 @@ describe('cli', () => {
       },
     )
 
-    it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
+    it('serves only execute_typescript and discover_tools, keeps the engine registered longest ago, and changes it only after it fails', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-      const first = await engineWithTab(home)
+      const older = await engineWithTab(home)
+      const newer = await engineWithTab(home)
       const client = await hub(home)
+      const survivor = await engineWithTab(home).catch(async (error: unknown) => {
+        await client.close()
+        throw error
+      })
       try {
         expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
           'discover_tools',
           'execute_typescript',
         ])
-        expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        expect(await run(client, 'return await external_tabs({})')).toContain(older.sessionId)
         const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
-        const direct = await createMCPClient({transport: {type: 'http', url: `${first.base}/api/mcp`, headers}})
+        const direct = await createMCPClient({transport: {type: 'http', url: `${older.base}/api/mcp`, headers}})
         const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
         await direct.close()
         expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
+        await newer.engine.stop()
         expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
-        await first.engine.stop()
-        const second = await engineWithTab(home)
-        expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)
-        await second.engine.stop()
+        await older.engine.stop()
+        const failed = await run(client, 'return 1 + 1')
+        expect(failed).toContain(`the call failed on the conciv engine at ${older.root}`)
+        expect(failed).toContain('it was not retried')
+        expect(failed).toContain(`the next call runs on ${survivor.root}`)
+        expect(await run(client, 'return await external_tabs({})')).toContain(survivor.sessionId)
       } finally {
         await client.close()
+        await survivor.engine.stop()
       }
     })
 

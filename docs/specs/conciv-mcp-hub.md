@@ -192,7 +192,7 @@ Response zod schema in `@conciv/protocol`:
   (`packages/core/src/page-bus.ts`) one accessor, `openSessions(): Array<{sessionId, subscribers: number}>`, beside
   `anySubscriber`; document it in `packages/core/src/README.md`.
 - For each open session, `bus.ask(sessionId, {name: 'page_route', input: {}})` raced against
-  `AbortSignal.timeout(1500)`, all in parallel. Timeout or a `no-widget` error gives `page: null`; the session stays
+  200 ms (Revision 7: under the 300 ms its callers wait), all in parallel. Timeout or a `no-widget` error gives `page: null`; the session stays
   listed.
 - `harness` is the session's `harnessKind`; `session` fields come from `rpcSessionList(chatDeps, false)`
   (`packages/core/src/api/rpc/sessions.ts`). That reads native transcript lists; acceptable because only
@@ -261,8 +261,8 @@ the agent to warn the user when it is above 1.
 - Output (zod in `@conciv/protocol`): `{tabs: [{tab, project, branch, root, href, pageTitle, sessionTitle,
   lastActive, running, state, harness, browserTabs}], unreachable: [{root, error}]}`. Flat rows, ISO `lastActive`,
   nulls omitted, never a token.
-- Core's `listTabs`: `checkEngines(home, {timeoutMs: 2000})` (`@conciv/db`), then `GET <apiBase>/api/tabs` of every
-  live engine in parallel (2s timeout; its own engine through the same request). A 404 reports "engine too old;
+- Core's `listTabs`: `checkEngines(home, {timeoutMs: 300})` (`@conciv/db`), then `GET <apiBase>/api/tabs` of every
+  live engine in parallel (300 ms timeout; its own engine through the same request). A 404 reports "engine too old;
   upgrade its @conciv packages"; a 401 or timeout reports unreachable. A corrupt `home.db` throws a clear error
   naming the home folder.
 - Its description carries the agent guidance below.
@@ -346,12 +346,13 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 - Its tool list is fixed for the life of the process: `execute_typescript` and `discover_tools` with the same names
   and input schemas as `/api/mcp`. No tool of its own. Descriptions come from the runner's `tools/list` when one is
   live at startup, else from fixed text that names `external_tabs({})` and `external_use_tab({id})`.
-- Each call: `checkEngines(home, {timeoutMs: 2000})`, pick the most recently registered live engine as runner,
-  forward the call to its `/api/mcp` with `conciv-origin: hub` and `conciv-client: <clientInfo name>` (captured via
-  the `setup` hook), and return the reply unchanged. One client per runner `apiBase`, dropped on a transport error.
+- Each call (Revision 7): forward the call to the kept runner's `/api/mcp` with `conciv-origin: hub` and
+  `conciv-client: <agent>`, with no probe, and return the reply unchanged. The runner is the live engine registered
+  longest ago (`checkEngines(home, {timeoutMs: 300})` at startup and after a failure only). A transport error drops
+  the runner, picks again, and replies that the call failed on that engine and was not retried.
   No live engine: reply with an MCP error "no conciv dev server is running; start one and open its page" and the
   home folder path read, so a hub started without the user's env is diagnosable.
-- The hub holds no tab and no state between calls.
+- The hub holds no tab between calls; it keeps only its runner client.
 
 ### Install: "Connect agents" menu
 

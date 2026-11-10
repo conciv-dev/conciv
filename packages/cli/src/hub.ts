@@ -4,7 +4,7 @@ import {command, description, name, option, schema} from '@bomb.sh/router'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {createMCPServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
-import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
+import {checkEngines, concivHome} from '@conciv/db'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
@@ -17,7 +17,7 @@ const EXECUTE_TOOL_NAME = 'execute_typescript'
 
 const DISCOVER_TOOL_NAME = 'discover_tools'
 
-const PROBE_MS = 2000
+const PROBE_MS = 300
 
 const ExecuteInputSchema = z.object({
   typescriptCode: z
@@ -37,48 +37,52 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
-type Runner = {apiBase: string; root: string; client: MCPClient}
+type Runner = {root: string; client: MCPClient}
 
 type Reply = {content: {type: 'text'; text: string}[]; isError: true}
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
-  const held: {runner: Runner | null} = {runner: null}
+  const held: {runner: Promise<Runner | null> | null} = {runner: null}
   const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
 
-  async function runnerClient(row: EngineRow): Promise<MCPClient> {
-    if (held.runner?.apiBase === row.apiBase) return held.runner.client
-    await dropRunner()
-    const client = await createMCPClient({
-      transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers},
-      name: 'conciv-hub',
-    })
-    held.runner = {apiBase: row.apiBase, root: row.root, client}
-    return client
+  function currentRunner(): Promise<Runner | null> {
+    held.runner ??= pickRunner(home, headers).catch(noRunner)
+    return held.runner
   }
 
-  async function dropRunner(): Promise<void> {
-    const runner = held.runner
+  async function dropRunner(runner: Runner | null): Promise<void> {
+    if (runner === null || (await held.runner) !== runner) return
     held.runner = null
-    await runner?.client
+    await runner.client
       .close()
       .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${runner.root} failed`, error))
   }
 
   async function forward(toolName: ToolName, input: unknown): Promise<unknown> {
-    const row = (await checkEngines(home, {timeoutMs: PROBE_MS})).live.at(-1)
-    if (row === undefined) {
+    const runner = await currentRunner()
+    if (runner === null) {
+      held.runner = null
       return failed(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
     }
     try {
-      return await (await runnerClient(row)).callTool(toolName, input)
+      return await runner.client.callTool(toolName, input)
     } catch (error) {
-      await dropRunner()
-      return failed(`the conciv engine at ${row.root} stopped answering (${errorText(error)})`)
+      await dropRunner(runner)
+      const next = await currentRunner()
+      const after = next === null ? 'no other conciv dev server is running' : `the next call runs on ${next.root}`
+      return failed(
+        `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
+      )
     }
   }
 
-  const descriptions = await startupDescriptions(home)
+  const startup = await currentRunner()
+  const descriptions = await startupDescriptions(startup).catch(async (error: unknown) => {
+    logHub('reading the runner tool descriptions failed; using the built-in text', error)
+    await dropRunner(startup)
+    return FALLBACK_DESCRIPTIONS
+  })
   const server = createMCPServer({
     name: 'conciv-hub',
     version: cliManifest.version,
@@ -98,7 +102,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   const served = serveMCPStdio(server)
   await once(process.stdin, 'end')
   await served.close()
-  await dropRunner()
+  await dropRunner(await held.runner)
   return {report: 'none', code: 0}
 }
 
@@ -115,26 +119,27 @@ export const serveCommand = command(
   handler((model) => runHub(process.env, ServeModelSchema.parse(model).agent)),
 )
 
-async function startupDescriptions(home: string): Promise<Record<ToolName, string>> {
-  try {
-    const row = (await checkEngines(home, {timeoutMs: PROBE_MS})).live.at(-1)
-    if (row === undefined) return FALLBACK_DESCRIPTIONS
-    const client = await createMCPClient({
-      transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers: {[CONCIV_ORIGIN_HEADER]: 'hub'}},
-      name: 'conciv-hub',
-    })
-    try {
-      const tools = await client.tools()
-      const described = (tool: ToolName) =>
-        tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
-      return {[EXECUTE_TOOL_NAME]: described(EXECUTE_TOOL_NAME), [DISCOVER_TOOL_NAME]: described(DISCOVER_TOOL_NAME)}
-    } finally {
-      await client.close().catch((error: unknown) => logHub('closing the startup client failed', error))
-    }
-  } catch (error) {
-    logHub('reading the runner tool descriptions failed; using the built-in text', error)
-    return FALLBACK_DESCRIPTIONS
-  }
+async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner | null> {
+  const row = (await checkEngines(home, {timeoutMs: PROBE_MS})).live[0]
+  if (row === undefined) return null
+  const client = await createMCPClient({
+    transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers},
+    name: 'conciv-hub',
+  })
+  return {root: row.root, client}
+}
+
+async function startupDescriptions(runner: Runner | null): Promise<Record<ToolName, string>> {
+  if (runner === null) return FALLBACK_DESCRIPTIONS
+  const tools = await runner.client.tools()
+  const described = (tool: ToolName) =>
+    tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
+  return {[EXECUTE_TOOL_NAME]: described(EXECUTE_TOOL_NAME), [DISCOVER_TOOL_NAME]: described(DISCOVER_TOOL_NAME)}
+}
+
+function noRunner(error: unknown): null {
+  logHub('picking a conciv engine failed', error)
+  return null
 }
 
 function failed(text: string): Reply {

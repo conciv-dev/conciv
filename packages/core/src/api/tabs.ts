@@ -7,7 +7,7 @@ import type {SessionMeta} from '@conciv/contract'
 import {SessionId, TabsSchema, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
 import type {PageBus} from '../page-bus.js'
 
-const PAGE_PROBE_MS = 1500
+const PAGE_PROBE_MS = 200
 
 type TabsDeps = {
   bus: PageBus

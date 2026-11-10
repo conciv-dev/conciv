@@ -9,13 +9,15 @@ import {
   type TabsListing,
 } from '@conciv/protocol/chat-types'
 
-const PROBE_MS = 2000
+const PROBE_MS = 300
 
 const TOO_OLD = 'engine too old; upgrade its @conciv packages'
 
 type Unreachable = TabsListing['unreachable'][number]
 
 type TabRow = TabsListing['tabs'][number]
+
+type EngineListing = {row: EngineRow; tabs: Tabs} | {unreachable: Unreachable}
 
 type OwnedTab = {apiBase: string; root: string; instructions: string | null; tools: TabOpen['tools']}
 
@@ -29,9 +31,12 @@ export function createOutsideTabs(given: string | undefined) {
     }
   }
 
+  const last: {listings: EngineListing[]} = {listings: []}
+
   async function list(): Promise<TabsListing> {
     const checked = await liveEngines()
     const listings = await Promise.all(checked.live.map(engineTabs))
+    last.listings = listings
     return {
       tabs: listings.flatMap((listing) => ('tabs' in listing ? listing.tabs.tabs.map(tabRow(listing.tabs)) : [])),
       unreachable: [
@@ -42,6 +47,11 @@ export function createOutsideTabs(given: string | undefined) {
   }
 
   async function find(tab: SessionId): Promise<OwnedTab> {
+    const [lister] = last.listings.flatMap((listing) =>
+      'tabs' in listing && listing.tabs.tabs.some((entry) => entry.sessionId === tab) ? [listing.row] : [],
+    )
+    const listed = lister === undefined ? null : await openOn(lister, tab)
+    if (listed !== null) return listed
     const checked = await liveEngines()
     const answers = await Promise.all(checked.live.map((row) => openOn(row, tab)))
     const [only, second] = answers.flatMap((answer) => (answer === null ? [] : [answer]))
@@ -59,14 +69,14 @@ export function createOutsideTabs(given: string | undefined) {
   return {list, find}
 }
 
-async function engineTabs(row: EngineRow): Promise<{tabs: Tabs} | {unreachable: Unreachable}> {
+async function engineTabs(row: EngineRow): Promise<EngineListing> {
   try {
     const response = await fetch(`${row.apiBase}/api/tabs`, {signal: AbortSignal.timeout(PROBE_MS)})
     if (response.status === 404) return {unreachable: {root: row.root, error: TOO_OLD}}
     if (!response.ok) return {unreachable: {root: row.root, error: `/api/tabs answered HTTP ${response.status}`}}
     const tabs = TabsSchema.safeParse(await response.json())
     if (!tabs.success) return {unreachable: {root: row.root, error: TOO_OLD}}
-    return {tabs: tabs.data}
+    return {row, tabs: tabs.data}
   } catch (error) {
     return {unreachable: {root: row.root, error: errorText(error)}}
   }
