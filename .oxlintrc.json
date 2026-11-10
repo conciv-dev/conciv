@@ -240,7 +240,7 @@
         "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
         "packages/extensions/page/test/fixtures/**",
-        "packages/extensions/page/test/page.browser.test.tsx"
+        "packages/extensions/page/test/page.browser.test.ts"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",

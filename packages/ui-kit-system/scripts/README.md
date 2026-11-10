@@ -26,4 +26,4 @@ Node scripts, run with `node` directly on `.ts` files, that generate the design-
 
 ## Verification
 
-- Run: `cd packages/ui-kit-system && pnpm gen:check`; typecheck with `pnpm typecheck` (`tsconfig.scripts.json`).
+- Run: `cd packages/ui-kit-system && pnpm gen:check`; typecheck with `pnpm typecheck` (`tsconfig.json`).

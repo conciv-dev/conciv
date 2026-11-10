@@ -357,7 +357,14 @@ function isSocketUpgrade(request: Request): boolean {
 function withBearer(request: Request, url: URL, token: string): Request {
   const headers = new Headers(request.headers)
   headers.set('authorization', `Bearer ${token}`)
-  return new Request(url, {method: request.method, headers, body: request.body, signal: request.signal, duplex: 'half'})
+  const init: RequestInit & {duplex: 'half'} = {
+    method: request.method,
+    headers,
+    body: request.body,
+    signal: request.signal,
+    duplex: 'half',
+  }
+  return new Request(url, init)
 }
 
 export function makeEngineGate<Env>(opts: {

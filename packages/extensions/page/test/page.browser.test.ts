@@ -7,6 +7,7 @@ import pageExtension from '../src/client.js'
 import {PAGE_TOOL_PREFIX, PAGE_TOOL_DEFS} from '../src/shared/defs.js'
 import {z} from 'zod'
 import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
+import {createElement, Fragment} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
@@ -174,12 +175,7 @@ describe.skipIf(inFirefox)('page tools', () => {
     const mount = document.createElement('div')
     container.appendChild(mount)
     reactRoot = createRoot(mount)
-    reactRoot.render(
-      <>
-        <FixtureApp />
-        <ControlledForm />
-      </>,
-    )
+    reactRoot.render(createElement(Fragment, null, createElement(FixtureApp), createElement(ControlledForm)))
     driver = makeDomPageDriver({tools: collectClientTools([pageExtension])})
     await vi.waitFor(() => {
       if (!document.querySelector('[data-fixture="leaf"]')) throw new Error('fixture not rendered yet')

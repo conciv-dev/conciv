@@ -1,11 +1,1 @@
-{
-  "extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"],
-  "exclude": [
-    "${configDir}/src/**/*.stories.*",
-    "${configDir}/src/**/*.test.*",
-    "${configDir}/src/**/fixtures.*",
-    "${configDir}/src/**/*.fixtures.*",
-    "${configDir}/src/cards",
-    "${configDir}/src/cards.tsx"
-  ]
-}
+{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}
