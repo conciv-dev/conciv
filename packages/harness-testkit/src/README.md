@@ -4,6 +4,10 @@
 
 Test helpers for running the conciv engine against a scripted or real harness: boot an app on a local port, start chat turns, read run event streams, call tools over MCP, and auto-approve tool calls.
 
+## Product path
+
+Helpers talk to the engine the way the product caller they stand in for does: a browser caller through `makeBrowserRpcClient` / `browserRpcConnection` (the partysocket `/rpc-ws` socket), a node caller (the CLI, an MCP agent) over HTTP `/rpc` or `/api/mcp`. Only the LLM harness and the agent CLIs are faked.
+
 ## Interface
 
 - `testkit.ts` - the package entry; re-exports the helpers below.
