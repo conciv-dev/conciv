@@ -309,7 +309,8 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const shift = shiftOf({node: entry.parent, vote})
   const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
   const geo = iou({a: box, b: placed})
-  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: placed}) > PAIR.nearCenterPx) return []
+  const flowed = {...placed, y: placed.y - grownAbove({vote, entry})}
+  if (iou({a: box, b: flowed}) < PAIR.overlapFloor && centerDistance({a: box, b: flowed}) > PAIR.nearCenterPx) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
@@ -329,6 +330,19 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
   const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
+}
+
+function grownAbove(input: {vote: Vote; entry: Node}): number {
+  const {vote, entry} = input
+  const siblings = entry.parent?.children ?? []
+  return siblings.reduce((total, sibling) => {
+    const design = boxOf(sibling)
+    const path = vote.pairs.get(sibling.id)?.path
+    const element = path === undefined ? undefined : vote.byPath.get(path)
+    const above = sibling !== entry.node && design.y + design.h <= entry.box.y + SAME_BOX_PX
+    if (element === undefined || !above || sibling.figma?.absolute === true) return total
+    return total + element.box.h - design.h
+  }, 0)
 }
 
 function holdsText(node: DesignNode): boolean {
