@@ -1,5 +1,3 @@
-import {isAbsolute, relative} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import type {Storage} from 'unstorage'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import {toolError} from '@conciv/extension'
@@ -198,31 +196,15 @@ async function thrownError(input: {
   if (thrown === undefined || (thrown.at < input.since && measured.live.children.length > 0)) return null
   const at = await located({frames: thrown.frames, runtime})
   if (at === null) return {message: thrown.message, file: null, line: null, column: null}
-  return {
-    message: thrown.message,
-    file: projectFile({file: at.file, cwd: runtime.cwd}),
-    line: at.line,
-    column: at.column,
-  }
+  return {message: thrown.message, file: at.file, line: at.line, column: at.column}
 }
 
 async function located(input: {frames: RawFrame[]; runtime: DesignRuntime}): Promise<SourceLoc | null> {
   const [frame, ...rest] = input.frames
   if (frame === undefined) return null
   const at = await input.runtime.symbolicate([frame])
-  if (at === null) return located({...input, frames: rest})
-  if (!URL.canParse(at.file, frame.fileName)) return at
-  return {...at, file: new URL(at.file, frame.fileName).href}
+  return at ?? located({...input, frames: rest})
 }
-
-function projectFile(input: {file: string; cwd: string}): string {
-  const {file, cwd} = input
-  if (!URL.canParse(file)) return isAbsolute(file) ? relative(cwd, file) : file
-  const url = new URL(file)
-  return url.protocol === FILE_PROTOCOL ? relative(cwd, fileURLToPath(url)) : url.pathname.slice(1)
-}
-
-const FILE_PROTOCOL = 'file:'
 
 function shown(last: Round): RoundReply {
   const {round, rows, reflow, coverage, counts, progress} = last
