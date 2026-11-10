@@ -17,6 +17,7 @@ import {
 } from '@conciv/ui-kit-system'
 import {Chip} from '@conciv/ui-kit-chat/tools'
 import {Card} from './card.js'
+import {Parts} from './parts.js'
 import type {createXrayData} from './data.js'
 
 export function Panel(props: {
@@ -27,7 +28,7 @@ export function Panel(props: {
   return (
     <section
       aria-label="Design x-ray"
-      class="pb-4 border border-chat-line border-s-0 border-t-0 bg-chat-glass flex flex-col gap-4 w-90 pointer-events-auto start-12 inset-y-0 fixed overflow-hidden"
+      class={`pb-4 border border-chat-line border-s-0 border-t-0 bg-chat-glass flex flex-col gap-4 pointer-events-auto start-12 inset-y-0 fixed overflow-hidden ${props.data.showParts() ? 'w-105' : 'w-90'}`}
       data-conciv-key="ovRJEQ"
     >
       <header
@@ -44,6 +45,9 @@ export function Panel(props: {
         <HeaderButton label="Close" icon={X} onClick={props.close} />
       </header>
       <Switch fallback={<RoundBody data={props.data} />}>
+        <Match when={props.data.showParts()}>
+          <Parts data={props.data} />
+        </Match>
         <Match when={props.data.stack()}>
           <Scrolled>
             <StackBody data={props.data} />

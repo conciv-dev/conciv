@@ -1,4 +1,4 @@
-import {createMemo, createResource} from 'solid-js'
+import {createMemo, createResource, createSignal} from 'solid-js'
 import {createTimer} from '@solid-primitives/timer'
 import {createStore} from 'solid-js/store'
 import {groupBy, sortBy, sumBy, uniq, uniqBy} from 'es-toolkit'
@@ -39,6 +39,8 @@ export function createXrayData(input: {
     picked: string | null
     hovered: string | null
     shown: Record<Layer, boolean>
+    parts: boolean
+    part: string | null
   }>({
     round: null,
     width: null,
@@ -48,6 +50,8 @@ export function createXrayData(input: {
     picked: null,
     hovered: null,
     shown: {design: true, page: false, moved: false},
+    parts: false,
+    part: null,
   })
   const rounds = createMemo(() => design.latest?.rounds ?? [])
   const shownRound = createMemo(() => {
@@ -137,6 +141,35 @@ export function createXrayData(input: {
           ],
     )
   })
+  const [parts, {refetch: refetchParts}] = createResource(
+    () => {
+      const id = targetId()
+      const round = roundNumber()
+      return !ui.parts || id === undefined || round === undefined ? false : {id, round, client: client()}
+    },
+    (key) => key.client.xray.components({id: key.id, round: key.round}),
+  )
+  const [flagRequest, setFlagRequest] = createSignal<FlagRequest | null>(null, {equals: false})
+  const [flagged] = createResource(flagRequest, async (request) => {
+    await client().xray.flag(request)
+    await refetchParts()
+    return request
+  })
+  const part = createMemo(() => {
+    const listed = parts.latest
+    const id = ui.part
+    if (!listed || id === null) return null
+    return [...listed.components, ...listed.hidden].find((entry) => entry.id === id) ?? null
+  })
+  const shownBoxes = createMemo(() => {
+    if (!ui.parts) return boxes()
+    const selected = part()
+    if (selected === null) return []
+    const rendered = new Set(selected.renders.map((render) => render.node))
+    return boxes()
+      .filter((entry) => rendered.has(entry.node))
+      .map((entry) => ({...entry, name: selected.name, magnitude: null}))
+  })
   const card = createMemo(() => {
     const node = ui.picked
     const root = layers.latest
@@ -169,7 +202,7 @@ export function createXrayData(input: {
     design,
     hotkeys,
     layers,
-    boxes,
+    boxes: shownBoxes,
     shownRound,
     rounds,
     history,
@@ -185,9 +218,17 @@ export function createXrayData(input: {
     plane: (plane: Plane) => ui.planes[plane],
     setPlane: (plane: Plane, on: boolean) => setUi('planes', plane, on),
     stack: () => ui.stack,
-    setStack: (on: boolean) => setUi('stack', on),
+    setStack: (on: boolean) => setUi({stack: on, parts: ui.parts && !on}),
     picked: () => ui.picked,
-    setPick: (on: boolean) => setUi('pick', on),
+    setPick: (on: boolean) => setUi({pick: on, parts: ui.parts && !on}),
+    parts,
+    refetchParts,
+    part,
+    showParts: () => ui.parts,
+    setParts: (on: boolean) => setUi({parts: on, stack: ui.stack && !on, pick: ui.pick && !on}),
+    pickPart: (id: string | null) => setUi('part', id),
+    flagged,
+    flagPart: (request: FlagRequest) => setFlagRequest(request),
     pickNode: (node: string | null) => setUi('picked', node),
     hovered: () => ui.hovered,
     hover: (node: string | null) => setUi('hovered', node),
@@ -213,6 +254,8 @@ const SEVERITY: GateRow['magnitude'][] = ['much', 'noticeably', 'paint', 'slight
 const LEGEND_KINDS = ['much', 'noticeably', 'paint', 'matched'] as const
 
 type Plane = 'src' | 'cssom' | 'dom'
+
+type FlagRequest = {id: string; flag: 'prefer' | 'do-not-use' | 'clear'}
 
 type Layer = 'design' | 'page' | 'moved'
 

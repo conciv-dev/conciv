@@ -4,6 +4,7 @@ import Box from 'lucide-solid/icons/box'
 import MousePointerClick from 'lucide-solid/icons/mouse-pointer-click'
 import PanelLeft from 'lucide-solid/icons/panel-left'
 import Power from 'lucide-solid/icons/power'
+import Puzzle from 'lucide-solid/icons/puzzle'
 import type {LucideProps} from 'lucide-solid'
 import type {Component} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
@@ -65,7 +66,7 @@ export function XrayOverlay(props: {
                   class="px-1 py-3 border border-chat-line bg-chat-glass flex flex-col gap-2 w-14 pointer-events-auto items-center start-0 inset-y-0 fixed"
                   data-conciv-key="g9eiGQ"
                 >
-                  <RailButton label="X-ray" active icon={Power} />
+                  <RailButton label="X-ray" active={!props.data.showParts()} icon={Power} />
                   <RailButton
                     label="Pick"
                     active={props.data.pick()}
@@ -77,6 +78,12 @@ export function XrayOverlay(props: {
                     active={props.data.stack()}
                     icon={Box}
                     onClick={() => props.data.setStack(!props.data.stack())}
+                  />
+                  <RailButton
+                    label="Parts"
+                    active={props.data.showParts()}
+                    icon={Puzzle}
+                    onClick={() => props.data.setParts(!props.data.showParts())}
                   />
                   <div class="grow w-8" data-conciv-key="Ia9KqA" />
                   <RailButton label="Panel" active={props.data.shownRound() !== null} icon={PanelLeft} />

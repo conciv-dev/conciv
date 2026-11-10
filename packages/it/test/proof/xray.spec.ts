@@ -154,6 +154,56 @@ test('the x-ray overlay shows each mockup state on its fixture sample, light and
         await expect(panel.getByText('PROBLEMS · 6')).toBeHidden()
         await shot({page, state: '3d', scheme})
       })
+
+      await test.step(`parts, ${scheme}: the catalog table sorted by imports`, async () => {
+        await open({state: 'parts', scheme})
+        await rail.getByRole('button', {name: 'Parts', exact: true}).click()
+        const table = panel.getByRole('table', {name: 'Parts'})
+        await expect(table.getByRole('row').nth(1)).toContainText('Button')
+        await expect(table.getByRole('columnheader', {name: 'IMPORTS'})).toHaveAttribute('aria-sort', 'descending')
+        await expect(panel.getByRole('button', {name: 'Kit 14'})).toHaveAttribute('aria-pressed', 'false')
+        await shot({page, state: 'parts', scheme})
+      })
+
+      await test.step(`parts, ${scheme}: search, the Kit chip and the IMPORTS header`, async () => {
+        const table = panel.getByRole('table', {name: 'Parts'})
+        const search = panel.getByRole('searchbox', {name: 'Search parts'})
+        await search.fill('SegmentGr')
+        await expect(table.getByRole('row')).toHaveCount(2)
+        await expect(table.getByRole('button', {name: 'SegmentGroup'})).toBeVisible()
+        await search.fill('')
+        await expect(table.getByRole('button', {name: 'StatCard'})).toBeVisible()
+        await panel.getByRole('button', {name: 'Kit 14'}).click()
+        await expect(panel.getByRole('button', {name: 'Kit 14'})).toHaveAttribute('aria-pressed', 'true')
+        await expect(panel.getByText('14 parts shown')).toBeAttached()
+        await expect(table.getByRole('button', {name: 'StatCard'})).toBeHidden()
+        await panel.getByRole('button', {name: 'Kit 14'}).click()
+        await expect(panel.getByText('64 parts shown')).toBeAttached()
+        await table.getByRole('button', {name: 'IMPORTS'}).click()
+        await expect(table.getByRole('columnheader', {name: 'IMPORTS'})).toHaveAttribute('aria-sort', 'ascending')
+        await expect(table.getByRole('button', {name: 'Button', exact: true})).toBeHidden()
+        await table.getByRole('button', {name: 'IMPORTS'}).click()
+        await expect(table.getByRole('columnheader', {name: 'IMPORTS'})).toHaveAttribute('aria-sort', 'descending')
+        await expect(table.getByRole('row').nth(1)).toContainText('Button')
+      })
+
+      await test.step(`parts, ${scheme}: a row opens in place and outlines what it renders`, async () => {
+        const table = panel.getByRole('table', {name: 'Parts'})
+        await table.getByRole('button', {name: 'SegmentGroup'}).click()
+        await expect(table.getByRole('button', {name: 'SegmentGroup'})).toHaveAttribute('aria-expanded', 'true')
+        await expect(panel.getByText(`import {SegmentGroup} from '@conciv/ui-kit-system'`)).toBeVisible()
+        await expect(panel.getByRole('list', {name: 'Renders on this page'}).getByRole('listitem')).toHaveCount(2)
+        await expect(page.getByRole('button', {name: 'SegmentGroup 1:40'})).toBeVisible()
+        await expect(page.getByRole('button', {name: 'SegmentGroup 1:52'})).toBeVisible()
+        if (scheme === 'light') await shot({page, state: 'parts', scheme: 'expanded'})
+      })
+
+      await test.step(`parts, ${scheme}: Do not use takes the row out`, async () => {
+        const table = panel.getByRole('table', {name: 'Parts'})
+        await panel.getByRole('button', {name: 'Do not use'}).click()
+        await expect(table.getByRole('button', {name: 'SegmentGroup'})).toHaveCount(0)
+        await expect(panel.getByText('63 parts shown')).toBeAttached()
+      })
     }
 
     await test.step('Esc closes the overlay', async () => {

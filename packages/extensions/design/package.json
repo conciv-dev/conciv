@@ -70,6 +70,8 @@
     "@orpc/server": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
+    "@tanstack/solid-table": "catalog:",
+    "@tanstack/solid-virtual": "catalog:",
     "@zumer/snapdom": "catalog:",
     "color-blend": "catalog:",
     "culori": "catalog:",

@@ -70,6 +70,7 @@ catalog:
   '@tanstack/solid-pacer': 0.24.0
   '@tanstack/solid-query': '^5.105.0'
   '@tanstack/solid-router': 1.170.43
+  '@tanstack/solid-table': ^9.3.1
   '@tanstack/solid-virtual': '^3.13.51'
   '@tiptap/core': '^3.32.1'
   '@tiptap/extension-document': '^3.32.1'
