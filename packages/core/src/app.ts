@@ -69,7 +69,6 @@ import tabsApp, {type TabsVars} from './api/tabs.js'
 import {createOutsideTabs} from './api/outside-tabs.js'
 import {outsideRefusal} from './api/outside-refusal.js'
 import {outsideRunCapabilities} from './api/outside-run.js'
-import {createOwnerCalls} from './api/owner-calls.js'
 import {NATIVE_PAGE_PATH, makeNativePageApp} from './api/native-page.js'
 import {makeSessionPrimitives} from './runtime/primitives.js'
 import {makeCoreRuntime} from './runtime/core-runtime.js'
@@ -643,7 +642,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const rpc = makeRpcRouter(rpcDeps)
   const engineId = opts.engineId ?? randomUUID()
-  const callOwner = createOwnerCalls({engineId, local: (request) => fetch(request)})
   const admittedOs = os.$context<RpcContext>().use(makeHubAdmission(rpcDeps))
 
   const compositeRpc = makeCompositeRpcRouter(
@@ -667,17 +665,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harnessId: harness.id,
       mcp: {
         codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
-        outsideCapabilities: (sessionId, client, signal) =>
-          outsideRunCapabilities({
-            tabs: outsideTabs,
-            client,
-            signal,
-            callOwner,
-            capabilities: [
-              ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
-              ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
-            ],
-          }),
+        outsideCapabilities: (sessionId) =>
+          outsideRunCapabilities([
+            ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
+            ...assistCapabilities(concivSandboxTools(makeToolCtx(sessionId))),
+          ]),
         resolveSession: async (header, nativeId) => runtime.forSession(await mcpSessionId(rows, header, nativeId)),
         admitOutside,
         hubRefusal: hub.refusal,
