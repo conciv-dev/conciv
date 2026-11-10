@@ -3941,12 +3941,11 @@ describe('outside sessions', () => {
       expect(statuses).toEqual([401, 401, 401, 401, 401])
     })
 
-    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt and tools', async () => {
+    it('/api/tabs lists a joined page, and ?session= answers open and not open with the engine prompt', async () => {
       const path = `/api/tabs?session=${await kit().session()}`
-      const tools = expect.arrayContaining([expect.objectContaining({name: 'external_page_route'})])
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions, tools: []})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: false, instructions})
       await joinPage(true)
-      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions, tools})
+      expect(TabOpenSchema.parse(await getJson(path))).toEqual({open: true, instructions})
       const session = {title: expect.any(String), updatedAt: expect.any(Number), running: false}
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({

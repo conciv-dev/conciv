@@ -27,14 +27,7 @@ import {withSavedModels} from './lib/saved-models.js'
 import {createSessionSearch} from './sessions/session-search.js'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivSandboxTools, concivSandboxToolNames, type ConcivToolContext} from '@conciv/tools'
-import {
-  OUTSIDE_SESSION_TARGET,
-  TabOpenSchema,
-  type ChatTool,
-  type HarnessSessionId,
-  type SessionId,
-  type TabOpen,
-} from '@conciv/protocol/chat-types'
+import {OUTSIDE_SESSION_TARGET, type ChatTool, type HarnessSessionId, type SessionId} from '@conciv/protocol/chat-types'
 import {
   anonymousExternalRow,
   currentRow,
@@ -396,15 +389,6 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
-const DiscoveredSchema = z.object({tools: TabOpenSchema.shape.tools})
-
-async function discoveredTools(plane: ChatPlane, sessionId: SessionId): Promise<TabOpen['tools']> {
-  const runner = await plane.codeRunner(sessionId, () => {})
-  if (runner === null || runner.discover === null) return []
-  const found = await runner.discover.run(runner.capabilities.map((capability) => capability.name))
-  return DiscoveredSchema.parse(found).tools
-}
-
 export function withBuiltinExtensions(extensions: readonly AnyExtension[] | undefined): AnyExtension[] {
   return [pageServerExtension, ...(extensions ?? [])]
 }
@@ -680,7 +664,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         session: (sessionId) => rpcSessionMeta(chatDeps, sessionId),
         root: opts.cwd,
         instructions: systemPromptText,
-        tools: (sessionId) => discoveredTools(plane, sessionId),
       },
     },
     compositeRpc,

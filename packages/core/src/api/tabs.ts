@@ -14,7 +14,6 @@ type TabsDeps = {
   session: (sessionId: SessionId) => Promise<SessionMeta | null>
   root: string
   instructions: string
-  tools: (sessionId: SessionId) => Promise<TabOpen['tools']>
 }
 
 export type TabsVars = {tabs: TabsDeps}
@@ -49,7 +48,7 @@ const app = new Hono<{Variables: TabsVars}>().get('/', async (c) => {
   if (sessionId !== undefined) {
     const open = deps.bus.openSessions().some((entry) => entry.sessionId === sessionId)
     const instructions = deps.instructions === '' ? null : deps.instructions
-    return c.json({open, instructions, tools: open ? await deps.tools(sessionId) : []} satisfies TabOpen)
+    return c.json({open, instructions} satisfies TabOpen)
   }
   return c.json(await listTabs(deps))
 })

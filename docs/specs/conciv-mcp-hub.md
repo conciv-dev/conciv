@@ -568,6 +568,17 @@ error codes, `HANDLER_ERROR` wrapping), since the CLI's `--tab` uses it.
 - The events an action dispatches, and their order, do not change.
 - If an existing test only passes because of one of these waits (the page had time to react before the reply),
   that is a finding to report, not a wait to put back.
+- Actions whose reply reports state read back from the page (fill, select, check, uncheck) let one turn of the
+  page's event loop run after dispatching, then read the result once (Omri's go, 2026-11-10). The turn is a
+  `MessageChannel` message to ourselves: it runs after the microtasks and the tasks the app already queued, so a
+  framework that reconciles in a microtask (Vue, Svelte, Angular) or a queued task is reflected. It is not
+  `requestAnimationFrame` (paused in a hidden tab), not `setTimeout` (throttled in a hidden tab) and not
+  `scheduler.yield()` (its continuation can run before the app's queued work). No retries. Click, hover, scroll and
+  press carry no read-back state and reply synchronously. An app that undoes a change on its own timer is not
+  caught.
+- Known edge: an action can now land within the same frame as the one before it. An agent click that opens an
+  Ark menu, followed at once by a fill outside it, leaves the menu open, because the menu's outside-press listener
+  is not armed yet.
 
 ### 7. The hub sends a block to the engine that owns the tab (Omri's yes, 2026-11-10)
 
@@ -597,7 +608,8 @@ the code inside an engine and is not changed.
   open tabs`.
 - Deleted, because there is now one way to drive a tab: `external_use_tab`, the forwarding in
   `packages/core/src/api/outside-run.ts`, `packages/core/src/api/owner-calls.ts`, and the `find` half of
-  `outside-tabs.ts`. `registry.call` keeps what part 1 gave it (assist tools, kept error codes), since the CLI's
+  `outside-tabs.ts`, and the `tools` field of the `/api/tabs?session=` answer (only `external_use_tab` read it, and
+  computing it ran discover per lookup, past the hub's 300 ms on a busy machine). `registry.call` keeps what part 1 gave it (assist tools, kept error codes), since the CLI's
   `--tab` uses it.
 - `TABS_GUIDANCE` and the `tab` input's description say: list with `external_tabs({})`, match the user's words,
   then pass that tab's id as `tab` on every `execute_typescript` and `discover_tools` call.

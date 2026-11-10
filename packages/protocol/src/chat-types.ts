@@ -246,12 +246,9 @@ export const TabsSchema = z.object({
 })
 export type Tabs = z.infer<typeof TabsSchema>
 
-const TabToolSchema = z.object({name: z.string(), description: z.string(), typeStub: z.string()})
-
 export const TabOpenSchema = z.object({
   open: z.boolean(),
   instructions: z.string().nullable(),
-  tools: z.array(TabToolSchema),
 })
 export type TabOpen = z.infer<typeof TabOpenSchema>
 
