@@ -44,6 +44,7 @@ type Options = {
   agent: boolean
   blind: boolean
   noDesign: boolean
+  noCatalog: boolean
   show: Shown
   open: z.output<typeof OPENED>
   browserDriver?: string
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
       agent: {type: 'boolean', default: false},
       blind: {type: 'boolean', default: false},
       'no-design': {type: 'boolean', default: false},
+      'no-catalog': {type: 'boolean', default: false},
       show: {type: 'string', multiple: true, default: []},
       open: {type: 'string', multiple: true, default: []},
       'browser-driver': {type: 'string'},
@@ -107,6 +109,7 @@ async function main(): Promise<void> {
   const options = {
     ...values,
     noDesign: values['no-design'],
+    noCatalog: values['no-catalog'],
     browserDriver: values['browser-driver'],
     show: SHOWN.parse(values.show),
     widget: getDef.inputSchema.shape.widget.parse(values.widget),
@@ -198,6 +201,7 @@ async function hostServer(input: {
   agent: boolean
   blind: boolean
   noDesign: boolean
+  noCatalog: boolean
   show: Shown
   open: z.output<typeof OPENED>
   browserDriver?: string
@@ -224,7 +228,11 @@ async function hostServer(input: {
         ...(input.agent ? {} : {harnessBin: 'true', systemPrompt: false}),
         devEndpointDir: input.devEndpointDir,
         extensions: {
-          design: {blind: input.blind, show: input.show},
+          design: {
+            blind: input.blind,
+            show: input.show,
+            ...(input.noCatalog ? {catalog: {section: false, hint: false}} : {}),
+          },
           ...(input.browserDriver === undefined ? {} : {'browser-driver': {endpoint: input.browserDriver}}),
         },
         withhold: [
