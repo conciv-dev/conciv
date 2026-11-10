@@ -1,5 +1,5 @@
 import {dirname, relative, resolve} from 'node:path'
-import {dropRightWhile, keyBy, once} from 'es-toolkit'
+import {dropRightWhile, groupBy, keyBy, once} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import type {Catalog, CatalogConfig, Component, Hint, Hinter, Ranked} from '../../shared/catalog-defs.js'
 import type {ComponentRows, DesignNode, GateRow} from '../../shared/defs.js'
@@ -22,21 +22,33 @@ export function createComponentRows(input: {
       if (!ranked.some((component) => component.tier === KIT)) return []
       const walked = await catalog.list({hidden: true})
       const lost = lostComponents({earlier, ranked})
-      const hints = new Map(config.hint ? hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]) : [])
+      const hints = new Map(
+        Object.entries(groupBy(ranked, (component) => component.framework ?? NO_FRAMEWORK)).map(
+          ([framework, usable]) => [
+            framework,
+            new Map(config.hint ? hinters.flatMap((hinter) => [...hinter.hint({design, ranked: usable, config})]) : []),
+          ],
+        ),
+      )
       const found = await Promise.all(
         [...walk(design.root)].map(async ({node}) => {
           if (!reads.mapped(node.id)) return []
+          const file = sourceFile({reads, node: node.id})
+          const host =
+            file === null
+              ? undefined
+              : walked.find((candidate) => sameFile({walked: candidate.file, source: file, cwd}))
           const claim = claimOf({
             related: relation.get(node.id),
             lost: lost.get(node.id),
-            hint: hints.get(node.id),
+            hint: hints.get(host?.framework ?? NO_FRAMEWORK)?.get(node.id),
             ranked,
             walked,
           })
           if (claim === null) return []
           const specifier = await usableFrom({
             component: claim.component,
-            file: sourceFile({reads, node: node.id}),
+            file,
             walked,
             cwd,
             resolvers: await resolvers(),
@@ -63,6 +75,8 @@ const COMPONENT = 'component'
 const SOURCE_SEPARATOR = ':'
 
 const RELATIVE = '.'
+
+const NO_FRAMEWORK = ''
 
 type Claim = {component: Ranked; lost: boolean}
 

@@ -397,7 +397,7 @@ function exportFacts(statement: Statement): ExportFact[] {
   if (statement.type === 'ExportDefaultDeclaration') {
     return [{name: DEFAULT_EXPORT, local: defaultLocal(statement.declaration), request: null, imported: null}]
   }
-  if (statement.type !== 'ExportNamedDeclaration' || statement.exportKind === 'type') return []
+  if (statement.type !== 'ExportNamedDeclaration') return []
   const declared = declaredNames(statement.declaration).map((name) => ({
     name,
     local: name,
@@ -405,7 +405,7 @@ function exportFacts(statement: Statement): ExportFact[] {
     imported: null,
   }))
   const listed = statement.specifiers
-    .filter((specifier) => specifier.exportKind !== 'type')
+    .filter((specifier) => statement.exportKind !== 'type' && specifier.exportKind !== 'type')
     .map((specifier) =>
       statement.source === null
         ? {name: exportName(specifier.exported), local: exportName(specifier.local), request: null, imported: null}

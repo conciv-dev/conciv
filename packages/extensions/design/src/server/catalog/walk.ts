@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto'
-import {dirname, extname, isAbsolute, join, relative} from 'node:path'
-import {minBy, uniqBy} from 'es-toolkit'
+import {realpath} from 'node:fs/promises'
+import {dirname, extname, isAbsolute, join, relative, sep} from 'node:path'
+import {minBy, uniq, uniqBy} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
@@ -19,6 +20,7 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
   await roots.reduce(async (previous, root) => {
     await previous
     const resolver = new ResolverFactory(root.resolve)
+    const declarations = new ResolverFactory({...root.resolve, extensionAlias: DECLARATION_ALIAS})
     const starts = await Promise.all(root.entries.map((entry) => resolver.async(root.root, entry)))
     await crawl({
       frontier: starts.flatMap((start) =>
@@ -28,10 +30,12 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
               {
                 file: start.path,
                 via: null,
+                entry: null,
                 depth: 0,
                 root: root.root,
                 plugins: root.plugins,
                 resolver,
+                declarations,
                 packageJson: start.packageJsonPath ?? null,
               },
             ],
@@ -44,7 +48,7 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
   const packages = new Map<string, Promise<PackageFacts>>()
   const frameworkOf = frameworksOf(visited)
   const components = await Promise.all(
-    [...visited.values()].flatMap((visit) => definedIn(visit).map((definition) => ({visit, definition}))),
+    [...visited.values()].flatMap((visit) => definedIn({visit, visited}).map((definition) => ({visit, definition}))),
   ).then((found) =>
     Promise.all(
       found.map(({visit, definition}) =>
@@ -73,18 +77,20 @@ type Parsed = ReturnType<typeof parseModule>
 type Item = {
   file: string
   via: string | null
+  entry: string | null
   depth: number
   root: string
   plugins: string[]
   resolver: ResolverFactory
+  declarations: ResolverFactory
   packageJson: string | null
 }
 
-type Visit = Item & {parsed: Parsed | null; resolved: Map<string, Resolved>}
+type Visit = Item & {parsed: Parsed | null; built: boolean; resolved: Map<string, Resolved>}
 
 type Resolved = {path: string; packageJson: string | null}
 
-type Read = Item & {parsed: Parsed | null; requests: string[]}
+type Read = Item & {parsed: Parsed | null; built: boolean; requests: string[]}
 
 type Definition = {local: string; names: string[]}
 
@@ -95,6 +101,11 @@ const README = 'README.md'
 const NODE_MODULES = '/node_modules/'
 const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.mts', '.cts'])
 const DECLARATION_EXTENSIONS: Record<string, string> = {'.js': '.d.ts', '.mjs': '.d.mts', '.cjs': '.d.cts'}
+const DECLARATION_ALIAS = Object.fromEntries(
+  Object.entries(DECLARATION_EXTENSIONS).map(([code, declaration]) => [code, [declaration, code]]),
+)
+const DECLARATION_SUFFIXES = Object.values(DECLARATION_EXTENSIONS)
+const BUILT_DIRECTORY = 'dist'
 const HTML_EXTENSION = '.html'
 const STORY_SUFFIXES = ['.stories.tsx', '.stories.ts', '.stories.jsx', '.stories.js']
 const SEE_FILE = 'see file'
@@ -125,10 +136,12 @@ async function crawl(input: {
         return {
           file: target.path,
           via: crossing ? request : visit.via,
+          entry: crossing ? target.path : visit.entry,
           depth: crossing ? visit.depth + 1 : visit.depth,
           root: visit.root,
           plugins: visit.plugins,
           resolver: visit.resolver,
+          declarations: visit.declarations,
           packageJson: target.packageJson,
         }
       }),
@@ -144,25 +157,46 @@ async function read(input: {item: Item; disk: Storage}): Promise<Read> {
   const extension = extname(item.file)
   if (extension === HTML_EXTENSION) {
     const html = await text({disk, file: item.file})
-    return {...item, parsed: null, requests: html === null ? [] : moduleScripts(html)}
+    return {...item, parsed: null, built: false, requests: html === null ? [] : moduleScripts(html)}
   }
-  if (!CODE_EXTENSIONS.has(extension)) return {...item, parsed: null, requests: []}
-  const dependency = item.file.includes(NODE_MODULES)
+  if (!CODE_EXTENSIONS.has(extension)) return {...item, parsed: null, built: false, requests: []}
+  const prebuilt = await built(item)
   const declarations = DECLARATION_EXTENSIONS[extension]
-  const typed = dependency && declarations !== undefined ? item.file.slice(0, -extension.length) + declarations : null
+  const typed = prebuilt && declarations !== undefined ? item.file.slice(0, -extension.length) + declarations : null
   const typedSource = typed === null ? null : await text({disk, file: typed})
+  const unread = {...item, parsed: null, built: prebuilt, requests: []}
+  if (prebuilt && typedSource === null && !declarationFile(item.file)) return unread
   const file = typed !== null && typedSource !== null ? typed : item.file
   const source = typedSource ?? (await text({disk, file: item.file}))
-  if (source === null) return {...item, parsed: null, requests: []}
+  if (source === null) return unread
   const parsed = parseModule({file, source})
-  return {...item, parsed, requests: dependency ? parsed.reexports : [...parsed.imports, ...parsed.reexports]}
+  return {
+    ...item,
+    parsed,
+    built: prebuilt,
+    requests: prebuilt ? parsed.reexports : [...parsed.imports, ...parsed.reexports],
+  }
+}
+
+async function built(item: Item): Promise<boolean> {
+  if (item.file.includes(NODE_MODULES)) return true
+  if (item.packageJson === null) return false
+  const directory = dirname(item.packageJson)
+  const root = await realpath(directory).catch(() => directory)
+  const [first] = relative(root, item.file).split(sep)
+  return first === BUILT_DIRECTORY
+}
+
+function declarationFile(file: string): boolean {
+  return DECLARATION_SUFFIXES.some((suffix) => file.endsWith(suffix))
 }
 
 async function follow(reading: Read): Promise<Visit> {
   const {requests, ...visit} = reading
   const directory = extname(visit.file) === HTML_EXTENSION ? visit.root : dirname(visit.file)
+  const resolver = visit.built ? visit.declarations : visit.resolver
   const results = await Promise.all(
-    requests.map(async (request) => ({request, result: await visit.resolver.async(directory, rooted(request))})),
+    requests.map(async (request) => ({request, result: await resolver.async(directory, rooted(request))})),
   )
   return {
     ...visit,
@@ -193,14 +227,32 @@ function bare(request: string): boolean {
   return !request.startsWith('.') && !request.startsWith('/')
 }
 
-function definedIn(visit: Visit): Definition[] {
+function definedIn(input: {visit: Visit; visited: Map<string, Visit>}): Definition[] {
+  const {visit, visited} = input
   const parsed = visit.parsed
   if (parsed === null || visit.depth > LISTED_DEPTH) return []
   return [...parsed.renders].flatMap((local) => {
-    const names = parsed.exports.filter((fact) => fact.local === local).map((fact) => fact.name)
+    const own = parsed.exports.filter((fact) => fact.local === local).map((fact) => fact.name)
+    const names =
+      visit.built && visit.entry !== null ? entryNames({entry: visit.entry, visit, local, own, visited}) : own
     if (names.length === 0) return []
     return [{local, names: [...names.filter((name) => name === local), ...names.filter((name) => name !== local)]}]
   })
+}
+
+function entryNames(input: {
+  entry: string
+  visit: Visit
+  local: string
+  own: string[]
+  visited: Map<string, Visit>
+}): string[] {
+  const {entry, visit, local, own, visited} = input
+  const key = definitionKey(visit.file, local)
+  const listed = (visited.get(entry)?.parsed?.exports ?? []).map((fact) => fact.name)
+  return uniq([...listed, ...own]).filter(
+    (name) => name !== ALL_EXPORTS && definitionOf({file: entry, name, visited, seen: new Set()}) === key,
+  )
 }
 
 async function component(input: {

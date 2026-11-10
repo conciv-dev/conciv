@@ -1,4 +1,4 @@
-import {mkdtemp, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -269,7 +269,11 @@ describe('catalog component rows', () => {
         const checked = roundOf(await call('design_check', {}))
         const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
         const placed =
-          layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom.map((entry) => ({node, entry})))
+          layers === null
+            ? []
+            : [...walk(layers.root)].flatMap(({node}) =>
+                node.fom.map((entry: IdNode['fom'][number]) => ({node, entry})),
+              )
         return [
           ...listed,
           {
@@ -453,6 +457,51 @@ describe('a component row where the component can be used', () => {
     const catalog = await catalogAt(HOST_ROOT)
     const named = async (source: string) => (await catalog.componentOf(source))?.names[0] ?? null
     expect([await named(`${CARD_SOURCE}:12:3`), await named('src/xray/card.tsx:12:3')]).toEqual(['Card', null])
+  })
+
+  async function builtKitHost(): Promise<string> {
+    const base = await mkdtemp(join(tmpdir(), 'conciv-built-kit-'))
+    opened.push(() => rm(base, {recursive: true, force: true}))
+    const files: Record<string, string> = {
+      'kit/package.json': JSON.stringify({
+        name: 'built-chip',
+        type: 'module',
+        exports: {'.': {types: './dist/x.d.ts', import: './dist/x.js'}},
+      }),
+      'kit/dist/x.js': "import {k} from './chunk-a1.js'\nexport {k as Chip}\n",
+      'kit/dist/chunk-a1.js': "function k(p) {\n  return h('span', p)\n}\nexport {k}\n",
+      'kit/dist/x.d.ts': "export {Chip} from './styled/chip.js'\n",
+      'kit/dist/styled/chip.d.ts':
+        "import type {JSX} from 'solid-js'\nexport declare function Chip(props: {value: string}): JSX.Element\n",
+      'host/package.json': JSON.stringify({name: 'built-kit-host', type: 'module'}),
+      'host/index.html': '<script type="module" src="/main.tsx"></script>\n',
+      'host/main.tsx': 'import {Chip} from \'built-chip\'\nexport function App() {\n  return <Chip value="a" />\n}\n',
+    }
+    await Promise.all(
+      Object.entries(files).map(async ([file, text]) => {
+        await mkdir(join(base, file, '..'), {recursive: true})
+        await writeFile(join(base, file), text)
+      }),
+    )
+    await mkdir(join(base, 'host/node_modules'), {recursive: true})
+    await symlink(join(base, 'kit'), join(base, 'host/node_modules/built-chip'))
+    return join(base, 'host')
+  }
+
+  it('reads a linked package whose exports point at its dist from its declarations, naming each component as exported', async () => {
+    const catalog = await catalogAt(await builtKitHost())
+    const listed = (await catalog.list({hidden: true})).filter((component) => component.specifier === 'built-chip')
+    expect(listed.map((component) => component.names)).toEqual([['Chip']])
+  })
+
+  it('lists the kit Chip the x-ray overlay imports from its built tools entry', async () => {
+    const catalog = await catalogAt(HOST_ROOT)
+    const tools = (await catalog.list({hidden: true})).filter(
+      (component) => component.specifier === '@conciv/ui-kit-chat/tools',
+    )
+    expect(tools.filter((component) => component.names.includes('Chip')).map((component) => component.names)).toEqual([
+      ['Chip'],
+    ])
   })
 
   it('gives a module that imports no framework the framework its tsconfig jsx setting names', async () => {

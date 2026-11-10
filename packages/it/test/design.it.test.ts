@@ -828,7 +828,7 @@ describe('catalog hints on design_get', () => {
   it('hints the component a node names as a whole word, and none where two catalog names are named', async () => {
     const got = await hintedTarget()
     expect(NAMES.map((name) => got.nodes.find((node) => node.name === name)?.hint?.component ?? null)).toEqual([
-      'Chip',
+      null,
       'Button',
       'Button',
       null,
@@ -841,7 +841,7 @@ describe('catalog hints on design_get', () => {
     const text = got.components ?? ''
     expect([firstOfTier({text, tier: 'kit'}), firstOfTier({text, tier: 'app'})]).toEqual([
       "import {Button} from '@conciv/ui-kit-system'",
-      "import {Chip} from './src/Chip.tsx'",
+      "import {Toolbar} from './src/Toolbar.tsx'",
     ])
     const listed = await call('design_components', {})
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
