@@ -76,8 +76,8 @@ function record(input: {
   const {element, key, above, drafts} = input
   const parent = above?.key ?? null
   const draft = drafts.get(key) ?? created({key, element, parent, drafts, tops: input.tops})
-  const box = rounded(element.bounds)
-  const origin = above === null ? {x: 0, y: 0} : rounded(above.bounds)
+  const box = rounded(paintedBox(element))
+  const origin = above === null ? {x: 0, y: 0} : rounded(paintedBox(above))
   draft.dom.push({
     path: element.path,
     instance: element.repeat,
@@ -140,6 +140,11 @@ function ownText(live: LiveComponent): string {
 
 function allText(live: LiveComponent): string {
   return [live.text, ...live.children.map(allText)].filter(Boolean).join(' ')
+}
+
+function paintedBox(element: LiveComponent): Box {
+  const {bounds, textBox} = element
+  return (bounds.w === 0 || bounds.h === 0) && textBox !== null ? textBox : bounds
 }
 
 function rounded(box: Box): Box {
