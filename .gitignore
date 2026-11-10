@@ -59,6 +59,3 @@ e2e/*/src/routeTree.gen.ts
 
 # written by the next 16.4 dev server
 e2e/nextjs/AGENTS.md
-
-# trial wave lanes (deleted by conciv design:runs-gc --state)
-packages/it/test/fixtures/*/lane-*/
