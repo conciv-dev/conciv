@@ -6,16 +6,10 @@ export function layoutVote(input: {node: DesignNode; element: Laid}): number {
   const {node, element} = input
   const {cssom} = element
   if (cssom === undefined) return 0
-  const laidOut = cssom.display.includes(FLEX) || cssom.display.includes(GRID)
   const mode = node.figma?.mode ?? null
-  if (mode !== null && FLOWS.has(mode)) {
-    if (node.children.some((child) => child.implied === true)) return 0
-    const row = flowRow(cssom) ?? (laidOut ? null : paddedFlow({node, element}))
-    if (row === null) return 0
-    return row === (mode === HORIZONTAL) ? WEIGHT : -WEIGHT
-  }
+  if (mode !== null && FLOWS.has(mode)) return flowVote({node, element, cssom, row: mode === HORIZONTAL})
   if (node.kind !== 'text') return 0
-  return laidOut && element.kids > 0 ? -WEIGHT : WEIGHT
+  return laidOut(cssom) && element.kids > 0 ? -WEIGHT : WEIGHT
 }
 
 type Styles = IdNode['cssom'][number]
@@ -37,6 +31,17 @@ const HORIZONTAL = 'HORIZONTAL'
 const FLOWS = new Set([HORIZONTAL, 'VERTICAL'])
 
 const PaddedSchema = z.object({pad: z.array(z.number())})
+
+function flowVote(input: {node: DesignNode; element: Laid; cssom: Styles; row: boolean}): number {
+  if (input.node.children.some((child) => child.implied === true)) return 0
+  const row = flowRow(input.cssom) ?? (laidOut(input.cssom) ? null : paddedFlow(input))
+  if (row === null) return 0
+  return row === input.row ? WEIGHT : -WEIGHT
+}
+
+function laidOut(cssom: Styles): boolean {
+  return cssom.display.includes(FLEX) || cssom.display.includes(GRID)
+}
 
 function flowRow(cssom: Styles): boolean | null {
   const flex = cssom.display.includes(FLEX)
