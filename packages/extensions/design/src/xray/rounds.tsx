@@ -81,19 +81,31 @@ function RoundView(props: {round: Round; id: string; image: (path: string) => st
       <p class="m-0 tabular-nums">{counts()}</p>
       <p class="m-0 op-fade tabular-nums">{coverage()}</p>
       <Show when={props.round.pixels}>{(pixels) => <p class="m-0 op-fade">pixels {pixels().share}</p>}</Show>
-      <table class="text-xs w-full">
-        <tbody>
-          <For each={props.round.rows}>
-            {(row) => (
-              <tr class="border-b border-base">
-                <td class="font-mono py-1 pe-2">{row.node}</td>
-                <td class="py-1 pe-2">{row.magnitude}</td>
-                <td class="py-1">{row.text}</td>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+      <Show
+        when={props.round.broken}
+        fallback={
+          <table class="text-xs w-full">
+            <tbody>
+              <For each={props.round.rows}>
+                {(row) => (
+                  <tr class="border-b border-base">
+                    <td class="font-mono py-1 pe-2">{row.node}</td>
+                    <td class="py-1 pe-2">{row.magnitude}</td>
+                    <td class="py-1">{row.text}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        }
+      >
+        {(broken) => (
+          <div class="flex flex-col gap-1">
+            <p class="font-medium m-0">Page does not compile</p>
+            <p class="text-xs font-mono m-0">{broken()}</p>
+          </div>
+        )}
+      </Show>
       <For each={props.round.reflow.results}>
         {(reflow) => (
           <p class="text-xs m-0">

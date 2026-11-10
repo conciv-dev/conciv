@@ -33,14 +33,16 @@ export function createRunner(runtime: DesignRuntime): Runner {
       await store.writeUnsettledCount({id: record.id, count})
       return {unsettled: true, rendered: 0, ...error}
     }
-    const previous = rounds.at(-1)
-    const settled = rounds.findLast((round) => round.unsettled === null)
+    const last = rounds.at(-1)
+    const measuredRounds = rounds.filter((round) => round.broken === null)
+    const previous = measuredRounds.at(-1)
+    const settled = measuredRounds.findLast((round) => round.unsettled === null)
     const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous: ids})
-    if (previous !== undefined && previous.tree === built.hash) {
+    if (previous !== undefined && previous === last && previous.tree === built.hash) {
       await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
       return {...shown(previous), unchanged: true}
     }
-    const round = (previous?.round ?? 0) + 1
+    const round = (last?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
     const voted = {design, measured, stored, round, pairer: runtime.pairer, target}
@@ -97,7 +99,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const earlier =
       previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
     const progress = progressOf({
-      rounds,
+      rounds: measuredRounds,
       now: {rows, coverage, pixels: {share: pixels.share}},
       live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
       root: mapped.root,
@@ -119,10 +121,11 @@ export function createRunner(runtime: DesignRuntime): Runner {
       tree: built.hash,
       verdict: 'unsettled',
       unsettled,
+      broken: null,
     }
     const written =
       unsettled === null
-        ? {...measuredRound, verdict: verdictOf({design, rounds: [...rounds, measuredRound]}).verdict}
+        ? {...measuredRound, verdict: verdictOf({design, rounds: [...measuredRounds, measuredRound]}).verdict}
         : measuredRound
     await store.writeRound({
       id: record.id,

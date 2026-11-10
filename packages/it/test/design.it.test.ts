@@ -46,6 +46,7 @@ import {renderTargets} from './fixtures/design/render-targets.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
 const ENDPOINT_FILE = 'dev-endpoint.json'
+const CARDS_FILE = join(HOST_ROOT, 'src', 'Cards.tsx')
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
@@ -311,8 +312,8 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', {figma: FIGMA_LINK, image, document: CARDS_DOCUMENT})
 }
 
-function roundOf(checked: Checked): Exclude<Checked, {unsettled: true}> {
-  if ('unsettled' in checked) throw new Error(`the page did not settle: ${JSON.stringify(checked)}`)
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown}> {
+  if ('unsettled' in checked || 'compile' in checked) throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
 
@@ -451,6 +452,7 @@ describe('store', () => {
       tree: '',
       verdict: null,
       unsettled: null,
+      broken: null,
     }
     await store.writeRound({id: 'store-1', round, live: blankPng({width: 100, height: 50}), diff: new Uint8Array()})
     expect((await store.rounds('store-1')).map((entry) => entry.round)).toEqual([1])
@@ -581,11 +583,25 @@ describe('design_check capture', () => {
   })
 })
 
-describe('design_check on a page that names a global', () => {
+describe('design_check on a page that breaks the widget or the build', () => {
   it('answers on a page whose section is named process', async () => {
     await goto('process')
     await cardsTarget()
-    const checked = roundOf(await call('design_check', {}))
-    expect(checked.rows.length).toBeGreaterThan(0)
+    expect(roundOf(await call('design_check', {})).rows.length).toBeGreaterThan(0)
+  })
+
+  it('answers broken with the file and line, then measures again once the file compiles', async () => {
+    await goto('target')
+    await cardsTarget()
+    const source = await readFile(CARDS_FILE, 'utf8')
+    await writeFile(CARDS_FILE, source.replace('</h2>', ''))
+    const broken = await kit.page
+      .waitForSelector('vite-error-overlay', {state: 'attached', timeout: PAGE_DRIVER_TIMEOUT_MS})
+      .then(() => call('design_check', {}))
+      .finally(() => writeFile(CARDS_FILE, source))
+    const compile = 'compile' in broken ? broken.compile : null
+    expect([broken.verdict, compile?.file, typeof compile?.line]).toEqual(['broken', 'src/Cards.tsx', 'number'])
+    await goto('target')
+    expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })
 })

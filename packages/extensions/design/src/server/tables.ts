@@ -50,6 +50,7 @@ export function designTables(table: SQLiteTableFn) {
       tree: text().notNull(),
       verdict: text(),
       unsettled: text(),
+      broken: text(),
       live: text(),
       diff: text(),
       at: integer().notNull(),
