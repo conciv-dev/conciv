@@ -65,11 +65,11 @@ function changed(element: Element): void {
   element.dispatchEvent(new Event('change', {bubbles: true}))
 }
 
-export async function fill(options: {element: Element; value: string; agent: string}): Promise<string | null> {
+export function fill(options: {element: Element; value: string; agent: string}): string | null {
   const {element, value, agent} = options
   if (!isInput(element) && !isTextArea(element)) return 'That element is not a text field.'
   if (element.readOnly) return 'That field is read-only.'
-  await simulateFill({element, value, agent})
+  simulateFill({element, value, agent})
   if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
   return null
 }
@@ -85,21 +85,17 @@ export function select(options: {element: Element; value: string}): {value: stri
   return {value: element.value}
 }
 
-export async function setChecked(options: {
-  element: Element
-  checked: boolean
-  agent: string
-}): Promise<{checked: boolean} | string> {
+export function setChecked(options: {element: Element; checked: boolean; agent: string}): {checked: boolean} | string {
   const {element, checked, agent} = options
   if (isInput(element) && (element.type === 'checkbox' || element.type === 'radio')) {
     if (element.checked === checked) return {checked}
     if (element.type === 'radio' && !checked) return 'A radio is unchecked by checking another one.'
-    await simulateClick({element, agent})
+    simulateClick({element, agent})
     return reached({now: element.checked, checked})
   }
   const aria = element.getAttribute('aria-checked')
   if (aria === null) return 'That element is not a checkbox.'
-  if ((aria === 'true') !== checked) await simulateClick({element, agent})
+  if ((aria === 'true') !== checked) simulateClick({element, agent})
   return reached({now: element.getAttribute('aria-checked') === 'true', checked})
 }
 

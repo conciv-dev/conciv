@@ -444,9 +444,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       document.body.append(spacer, landmark)
       expect(window.scrollY).toBe(0)
       expect(await resultOf('scroll', {selector: '#far-down'})).toEqual({ok: true})
-      await vi.waitFor(() => {
-        if (window.scrollY === 0) throw new Error('the page has not scrolled yet')
-      })
+      await expect.element(page.getByText('down here')).toBeInViewport()
       window.scrollTo(0, 0)
       spacer.remove()
       landmark.remove()
@@ -455,6 +453,52 @@ describe.skipIf(inFirefox)('page tools', () => {
     it('replaces inner HTML with sethtml', async () => {
       expect(await resultOf('sethtml', {selector: '#htmlhost', html: '<em id="fresh">new</em>'})).toEqual({ok: true})
       expect(document.querySelector('#htmlhost')?.innerHTML).toBe('<em id="fresh">new</em>')
+    })
+  })
+
+  describe('actions reply at once', () => {
+    it('fills, checks and clicks far-away controls and replies before the page has finished scrolling to them', async () => {
+      const far = document.createElement('div')
+      far.innerHTML = `
+        <p id="order">order:</p>
+        <div style="height: 3000px"></div>
+        <label>Far name <input id="far-name" type="text" /></label>
+        <div style="height: 3000px"></div>
+        <label><input id="far-box" type="checkbox" /> Far box</label>
+        <div style="height: 3000px"></div>
+        <button id="far-button" type="button">Far button</button>
+        <p id="far-clicks">0 far clicks</p>
+      `
+      document.body.append(far)
+      const order = far.querySelector('#order')
+      const note = (entry: string) => order?.append(` ${entry}`)
+      const scrolled = () => note('scrolled')
+      document.addEventListener('scrollend', scrolled)
+      onTestFinished(() => {
+        document.removeEventListener('scrollend', scrolled)
+        window.scrollTo(0, 0)
+        far.remove()
+      })
+      far.querySelector('#far-button')?.addEventListener('click', () => {
+        const clicks = far.querySelector('#far-clicks')
+        if (clicks) clicks.textContent = `${Number.parseInt(clicks.textContent ?? '0', 10) + 1} far clicks`
+      })
+      const orderLine = () => page.getByText(/^order:/)
+
+      expect(await resultOf('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
+      note('replied')
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toHaveValue('Ada')
+      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled')
+
+      expect(await resultOf('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
+      note('replied')
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeChecked()
+      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled replied scrolled')
+
+      expect(await resultOf('click', {selector: '#far-button'})).toEqual({ok: true})
+      note('replied')
+      await expect.element(page.getByText('1 far clicks')).toBeVisible()
+      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled replied scrolled replied scrolled')
     })
   })
 

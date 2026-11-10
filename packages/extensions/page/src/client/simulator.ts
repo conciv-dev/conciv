@@ -19,7 +19,6 @@ import {
   dropCursor,
   pageAt,
   pressCursor,
-  reducedMotion,
   windowAt,
   type Point,
 } from './agent-cursor.js'
@@ -27,11 +26,6 @@ import {
 const TASK_TIMEOUT_MS = 60_000
 const STOP_CONFIRM_MS = 3000
 const HIDE_MS = 800
-const MOVE_MS = 300
-const AFTER_RIPPLE_MS = 100
-const AFTER_CLICK_MS = 200
-const AFTER_INPUT_MS = 100
-const SCROLL_SETTLE_MS = 1500
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
 const XHTML = 'http://www.w3.org/1999/xhtml'
 const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
@@ -90,10 +84,6 @@ const sim: Simulator = {
 }
 
 function ignore(): void {}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
 
 function isHtml(element: Element): element is HTMLElement {
   return element.namespaceURI === XHTML
@@ -283,35 +273,17 @@ function isReachable(element: Element): boolean {
   return hit !== null && element.contains(hit)
 }
 
-function scrollEnded(doc: Document): Promise<void> {
-  return new Promise((resolve) => {
-    const done = (): void => {
-      clearTimeout(timer)
-      doc.removeEventListener('scrollend', done, true)
-      resolve()
-    }
-    const timer = setTimeout(done, SCROLL_SETTLE_MS)
-    doc.addEventListener('scrollend', done, true)
-  })
+function scrollIntoViewIfNeeded(element: Element): void {
+  if (!isReachable(element)) element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
 }
 
-async function scrollIntoViewIfNeeded(element: Element): Promise<void> {
-  if (isReachable(element)) return
-  if (reducedMotion()) return element.scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'})
-  const ended = scrollEnded(element.ownerDocument)
-  element.scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'})
-  await ended
-}
-
-async function moveTo(options: {element: Element; agent: string}): Promise<Point> {
+function moveTo(options: {element: Element; agent: string}): {point: Point; arrived: Promise<void>} {
   const {element, agent} = options
-  await scrollIntoViewIfNeeded(element)
+  scrollIntoViewIfNeeded(element)
   const frame = element.ownerDocument.defaultView?.frameElement
-  if (frame) await scrollIntoViewIfNeeded(frame)
+  if (frame) scrollIntoViewIfNeeded(frame)
   const point = centerOf(element)
-  void aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})
-  await wait(MOVE_MS)
-  return point
+  return {point, arrived: aimCursor({id: agent, at: pageAt({target: element, point}), look: CursorLook.AGENT})}
 }
 
 function hitTarget(options: {element: Element; point: Point}): Element {
@@ -357,19 +329,17 @@ function dispatchPress(options: {target: Element; element: Element; point: Point
   target.dispatchEvent(new MouseEvent('click', mouse))
 }
 
-export async function pointAt(options: {element: Element; agent: string}): Promise<void> {
-  await moveTo(options)
+export function pointAt(options: {element: Element; agent: string}): void {
+  moveTo(options)
 }
 
-export async function simulateClick(options: {element: Element; agent: string}): Promise<void> {
+export function simulateClick(options: {element: Element; agent: string}): void {
   const {element, agent} = options
   blurLastClicked()
   sim.lastClicked = element
-  const point = await moveTo({element, agent})
-  ripple(agent)
-  await wait(AFTER_RIPPLE_MS)
+  const {point, arrived} = moveTo({element, agent})
+  void arrived.then(() => ripple(agent))
   dispatchPress({target: hitTarget({element, point}), element, point})
-  await wait(AFTER_CLICK_MS)
 }
 
 export function setNativeValue(options: {
@@ -382,17 +352,16 @@ export function setNativeValue(options: {
   element.value = value
 }
 
-export async function simulateFill(options: {
+export function simulateFill(options: {
   element: HTMLInputElement | HTMLTextAreaElement
   value: string
   agent: string
-}): Promise<void> {
+}): void {
   const {element, value, agent} = options
-  await simulateClick({element, agent})
+  simulateClick({element, agent})
   setNativeValue({element, value})
   element.dispatchEvent(new Event('input', {bubbles: true, composed: true}))
   element.dispatchEvent(new Event('change', {bubbles: true}))
-  await wait(AFTER_INPUT_MS)
 }
 
 function pageBody(): HTMLElement {

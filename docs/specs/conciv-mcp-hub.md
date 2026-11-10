@@ -585,12 +585,19 @@ Causes, each confirmed in code:
 - `hubAccess` defaults to `'open'` (`packages/core/src/config.ts`). `'session'` and `'project'` stay selectable
   and keep working; only the default changes. Tests that relied on the default name `'session'` explicitly.
 
-### 6. Page actions do not wait on the simulated pointer (OPEN: needs Omri's yes, not built until then)
+### 6. Page actions do not wait on the simulated pointer (Omri's yes, 2026-11-10: for every caller)
 
-- Today the action happens after the pointer animation and the reply after that. Proposed: the action and the
-  reply happen at once; the pointer, ripple and scroll still play, as decoration that nothing waits for.
-- This changes what the user sees for the in-page agent too: the field fills before the pointer arrives.
-- Alternative: keep the waits for the in-page agent and skip them only for outside calls.
+- Today the action happens after the pointer animation and the reply after that
+  (`packages/extensions/page/src/client/simulator.ts`). Now the action and the reply happen at once, for the in-page
+  agent and outside callers alike. The field fills before the pointer arrives; that is accepted.
+- An element that is out of view is scrolled to instantly (the path reduced motion already takes), so the hit point
+  is known without waiting for `scrollend`. `SCROLL_SETTLE_MS` and `scrollEnded` are deleted.
+- The pointer move and the ripple are still started for the same point, and nothing awaits them: `MOVE_MS`,
+  `AFTER_RIPPLE_MS`, `AFTER_CLICK_MS` and `AFTER_INPUT_MS` stop being waits in the action path. Whatever of them
+  still times the decoration stays inside the decoration.
+- The events an action dispatches, and their order, do not change.
+- If an existing test only passes because of one of these waits (the page had time to react before the reply),
+  that is a finding to report, not a wait to put back.
 
 ### Tests (existing files only; one journey per file, no timing guesses)
 
