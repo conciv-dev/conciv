@@ -12,7 +12,11 @@ function escapeAttr(value: string): string {
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-export function htmlTags(corePort: number, opts: {widget?: ConcivSettingsInit | false; entry: string}): HtmlTag[] {
+export function htmlTags(
+  corePort: number,
+  opts: {widget?: ConcivSettingsInit | false; entry: string; html: string},
+): HtmlTag[] {
+  if (widgetRefused(opts.html)) return []
   const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'conciv-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
   ]
@@ -30,6 +34,8 @@ function metaPresent(name: string): (html: string) => boolean {
   const marker = new RegExp(`\\bname\\s*=\\s*["']?${name}(?=["'\\s/>])`, 'i')
   return (html) => marker.test(html)
 }
+
+const widgetRefused = metaPresent('conciv-no-widget')
 
 function widgetTags(apiBase: string, widgetConfig?: ConcivSettingsInit | false): WidgetTag[] {
   const base = {
@@ -159,7 +165,7 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: ConcivSettingsI
       const body = Buffer.concat(chunks).toString('utf8')
 
       const isHtml = String(res.getHeader('content-type') ?? '').includes('text/html')
-      const missing = isHtml ? missingTags(body, tags) : ''
+      const missing = isHtml && !widgetRefused(body) ? missingTags(body, tags) : ''
       const out = missing === '' ? body : injectInto(body, missing)
 
       res.write = realWrite

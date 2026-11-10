@@ -72,7 +72,7 @@ function shell(id: string): string {
   return [
     '<!doctype html>',
     '<html>',
-    '<head><meta charset="utf-8" /><title>preview</title></head>',
+    '<head><meta charset="utf-8" /><meta name="conciv-no-widget" /><title>preview</title></head>',
     `<body><div id="${ROOT_ID}"></div>`,
     `<script type="module" src="/@id/${VIRTUAL}${encodeURIComponent(id)}"></script>`,
     '</body>',

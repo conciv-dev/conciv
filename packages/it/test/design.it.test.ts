@@ -974,6 +974,19 @@ describe('component previews', () => {
     }
   })
 
+  it('serves the preview page without the conciv widget', async () => {
+    const {tab} = await previewed('Chip')
+    try {
+      await expectLocator(tab.locator('#conciv-preview .chip')).toBeVisible()
+      expect([
+        await tab.locator('meta[name="conciv-api-base"]').count(),
+        await tab.locator('[data-conciv-root]').count(),
+      ]).toEqual([0, 0])
+    } finally {
+      await tab.close()
+    }
+  })
+
   it('a component that throws shows the first line of its error and the catalog lists it', async () => {
     const {tab} = await previewed('Broken')
     try {

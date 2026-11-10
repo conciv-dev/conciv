@@ -357,12 +357,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     },
     transformIndexHtml: {
       order: 'pre',
-      handler(_html, ctx) {
+      handler(html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
         return htmlTags(engine.port, {
           widget: widgetSettings(options.widget, docked),
           entry: docked ? EXTENSIONS_DOCK_ROUTE : EXTENSIONS_ROUTE,
+          html,
         })
       },
     },
