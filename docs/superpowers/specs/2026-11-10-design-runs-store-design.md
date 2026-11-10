@@ -1,0 +1,85 @@
+# The runs store: every run queryable, by us now and by the agent later
+
+Companion to `2026-11-06-design-three-tools.md` and `2026-11-09-design-components-design.md`. Those specs make the tools measure a
+page. This one makes what the tools saw and said, over every run, a database we can ask one question of.
+
+## Why
+
+Twenty-five waves of six runs each were analysed by an agent exporting json by hand into a markdown table per wave. Each run leaves
+its own `conciv.db` in a throwaway state dir; the replies the agent read (`design_get` hints and catalog section, `design_check` verdict
+sentences) are not stored at all, only their byte size. "Did the agent see the hint and draw by hand anyway" took a brief, a run and a
+log grep to answer. The schema has no indexes, no foreign keys, no relations and one check constraint; every join is a scan.
+
+## Intent
+
+One store holds every run's rounds, rows, votes, pairings, tool calls with their full replies, and the catalog relation, under
+`run_id`, with the keys and indexes the questions need. One query function answers in SQL, through three doors: a CLI for us, a
+`design_query` MCP tool for the agent mid-run, an x-ray Runs view later. The wave table becomes one query that yields the same
+numbers the hand-built tables did.
+
+## Goals
+
+- Nothing a run showed the agent is lost: every tool reply is stored whole, beside its input.
+- One store across runs. A wave is `WHERE run_id IN (…)`; a question over fifty runs is one statement.
+- Keys, indexes and constraints that make the questions cheap and the data honest: every child row points at its run and round by
+  foreign key, every lookup the views make is indexed, enums are check constraints, json columns are typed.
+- Named views for the questions we ask every wave, so nobody writes the join twice.
+- One implementation behind the CLI, the MCP tool and the x-ray.
+
+## Non-goals
+
+- A dashboard. The x-ray Runs view is a later ruling; this spec ends at the query function and the CLI.
+- Replaying a run. The store answers what happened; the lanes still run the runs.
+- Rewriting the per-run `conciv.db`. It stays the hot store the tools write during a run; the runs store is where runs go when they end.
+
+## Anti-goals
+
+- A second schema. The runs store uses the design tables as they are, with the keys added; no "analytics" copy with different names.
+- An ORM layer over the questions. Views are SQL; the query function takes SQL. Drizzle types the tables and the views, it does not hide them.
+- Storing a reply twice. A `design_get` reply of 226 KB is stored once per call, compressed by SQLite's page store as it is; no
+  dedupe table, no blob store, until a measurement says the file is too big.
+
+## Constraints
+
+- The store is a SQLite file in the home folder beside `home.db` (`runs.db`), opened through `openMigratedDb` like `home.db`: WAL,
+  `busy_timeout`, migrations serialized by the lock file. `PRAGMA foreign_keys = ON` on every connection; `synchronous = NORMAL` under WAL.
+- Schema: the design tables from `tables.ts`, with:
+  - `design_runs.run_id` the parent; every other table's `run_id` `NOT NULL REFERENCES design_runs ON DELETE CASCADE` in the runs store
+    (the per-run db keeps `run_id` nullable for rounds written before a run starts; the copy fills it).
+  - `(run_id, target_id, round)` indexed on rounds, rows, votes, fom, candidates, missing, regions, widths, node_components;
+    `(run_id, round)` on tool_calls; `(target_id, node)` on fom and rows; `(component_id)` on node_components.
+  - `design_tool_calls.reply` json, typed by tool through a discriminated union of the tool reply types the design package already
+    exports; `input` stays. A reply that failed stores `error` and `reply` null.
+  - Check constraints: `tool in (…)` over the tool names, `kind` and `magnitude` on rows over their const objects, `verdict` on runs.
+  - `relations()` declared for every foreign key so `db.query` with `with:` works; a `$type` on every json column.
+  - Drizzle views (`sqliteView`) for the wave questions below, generated into the migration like the tables.
+- Writes: at run end the trial harness, and `conciv tools design runs import <state dir>`, copy the run's rows from its `conciv.db`
+  into `runs.db` in one transaction, by `ATTACH` and `INSERT … SELECT`, assigning the run a new `run_id` and keeping the old one as
+  `design_runs.source_run_id` with the state dir path. Importing the same state dir twice is a no-op (unique on `(source_path,
+  source_run_id)`). The 2026-11 run dirs under the journal's `figma-loop/runs/*/state` import with the same command.
+- Reads: `queryRuns({sql, params})` read-only (`query_only` pragma on the connection), returns rows and column names; the CLI prints
+  a table or `--json`; the MCP tool `design_query` returns rows capped by the design config's reply budget, with the views listed in
+  its description so the agent knows what to ask. The x-ray can call the same function over rpc later.
+- Named views, each a `sqliteView` with a doc line:
+  - `run_summary`: run, model, cost, minutes, per width: verdict, rows, much, pixels, checks.
+  - `round_rows`: run, target, round, kind, magnitude, count.
+  - `hint_vs_drawn`: run, round, node, hint component (from the stored `design_get` reply), component that rendered it (relation), same or not.
+  - `kit_per_round`: run, round, component, nodes rendered, from the relation.
+  - `mispairs`: run, target, node, round first paired, element then, element later, vote margin; a node whose winning path changed
+    between rounds with a margin under `figmaPair.twinMargin`.
+  - `lost_components`: run, round, component, from component rows of kind `component`.
+- Coding rules of the design package hold: one export per file, functions only, no comments, no casts, no `any`, no `else`, no `let`,
+  files under 600 lines, no new numeric constants, library first.
+
+## Measure
+
+Import waves 24, 25 and 26 (eighteen runs). `SELECT … FROM run_summary WHERE run_id IN (…)` yields the same done, rows, pixels, cost
+and minutes as `twentyfive.md`, `twentysix.md` and `twentyseven.md`; where it differs, the hand table is checked and the view fixed or
+the table corrected. `hint_vs_drawn` over `xray6`, `xray9`, `xray10`, `xray11` reproduces the kit-kept counts in `xray-build.md`.
+
+## Left to the builder
+
+- The exact shape of the reply union and where the tool reply types live today.
+- Whether `INSERT … SELECT` over `ATTACH` needs a column list per table (it does when the runs store has more columns); generate it
+  from the drizzle table objects, not by hand.
+- The CLI's table printer: an existing dependency (`cli-table3` or what the CLI already uses), not hand-written.
