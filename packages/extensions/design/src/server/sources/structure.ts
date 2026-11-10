@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import type {Box, DesignNode} from '../../shared/defs.js'
 import {walk} from '../../shared/tree.js'
 
@@ -23,6 +24,7 @@ type Flat = {
   index: number
   within: string | null
   floating: boolean
+  wraps: boolean
 }
 
 type Part =
@@ -72,6 +74,7 @@ const NEAR_PX = 3
 const UNIFORM_PX = 2
 const BETWEEN_PX = 120
 const EDGE_PX = 2
+const WrapsSchema = z.object({wrap: z.literal('WRAP')})
 
 function flatOf(input: {node: DesignNode; parent: DesignNode | null; depth: number; index: number}): Flat {
   const {node, parent, depth, index} = input
@@ -85,6 +88,7 @@ function flatOf(input: {node: DesignNode; parent: DesignNode | null; depth: numb
     index,
     within: parent?.id ?? null,
     floating: false,
+    wraps: WrapsSchema.safeParse(node.figma?.fields.layout).success,
   }
 }
 
@@ -204,15 +208,21 @@ function emitNode(input: {brief: Brief; n: Flat; parent: string | null}): void {
   const rest = kids.filter((k) => !spans({brief, k, c: n}) && !floating.includes(k))
   brief.records.push({id: n.id, kind: n.type.toLowerCase(), name: n.name, box: n.box, parent, leaf: rest.length === 0})
   if (rest.length > 0) {
-    const arranged = arrange(rest.map((item): Part => ({tag: 'node', item, box: item.box})))
+    const parts = rest.map((item): Part => ({tag: 'node', item, box: item.box}))
     brief.page
       .filter((d) => d.within === n.id && brief.decorations.has(d.id))
       .forEach((d) =>
         brief.records.push({id: d.id, kind: 'decoration', name: d.name, box: d.box, parent: n.id, leaf: true}),
       )
-    emitArranged({brief, a: arranged, parent: n.id})
+    emitKids({brief, n, parts})
   }
   floating.forEach((f) => emitNode({brief, n: f, parent: n.id}))
+}
+
+function emitKids(input: {brief: Brief; n: Flat; parts: Part[]}): void {
+  const {brief, n, parts} = input
+  if (!n.wraps) return emitArranged({brief, a: arrange(parts), parent: n.id})
+  parts.forEach((part) => emitPart({brief, part, parent: n.id}))
 }
 
 function emitArranged(input: {brief: Brief; a: Part; parent: string}): void {
