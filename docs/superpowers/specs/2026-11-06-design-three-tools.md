@@ -529,3 +529,8 @@ filters, at twice the node's box in pixels, never the original's size. Solid and
 are part of the asset; a solid layer below the stack stays a `fill` the agent writes as CSS. The agent is told the
 asset is complete: it sets it as the background and adds no filter, overlay or tint of its own. The look row for such
 a node compares the node's pixels against the asset as before.
+
+A page that does not compile is the verdict `broken` (2026-11-10). When the dev server reports a transform error for
+the page under check, `design_check` answers `verdict: broken` with the error's first line, file and position, no
+rows, and the rule 'fix the compile error first; nothing else was measured'. The round is stored with that verdict so
+the x-ray shows it.
