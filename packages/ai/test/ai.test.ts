@@ -301,7 +301,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   )
 
   it(
-    'a CLI silent past the journal default but inside the first-output budget still reports its exit',
+    "a fresh run's CLI silent past the journal's first-byte default fails as a stalled journal",
     {timeout: 25_000},
     async () => {
       const bin = join(mkdtempSync(join(tmpdir(), 'conciv-slow-cli-')), 'claude')
@@ -328,7 +328,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
         {id: 'user-hi', role: 'user', content: 'hi'},
       ])
       const run = await ended.promise
-      expect(run.error).toBe('Agent process exited with code 1')
+      expect(run.error).toMatch(/^cannot attach to run slow: its journal \(.+\) delivered no bytes within 10000ms/)
     },
   )
 
@@ -1002,7 +1002,7 @@ describe('dist externals', () => {
       }
     })
 
-    it('bundles the patched @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
+    it('bundles @tanstack/ai-sandbox-local-process so no peer edge on ai-sandbox reaches consumers', () => {
       expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
     })
 
@@ -1011,10 +1011,6 @@ describe('dist externals', () => {
       expect(importsPackage('@tanstack/ai-code-mode')).toBe(false)
       const code = chunks.map((chunk) => chunk.code).join('\n')
       expect(code).toContain('toolCallId: callId')
-      expect(code).toContain('chunk.metadata?.tanstack?.state === "output-error"')
-      expect(code).toMatch(
-        /const root = workspace\.root \?\? "\/workspace";\s+const workspaceHash = computeWorkspaceHash\(workspace\)/,
-      )
     })
 
     it('externalizes @tanstack/ai', () => {

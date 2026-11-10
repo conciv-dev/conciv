@@ -44,6 +44,7 @@ import {codeModeTools, loadIsolateDriver, secretRefusalOf, stoppedWith} from './
 import {createDelivery, endsTheRun, terminalPhaseOf, type ChatDelivery, type Turn} from './delivery.js'
 import {guardedAdapter} from './run-guard.js'
 import {localSandbox} from './local-sandbox.js'
+import {toolHistory} from './tool-history.js'
 
 export type ChatStores = {
   messages: MessageStore
@@ -559,6 +560,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
             attachWaitMs: config.firstOutputTimeoutMs,
           },
         }),
+        toolHistory(),
         concivTurn(turn, plan, granted, view, entry),
       ],
     })

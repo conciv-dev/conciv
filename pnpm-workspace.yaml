@@ -257,16 +257,6 @@ patchedDependencies:
   # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
   # tool knows which call it is answering. Drop it once upstream carries a call id there.
   '@tanstack/ai-code-mode@1.1.0': patches/@tanstack__ai-code-mode@1.1.0.patch
-  # withSandbox builds the workspace projection root through resolveHarnessCwd (src/middleware.ts:906 in
-  # 1.2.0), a host path where the sandbox expects a virtual one; the patch keeps the virtual root.
-  # Its durability options (dist/esm/durability.js:133-145 in 1.2.0) forward attachWaitMs only on an attach;
-  # the patch forwards it on every run.
-  # Its tool-history recorder (src/tool-history.ts) also drops each call's TOOL_CALL_START metadata and the
-  # result's output-error state, so a reload loses code-mode nesting (parentToolCallId) and shows failed
-  # calls as successes; the patch keeps both. It also records the assistant message with no id, so
-  # conversion mints a fresh one on every read; the patch stores one from generateMessageId. Drop the patch
-  # once upstream fixes all of these.
-  '@tanstack/ai-sandbox@1.2.0': patches/@tanstack__ai-sandbox@1.2.0.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search). The patch only reaches users because
   # @conciv/client bundles the one solid-query + query-core copy the widget and every extension import; a
