@@ -39,17 +39,22 @@ Done and in the branch:
   them, `design:runs-gc`, `design:report`. Home-scoped extension commands run through a live engine (ruling 1 of the runs spec).
 - The harness, `run start/end` and `run-import` reverted (commits bd96185cf to c8633a178, de154aabd).
 
-In flight when this document was written (an opus agent on Tasks 8 to 12 of `docs/superpowers/plans/2026-11-10-design-runs.md`,
-its report not yet in):
+Landed after this document was first written (verified: diffs read, design IT 86 of 87, the one failure a load-dependent
+`PAGE_TIMEOUT` in the broken-page test that passes alone):
 
-- Task 8: the extension writes the store directly, run row created at the first `design_get` with the full record of the runs spec
-  ("The run record, complete"); the per-project design tables and migrations deleted.
-- Task 9: the run closes with the chat run (`@conciv/ai`'s TanStack AI run store: status, usage, error) through a turn-end member on
-  `@conciv/extension`.
-- Task 10: screenshot and design-render artifacts written by each check; `design:judge`.
-- Task 11: a page far taller than its design is a row and cannot be `done`.
-- Task 12: docs, the real store migrated on open.
-  Check `git log` for which landed. Verify each against its test before trusting the report.
+- 8c0e402b8 Task 8: the extension writes its runs to the store at the first `design_get`, with the full run record (`session_id`,
+  `status`, `arm`, `harness`, `agent_id`, `usage`, `error`, `error_code`, provenance). Per-project design tables and migrations
+  deleted; `lanes` and gc `--state` gone; the real store migrated (173 runs: 168 completed, 5 aborted).
+- 2738063ce Task 9: the run closes with the chat run through `ServerResult.turnEnd(sessionId, run: TurnRun)` wired from the chat
+  server's turn end and boot sweep. `source_diff` is NOT written: the chat server builds its sandbox with `fileEvents: false`, and
+  the IT host has no fake harness that edits files. Open item 1 below.
+- ee11f9676 Task 10: each check writes `screenshot` and `design` artifacts per width under `<home>/artifacts/<run>/<target>/`;
+  `conciv design:judge <wave> [--judge-model]` (default `designConfig.runs.judgeModel = opus`), not yet run on real artifacts.
+- 8e45c467e Task 11: the measure reply carries `scrollHeight`; a body far taller than the frame is a row, verdict not `done`.
+- 135d1d1b3 Task 12: README Runs section; the superseded store spec deleted.
+
+The first real-product run (section above, wave label `thirtyone`, lane `example-1`, sonnet) was dispatched at 01:45 on 11 Nov; its
+result is in the session scratch `w31/` logs and in the store. Read `design_run_summary` for the latest run before anything else.
 
 Still open after that, in order:
 
