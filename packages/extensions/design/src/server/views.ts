@@ -97,8 +97,10 @@ FROM design_node_components GROUP BY run_id, target_id, round, component_id, com
     row_number() OVER (PARTITION BY run_id, target_id, round, node ORDER BY total DESC) AS place
   FROM design_votes
 ), winners AS (
-  SELECT w.run_id, w.target_id, w.round, w.node, w.path, w.total - coalesce(s.total, 0) AS margin
+  SELECT w.run_id, w.target_id, w.round, w.node, w.path, f.total - coalesce(s.total, 0) AS margin
   FROM ranked w
+  JOIN ranked f ON f.run_id = w.run_id AND f.target_id = w.target_id AND f.round = w.round
+    AND f.node = w.node AND f.place = 1
   LEFT JOIN ranked s ON s.run_id = w.run_id AND s.target_id = w.target_id AND s.round = w.round
     AND s.node = w.node AND s.place = 2
   WHERE w.won = 1
