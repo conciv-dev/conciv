@@ -1,10 +1,10 @@
 # Design runs: one store, written at the source, queried by the house query
 
-Supersedes `2026-11-10-design-runs-store-design.md`. That document grew by patches during one day; this one is the design the
-rewrite is built from. The runs code under `packages/extensions/design/src/server` (`runs.ts`, `commands.ts`, `runs-store.ts`,
-`runs-tables.ts`, `runs-sources.ts`, `import-run.ts`, `views.ts`, the runs part of `relations.ts`) is
-deleted and rewritten against it. The live tables in `tables.ts`, the host members of
-`@conciv/db` (a source over a view, a source in an attached database) and the catalog's `projectKey` stay.
+Supersedes `2026-11-10-design-runs-store-design.md`. The first build (10 Nov) kept a per-project live database, copied runs into
+the store with an import command, bracketed each run with `run start` / `run end`, and drove measured runs with a harness CLI in
+`packages/it`. Omri rejected that: the product is the extension; it records its own runs into one store; nothing a user cannot use
+exists. This document is the design after that correction. The host members of `@conciv/db` (home catalog, a source over a view)
+and the catalog's `projectKey` stay.
 
 ## Intent
 
@@ -36,52 +36,72 @@ CLI, RPC and extensions alike.
 
 ## The data model
 
-Two databases, one schema. `designTables(table, store)` already defines every table once and yields the per-project shape (no
-run id) or the store shape (run id in every key, foreign keys, indexes, checks). That stays.
+One database, one schema. `designTables(table, store)` defines every table once; the extension keeps only the store shape (run id in
+every key, foreign keys, indexes, checks). The `'run'` shape and the per-project `.conciv/conciv.db` design tables go away.
 
-**The live database** `.conciv/conciv.db` of a project holds the current run of that project: `runs`, `targets`, `rounds`,
+**The store** `<conciv home>/runs.db` holds every run of every project, live and finished alike: `runs`, `targets`, `rounds`,
 `rows`, `votes`, `fom`, `nodes`, `missing`, `candidates`, `widths`, `regions`, `tool_calls`, `labels`, `notes`,
-`node_components`. The tools write it during the run.
-
-**The store** `<conciv home>/runs.db` holds every finished run of every project, as the same tables keyed by `run_id`, plus
-`artifacts`, `judgements` and `reports`, plus views. Only the import writes the tables; the judge writes `judgements`; the report
-command writes `reports`; gc deletes. The home is the conciv home that `extensionDb` receives, nothing else, never a scratch path.
+`node_components`, plus `artifacts`, `judgements`, `reports`, plus views. The tools write it as they run; the judge writes
+`judgements`; the report command writes `reports`; gc deletes. The home is the conciv home the extension server receives,
+nothing else, never a scratch path. A project's `.conciv` folder keeps only the widget's session state and the design asset cache.
 
 ### A run carries its provenance from birth
 
-`runs` gains, in both shapes, filled by `run start` in the project:
+`runs` carries, filled by the extension when a session's first `design_get` creates the row:
 
 | column           | meaning                                                                                                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `project_key`    | the catalog's `projectKey` of the project dir: origin remote URL plus the path inside the repo, or the package name without git. Same for every worktree and clone |
 | `branch`, `head` | the project's git branch and head commit at start, null without git                                                                                                |
-| `wave`           | the name the harness gave the set of runs this one belongs to (`thirty`), null for a run outside a wave                                                            |
-| `lane`           | the harness lane label inside the wave (`figma7-3`), null outside a wave                                                                                           |
+| `wave`, `lane`   | optional labels from `designConfig.runs.wave` / `.lane` (set per project by whoever runs a measured set), null otherwise                                           |
 | `tools_head`     | the commit of the design extension that served the run                                                                                                             |
 
-`model`, `prompt_head`, `started`, `ended`, `cost`, `verdict` stay. `source_path` and `source_run_id` exist only in the store
-shape and are written by the import as the record of where the rows came from; they are never the way to find a project.
+`model` comes from the tool request, `started` from the first `design_get`, `ended`, `cost` and `verdict` from the close. `prompt_head`
+is dropped (nothing in the product knows the prompt). `source_path` and `source_run_id` stay on the old rows only; nothing writes them.
+
+### A run rides the house run lifecycle
+
+The engine already has one. `@conciv/ai`'s chat server runs every agent turn through TanStack AI's `withSandbox` with a
+`RunStore` (`chat_runs` in `@conciv/db`: `status` `running | interrupted | completed | failed | aborted`, `startedAt`,
+`finishedAt`, `error`, `usage`, `sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch`), a durability adapter and a
+per-run NDJSON journal with an exit sentinel. A disconnect detaches the run and keeps the agent going; `sweepAbandonedRuns` at boot
+marks every run left `running` as `aborted`; a cancel is `aborted` by the driver only; takeover is the driver's. The design
+extension invents none of this.
+
+A design run is the design work of one session. `runs` gains `session_id` and `status`, where `status` is TanStack's `RunStatus`
+(the type imported, not redeclared), and drops nothing else.
+
+- **Open**: the first `design_get` of a session inserts the row with `status = 'running'`, `session_id`, `model` from the tool
+  request, and the provenance above. Every later write of that session carries the run id.
+- **Close**: the extension listens to the host's turn end (the same `TurnHooks.end` the chat server already calls with the run's
+  lifecycle record, exposed to extensions as a server member if it is not yet) and copies the terminal state onto the design row:
+  `status`, `ended = finishedAt`, `cost` from `usage`, `verdict` from the last check. The write is `UPDATE … WHERE status =
+  'running'`, so a late writer never flips a settled row. A session whose chat run ends `aborted` or `failed` leaves a design run
+  that says so; its rounds, rows and artifacts stay, and `wave_summary` counts it in `runs` but not in `done`.
+- **Boot**: because `sweepAbandonedRuns` fires `TurnHooks.end` for every run it aborts, a dead engine's design runs close at the
+  next boot of that project with no extension code of their own.
+- **Transcript**: the chat server's `withPersistence` already stores every message in `chat_messages`, and the journal holds the
+  raw agent events for the run's life. The design store keeps no transcript artifact; a view joining a design run to its session's
+  messages is the way to read it.
 
 ### Written once
 
-A run is imported once: `(source_path, source_run_id)` is unique and a second import of the same pair is refused with the run id
-it already has. Store rows are never updated or deleted by anything but gc. The import copies the live tables column for column
-(`INSERT … SELECT` over an attached read-only database, in one immediate transaction), and copies nothing it does not recognise:
-a live column the store lacks fails the import, since that means a migration is missing, not that the data is optional.
+A store row is never updated after its close, and never deleted by anything but gc. The exceptions are the lifecycle columns above
+and `targets.unsettled`, which the tools own while the run is open.
 
 ### Artifacts have a lifetime
 
 `artifacts` (store only): `artifact_id`, `run_id`, `kind` (`screenshot`, `source`, `transcript`, `report`), `width` (null unless a
 screenshot), `path` (relative to `<home>/artifacts/`), `size`, `checksum` (sha-256), `lifetime` (`infinite`, or a duration in
-days), `written`. The import stores a run's final screenshot per measured width, its final source tree as one tar, and the agent
-transcript, each with the lifetime the harness passed (default: screenshots 30 days, source infinite, transcript 90 days; these are
-config in `designConfig.runs`, not constants in code). `gc` deletes artifacts whose `written + lifetime` has passed and the rows
-with them, and deletes imported project state dirs the harness registered (`runs gc --state`), printing each path it removed.
+days), `written`. Each check stores its screenshot per measured width and the design render it measured against, each with the lifetime from
+`designConfig.runs` (default: screenshots 30 days, design renders infinite). `gc` deletes artifacts whose `written + lifetime` has
+passed and the rows with them, printing each path it removed. The `source`, `transcript` kinds and the `lanes` table and
+`--state` flag are gone with the harness.
 
 ### Judgements and reports are data
 
 `judgements`: `run_id`, `target_id`, `width`, `score` (1 to 5), `reason`, `judge_model`, `at`; unique on `(run_id, target_id,
-width, judge_model)`. Written by the harness through the house write (`db.write` into the writable source `design_judgements`).
+width, judge_model)`. Written by the `design:judge` command, or anyone, through the house write (`db.write` into the writable source `design_judgements`).
 
 `reports`: `report_id`, `wave`, `path` (an artifact), `queries` (json: the source queries the report ran, with their parameters),
 `at`. A report file is markdown whose every number was one of those queries' output; the queries are stored next to it so a
@@ -98,71 +118,58 @@ question is a new view with a migration and one IT, never a script.
 
 ## The commands
 
-All are extension CLI commands (`conciv tools design …`), served by the same `ExtensionCliCommands` the extension already
-registers, with the same `db` and `home`. One file per command under `runs/commands/`.
+All are extension CLI commands (`conciv design:<command>`), home scope, served by the `ExtensionCliCommands` the extension already
+registers. One file per command under `runs/commands/`.
 
-| command                                                                                                   | does                                                                                                                               |
-| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `run start <model> <prompt head file> [--wave <name> --lane <label>]`                                     | creates the live run row with its provenance                                                                                       |
-| `run end <verdict> <cost>`                                                                                | closes it                                                                                                                          |
-| `run import <project dir> [--screenshots <dir> --source <dir> --transcript <file> --lifetime kind=days…]` | copies the project's run into the store once, stores the artifacts, returns the store run id                                       |
-| `runs gc [--state]`                                                                                       | deletes expired artifacts and, with `--state`, registered project state dirs; prints what it removed                               |
-| `report <wave>`                                                                                           | renders `wave_summary` and `judged` for the wave to `<home>/artifacts/reports/<wave>.md`, records it in `reports`, prints the path |
+| command                               | does                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `design:judge <wave> [--judge-model]` | for every run and width of the wave without a judgement by this model: shows the design render and the screenshot, two neutral file names, to the judge model through the Claude Code CLI and writes `judgements`; names a run and width whose artifact is missing and writes nothing for it |
+| `design:runs-gc`                      | deletes expired artifacts; prints what it removed                                                                                                                                                                                                                                            |
+| `design:report <wave>`                | renders `wave_summary` and `judged` for the wave to `<home>/artifacts/reports/<wave>.md`, records it in `reports`, prints the path                                                                                                                                                           |
 
-The query is `conciv db query --from design_<source>`; the write is `conciv db write --into design_judgements`. No runs-specific
-query command exists.
+`run start`, `run end` and `run-import` are deleted: the extension records the run itself. The query is
+`conciv db query --from design_<source>`; the write is `conciv db write --into design_judgements`.
 
-## How an agent runs
+## How an agent runs, and how a run is measured
 
-An agent uses the extension through MCP; a run is recorded by design:run start/end and imported with design:run-import.
-
-## What a wave looks like after this
+A user runs `conciv init` in a Vite project, starts the dev server, and the agent (any harness, through MCP or the CLI) calls
+`design_get`, builds, calls `design_check` until `done`. That is the whole product and it records the run. A measured set is the same
+thing with `designConfig.runs.wave` set in the project, as many times as wanted, on any model; then:
 
 ```
-conciv tools design report thirty                                    # <home>/artifacts/reports/thirty.md
+conciv design:judge thirty
+conciv design:report thirty                                          # <home>/artifacts/reports/thirty.md
 conciv db query --from design_wave_summary --where 'wave == "thirty"'
-conciv tools design runs gc --state
+conciv design:runs-gc
 ```
 
 ## Migration of what exists
 
-The store at the scratch path holds 164 runs. It is moved once to the conciv home and migrated; rows whose project dir still exists
-get `project_key`, `branch`, `head`, `wave` and `lane` backfilled from the dir and the run name, the rest keep null. Nothing else
-from the scratch folder is read again.
+The store in the conciv home holds 173 runs. A migration adds `session_id` (null for them) and `status`, set from `ended`
+(`completed` when set, `aborted` when null). Nothing is re-imported.
 
 ## Left to the builder
 
-File layout under `runs/` beyond "one export per file"; the markdown shape of the report (the present `twentynine.store.md` is the
-reference); how `trial wave` waits on its lanes; the tar library for the source artifact.
+File layout under `runs/` beyond "one export per file"; the markdown shape of the report (the present `thirty.md` is the reference);
+how the session's run id reaches each writer (a map in the design runtime keyed by session id is enough).
 
 ## Rulings from the builder check
 
-1. **Home scope in the host.** Extension CLI commands gain `options` (named flags with types) beside `positionals`, and a
-   `scope`: `project` (today's: an RPC to the engine of the project the working directory is in) or `home` (an RPC to any live
-   engine that owns the extension, found in `<home>/home.db`'s `engines` table, since extension code only runs inside an app). A
-   home-scoped command opens the extension's store in the conciv home and never touches the engine's project database. `run start`
-   and `run end` are project scope; `run import`, `runs gc` and `report` are home scope. The sources of the store are cataloged in
-   `<home>/home.db` by the extension at load, in the `sources` table shape the project catalog uses; `conciv db query` and
-   `conciv db write` resolve a source in the project catalog first, then the home catalog, and with no project around they use the
-   home catalog alone, reading the store file directly. These are `@conciv/extension`, `@conciv/db` and `@conciv/cli` members and
-   come first, each with its unit test.
-2. **gc deletes artifacts and lanes, never runs.** Runs have no lifetime; the tables are kept. `runs gc` deletes artifact files
-   past `written + lifetime` and their `artifacts` rows. `runs gc --state` deletes lane directories recorded in a store table
-   `lanes` (`run_id`, `path`, `registered`) that the harness writes at import; it never reads `source_path` and never touches a
-   run that has no lane row.
-3. **The design render is an artifact.** Artifact kind `design`: the target's rendered image per measured width, lifetime
-   infinite. The judge reads `design` and `screenshot` artifacts of a run from the store and nothing from a run dir.
-4. **A lane is a copy, served and stated in one place.** `trial wave` copies the pristine host fixture into `<lane root>/<wave>/<lane>`;
-   `trial serve --project <dir>` uses that dir as the vite root and keeps the state in `<dir>/.conciv`. A lane has no git, so its
-   `project_key` is the fixture's package name, shared by every trial run of that fixture, and `branch` and `head` are null; the tool
-   version is carried by the next ruling.
-5. **The tool version is head plus fingerprint.** `tools_head` is the head commit of the checkout the design extension is loaded
-   from (null for a published package, with `tools_version` the package version), and `tools_fingerprint` is the existing
-   `projectFingerprint` of the extension package, so a dirty tree is told apart from its head.
-6. **Existing rows migrate by SQL, old files are not adopted.** The 167 runs in the scratch store are moved once to the conciv home.
-   A drizzle migration backfills `wave` and `lane` from the run dir name in `source_path` (the name up to its first `-` is the
-   wave, the rest is the lane); `project_key`, `branch`, `head`, `tools_*` stay null for them. Their old `final-src` and
-   transcripts are not read: they have no artifacts, and the judge json of past waves stays in the journal as history.
-7. **Who migrates, and column strictness.** The store is migrated whenever it is opened: by the design server at boot and by any
-   home-scoped command. The import refuses a live column the store lacks (a missing migration), and fills with null a store column
-   the live database lacks (an older project).
+1. **Home scope in the host.** Extension CLI commands have `options` (named flags with types) beside `positionals`, and a `scope`:
+   `project` or `home` (an RPC to any live engine that owns the extension, found in `<home>/home.db`'s `engines` table, since
+   extension code only runs inside an app). Every runs command is home scope. The sources of the store are cataloged in
+   `<home>/home.db` by the extension at load; `conciv db query` and `conciv db write` resolve a source in the project catalog
+   first, then the home catalog, and with no project around they use the home catalog alone, reading the store file directly.
+   Built; stays.
+2. **gc deletes artifacts, never runs.** Runs have no lifetime; the tables are kept.
+3. **The design render is an artifact.** Artifact kind `design`: the render per measured width, lifetime infinite, written by the
+   check that measured against it. The judge reads `design` and `screenshot` artifacts of a run from the store and nothing else.
+4. **Provenance from the project the engine serves.** `project_key` is the catalog's key of the engine's cwd: origin remote URL plus
+   the path inside the repo for a tracked directory, the package name for an untracked copy; `branch` and `head` from git when
+   tracked, else null. `tools_head` is the head commit of the checkout the extension is loaded from (null for a published package,
+   with `tools_version` the package version) and `tools_fingerprint` the extension package's `projectFingerprint`.
+5. **The store is migrated whenever it is opened**, by the design server at boot and by any home-scoped command.
+6. **One writer per run.** The engine whose session opened the run is the only writer of its rows while it is `running`. Another
+   engine reading the store sees the run through views only. SQLite in WAL mode carries the concurrent engines.
+7. **The old per-project live database is dropped, not migrated.** A project's `.conciv/conciv.db` design tables hold at most one
+   unfinished run; nothing reads them after this change, and the design migrations for the `'run'` shape are deleted.

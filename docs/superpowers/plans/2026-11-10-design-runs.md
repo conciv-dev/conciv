@@ -21,98 +21,80 @@
 
 ## Review Focus
 
-1. A second `run import` of the same project returns the first run id and changes no row (unique pair, no partial copy).
-2. `run import` on a project whose live db has a column the store lacks refuses with the column name, and copies nothing.
-3. `runs gc --state` never deletes a path that is not in `lanes`; a run imported without a lane row is untouched.
-4. `conciv db query --from design_run_summary` from a directory with no project reads the home catalog and works.
-5. `trial judge` on a run whose `design` or `screenshot` artifact is missing names the run and width and writes no judgement.
+1. `conciv db query --from design_run_summary` from a directory with no project reads the home catalog and works.
+2. A `design_check` after the engine restarted mid-run (the chat run swept to `aborted`) opens a new design run; the old row says `aborted` and keeps its rounds.
+3. Two engines on two projects writing the store at once leave both runs intact (WAL; one writer per run).
+4. `design:judge` on a run whose `design` or `screenshot` artifact is missing names the run and width and writes no judgement.
+5. A page whose rendered height is far beyond the design frame gets a row and cannot be `done`.
 
 ---
 
-### Task 1: options and scope on extension commands, home catalog, home-scoped `db`
+Tasks 1 to 5 of the first build are done (home scope, store schema, views, gc, report). What follows replaces the per-project live
+database, `run start/end` and `run-import` with the extension writing the store itself, per the spec's "The data model", "A run
+rides the house run lifecycle" and "The commands".
+
+### Task 8: the extension writes the store, keyed by session
 
 **Files:**
 
-- Modify: `packages/extension/src/types.ts` (`ExtensionCliCommand`), `packages/extension/src/extension-db.ts`
-- Modify: `packages/db/src/source-types.ts` (`CatalogCommand`), `packages/db/src/catalog-schema.ts`, `packages/db/src/source-catalog.ts`, `packages/db/src/home-schema.ts`, a new `packages/db/src/home-catalog.ts`
-- Modify: `packages/cli/src/extension-commands.ts`, `packages/cli/src/local-catalog.ts`, `packages/cli/src/db.ts`, `packages/cli/src/request.ts`
-- Test: `packages/db/test/home-catalog.test.ts`, `packages/cli/test/extension-commands.test.ts` (match the existing test layout of each package)
+- Modify: `packages/extensions/design/src/server.ts` (open `openStore(server.home)` as the one db; `createStore({db: store, …})`; `openHomeDb` stays)
+- Modify: `packages/extensions/design/src/server/tables.ts` (`designTables(table)` store shape only; `runs` gains `session_id: text()`, `status: text({enum: RUN_STATUSES})` where the enum is TanStack's `RunStatus` values re-exported by `@conciv/protocol/chat-event-types`; `prompt_head` nullable)
+- Modify: `packages/extensions/design/src/server/store.ts`, `write-fom.ts`, `runner.ts`, `differ.ts`, `xray-routes.ts` and every reader of `openRun(db)`: the run id comes from a `runs` map in the design runtime keyed by `sessionId` (`ToolRequest.sessionId` is on every tool call); `design_get` with no entry inserts the run row with provenance (`provenanceOf`, `projectKey(server.cwd)`), `status: 'running'`, `model` from the request, and stores the id
+- Delete: `packages/extensions/design/src/server/runs/open-run.ts`, `runs/commands/run-start.ts`, `run-end.ts`, `run-import.ts`, `runs/import/*`, `store-tables.ts` `lanes`, the `'run'` branch of `designTables`, `packages/extensions/design/drizzle/*` (the per-project design migrations; the store migrations under `drizzle-runs/` stay and gain one)
+- Test: `packages/it/test/design.it.test.ts`, describe "the store is written at the source"
 
 **Interfaces:**
 
-- Produces: `ExtensionCliCommand = {description; positionals: readonly string[]; options?: Record<string, {type: 'string' | 'boolean' | 'number'; description: string; multiple?: boolean}>; scope?: 'project' | 'home'; run(input: {args: string[]; options: Record<string, string | number | boolean | string[]>; db; home}) => unknown}`
-- Produces: `CatalogCommand` gains `options` (json) and `scope`; `sources` catalog rows in `home.db` under the same `sources` table; `homeCatalog(home: string): {sources: ReturnType<typeof catalogSources>; commands: CatalogCommand[]}` in `@conciv/db`.
-- Produces: in the CLI, `localCatalog()` returns the project catalog merged over the home catalog (project first), or the home catalog alone with no project; a `scope: 'home'` command is sent by `runRpc` to the first live engine from `listEngines(openHomeDb(home))` whose project catalog lists the extension.
+- Produces: `runtime.runs: {of(sessionId): Promise<number>, close(sessionId, state: {status, ended, cost}): Promise<void>}` (one file `runs/session-runs.ts`)
 
-- [ ] Step 1: Failing unit tests. `home-catalog.test.ts`: `sourceCatalog({extension, sources, home, database: 'runs'})` writes rows into `<home>/home.db` and `homeCatalog(home).sources.list()` returns them; a project catalog over the same name wins in `localCatalog`. `extension-commands.test.ts`: a command with `options: {wave: {type: 'string'}}` and `scope: 'home'` renders `--wave` and is dispatched with `{args, options: {wave: 'thirty'}}` to the engine picked from `engines`.
-- [ ] Step 2: Run them; they fail on missing members.
-- [ ] Step 3: Implement the types and the catalog writes; generate the `@conciv/db` migrations for `sources` and `commands` (`options`, `scope`) in both the project catalog and `home.db`.
-- [ ] Step 4: Implement the CLI: `option()` from `@bomb.sh/router` per declared option; `runRpc` with `scope`.
-- [ ] Step 5: Gates in `db`, `extension`, `cli`; the new tests pass; existing tests pass.
-- [ ] Step 6: Commit `host: extension commands take options and a scope, and a home catalog serves the store`.
+- [ ] Step 1: failing IT: with a temp `CONCIV_HOME`, drive `design_get` then one `design_check` through the IT host as the existing describes do; assert through the home catalog (`conciv db query --from design_stored_runs`) one run with `status == 'running'`, `session_id` set, `project_key` the fixture's package name, and a `design_stored_rounds` row for it. Assert the project's `.conciv/conciv.db` has no `design_runs` table.
+- [ ] Step 2: run it, keep the failing line.
+- [ ] Step 3: implement as listed. Migration `drizzle-runs/<ts>_runs_session_status`: add `session_id`, `status` with backfill `completed` where `ended` is not null, `aborted` otherwise.
+- [ ] Step 4: gates; `design.it.test.ts` whole (the old "run start and run end", "run import", "runs gc --state" describes are deleted with the commands; "report" and "runs gc" artifact describes stay and must pass).
+- [ ] Step 5: commit `design: the extension writes its runs to the store as they happen`.
 
-### Task 2: the store schema, views and sources, old runs code deleted
+### Task 9: the design run closes with the chat run
 
 **Files:**
 
-- Modify: `packages/extensions/design/src/server/tables.ts` (`runs` columns), `packages/extensions/design/src/shared/tolerances.ts` (`designConfig.runs`: artifact lifetimes in days)
-- Create: `packages/extensions/design/src/server/runs/{open-store.ts, store-tables.ts, sources.ts, relations.ts}`, `runs/views/{run-summary.ts, round-rows.ts, lowest-rendered.ts, page-height-rows.ts, broken-rounds.ts, mispairs.ts, lost-components.ts, hint-vs-drawn.ts, kit-per-round.ts, judged.ts, wave-summary.ts, index-of-views.ts}` (the last exports `runsViews`)
-- Delete: `src/server/{runs.ts, commands.ts, runs-store.ts, runs-tables.ts, runs-sources.ts, import-run.ts, views.ts}`, the runs part of `relations.ts`, `drizzle-runs/` (regenerated)
-- Test: `packages/it/test/design-runs.it.test.ts` (new; the runs tests move out of `design.it.test.ts`)
+- Modify: `packages/extension/src/types.ts` (server member `turns: {onEnd(listener: (turn: {sessionId: string; runId: string}, run: RunLifecycle) => Promise<void>): () => void}`), `packages/it` host wiring where `TurnHooks` is built (`packages/chat/src/turn.ts` builds them: fan `end` out to extension listeners)
+- Modify: `packages/extensions/design/src/server.ts` subscribes; `runs/session-runs.ts` `close` writes `status`, `ended`, `cost` (from `usage`, the same cost field the session's usage snapshot carries), `verdict` from the last round, guarded `where status = 'running'`
+- Test: `design.it.test.ts`, describe "a run closes with its turn"
 
-**Interfaces:**
+- [ ] Step 1: failing IT: after `design_get` + `design_check`, end the turn through the host the way the chat ITs do (the IT kit's fake harness ends a turn; if none exists, call the host's `TurnHooks.end` through the IT host fixture's server handle), then assert `status == 'completed'`, `ended` set; call the close a second time with a different status and assert the row is unchanged.
+- [ ] Step 2: run, keep the failing line.
+- [ ] Step 3: implement.
+- [ ] Step 4: gates (`@conciv/extension`, `@conciv/chat`, `@conciv/it`, `extensions/design`), design IT whole.
+- [ ] Step 5: commit `design: a run closes with its chat run`.
 
-- Produces: `runs` gains `project_key text`, `branch text`, `head text`, `wave text`, `lane text`, `tools_head text`, `tools_version text`, `tools_fingerprint text` in both shapes; store-only tables `artifacts(artifact_id pk, run_id fk, kind enum design|screenshot|source|transcript|report, width real, path text, size integer, checksum text, lifetime text, written integer)`, `lanes(run_id fk unique, path text, registered integer)`, `judgements(run_id fk, target_id, width, score integer check 1..5, reason text, judge_model text, at integer; unique(run_id,target_id,width,judge_model))`, `reports(report_id pk, wave text, artifact_id fk, queries json, at integer)`.
-- Produces: `openStore(home: string): {file; orm; close}` migrating on open; `storeSources(): Record<string, Source>` (every store table as `stored_<name>`, every view by name, `judgements` writable).
-- Produces: views `wave_summary(wave, width, runs, done, median_rows, median_pixels, median_cost, median_lowest_rendered)` and `judged(run, wave, lane, target, width, verdict, rows, pixels, score, reason)`; the nine present views ported file by file with their SQL unchanged.
-
-- [ ] Step 1: Failing IT: a store opened in a temp home has every table and view as a source; `wave_summary` over two inserted runs gives `done` counts and medians; `judgements` accepts a `db.write` and refuses one with `score: 6`.
-- [ ] Step 2: Run it; fails.
-- [ ] Step 3: Implement; `pnpm gen-migrations` for both migration folders; delete the old files and fix every import.
-- [ ] Step 4: Gates; `design.it.test.ts` with the runs tests removed still passes; the new IT passes.
-- [ ] Step 5: Commit `design: the runs store schema, its views and sources, rebuilt`.
-
-### Task 3: `run start` and `run end` write provenance
+### Task 10: artifacts at the source, and `design:judge`
 
 **Files:**
 
-- Create: `src/server/runs/commands/run-start.ts`, `run-end.ts`, `provenance.ts` (`provenanceOf(input: {cwd: string; extensionDir: string}): Promise<{project_key; branch; head; tools_head; tools_version; tools_fingerprint}>`), `src/server/runs/commands/design-commands.ts` (exports `DESIGN_COMMANDS`)
-- Modify: `src/server.ts` to register them
+- Modify: `packages/extensions/design/src/server/runner.ts` (each check writes its screenshot per width and the design render it measured against as `artifacts` rows with files under `<home>/artifacts/<run>/`, lifetimes from `designConfig.runs`; reuse `runs/import/store-artifacts.ts`'s file writing by moving it to `runs/artifacts.ts` before Task 8 deletes the import folder)
+- Create: `packages/extensions/design/src/server/runs/commands/judge.ts` (`design:judge <wave> [--judge-model]`, home scope: for each run and width of the wave without a judgement by that model, copy the design and screenshot artifacts to two neutral names in a temp dir, run `claude -p` with the Read tool and a fixed prompt asking for a 1 to 5 score and a one-line reason judging only what is visible, write `judgements` through the catalog's writable source; a missing artifact is named in the output and nothing is written for it)
+- Modify: `design-commands.ts`, `runs-gc.ts` (drop `--state` and `lanes`)
+- Test: `design.it.test.ts`, describes "artifacts at the source" and "design:judge"
 
-**Interfaces:**
+- [ ] Step 1: failing ITs: (a) after one check, `design_stored_artifacts` has one `screenshot` and one `design` row per measured width with existing files; (b) `conciv design:judge <wave>` on a run whose screenshot file was removed prints the run and width and `design_stored_judgements` stays empty.
+- [ ] Step 2: run, keep failing lines.
+- [ ] Step 3: implement.
+- [ ] Step 4: gates, design IT whole.
+- [ ] Step 5: commit `design: artifacts are written by the check, and design:judge scores them`.
 
-- Consumes: `projectKey` and `projectFingerprint` from `server/catalog/`.
-- Produces: `run start <model> <prompt head file> --wave <name> --lane <label>` (project scope) inserting one `runs` row with every provenance column; `run end <verdict> --cost <n>`.
-
-- [ ] Step 1: Failing IT in `design-runs.it.test.ts`: `run start` in a git fixture dir yields `branch`, `head`, `project_key = <remote>#<prefix>`, `tools_fingerprint` non-null, `wave`, `lane`; in a dir without git, `project_key` is the package name and `branch` null.
-- [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `design: a run carries its provenance from run start`.
-
-### Task 4: `run import` with artifacts and lanes, strict columns, one-time move of the store
-
-**Files:**
-
-- Create: `src/server/runs/commands/run-import.ts`, `src/server/runs/import/{copy-run.ts, store-artifacts.ts, column-check.ts}`
-- Create: a drizzle migration in the store folder that backfills `wave` and `lane` from `source_path` with `substr`/`instr` as the spec says
-
-**Interfaces:**
-
-- Produces: `run import <project dir> --screenshots <dir> --design <dir> --source <dir> --transcript <file> --lane <dir> --lifetime <kind=days>…` (home scope) returning `{runId, imported, copied, artifacts}`; artifacts written under `<home>/artifacts/<runId>/`; `lanes` row when `--lane` given.
-
-- [ ] Step 1: Failing ITs: import twice returns the same id and `imported: false`; a live db with an extra column refuses naming it; a live db missing `wave` imports with null; artifacts rows and files exist with checksums; the backfill migration splits `twentyfour-figma7-1/state` into `twentyfour` and `figma7-1`.
-- [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `design: a run is imported once, with its artifacts and its lane`.
-- [ ] Step 6: Move the scratch store once: copy `runs.db` from the scratch home into the conciv home, open it with `openStore` so it migrates; report `design_runs` count through `conciv db query`.
-
-### Task 5: `runs gc` and `report`
+### Task 11: a collapsed render is a row
 
 **Files:**
 
-- Create: `src/server/runs/commands/runs-gc.ts`, `report.ts`, `src/server/runs/report/{render-wave.ts, queries.ts}`
+- Modify: `packages/extensions/design/src/server/gate.ts` or `reflow.ts` (where width rows are made): a row when the measured page height exceeds the design frame height by more than the tolerance `page-height.ts` already uses; wording like the other rows; verdict not `done` while it stands
+- Test: `design.it.test.ts`, existing `design_check` describe
 
-**Interfaces:**
+- [ ] Step 1: failing IT with a fixture page whose body has a very large `min-height`: the check returns a row naming the page height and the verdict is not `done`.
+- [ ] Step 2: run, keep the failing line. Step 3: implement. Step 4: gates, design IT whole.
+- [ ] Step 5: commit `design: a page far taller than its design is a row`.
 
-- Produces: `runs gc [--state]` printing `{removed: string[]; kept: number}`; `report <wave>` writing `<home>/artifacts/reports/<wave>.md`, a `reports` row with the queries json, printing the path.
+### Task 12: docs and migration of the real store
 
-- [ ] Step 1: Failing ITs: an artifact written with lifetime 0 days is removed and one with infinite kept; `--state` removes a registered lane dir and leaves an unregistered dir; `report` for a wave with two runs renders a table whose cells equal `wave_summary` and `judged` reads.
-- [ ] Step 2: Fails. Step 3: implement. Step 4: gates. Step 5: Commit `design: gc deletes expired artifacts and lanes, report renders the store`.
-
-An agent uses the extension through MCP; a run is recorded by design:run start/end and imported with design:run-import.
+- [ ] Update the spec's "Left to the builder" and the README of `extensions/design` (runs section: how a run is recorded, the three commands, the queries). Delete `docs/superpowers/specs/2026-11-10-design-runs-store-design.md` (superseded, its content is in git).
+- [ ] With the real conciv home, start the IT host fixture once (the store migrates on open), then `conciv db query --from design_stored_runs --select status --limit 3` to show the backfilled statuses; stop what you started; remove the fixture's `.conciv`.
+- [ ] commit `docs: runs written at the source`.
