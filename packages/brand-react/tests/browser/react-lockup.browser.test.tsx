@@ -2,7 +2,7 @@ import {act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {page, userEvent} from 'vitest/browser'
 import {expect, it, onTestFinished} from 'vitest'
-import {ConcivLockup} from '../../src/react/conciv-lockup.js'
+import {ConcivLockup} from '../../src/conciv-lockup.js'
 import {antennaOf, cursorOf, SETTLE_WINDOW_MS, TRAILING_FRAME_MS, wait} from './lockup-dom.js'
 
 declare global {

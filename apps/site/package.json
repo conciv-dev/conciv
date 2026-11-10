@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@conciv/brand": "workspace:*",
+    "@conciv/brand-react": "workspace:*",
     "@conciv/embed": "workspace:*",
     "@conciv/extension-terminal": "workspace:*",
     "@conciv/extension-try-it": "workspace:*",

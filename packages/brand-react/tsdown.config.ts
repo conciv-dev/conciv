@@ -1,12 +1,10 @@
 import {defineConfig} from 'tsdown'
 
 export default defineConfig({
-  entry: {react: 'src/react/conciv-lockup.tsx'},
-  tsconfig: 'tsconfig.react.json',
+  entry: ['src/conciv-lockup.tsx'],
   format: 'esm',
   fixedExtension: false,
   dts: false,
-  clean: false,
-  external: [/^@conciv\//, 'react', /^motion/],
+  external: ['react', /^motion/],
   banner: {js: "'use client';"},
 })

@@ -1,1 +1,1 @@
-{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"], "include": ["${configDir}/src/solid"]}
+{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}

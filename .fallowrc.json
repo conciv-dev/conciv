@@ -198,7 +198,7 @@
     }
   ],
   "entry": [
-    "packages/brand/src/react/conciv-lockup.tsx",
+    "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",

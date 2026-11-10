@@ -1,8 +1,8 @@
-# brand/src/react
+# brand-react/src
 
 ## Overview
 
-React version of the conciv logo: the full lockup (mark plus wordmark) and the standalone mark, rendered as inline SVG path data. With `interactive` set, the lockup runs a hover/focus animation built on `motion/react`. `conciv-lockup.tsx` is the entry for the package's `./react` export (built by tsdown, `tsdown.config.ts` entry `react`).
+React version of the conciv logo: the full lockup (mark plus wordmark) and the standalone mark, rendered as inline SVG path data. With `interactive` set, the lockup runs a hover/focus animation built on `motion/react`. `conciv-lockup.tsx` is the package's `.` export (built by tsdown, `tsdown.config.ts`).
 
 ## Interface
 
@@ -27,4 +27,4 @@ React version of the conciv logo: the full lockup (mark plus wordmark) and the s
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/brand` from the repo root (turbo builds the package and its dependencies first) (Vitest project `brand-react-browser`); typecheck with `pnpm typecheck` (`tsconfig.react.json`).
+- Run: `pnpm exec turbo run test --filter=@conciv/brand-react` from the repo root (turbo builds the package and its dependencies first) (Vitest project `brand-react-browser`); typecheck with `pnpm exec turbo run typecheck --filter=@conciv/brand-react`.

@@ -236,7 +236,7 @@
         "apps/site/**",
         "packages/react/**",
         "packages/preact/**",
-        "packages/brand/src/react/**",
+        "packages/brand-react/**",
         "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
         "packages/extensions/page/test/fixtures/**",
