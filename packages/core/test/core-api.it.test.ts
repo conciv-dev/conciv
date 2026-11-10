@@ -4469,11 +4469,19 @@ describe('session activity recorded with its chat messages', () => {
     expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
   })
 
-  it('a chat message never overwrites a title the session already has', async () => {
+  it('a chat message never overwrites a title the session already has, nor titles a native-backed session', async () => {
     const sessionId = await staleSession()
     await kit().rpc.sessions.rename({sessionId, title: 'kept'})
     await runTurn(kit(), 'a different first message', sessionId)
     expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
+    const native = await staleSession()
+    const nativeId = HarnessSessionId.parse(randomUUID())
+    made().chat.db.update(sessions).set({harnessSessionId: nativeId}).where(eq(sessions.id, native)).run()
+    const before = Date.now()
+    await runTurn(kit(), 'a message to a native session', native)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
+    expect(row?.title).toBeNull()
+    expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
   })
 
   it('a session with no messages keeps its row time and the New session title', async () => {
