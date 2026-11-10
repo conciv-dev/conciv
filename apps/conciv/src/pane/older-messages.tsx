@@ -19,7 +19,7 @@ export function OlderMessages(props: {sessionId: string; chat: ChatSession}): JS
     queryKey: [...pagesKey(), oldestId()],
     queryFn: () => props.chat.loadOlderMessages().then(() => true),
     enabled: wanted() ? (query) => query.state.status !== 'error' : false,
-    staleTime: Infinity,
+    refetchOnWindowFocus: false,
     gcTime: 0,
     retry: false,
   }))

@@ -458,14 +458,14 @@ function useSessionChoices(sessionId: () => string) {
   const pane = usePane()
   const refetchSessionHarness = useRefetchSessionHarness()
   const setModel = useMutation(() => ({
-    mutationFn: (model: string) => rpc.sessions.model({sessionId: sessionId(), model}),
+    mutationFn: (input: {sessionId: string; model: string}) => rpc.sessions.model(input),
     onError: () => announce(SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: (_result, _error, input) => appData.invalidateSession(input.sessionId),
   }))
   const setEffort = useMutation(() => ({
-    mutationFn: (effort: ReasoningEffort | null) => rpc.sessions.effort({sessionId: sessionId(), effort}),
+    mutationFn: (input: {sessionId: string; effort: ReasoningEffort | null}) => rpc.sessions.effort(input),
     onError: () => announce(EFFORT_SWITCH_FAILED, true),
-    onSettled: () => appData.invalidateSessions(),
+    onSettled: (_result, _error, input) => appData.invalidateSession(input.sessionId),
   }))
   const switchHarness = useMutation(() => ({
     mutationFn: (target: SwitchTarget) =>
@@ -509,10 +509,10 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
   const harness = () => entries().find((entry) => entry.id === ownEntry()?.id)
   const models = () => harness()?.models ?? []
   const value = () =>
-    (setModel.isPending ? setModel.variables : undefined) ?? row()?.model ?? harness()?.defaultModel ?? null
+    (setModel.isPending ? setModel.variables?.model : undefined) ?? row()?.model ?? harness()?.defaultModel ?? null
   const current = createMemo(() => models().find((model) => model.id === value()))
   const effort = createMemo(() =>
-    listedEffort(setEffort.isPending ? (setEffort.variables ?? null) : (row()?.effort ?? null), current()),
+    listedEffort(setEffort.isPending ? (setEffort.variables?.effort ?? null) : (row()?.effort ?? null), current()),
   )
   const shownName = () =>
     loading() ? MODELS_LOADING : promptName(harness(), current()?.name ?? value() ?? '', named())
@@ -579,11 +579,11 @@ function SessionModelMenu(props: SessionModelPromptProps): JSX.Element {
       return
     }
     close()
-    if (picked.model.id !== value()) setModel.mutate(picked.model.id)
+    if (picked.model.id !== value()) setModel.mutate({sessionId: props.sessionId, model: picked.model.id})
   }
   const selectEffort = (next: ReasoningEffort | null) => {
     if (next === effort()) return
-    setEffort.mutate(next)
+    setEffort.mutate({sessionId: props.sessionId, effort: next})
   }
   createEffect(
     on(

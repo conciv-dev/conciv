@@ -38,7 +38,7 @@ The chat pane for one session: transcript, composer with attachments and element
 ## Side Effects
 
 - `draft-storage.ts:makeDraftStorage`, `appendDraft`: `rpc.drafts.get` and `rpc.drafts.set`; write errors are swallowed
-- `use-pane-messaging.ts:usePaneMessaging`: `rpc.chat.uiReply` and `rpc.sessions.compact`, then `invalidateSessions`
+- `use-pane-messaging.ts:usePaneMessaging`: `rpc.chat.uiReply` and `rpc.sessions.compact`, then `invalidateSession` for the pane's session
 - `refresh-coordinator.ts:run`: `chat().refresh()` and refetches `sessions.list`, `sessions.search`, the pane's `sessions.get`, `markers.list`, `captures.list`; screen reader announcements
 - `chat-pane.tsx:ChatPane`: announces `conciv is asking for permission.` and `conciv replied.`; invalidates sessions and refetches markers when a run settles
 - `trigger-sources.ts:useComposerTriggerSources`: `ensureQueryData` for `meta.commands` and `meta.tools`

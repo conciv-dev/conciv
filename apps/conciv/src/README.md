@@ -6,7 +6,7 @@ Router factory, standalone browser entry, generated TanStack route tree and modu
 
 ## Interface
 
-- `createConcivRouter(config)` (`router.tsx`): builds the Solid router with QueryClient, AppData, extension instances (always prepends the `highlight` extension), engine reachability and router context
+- `createConcivRouter(config)` (`router.tsx`): builds the Solid router with a QueryClient whose queries never go stale on their own (`staleTime: Infinity`; data changes through a server push, an invalidation after our own action, or a window refocus, `refetchOnWindowFocus: 'always'`), AppData, extension instances (always prepends the `highlight` extension), engine reachability and router context
 - `disposeConcivRouter(router)` (`router.tsx`): calls `router.options.context.disposeInstances()`
 - `ConcivRouterContext`, `ConcivRouterConfig`, `ConcivEnvironment` types (`router.tsx`)
 - `routeTree` (`routeTree.gen.ts`): generated; full paths `/`, `/panel`, `/quick`, `/panel/$sessionId`, `/panel/connect`, `/panel/latest`, `/pip/$sessionId`, `/panel/$sessionId/`, `/panel/$sessionId/$view`, `/panel/$sessionId/settings` and its tab routes

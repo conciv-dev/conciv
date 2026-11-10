@@ -75,7 +75,6 @@ export function EngineOutdatedNotice(): JSX.Element {
   const engineVersion = useQuery(() => ({
     queryKey: ['conciv', 'engine-version', apiBase()],
     queryFn: async () => (await fetch(`${apiBase()}/health`)).headers.get(CONCIV_VERSION_HEADER),
-    staleTime: Number.POSITIVE_INFINITY,
   }))
   const outdated = (): boolean => engineVersion.isSuccess && engineOlderThanWidget(engineVersion.data)
   return (
