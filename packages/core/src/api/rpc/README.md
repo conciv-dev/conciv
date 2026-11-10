@@ -9,7 +9,7 @@ oRPC router that implements the `@conciv/contract` procedures for sessions, chat
 - `makeRpcRouter(deps)` (`router.ts`): builds the full router
 - RPC `sessions.list`, `.preview`, `.create`, `.resolve`, `.open`, `.restore`, `.rename`, `.delete`, `.model`, `.effort`, `.compact`, `.switchHarness` (`sessions.ts`, `sessionsRouter`)
 - RPC `chat.events` (streaming), `chat.hydrate`, `chat.stop`, `chat.permissionDecision`, `chat.uiReply` (`chat.ts`, `chatRouter`)
-- RPC `settings.all`, `settings.set`, `settings.delete`, `settings.changes` (streaming) (`router.ts`): one `{scope: 'global' | 'project', namespace}` settings file each, every answer the full `{version, value}` snapshot
+- RPC `settings.all`, `settings.set`, `settings.delete`, `settings.changes` (streaming) (`router.ts`): one `{scope: 'global' | 'project', namespace}` settings file each, every answer the full `{generation, version, value}` snapshot
 - RPC `drafts.get`, `drafts.set`, `markers.list`, `navigation.get`, `navigation.set`, `captures.list` (`router.ts`)
 - RPC `registry.catalog`, `registry.call` (`router.ts`)
 - RPC `page.symbolicate`, `page.changes`, `page.clearChanges`, `page.queries` (streaming), `page.reply` (`router.ts`)
