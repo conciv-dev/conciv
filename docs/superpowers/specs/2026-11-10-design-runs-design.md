@@ -150,12 +150,14 @@ reference); how `trial wave` waits on its lanes; the tar library for the source 
 ## Rulings from the builder check
 
 1. **Home scope in the host.** Extension CLI commands gain `options` (named flags with types) beside `positionals`, and a
-   `scope`: `project` (today's: an RPC to the project's engine) or `home` (runs in the CLI process against the conciv home, with
-   the extension's store opened directly, no engine). `run start` and `run end` are project scope; `run import`, `runs gc` and
-   `report` are home scope. The sources of a home-scoped database are cataloged in `<home>/home.db` by the extension at load, in
-   the same `sources` table shape the project catalog uses; `conciv db query` and `conciv db write` resolve a source in the project
-   catalog first, then the home catalog, and with no project around they use the home catalog alone. These are `@conciv/extension`,
-   `@conciv/db` and `@conciv/cli` members and come first, each with its unit test.
+   `scope`: `project` (today's: an RPC to the engine of the project the working directory is in) or `home` (an RPC to any live
+   engine that owns the extension, found in `<home>/home.db`'s `engines` table, since extension code only runs inside an app). A
+   home-scoped command opens the extension's store in the conciv home and never touches the engine's project database. `run start`
+   and `run end` are project scope; `run import`, `runs gc` and `report` are home scope. The sources of the store are cataloged in
+   `<home>/home.db` by the extension at load, in the `sources` table shape the project catalog uses; `conciv db query` and
+   `conciv db write` resolve a source in the project catalog first, then the home catalog, and with no project around they use the
+   home catalog alone, reading the store file directly. These are `@conciv/extension`, `@conciv/db` and `@conciv/cli` members and
+   come first, each with its unit test.
 2. **gc deletes artifacts and lanes, never runs.** Runs have no lifetime; the tables are kept. `runs gc` deletes artifact files
    past `written + lifetime` and their `artifacts` rows. `runs gc --state` deletes lane directories recorded in a store table
    `lanes` (`run_id`, `path`, `registered`) that the harness writes at import; it never reads `source_path` and never touches a
