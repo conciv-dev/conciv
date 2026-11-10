@@ -123,7 +123,7 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       const ordered = orderedTwin({vote, entry, scored, pick})
       const painted = paintedTwin({pick, scored, byPath, node: entry.node})
       const outer = painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted
-      const chosen = {...pick, path: ordered ?? outer}
+      const chosen = {...pick, path: ordered ?? holdingTwin({vote, entry, pick, scored, path: outer})}
       paired({vote, node: entry.node.id, pick: chosen})
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
@@ -414,6 +414,30 @@ function outermostTwin(input: {pick: Pick; scored: Scored[]; byPath: Map<string,
     })
     .toSorted((a, b) => a.chain.length - b.chain.length)
   return outer[0]?.path ?? pick.path
+}
+
+function holdingTwin(input: {vote: Vote; entry: Node; pick: Pick; scored: Scored[]; path: string}): string {
+  const {vote, pick, path} = input
+  const texts = [...walk(input.entry.node)].flatMap(({node}) => (node.kind === 'text' ? [normalized(node.text)] : []))
+  const said = texts.filter(Boolean)
+  if (pick.margin > TWIN_MARGIN || said.length === 0 || holdsAll({vote, path, said})) return path
+  const winner = vote.byPath.get(path)
+  const holders = input.scored
+    .filter(
+      (rival) =>
+        pick.score - rival.score <= TWIN_MARGIN &&
+        winner?.ancestors.has(rival.path) === true &&
+        holdsAll({vote, path: rival.path, said}),
+    )
+    .toSorted((a, b) => (vote.byPath.get(b.path)?.chain.length ?? 0) - (vote.byPath.get(a.path)?.chain.length ?? 0))
+  return holders[0]?.path ?? path
+}
+
+function holdsAll(input: {vote: Vote; path: string; said: string[]}): boolean {
+  const {vote, path} = input
+  const held = vote.elements.filter((element) => element.path === path || element.ancestors.has(path))
+  const text = normalized(held.map((element) => element.text).join(' '))
+  return input.said.every((line) => text.includes(line))
 }
 
 function solidFill(node: DesignNode): string | null {
