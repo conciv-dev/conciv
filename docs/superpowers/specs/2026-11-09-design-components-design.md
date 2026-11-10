@@ -299,3 +299,23 @@ for it by name.
 
 Measure: `xray9-round-cat-1..2` from the committed overlay (which renders Chip, Switch and `SegmentGroup.Indicator`); the
 count is kit imports kept and the rows the agent cleared by restoring the component.
+
+## The call site is stamped (2026-11-10, after Task 7d)
+
+Rule 4 cannot fire on the x-ray round: the relation only knows keyed host elements, and a kit component's markup comes
+from a prebuilt dist with no stamp, so `<Chip>` at `panel.tsx:372` leaves nothing on the page that says Chip. The
+"Dependencies" section already rules that attribution stops at the call site; this makes the call site visible.
+
+The compiler (`extension-compiler`, `inject-source.ts`) stamps a component opening whose tag is imported from anything
+but the framework's own package (so `Show`, `For`, `Portal`, `Suspense` from `solid-js` and React's own exports get
+nothing, as c18e2704d ruled) with one prop, `data-conciv-site="<file>:<line>"`, the same path form as `data-conciv-source`.
+Keys still land on host elements only. A component that forwards its rest props lands the site on its root element; one
+that does not leaves no trace, and the report of the walk says how many sites were lost that way (the catalog knows the
+call sites per file; the page knows which landed).
+
+The client's walk credits an element carrying `data-conciv-site`, and its descendants that carry no stamp of their own,
+to that site. The relation (`relateRound`) resolves a site to the component the catalog's `component_sites` names for
+that file and line, so the node is "rendered by `Chip`" with the kit's specifier, and rule 4 has its earlier round.
+Elements without a site and without a key are credited as before.
+
+Measure: `xray9-round-cat-1..2` as planned once the stamp is in: a run that removes `<Chip>` sees the rule-4 row.

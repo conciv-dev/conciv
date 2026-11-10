@@ -258,6 +258,17 @@
 - [ ] **Step 2:** Implement; gates; commit `design: a component the page had is a row`.
 - [ ] **Step 3:** Measure `xray9-round-cat-1..2` as Task 7c Step 4 ran them; row in `xray-build.md` with the rows the agent cleared by restoring the component and the kit imports kept.
 
+### Task 7e: The call site is stamped
+
+**Files:**
+
+- Modify: `packages/extension-compiler/src/inject-source.ts` (component openings imported from outside the framework package get `data-conciv-site`), its tests; the design client walk (`client.tsx`, split the part touched into its own file: an element with `data-conciv-site` and its unstamped descendants carry `site`), `src/server/catalog/relate.ts` (a `site` resolves through `component_sites`), the fom/store fields that carry the source line (`site` beside `source`), `packages/it/test/design-catalog.it.test.ts`
+
+- [ ] **Step 1:** Failing compiler unit test: `<Chip tone="x">` imported from `@conciv/ui-kit-chat` gets `data-conciv-site="src/Panel.tsx:12"`; `<Show when>` from `solid-js` gets nothing; a host `<div>` gets key and source as before.
+- [ ] **Step 2:** Failing IT on a fixture page that renders the kit `Pill` from `src/ui-kit/Pill.tsx`: the relation names `Pill` for the node paired to its root element, and `xray.layers` shows `component.name` Pill.
+- [ ] **Step 3:** Implement; gates in `extension-compiler`, `extensions/design`, `it`; the proof; commit `design: the call site is stamped, so a kit component is credited with what it renders`.
+- [ ] **Step 4:** Measure `xray9-round-cat-1..2` as Task 7c Step 4 ran them; row in `xray-build.md`: component rows first/last, rows cleared by restoring the component, kit imports kept, the agent's words.
+
 ### Task 8: Measure
 
 **Files:**
