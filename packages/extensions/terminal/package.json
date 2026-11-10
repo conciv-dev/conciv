@@ -63,6 +63,7 @@
     "@conciv/ui-kit-terminal": "workspace:^",
     "@lydell/node-pty": "^1.1.0",
     "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "hono": "catalog:",

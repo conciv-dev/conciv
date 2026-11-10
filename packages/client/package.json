@@ -43,12 +43,15 @@
     "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
     "@orpc/tanstack-query": "catalog:",
+    "@tanstack/ai": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/query-core": "catalog:",
     "@tanstack/solid-query": "catalog:",
     "partysocket": "catalog:",
-    "solid-js": "catalog:"
+    "solid-js": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",

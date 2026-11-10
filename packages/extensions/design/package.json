@@ -82,6 +82,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-page": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@zumer/snapdom": "catalog:",
     "culori": "catalog:",

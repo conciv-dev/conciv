@@ -4361,7 +4361,7 @@ describe('outside agent consent', () => {
     const events = await rpcOf(base, sessionId).chat.events({sessionId}, {signal: AbortSignal.timeout(2000)})
     const first = await events[Symbol.asyncIterator]()
       .next()
-      .catch((error: unknown) => ({done: true, value: String(error)}))
+      .catch((error: unknown): {done: true; value: string} => ({done: true, value: String(error)}))
     expect(first.done === false ? approvalAskOf(first.value) : first.value).toMatchObject({
       toolName: 'Allow codex to use this tab',
       input: {client: 'codex'},

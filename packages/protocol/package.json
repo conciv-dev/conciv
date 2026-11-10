@@ -145,5 +145,8 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
   }
 }

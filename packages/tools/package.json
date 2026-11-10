@@ -62,6 +62,7 @@
     "@conciv/solid-diffs": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/ai": "catalog:",
     "lucide-solid": "catalog:",
     "zod": "catalog:"
   },

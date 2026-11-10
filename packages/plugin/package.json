@@ -80,7 +80,7 @@
     "chokidar": "^6.0.0",
     "knitwork": "^1.3.0",
     "launch-editor": "^2.14.2",
-    "unplugin": "^3.6.0"
+    "unplugin": "catalog:"
   },
   "devDependencies": {
     "@conciv/extension-ios": "workspace:^",
