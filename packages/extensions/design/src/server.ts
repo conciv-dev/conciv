@@ -2,8 +2,9 @@ import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
 import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
+import {desc, isNull} from 'drizzle-orm'
 import {closeHomeDb, openHomeDb} from '@conciv/db'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type ExtensionDb} from '@conciv/extension'
 import {designConfig} from './shared/tolerances.js'
 import type {Design, DesignRuntime, Pairer} from './shared/defs.js'
 import {createStore} from './server/store.js'
@@ -19,8 +20,6 @@ import {SERVER_STEPS} from './server/tools.js'
 import {designTables} from './server/tables.js'
 import {designSources} from './server/sources.js'
 import {migrations} from './server/migrations.gen.js'
-import {createRuns} from './server/runs.js'
-import {DESIGN_COMMANDS} from './server/commands.js'
 import {createCatalog} from './server/catalog/catalog.js'
 import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
 import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
@@ -28,8 +27,8 @@ import {createComponentRows} from './server/catalog/component-rows.js'
 import {backfillRelation} from './server/catalog/backfill-relation.js'
 import {createCssTokenSource} from './server/catalog/token-source.js'
 import {createPreviewServer} from './server/catalog/preview-server.js'
-import {openRunsStore} from './server/runs-store.js'
-import {runsSources} from './server/runs-sources.js'
+import {openStore} from './server/runs/open-store.js'
+import {storeSources} from './server/runs/sources.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -46,9 +45,8 @@ const design = defineExtension({
   configSchema: designConfig,
   tools: SERVER_STEPS,
   tables: designTables,
-  sources: (tables) => ({...designSources(tables), ...runsSources()}),
+  sources: (tables) => ({...designSources(tables), ...storeSources()}),
   migrations,
-  cliCommands: DESIGN_COMMANDS,
   devServer: createPreviewServer,
 }).server((server) => {
   const {config, db} = server
@@ -57,7 +55,7 @@ const design = defineExtension({
   const files = createStorage({driver: fsDriver({base: FILES_ROOT, readOnly: true})})
   const measurer = createMeasurer({config})
   const home = openHomeDb(server.home)
-  openRunsStore(server.home).close()
+  openStore(server.home).close()
   const componentSources = {'vite-oxc': createViteOxcSource()}
   const catalog = createCatalog({
     home,
@@ -74,7 +72,7 @@ const design = defineExtension({
     state,
     project,
     files,
-    store: createStore({db, state, run: createRuns(db).current, catalog}),
+    store: createStore({db, state, run: () => openRun(db), catalog}),
     adapters: [
       createImageAdapter({config}),
       createFigmaAdapter({
@@ -134,4 +132,15 @@ type XrayRouter = ReturnType<typeof createXrayRoutes>['router']
 
 function pairerBySource(pairers: Record<Design['source']['kind'], Pairer>): Pairer {
   return (input) => pairers[input.design.source.kind](input)
+}
+
+async function openRun(db: ExtensionDb<ReturnType<typeof designTables>>): Promise<number | null> {
+  const {runs} = db.tables
+  const [open] = await db.orm
+    .select({run: runs.run_id})
+    .from(runs)
+    .where(isNull(runs.ended))
+    .orderBy(desc(runs.run_id))
+    .limit(1)
+  return open?.run ?? null
 }

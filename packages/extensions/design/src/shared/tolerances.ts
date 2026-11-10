@@ -126,6 +126,10 @@ export const designConfig = Object.assign(
     },
     stampRoot: '../../..',
     rowKinds: {page: 'page'},
+    runs: {
+      lifetimes: {design: 'infinite', screenshot: 30, source: 'infinite', transcript: 90, report: 'infinite'},
+      score: {lowest: 1, highest: 5},
+    },
     propertyAliases,
     folded,
     hex,

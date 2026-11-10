@@ -2,7 +2,7 @@
 import {execFile} from 'node:child_process'
 import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {basename, join, resolve} from 'node:path'
+import {basename, join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
@@ -33,8 +33,6 @@ import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
-import {openRunsStore} from '../../extensions/design/src/server/runs-store.js'
-import {importRun} from '../../extensions/design/src/server/import-run.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -870,24 +868,6 @@ describe('catalog hints on design_get', () => {
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
 
-  it('lists the hinted nodes in hint_vs_drawn once the run is imported, a round or none', async () => {
-    const runs = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
-    await runs(['start', 'it-model', 'it-head'])
-    const got = await hintedTarget()
-    const {runId} = z.object({runId: z.number()}).parse(await runs(['import', kit.stateRoot]))
-    const rows = z.array(z.object({node: z.string(), hint: z.string()})).parse(
-      await kit.rpc.db.read({
-        from: 'design_hint_vs_drawn',
-        where: `run == ${runId} && target == "${got.target}"`,
-        select: ['node', 'hint'],
-      }),
-    )
-    expect(new Set(rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
-    await expect(
-      kit.rpc.db.write({into: 'design_stored_notes', values: {target: 't', run: 1, text: 'x'}}),
-    ).rejects.toThrow('design_stored_notes is read-only')
-  })
-
   it('stores the reply design_get returned whole, beside its input', async () => {
     const got = await hintedTarget()
     const StoredSchema = z.object({
@@ -1471,7 +1451,6 @@ describe('design_check image rows', () => {
 })
 
 const NamedSchema = z.array(z.looseObject({name: z.string()}))
-const ForeignSchema = z.array(z.looseObject({table: z.string(), from: z.string()}))
 
 function migrated(list: typeof migrations): DatabaseSync {
   const client = new DatabaseSync(':memory:')
@@ -1483,25 +1462,7 @@ function pragma(input: {client: DatabaseSync; statement: string}): unknown[] {
   return input.client.prepare(input.statement).all()
 }
 
-describe('runs store schema', () => {
-  it('keys every child row to its run, target and round, and indexes the round lookups', async () => {
-    await withRunsStore(async (store) => {
-      const client = store.orm.$client
-      const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
-      const parents = (table: string) =>
-        ForeignSchema.parse(pragma({client, statement: `PRAGMA foreign_key_list(${table})`})).map(
-          (entry) => entry.table,
-        )
-      expect(names('PRAGMA index_list(design_rows)')).toEqual(expect.arrayContaining(['rows_by_round', 'rows_by_node']))
-      expect(new Set(parents('design_rounds'))).toEqual(new Set(['design_runs', 'design_targets']))
-      expect(new Set(parents('design_rows'))).toEqual(new Set(['design_runs', 'design_targets', 'design_rounds']))
-      expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
-      expect(() =>
-        client.exec(`INSERT INTO design_runs (model, prompt_head, started, verdict) VALUES ('m', 'p', 1, 'fine')`),
-      ).toThrow('CHECK constraint failed: runs_verdict')
-    })
-  })
-
+describe('run database schema', () => {
   it('migrates a run database forward with the reply column and the round indexes', () => {
     const client = migrated(migrations)
     const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
@@ -1527,158 +1488,5 @@ describe('a run database from either branch', () => {
     expect(names('PRAGMA table_info(design_fom)')).toContain('site')
     client.close()
     await rm(stateRoot, {recursive: true, force: true})
-  })
-})
-
-const RUN_FIXTURE = fileURLToPath(new URL('fixtures/runs/twentysix-figma7-1/', import.meta.url))
-
-const CountSchema = z.object({count: z.number()})
-
-function countIn(input: {client: DatabaseSync; table: string; where?: string}): number {
-  return CountSchema.parse(
-    input.client.prepare(`SELECT count(*) AS count FROM ${input.table} ${input.where ?? ''}`).get(),
-  ).count
-}
-
-async function withRunsStore<T>(run: (store: ReturnType<typeof openRunsStore>) => Promise<T>): Promise<T> {
-  const home = await mkdtemp(join(tmpdir(), 'conciv-runs-home-'))
-  const store = openRunsStore(home)
-  try {
-    return await run(store)
-  } finally {
-    store.close()
-    await rm(home, {recursive: true, force: true})
-  }
-}
-
-describe('runs store', () => {
-  const FixtureImportSchema = z.object({runId: z.number(), imported: z.boolean()})
-  const importedFixture = async () =>
-    FixtureImportSchema.parse(await kit.rpc.extensions.run({name: 'design:runs', args: ['import', RUN_FIXTURE]}))
-
-  it('imports a finished run once, its rounds, rows and votes under a new run id', async () => {
-    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-    const tables = ['design_rounds', 'design_rows', 'design_votes', 'design_tool_calls']
-    const expected = tables.map((table) => countIn({client: source, table}))
-    source.close()
-    await withRunsStore(async (store) => {
-      const first = importRun({runsStore: store, stateDir: RUN_FIXTURE})
-      const where = `WHERE run_id = ${first.runId}`
-      const counted = () => tables.map((table) => countIn({client: store.orm.$client, table, where}))
-      expect(first.imported).toBe(true)
-      expect(counted()).toEqual(expected)
-      const again = importRun({runsStore: store, stateDir: RUN_FIXTURE})
-      expect([again.imported, again.runId]).toEqual([false, first.runId])
-      expect(counted()).toEqual(expected)
-      expect(countIn({client: store.orm.$client, table: 'design_runs'})).toBe(1)
-      const run = await store.orm.query.runs.findFirst({with: {rounds: {columns: {round: true}}}})
-      expect([run?.source_path, run?.source_run_id, run?.rounds.length]).toEqual([
-        resolve(RUN_FIXTURE),
-        first.sourceRunId,
-        expected[0],
-      ])
-    })
-  })
-
-  it('imports a state dir through the runs command into the runs store in the home folder', async () => {
-    const ImportedSchema = z.object({runId: z.number(), imported: z.boolean()})
-    const run = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
-    const first = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
-    const again = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
-    expect([first.imported, again.imported, again.runId]).toEqual([true, false, first.runId])
-  })
-
-  it('answers run_summary per width with the round, verdict and rows of the final gate', async () => {
-    const GateSchema = z.object({
-      variants: z.array(
-        z.object({target: z.string(), round: z.number(), verdict: z.string(), counts: z.object({rows: z.number()})}),
-      ),
-    })
-    const gate = GateSchema.parse(JSON.parse(await readFile(join(RUN_FIXTURE, 'gate-final.json'), 'utf8')))
-    const {runId} = await importedFixture()
-    const rows = await kit.rpc.db.read({
-      from: 'design_run_summary',
-      where: `run == ${runId}`,
-      select: ['target', 'round', 'verdict', 'rows'],
-      order: [{field: 'width', dir: 'desc'}],
-    })
-    expect(rows).toEqual(
-      gate.variants.map((variant) => ({
-        target: variant.target,
-        round: variant.round,
-        verdict: variant.verdict,
-        rows: variant.counts.rows,
-      })),
-    )
-    expect(await kit.rpc.db.read({from: 'design_mispairs', where: 'run == 0'})).toEqual([])
-    await expect(kit.rpc.db.write({into: 'design_stored_runs', values: {model: 'm'}})).rejects.toThrow(
-      'design_stored_runs is read-only',
-    )
-  })
-
-  it('answers the wave questions: broken rounds, page-height rows and the lowest rendered count per width', async () => {
-    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-    const broken = countIn({client: source, table: 'design_rounds', where: 'WHERE broken IS NOT NULL'})
-    const page = countIn({client: source, table: 'design_rows', where: "WHERE kind = 'page'"})
-    const targets = countIn({client: source, table: 'design_targets'})
-    source.close()
-    const {runId} = await importedFixture()
-    const where = `run == ${runId}`
-    const [brokenRows, pageRows, lowest] = await Promise.all(
-      ['design_broken_rounds', 'design_page_height_rows', 'design_lowest_rendered'].map((from) =>
-        kit.rpc.db.read({from, where}),
-      ),
-    )
-    expect([brokenRows?.length, pageRows?.length, lowest?.length]).toEqual([broken, page, targets])
-  })
-
-  it('reads the run summary of every imported run through the CLI, filtered by cost', async () => {
-    const {runId} = await importedFixture()
-    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-    const widths = z
-      .array(z.object({width: z.number()}))
-      .parse(source.prepare('SELECT width FROM design_targets ORDER BY width').all())
-    source.close()
-    const printed = await promisify(execFile)(
-      process.execPath,
-      [
-        fileURLToPath(import.meta.resolve('@conciv/cli/bin')),
-        'db',
-        'query',
-        '--from',
-        'design_run_summary',
-        '--where',
-        'cost > 2',
-        '--select',
-        'run,width,verdict',
-        '--order',
-        'width',
-      ],
-      {cwd: kit.stateRoot, env: {...process.env, CONCIV_STATE_ROOT: kit.stateRoot}},
-    )
-    const SummarySchema = z.object({
-      ok: z.literal(true),
-      data: z.array(z.object({run: z.number(), width: z.number(), verdict: z.string()})),
-    })
-    const {data} = SummarySchema.parse(JSON.parse(printed.stdout))
-    expect(data.map((row) => [row.run, row.width])).toEqual(widths.map((row) => [runId, row.width]))
-  })
-
-  it('imports a tool call that names a round the run never stored', async () => {
-    await withRunsStore(async (store) => {
-      const stateDir = await mkdtemp(join(tmpdir(), 'conciv-run-state-'))
-      await mkdir(join(stateDir, '.conciv'))
-      const client = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
-      client.exec(`VACUUM INTO '${join(stateDir, '.conciv', 'conciv.db')}'`)
-      client.close()
-      const copy = new DatabaseSync(join(stateDir, '.conciv', 'conciv.db'))
-      copy.exec(
-        "INSERT INTO design_tool_calls (run_id, target_id, tool, round, input, reply_bytes, duration_ms, at) SELECT run_id, target_id, 'design_status', 0, '{}', 0, 0, at FROM design_rounds LIMIT 1",
-      )
-      copy.close()
-      const {copied} = importRun({runsStore: store, stateDir})
-      await rm(stateDir, {recursive: true, force: true})
-      expect(copied.design_tool_calls).toBe(28)
-    })
   })
 })

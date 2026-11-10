@@ -3,10 +3,10 @@ import {join} from 'node:path'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {openMigratedDb} from '@conciv/db'
-import {runsMigrations} from './runs-migrations.gen.js'
+import {runsMigrations} from '../runs-migrations.gen.js'
 import {runsRelations} from './relations.js'
 
-export function openRunsStore(home: string) {
+export function openStore(home: string) {
   mkdirSync(home, {recursive: true})
   const file = join(home, 'runs.db')
   const opened = openMigratedDb({

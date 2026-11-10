@@ -128,21 +128,6 @@ describe('catalog component rows', () => {
     expect(await componentRows({on: kit, page: 'drift-hand'})).toEqual([['10:2', 'Chip', './Chip.tsx', CHIP_ROW]])
   })
 
-  it('reads the component rows of an imported run from lost_components', async () => {
-    const runs = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
-    await runs(['start', 'it-model', 'it-head'])
-    await componentRows({on: kit, page: 'drift-hand'})
-    const {runId} = z.object({runId: z.number()}).parse(await runs(['import', kit.stateRoot]))
-    const rows = await kit.rpc.db.read({
-      from: 'design_lost_components',
-      where: `component == "Chip" && run == ${runId}`,
-      select: ['node', 'component', 'specifier'],
-    })
-    expect(new Set(rows.map((row) => JSON.stringify(row)))).toEqual(
-      new Set([JSON.stringify({node: '10:2', component: 'Chip', specifier: './Chip.tsx'})]),
-    )
-  })
-
   it('lists no component row when the named component renders the node', async () => {
     expect(await componentRows({on: kit, page: 'drift'})).toEqual([])
   })

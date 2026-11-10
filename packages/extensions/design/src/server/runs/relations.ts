@@ -1,7 +1,7 @@
 import {defineRelations} from 'drizzle-orm'
-import {runsTables} from './runs-tables.js'
+import {storeTables} from './store-tables.js'
 
-export const runsRelations = defineRelations(runsTables, (r) => {
+export const runsRelations = defineRelations(storeTables, (r) => {
   const ofRun = (table: Child) => r.one.runs({from: r[table].run_id, to: r.runs.run_id, optional: false})
   const ofTarget = (table: Child) =>
     r.one.targets({
@@ -23,6 +23,8 @@ export const runsRelations = defineRelations(runsTables, (r) => {
       toolCalls: r.many.tool_calls(),
       labels: r.many.labels(),
       notes: r.many.notes(),
+      artifacts: r.many.artifacts(),
+      judgements: r.many.judgements(),
     },
     targets: {
       run: r.one.runs({from: r.targets.run_id, to: r.runs.run_id, optional: false}),
@@ -59,9 +61,13 @@ export const runsRelations = defineRelations(runsTables, (r) => {
     labels: child('labels'),
     notes: child('notes'),
     nodes: child('nodes'),
+    artifacts: {run: r.one.runs({from: r.artifacts.run_id, to: r.runs.run_id})},
+    lanes: {run: r.one.runs({from: r.lanes.run_id, to: r.runs.run_id, optional: false})},
+    judgements: {run: ofRun('judgements')},
+    reports: {artifact: r.one.artifacts({from: r.reports.artifact_id, to: r.artifacts.artifact_id})},
   }
 })
 
-type Child = Exclude<keyof typeof runsTables, 'runs' | 'targets'>
+type Child = Exclude<keyof typeof storeTables, 'runs' | 'targets' | 'artifacts' | 'lanes' | 'reports'>
 
-type Rounded = Exclude<Child, 'nodes'>
+type Rounded = Exclude<Child, 'nodes' | 'judgements'>

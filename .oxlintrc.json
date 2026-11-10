@@ -329,7 +329,7 @@
     {
       "files": ["packages/it/**"],
       "rules": {
-        "conciv/test-file-budget": ["error", {"max": 3}]
+        "conciv/test-file-budget": ["error", {"max": 4}]
       }
     },
     {

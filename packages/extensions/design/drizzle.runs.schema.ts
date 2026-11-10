@@ -1,5 +1,5 @@
-import {runsViews} from './src/server/views.js'
-import {runsTables} from './src/server/runs-tables.js'
+import {runsViews} from './src/server/runs/views/index-of-views.js'
+import {storeTables} from './src/server/runs/store-tables.js'
 
 export const {
   targets,
@@ -17,7 +17,11 @@ export const {
   labels,
   notes,
   node_components,
-} = runsTables
+  artifacts,
+  lanes,
+  judgements,
+  reports,
+} = storeTables
 
 export const {
   run_summary,
@@ -29,4 +33,6 @@ export const {
   page_height_rows,
   broken_rounds,
   lowest_rendered,
+  judged,
+  wave_summary,
 } = runsViews

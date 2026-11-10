@@ -1,13 +1,13 @@
 import {getTableColumns, getViewSelectedFields} from 'drizzle-orm'
 import type {SQLiteColumn} from 'drizzle-orm/sqlite-core'
 import type {Source} from '@conciv/extension'
-import {runsTables} from './runs-tables.js'
-import {runsViews} from './views.js'
+import {storeTables} from './store-tables.js'
+import {runsViews} from './views/index-of-views.js'
 
-export function runsSources(): Record<string, Source> {
-  const tables = Object.entries(runsTables).map(([name, table]): [string, Source] => [
+export function storeSources(): Record<string, Source> {
+  const tables = Object.entries(storeTables).map(([name, table]): [string, Source] => [
     `stored_${name}`,
-    {table, database: RUNS, fields: fieldsOf(getTableColumns(table))},
+    {table, database: RUNS, fields: fieldsOf(getTableColumns(table)), ...(name === 'judgements' ? WRITABLE : {})},
   ])
   const views = Object.entries(runsViews).map(([name, view]): [string, Source] => [
     name,
@@ -17,6 +17,8 @@ export function runsSources(): Record<string, Source> {
 }
 
 const RUNS = 'runs'
+
+const WRITABLE = {writable: true} as const
 
 const RENAMED: Record<string, string> = {run_id: 'run', target_id: 'target'}
 
