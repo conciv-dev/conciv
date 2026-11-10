@@ -155,7 +155,9 @@ function createSettingsFile(storage: Storage, key: string, generation: string) {
       await loaded
       if (writer.store.state.isPending) return
       await writes.pending
+      const version = current.snapshot.version
       const value = await readSaved(storage, key)
+      if (writer.store.state.isPending || current.snapshot.version !== version) return
       if (isEqual(value, current.snapshot.value)) return
       advance(value)
     },
