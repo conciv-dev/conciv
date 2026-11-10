@@ -108,6 +108,14 @@ already enforced by a tool (formatting, lint autofix) is not review material.
   named by user-visible behaviour, short arrange/act/assert; helper functions hoisted at the bottom.
   Tests go through the package's public entries, never test-only exports.
 - Widget UI is tested in a REAL browser (Playwright/Chromium). Flag any jsdom/happy-dom introduction.
+- Testkits (`@conciv/extension-testkit`, `@conciv/harness-testkit`, `apps/conciv/test/commands`, e2e
+  helpers) run the real product path and fake only expensive externals (the LLM harness, CLIs). A testkit
+  client that stands in for the browser uses the same transport and client as the product (browser rpc
+  over the partysocket `/rpc-ws` socket through `makeBrowserRpcClient`), never a parallel HTTP or
+  hand-rolled path. Intercepting a call to observe or fault it (`page.routeWebSocket`, `page.route`) is
+  fine; swapping the transport is not. Flag a PR that changes a product transport or client without
+  moving the testkits onto it in the same PR, and any test that waits on or hooks a transport the
+  product no longer uses.
 - No mocks or stubs of anything: `vi.fn`, `vi.mock`, `vi.doMock`, `vi.stubGlobal`, fake modules,
   external packages included. Use real servers on port 0, real browsers, real in-memory drivers that
   share the production path.
