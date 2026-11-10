@@ -251,12 +251,6 @@ patchedDependencies:
   # EFFORT_MODELS regex matches now fall back to the low..max effort levels.
   # Drop it once upstream forwards the context window and lists the 5.x models.
   '@tanstack/ai-claude-code@1.0.1': patches/@tanstack__ai-claude-code@1.0.1.patch
-  # createEventAwareBindings (dist/esm/bindings/tool-to-binding.js:73-115 in 1.1.0) emits
-  # code_mode:external_call / external_result / external_error with no call id, so parallel child calls
-  # cannot be paired into cards and aroundCalls cannot add one. The patch mints one callId per call and
-  # stamps it on the call and on its result or error, and hands it to the binding as toolCallId so a
-  # tool knows which call it is answering. Drop it once upstream carries a call id there.
-  '@tanstack/ai-code-mode@1.1.0': patches/@tanstack__ai-code-mode@1.1.0.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search). The patch only reaches users because
   # @conciv/client bundles the one solid-query + query-core copy the widget and every extension import; a

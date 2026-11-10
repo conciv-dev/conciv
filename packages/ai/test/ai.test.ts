@@ -1006,11 +1006,9 @@ describe('dist externals', () => {
       expect(importsPackage('@tanstack/ai-sandbox-local-process')).toBe(false)
     })
 
-    it('bundles the patched @tanstack/ai-sandbox and @tanstack/ai-code-mode, patches included', () => {
+    it('bundles @tanstack/ai-sandbox and @tanstack/ai-code-mode', () => {
       expect(importsPackage('@tanstack/ai-sandbox')).toBe(false)
       expect(importsPackage('@tanstack/ai-code-mode')).toBe(false)
-      const code = chunks.map((chunk) => chunk.code).join('\n')
-      expect(code).toContain('toolCallId: callId')
     })
 
     it('externalizes @tanstack/ai', () => {
