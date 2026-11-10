@@ -1,4 +1,4 @@
-import {For, Show, onMount, type JSX} from 'solid-js'
+import {For, Show, onMount, splitProps, type JSX} from 'solid-js'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
 export type VirtualListProps<Row> = {
@@ -16,6 +16,17 @@ export type VirtualListProps<Row> = {
 const OVERSCAN = 6
 
 export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
+  const [, rest] = splitProps(props, [
+    'rows',
+    'sizeOf',
+    'children',
+    'more',
+    'moreRow',
+    'moreRowSize',
+    'onReachMore',
+    'onScroller',
+    'class',
+  ])
   let scroller: HTMLDivElement | undefined
   const moreIndex = () => props.rows.length
   const virtualizer = createVirtualizer({
@@ -42,6 +53,7 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
   onMount(() => props.onScroller?.((index) => virtualizer.scrollToIndex(index, {align: 'auto'})))
   return (
     <div
+      {...rest}
       ref={(element) => {
         scroller = element
       }}

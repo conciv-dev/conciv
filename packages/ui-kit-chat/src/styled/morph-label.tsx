@@ -11,7 +11,7 @@ const CELL_MOTION = 'data-[state=open]:anim-word-in data-[state=closed]:anim-wor
 type Line = {id: number; text: string}
 
 export function MorphLabel(props: {text: string; class?: string; boxClass?: string}): JSX.Element {
-  const [local] = splitProps(props, ['text', 'class', 'boxClass'])
+  const [local, rest] = splitProps(props, ['text', 'class', 'boxClass'])
   const reducedMotion = createMediaQuery(REDUCED_MOTION)
   const [lines, setLines] = createSignal<Line[]>([{id: 0, text: untrack(() => local.text)}])
   const current = () => lines().at(-1)
@@ -30,7 +30,7 @@ export function MorphLabel(props: {text: string; class?: string; boxClass?: stri
   )
   const drop = (id: number) => setLines((entries) => entries.filter((entry) => entry.id !== id))
   return (
-    <span class={`${BOX}  ${local.boxClass ?? ''}`}>
+    <span {...rest} class={`${BOX}  ${local.boxClass ?? ''}`}>
       <For each={lines()}>
         {(entry) => (
           <Presence

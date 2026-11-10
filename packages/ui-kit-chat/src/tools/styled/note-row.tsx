@@ -1,4 +1,4 @@
-import type {JSX} from 'solid-js'
+import {splitProps, type JSX} from 'solid-js'
 
 export type NoteRowTone = 'link' | 'accent'
 
@@ -10,10 +10,11 @@ const NOTE_ROW_TONE: Record<NoteRowTone, string> = {
 }
 
 export function NoteRow(props: {icon: JSX.Element; tone: NoteRowTone; children: JSX.Element}): JSX.Element {
+  const [local, rest] = splitProps(props, ['icon', 'tone', 'children'])
   return (
-    <p class={NOTE_ROW_TONE[props.tone]}>
-      {props.icon}
-      <span>{props.children}</span>
+    <p {...rest} class={NOTE_ROW_TONE[local.tone]}>
+      {local.icon}
+      <span>{local.children}</span>
     </p>
   )
 }

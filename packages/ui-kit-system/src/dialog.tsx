@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {Dialog as Ark} from '@ark-ui/solid/dialog'
 import {useEnvironmentContext} from '@ark-ui/solid/environment'
@@ -35,6 +35,20 @@ export function Dialog(
     children: JSX.Element
   },
 ): JSX.Element {
+  const [, rest] = splitProps(props, [
+    'title',
+    'label',
+    'open',
+    'onOpenChange',
+    'footer',
+    'role',
+    'initialFocus',
+    'restoreFocus',
+    'dismissable',
+    'size',
+    'layer',
+    'children',
+  ])
   const environment = useEnvironmentContext()
   const layer = (): Node => {
     const root = environment().getRootNode()
@@ -56,6 +70,7 @@ export function Dialog(
         <Ark.Backdrop class={BACKDROP} />
         <Ark.Positioner class={POSITIONER}>
           <Ark.Content
+            {...rest}
             class={`${CONTENT_SIZE[props.size ?? 'md']}  ${CONTENT_BASE}`}
             aria-label={props.title === undefined ? props.label : undefined}
             aria-modal="true"

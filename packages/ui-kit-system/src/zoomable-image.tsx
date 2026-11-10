@@ -21,7 +21,7 @@ export function ZoomableImage(props: {
   thumbnail?: JSX.ButtonHTMLAttributes<HTMLButtonElement>
   imageClass?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['src', 'alt', 'thumbnail', 'imageClass'])
+  const [local, rest] = splitProps(props, ['src', 'alt', 'thumbnail', 'imageClass'])
   const [view, setView] = createSignal<View>('closed')
   const actual = () => view() === 'actual'
   const failed = () => {
@@ -56,8 +56,16 @@ export function ZoomableImage(props: {
     </Dialog>
   )
   return (
-    <Show when={!failed()} fallback={<p class={FAILED}>Could not load {local.alt}</p>}>
+    <Show
+      when={!failed()}
+      fallback={
+        <p {...rest} class={FAILED}>
+          Could not load {local.alt}
+        </p>
+      }
+    >
       <Button
+        {...rest}
         {...local.thumbnail}
         variant="plain"
         size="none"

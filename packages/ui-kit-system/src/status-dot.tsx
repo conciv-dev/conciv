@@ -15,6 +15,12 @@ const TONE: Record<StatusDotTone, string> = {
 }
 
 export function StatusDot(props: {tone: StatusDotTone; pulse?: boolean}): JSX.Element {
-  const [local] = splitProps(props, ['tone', 'pulse'])
-  return <span aria-hidden="true" class={`${BASE}  ${TONE[local.tone]}  ${local.pulse === true ? 'anim-pulse' : ''}`} />
+  const [local, rest] = splitProps(props, ['tone', 'pulse'])
+  return (
+    <span
+      {...rest}
+      aria-hidden="true"
+      class={`${BASE}  ${TONE[local.tone]}  ${local.pulse === true ? 'anim-pulse' : ''}`}
+    />
+  )
 }

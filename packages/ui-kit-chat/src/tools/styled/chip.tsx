@@ -142,13 +142,13 @@ function triggerContent(kind: 'field' | 'pill', name: string | undefined, value:
 }
 
 function ClippedChip(props: {value: string; content: JSX.Element; class: string}): JSX.Element {
-  const [local] = splitProps(props, ['value', 'content', 'class'])
+  const [local, rest] = splitProps(props, ['value', 'content', 'class'])
   const reveal = createClipReveal()
   return (
     <Tooltip.Root onOpenChange={reveal.onOpenChange} lazyMount unmountOnExit>
       <Tooltip.Trigger
         asChild={(triggerProps) => (
-          <div {...revealTriggerProps(reveal, triggerProps())} ref={reveal.ref} class={local.class}>
+          <div {...rest} {...revealTriggerProps(reveal, triggerProps())} ref={reveal.ref} class={local.class}>
             {local.content}
           </div>
         )}
@@ -172,7 +172,7 @@ export function Chip(props: {
   tooltip?: string
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'size', 'tooltip', 'class'])
+  const [local, rest] = splitProps(props, ['name', 'value', 'kind', 'tone', 'maxWidth', 'size', 'tooltip', 'class'])
   const kind = (): 'field' | 'pill' => local.kind ?? 'field'
   const chipClass = (): string =>
     `${chip({kind: kind(), tone: local.tone ?? 'neutral', maxWidth: local.maxWidth ?? 'full', size: local.size ?? 'regular'})} ${local.class ?? ''}`
@@ -181,13 +181,18 @@ export function Chip(props: {
     <Show
       when={local.tooltip}
       fallback={
-        <ClippedChip value={local.value} content={chipContent(kind(), local.name, local.value)} class={chipClass()} />
+        <ClippedChip
+          {...rest}
+          value={local.value}
+          content={chipContent(kind(), local.name, local.value)}
+          class={chipClass()}
+        />
       }
     >
       {(tooltip) => (
         <div class="contents">
           <Tooltip.Root unmountOnExit lazyMount>
-            <Tooltip.Trigger type="button" class={chipClass()}>
+            <Tooltip.Trigger {...rest} type="button" class={chipClass()}>
               {triggerContent(kind(), local.name, local.value)}
             </Tooltip.Trigger>
             <Tooltip.Positioner>
@@ -201,13 +206,21 @@ export function Chip(props: {
 }
 
 export function ChipRow(props: {class?: string; children: JSX.Element}): JSX.Element {
-  const [local] = splitProps(props, ['class', 'children'])
+  const [local, rest] = splitProps(props, ['class', 'children'])
   const rowClass = (): string => `${ROW} ${local.class ?? ''}`
-  return <dl class={rowClass()}>{local.children}</dl>
+  return (
+    <dl {...rest} class={rowClass()}>
+      {local.children}
+    </dl>
+  )
 }
 
 export function ChipGroup(props: {class?: string; children: JSX.Element}): JSX.Element {
-  const [local] = splitProps(props, ['class', 'children'])
+  const [local, rest] = splitProps(props, ['class', 'children'])
   const rowClass = (): string => `${ROW} ${local.class ?? ''}`
-  return <div class={rowClass()}>{local.children}</div>
+  return (
+    <div {...rest} class={rowClass()}>
+      {local.children}
+    </div>
+  )
 }

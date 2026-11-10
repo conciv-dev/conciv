@@ -100,7 +100,11 @@ function JsonRow(props: {node: JsonNode; arrow?: JSX.Element; options: JsonTreeO
 }
 
 export function VirtualJsonTree(props: VirtualJsonTreeProps): JSX.Element {
-  const [local, treeProps] = splitProps(props, ['class', 'arrow'])
+  const [local, treeProps, rest] = splitProps(
+    props,
+    ['class', 'arrow'],
+    ['data', 'defaultExpandedDepth', 'maxPreviewItems', 'collapseStringsAfterLength', 'groupArraysAfterLength'],
+  )
   let scrollBox: HTMLDivElement | undefined
   let scrollToRow: ((index: number) => void) | undefined
   const treeOptions = mergeProps(treeProps, {
@@ -126,6 +130,7 @@ export function VirtualJsonTree(props: VirtualJsonTreeProps): JSX.Element {
   return (
     <JsonTreeView.RootProvider value={tree}>
       <TreeView.Tree
+        {...rest}
         {...SCOPE}
         ref={(element: HTMLDivElement) => {
           scrollBox = element

@@ -1,5 +1,6 @@
-import {onCleanup, type JSX} from 'solid-js'
+import {createMemo, onCleanup, splitProps, type JSX} from 'solid-js'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
+import {elementAttributes} from './element-attributes.js'
 import {syncRender} from './render-sync.js'
 import {highlightWorkerPool} from './worker-pool.js'
 
@@ -11,6 +12,8 @@ export type SolidCodeBlockProps = {
 }
 
 export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
+  const [, rest] = splitProps(props, ['file', 'options', 'class', 'style'])
+  const attributes = createMemo(() => elementAttributes(rest))
   let instance: File<undefined> | null = null
 
   const requestRender = syncRender({
@@ -28,5 +31,5 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
     })
   }
 
-  return <diffs-container ref={(node) => setRef(node)} class={props.class} style={props.style} />
+  return <diffs-container {...attributes()} ref={(node) => setRef(node)} class={props.class} style={props.style} />
 }

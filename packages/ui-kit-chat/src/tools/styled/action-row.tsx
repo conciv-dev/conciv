@@ -20,8 +20,12 @@ const actionButton = cva(
 )
 
 export function ActionRow(props: {children: JSX.Element; class?: string}): JSX.Element {
-  const [local] = splitProps(props, ['children', 'class'])
-  return <div class={`flex flex-wrap gap-2 items-center ${local.class ?? ''}`}>{local.children}</div>
+  const [local, rest] = splitProps(props, ['children', 'class'])
+  return (
+    <div {...rest} class={`flex flex-wrap gap-2 items-center ${local.class ?? ''}`}>
+      {local.children}
+    </div>
+  )
 }
 
 export function ActionButton(
