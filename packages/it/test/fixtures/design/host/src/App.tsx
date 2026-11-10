@@ -75,6 +75,13 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'sidemargin') {
+    return (
+      <main className="sidemargin" data-conciv-key="sDmGmn">
+        <div className="sidemargin-panel" data-conciv-key="sDmGpn" />
+      </main>
+    )
+  }
   if (requested === 'slowfont') {
     return (
       <main className="slowfont" data-conciv-key="sLwFmn">

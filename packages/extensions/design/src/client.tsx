@@ -1,6 +1,5 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
-import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
 import {createRoot, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import ScanSearch from 'lucide-solid/icons/scan-search'
@@ -27,6 +26,7 @@ import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
 import {settled} from './client/settled.js'
 import {thrownOf} from './client/thrown.js'
+import {buildMirror} from './client/mirror.js'
 
 declare global {
   interface Window {
@@ -83,8 +83,6 @@ type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 const [WIDGET_ROOT_SELECTOR] = OVERLAYS
 const OVERLAY_SELECTOR = OVERLAYS.join(', ')
 const MIRROR_ATTR = 'data-conciv-mirror'
-const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed`
-const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
 const LIVE_EXCLUDE = [...OVERLAYS, CONCIV_UI_SELECTOR, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
 const NORMAL_LINE_HEIGHT = 1.2
@@ -368,48 +366,9 @@ function mirrorAt(size: Size): Promise<HTMLIFrameElement> {
   const slot = mirrorSlot.current
   if (slot !== null && slot.width === size.width && slot.height === size.height) return slot.frame
   releaseMirror()
-  const frame = buildMirror(size)
+  const frame = buildMirror({size, marker: MIRROR_ATTR})
   mirrorSlot.current = {...size, frame}
   return frame
-}
-
-async function buildMirror(size: Size): Promise<HTMLIFrameElement> {
-  const source = createMirror()
-  const tree = snapshot(document, {
-    mirror: source,
-    blockSelector: MIRROR_BLOCKED,
-    maskAllInputs: true,
-    inlineStylesheet: true,
-  })
-  if (tree === null) throw new Error('the page could not be snapshotted for the mirror')
-  const host = offscreenHost()
-  const rebuilt = createMirror()
-  const {iframe} = rebuildIntoSandboxedIframe(tree, {
-    root: host,
-    mirror: rebuilt,
-    cache: createCache(),
-    hackCss: false,
-    iframeAttributes: {
-      width: String(size.width),
-      height: String(size.height),
-      style: 'border:0',
-      tabindex: '-1',
-      'aria-hidden': 'true',
-    },
-  })
-  const widget = document.querySelector(WIDGET_ROOT_SELECTOR)
-  const placeholder = widget === null ? null : rebuilt.getNode(source.getId(widget))
-  placeholder?.parentNode?.removeChild(placeholder)
-  return iframe
-}
-
-function offscreenHost(): HTMLDivElement {
-  const host = document.createElement('div')
-  host.setAttribute(MIRROR_ATTR, '')
-  host.setAttribute('aria-hidden', 'true')
-  host.setAttribute('style', OFFSCREEN_STYLE)
-  document.body.append(host)
-  return host
 }
 
 function mirrorDocument(frame: HTMLIFrameElement): Document {

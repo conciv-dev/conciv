@@ -34,6 +34,7 @@ import {createImageAdapter} from '../../extensions/design/src/server/sources/ima
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {boot} from './fixtures/design/boot.js'
 import {bareButton} from './fixtures/design/bare-button.js'
+import {sideMargin} from './fixtures/design/side-margin.js'
 import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
@@ -534,6 +535,17 @@ describe('design_check on a button whose label is bare text', () => {
     const checked = roundOf(await call('design_check', {}))
     const label = checked.rows.filter((row) => row.node === bareButton.label).map((row) => row.kind)
     expect([checked.coverage.missing.includes(bareButton.label), label.includes('font family')]).toEqual([false, true])
+  })
+})
+
+describe('design_check at a width other than the tab', () => {
+  it('keeps a margin the page sets from a variable, though a later rule in the block sets one side again', async () => {
+    await goto('sidemargin')
+    const image = join(kit.targetsDir, 'side-margin.png')
+    await writeFile(image, blankPng({width: sideMargin.frame.w, height: sideMargin.frame.h}))
+    await call('design_get', {figma: sideMargin.link, image, document: sideMargin.document})
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.rows.filter((row) => row.node === sideMargin.panel).map((row) => row.text)).toEqual([])
   })
 })
 

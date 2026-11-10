@@ -251,6 +251,17 @@ button {
   background: #426bf2;
 }
 
+.sidemargin {
+  --side: 40px;
+  padding-top: 40px;
+}
+
+.sidemargin-panel {
+  margin: 0 var(--side);
+  height: 100px;
+  margin-bottom: -1px;
+}
+
 .slowfont {
   padding: 40px;
 }
