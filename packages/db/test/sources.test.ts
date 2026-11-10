@@ -7,7 +7,11 @@ import {drizzle} from 'drizzle-orm/node-sqlite'
 import {integer, sqliteTable, sqliteView, text} from 'drizzle-orm/sqlite-core'
 import {describe, expect, it} from 'vitest'
 import {catalogSources} from '../src/catalog-sources.js'
+import {homeCatalog} from '../src/home-catalog.js'
+import {withHomeDb} from '../src/home-db.js'
 import {sourceCatalog} from '../src/source-catalog.js'
+import type {CatalogCommand} from '../src/source-types.js'
+import {writeCatalog} from '../src/write-catalog.js'
 
 const rows = sqliteTable('design_rows', {
   seq: integer().primaryKey(),
@@ -85,5 +89,44 @@ describe('sources', () => {
     await expect(sources.read({from: 'design_stored'})).rejects.toThrow(
       `no runs database at ${join(home, 'elsewhere', 'runs.db')}`,
     )
+  })
+})
+
+const REPORT: CatalogCommand = {
+  name: 'design:report',
+  extension: 'design',
+  command: 'report',
+  description: 'renders a wave',
+  positionals: ['wave'],
+  options: {lifetime: {type: 'string', description: 'kind=days', multiple: true}},
+  scope: 'home',
+}
+
+describe('home catalog', () => {
+  it('serves the sources and commands an extension cataloged in home.db, reading the store file they name', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'conciv-home-catalog-'))
+    const runs = new DatabaseSync(join(home, 'runs.db'))
+    runs.exec('create table design_rows (seq integer primary key, run_id integer not null, kind text not null)')
+    runs.exec("insert into design_rows (run_id, kind) values (7, 'stored')")
+    runs.close()
+    const sources = sourceCatalog({
+      extension: 'design',
+      home,
+      sources: {stored: {table: rows, database: 'runs', fields: {run: rows.run_id, kind: rows.kind}}},
+    })
+    withHomeDb(home, (orm) => writeCatalog({orm, extensions: ['design'], sources, commands: [REPORT]}))
+    const catalog = homeCatalog(home)
+    expect(catalog.sources.list()).toEqual([
+      {
+        name: 'design_stored',
+        extension: 'design',
+        source: 'stored',
+        fields: ['run', 'kind'],
+        writable: false,
+        order: [],
+      },
+    ])
+    expect(await catalog.sources.read({from: 'design_stored'})).toEqual([{run: 7, kind: 'stored'}])
+    expect(catalog.commands).toEqual([REPORT])
   })
 })

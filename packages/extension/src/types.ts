@@ -10,7 +10,15 @@ import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import type {MigrationMeta} from 'drizzle-orm/migrator'
-import type {Source, SourceListing, SourceRead, SourceWrite} from '@conciv/db'
+import type {
+  CommandOption,
+  CommandScope,
+  CommandValues,
+  Source,
+  SourceListing,
+  SourceRead,
+  SourceWrite,
+} from '@conciv/db'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import type {AnySQLiteTable, SQLiteTableFn} from 'drizzle-orm/sqlite-core'
 import type {UpgradeWebSocket} from './rpc-mount.js'
@@ -66,7 +74,9 @@ export type ExtensionCommand = {
 export type ExtensionCliCommand<Tables extends ExtensionTables = ExtensionTables> = {
   description: string
   positionals: readonly string[]
-  run(input: {args: string[]; db: ExtensionDb<Tables>; home: string}): unknown
+  options?: Record<string, CommandOption>
+  scope?: CommandScope
+  run(input: {args: string[]; options: CommandValues; db: ExtensionDb<Tables>; home: string}): unknown
 }
 
 export type ExtensionCliCommands<Tables extends ExtensionTables = ExtensionTables> = Record<

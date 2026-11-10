@@ -2,7 +2,9 @@ import {
   catalogSources,
   extensionTable,
   sourceCatalog,
+  withHomeDb,
   writeCatalog,
+  type CommandValues,
   type ConcivDb,
   type SourceRead,
   type SourceWrite,
@@ -34,21 +36,31 @@ export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExten
       command,
       description: entry.description,
       positionals: [...entry.positionals],
-      run: (args: string[]) => entry.run({args, db, home}),
+      options: entry.options ?? {},
+      scope: entry.scope ?? 'project',
+      run: (call: {args: string[]; options: CommandValues}) => entry.run({...call, db, home}),
     })),
   )
-  writeCatalog({
-    orm,
-    extensions: extensions.map((extension) => extension.name),
-    sources: declared.flatMap(({catalog}) => catalog),
-    commands: commands.map(({name, extension, command, description, positionals}) => ({
-      name,
-      extension,
-      command,
-      description,
-      positionals,
-    })),
-  })
+  const names = extensions.map((extension) => extension.name)
+  const catalog = declared.flatMap((entry) => entry.catalog)
+  const rows = commands.map(({name, extension, command, description, positionals, options, scope}) => ({
+    name,
+    extension,
+    command,
+    description,
+    positionals,
+    options,
+    scope,
+  }))
+  writeCatalog({orm, extensions: names, sources: catalog, commands: rows})
+  withHomeDb(home, (homeOrm) =>
+    writeCatalog({
+      orm: homeOrm,
+      extensions: names,
+      sources: catalog.filter((source) => source.database !== null),
+      commands: rows.filter((row) => row.scope === 'home'),
+    }),
+  )
   return {
     scoped: new Map(bound.map(({extension, db}) => [extension.name, db])),
     sources: {list: () => sources.list(), read: sources.read, write: sources.write},

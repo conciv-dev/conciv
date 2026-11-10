@@ -46,4 +46,12 @@ export type CatalogCommand = {
   command: string
   description: string
   positionals: string[]
+  options: Record<string, CommandOption>
+  scope: CommandScope
 }
+
+export type CommandOption = {type: 'string' | 'number' | 'boolean'; description: string; multiple?: boolean}
+
+export type CommandScope = 'project' | 'home'
+
+export type CommandValues = Record<string, string | number | boolean | string[]>

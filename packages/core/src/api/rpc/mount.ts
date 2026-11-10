@@ -7,7 +7,7 @@ import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {EngineStaleness} from '@conciv/contract'
 import type {CompositeRpcRouter as CompositeRouterOf} from '@conciv/extension/rpc-mount'
 import type {ChatPlane} from '@conciv/chat'
-import type {ConcivDb, SourceRead, SourceWrite} from '@conciv/db'
+import type {CommandValues, ConcivDb, SourceRead, SourceWrite} from '@conciv/db'
 import type {HarnessAdapter} from '@conciv/harness'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {CoreRuntime, SessionScope} from '../../runtime/scope-types.js'
@@ -40,7 +40,12 @@ export type RpcDeps = {
     read: (query: SourceRead & {extension?: string}) => Promise<Record<string, unknown>[]>
     write: (query: SourceWrite & {extension?: string}) => Promise<Record<string, unknown>[]>
   }
-  commands: {name: string; description: string; positionals: readonly string[]; run: (args: string[]) => unknown}[]
+  commands: {
+    name: string
+    description: string
+    positionals: readonly string[]
+    run: (input: {args: string[]; options: CommandValues}) => unknown
+  }[]
   auth: AuthRouter
   admitOutside: (scope: SessionScope, client: string | null, signal: AbortSignal) => Promise<string | null>
   search: ReturnType<typeof createSessionSearch>

@@ -170,7 +170,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         const command = deps.commands.find((entry) => entry.name === input.name)
         if (command === undefined) throw errors.UNKNOWN_COMMAND()
         try {
-          return await command.run(input.args)
+          return await command.run({args: input.args, options: input.options ?? {}})
         } catch (error) {
           throw errors.COMMAND_FAILED({message: error instanceof Error ? error.message : String(error)})
         }

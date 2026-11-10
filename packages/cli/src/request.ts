@@ -8,6 +8,7 @@ import {
   type SessionId,
 } from '@conciv/protocol/chat-types'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
+import {concivHome, existingDb, listEngines, readCatalog, withHomeDb} from '@conciv/db'
 import {initContributions} from '@conciv/harness-init/registry'
 import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import type {CliOutcome} from './envelope.js'
@@ -59,7 +60,7 @@ async function sessionId(origin: string): Promise<SessionId> {
   return resolved.sessionId
 }
 
-export type CliTarget = {tab: SessionId | null}
+export type CliTarget = {tab: SessionId | null; home?: string}
 
 type RpcCall = (rpc: RpcClient) => Promise<unknown>
 
@@ -81,10 +82,32 @@ async function servedOutcome(engine: EngineOrigin, target: CliTarget, call: RpcC
 }
 
 export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutcome> {
-  const engine = await engineOrigin(process.cwd(), process.env, target.tab)
+  const engine =
+    target.home === undefined ? await engineOrigin(process.cwd(), process.env, target.tab) : homeEngine(target.home)
   const outcome = await servedOutcome(engine, target, call)
   if (outcome === null) throw offlineFailure(engine.origin)
   return outcome
+}
+
+function homeEngine(extension: string): EngineOrigin {
+  const owner = withHomeDb(concivHome({env: process.env}), listEngines).find((row) =>
+    loads({root: row.root, extension}),
+  )
+  if (owner === undefined)
+    throw userFailure(`No running conciv dev server loads the ${extension} extension.`, {
+      hint: `Start an app whose conciv config loads ${extension}; its engine registers in the conciv home.`,
+    })
+  return {origin: owner.apiBase, outside: false}
+}
+
+function loads(input: {root: string; extension: string}): boolean {
+  try {
+    return readCatalog(existingDb({stateRoot: input.root})).commands.some(
+      (entry) => entry.extension === input.extension,
+    )
+  } catch {
+    return false
+  }
 }
 
 function callingAgent(env: NodeJS.ProcessEnv): string {

@@ -319,7 +319,13 @@ export const contract = {
         UNKNOWN_COMMAND: {message: 'no extension registers a command by that name'},
         COMMAND_FAILED: {message: 'the command failed'},
       })
-      .input(z.object({name: z.string().min(1), args: z.array(z.string())}))
+      .input(
+        z.object({
+          name: z.string().min(1),
+          args: z.array(z.string()),
+          options: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string())])).optional(),
+        }),
+      )
       .output(z.unknown()),
   },
   page: {
