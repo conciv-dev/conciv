@@ -1,7 +1,8 @@
+import {existsSync} from 'node:fs'
 import {and, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL} from 'drizzle-orm'
 import type {NodeSQLiteDatabase} from 'drizzle-orm/node-sqlite'
 import {parse, type ASTNode} from '@marcbachmann/cel-js'
-import type {CatalogField, CatalogSource, SourceRead, SourceWrite} from './source-types.js'
+import type {CatalogDatabase, CatalogField, CatalogSource, SourceRead, SourceWrite} from './source-types.js'
 
 export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonly CatalogSource[]}) {
   const {orm} = input
@@ -44,7 +45,7 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
       const sorted = order.length === 0 ? sql`` : sql` order by ${sql.join(order, sql`, `)}`
       const limited = query.limit === undefined ? sql`` : sql` limit ${query.limit}`
       const rows = orm.all<Record<string, unknown>>(
-        sql`select ${selected} from ${sql.identifier(source.table)}${where}${sorted}${limited}`,
+        sql`select ${selected} from ${tableOf({orm, source})}${where}${sorted}${limited}`,
       )
       return rows.map((row) => decoded({source, row}))
     },
@@ -72,11 +73,26 @@ export function catalogSources(input: {orm: NodeSQLiteDatabase; sources: readonl
         sql`, `,
       )
       const rows = orm.all<Record<string, unknown>>(
-        sql`insert into ${sql.identifier(source.table)} (${columns}) values (${values}) returning ${returned}`,
+        sql`insert into ${tableOf({orm, source})} (${columns}) values (${values}) returning ${returned}`,
       )
       return rows.map((row) => decoded({source, row}))
     },
   }
+}
+
+function tableOf(input: {orm: NodeSQLiteDatabase; source: CatalogSource}): SQL {
+  const {orm, source} = input
+  if (source.database === null) return sql`${sql.identifier(source.table)}`
+  mount({orm, database: source.database})
+  return sql`${sql.identifier(source.database.name)}.${sql.identifier(source.table)}`
+}
+
+function mount(input: {orm: NodeSQLiteDatabase; database: CatalogDatabase}): void {
+  const {orm, database} = input
+  const held = orm.all<{name: string}>(sql`select name from pragma_database_list`)
+  if (held.some((entry) => entry.name === database.name)) return
+  if (!existsSync(database.file)) throw new Error(`no ${database.name} database at ${database.file}`)
+  orm.run(sql`attach database ${database.file} as ${sql.identifier(database.name)}`)
 }
 
 type Literal = string | number | boolean | null

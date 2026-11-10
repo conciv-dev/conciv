@@ -1,9 +1,10 @@
-import type {AnySQLiteColumn, AnySQLiteTable} from 'drizzle-orm/sqlite-core'
+import type {AnySQLiteColumn, AnySQLiteTable, SQLiteView} from 'drizzle-orm/sqlite-core'
 
 export type SourceField = AnySQLiteColumn | {column: AnySQLiteColumn; path: string}
 
 export type Source = {
-  table: AnySQLiteTable
+  table: AnySQLiteTable | SQLiteView
+  database?: string
   fields: Record<string, SourceField>
   writable?: true
   order?: SourceOrder[]
@@ -25,11 +26,14 @@ export type SourceListing = {name: string; fields: string[]; writable: boolean; 
 
 export type CatalogField = {name: string; column: string; path: string | null; type: string}
 
+export type CatalogDatabase = {name: string; file: string}
+
 export type CatalogSource = {
   name: string
   extension: string
   source: string
   table: string
+  database: CatalogDatabase | null
   fields: CatalogField[]
   order: number
   writable: boolean

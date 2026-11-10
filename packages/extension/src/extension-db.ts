@@ -13,7 +13,7 @@ export function extensionDb(input: {orm: ConcivDb; extensions: readonly AnyExten
   const {orm, extensions, home} = input
   const declared = extensions.map((extension) => {
     const tables = extension.tables?.(extensionTable(extension.name)) ?? {}
-    const catalog = sourceCatalog({extension: extension.name, sources: extension.sources?.(tables) ?? {}})
+    const catalog = sourceCatalog({extension: extension.name, sources: extension.sources?.(tables) ?? {}, home})
     return {extension, tables, catalog}
   })
   const sources = catalogSources({orm, sources: declared.flatMap(({catalog}) => catalog)})
