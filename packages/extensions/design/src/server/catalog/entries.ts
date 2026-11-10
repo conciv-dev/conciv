@@ -2,7 +2,7 @@ import {basename, dirname, join, resolve} from 'node:path'
 import type {NapiResolveOptions} from 'oxc-resolver'
 import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
-import {loadConfigFromFile, type AliasOptions, type UserConfig} from 'vite'
+import {loadConfigFromFile, type AliasOptions, type PluginOption, type UserConfig} from 'vite'
 
 export async function viteEntries(input: {cwd: string}): Promise<ViteRoot[]> {
   const {cwd} = input
@@ -14,11 +14,13 @@ export async function viteEntries(input: {cwd: string}): Promise<ViteRoot[]> {
     .map((path) => join(cwd, path))
   if (configs.length > 0) return Promise.all(configs.map((file) => rootOf(file)))
   if (await tree.hasItem(HTML_ENTRY))
-    return [{root: cwd, entries: [join(cwd, HTML_ENTRY)], resolve: resolveOptions(undefined), unreadable: []}]
+    return [
+      {root: cwd, entries: [join(cwd, HTML_ENTRY)], resolve: resolveOptions(undefined), plugins: [], unreadable: []},
+    ]
   return []
 }
 
-type ViteRoot = {root: string; entries: string[]; resolve: NapiResolveOptions; unreadable: string[]}
+type ViteRoot = {root: string; entries: string[]; resolve: NapiResolveOptions; plugins: string[]; unreadable: string[]}
 
 type RollInput = string | string[] | Record<string, string>
 
@@ -39,7 +41,8 @@ async function rootOf(file: string): Promise<ViteRoot> {
   const loaded = await loadConfigFromFile({command: 'serve', mode: 'development'}, file, dirname(file), 'silent').catch(
     () => null,
   )
-  if (loaded === null) return {root: dirname(file), entries: [], resolve: resolveOptions(undefined), unreadable: [file]}
+  if (loaded === null)
+    return {root: dirname(file), entries: [], resolve: resolveOptions(undefined), plugins: [], unreadable: [file]}
   const {config} = loaded
   const root = resolve(dirname(file), config.root ?? '.')
   const input = config.build?.rolldownOptions?.input ?? config.build?.rollupOptions?.input
@@ -48,8 +51,15 @@ async function rootOf(file: string): Promise<ViteRoot> {
     root,
     entries: entries.map((entry) => resolve(root, entry)),
     resolve: resolveOptions(config.resolve),
+    plugins: await pluginNames(config.plugins ?? []),
     unreadable: [],
   }
+}
+
+async function pluginNames(option: PluginOption): Promise<string[]> {
+  const plugin = await option
+  if (Array.isArray(plugin)) return (await Promise.all(plugin.map((each) => pluginNames(each)))).flat()
+  return typeof plugin === 'object' && plugin !== null && 'name' in plugin ? [plugin.name] : []
 }
 
 function inputs(input: RollInput): string[] {

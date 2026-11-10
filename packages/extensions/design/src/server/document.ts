@@ -38,6 +38,7 @@ const RULES = [
   'design_check returns the rows to fix and the verdict: a row without a width is about the page at the design width; a row with a width is about the page measured at that width, mostly narrower: it did not reflow as tagged, sticks out, overlaps a sibling or scrolls sideways.',
   'A token-drift row is a flag, not a row to fix: the component uses a kit token whose value the design variable disagrees with. Never edit the element to clear it; change the token in the kit or the variable in the design, or report the drift.',
   'A component row is cleared by rendering the node with the component it names: import it as the row says and render it there instead of the hand-drawn element.',
+  'A component row that says a node was rendered by a component means the page had that component before your edit: render the node with it again, never drop, rename or redraw the component to clear the row.',
 ]
 
 const IMPLIED_FIELDS =

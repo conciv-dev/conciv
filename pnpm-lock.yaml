@@ -264,6 +264,9 @@ catalogs:
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
+    get-tsconfig:
+      specifier: ^4.14.0
+      version: 4.14.0
     gsap:
       specifier: ^3.15.0
       version: 3.15.0
@@ -2822,6 +2825,9 @@ importers:
       execa:
         specifier: ^10.2.1
         version: 10.2.1
+      get-tsconfig:
+        specifier: 'catalog:'
+        version: 4.14.0
       hono:
         specifier: 'catalog:'
         version: 4.13.14

@@ -2,8 +2,9 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 import {addSourceToJsx} from '@conciv/extension-compiler/inject-source'
+import {designConfig} from './src/shared/tolerances.ts'
 
-const root = fileURLToPath(new URL('../../..', import.meta.url))
+const root = fileURLToPath(new URL(designConfig.stampRoot, import.meta.url))
 
 export default defineConfig({
   plugins: [

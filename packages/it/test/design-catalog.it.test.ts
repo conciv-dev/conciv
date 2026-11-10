@@ -19,6 +19,7 @@ import {bootDesignHost} from './fixtures/design/boot.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
+const PLUGIN_ROOT = fileURLToPath(new URL('fixtures/design/plugin-only/', import.meta.url))
 const CARD_SOURCE = 'packages/extensions/design/src/xray/card.tsx'
 
 const [, checkDef] = DESIGN_TOOLS
@@ -179,6 +180,64 @@ describe('catalog component rows', () => {
     expect([hint === undefined || hint.confidence < 1, rows.filter((row) => row[1] === 'Far')]).toEqual([true, []])
   })
 
+  function pillRow(frame: number) {
+    return [
+      `${frame}:2`,
+      'Pill',
+      './ui-kit/Pill.tsx',
+      "Tag was rendered by `Pill` and is now drawn by hand (`import {Pill} from './ui-kit/Pill.tsx'`)",
+    ]
+  }
+
+  async function roundsAcross(input: {on: Kit; frame: number; pages: string[]}) {
+    const {on, frame} = input
+    await on.goto(input.pages[0] ?? '')
+    const image = join(on.targetsDir, 'kit-figma.png')
+    await writeFile(image, blankPng({width: 1280, height: 720}))
+    await on.call('design_get', {
+      figma: `https://www.figma.com/design/ItFixtureKey/x?node-id=${frame}-1`,
+      image,
+      document: documentOf({id: `${frame}:1`, children: [namedBox({id: `${frame}:2`, name: 'Tag', y: 40})]}),
+    })
+    return input.pages.reduce<Promise<unknown[][][]>>(async (earlier, page, index) => {
+      const listed = await earlier
+      if (index > 0) await on.goto(page)
+      const checked = roundOf(await on.call('design_check', {}))
+      const rows = checked.rows
+        .filter((row) => row.magnitude === 'component')
+        .map((row) => [row.node, row.component, row.specifier, row.text])
+      return [...listed, rows]
+    }, Promise.resolve([]))
+  }
+
+  it('lists a node the kit rendered last round and the page now draws by hand as one component row, none once restored', async () => {
+    expect(await roundsAcross({on: kit, frame: 14, pages: ['drift-kit', 'drift-hand', 'drift-kit']})).toEqual([
+      [],
+      [pillRow(14)],
+      [],
+    ])
+  })
+
+  it('lists no row for a component the page lost while the component is do-not-use, and the row once cleared', async () => {
+    const pages = ['drift-kit', 'drift-hand']
+    const flagged = await call('design_components', {doNotUse: 'Pill'})
+      .then(() => roundsAcross({on: kit, frame: 15, pages}))
+      .finally(() => call('design_components', {clear: 'Pill'}))
+    expect([flagged, await roundsAcross({on: kit, frame: 16, pages})]).toEqual([
+      [[], []],
+      [[], [pillRow(16)]],
+    ])
+  })
+
+  it('lists the row for a component the page lost with catalog hints off', async () => {
+    const bare = await bootDesignHost({config: {catalog: {hint: false}}})
+    try {
+      expect(await roundsAcross({on: bare, frame: 17, pages: ['drift-kit', 'drift-hand']})).toEqual([[], [pillRow(17)]])
+    } finally {
+      await bare.dispose()
+    }
+  })
+
   it('gives an instance of a kit component a hint of 1 and no row in a host of another framework', async () => {
     const {got, rows} = await measured({
       on: kit,
@@ -202,7 +261,7 @@ describe('a component row where the component can be used', () => {
     await Promise.all(opened.splice(0).map((close) => close()))
   })
 
-  async function rowsAt(input: {component: string; layer: string; source: string}) {
+  async function catalogAt(cwd: string) {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-catalog-home-'))
     const home = openHomeDb(homeDir)
     const orm = openDb({
@@ -221,7 +280,11 @@ describe('a component row where the component can be used', () => {
       orm.$client.close()
       await rm(homeDir, {recursive: true, force: true})
     })
-    const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: [createViteOxcSource()]})
+    return createCatalog({home, db, cwd, sources: [createViteOxcSource()]})
+  }
+
+  async function rowsAt(input: {component: string; layer: string; source: string}) {
+    const catalog = await catalogAt(HOST_ROOT)
     const config = CatalogSchemas.CatalogConfig.parse({})
     const rows = createComponentRows({catalog, hinters: [createNameVariantHinter()], config, cwd: HOST_ROOT})
     const box = {x: 0, y: 0, w: 200, h: 48}
@@ -272,6 +335,7 @@ describe('a component row where the component can be used', () => {
       design,
       reads: readIds({root: site, live: null}),
       relation: new Map(related === null ? [] : [[node.id, related]]),
+      earlier: [],
     })
     return listed.map((row) => [row.node, row.component, row.specifier, row.text])
   }
@@ -289,5 +353,23 @@ describe('a component row where the component can be used', () => {
 
   it('lists no row for a kit Button inside a project component that renders the kit Button', async () => {
     expect(await rowsAt({component: 'Button', layer: 'Button', source: `${CARD_SOURCE}:12:3`})).toEqual([])
+  })
+
+  it('matches a stamp to a walked file in one form: a host path that shares the tail of an outside file is not that file', async () => {
+    const catalog = await catalogAt(HOST_ROOT)
+    const named = async (source: string) => (await catalog.componentOf(source))?.names[0] ?? null
+    expect([await named(`${CARD_SOURCE}:12:3`), await named('src/xray/card.tsx:12:3')]).toEqual(['Card', null])
+  })
+
+  it('gives a module that imports no framework the framework its tsconfig jsx setting names', async () => {
+    const catalog = await catalogAt(HOST_ROOT)
+    const page = (await catalog.list({hidden: true})).find((component) => component.names.includes('XrayPage'))
+    expect(page?.framework).toBe('react')
+  })
+
+  it('gives a module with no framework import and no tsconfig jsx the framework of the vite plugins that reached it', async () => {
+    const catalog = await catalogAt(PLUGIN_ROOT)
+    const badge = (await catalog.list({hidden: true})).find((component) => component.names.includes('Badge'))
+    expect(badge?.framework).toBe('react')
   })
 })

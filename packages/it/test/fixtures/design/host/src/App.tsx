@@ -5,6 +5,7 @@ import {Chip} from './Chip'
 import {Stripe} from './Stripe'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
+import {Pill} from './ui-kit/Pill'
 import {XrayProofPage} from './XrayProofPage'
 
 const TARGET_ALIASES = new Set([
@@ -37,6 +38,7 @@ export function App() {
   if (requested === 'broken') return <Broken data-conciv-key="f-BlcQ" />
   if (requested === 'drift') return <DriftPage data-conciv-key="k8rCfA" />
   if (requested === 'drift-hand') return <DriftHandPage data-conciv-key="hNdPgA" />
+  if (requested === 'drift-kit') return <DriftKitPage data-conciv-key="kItPgA" />
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'xray') return <XrayProofPage data-conciv-key="8prgZg" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
@@ -147,6 +149,15 @@ function DriftHandPage() {
     <main className="drift" data-conciv-key="hNdMnA">
       <span className="chip" data-conciv-key="hNdChp" />
       <span className="loose" data-conciv-key="hNdLse" />
+    </main>
+  )
+}
+
+function DriftKitPage() {
+  return (
+    <main className="drift" data-conciv-key="kItMnA">
+      <Pill data-conciv-key="kItPlA" />
+      <span className="loose" data-conciv-key="kItLsA" />
     </main>
   )
 }

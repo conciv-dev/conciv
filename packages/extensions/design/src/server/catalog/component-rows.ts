@@ -1,5 +1,5 @@
 import {dirname, relative, resolve} from 'node:path'
-import {dropRightWhile, once} from 'es-toolkit'
+import {dropRightWhile, keyBy, once} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import type {Catalog, CatalogConfig, Component, Hint, Hinter, Ranked} from '../../shared/catalog-defs.js'
 import type {ComponentRows, DesignNode, GateRow} from '../../shared/defs.js'
@@ -17,28 +17,32 @@ export function createComponentRows(input: {
   const {catalog, hinters, config, cwd} = input
   const resolvers = once(async () => (await viteEntries({cwd})).map((root) => new ResolverFactory(root.resolve)))
   return {
-    rows: async ({design, reads, relation}) => {
-      if (!config.hint) return []
+    rows: async ({design, reads, relation, earlier}) => {
       const ranked = await catalog.list({})
       if (!ranked.some((component) => component.tier === KIT)) return []
       const walked = await catalog.list({hidden: true})
-      const hints = new Map(hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]))
+      const lost = lostComponents({earlier, ranked})
+      const hints = new Map(config.hint ? hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]) : [])
       const found = await Promise.all(
         [...walk(design.root)].map(async ({node}) => {
-          const hint = hints.get(node.id)
-          if (hint === undefined || !reads.mapped(node.id)) return []
-          const component = hinted({ranked, hint})
-          if (component === undefined || !fires({component, hint})) return []
-          if (rendered({related: relation.get(node.id), component})) return []
+          if (!reads.mapped(node.id)) return []
+          const claim = claimOf({
+            related: relation.get(node.id),
+            lost: lost.get(node.id),
+            hint: hints.get(node.id),
+            ranked,
+            walked,
+          })
+          if (claim === null) return []
           const specifier = await usableFrom({
-            component,
+            component: claim.component,
             file: sourceFile({reads, node: node.id}),
             walked,
             cwd,
             resolvers: await resolvers(),
           })
           if (specifier === null) return []
-          return [rowOf({node, component, specifier, named: reads.named(node.id)})]
+          return [rowOf({node, claim, specifier, named: reads.named(node.id)})]
         }),
       )
       return found.flat()
@@ -59,6 +63,41 @@ const COMPONENT = 'component'
 const SOURCE_SEPARATOR = ':'
 
 const RELATIVE = '.'
+
+type Claim = {component: Ranked; lost: boolean}
+
+function lostComponents(input: {earlier: Map<string, Component>[]; ranked: Ranked[]}): Map<string, Ranked> {
+  const kit = keyBy(
+    input.ranked.filter((component) => component.tier === KIT),
+    (component) => component.id,
+  )
+  return new Map(
+    input.earlier.flatMap((relation) =>
+      [...relation].flatMap(([node, component]) => {
+        const own = kit[component.id]
+        return own === undefined ? [] : [[node, own] satisfies [string, Ranked]]
+      }),
+    ),
+  )
+}
+
+function claimOf(input: {
+  related: Component | undefined
+  lost: Ranked | undefined
+  hint: Hint | undefined
+  ranked: Ranked[]
+  walked: Ranked[]
+}): Claim | null {
+  const {related, lost, hint, ranked, walked} = input
+  const relatedTier = walked.find((component) => component.id === related?.id)?.tier
+  if (lost !== undefined && relatedTier !== KIT && !rendered({related, component: lost})) {
+    return {component: lost, lost: true}
+  }
+  if (hint === undefined) return null
+  const component = hinted({ranked, hint})
+  if (component === undefined || !fires({component, hint}) || rendered({related, component})) return null
+  return {component, lost: false}
+}
 
 function hinted(input: {ranked: Ranked[]; hint: Hint}): Ranked | undefined {
   const {ranked, hint} = input
@@ -106,7 +145,7 @@ async function usableFrom(input: {
 }): Promise<string | null> {
   const {component, file, walked, cwd, resolvers} = input
   if (file === null || component.framework === null) return null
-  const host = walked.find((candidate) => sameFile({walked: candidate.file, source: file}))
+  const host = walked.find((candidate) => sameFile({walked: candidate.file, source: file, cwd}))
   if (host === undefined || host.framework !== component.framework) return null
   const from = dirname(resolve(cwd, host.file))
   if (component.specifier.startsWith(RELATIVE)) return relativeTo({from, to: resolve(cwd, component.file)})
@@ -121,19 +160,23 @@ function relativeTo(input: {from: string; to: string}): string {
 
 function rowOf(input: {
   node: DesignNode
-  component: Component
+  claim: Claim
   specifier: string
   named: Pick<GateRow, 'id' | 'selector' | 'source' | 'confidence' | 'margin'>
 }): GateRow {
-  const {node, component, specifier, named} = input
+  const {node, claim, specifier, named} = input
+  const {component} = claim
   const name = node.figma?.name ?? node.id
   const own = component.names[0] ?? component.specifier
+  const line = importLine({...component, specifier})
   return {
     node: node.id,
     ...named,
     kind: COMPONENT,
     name,
-    text: `${name} is drawn by hand; the design names \`${own}\` (\`${importLine({...component, specifier})}\`)`,
+    text: claim.lost
+      ? `${name} was rendered by \`${own}\` and is now drawn by hand (\`${line}\`)`
+      : `${name} is drawn by hand; the design names \`${own}\` (\`${line}\`)`,
     magnitude: COMPONENT,
     component: own,
     specifier,

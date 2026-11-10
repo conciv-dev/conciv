@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
 import {dirname, extname, isAbsolute, join, relative} from 'node:path'
-import {groupBy, minBy, uniqBy} from 'es-toolkit'
+import {minBy, uniqBy} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
@@ -9,6 +9,7 @@ import type {Component, ModuleEdge, PropSketch, Scan} from '../../shared/catalog
 import {viteEntries} from './entries.js'
 import {parseModule} from './parse-module.js'
 import {moduleScripts} from './module-scripts.js'
+import {frameworksOf} from './frameworks.js'
 
 export async function walkProject(input: {cwd: string}): Promise<Scan> {
   const {cwd} = input
@@ -29,6 +30,7 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
                 via: null,
                 depth: 0,
                 root: root.root,
+                plugins: root.plugins,
                 resolver,
                 packageJson: start.packageJsonPath ?? null,
               },
@@ -73,6 +75,7 @@ type Item = {
   via: string | null
   depth: number
   root: string
+  plugins: string[]
   resolver: ResolverFactory
   packageJson: string | null
 }
@@ -102,51 +105,7 @@ const SENTENCE_END = '. '
 const ASIDE_OPEN = '('
 const ASIDE_CLOSE = ')'
 const CODE_MARK = '`'
-const SCOPE_MARK = '@'
-const FRAMEWORKS = new Map([
-  ['solid-js', 'solid'],
-  ['react', 'react'],
-  ['react-dom', 'react'],
-  ['preact', 'preact'],
-  ['vue', 'vue'],
-  ['svelte', 'svelte'],
-])
-
 const PackageSchema = z.object({name: z.string().nullable().catch(null), version: z.string().nullable().catch(null)})
-
-function frameworksOf(visited: Map<string, Visit>): (file: string) => string | null {
-  const importers = groupBy(
-    [...visited.values()].flatMap((visit) =>
-      [...visit.resolved.values()].map((target) => ({from: visit.file, to: target.path})),
-    ),
-    (edge) => edge.to,
-  )
-  const known = new Map<string, string | null>()
-  const frameworkOf = (file: string): string | null => {
-    const found = known.get(file)
-    if (found !== undefined) return found
-    known.set(file, null)
-    const framework =
-      ownFramework(visited.get(file) ?? null) ??
-      (importers[file] ?? []).map((edge) => frameworkOf(edge.from)).find((each) => each !== null) ??
-      null
-    known.set(file, framework)
-    return framework
-  }
-  return frameworkOf
-}
-
-function ownFramework(visit: Visit | null): string | null {
-  const parsed = visit?.parsed
-  if (parsed === null || parsed === undefined) return null
-  const named = [...parsed.imports, ...parsed.reexports].filter(bare).map(packageName)
-  return named.map((name) => FRAMEWORKS.get(name)).find((framework) => framework !== undefined) ?? null
-}
-
-function packageName(request: string): string {
-  const parts = request.split('/')
-  return (request.startsWith(SCOPE_MARK) ? parts.slice(0, 2) : parts.slice(0, 1)).join('/')
-}
 
 async function crawl(input: {
   frontier: Item[]
@@ -168,6 +127,7 @@ async function crawl(input: {
           via: crossing ? request : visit.via,
           depth: crossing ? visit.depth + 1 : visit.depth,
           root: visit.root,
+          plugins: visit.plugins,
           resolver: visit.resolver,
           packageJson: target.packageJson,
         }

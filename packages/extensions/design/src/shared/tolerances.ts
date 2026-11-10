@@ -121,6 +121,7 @@ export const designConfig = Object.assign(
       placeholder: 'data-conciv-placeholder',
       overlay: 'data-conciv-overlay',
     },
+    stampRoot: '../../..',
     propertyAliases,
     folded,
     hex,

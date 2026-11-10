@@ -78,6 +78,7 @@
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
     "execa": "^10.2.1",
+    "get-tsconfig": "catalog:",
     "hono": "catalog:",
     "lucide-solid": "catalog:",
     "onnxruntime-web": "catalog:",

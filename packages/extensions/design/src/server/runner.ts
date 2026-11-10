@@ -103,7 +103,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const replaced = listed.length - classified.length + drift
     const named =
       unsettled === null
-        ? await runtime.components.rows({design, reads: readIds({root: mapped.root, live: measured.live}), relation})
+        ? await runtime.components.rows({
+            design,
+            reads: readIds({root: mapped.root, live: measured.live}),
+            relation,
+            earlier: await Promise.all(
+              measuredRounds.map((earlier) => store.relation({id: record.id, round: earlier.round})),
+            ),
+          })
         : []
     const rows = [...classified, ...named]
     const counts = {

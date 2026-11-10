@@ -639,5 +639,6 @@ export type ComponentRows = {
     design: Design
     reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named' | 'getSRC'>
     relation: Map<string, Component>
+    earlier: Map<string, Component>[]
   }): Promise<GateRow[]>
 }
