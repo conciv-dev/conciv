@@ -25,6 +25,8 @@ const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const RUNS_COMMAND = 'design:runs'
+
+const RUNS_SOURCE = 'design_runs'
 const LOGIN_MARK = '#conciv_otp='
 const LAUNCH_ARGS = ['--disable-features=LocalNetworkAccessChecks']
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
@@ -144,12 +146,18 @@ async function serve(input: {options: Options; commands: string[]}): Promise<voi
     const trial = await open({options, server, browser, devEndpointDir: dirs.devEndpointDir, target, printed})
     print(`state ${dirs.stateRoot}`)
     await readCommands({trial, commands: input.commands})
-    await runCommand({trial, name: 'run', args: ['import', dirs.stateRoot]})
+    await importedRun({trial, stateRoot: dirs.stateRoot})
   } finally {
     await browser.close()
     await server.close()
     await Promise.all(dirs.temporary.map((dir) => rm(dir, {recursive: true, force: true})))
   }
+}
+
+async function importedRun(input: {trial: Trial; stateRoot: string}): Promise<void> {
+  const runs = await input.trial.rpc.db.read({from: RUNS_SOURCE, select: ['run']})
+  if (runs.length === 0) return print(`no run in ${input.stateRoot}; nothing imported into the runs store`)
+  await runCommand({trial: input.trial, name: 'run', args: ['import', input.stateRoot]})
 }
 
 function debuggingArgs(endpoint: string | undefined): string[] {
