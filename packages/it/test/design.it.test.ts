@@ -2,7 +2,7 @@
 import {execFile} from 'node:child_process'
 import {createHash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
@@ -69,6 +69,8 @@ import {stackRow} from './fixtures/design/stack-row.js'
 import {picture} from './fixtures/design/picture.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
+
+const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url))
 const DESIGN_PACKAGE = fileURLToPath(new URL('../../extensions/design/package.json', import.meta.url))
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
@@ -1818,7 +1820,11 @@ describe('run start and run end', () => {
   it('keys an untracked copy inside a git checkout by its package name, with no branch or head', async () => {
     const waveDir = await mkdtemp(join(FIXTURES, 'untracked-'))
     importedDirs.push(waveDir)
-    const cwd = await lane({root: FIXTURES, wave: basename(waveDir), label: 'copy'})
+    const cwd = join(waveDir, 'copy')
+    await cp(HOST_ROOT, cwd, {
+      recursive: true,
+      filter: (source) => !['node_modules', '.conciv'].includes(basename(source)),
+    })
     const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-state-'))
     const home = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-home-'))
     const orm = openDb({stateRoot, extensions: [design]})
