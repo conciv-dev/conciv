@@ -216,3 +216,11 @@ Rulings:
 
 Plan: the token map and the drift classification land with the relation (Task 5), measured in Task 8 as "kit
 imports kept" and "drift rows" beside "rows cleared".
+
+## Previews are read by people and by `show` first; the look vote waits (2026-11-10)
+
+The preview route serves the Parts view and `design_components(show)`. The look hinter (a preview's pixels against a
+node's render) needs the registered tab to render previews off screen and an asynchronous `Hinter`; the engine has no
+browser of its own and will not get one. It is built after Measure (Task 8) shows what the name and variant hint alone
+achieve, as a page verb that loads a preview in a hidden frame of the registered tab and captures it through the capture
+path that exists. Until then `Hinter` stays synchronous and the preview page carries no widget.
