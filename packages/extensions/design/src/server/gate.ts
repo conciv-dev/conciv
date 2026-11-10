@@ -247,8 +247,11 @@ function labelOf(input: {record: Record; element: LiveComponent}): string {
 }
 
 function wrapped(wrap: {lines: number; frame: number}): string {
-  return `${wrap.lines > wrap.frame ? 'wraps to' : 'breaks into'} ${wrap.lines} lines, the frame has ${wrap.frame}`
+  const noun = LINE_PLURAL.select(wrap.lines) === 'one' ? 'line' : 'lines'
+  return `${wrap.lines > wrap.frame ? 'wraps to' : 'breaks into'} ${wrap.lines} ${noun}, the frame has ${wrap.frame}`
 }
+
+const LINE_PLURAL = new Intl.PluralRules('en')
 
 function widthWord(input: {rendered: number; design: number; tol: number; far: boolean}): string | null {
   const {rendered, design, tol, far} = input
