@@ -274,6 +274,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         tool: toolCalls.tool,
         round: toolCalls.round,
         input: toolCalls.input,
+        reply: toolCalls.reply,
         reply_bytes: toolCalls.reply_bytes,
         duration_ms: toolCalls.duration_ms,
         error: toolCalls.error,

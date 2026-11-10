@@ -1,6 +1,7 @@
 import type {designTables} from '../server/tables.js'
 import type {Ballot, Design, DESIGN_VERDICTS, IdTree, Mapping, Round, TargetRecord, Widget} from './defs.js'
 import type {Component, Ranked} from './catalog-defs.js'
+import type {ToolReply} from './tool-reply.js'
 
 export type Store = {
   put(input: {
@@ -41,7 +42,14 @@ export type Store = {
   list(): Promise<TargetRecord[]>
 }
 
-type ToolCall = {tool: string; input: unknown; replyBytes: number | null; durationMs: number; error: string | null}
+type ToolCall = {
+  tool: string
+  input: unknown
+  reply: ToolReply | null
+  replyBytes: number | null
+  durationMs: number
+  error: string | null
+}
 
 type Label = {
   target: string

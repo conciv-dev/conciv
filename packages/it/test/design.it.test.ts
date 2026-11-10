@@ -848,6 +848,33 @@ describe('catalog hints on design_get', () => {
     const listed = await call('design_components', {})
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
+
+  it('stores the reply design_get returned whole, beside its input', async () => {
+    const got = await hintedTarget()
+    const StoredSchema = z.object({
+      reply: z.object({
+        components: z.string().optional(),
+        nodes: z.array(z.object({id: z.string(), hint: z.unknown().optional()})),
+      }),
+      input: z.unknown(),
+    })
+    const [stored] = z.array(StoredSchema).parse(
+      await kit.rpc.registry.call({
+        name: 'design_query',
+        input: {
+          from: 'tool_calls',
+          where: 'tool == "design_get"',
+          select: ['reply', 'input'],
+          order: [{field: 'seq', dir: 'desc'}],
+          limit: 1,
+        },
+      }),
+    )
+    const hinted = got.nodes.find((node) => node.hint !== undefined)
+    expect(stored?.reply.components).toBe(got.components)
+    expect(stored?.reply.nodes.find((node) => node.id === hinted?.id)?.hint).toEqual(hinted?.hint)
+    expect(stored?.input).toMatchObject({figma: HINTED_LINK})
+  })
 })
 
 describe('node components', () => {
