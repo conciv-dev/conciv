@@ -4,7 +4,7 @@ import {join, resolve} from 'node:path'
 import {parseArgs} from 'node:util'
 import {chromium} from 'playwright'
 import {z} from 'zod'
-import type {NativeSessionRef} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, type NativeSessionRef} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {renderTargets} from '../../test/fixtures/design/render-targets.js'
@@ -89,7 +89,6 @@ type GetInput = z.input<typeof getDef.inputSchema>
 type Trial = Awaited<ReturnType<typeof open>>
 
 const TAB_HEIGHT = 720
-const PREVIEW_LIMIT = 100
 const LAUNCH_ARGS = ['--disable-features=LocalNetworkAccessChecks']
 const SHOWN = z.array(z.enum(['progress']))
 const OPENED = z.array(z.enum(['query']))
@@ -189,7 +188,7 @@ async function transcriptPages(input: {
     nativeId: native.nativeId,
     cwd: native.cwd,
     before: input.before,
-    limit: PREVIEW_LIMIT,
+    limit: CHAT_HISTORY_PAGE_SIZE,
   })
   if (page.earlier === null) return page.messages
   return [...(await transcriptPages({...input, before: page.earlier})), ...page.messages]
