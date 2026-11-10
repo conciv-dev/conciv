@@ -16,6 +16,12 @@ const ComponentSchema = z.object({
   version: z.string().nullable().describe('the installed version, for a dependency only'),
   specifier: z.string().describe('the import path a project file writes'),
   renders: z.boolean(),
+  framework: z
+    .string()
+    .nullable()
+    .describe(
+      'the framework whose markup it renders: the one its module or a module that imports it imports, null when none',
+    ),
   sentence: z.string().nullable(),
   props: z.union([z.array(PropSketchSchema), z.literal('see file')]),
   usage: z.string().nullable().describe('the shortest story or call site that renders it'),

@@ -15,6 +15,7 @@ import type {designTables} from '../tables.js'
 import {projectFingerprint} from './fingerprint.js'
 import {projectKey} from './project-key.js'
 import {rankComponents} from './rank.js'
+import {sameFile} from './source-file.js'
 
 export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; sources: ComponentSource[]}): Catalog {
   const {home, db, cwd, sources} = input
@@ -209,10 +210,13 @@ function located(source: string): {file: string; line: number} {
 function enclosing<Found extends Component>(input: {found: Found[]; at: {file: string; line: number}}): Found | null {
   const {found, at} = input
   const {file, line} = at
-  const rendered = found.find((component) => component.sites.some((site) => site.file === file && site.line === line))
+  const rendered = found.find((component) =>
+    component.sites.some((site) => sameFile({walked: site.file, source: file}) && site.line === line),
+  )
   if (rendered !== undefined) return rendered
   const holding = found.filter(
-    (component) => component.file === file && component.lines.start <= line && line <= component.lines.end,
+    (component) =>
+      sameFile({walked: component.file, source: file}) && component.lines.start <= line && line <= component.lines.end,
   )
   return minBy(holding, (component) => component.lines.end - component.lines.start) ?? null
 }

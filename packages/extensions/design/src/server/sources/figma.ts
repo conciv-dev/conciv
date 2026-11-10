@@ -21,6 +21,7 @@ import {reflowTagged} from './reflow-tags.js'
 import {figmaSchemas} from './figma-schema.js'
 import {figmaFacts} from './figma-facts.js'
 import {figmaAssets} from './figma-assets.js'
+import {linkComponents} from './figma-components.js'
 import {namedTokens} from './figma-tokens.js'
 
 export function createFigmaAdapter(input: {
@@ -38,7 +39,10 @@ export function createFigmaAdapter(input: {
       if (link === null && !isJsonRef(ref)) throw toolError('figma-link', {message: FIGMA_LINK_MESSAGE})
       const fetched = await fetchedFigma({ref, link, scale, token, project, files, attachments})
       const frame = frameOf({document: fetched.document, nodeId: link?.nodeId ?? null})
-      const built = designRoot({frame: frame.node, scale, raster: createRaster(fetched.image), config})
+      const built = linkComponents({
+        root: designRoot({frame: frame.node, scale, raster: createRaster(fetched.image), config}),
+        entry: frame.entry,
+      })
       const fileKey = link?.fileKey ?? null
       const named = await namedTokens({root: built, fileKey, token})
       const plain: Design = {
@@ -75,7 +79,7 @@ type BoxNode = Extract<DesignNode, {kind: 'box'}>
 type TextNode = Extract<DesignNode, {kind: 'text'}>
 type Layout = NonNullable<DesignNode['layout']>
 type Origin = {x: number; y: number; scale: number}
-type Frame = {node: FigmaNode; viewport: Design['viewport']; warnings: string[]}
+type Frame = {node: FigmaNode; entry: unknown; viewport: Design['viewport']; warnings: string[]}
 type DesignConfig = z.output<typeof designConfig>
 type Distance = (input: {a: string; b: string}) => number
 type Axis = 'vertical' | 'horizontal'
@@ -232,7 +236,12 @@ function frameOf(input: {document: FigmaDocument; nodeId: string | null}): Frame
     nodeId === null && frames.length > 1
       ? [`the Figma document holds ${frames.length} frames; the first, ${node.id}, is the target`]
       : []
-  return {node, viewport: {width: Math.round(bounds.width), height: Math.round(bounds.height)}, warnings}
+  return {
+    node,
+    entry: chosen?.entry,
+    viewport: {width: Math.round(bounds.width), height: Math.round(bounds.height)},
+    warnings,
+  }
 }
 
 function designRoot(input: {frame: FigmaNode; scale: number; raster: Raster; config: DesignConfig}): DesignNode {

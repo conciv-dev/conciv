@@ -131,6 +131,10 @@ const FigmaFactsSchema = z.object({
   mode: z.string().nullable().describe('the auto-layout mode, null without auto layout'),
   box: BoxSchema.describe('the exact frame-relative box, unrounded'),
   fields: z.record(z.string(), z.unknown()).describe('the remaining node fields as design_get returns them'),
+  component: z
+    .string()
+    .optional()
+    .describe('the main component name of an INSTANCE or COMPONENT, its variant part dropped'),
 })
 
 const GateFactsSchema = z.object({
@@ -633,7 +637,7 @@ export type DesignRuntime = {
 export type ComponentRows = {
   rows(input: {
     design: Design
-    reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named'>
+    reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named' | 'getSRC'>
     relation: Map<string, Component>
   }): Promise<GateRow[]>
 }

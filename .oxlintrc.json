@@ -327,6 +327,12 @@
       }
     },
     {
+      "files": ["packages/it/**"],
+      "rules": {
+        "conciv/test-file-budget": ["error", {"max": 3}]
+      }
+    },
+    {
       "files": ["packages/ui-kit-chat/**"],
       "rules": {
         "conciv/test-file-budget": ["error", {"max": 5}]

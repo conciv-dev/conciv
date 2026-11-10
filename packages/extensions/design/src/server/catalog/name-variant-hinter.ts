@@ -25,6 +25,8 @@ const HINTER_NAME = 'name-variant'
 
 const VARIANT = 'VARIANT'
 
+const FUZZY_CEILING = 1 - designConfig.tolerances.pairMargin
+
 const SIMILARITY = createSimilarity()
 
 const NAME_WEIGHT = SIMILARITY.voters.find((voter) => voter.name === 'text')?.base ?? 0
@@ -40,25 +42,35 @@ const ComponentPropertiesSchema = z
   })
   .catch({componentProperties: {}})
 
-type Scored = {component: string; specifier: string; score: number}
+type Scored = {component: string; specifier: string; score: number; linked: boolean}
 
 function bestOf(input: {node: DesignNode; ranked: Ranked[]}): Scored | null {
   const raw = input.node.figma?.name ?? ''
   const name = folded(raw)
   if (name === '') return null
+  const main = folded(input.node.figma?.component ?? '')
   const variants = variantsOf(input.node)
   const said = lowerWords(raw)
   const spoken = namedSpans({words: said, ranked: input.ranked})
-  const scored = input.ranked.map((component) => scoreOf({name, said, variants, component, spoken}))
-  const [top, runner] = orderBy(scored, [(entry) => entry.score], ['desc'])
+  const scored = input.ranked.map((component) => scoreOf({name, main, said, variants, component, spoken}))
+  const linked = scored.filter((entry) => entry.linked)
+  const [top, runner] = orderBy(linked.length > 0 ? linked : scored, [(entry) => entry.score], ['desc'])
   if (top === undefined) return null
   if (runner !== undefined && top.score - runner.score < designConfig.tolerances.pairMargin) return null
-  return top
+  return top.linked ? top : {...top, score: Math.min(top.score, FUZZY_CEILING)}
 }
 
-function scoreOf(input: {name: string; said: string[]; variants: string[]; component: Ranked; spoken: Span[]}): Scored {
-  const {name, said, variants, component, spoken} = input
-  const whole = component.names.find((candidate) => spoken.some((span) => span.name === candidate))
+function scoreOf(input: {
+  name: string
+  main: string
+  said: string[]
+  variants: string[]
+  component: Ranked
+  spoken: Span[]
+}): Scored {
+  const {name, main, said, variants, component, spoken} = input
+  const link = main === '' ? undefined : component.names.find((candidate) => folded(candidate) === main)
+  const whole = link ?? component.names.find((candidate) => spoken.some((span) => span.name === candidate))
   const named =
     whole ?? maxBy(component.names, (candidate) => SIMILARITY.text.similarity({a: name, b: folded(candidate)}))
   const nameScore = whole === undefined ? textScore({name, said, candidate: named}) : 1
@@ -70,7 +82,12 @@ function scoreOf(input: {name: string; said: string[]; variants: string[]; compo
   const fit = variants.length === 0 ? null : variants.filter((value) => values.has(value)).length / variants.length
   const score =
     fit === null ? nameScore : (nameScore * NAME_WEIGHT + fit * VARIANT_WEIGHT) / (NAME_WEIGHT + VARIANT_WEIGHT)
-  return {component: named ?? component.names[0] ?? '', specifier: component.specifier, score}
+  return {
+    component: named ?? component.names[0] ?? '',
+    specifier: component.specifier,
+    score,
+    linked: link !== undefined,
+  }
 }
 
 function textScore(input: {name: string; said: string[]; candidate: string | undefined}): number {

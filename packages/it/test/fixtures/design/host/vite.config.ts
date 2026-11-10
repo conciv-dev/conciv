@@ -7,5 +7,13 @@ export default {
       '@app': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  build: {rolldownOptions: {input: {main: 'index.html', xray: 'xray.html'}}},
+  build: {
+    rolldownOptions: {
+      input: {
+        main: 'index.html',
+        xray: 'xray.html',
+        overlay: '../../../../../extensions/design/src/xray/overlay.tsx',
+      },
+    },
+  },
 }

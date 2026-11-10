@@ -83,7 +83,7 @@ const design = defineExtension({
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,
     tokens: config.catalog.tokens.map((source) => tokenSources[source]),
-    components: createComponentRows({catalog, hinters, config: config.catalog}),
+    components: createComponentRows({catalog, hinters, config: config.catalog, cwd: server.cwd}),
   }
   const differ = createDiffer({
     show: config.show,

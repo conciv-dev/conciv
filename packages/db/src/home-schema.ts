@@ -36,6 +36,7 @@ export const components = sqliteTable(
     version: text('version'),
     specifier: text('specifier').notNull(),
     renders: integer('renders', {mode: 'boolean'}).notNull(),
+    framework: text('framework'),
     sentence: text('sentence'),
     props: text('props', {mode: 'json'}).$type<unknown>().notNull(),
     usage: text('usage'),

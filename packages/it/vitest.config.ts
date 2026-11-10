@@ -11,7 +11,13 @@ export default defineConfig({
           name: 'it',
           environment: 'node',
           include: ['test/**/*.test.ts'],
-          exclude: ['test/design.it.test.ts', 'test/fixtures/**', 'node_modules/**', 'dist/**'],
+          exclude: [
+            'test/design.it.test.ts',
+            'test/design-catalog.it.test.ts',
+            'test/fixtures/**',
+            'node_modules/**',
+            'dist/**',
+          ],
         },
       },
       {
@@ -19,7 +25,7 @@ export default defineConfig({
         test: {
           name: 'design',
           environment: 'node',
-          include: ['test/design.it.test.ts'],
+          include: ['test/design.it.test.ts', 'test/design-catalog.it.test.ts'],
           testTimeout: 120_000,
           hookTimeout: 120_000,
           fileParallelism: false,

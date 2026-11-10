@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
 import {dirname, extname, isAbsolute, join, relative} from 'node:path'
-import {minBy, uniqBy} from 'es-toolkit'
+import {groupBy, minBy, uniqBy} from 'es-toolkit'
 import {ResolverFactory} from 'oxc-resolver'
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
@@ -40,10 +40,15 @@ export async function walkProject(input: {cwd: string}): Promise<Scan> {
     })
   }, Promise.resolve())
   const packages = new Map<string, Promise<PackageFacts>>()
+  const frameworkOf = frameworksOf(visited)
   const components = await Promise.all(
     [...visited.values()].flatMap((visit) => definedIn(visit).map((definition) => ({visit, definition}))),
   ).then((found) =>
-    Promise.all(found.map(({visit, definition}) => component({visit, definition, visited, packages, disk, cwd}))),
+    Promise.all(
+      found.map(({visit, definition}) =>
+        component({visit, definition, visited, packages, disk, cwd, framework: frameworkOf(visit.file)}),
+      ),
+    ),
   )
   return {
     modules: [...visited.keys()].map((file) => projectPath({cwd, file})),
@@ -97,8 +102,51 @@ const SENTENCE_END = '. '
 const ASIDE_OPEN = '('
 const ASIDE_CLOSE = ')'
 const CODE_MARK = '`'
+const SCOPE_MARK = '@'
+const FRAMEWORKS = new Map([
+  ['solid-js', 'solid'],
+  ['react', 'react'],
+  ['react-dom', 'react'],
+  ['preact', 'preact'],
+  ['vue', 'vue'],
+  ['svelte', 'svelte'],
+])
 
 const PackageSchema = z.object({name: z.string().nullable().catch(null), version: z.string().nullable().catch(null)})
+
+function frameworksOf(visited: Map<string, Visit>): (file: string) => string | null {
+  const importers = groupBy(
+    [...visited.values()].flatMap((visit) =>
+      [...visit.resolved.values()].map((target) => ({from: visit.file, to: target.path})),
+    ),
+    (edge) => edge.to,
+  )
+  const known = new Map<string, string | null>()
+  const frameworkOf = (file: string): string | null => {
+    const found = known.get(file)
+    if (found !== undefined) return found
+    known.set(file, null)
+    const framework =
+      ownFramework(visited.get(file) ?? null) ??
+      (importers[file] ?? []).map((edge) => frameworkOf(edge.from)).find((each) => each !== null) ??
+      null
+    known.set(file, framework)
+    return framework
+  }
+  return frameworkOf
+}
+
+function ownFramework(visit: Visit | null): string | null {
+  const parsed = visit?.parsed
+  if (parsed === null || parsed === undefined) return null
+  const named = [...parsed.imports, ...parsed.reexports].filter(bare).map(packageName)
+  return named.map((name) => FRAMEWORKS.get(name)).find((framework) => framework !== undefined) ?? null
+}
+
+function packageName(request: string): string {
+  const parts = request.split('/')
+  return (request.startsWith(SCOPE_MARK) ? parts.slice(0, 2) : parts.slice(0, 1)).join('/')
+}
 
 async function crawl(input: {
   frontier: Item[]
@@ -202,8 +250,9 @@ async function component(input: {
   packages: Map<string, Promise<PackageFacts>>
   disk: Storage
   cwd: string
+  framework: string | null
 }): Promise<Component> {
-  const {visit, definition, visited, packages, disk, cwd} = input
+  const {visit, definition, visited, packages, disk, cwd, framework} = input
   const parsed = visit.parsed
   const facts = visit.packageJson === null ? null : await packageFacts({file: visit.packageJson, packages, disk})
   const packageDir = visit.packageJson === null ? visit.root : dirname(visit.packageJson)
@@ -232,6 +281,7 @@ async function component(input: {
     version,
     specifier: visit.via ?? `./${relative(packageDir, visit.file)}`,
     renders: true,
+    framework,
     sentence,
     props: await propsOf({visit, local: definition.local, visited}),
     usage: minBy(outermost(uses), (use) => use.text.length)?.text ?? null,
