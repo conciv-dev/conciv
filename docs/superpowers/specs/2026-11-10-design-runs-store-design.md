@@ -106,3 +106,25 @@ Rulings:
 4. Not taken from swamp: `--single`, the keyset cursor, SQL pushdown as a separate layer (the CEL compiles whole to SQL here).
 
 Measure: the Task 4 queries rewritten as `conciv db read` calls yield the same rows; the x-ray can read `design_run_summary` over rpc.
+
+## A wave is run, judged and reported by the product
+
+The trial harness, the judge and the wave table were shell and TypeScript scripts in a scratch folder, one copy per wave. Omri's
+ruling on 2026-11-10: a feature is written in the product, in the package that owns it, with its test; a script standing in for a
+feature is not allowed. The shape follows swamp, where a workflow is run by name, its outputs land in the data store, and reports
+are analysis functions over that store saved as data.
+
+- **Run.** `conciv tools design trial <wave> --runs <n> --model <model> --design <ref>` starts the runs of a wave from one command;
+  each run is imported into the store the moment it finishes, with no manual step and no file export. The per-wave launch scripts
+  (`<wave>-one.sh`, `<wave>-runs.sh`, `<wave>-score.sh`) are gone.
+- **Judge.** `conciv tools design judge <wave>` shows each run's final page and the design to a blind model at every measured
+  width and writes the verdicts to `design_judgements` (run, target, width, score, reason, model), a table of the runs store and a
+  read-only source. The hand `judge.mts` is gone, and the judge json files with it.
+- **Report.** `conciv tools design report <wave>` writes the wave's table as markdown from `design_run_summary`,
+  `design_round_rows`, `design_lowest_rendered`, `design_mispairs`, `design_lost_components` and `design_judgements`, and saves it
+  under the store's home as `reports/<wave>.md`. A number in a report is the output of a source query, never of a script.
+- **Rescore.** Scoring a run's final page again after a tool fix is a replay from the store (`design_stored_nodes`,
+  `design_stored_fom`), not a shell lane over the run dir.
+
+Smell ruled on at the same time: the store lived under the session scratch folder. Its home is the conciv home (`openRunsStore`
+default) and nothing else.
