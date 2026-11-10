@@ -615,6 +615,26 @@ the code inside an engine and is not changed.
   then pass that tab's id as `tab` on every `execute_typescript` and `discover_tools` call.
 - Naming one browser tab from outside stays unbuilt; calls go to the browser tab focused last.
 
+### 8. A page call that loses its browser tab mid-call (Omri's yes, 2026-11-10)
+
+Everything is on localhost, so the tab's socket closes only when one side is really gone: the tab closed,
+reloaded or navigated, or the engine restarted. Part 4 fails the in-flight query at once in that case. A reload
+is the common one (a dev server full reload, or a click that navigates), so the engine does one more thing,
+decided by the tool's existing `mutating` mark (`packages/extensions/page/src/shared/defs.ts`):
+
+- **Reading tools (`mutating` false: route, snapshot, text and the like):** the engine waits for a browser tab
+  of the same session to serve again and sends the query once more, to that tab. It reacts to the tab's
+  `page-serving` frame; it does not poll. The caller sees a normal result. If no tab serves within 5 seconds
+  the call fails as in part 4. The query is resent once, never twice.
+- **Changing tools (`mutating` true: click, fill, press and the like):** never resent. The action may be the
+  thing that caused the reload, so it may already have happened. The call fails at once with a message that
+  says so: `the page reloaded or closed during page_<verb>; it may already have run. Take a new snapshot
+  before continuing`, same error code as today.
+- A call made while no tab is serving at all (not mid-call) is unchanged: it fails at once.
+- A healthy tab is not slowed: the wait exists only after a tab was lost mid-call.
+- The other browser tab of the same session, when one is open, counts as "a tab serving again": the resend
+  goes to the tab focused last, by the rule of part 4.
+
 ### Tests (existing files only; one journey per file, no timing guesses)
 
 - `packages/cli/test/cli.test.ts`, `describe('conciv mcp hub')`, part 7: two engines, one tab each. A block with
