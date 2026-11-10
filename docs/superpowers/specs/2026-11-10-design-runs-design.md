@@ -146,3 +146,33 @@ from the scratch folder is read again.
 
 File layout under `runs/` beyond "one export per file"; the markdown shape of the report (the present `twentynine.store.md` is the
 reference); how `trial wave` waits on its lanes; the tar library for the source artifact.
+
+## Rulings from the builder check
+
+1. **Home scope in the host.** Extension CLI commands gain `options` (named flags with types) beside `positionals`, and a
+   `scope`: `project` (today's: an RPC to the project's engine) or `home` (runs in the CLI process against the conciv home, with
+   the extension's store opened directly, no engine). `run start` and `run end` are project scope; `run import`, `runs gc` and
+   `report` are home scope. The sources of a home-scoped database are cataloged in `<home>/home.db` by the extension at load, in
+   the same `sources` table shape the project catalog uses; `conciv db query` and `conciv db write` resolve a source in the project
+   catalog first, then the home catalog, and with no project around they use the home catalog alone. These are `@conciv/extension`,
+   `@conciv/db` and `@conciv/cli` members and come first, each with its unit test.
+2. **gc deletes artifacts and lanes, never runs.** Runs have no lifetime; the tables are kept. `runs gc` deletes artifact files
+   past `written + lifetime` and their `artifacts` rows. `runs gc --state` deletes lane directories recorded in a store table
+   `lanes` (`run_id`, `path`, `registered`) that the harness writes at import; it never reads `source_path` and never touches a
+   run that has no lane row.
+3. **The design render is an artifact.** Artifact kind `design`: the target's rendered image per measured width, lifetime
+   infinite. The judge reads `design` and `screenshot` artifacts of a run from the store and nothing from a run dir.
+4. **A lane is a copy, served and stated in one place.** `trial wave` copies the pristine host fixture into `<lane root>/<wave>/<lane>`;
+   `trial serve --project <dir>` uses that dir as the vite root and keeps the state in `<dir>/.conciv`. A lane has no git, so its
+   `project_key` is the fixture's package name, shared by every trial run of that fixture, and `branch` and `head` are null; the tool
+   version is carried by the next ruling.
+5. **The tool version is head plus fingerprint.** `tools_head` is the head commit of the checkout the design extension is loaded
+   from (null for a published package, with `tools_version` the package version), and `tools_fingerprint` is the existing
+   `projectFingerprint` of the extension package, so a dirty tree is told apart from its head.
+6. **Existing rows migrate by SQL, old files are not adopted.** The 167 runs in the scratch store are moved once to the conciv home.
+   A drizzle migration backfills `wave` and `lane` from the run dir name in `source_path` (the name up to its first `-` is the
+   wave, the rest is the lane); `project_key`, `branch`, `head`, `tools_*` stay null for them. Their old `final-src` and
+   transcripts are not read: they have no artifacts, and the judge json of past waves stays in the journal as history.
+7. **Who migrates, and column strictness.** The store is migrated whenever it is opened: by the design server at boot and by any
+   home-scoped command. The import refuses a live column the store lacks (a missing migration), and fills with null a store column
+   the live database lacks (an older project).
