@@ -721,6 +721,17 @@ describe('page bus and the session scope', () => {
     })
   })
 
+  it('a call whose browser tab stays open and never replies times out once, never as a lost tab', async () => {
+    const bus = makePageBus(100)
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const reading = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    await expect(reading).rejects.toMatchObject({error: {code: 'timeout'}})
+    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(1)
+    const changing = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    await expect(changing).rejects.toMatchObject({error: {code: 'timeout'}})
+  })
+
   it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
     const bus = makePageBus(2000)
     const lost = bus.subscribe(SESSION_A, () => {})

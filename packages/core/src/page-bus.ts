@@ -208,6 +208,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const deadline = Date.now() + ms
     const outcome = await send(sessionId, tab, query, ms).catch(async (error: unknown) => {
       if (route === undefined || 'browserTab' in route || !isPageFailure(error)) throw error
+      if (error.error.code !== 'no-widget') throw error
       if (route.mutating) {
         throw pageFailure(
           'no-widget',
