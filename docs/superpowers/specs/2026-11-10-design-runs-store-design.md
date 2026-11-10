@@ -128,3 +128,20 @@ are analysis functions over that store saved as data.
 
 Smell ruled on at the same time: the store lived under the session scratch folder. Its home is the conciv home (`openRunsStore`
 default) and nothing else.
+
+## The store follows swamp's data model
+
+Swamp's data primitive (`_ref/swamp/design/primitives/data.md`): an artifact is addressed by `(type, modelId, name, version)`, never
+changes once written, carries the provenance of the run that wrote it, a `lifetime` and a `garbageCollection` rule, and a SQLite catalog
+beside the files makes it queryable. Definitions live in git; data never does. The runs store takes the same shape:
+
+- **A run is written once.** The import is the only writer of a run's rows; a second import of the same `(source_path,
+  source_run_id)` is refused, never merged. The run carries its wave name and the harness command that produced it as provenance.
+- **Files are artifacts with a lifetime.** A run's final screenshots per width and its final source are stored as file artifacts
+  under the store's home with a catalog row (`design_artifacts`: run, kind, width, path, size, checksum, lifetime, written at), each a
+  read-only source. The run dir's `state/`, lanes and shots are not kept past import.
+- **Garbage collection is a command.** `conciv tools design runs gc` deletes artifacts past their lifetime and run dirs already
+  imported, and prints what it removed and what it kept. Nothing else deletes run data.
+- **Reports and judgements are data.** `design_judgements` rows and `reports/<wave>.md` are written by the judge and report commands
+  with the same provenance, and are queryable sources like the rest.
+- **The home is the conciv home.** The store is never under a session scratch folder.
