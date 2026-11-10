@@ -6,12 +6,15 @@ import {figmaSchemas} from './figma-schema.js'
 export function figmaFacts(input: {
   node: FigmaNode
   origin: Origin
-  marks: {image: boolean; crop: boolean; imageRef?: string | null}
+  marks: {image: boolean; crop: boolean; stack?: boolean}
 }): Facts {
   const {node, origin, marks} = input
   const bounds = node.absoluteBoundingBox ?? {x: origin.x, y: origin.y, width: 0, height: 0}
   const mode = FLOWS.has(node.layoutMode ?? '') ? (node.layoutMode ?? null) : null
-  const fills = paints(node.fills ?? [])
+  const visible = (node.fills ?? []).filter((paint) => paint.visible !== false)
+  const bottom = marks.stack === true ? visible.findIndex((paint) => paint.type === 'IMAGE') : -1
+  const fills = paints(bottom < 0 ? visible : visible.slice(0, bottom))
+  const stack = bottom < 0 ? [] : visible.slice(bottom).flatMap(layerOf)
   const strokes = paints(node.strokes ?? [])
   const radius = node.rectangleCornerRadii ?? node.cornerRadius
   const fields = {
@@ -29,7 +32,7 @@ export function figmaFacts(input: {
     ...(node.opacity === undefined || node.opacity === 1 ? {} : {opacity: node.opacity}),
     ...(marks.image ? {image: true} : {}),
     ...(marks.crop ? {crop: true} : {}),
-    ...(marks.imageRef === undefined || marks.imageRef === null ? {} : {imageRef: marks.imageRef}),
+    ...(stack.length === 0 ? {} : {stack}),
     ...tokensOf(node),
   }
   return {
@@ -53,17 +56,35 @@ function paints(list: FigmaPaint[]): Record<string, unknown>[] {
     if (paint.type === 'SOLID' && paint.color !== undefined)
       return [{type: 'solid', color: colorHex(paint.color), opacity: paint.opacity ?? paint.color.a ?? 1}]
     if (paint.gradientStops === undefined) return [{type: paint.type.toLowerCase()}]
-    return [
-      {
-        type: `${paint.type.replace('GRADIENT_', '').toLowerCase()}-gradient`,
-        stops: paint.gradientStops.map((stop) => ({
-          color: colorHex(stop.color),
-          opacity: stop.color.a ?? 1,
-          at: Math.round(stop.position * PERCENT),
-        })),
-      },
-    ]
+    return [{type: gradientType(paint), stops: stopsOf(paint.gradientStops)}]
   })
+}
+
+function layerOf(paint: FigmaPaint): Layer[] {
+  const base = {blend: paint.blendMode ?? NORMAL, opacity: paint.opacity ?? 1}
+  if (paint.type === 'IMAGE') {
+    if (paint.imageRef === undefined) return []
+    const factor = paint.scalingFactor === undefined ? {} : {scalingFactor: paint.scalingFactor}
+    const filters = paint.filters === undefined ? {} : {filters: paint.filters}
+    return [{type: 'image', ...base, ref: paint.imageRef, scale: paint.scaleMode ?? FILL, ...factor, ...filters}]
+  }
+  if (paint.type === 'SOLID' && paint.color !== undefined)
+    return [{type: 'solid', ...base, color: colorHex(paint.color), opacity: paint.opacity ?? paint.color.a ?? 1}]
+  if (paint.gradientStops === undefined) return []
+  const handles = paint.gradientHandlePositions === undefined ? {} : {handles: paint.gradientHandlePositions}
+  return [{type: gradientType(paint), ...base, stops: stopsOf(paint.gradientStops), ...handles}]
+}
+
+function gradientType(paint: FigmaPaint): string {
+  return `${paint.type.replace('GRADIENT_', '').toLowerCase()}-gradient`
+}
+
+function stopsOf(stops: NonNullable<FigmaPaint['gradientStops']>): NonNullable<Layer['stops']> {
+  return stops.map((stop) => ({
+    color: colorHex(stop.color),
+    opacity: stop.color.a ?? 1,
+    at: Math.round(stop.position * PERCENT),
+  }))
 }
 
 function tokensOf(node: FigmaNode): {tokens?: Record<string, string>} {
@@ -119,6 +140,7 @@ function sizingOf(node: FigmaNode): Record<string, unknown> {
 
 type FigmaNode = z.infer<typeof figmaSchemas.node>
 type FigmaPaint = z.infer<typeof figmaSchemas.paint>
+type Layer = z.infer<typeof figmaSchemas.layer>
 type Color = z.infer<typeof figmaSchemas.color>
 type Origin = {x: number; y: number; scale: number}
 type Facts = NonNullable<DesignNode['figma']>
@@ -133,6 +155,8 @@ const TOKEN_FIELDS = {
 }
 const FLOWS = new Set(['HORIZONTAL', 'VERTICAL', 'GRID'])
 const REGULAR_WEIGHT = 400
+const NORMAL = 'NORMAL'
+const FILL = 'FILL'
 const PERCENT = 100
 
 function colorHex(color: Color): string {

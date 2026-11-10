@@ -1,6 +1,6 @@
 import {sql} from 'drizzle-orm'
 import {check, integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
-import {DESIGN_VERDICTS, type Design, type IdTree} from '../shared/defs.js'
+import {DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
 
 export function designTables(table: SQLiteTableFn) {
   return {
@@ -14,8 +14,8 @@ export function designTables(table: SQLiteTableFn) {
       height: real().notNull(),
       scale: real().notNull(),
       design: text({mode: 'json'}).$type<Design>().notNull(),
-      ids: text({mode: 'json'}).$type<IdTree>(),
       image: text().notNull(),
+      widget: text({enum: WIDGETS}).notNull().default('hidden'),
       unsettled: integer().notNull().default(0),
       lead: text(),
       at: integer().notNull(),
@@ -51,8 +51,10 @@ export function designTables(table: SQLiteTableFn) {
       tree: text().notNull(),
       verdict: text(),
       unsettled: text(),
+      broken: text(),
       live: text(),
       diff: text(),
+      ids: text({mode: 'json'}).$type<IdTree>(),
       at: integer().notNull(),
     }),
     missing: table('missing', {
@@ -293,6 +295,6 @@ export function designTables(table: SQLiteTableFn) {
 
 const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 
-const FILL_KINDS = ['solid', 'gradient', 'image', 'none'] as const
+const FILL_KINDS = ['solid', 'gradient', 'image', 'image-stack', 'none'] as const
 
 const NOW_MS = sql`(cast(unixepoch('subsec') * 1000 as integer))`

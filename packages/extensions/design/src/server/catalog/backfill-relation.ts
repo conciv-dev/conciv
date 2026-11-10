@@ -8,11 +8,22 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
   const {fom, node_components: nodeComponents} = db.tables
   const [related] = await db.orm.select({seq: nodeComponents.seq}).from(nodeComponents).limit(1)
   if (related !== undefined) return 0
-  const rounds = await db.orm.selectDistinct({targetId: fom.target_id, round: fom.round}).from(fom)
-  return rounds.reduce(
-    async (written, {targetId, round}) => (await written) + (await relateRound({db, catalog, targetId, round})).size,
-    Promise.resolve(0),
-  )
+  const held = await db.orm
+    .select({targetId: fom.target_id, round: fom.round, node: fom.node, source: fom.source})
+    .from(fom)
+  const rounds = Object.values(Object.groupBy(held, (row) => `${row.targetId}\n${row.round}`))
+  return rounds.reduce(async (written, sites = []) => {
+    const [first] = sites
+    if (first === undefined) return written
+    const relation = await relateRound({
+      db,
+      catalog,
+      targetId: first.targetId,
+      round: first.round,
+      sites: sites.flatMap((row) => (row.source === null ? [] : [{node: row.node, source: row.source}])),
+    })
+    return (await written) + relation.size
+  }, Promise.resolve(0))
 }
 
 type DesignDb = ExtensionDb<ReturnType<typeof designTables>>

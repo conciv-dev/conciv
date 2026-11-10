@@ -1,3 +1,4 @@
+import {extname} from 'node:path'
 import {parse} from 'culori'
 import {trim} from 'es-toolkit'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
@@ -102,8 +103,10 @@ function ratioOf(shot: PageNodeShot): number | null {
 }
 
 function references(input: {shown: string; asset: string}): boolean {
+  const asset = pathOf(input.asset)
+  if (input.shown === INLINE_SVG) return asset !== null && extname(asset) === SVG_EXT
   const shown = pathOf(input.shown)
-  return input.shown !== INLINE_SVG && shown !== null && shown === pathOf(input.asset)
+  return shown !== null && shown === asset
 }
 
 function pathOf(url: string): string | null {
@@ -122,6 +125,7 @@ function foundIn(element: LiveComponent): string {
 }
 
 const INLINE_SVG = 'inline svg'
+const SVG_EXT = '.svg'
 const IMG = 'img'
 const QUOTES = ['"', "'"]
 const PAGE_BASE = 'http://page/'

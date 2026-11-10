@@ -10,10 +10,9 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
-import {HostApiProvider} from '@conciv/extension/host'
+import {getHostApi, HostApiProvider} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
-import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
@@ -50,7 +49,7 @@ import {EngineLoginDialog, engineConnected, engineLocked} from '../app/engine-lo
 import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition, type PanelFrame} from '../lib/draggable-position.js'
 import {createElementSize} from '@solid-primitives/resize-observer'
-import {toRawHotkey} from '../lib/hotkey.js'
+import {createHotkeyRegistry} from '../lib/hotkey-registry.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {hostFocusTarget} from '../lib/host-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
@@ -63,6 +62,8 @@ import '../styles.css'
 import 'virtual:uno.css'
 
 const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
+const HOST_OWNER = 'conciv'
+const QUICK_TERMINAL_LABEL = 'Quick terminal'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
   validateSearch: sessionPickerSearchSchema,
@@ -179,6 +180,7 @@ function RootComponent() {
   })
 
   const reachability = makeEngineReachability()
+  const hotkeys = createHotkeyRegistry()
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>
@@ -199,6 +201,9 @@ function RootComponent() {
               popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
               sessionId={activeSession}
               colorScheme={colorScheme}
+              hotkeys={hotkeys}
+              styles={() => adoptedSheets(app.environment.rootNode)}
+              owner={HOST_OWNER}
             >
               <RootChrome
                 fab={fab}
@@ -422,8 +427,10 @@ function RootChrome(props: {
     })
   }
   const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
+  const hotkeys = getHostApi().useHotkeys()
   if (settings.quickTerminal.enabled) {
-    for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
+    for (const binding of settings.quickTerminal.hotkeys)
+      hotkeys.register({binding, handler: toggleQuick, label: QUICK_TERMINAL_LABEL})
   }
 
   return (
@@ -460,6 +467,10 @@ function RootChrome(props: {
       </div>
     </div>
   )
+}
+
+function adoptedSheets(root: Node): CSSStyleSheet[] {
+  return root instanceof ShadowRoot ? [...root.adoptedStyleSheets] : []
 }
 
 function createStoredRunning(activeSession: () => string | null, connected: () => boolean): () => boolean {

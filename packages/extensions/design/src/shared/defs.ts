@@ -15,7 +15,13 @@ const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const
 export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
-const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled'] as const
+const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled', 'broken'] as const
+
+export const WIDGETS = ['hidden', 'shown'] as const
+
+const WidgetSchema = z
+  .enum(WIDGETS)
+  .describe('hidden leaves the conciv widget and overlay out of every measurement; shown measures them as page')
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
@@ -196,6 +202,7 @@ export const TargetRecordSchema = z.object({
   width: z.number(),
   height: z.number(),
   scale: z.number(),
+  widget: WidgetSchema.default('hidden'),
   createdAt: z.number(),
 })
 
@@ -306,6 +313,11 @@ export const RoundSchema = z.object({
   tree: z.string().default('').describe('sha256 of the measured keys, boxes and styles and the page stylesheets'),
   verdict: z.enum(CHECK_VERDICTS).nullable().default(null),
   unsettled: z.string().nullable().default(null).describe('why the round was measured but not judged'),
+  broken: z
+    .string()
+    .nullable()
+    .default(null)
+    .describe('the compile error of a page that does not compile, file:line:column: message; nothing was measured'),
 })
 
 const TaggedNodeSchema = z
@@ -335,6 +347,7 @@ const GetInputSchema = z
       .optional()
       .describe('the frame REST nodes document when the engine has no key; a list for several'),
     image: PathsSchema.optional().describe('path of the design PNG, or the PNG as base64; a list for several'),
+    widget: WidgetSchema.optional().describe('hidden by default; shown when the widget itself is the design'),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
@@ -353,6 +366,20 @@ const GetResultSchema = z.object({
 const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
 
 const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
+
+const CompileErrorSchema = z.object({
+  message: z.string().describe('the first line of the error'),
+  file: z.string().nullable().describe('the file that does not compile, relative to the project'),
+  line: z.number().nullable(),
+  column: z.number().nullable(),
+})
+
+const BrokenSchema = z.object({
+  round: z.number(),
+  verdict: z.literal('broken'),
+  reasons: z.array(z.string()),
+  compile: CompileErrorSchema.describe('the error the dev server reports for the page'),
+})
 
 const MeasuredSchema = RoundSchema.pick({
   round: true,
@@ -374,6 +401,7 @@ const VARIANT = {target: z.string(), width: z.number()}
 const CheckedOneSchema = z.union([
   MeasuredSchema.extend(JUDGED),
   UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
+  BrokenSchema,
 ])
 
 const CheckResultSchema = z.union([
@@ -383,6 +411,7 @@ const CheckResultSchema = z.union([
 
 const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: true}).extend({
   ...JUDGED,
+  widget: WidgetSchema.optional(),
   counts: CountsSchema.nullable(),
   coverage: CoverageSchema.nullable(),
 })
@@ -417,6 +446,7 @@ const Width = z.number().int().positive()
 const MeasureInputSchema = z.object({
   width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
   height: Width.optional().describe('the height to capture'),
+  widget: WidgetSchema.default('hidden'),
   timeout: z.number().int().positive().optional(),
 })
 
@@ -434,7 +464,7 @@ const getDef = designTool({
 const checkDef = designTool({
   name: `${DESIGN_TOOL_PREFIX}check`,
   summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, or unsettled when the page did not render or rendered under half the nodes of the last settled round; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round. With several frames each is measured at its width against its own nodes and the reply holds one result per frame in variants; done is every variant done.',
+    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, unsettled when the page did not render or rendered under half the nodes of the last settled round, or broken when the page does not compile: the reply names the file, line and error, has no rows, and nothing else was measured until the compile error is fixed; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round. With several frames each is measured at its width against its own nodes and the reply holds one result per frame in variants; done is every variant done.',
   running: 'Checking the page against the design',
   done: 'Checked the page against the design',
   input: z.object({nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only')}),
@@ -488,6 +518,7 @@ export type Design = z.infer<typeof DesignSchema>
 export type DesignNode = z.infer<typeof DesignNodeSchema>
 export type Match = z.infer<typeof MatchSchema>
 export type TargetRecord = z.infer<typeof TargetRecordSchema>
+export type Widget = z.output<typeof WidgetSchema>
 export type LiveComponent = z.output<typeof LiveComponentSchema>
 export type Mapping = z.output<typeof MappingSchema>
 export type IdTree = z.output<typeof IdTreeSchema>
@@ -501,6 +532,7 @@ export type Status = z.output<typeof StatusSchema>
 export type Got = z.output<typeof GetResultSchema>
 export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema>
 export type Checked = z.output<typeof CheckResultSchema>
+export type CompileError = z.output<typeof CompileErrorSchema>
 export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
 type Layer = 'dom' | 'src' | 'cssom' | 'total'
 export type Raster = {

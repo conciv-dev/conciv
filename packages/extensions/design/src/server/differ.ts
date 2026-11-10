@@ -1,12 +1,15 @@
-import {isAbsolute, relative} from 'node:path'
+import {isAbsolute, join, relative} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
+import {stripVTControlCharacters} from 'node:util'
 import {omit} from 'es-toolkit'
+import {z} from 'zod'
 import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
-import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import type {
   Checked,
+  CompileError,
   DesignRuntime,
   Differ,
   GateRow,
@@ -15,6 +18,7 @@ import type {
   Runner,
   Status,
   TargetRecord,
+  Widget,
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
@@ -37,7 +41,22 @@ export function createDiffer(input: {
   const tab = (session: string): ServerToolPageAccess => ({
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
-  const edits = watchEdits(input.bundler)
+  const edits = watchEdits({bundler: input.bundler, cwd: runtime.cwd})
+  const brokenOne = async (asked: {record: TargetRecord; compile: CompileError}) => {
+    const {record, compile} = asked
+    const [design, rounds] = await Promise.all([store.design(record.id), store.rounds(record.id)])
+    const round = (rounds.at(-1)?.round ?? 0) + 1
+    const written = {
+      ...NOTHING_MEASURED,
+      round,
+      at: Date.now(),
+      verdict: 'broken' as const,
+      broken: compileLine(compile),
+    }
+    await store.writeRound({id: record.id, round: written, live: new Uint8Array(), diff: new Uint8Array()})
+    const {reasons} = verdictOf({design, rounds: [...rounds, written]})
+    return {round, verdict: 'broken' as const, reasons, compile}
+  }
   const checkedOne = async (asked: {
     record: TargetRecord
     session: string
@@ -57,7 +76,10 @@ export function createDiffer(input: {
     return nodes === undefined ? checked : only({checked, nodes})
   }
   const statusOne = async (record: TargetRecord) =>
-    shown(verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}))
+    shown({
+      ...verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}),
+      widget: record.widget,
+    })
   return {
     get: async ({input: query, session, page: access}) => {
       const links = linksOf(query.figma)
@@ -73,19 +95,28 @@ export function createDiffer(input: {
       const known = [...(current === null ? [] : [current]), ...set].find((record) =>
         sameRef({record, query: one, cwd: runtime.cwd}),
       )
-      if (known !== undefined) return stored({runtime, record: known})
+      if (known !== undefined) {
+        const widget = query.widget ?? known.widget
+        if (widget === known.widget) return stored({runtime, record: known})
+        return stored({runtime, record: await rewidgeted({runtime, record: known, widget})})
+      }
       const record = await registered({runtime, query: one, session, page: access})
       return stored({runtime, record})
     },
     check: async ({nodes, session}) => {
       await edits.quiet()
+      const compile = await edits.compiled()
       const records = await store.variants(session)
-      if (records.length < 2) return checkedOne({record: await currentTarget({runtime, session}), session, nodes})
+      const one = (record: TargetRecord, variants?: number[]) =>
+        compile === null
+          ? checkedOne({record, session, nodes, ...(variants === undefined ? {} : {variants})})
+          : brokenOne({record, compile})
+      if (records.length < 2) return one(await currentTarget({runtime, session}))
       const widths = records.map((record) => record.width)
       const variants = []
       for (const record of records)
         variants.push({
-          ...(await checkedOne({record, session, nodes, variants: widths})),
+          ...(await one(record, widths)),
           target: record.id,
           width: record.width,
         })
@@ -107,7 +138,12 @@ type DesignPage = ServerApi<unknown>['page']
 
 type GetQuery = Parameters<Differ['get']>[0]['input']
 
-type OneQuery = {figma?: string | undefined; image?: string | undefined; document?: unknown}
+type OneQuery = {
+  figma?: string | undefined
+  image?: string | undefined
+  document?: unknown
+  widget?: Widget | undefined
+}
 
 const BASE64_REF = 'base64'
 
@@ -117,9 +153,29 @@ const TOLERANCES = designConfig.tolerances
 
 const SETTLE_WAIT_MS = 5000
 
+const NOTHING_MEASURED = {
+  rows: [],
+  reflow: {widths: [], results: []},
+  coverage: {nodes: 0, mapped: 0, rendered: 0, missing: [], notRendered: [], dupes: [], revoted: 0, candidates: []},
+  counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, reflow: 0, rows: 0},
+  pixels: null,
+  progress: null,
+  tree: '',
+  unsettled: null,
+}
+
+const LocSchema = z.object({line: z.number(), column: z.number()})
+
+const ThrownSchema = z.object({
+  message: z.string(),
+  id: z.string().optional(),
+  loc: LocSchema.optional(),
+  errors: z.array(z.object({message: z.string(), loc: LocSchema.optional()})).optional(),
+})
+
 async function stored(input: {runtime: DesignRuntime; record: TargetRecord}): Promise<Got> {
   const {runtime, record} = input
-  const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids(record.id)])
+  const [design, ids] = await Promise.all([runtime.store.design(record.id), runtime.store.ids({id: record.id})])
   return documentOf({target: record.id, design, ids})
 }
 
@@ -165,6 +221,25 @@ async function registered(input: {
     session,
     notes: loaded.warnings,
     ...(route === undefined ? {} : {route}),
+    ...(query.widget === undefined ? {} : {widget: query.widget}),
+  })
+}
+
+async function rewidgeted(input: {
+  runtime: DesignRuntime
+  record: TargetRecord
+  widget: Widget
+}): Promise<TargetRecord> {
+  const {runtime, record} = input
+  const {store} = runtime
+  const image = await store.image({id: record.id})
+  if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
+  return store.put({
+    design: await store.design(record.id),
+    image,
+    session: record.session,
+    widget: input.widget,
+    ...(record.route === undefined ? {} : {route: record.route}),
   })
 }
 
@@ -206,7 +281,12 @@ async function variantsGot(input: {
   for (const [index, link] of input.links.entries()) {
     const held = await runtime.store.list()
     const known = held.find((record) => record.session === session && record.ref === figmaRef(link))
-    const one = {figma: link, image: at({list: query.image, index}), document: at({list: query.document, index})}
+    const one = {
+      figma: link,
+      image: at({list: query.image, index}),
+      document: at({list: query.document, index}),
+      widget: query.widget,
+    }
     records.push(known ?? (await registered({runtime, query: one, session, page: input.page})))
   }
   await runtime.store.group(records.map((record) => record.id))
@@ -249,7 +329,7 @@ async function currentTarget(input: {runtime: DesignRuntime; session: string}): 
   throw toolError('no-target', {message: 'no design is registered; call design_get with the Figma link'})
 }
 
-function only(input: {checked: Extract<Checked, {round: number}>; nodes: string[]}): Extract<Checked, {round: number}> {
+function only(input: {checked: Extract<Checked, {rows: unknown}>; nodes: string[]}): Extract<Checked, {rows: unknown}> {
   const wanted = new Set(input.nodes)
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }
@@ -259,12 +339,19 @@ function unsettledReason(measured: Exclude<RoundReply, {round: number}>): string
   return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
 }
 
-function watchEdits(bundler: BundlerBridge | undefined): {quiet: () => Promise<void>; dispose: () => void} {
-  const state: {timer: ReturnType<typeof setTimeout> | undefined; settled: PromiseWithResolvers<void> | null} = {
-    timer: undefined,
-    settled: null,
-  }
+function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
+  quiet: () => Promise<void>
+  compiled: () => Promise<CompileError | null>
+  dispose: () => void
+} {
+  const {bundler, cwd} = input
+  const state: {
+    timer: ReturnType<typeof setTimeout> | undefined
+    settled: PromiseWithResolvers<void> | null
+    failed: CompileError | null
+  } = {timer: undefined, settled: null, failed: null}
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
+    if (diagnostic.kind === 'build-error') state.failed = compileErrorOf({diagnostic, cwd})
     if (diagnostic.kind !== 'hmr-update') return
     const settled = state.settled ?? Promise.withResolvers<void>()
     state.settled = settled
@@ -280,11 +367,68 @@ function watchEdits(bundler: BundlerBridge | undefined): {quiet: () => Promise<v
         state.settled?.promise ?? Promise.resolve(),
         delay(TOLERANCES.settleQuiet + SETTLE_WAIT_MS, undefined, {ref: false}),
       ]),
+    compiled: async () => {
+      const {failed} = state
+      if (failed === null || bundler === undefined) return null
+      state.failed = await stillFailing({bundler, failed, cwd})
+      return state.failed
+    },
     dispose: () => {
       clearTimeout(state.timer)
       unsubscribe?.()
     },
   }
+}
+
+async function stillFailing(input: {
+  bundler: BundlerBridge
+  failed: CompileError
+  cwd: string
+}): Promise<CompileError | null> {
+  const {bundler, failed, cwd} = input
+  const modules = failed.file === null ? [] : bundler.moduleGraph(join(cwd, failed.file))
+  const transformed = await Promise.all(
+    modules.map((module) =>
+      bundler.transform(module.url).then(
+        () => null,
+        (thrown: unknown) => thrownError({thrown, cwd}) ?? failed,
+      ),
+    ),
+  )
+  return transformed.find((error) => error !== null) ?? null
+}
+
+function thrownError(input: {thrown: unknown; cwd: string}): CompileError | null {
+  const parsed = ThrownSchema.safeParse(input.thrown)
+  if (!parsed.success) return null
+  const {id, errors = []} = parsed.data
+  const {message, loc} = errors[0] ?? parsed.data
+  const position = loc === undefined ? null : {line: loc.line, column: loc.column + 1}
+  return compileErrorOf({
+    diagnostic: {kind: 'build-error', message, file: id ?? null, loc: position, timestamp: Date.now()},
+    cwd: input.cwd,
+  })
+}
+
+function compileErrorOf(input: {
+  diagnostic: Extract<BundlerDiagnostic, {kind: 'build-error'}>
+  cwd: string
+}): CompileError {
+  const {message, file, loc} = input.diagnostic
+  const lines = stripVTControlCharacters(message)
+    .split('\n')
+    .map((line) => line.trim())
+  return {
+    message: lines.find((line) => line !== '') ?? message,
+    file: file === null ? null : relative(input.cwd, file.split('?')[0] ?? file),
+    line: loc?.line ?? null,
+    column: loc?.column ?? null,
+  }
+}
+
+function compileLine(compile: CompileError): string {
+  const place = [compile.file, compile.line, compile.column].filter((part) => part !== null).join(':')
+  return place === '' ? compile.message : `${place}: ${compile.message}`
 }
 
 function tokenGroups(rows: GateRow[]): GateRow[] {

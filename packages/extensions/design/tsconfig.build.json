@@ -8,6 +8,5 @@
     "rootDir": "src",
     "incremental": false
   },
-  "include": ["src/**/*.ts", "src/client.tsx"],
-  "exclude": ["src/xray/**"]
+  "include": ["src/**/*.ts", "src/client.tsx"]
 }

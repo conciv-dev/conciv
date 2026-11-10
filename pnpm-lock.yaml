@@ -24,9 +24,6 @@ catalogs:
     '@hono/node-server':
       specifier: ^2.1.5
       version: 2.1.5
-    '@iconify-json/ph':
-      specifier: ^1.2.2
-      version: 1.2.2
     '@modelcontextprotocol/sdk':
       specifier: ^1.32.2
       version: 1.32.2
@@ -237,6 +234,9 @@ catalogs:
     class-variance-authority:
       specifier: ^0.7.1
       version: 0.7.1
+    color-blend:
+      specifier: ^4.0.0
+      version: 4.0.0
     culori:
       specifier: ^4.0.2
       version: 4.0.2
@@ -372,6 +372,9 @@ catalogs:
     semver:
       specifier: ^7.8.5
       version: 7.8.5
+    sharp:
+      specifier: ^0.35.5
+      version: 0.35.5
     shiki:
       specifier: ^4.5.0
       version: 4.5.0
@@ -2795,6 +2798,9 @@ importers:
       '@zumer/snapdom':
         specifier: 'catalog:'
         version: 3.3.3
+      color-blend:
+        specifier: 'catalog:'
+        version: 4.0.0
       culori:
         specifier: 'catalog:'
         version: 4.0.2
@@ -2843,6 +2849,9 @@ importers:
       rrweb-snapshot:
         specifier: 'catalog:'
         version: 2.2.0
+      sharp:
+        specifier: 'catalog:'
+        version: 0.35.5(@types/node@26.6.6)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -2859,15 +2868,18 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/extension-compiler':
+        specifier: workspace:*
+        version: link:../../extension-compiler
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
-      '@iconify-json/ph':
-        specifier: 'catalog:'
-        version: 1.2.2
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/resize-observer':
+        specifier: 'catalog:'
+        version: 2.2.0(solid-js@1.9.17)
       '@solid-primitives/timer':
         specifier: 'catalog:'
         version: 1.4.4(solid-js@1.9.17)
@@ -2880,9 +2892,6 @@ importers:
       '@types/pngjs':
         specifier: 'catalog:'
         version: 6.0.5
-      '@unocss/reset':
-        specifier: 'catalog:'
-        version: 66.12.0
       drizzle-kit:
         specifier: 'catalog:'
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7))
@@ -2968,6 +2977,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
+      '@tanstack/hotkeys':
+        specifier: ^0.18.0
+        version: 0.18.0
       '@tanstack/solid-pacer':
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
@@ -3880,6 +3892,9 @@ importers:
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.64.1
       '@types/culori':
         specifier: 'catalog:'
         version: 4.0.1
@@ -6748,9 +6763,6 @@ packages:
 
   '@iarna/toml@2.2.5':
     resolution: {integrity: sha512-trnsAYxU3xnS1gPHPyU961coFyLkh4gAD/0zQ5mymY4yOZ+CYvsPqUbOFSw0aDM4y0tV7tiFxL/1XfXPNC6IPg==}
-
-  '@iconify-json/ph@1.2.2':
-    resolution: {integrity: sha512-PgkEZNtqa8hBGjHXQa4pMwZa93hmfu8FUSjs/nv4oUU6yLsgv+gh9nu28Kqi8Fz9CCVu4hj1MZs9/60J57IzFw==}
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -12993,6 +13005,10 @@ packages:
 
   collapse-white-space@2.1.0:
     resolution: {integrity: sha512-loKTxY1zCOuG4j9f6EPnuyyYkf58RnhhWTvRoZEokgB+WbdXehfjFviyOVYkqzEWz1Q5kRiZdBYS5SwxbQYwzw==}
+
+  color-blend@4.0.0:
+    resolution: {integrity: sha512-fYODTHhI/NG+B5GnzvuL3kiFrK/UnkUezWFTgEPBTY5V+kpyfAn95Vn9sJeeCX6omrCOdxnqCL3CvH+6sXtIbw==}
+    engines: {node: '>=10.0.0'}
 
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
@@ -20151,10 +20167,6 @@ snapshots:
 
   '@iarna/toml@2.2.5': {}
 
-  '@iconify-json/ph@1.2.2':
-    dependencies:
-      '@iconify/types': 2.0.0
-
   '@iconify/types@2.0.0': {}
 
   '@iconify/utils@3.1.7':
@@ -26581,6 +26593,8 @@ snapshots:
   code-block-writer@13.0.3: {}
 
   collapse-white-space@2.1.0: {}
+
+  color-blend@4.0.0: {}
 
   color-convert@2.0.1:
     dependencies:

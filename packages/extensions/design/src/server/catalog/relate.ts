@@ -9,17 +9,11 @@ export async function relateRound(input: {
   catalog: Catalog
   targetId: string
   round: number
+  sites: {node: string; source: string}[]
 }): Promise<Map<string, Component>> {
   const {db, catalog, targetId, round} = input
-  const {fom, node_components: nodeComponents} = db.tables
-  const held = await db.orm
-    .select({node: fom.node, source: fom.source})
-    .from(fom)
-    .where(and(eq(fom.target_id, targetId), eq(fom.round, round)))
-  const sourced = uniqBy(
-    held.flatMap((row) => (row.source === null ? [] : [{node: row.node, source: row.source}])),
-    (row) => `${row.node}\n${row.source}`,
-  )
+  const {node_components: nodeComponents} = db.tables
+  const sourced = uniqBy(input.sites, (row) => `${row.node}\n${row.source}`)
   const components = await catalog.componentsOf(uniq(sourced.map((row) => row.source)))
   const related = sourced.flatMap((row) => {
     const component = components.get(row.source)

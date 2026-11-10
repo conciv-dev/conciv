@@ -5,6 +5,7 @@ import {Chip} from './Chip'
 import {Stripe} from './Stripe'
 import {Table} from './Table'
 import {Toolbar} from './Toolbar'
+import {XrayProofPage} from './XrayProofPage'
 
 const TARGET_ALIASES = new Set([
   'badge',
@@ -20,6 +21,7 @@ const TARGET_ALIASES = new Set([
   'shifted',
   'webfont',
   'container',
+  'process',
 ])
 const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'webfont'}
 const CONTAINER_CSS =
@@ -35,6 +37,7 @@ export function App() {
   if (requested === 'broken') return <Broken data-conciv-key="f-BlcQ" />
   if (requested === 'drift') return <DriftPage data-conciv-key="k8rCfA" />
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
+  if (requested === 'xray') return <XrayProofPage data-conciv-key="8prgZg" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
   if (requested === 'tech') return <main className="tech" data-conciv-key="tEcHlP" />
   if (requested === 'agency') return <main className="agency" data-conciv-key="aGnCyP" />
@@ -98,6 +101,7 @@ export function App() {
       />
       {requested === 'painted' ? <PaintedCards data-conciv-key="WViT6A" /> : <Cards variant={variant} column={requested === 'column'} data-conciv-key="EztCBw" />}
       {variant === 'missing' ? null : <Table variant={variant} look={requested} data-conciv-key="rFh37A" />}
+      {requested === 'process' ? <section id="process" data-conciv-key="SE7-sA" /> : null}
       {requested === 'container' ? <style data-conciv-key="2WxtqQ">{CONTAINER_CSS}</style> : null}
       {requested === 'effects-cover' ? (
         <div

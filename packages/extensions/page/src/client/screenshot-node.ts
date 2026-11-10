@@ -1,11 +1,12 @@
 import type {z} from 'zod'
+import {selectDeep} from '@conciv/page'
 import type {PageNodeShot, screenshotNodeDef} from '../shared/defs.js'
 
 export async function screenshotNode(
   input: z.output<(typeof screenshotNodeDef)['inputSchema']>,
 ): Promise<PageNodeShot> {
-  const element = document.querySelector(input.selector)
-  if (element === null) throw new Error(`no element matches ${input.selector}`)
+  const element = selectDeep(input.selector)[0]
+  if (element === undefined) throw new Error(`no element matches ${input.selector}`)
   const width = Math.max(1, Math.round(input.width * input.scale))
   const height = Math.max(1, Math.round(input.height * input.scale))
   const {snapdom} = await import('@zumer/snapdom')

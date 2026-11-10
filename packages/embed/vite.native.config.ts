@@ -8,7 +8,8 @@ export default defineConfig({
   define: {
     'define.amd': 'false',
     'process.env.NODE_ENV': '"production"',
-    'process.env.VSCODE_TEXTMATE_DEBUG': 'undefined',
+    'process.env': '{}',
+    'process.platform': '""',
   },
   build: {
     lib: {

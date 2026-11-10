@@ -24,11 +24,18 @@ export function createRunner(runtime: DesignRuntime): Runner {
       store.mapping(record.id),
       store.rounds(record.id),
       store.image({id: record.id}),
-      store.ids(record.id),
+      store.ids({id: record.id}),
       store.unsettledCount(record.id),
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
-    const measured = await measurer.measure({page, width: record.width, height: record.height})
+    const {widget} = record
+    const oneWidth = widget === 'shown'
+    const measured = await measurer.measure({
+      page,
+      ...(oneWidth ? {} : {width: record.width}),
+      height: record.height,
+      widget,
+    })
     const count = streak + 1
     const error = measured.pageError === undefined ? {} : {error: measured.pageError}
     const blank = measured.pageError !== undefined || measured.live.children.length === 0
@@ -36,14 +43,16 @@ export function createRunner(runtime: DesignRuntime): Runner {
       await store.writeUnsettledCount({id: record.id, count})
       return {unsettled: true, rendered: 0, ...error}
     }
-    const previous = rounds.at(-1)
-    const settled = rounds.findLast((round) => round.unsettled === null)
+    const last = rounds.at(-1)
+    const measuredRounds = rounds.filter((round) => round.broken === null)
+    const previous = measuredRounds.at(-1)
+    const settled = measuredRounds.findLast((round) => round.unsettled === null)
     const built = idTreeOf({live: measured.live, sheets: measured.sheets, mapping: stored, previous: ids})
-    if (previous !== undefined && previous.tree === built.hash) {
+    if (previous !== undefined && previous === last && previous.tree === built.hash) {
       await store.writeUnsettledCount({id: record.id, count: previous.unsettled === null ? 0 : count})
       return {...shown(previous), unchanged: true}
     }
-    const round = (previous?.round ?? 0) + 1
+    const round = (last?.round ?? 0) + 1
     const decoded = createRaster(image)
     const target = design.scale === 1 ? decoded : decoded.scaled(design.scale)
     const voted = {design, measured, stored, round, pairer: runtime.pairer, target}
@@ -59,20 +68,17 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const {rendered} = coverage
     if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
+    const tree = {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}
     const relation =
-      unsettled === null
-        ? await store.writeIds({
-            id: record.id,
-            ids: {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone},
-            round,
-            revoted: mapped.reasons,
-          })
-        : new Map<string, Component>()
-    const widths = widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
+      unsettled === null ? await store.writeRelation({id: record.id, round, tree}) : new Map<string, Component>()
+    const widths = oneWidth
+      ? [{width: measured.width, from: [WIDGET_SHOWN]}]
+      : widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
     const results = []
     const failures = []
     for (const {width} of widths) {
-      const narrow = width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT})
+      const narrow =
+        width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT, widget})
       const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
       const measuredAt = reflowAt({
         root: design.root,
@@ -106,7 +112,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const earlier =
       previous === undefined ? null : await store.image({id: record.id, round: previous.round, kind: 'live'})
     const progress = progressOf({
-      rounds,
+      rounds: measuredRounds,
       now: {rows, coverage, pixels: {share: pixels.share}},
       live: {now: measured.raster, before: earlier === null ? null : createRaster(earlier), width: measured.width},
       root: mapped.root,
@@ -128,18 +134,21 @@ export function createRunner(runtime: DesignRuntime): Runner {
       tree: built.hash,
       verdict: 'unsettled',
       unsettled,
+      broken: null,
     }
     const written =
       unsettled === null
-        ? {...measuredRound, verdict: verdictOf({design, rounds: [...rounds, measuredRound]}).verdict}
+        ? {...measuredRound, verdict: verdictOf({design, rounds: [...measuredRounds, measuredRound]}).verdict}
         : measuredRound
     await store.writeRound({
       id: record.id,
       round: written,
       live: measured.raster.png(),
       diff: pixels.diff,
+      ...(unsettled === null ? {ids: {tree, revoted: mapped.reasons}} : {}),
       notes: [
         `capture ${measured.path}`,
+        ...(oneWidth ? [WIDGET_SHOWN] : []),
         ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
       ],
     })
@@ -149,6 +158,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
 }
 
 const REFLOW_HEIGHT = 900
+
+const WIDGET_SHOWN = 'widget shown: one width'
 
 const RATIO_DIGITS = 3
 

@@ -1,20 +1,19 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
 import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
-import {createRoot, onMount, Show, type JSX} from 'solid-js'
-import {createStore} from 'solid-js/store'
+import {createRoot, createSignal, onMount, Show, type JSX} from 'solid-js'
 import ScanSearch from 'lucide-solid/icons/scan-search'
-import {CONCIV_UI_SELECTOR, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
-import type {HostWiring} from '@conciv/extension/host'
+import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {capturePlugins} from '@conciv/extension-page/capture-plugins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
-import {DESIGN_TOOLS, type Box, type LiveComponent} from './shared/defs.js'
+import {DESIGN_TOOLS, type Box, type LiveComponent, type Widget} from './shared/defs.js'
 import {designConfig} from './shared/tolerances.js'
-import {OVERLAYS} from './shared/overlays.js'
-import {XrayPane} from './xray/router.js'
+import {hiddenOverlays} from './shared/overlays.js'
+import {XrayOverlay} from './xray/overlay.js'
+import {createXrayData} from './xray/data.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
@@ -73,13 +72,11 @@ type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
 type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 
-const [WIDGET_ROOT_SELECTOR] = OVERLAYS
-const OVERLAY_SELECTOR = OVERLAYS.join(', ')
+const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
-const MIRROR_BLOCKED = `${OVERLAY_SELECTOR}, iframe, video, audio, object, embed`
+const MIRROR_BLOCKED = `${hiddenOverlays('hidden').join(', ')}, iframe, video, audio, object, embed`
 const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
-const LIVE_EXCLUDE = [...OVERLAYS, CONCIV_UI_SELECTOR, `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
 const CANVAS_FALLBACK = '#ffffff'
@@ -110,20 +107,19 @@ const region: {stream: MediaStream | null} = {stream: null}
 
 const CLIENT_TOOLS = [measureDef.client(measureStep), shotsDef.client(shotsStep)] as const
 
-type PaneState = {open: boolean; engaged: boolean; picking: boolean; grab: Grab | null}
-type Grab = HostWiring['grab']
-
 function Component(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
-  const grab = host.useGrab()
   const slot = host.useSlot()
-  const toggle = design.useContext((context) => context.toggle)
-  const registerGrab = design.useContext((context) => context.registerGrab)
-  onMount(() => registerGrab(grab))
+  const xray = design.useContext((context) => context.xray)
   return (
-    <Show when={slot === 'composer'}>
-      <ComposerActions.ActionButton priority={18} tooltip="Design x-ray" onClick={() => toggle()}>
-        <ScanSearch class="size-5 block" aria-hidden="true" />
+    <Show when={slot === 'composer'} data-conciv-key="PGSUow">
+      <ComposerActions.ActionButton
+        priority={18}
+        tooltip="Design x-ray"
+        onClick={() => xray.toggle()}
+        data-conciv-key="3_HY4A"
+      >
+        <ScanSearch class="size-5 block" aria-hidden="true" data-conciv-key="C1OFbQ" />
       </ComposerActions.ActionButton>
     </Show>
   )
@@ -131,29 +127,14 @@ function Component(): JSX.Element {
 
 function Surface(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
-  const {YieldFocus} = host
   const apiBase = host.useApiBase()
-  const sessionId = host.useSessionId()
-  const scheme = host.useColorScheme()
-  const pane = design.useContext((context) => context)
+  const session = host.useSessionId()
+  const xray = design.useContext((context) => context.xray)
+  const data = createXrayData({apiBase, session, round: () => null, on: xray.on})
   onMount(() => {
     engineBase.current = apiBase
   })
-  return (
-    <Show when={pane.state.engaged}>
-      <YieldFocus when={pane.state.open && !pane.state.picking}>
-        <Show when={pane.state.open}>
-          <XrayPane
-            apiBase={apiBase()}
-            session={sessionId()}
-            dark={scheme() === 'dark'}
-            hidden={pane.state.picking}
-            onClose={pane.close}
-          />
-        </Show>
-      </YieldFocus>
-    </Show>
-  )
+  return <XrayOverlay on={xray.on} toggle={xray.toggle} data={data} capture={capturePixels} data-conciv-key="-bgIwA" />
 }
 
 export const design = defineExtension({
@@ -162,23 +143,7 @@ export const design = defineExtension({
   tools: CLIENT_TOOLS,
   Component,
   Surface,
-}).client(() =>
-  createRoot((dispose) => {
-    const [state, setState] = createStore<PaneState>({open: false, engaged: false, picking: false, grab: null})
-    const toggle = (): void => setState({engaged: true, picking: false, open: !state.open})
-    const close = (): void => setState({open: false, picking: false})
-    const registerGrab = (grab: Grab): void => setState('grab', grab)
-    const pick = async (): Promise<string | null> => {
-      const grab = state.grab
-      if (grab === null) return null
-      setState('picking', true)
-      const grabbed = await grab.comment().catch(() => null)
-      setState('picking', false)
-      return grabbed?.rect ? componentPathAt(grabbed.rect) : null
-    }
-    return {value: {capturePixels, state, toggle, close, registerGrab, pick}, dispose}
-  }),
-)
+}).client(() => createRoot((dispose) => ({value: {xray: xraySwitch()}, dispose})))
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionRegistry extends RegisterExtension<typeof design> {}
@@ -186,13 +151,18 @@ declare module '@conciv/protocol/config-types' {
 
 export default design
 
+function xraySwitch() {
+  const [on, setOn] = createSignal(false)
+  return {on, toggle: () => setOn(!on())}
+}
+
 async function measureStep(input: MeasureInput): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
   const pageError = overlayError()
   const measured = await frozen({
     doc: document,
-    run: () => (size.width === innerWidth ? measureLive({size}) : measureMirror({size})),
+    run: () => (size.width === innerWidth ? measureLive({size, widget: input.widget}) : measureMirror({size})),
   })
   const queried = {...measured, ...(await pageQueries(document))}
   return pageError === null ? queried : {...queried, pageError}
@@ -206,14 +176,14 @@ function overlayError(): string | null {
   return lines.find((line) => line !== '') ?? OVERLAY_FALLBACK
 }
 
-async function measureLive(input: {size: Size}): Promise<Measuring> {
-  const {size} = input
+async function measureLive(input: {size: Size; widget: Widget}): Promise<Measuring> {
+  const {size, widget} = input
   const longestTask = watchLongTasks()
-  const components = await collectComponents({root: document, size})
+  const components = await collectComponents({root: document, size, widget})
   const masks = canvasBoxes({root: document, size})
-  const shot = size.height <= innerHeight ? await regionShot(size) : null
-  const blob =
-    shot ?? (await snapdomShot({doc: document, size, exclude: LIVE_EXCLUDE, viewport: size.height <= innerHeight}))
+  const shot = size.height <= innerHeight ? await regionShot({size, widget}) : null
+  const exclude = [...hiddenOverlays(widget), `[${MIRROR_ATTR}]`, ...MIRROR_EXCLUDE]
+  const blob = shot ?? (await snapdomShot({doc: document, size, exclude, viewport: size.height <= innerHeight}))
   const image = await base64(blob)
   const longest = longestTask()
   return {
@@ -255,7 +225,7 @@ async function measureMirror(input: {size: Size}): Promise<Measuring> {
 
 async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
   const {doc, size} = input
-  const measured = await collectComponents({root: doc, size})
+  const measured = await collectComponents({root: doc, size, widget: 'hidden'})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
   const blob = await snapdomShot({doc, size, exclude: MIRROR_EXCLUDE, viewport: false})
@@ -424,26 +394,6 @@ function mirrorLimits(doc: Document): MirrorLimits {
   return {canvases: document.querySelectorAll('canvas').length, fonts: uniq(fonts), inlineWidths: inline.length}
 }
 
-function componentPathAt(rect: {x: number; y: number; width: number; height: number}): string | null {
-  const hit = document
-    .elementsFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)
-    .find((element) => element.closest(OVERLAY_SELECTOR) === null)
-  const owner = hit?.closest(`[${SOURCE_ATTR}]`)
-  return owner === null || owner === undefined ? null : componentPath(owner)
-}
-
-function componentPath(element: Element): string {
-  const parent = element.parentNode
-  if (element === document.documentElement || parent === null) return ''
-  if (parent instanceof ShadowRoot) return `${componentPath(parent.host)}/s/${childPosition({parent, element})}`
-  if (!(parent instanceof Element)) return ''
-  return `${componentPath(parent)}/${childPosition({parent, element})}`
-}
-
-function childPosition(input: {parent: ParentNode; element: Element}): number {
-  return [...input.parent.children].indexOf(input.element) + 1
-}
-
 function canvasBoxes(input: {root: Document; size: Size}): Box[] {
   return [...input.root.querySelectorAll('canvas')]
     .map((canvas) => clipped({rect: canvas.getBoundingClientRect(), size: input.size}))
@@ -456,10 +406,12 @@ async function capturePixels(): Promise<boolean> {
   return true
 }
 
-async function regionShot(size: Size): Promise<Blob | null> {
+async function regionShot(input: {size: Size; widget: Widget}): Promise<Blob | null> {
+  const {size} = input
   const track = await croppedTrack()
   if (track === null) return null
-  const overlays = [...document.querySelectorAll<HTMLElement>(OVERLAY_SELECTOR)]
+  const hidden = hiddenOverlays(input.widget)
+  const overlays = hidden.length === 0 ? [] : [...document.querySelectorAll<HTMLElement>(hidden.join(', '))]
   const visibility = overlays.map((overlay) => overlay.style.visibility)
   overlays.forEach((overlay) => overlay.style.setProperty('visibility', 'hidden'))
   try {
@@ -555,14 +507,23 @@ function locationRoute(): string {
   return location.pathname + location.search
 }
 
-async function collectComponents(input: {root: Document; size: Size}): Promise<LiveComponent[]> {
+async function collectComponents(input: {root: Document; size: Size; widget: Widget}): Promise<LiveComponent[]> {
   const view = input.root.defaultView
   if (view === null) return []
   const scan = scanSheets({doc: input.root, view})
-  const keys = [...input.root.querySelectorAll(`[${KEY_ATTR}]`)].map((el) => el.getAttribute(KEY_ATTR))
+  const keyed = input.widget === 'shown' ? deepKeyed(input.root) : [...input.root.querySelectorAll(`[${KEY_ATTR}]`)]
+  const keys = keyed.map((el) => el.getAttribute(KEY_ATTR))
   const repeated = new Set(keys.filter((key, index) => key !== null && keys.indexOf(key) !== index))
   const el = input.root.documentElement
-  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated})
+  const marks = input.widget === 'shown' ? [SOURCE_ATTR, KEY_ATTR] : [SOURCE_ATTR]
+  const skip = hiddenOverlays(input.widget).join(', ')
+  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated, marks, skip})
+}
+
+function deepKeyed(root: Document | ShadowRoot): Element[] {
+  const all = [...root.querySelectorAll('*')]
+  const own = all.filter((el) => el.hasAttribute(KEY_ATTR))
+  return own.concat(all.flatMap((el) => (el.shadowRoot === null ? [] : deepKeyed(el.shadowRoot))))
 }
 
 type Walk = {
@@ -573,6 +534,8 @@ type Walk = {
   scan: Scan
   walked: {count: number}
   repeated: Set<string | null>
+  marks: string[]
+  skip: string
 }
 
 function collectUnder(input: Walk): Promise<LiveComponent[]> {
@@ -584,8 +547,9 @@ function collectUnder(input: Walk): Promise<LiveComponent[]> {
   }))
   return [...light, ...shadow].reduce<Promise<LiveComponent[]>>(async (done, {child, at}) => {
     const collected = await done
+    if (input.skip !== '' && child.matches(input.skip)) return collected
     await paced(input.walked)
-    const found = child.hasAttribute(SOURCE_ATTR)
+    const found = input.marks.some((mark) => child.hasAttribute(mark))
       ? [await componentTree({...input, el: child, path: at})]
       : await collectUnder({...input, el: child, path: at})
     return collected.concat(found)

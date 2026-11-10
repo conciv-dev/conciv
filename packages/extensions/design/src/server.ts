@@ -1,6 +1,5 @@
 import {createRequire} from 'node:module'
 import {dirname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {closeHomeDb, openHomeDb} from '@conciv/db'
@@ -92,7 +91,7 @@ const design = defineExtension({
   })
   const xray = createXrayRoutes({
     runtime,
-    pageDir: fileURLToPath(new URL('xray/', import.meta.url)),
+    hotkeys: config.hotkeys,
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })
   return {

@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join, resolve} from 'node:path'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
-import {parseArgs} from 'node:util'
+import {parseArgs, stripVTControlCharacters} from 'node:util'
 import react from '@vitejs/plugin-react'
 import {chromium, type Browser, type Page} from 'playwright'
 import {createLogger, createServer, type ViteDevServer} from 'vite'
@@ -24,6 +24,7 @@ const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
 
 const RUNS_COMMAND = 'design:runs'
+const LOGIN_MARK = '#conciv_otp='
 const LAUNCH_ARGS = ['--disable-features=LocalNetworkAccessChecks']
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 const [getDef, checkDef, statusDef] = DESIGN_TOOLS
@@ -31,9 +32,12 @@ const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 type Options = {
   route: string
   width: number
+  height: number
+  colorScheme: z.output<typeof COLOR_SCHEME>
   image: string[]
   figma: string[]
   document: string[]
+  widget: GetInput['widget']
   state?: string
   model?: string
   port: number
@@ -50,6 +54,8 @@ type Shown = z.output<typeof SHOWN>
 const SHOWN = z.array(z.enum(['progress']))
 
 const OPENED = z.array(z.enum(['query']))
+
+const COLOR_SCHEME = z.enum(['light', 'dark'])
 
 type Trial = {rpc: RpcClient; page: Page; id: string; session: SessionId}
 
@@ -79,9 +85,12 @@ async function main(): Promise<void> {
     options: {
       route: {type: 'string', default: '/'},
       width: {type: 'string', default: '1280'},
+      height: {type: 'string', default: String(TAB_HEIGHT)},
+      'color-scheme': {type: 'string', default: COLOR_SCHEME.enum.light},
       image: {type: 'string', multiple: true, default: []},
       figma: {type: 'string', multiple: true, default: []},
       document: {type: 'string', multiple: true, default: []},
+      widget: {type: 'string'},
       state: {type: 'string'},
       model: {type: 'string'},
       port: {type: 'string', default: '0'},
@@ -100,8 +109,11 @@ async function main(): Promise<void> {
     noDesign: values['no-design'],
     browserDriver: values['browser-driver'],
     show: SHOWN.parse(values.show),
+    widget: getDef.inputSchema.shape.widget.parse(values.widget),
     open: OPENED.parse(values.open),
     width: Number(values.width),
+    height: Number(values.height),
+    colorScheme: COLOR_SCHEME.parse(values['color-scheme']),
     port: Number(values.port),
   }
   return serve({options, commands: positionals})
@@ -141,6 +153,11 @@ function debuggingArgs(endpoint: string | undefined): string[] {
 }
 
 async function targetInput(options: Options): Promise<GetInput> {
+  const widget = options.widget === undefined ? {} : {widget: options.widget}
+  return {...(await targetRef(options)), ...widget}
+}
+
+async function targetRef(options: Options): Promise<GetInput> {
   const {figma, document} = options
   const image = options.image.map((file) => resolve(file))
   if (document.length > 0) {
@@ -193,6 +210,10 @@ async function hostServer(input: {
       ...createLogger('silent'),
       info: (message) => {
         input.printed.push(message)
+        message
+          .split('\n')
+          .filter((line) => line.includes(LOGIN_MARK))
+          .forEach((line) => print(stripVTControlCharacters(line).trim()))
       },
     },
     server: {host: '127.0.0.1', port: input.port},
@@ -234,7 +255,10 @@ async function open(input: {
   const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
   const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
   if (input.options.model !== undefined) await rpc.sessions.model({sessionId: session, model: input.options.model})
-  const page = await input.browser.newPage({viewport: {width: input.options.width, height: TAB_HEIGHT}})
+  const page = await input.browser.newPage({
+    viewport: {width: input.options.width, height: input.options.height},
+    colorScheme: input.options.colorScheme,
+  })
   const route = await magicLink(new URL(apiBase).origin, () => input.printed.join('\n'), input.options.route)
   await awaitPagePlaneSubscribed(page, async () => {
     await page.goto(new URL(route, new URL(local).origin).href, {waitUntil: 'domcontentloaded'})

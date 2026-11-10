@@ -258,7 +258,7 @@ function anchorOf(input: {node: DesignNode; vote: Vote; from?: DesignNode}): Anc
 }
 
 function underAnchor(input: {vote: Vote; element: Element; anchor: Anchor}): boolean {
-  if (directlyUnder(input)) return true
+  if (input.vote.parents.get(input.anchor.node.id) === null || directlyUnder(input)) return true
   const above = twinAbove({vote: input.vote, anchor: input.anchor})
   return above !== null && underAnchor({...input, anchor: above})
 }
@@ -527,6 +527,7 @@ function dice(input: {a: string; b: string}): number {
   if (a === b) return 1
   const left = bigrams(a)
   const right = bigrams(b)
+  if (left.size + right.size === 0) return 0
   const shared = [...left].filter((pair) => right.has(pair)).length
   return (2 * shared) / (left.size + right.size)
 }

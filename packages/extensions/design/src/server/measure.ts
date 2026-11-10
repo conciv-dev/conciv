@@ -11,9 +11,10 @@ import {
   type Measured,
   type Measurer,
   type Raster,
+  type Widget,
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
-import {OVERLAYS} from '../shared/overlays.js'
+import {hiddenOverlays} from '../shared/overlays.js'
 import {createRaster} from './raster.js'
 
 export function createMeasurer(_input: {config: DesignConfig}): Measurer {
@@ -27,7 +28,7 @@ export function createMeasurer(_input: {config: DesignConfig}): Measurer {
     measure: async (request) => {
       await widgetConnected({page: request.page, tolerances})
       const reply = await askMeasure({...request, timeout: request.timeout ?? tolerances.measureTimeoutMs})
-      return measuredFrom(await captured({page: request.page, reply}))
+      return measuredFrom(await captured({page: request.page, reply, widget: request.widget}))
     },
     dispose: () => undefined,
   }
@@ -87,6 +88,7 @@ async function askMeasure(input: {
   page: ServerToolPageAccess
   width?: number
   height?: number
+  widget?: Widget
   timeout: number
 }): Promise<MeasureReply> {
   const {page, width, height, timeout} = input
@@ -94,17 +96,22 @@ async function askMeasure(input: {
     await page.call(measureDef.name, {
       ...(width === undefined ? {} : {width}),
       ...(height === undefined ? {} : {height}),
+      ...(input.widget === undefined ? {} : {widget: input.widget}),
       timeout,
     }),
   )
 }
 
-async function captured(input: {page: ServerToolPageAccess; reply: MeasureReply}): Promise<MeasureReply> {
+async function captured(input: {
+  page: ServerToolPageAccess
+  reply: MeasureReply
+  widget: Widget
+}): Promise<MeasureReply> {
   const {page, reply} = input
   if (reply.capturePath === 'snapdom-mirror') return reply
   const shot = PageCaptureSchema.safeParse(
     await page
-      .call(captureDef.name, {width: reply.width, height: reply.height, scale: 1, hide: [...OVERLAYS]})
+      .call(captureDef.name, {width: reply.width, height: reply.height, scale: 1, hide: hiddenOverlays(input.widget)})
       .catch(() => null),
   )
   return shot.success ? {...reply, image: shot.data.image, capturePath: shot.data.path} : reply

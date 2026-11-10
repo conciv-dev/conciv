@@ -21,6 +21,7 @@ export default defineConfig({
       '../extensions/recorder/src/**/*.{ts,tsx}',
       '../extensions/try-it/src/**/*.{ts,tsx}',
       '../extensions/tanstack/src/**/*.{ts,tsx}',
+      '../extensions/design/src/**/*.{ts,tsx}',
     ],
   },
 

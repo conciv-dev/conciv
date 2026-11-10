@@ -8,8 +8,24 @@ const PaintSchema = z.looseObject({
   color: ColorSchema.optional(),
   opacity: z.number().optional(),
   imageRef: z.string().optional(),
+  blendMode: z.string().optional(),
+  scaleMode: z.string().optional(),
+  scalingFactor: z.number().optional(),
+  filters: z.record(z.string(), z.number()).optional(),
   gradientStops: z.array(z.looseObject({color: ColorSchema, position: z.number()})).optional(),
   gradientHandlePositions: z.array(PointSchema).optional(),
+})
+const LayerSchema = z.object({
+  type: z.string(),
+  blend: z.string(),
+  opacity: z.number(),
+  ref: z.string().optional(),
+  scale: z.string().optional(),
+  scalingFactor: z.number().optional(),
+  filters: z.record(z.string(), z.number()).optional(),
+  color: z.string().optional(),
+  stops: z.array(z.object({color: z.string(), opacity: z.number(), at: z.number()})).optional(),
+  handles: z.array(PointSchema).optional(),
 })
 const AliasSchema = z.looseObject({id: z.string()})
 const BoundSchema = z.record(z.string(), z.union([AliasSchema, z.array(AliasSchema)]))
@@ -80,6 +96,7 @@ export const figmaSchemas = {
   color: ColorSchema,
   point: PointSchema,
   paint: PaintSchema,
+  layer: LayerSchema,
   bounds: BoundsSchema,
   node: FigmaNodeSchema,
   document: FigmaDocumentSchema,

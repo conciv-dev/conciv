@@ -50,12 +50,11 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
-    "dev:xray": "vite --config vite.xray.config.ts",
     "gen-migrations": "node scripts/gen-migrations.ts"
   },
   "dependencies": {
@@ -72,6 +71,7 @@
     "@tanstack/pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
     "@zumer/snapdom": "catalog:",
+    "color-blend": "catalog:",
     "culori": "catalog:",
     "drizzle-orm": "catalog:",
     "es-toolkit": "catalog:",
@@ -88,6 +88,7 @@
     "ppu-ocv": "catalog:",
     "ppu-paddle-ocr": "catalog:",
     "rrweb-snapshot": "catalog:",
+    "sharp": "catalog:",
     "solid-js": "catalog:",
     "ssim.js": "catalog:",
     "takumi-paint": "catalog:",
@@ -95,14 +96,14 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/extension-compiler": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
-    "@iconify-json/ph": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
+    "@solid-primitives/resize-observer": "catalog:",
     "@solid-primitives/timer": "catalog:",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",
     "@types/pngjs": "catalog:",
-    "@unocss/reset": "catalog:",
     "drizzle-kit": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

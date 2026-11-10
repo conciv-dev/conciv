@@ -522,3 +522,59 @@ element, and a widget dependency that reads `process.env` threw, so the widget w
 - Image rows for a frame whose width is not the tab's are taken from the mirror at that frame's width, as layout rows
   are; the live tab answers only its own width.
 - The width floor that drops reflow widths under the smallest `minChildWidth` never drops a frame's own width.
+
+A background asset is the fill stack flattened (2026-11-09). A node whose fills hold an image is given one asset:
+its fill layers composited bottom to top in design order, each with its own opacity, blend mode, scale mode and
+filters, at twice the node's box in pixels, never the original's size. Solid and gradient layers inside the stack
+are part of the asset; a solid layer below the stack stays a `fill` the agent writes as CSS. The agent is told the
+asset is complete: it sets it as the background and adds no filter, overlay or tint of its own. The look row for such
+a node compares the node's pixels against the asset as before.
+
+A page that does not compile is the verdict `broken` (2026-11-10). When the dev server reports a transform error for
+the page under check, `design_check` answers `verdict: broken` with the error's first line, file and position, no
+rows, and the rule 'fix the compile error first; nothing else was measured'. The round is stored with that verdict so
+the x-ray shows it.
+
+### The widget is not hidden by decree; a target says whether it is measured (2026-11-09)
+
+Every measurement hides the widget and the overlay: the walk skips them, the keys query skips them, the live and mirror
+captures exclude them, the server's capture call lists them under `hide`. That is right for a page the agent builds
+and wrong for the one page where the overlay is the design: the x-ray overlay itself, drawn in Figma, cannot be
+checked by the tools that it shows. Omri: the hiding must be something a target can override.
+
+- `design_get` takes `widget`, `hidden` (the default, today's behaviour) or `shown`. The target stores it
+  (`targets.widget`, a migration); `design_status` and the `targets` source show it.
+- With `shown`, nothing of the widget is hidden: the walk enters `[data-conciv-root]`, `[data-conciv-effects]` and
+  `[data-conciv-overlay]` and their shadow roots (the id tree already walks shadow children as `/s/n`), the keys
+  query reads keys inside shadow roots too, the live snapdom capture excludes only the mirror host, and the server
+  passes an empty `hide` list to the capture verb. Boxes are page coordinates as for any element.
+- With `shown`, a round measures at the tab width only, live: the mirror rebuilds a document and cannot carry the
+  widget's shadow roots, so other widths are not measured and the round's note says `widget shown: one width`. The
+  reflow rows for the design's media widths are not produced; nothing else in the check changes.
+- A key stamped inside the widget's own sources pairs like any other key. Where the stamping does not reach a source
+  (the extension's own files are not the app's), the mapping is the selector, as the ruling of 2026-11-07 says.
+- No new tolerance or constant: the two values are a schema enum, the exclusion lists already exist and are read
+  through one function that takes the target's `widget`.
+
+### Page verbs see through shadow roots; a press carries its modifiers; the extension's own markup is keyed (2026-11-09)
+
+The first x-ray rebuild run stopped before its first check: the agent could not open the overlay. `page_click` on the
+composer button answered "no element for selector" because a locator's selector goes through `document.querySelector`,
+which never enters a shadow root; the snapshot walks the light DOM only; `page_press` with `Mod+Shift+X` dispatched a
+bare key with no modifiers, so the host hotkey never fired; `page_eval` asks for an approval nobody answers in a trial,
+and that is right. The widget, the overlay and every web component on a page live behind shadow roots; the verbs must
+reach them without an eval.
+
+- A locator's `selector` is resolved by `document.querySelector` first and, when that finds nothing, by the same
+  selector inside every open shadow root of the document, depth first in document order. One function,
+  `locatorTarget`, holds the rule; `page_query`, `page_exists`, the wait, `screenshot_node` and the snapshot root go
+  through it. The snapshot lists the children of an open shadow root as children of its host. A closed shadow root
+  stays closed.
+- `page_press` takes a key or a binding in the host's own hotkey grammar (`Mod+Shift+X`, parsed with `parseHotkey`
+  from `@tanstack/hotkeys`) and dispatches `keydown` and `keyup` with `key`, `code` and the four modifier flags set as
+  the binding says, so a hotkey registered through `HostWiring.hotkeys` fires. Without a locator the key goes to the
+  focused element, else to `document.body`.
+- The design extension's own JSX is keyed the way an app's is: its vite build and its watch build run the same
+  `addSourceToJsx` stamping (`persist: true`), so every element of the overlay carries `data-conciv-key` from the
+  source file and pairs like any element on the page. Nobody writes a key by hand.
+- No new verb and no approval bypass: `page_eval` keeps asking.

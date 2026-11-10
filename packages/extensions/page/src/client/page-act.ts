@@ -126,9 +126,9 @@ export function focusedElement(): Element {
   return deepActive(document.activeElement ?? document.body)
 }
 
-export function press(options: {element: Element; key: string}): void {
-  const {element, key} = options
-  const init = {key, bubbles: true, cancelable: true, composed: true, view: element.ownerDocument.defaultView}
+export function press(options: {element: Element; init: KeyboardEventInit}): void {
+  const {element} = options
+  const init = {...options.init, view: element.ownerDocument.defaultView}
   element.dispatchEvent(new KeyboardEvent('keydown', init))
   element.dispatchEvent(new KeyboardEvent('keyup', init))
 }
