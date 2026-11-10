@@ -1,4 +1,5 @@
-import {eventIterator, oc} from '@orpc/contract'
+import {eventIterator, oc, type Schema} from '@orpc/contract'
+import type {AsyncIteratorClass} from '@orpc/client'
 import {z} from 'zod'
 import {type ChatEvent, RunLifecycleSchema} from '@conciv/protocol/chat-event-types'
 import {
@@ -32,6 +33,12 @@ import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
 import {DraftRowSchema, MarkerRowSchema, SessionHitSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<ChatEvent>((value) => typeof value === 'object' && value !== null)
+
+interface ChatEventStream extends Schema<
+  AsyncIteratorObject<ChatEvent, unknown, void>,
+  AsyncIteratorClass<ChatEvent, unknown, void>
+> {}
+const ChatEventStreamSchema: ChatEventStream = eventIterator(StreamChunkSchema)
 
 const SessionIdInput = z.object({sessionId: SessionId})
 const SessionListInput = z.object({
@@ -271,7 +278,7 @@ export const contract = {
     set: oc.input(NavigationWriteSchema).output(NavigationWriteResult),
   },
   chat: {
-    events: oc.errors(approvalDenied).input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
+    events: oc.errors(approvalDenied).input(SessionIdInput).output(ChatEventStreamSchema),
     hydrate: oc
       .errors(approvalDenied)
       .input(SessionIdInput.extend(ChatHistoryWindowSchema.shape))
