@@ -545,3 +545,8 @@ uncaught error or an unhandled rejection between navigation and settle, or rende
 holds such an error, `design_check` answers `verdict: broken` with the error's first line, file and position when the
 stack has them, no rows, and the rule 'fix the runtime error first; nothing else was measured'. The round is stored
 with that verdict so the x-ray shows it, the same way a page that does not compile is.
+
+A text node pairs with the element whose only text it is (2026-11-10). When a design text node's parent is paired to
+an element whose text content, trimmed, is that node's text and which holds no other element with text, the text node
+pairs to that element's text, measured as the range box of its text, and its look rows read the element's font, colour
+and line height. The agent is never asked to wrap a button's label in a span.
