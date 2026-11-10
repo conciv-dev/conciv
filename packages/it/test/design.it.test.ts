@@ -266,6 +266,7 @@ describe('store', () => {
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
     const store = createStore({
       db,
+      home: homeDir,
       state: createStorage({driver: memoryDriver()}),
       runs: {of: async () => run?.run_id ?? null, latest: async () => null},
       project: Promise.resolve('p'),
@@ -1722,6 +1723,47 @@ describe('the store is written at the source', () => {
   })
 })
 
+const ArtifactRowsSchema = z.array(z.object({kind: z.string(), width: z.number().nullable(), path: z.string()}))
+
+describe('artifacts at the source', () => {
+  it('writes one screenshot and one design artifact per measured width of a check, each file under the home', async () => {
+    await goto('target')
+    const got = await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    const [running] = await homeQuery({
+      home: kit.home,
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${kit.session}"`, '--select', 'run'],
+    })
+    const stored = ArtifactRowsSchema.parse(
+      await homeQuery({
+        home: kit.home,
+        args: [
+          '--from',
+          'design_stored_artifacts',
+          '--where',
+          `run == ${String(running?.run)}`,
+          '--select',
+          'kind,width,path',
+        ],
+      }),
+    )
+    const ofRound = stored.filter(
+      (row) =>
+        row.path.startsWith(`${String(running?.run)}/${got.target}/`) &&
+        row.path.includes(`-${String(checked.round)}-`),
+    )
+    const widths = checked.reflow.widths.map(({width}) => width).toSorted((a, b) => a - b)
+    const widthsOf = (kind: string) =>
+      ofRound
+        .filter((row) => row.kind === kind)
+        .map((row) => row.width)
+        .toSorted((a, b) => (a ?? 0) - (b ?? 0))
+    expect(widthsOf('screenshot')).toEqual(widths)
+    expect(widthsOf('design')).toEqual(widths)
+    expect(ofRound.filter((row) => !existsSync(join(kit.home, 'artifacts', row.path)))).toEqual([])
+  })
+})
+
 const TurnUsageSchema = z.object({
   promptTokens: z.number(),
   completionTokens: z.number(),
@@ -1873,6 +1915,34 @@ describe('runs gc', () => {
       })
       expect(await sources.read({from: 'design_stored_artifacts', select: ['kind']})).toEqual([{kind: 'source'}])
       expect([existsSync(expired), existsSync(kept)]).toEqual([false, true])
+    })
+  })
+})
+
+describe('design:judge', () => {
+  it('names the run and width whose screenshot is missing and writes no judgement for it', async () => {
+    await withHome(async ({home, store, sources, command}) => {
+      const [first] = seededRuns(store)
+      const written = store.orm.transaction((tx) =>
+        storeArtifacts({
+          tx,
+          home,
+          runId: first ?? null,
+          folder: `${String(first)}/t`,
+          artifacts: ['design', 'screenshot'].map((kind) => ({
+            kind: z.enum(['design', 'screenshot']).parse(kind),
+            width: 390,
+            name: `${kind}-1-390.png`,
+            bytes: blankPng({width: 4, height: 4}),
+            lifetime: 'infinite',
+          })),
+        }),
+      )
+      const shot = written.find((artifact) => artifact.path.includes('screenshot'))
+      await rm(join(home, 'artifacts', shot?.path ?? ''), {force: true})
+      const printed = z.string().parse(await command('judge').run({args: ['thirty'], options: {}}))
+      expect(printed).toContain(`run ${String(first)} target t width 390: screenshot missing`)
+      expect(await sources.read({from: 'design_stored_judgements'})).toEqual([])
     })
   })
 })

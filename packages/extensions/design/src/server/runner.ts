@@ -83,9 +83,11 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     const results = []
     const failures = []
     const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
+    const shots = []
     for (const {width} of widths) {
       const narrow =
         width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT, widget})
+      shots.push({width, png: narrow.raster.png()})
       if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
       const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
       const measuredAt = reflowAt({
@@ -169,6 +171,7 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
       round: written,
       live: measured.raster.png(),
       diff: pixels.diff,
+      artifacts: {design: image, shots},
       ...(unsettled === null ? {ids: {tree, revoted: mapped.reasons}} : {}),
       notes: [
         `capture ${measured.path}`,

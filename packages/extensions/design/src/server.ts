@@ -88,7 +88,7 @@ const design = defineExtension({
     project,
     files,
     runs,
-    store: createStore({db: store, state, runs, project: projectKey({cwd: server.cwd}), catalog}),
+    store: createStore({db: store, home: server.home, state, runs, project: projectKey({cwd: server.cwd}), catalog}),
     adapters: [
       createImageAdapter({config}),
       createFigmaAdapter({

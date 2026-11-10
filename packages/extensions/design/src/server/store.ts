@@ -14,9 +14,12 @@ import {relateRound} from './catalog/relate.js'
 import {roundOf} from './round-of.js'
 import type {openStore} from './runs/open-store.js'
 import type {storeTables} from './runs/store-tables.js'
+import {storeArtifacts} from './runs/artifacts.js'
+import {designConfig} from '../shared/tolerances.js'
 
 export function createStore(input: {
   db: DesignDb
+  home: string
   state: Storage
   runs: {
     of: (sessionId: string) => Promise<number | null>
@@ -339,7 +342,7 @@ export function createStore(input: {
       const {row} = await runOf(id)
       await orm.update(targets).set({unsettled: count}).where(keyed(targets, row))
     },
-    writeRound: async ({id, round, live, diff, notes: told = [], ids}) => {
+    writeRound: async ({id, round, live, diff, notes: told = [], ids, artifacts}) => {
       const written = RoundSchema.parse(round)
       const names = await namesOf(id)
       const before = await fomAt({id})
@@ -398,6 +401,14 @@ export function createStore(input: {
           })
           .run()
         if (ids !== undefined) writeFom({tx, fom, id, runId, round: written.round, ids, names, before, at: written.at})
+        if (artifacts !== undefined)
+          storeArtifacts({
+            tx,
+            home: input.home,
+            runId,
+            folder: `${runId}/${id}`,
+            artifacts: checkArtifacts({...artifacts, round: written.round}),
+          })
         const key = roundKey({run: runId, id, round: written.round})
         for (const write of pending.get(key) ?? []) write(tx)
         pending.delete(key)
@@ -547,4 +558,22 @@ async function readRaw(input: {state: Storage; key: string | null}): Promise<Uin
   if (input.key === null) return null
   const value: unknown = await input.state.getItemRaw(input.key).catch(() => null)
   return value instanceof Uint8Array ? value : null
+}
+
+function checkArtifacts(input: {design: Uint8Array; shots: {width: number; png: Uint8Array}[]; round: number}) {
+  const {lifetimes} = designConfig.runs
+  return input.shots.flatMap(({width, png}) =>
+    (
+      [
+        ['design', input.design],
+        ['screenshot', png],
+      ] as const
+    ).map(([kind, bytes]) => ({
+      kind,
+      width,
+      name: `${kind}-${input.round}-${width}.png`,
+      bytes,
+      lifetime: String(lifetimes[kind]),
+    })),
+  )
 }

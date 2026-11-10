@@ -32,6 +32,7 @@ export type Store = {
     diff: Uint8Array
     notes?: string[]
     ids?: {tree: IdTree; revoted: Record<string, string>}
+    artifacts?: {design: Uint8Array; shots: {width: number; png: Uint8Array}[]}
   }): Promise<Round>
   round(input: {id: string; round: number}): Promise<Round | null>
   rounds(id: string): Promise<Round[]>
