@@ -3,7 +3,7 @@ import {eq} from 'drizzle-orm'
 import {join} from 'node:path'
 import {Hono} from 'hono'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
-import {approvalRequestedEvent, ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
+import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
@@ -98,7 +98,7 @@ export type ChatPlane = {
     capabilities?: readonly CodeCapability[],
   ) => Promise<CodeRunner | null>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
-  pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
+  catchUp: (sessionId: SessionId) => Promise<ChatEvent[]>
   outsideDenied: (sessionId: SessionId) => Promise<boolean>
   allowOutside: (sessionId: SessionId) => Promise<void>
 }
@@ -223,8 +223,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
     answerUi: (sessionId, toolCallId, value) => ui.answer(sessionId, toolCallId, value),
     askUi: (sessionId) => ui.ask(sessionId),
     admitCall,
-    pendingAsks: async (sessionId) =>
-      (await approvals.pending(sessionId)).map((ask) => ({
+    catchUp: async (sessionId) => {
+      const asks: ChatEvent[] = (await approvals.pending(sessionId)).map((ask) => ({
         ...approvalRequestedEvent.create({
           approvalId: ask.approvalId,
           toolCallId: ask.toolCallId,
@@ -232,7 +232,13 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
           input: ask.input,
         }),
         timestamp: Date.now(),
-      })),
+      }))
+      const active = await stores.runs.findActiveRun(sessionId).catch((error: unknown) => {
+        deps.log(`[chat] reading the active run for a new subscriber failed: ${String(error)}`)
+        return null
+      })
+      return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
+    },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
     codeRunner: async (sessionId, publish, given) => {
