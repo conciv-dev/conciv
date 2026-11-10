@@ -3940,6 +3940,7 @@ describe('session selector', () => {
   ]).flat()
 
   const ELSEWHERE = '/elsewhere/gull-colony'
+  const LONG_TITLE = 'the question nobody answered about the harbour lights and the old ferry timetable'
 
   const core = bootedCore('session-selector', {
     resume: true,
@@ -3962,6 +3963,11 @@ describe('session selector', () => {
         id: HarnessSessionId.parse('gulch-walk'),
         derivedTitle: 'a walk down the gulch',
         updatedAt: noon - (OLDER_SESSIONS + 15) * DAY_MS,
+      },
+      {
+        id: HarnessSessionId.parse('harbour-lights'),
+        derivedTitle: LONG_TITLE,
+        updatedAt: noon - (OLDER_SESSIONS + 16) * DAY_MS,
       },
       {
         id: EXTERNAL_ID,
@@ -4217,6 +4223,13 @@ describe('session selector', () => {
     await userEvent.click(option('the gull census'))
     await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
     await expect.element(page.getByRole('log', {name: 'Announcements'})).toMatchTextContent(/puffin notes \| Copied$/)
+    await userEvent.click(labelled)
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(labelled).toHaveValue('gul')
+    await expect.element(option('a walk down the gulch')).toBeVisible()
+    await typeKeyByKey(labelled, 'l', 'gul')
+    await expect.element(option('a walk down the gulch')).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent('Copied')
     expect(await navigator.clipboard.readText()).toBe(copied)
     await expect.element(option('the gull census')).toBeVisible()
     await expect.element(page.getByRole('tooltip'), {timeout: 4000}).not.toBeInTheDocument()
@@ -4295,6 +4308,19 @@ describe('session selector', () => {
 
     await userEvent.click(page.getByRole('button', {name: 'Clear search'}))
     await typeKeyByKey(search, 'question', '')
+    await userEvent.hover(option('a minute after midnight'))
+    await expect
+      .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
+      .toHaveTextContent('question')
+    await userEvent.hover(option(LONG_TITLE).getByText(LONG_TITLE, {exact: true}))
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_TITLE)
+    await expect.element(preview(LONG_TITLE)).toBeVisible()
+    await userEvent.keyboard('{Backspace}')
+    await expect.element(search).toHaveValue('questio')
+    await typeKeyByKey(search, 'n', 'questio')
+    await expect.element(page.getByRole('progressbar', {name: 'Searching sessions'})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG_TITLE)
+    await expect.element(option(LONG_TITLE)).toBeVisible()
     await userEvent.hover(option('a minute after midnight'))
     await expect
       .element(preview('a minute after midnight').getByText('question 29', {exact: true}).getByRole('mark'))
