@@ -285,7 +285,12 @@ const CoverageSchema = z.object({
 
 const COUNTED = {much: Count, noticeably: Count, slightly: Count, pins: Count, other: Count, rows: Count}
 
-const CountsSchema = z.object({...COUNTED, reflow: Count.default(0), paint: Count.optional()})
+const CountsSchema = z.object({
+  ...COUNTED,
+  reflow: Count.default(0),
+  paint: Count.optional(),
+  drift: Count.optional().describe('token-drift rows: flags, never counted in rows'),
+})
 
 const PixelsSchema = z.object({share: z.number().describe('share of mismatched pixels against the design image')})
 

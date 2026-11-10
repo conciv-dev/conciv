@@ -21,6 +21,8 @@ export function classifyDrift(input: {
 
 type Drift = {key: string; row: GateRow}
 
+const ALTERNATIVES = ' or '
+
 function driftOf(input: {
   row: GateRow
   relation: Map<string, Component>
@@ -33,18 +35,21 @@ function driftOf(input: {
   if (pageValue === undefined || designValue === undefined) return null
   const component = relation.get(row.node)
   if (component === undefined) return null
-  const kit = tokens.kitTokenFor({kind: row.kind, value: pageValue, scheme})
-  if (kit === null) return null
+  const kit = tokens
+    .kitTokensFor({kind: row.kind, value: pageValue, scheme})
+    .map((kitToken) => kitToken.name)
+    .join(ALTERNATIVES)
+  if (kit === '') return null
   const name = component.names[0] ?? component.specifier
   return {
-    key: `${component.id}\n${kit.name}`,
+    key: `${component.id}\n${kit}`,
     row: {
       ...bare(row),
       magnitude: 'token-drift',
       component: name,
-      kitToken: kit.name,
+      kitToken: kit,
       designToken: token,
-      text: `${name} uses ${kit.name} (${pageValue}); the design wants ${token} (${designValue})`,
+      text: `${name} uses ${kit} (${pageValue}); the design wants ${token} (${designValue})`,
     },
   }
 }

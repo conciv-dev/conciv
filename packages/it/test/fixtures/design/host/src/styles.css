@@ -226,7 +226,7 @@ button {
   display: block;
   width: 200px;
   height: 48px;
-  border-radius: var(--chat-radius-lg);
+  border-radius: var(--chat-radius-md);
   background: #426bf2;
 }
 

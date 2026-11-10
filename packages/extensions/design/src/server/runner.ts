@@ -93,12 +93,14 @@ export function createRunner(runtime: DesignRuntime): Runner {
     })
     const listed = [...gate.rows, ...images.rows, ...failures]
     const rows = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
-    const replaced = listed.length - rows.filter((row) => row.magnitude !== 'token-drift').length
+    const drift = rows.filter((row) => row.magnitude === 'token-drift').length
+    const replaced = listed.length - rows.length + drift
     const counts = {
       ...gate.counts,
       reflow: failures.length,
       paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
       rows: gate.counts.rows + images.rows.length + failures.length - replaced,
+      drift,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const earlier =

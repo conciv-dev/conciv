@@ -1069,11 +1069,13 @@ describe('token drift', () => {
       [
         '8:2',
         'Chip',
-        '--chat-radius-lg',
+        '--chat-radius-sm or --chat-radius-md or --chat-radius-surface-sm',
         'radius/xl',
-        'Chip uses --chat-radius-lg (11px); the design wants radius/xl (16px)',
+        'Chip uses --chat-radius-sm or --chat-radius-md or --chat-radius-surface-sm (4px); the design wants radius/xl (16px)',
       ],
     ])
+    expect(checked.counts.drift).toBe(1)
+    expect((await call('design_status', {})).counts?.drift).toBe(1)
     expect(painted(checked.rows)).toEqual([['8:3', 'radius']])
     expect((await call('design_status', {})).rows).toEqual(checked.rows)
   })
@@ -1097,11 +1099,11 @@ describe('token drift', () => {
       const files = [fileURLToPath(new URL('../../ui-kit-system/src/tokens.css', import.meta.url))]
       const map = createTokenMap({tokens: await createCssTokenSource({files, catalog}).read({cwd: HOST_ROOT})})
       expect([
-        map.kitTokenFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'dark'})?.name,
-        map.kitTokenFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'light'})?.name,
-        map.kitTokenFor({kind: 'radius', value: '11px', scheme: 'light'})?.name,
-        map.kitTokenFor({kind: 'font family', value: 'source sans 3', scheme: 'dark'})?.name,
-      ]).toEqual(['--chat-panel', undefined, '--chat-radius-lg', '--chat-font'])
+        map.kitTokensFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'dark'}).map((token) => token.name),
+        map.kitTokensFor({kind: 'fill', value: 'rgb(23, 22, 26)', scheme: 'light'}).map((token) => token.name),
+        map.kitTokensFor({kind: 'radius', value: '11px', scheme: 'light'}).map((token) => token.name),
+        map.kitTokensFor({kind: 'font family', value: 'source sans 3', scheme: 'dark'}).map((token) => token.name),
+      ]).toEqual([['--chat-panel', '--chat-panel-sunk'], [], ['--chat-radius-lg'], ['--chat-font']])
     } finally {
       closeHomeDb(home)
       orm.$client.close()

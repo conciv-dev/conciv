@@ -1,4 +1,5 @@
 import {formatHex8, interpolate, parse} from 'culori'
+import {uniqBy} from 'es-toolkit'
 import postcss from 'postcss'
 import {z} from 'zod'
 import {CatalogSchemas, type Scheme, type Token, type TokenMap} from '../../shared/catalog-defs.js'
@@ -15,13 +16,16 @@ export function createTokenMap(input: {tokens: Token[]}): TokenMap {
       })),
   )
   return {
-    kitTokenFor({kind, value, scheme}) {
+    kitTokensFor({kind, value, scheme}) {
       const wanted = normalised({kind, value})
-      if (wanted === null) return null
-      const found = resolved.find(
+      if (wanted === null) return []
+      const found = resolved.filter(
         (entry) => entry.scheme === scheme && entry.value !== null && normalised({kind, value: entry.value}) === wanted,
       )
-      return found?.token ?? null
+      return uniqBy(
+        found.map((entry) => entry.token),
+        (token) => token.name,
+      )
     },
   }
 }

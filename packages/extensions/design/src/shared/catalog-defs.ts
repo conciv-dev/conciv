@@ -116,7 +116,7 @@ type Catalog = {
 }
 type ComponentSource = {name: string; scan(input: {cwd: string}): Promise<Scan>}
 type TokenSource = {name: string; read(input: {cwd: string}): Promise<Token[]>}
-type TokenMap = {kitTokenFor(input: {kind: string; value: string; scheme: Scheme}): Token | null}
+type TokenMap = {kitTokensFor(input: {kind: string; value: string; scheme: Scheme}): Token[]}
 type Hinter = {name: string; hint(input: {design: Design; ranked: Ranked[]; config: CatalogConfig}): Map<string, Hint>}
 
 export type {

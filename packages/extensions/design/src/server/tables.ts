@@ -32,6 +32,7 @@ export function designTables(table: SQLiteTableFn) {
       other: integer().notNull().default(0),
       reflow: integer().notNull().default(0),
       paint: integer().notNull().default(0),
+      drift: integer().notNull().default(0),
       rows_count: integer().notNull().default(0),
       nodes: integer().notNull().default(0),
       mapped: integer().notNull().default(0),
