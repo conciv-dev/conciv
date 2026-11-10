@@ -358,3 +358,12 @@ Two rulings:
 Public props widened to accept HTML attributes by Task 7f are accepted: a kit root that forwards its rest props has those props.
 
 Measure: `xray11-round-cat-1..2` on sonnet, the model Task 7e used, so the rows compare.
+
+## The hinter picks by the host file's framework (2026-11-10, after Task 7g)
+
+The catalog holds two `Chip`s once the kit is read from its declarations: the host app's React `./src/Chip.tsx` and the kit's Solid
+`Chip`. Rows already hint per framework (Task 7g); the name hinter treated the two as a tie and gave no hint. Ruling: the hinter votes
+only over components usable from the paired element's source file (same framework, specifier resolves), exactly as rule 2 scopes rows.
+A tie between two usable components of the same name stays a no-hint. The per-framework grouping Task 7g added to `component-rows.ts`
+is this rule and stays. The two `design.it` expectations Task 7g changed are to be restored by this ruling (hint `Chip`, app tier first
+entry `Chip`).
