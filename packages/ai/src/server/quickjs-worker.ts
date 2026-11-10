@@ -1,11 +1,15 @@
 import {randomUUID} from 'node:crypto'
-import {parentPort, workerData, type MessagePort} from 'node:worker_threads'
+import {parentPort, type MessagePort} from 'node:worker_threads'
 import {z} from 'zod'
 import {createQuickJSIsolateDriver} from '@tanstack/ai-isolate-quickjs'
-import type {ToolBinding} from '@tanstack/ai-code-mode'
-import {HostMessageSchema, WorkerSetupSchema, type WorkerMessage} from './quickjs-messages.js'
+import type {IsolateContext, ToolBinding} from '@tanstack/ai-code-mode'
+import {HostMessageSchema, type WorkerMessage, type WorkerSetup} from './quickjs-messages.js'
 
 const ResultValueSchema = z.object({value: z.unknown().optional()})
+
+function announce(port: MessagePort, message: WorkerMessage): void {
+  port.postMessage(message)
+}
 
 function bindingsOver(port: MessagePort, names: string[], pending: Map<string, PromiseWithResolvers<unknown>>) {
   return Object.fromEntries(
@@ -19,8 +23,7 @@ function bindingsOver(port: MessagePort, names: string[], pending: Map<string, P
           const id = randomUUID()
           const call = Promise.withResolvers<unknown>()
           pending.set(id, call)
-          const message: WorkerMessage = {type: 'call', id, name, args}
-          port.postMessage(message)
+          announce(port, {type: 'call', id, name, args})
           return call.promise
         },
       },
@@ -28,31 +31,51 @@ function bindingsOver(port: MessagePort, names: string[], pending: Map<string, P
   )
 }
 
-async function serve(port: MessagePort): Promise<void> {
-  const setup = WorkerSetupSchema.parse(workerData)
-  const pending = new Map<string, PromiseWithResolvers<unknown>>()
-  const context = await createQuickJSIsolateDriver(setup).createContext({
+async function loadQuickJS(): Promise<void> {
+  const context = await createQuickJSIsolateDriver().createContext({bindings: {}})
+  await context.dispose()
+}
+
+function contextFor(port: MessagePort, setup: WorkerSetup, pending: Map<string, PromiseWithResolvers<unknown>>) {
+  return createQuickJSIsolateDriver(setup).createContext({
     bindings: bindingsOver(port, setup.names, pending),
     timeout: setup.timeout,
     memoryLimit: setup.memoryLimit,
   })
+}
+
+function run(context: IsolateContext, code: string) {
+  return context.execute(code).catch((error: unknown) => ({
+    success: false,
+    error: {
+      name: error instanceof Error ? error.name : 'Error',
+      message: error instanceof Error ? error.message : String(error),
+    },
+    logs: [],
+  }))
+}
+
+function serve(port: MessagePort): void {
+  const pending = new Map<string, PromiseWithResolvers<unknown>>()
+  const held: {context: Promise<IsolateContext> | null} = {context: null}
   port.on('message', (raw: unknown) => {
     const message = HostMessageSchema.parse(raw)
+    if (message.type === 'setup') {
+      held.context = contextFor(port, message.setup, pending)
+      void held.context.then(() => announce(port, {type: 'ready'}))
+      return
+    }
+    if (message.type === 'reset') {
+      const context = held.context
+      held.context = null
+      pending.clear()
+      void Promise.resolve(context?.then((built) => built.dispose())).then(() => announce(port, {type: 'loaded'}))
+      return
+    }
     if (message.type === 'execute') {
-      void context
-        .execute(message.code)
-        .catch((error: unknown) => ({
-          success: false,
-          error: {
-            name: error instanceof Error ? error.name : 'Error',
-            message: error instanceof Error ? error.message : String(error),
-          },
-          logs: [],
-        }))
-        .then((result) => {
-          const done: WorkerMessage = {type: 'done', result}
-          port.postMessage(done)
-        })
+      void held.context
+        ?.then((context) => run(context, message.code))
+        .then((result) => announce(port, {type: 'done', result}))
       return
     }
     const call = pending.get(message.id)
@@ -60,9 +83,9 @@ async function serve(port: MessagePort): Promise<void> {
     if (!message.outcome.ok) return call?.reject(new Error(message.outcome.message))
     call?.resolve(ResultValueSchema.parse(JSON.parse(message.outcome.json)).value)
   })
-  const ready: WorkerMessage = {type: 'ready'}
-  port.postMessage(ready)
+  announce(port, {type: 'loaded'})
 }
 
 if (parentPort === null) throw new Error('the QuickJS worker runs only inside a worker thread')
-await serve(parentPort)
+await loadQuickJS()
+serve(parentPort)

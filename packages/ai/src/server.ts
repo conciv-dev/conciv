@@ -1,4 +1,5 @@
 export {approvalNeeded, createChatServer, toolApprovalId} from './server/chat-server.js'
+export {quickJSThreadDriver} from './server/quickjs-thread.js'
 export {childCardChunks} from './server/child-cards.js'
 export {imageBlocks, imageToolProvisioner, imagesIn, withoutImages} from './server/image-tool-results.js'
 export {drizzleChatStores} from './server/chat-stores.js'

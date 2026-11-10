@@ -12,7 +12,9 @@ const QUICKJS_MAX_STACK_BYTES = 2 * 1024 * 1024
 
 type Log = (message: string) => void
 
-type DriverCandidate = {name: string; create: (log: Log) => Promise<IsolateDriver | null>}
+type CodeDriver = IsolateDriver & {dispose: () => Promise<void>}
+
+type DriverCandidate = {name: string; create: (log: Log) => Promise<CodeDriver | null>}
 
 const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   {
@@ -20,7 +22,8 @@ const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
     create: async () => {
       const loaded = await import('@tanstack/ai-isolate-node')
       if (!loaded.probeIsolatedVm().compatible) return null
-      return loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+      const driver = loaded.createNodeIsolateDriver({timeout: CODE_MODE_TIMEOUT_MS})
+      return {createContext: (config) => driver.createContext(config), dispose: async () => undefined}
     },
   },
   {
@@ -33,7 +36,7 @@ const DRIVER_CANDIDATES: readonly DriverCandidate[] = [
   },
 ]
 
-async function attempt(candidate: DriverCandidate, log: Log): Promise<IsolateDriver | null> {
+async function attempt(candidate: DriverCandidate, log: Log): Promise<CodeDriver | null> {
   try {
     const driver = await candidate.create(log)
     if (driver === null) log(`[ai] the code mode driver ${candidate.name} is incompatible with this platform`)
@@ -44,7 +47,7 @@ async function attempt(candidate: DriverCandidate, log: Log): Promise<IsolateDri
   }
 }
 
-export async function loadIsolateDriver(log: Log): Promise<IsolateDriver | null> {
+export async function loadIsolateDriver(log: Log): Promise<CodeDriver | null> {
   for (const candidate of DRIVER_CANDIDATES) {
     const driver = await attempt(candidate, log)
     if (driver !== null) return driver

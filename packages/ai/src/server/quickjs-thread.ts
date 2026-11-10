@@ -9,6 +9,8 @@ type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: 
 
 type Log = (message: string) => void
 
+type Spare = {worker: Worker; loaded: Promise<ExecutionResult>}
+
 function failure(name: string, message: string): ExecutionResult {
   return {success: false, error: {name, message}, logs: []}
 }
@@ -27,8 +29,8 @@ async function answer(config: IsolateConfig, name: string, args: unknown): Promi
   }
 }
 
-function serveCalls(worker: Worker, config: IsolateConfig): void {
-  worker.on('message', (raw: unknown) => {
+function serveCalls(worker: Worker, config: IsolateConfig): () => void {
+  const onMessage = (raw: unknown) => {
     const message = WorkerMessageSchema.safeParse(raw)
     if (!message.success || message.data.type !== 'call') return
     const {id, name, args} = message.data
@@ -36,17 +38,19 @@ function serveCalls(worker: Worker, config: IsolateConfig): void {
       const reply: HostMessage = {type: 'result', id, outcome}
       worker.postMessage(reply)
     })
-  })
+  }
+  worker.on('message', onMessage)
+  return () => worker.off('message', onMessage)
 }
 
-function nextMessage(worker: Worker, type: 'ready' | 'done', limitMs: number, signal: AbortSignal) {
+function nextMessage(worker: Worker, type: 'loaded' | 'ready' | 'done', limitMs: number, signal?: AbortSignal) {
   return new Promise<ExecutionResult>((resolve) => {
     const settle = (result: ExecutionResult) => {
       clearTimeout(timer)
       worker.off('message', onMessage)
       worker.off('error', onError)
       worker.off('exit', onExit)
-      signal.removeEventListener('abort', onAbort)
+      signal?.removeEventListener('abort', onAbort)
       resolve(result)
     }
     const stop = (result: ExecutionResult) => {
@@ -56,22 +60,25 @@ function nextMessage(worker: Worker, type: 'ready' | 'done', limitMs: number, si
     const onMessage = (raw: unknown) => {
       const message = WorkerMessageSchema.safeParse(raw)
       if (!message.success) return stop(failure('WorkerError', 'the QuickJS worker sent an unreadable message'))
-      if (message.data.type === 'ready' && type === 'ready') return settle({success: true})
       if (message.data.type === 'done' && type === 'done') return settle(message.data.result)
+      if (message.data.type === type) return settle({success: true})
     }
     const onError = (error: Error) => stop(failure(error.name, error.message))
     const onExit = (code: number) => settle(failure('WorkerError', `the QuickJS worker exited with code ${code}`))
     const onAbort = () => stop(STOPPED)
     const timer = setTimeout(() => stop(TIMED_OUT), limitMs)
+    timer.unref()
     worker.on('message', onMessage)
     worker.on('error', onError)
     worker.on('exit', onExit)
-    signal.addEventListener('abort', onAbort)
-    if (signal.aborted) stop(STOPPED)
+    signal?.addEventListener('abort', onAbort)
+    if (signal?.aborted) stop(STOPPED)
   })
 }
 
-async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits, log: Log): Promise<IsolateContext> {
+type Release = (worker: Worker, clean: boolean) => Promise<void>
+
+async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits, worker: Worker, release: Release) {
   const timeout = config.timeout ?? limits.timeout
   const setup: WorkerSetup = {
     names: Object.keys(config.bindings),
@@ -79,30 +86,93 @@ async function threadContext(config: IsolateConfig, limits: QuickJSThreadLimits,
     memoryLimit: config.memoryLimit ?? limits.memoryLimit,
     maxStackSize: limits.maxStackSize,
   }
-  const worker = new Worker(new URL('./quickjs-worker.js', import.meta.url), {workerData: setup})
   const disposed = new AbortController()
-  worker.on('error', (error: Error) => log(`[ai] the QuickJS worker failed: ${error.name}: ${error.message}`))
-  serveCalls(worker, config)
-  const ready = await nextMessage(worker, 'ready', timeout, disposed.signal)
-  if (!ready.success) {
-    await worker.terminate()
-    throw new Error(ready.error?.message ?? 'the QuickJS worker failed to start')
+  const state = {clean: true, running: 0}
+  worker.ref()
+  const stopServing = serveCalls(worker, config)
+  const ready = nextMessage(worker, 'ready', timeout, disposed.signal)
+  const message: HostMessage = {type: 'setup', setup}
+  worker.postMessage(message)
+  const built = await ready
+  if (!built.success) {
+    stopServing()
+    await release(worker, false)
+    throw new Error(built.error?.message ?? 'the QuickJS worker failed to start')
   }
-  return {
+  const context: IsolateContext = {
     execute: async <T>(code: string): Promise<ExecutionResult<T>> => {
+      state.running += 1
       const done = nextMessage(worker, 'done', timeout + HARD_STOP_GRACE_MS, disposed.signal)
-      const message: HostMessage = {type: 'execute', code}
-      worker.postMessage(message)
+      const run: HostMessage = {type: 'execute', code}
+      worker.postMessage(run)
       const result = await done
+      state.running -= 1
+      if (!result.success) state.clean = false
       return {...result, value: z.custom<T>().parse(result.value)}
     },
     dispose: async () => {
+      if (disposed.signal.aborted) return
+      const clean = state.clean && state.running === 0 && worker.threadId !== -1
       disposed.abort()
-      await worker.terminate()
+      stopServing()
+      await release(worker, clean)
     },
   }
+  return context
 }
 
-export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): IsolateDriver {
-  return {createContext: (config) => threadContext(config, limits, log)}
+export function quickJSThreadDriver(
+  limits: QuickJSThreadLimits,
+  log: Log,
+): IsolateDriver & {dispose: () => Promise<void>} {
+  const live = new Set<Worker>()
+  const held: {spare: Spare | null; open: boolean} = {spare: null, open: false}
+  const boot = (): Spare => {
+    const worker = new Worker(new URL('./quickjs-worker.js', import.meta.url))
+    live.add(worker)
+    worker.unref()
+    worker.on('error', (error: Error) => log(`[ai] the QuickJS worker failed: ${error.name}: ${error.message}`))
+    worker.on('exit', () => live.delete(worker))
+    return {worker, loaded: nextMessage(worker, 'loaded', limits.timeout)}
+  }
+  const reset = (worker: Worker): Spare => {
+    worker.unref()
+    const loaded = nextMessage(worker, 'loaded', limits.timeout)
+    const message: HostMessage = {type: 'reset'}
+    worker.postMessage(message)
+    return {worker, loaded}
+  }
+  const release: Release = async (worker, clean) => {
+    if (clean && held.open && held.spare === null) {
+      held.spare = reset(worker)
+      return
+    }
+    await worker.terminate()
+    if (held.open) held.spare ??= boot()
+  }
+  const take = (): Spare => {
+    const taken = held.spare ?? boot()
+    held.spare = null
+    return taken
+  }
+  const loadedWorker = async (spare: Spare): Promise<Worker | null> => {
+    const loaded = await spare.loaded
+    if (loaded.success && spare.worker.threadId !== -1) return spare.worker
+    await spare.worker.terminate()
+    return null
+  }
+  const claim = async (): Promise<Worker> => {
+    held.open = true
+    const worker = (await loadedWorker(take())) ?? (await loadedWorker(take()))
+    if (worker === null) throw new Error('the QuickJS worker failed to start')
+    return worker
+  }
+  return {
+    createContext: async (config) => threadContext(config, limits, await claim(), release),
+    dispose: async () => {
+      held.open = false
+      held.spare = null
+      await Promise.all([...live].map((worker) => worker.terminate()))
+    },
+  }
 }

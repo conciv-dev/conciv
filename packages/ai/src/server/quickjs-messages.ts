@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-export const WorkerSetupSchema = z.object({
+const WorkerSetupSchema = z.object({
   names: z.array(z.string()),
   timeout: z.number(),
   memoryLimit: z.number(),
@@ -19,6 +19,7 @@ const ExecutionResultSchema = z.object({
 })
 
 export const WorkerMessageSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('loaded')}),
   z.object({type: z.literal('ready')}),
   z.object({type: z.literal('call'), id: z.string(), name: z.string(), args: z.unknown()}),
   z.object({type: z.literal('done'), result: ExecutionResultSchema}),
@@ -34,6 +35,8 @@ const CallOutcomeSchema = z.discriminatedUnion('ok', [
 export type CallOutcome = z.infer<typeof CallOutcomeSchema>
 
 export const HostMessageSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('setup'), setup: WorkerSetupSchema}),
+  z.object({type: z.literal('reset')}),
   z.object({type: z.literal('execute'), code: z.string()}),
   z.object({
     type: z.literal('result'),

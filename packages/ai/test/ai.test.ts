@@ -755,3 +755,122 @@ describe('dist externals', () => {
     })
   })
 })
+
+describe('quickjs code mode reuses a warm worker without sharing state', async () => {
+  const dist: typeof import('../src/server.js') = await import(new URL('../dist/server.js', import.meta.url).href)
+  const ReportSchema = z.object({workers: z.array(z.unknown())})
+  const liveWorkers = () => ReportSchema.parse(process.report.getReport()).workers.length
+
+  function sandbox(limits: {timeout: number; memoryLimit: number}) {
+    const driver = dist.quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
+    const later = {
+      name: 'later',
+      description: 'Resolves after a short wait.',
+      inputSchema: {},
+      execute: (value: unknown) => new Promise((resolve) => setTimeout(() => resolve(value), 50)),
+    }
+    const run = async (code: string) => {
+      const context = await driver.createContext({bindings: {later}})
+      const result = await context.execute(code)
+      await context.dispose()
+      return result
+    }
+    return {driver, run}
+  }
+
+  it('globals, pending promises and pending tool calls of one run never reach the next', async () => {
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    const first = await run(
+      'globalThis.leak = 1; later({}).then(() => { globalThis.late = 1 }); new Promise(() => {}); Promise.resolve().then(() => { globalThis.micro = 1 }); return typeof setTimeout',
+    )
+    expect(first).toMatchObject({success: true, value: 'undefined'})
+    const second = await run(
+      'await later({}); await later({}); return [typeof leak, typeof late, typeof micro, typeof setTimeout]',
+    )
+    expect(second).toMatchObject({success: true, value: ['undefined', 'undefined', 'undefined', 'undefined']})
+    await driver.dispose()
+  })
+
+  it('a timed out run and a run over its memory limit leave the next run working and clean', async () => {
+    const {driver, run} = sandbox({timeout: 3_000, memoryLimit: 16})
+    expect(await run('globalThis.leak = 1; while (true) {}')).toMatchObject({error: {name: 'TimeoutError'}})
+    expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    const overMemory = await run("globalThis.leak = 1; let text = 'x'; while (true) text += text")
+    expect(overMemory).toMatchObject({success: false, error: {name: 'MemoryLimitError'}})
+    expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    await driver.dispose()
+  })
+
+  it('a run stopped mid-flight does not poison the next run', async () => {
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    const context = await driver.createContext({bindings: {}})
+    const running = context.execute('globalThis.leak = 1; await new Promise(() => {})')
+    await context.dispose()
+    expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
+    expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    await driver.dispose()
+  })
+
+  it('concurrent runs both succeed and each sees only its own globals', async () => {
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    const results = await Promise.all(
+      ['one', 'two'].map((name) => run(`globalThis.mine = '${name}'; await later({}); return [mine, typeof theirs]`)),
+    )
+    expect(results).toMatchObject([
+      {success: true, value: ['one', 'undefined']},
+      {success: true, value: ['two', 'undefined']},
+    ])
+    await driver.dispose()
+  })
+
+  it('disposing the driver leaves no live worker', async () => {
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    await Promise.all([run('return 1'), run('return 2')])
+    expect(liveWorkers()).toBeGreaterThan(0)
+    await driver.dispose()
+    expect(liveWorkers()).toBe(0)
+  })
+
+  it('a warm return 1 through the chat server stays under 50 ms and ending all runs frees the worker', async () => {
+    const client = new DatabaseSync(':memory:')
+    client.exec(
+      'CREATE TABLE chat_runs (run_id text PRIMARY KEY, thread_id text NOT NULL, harness_id text NOT NULL, status text NOT NULL, started_at integer NOT NULL, finished_at integer, error text, error_code text, usage_json text, sandbox_key text, detached_since integer, cancel_requested integer, driver_epoch integer)',
+    )
+    const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+    const server = await dist.createChatServer({
+      stores: dist.drizzleChatStores(drizzle({client}), {harnessOf: () => 'test-harness'}),
+      sandbox: {dir, journalDir: join(dir, 'runs')},
+      hooks: {
+        plan: () => {
+          throw new Error('no turn runs here')
+        },
+        usage: async () => undefined,
+        end: async () => undefined,
+        started: () => undefined,
+      },
+      codeModeResult: (value) => value,
+      firstOutputTimeoutMs: 30_000,
+      log: () => undefined,
+    })
+    const echo = defineTool({
+      name: 'echo',
+      description: 'Echoes its input.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+    }).server(async (args) => args)
+    const runner = server.codeRunner([echo])
+    if (runner === null) throw new Error('code mode found no driver')
+    const timed = async () => {
+      const start = performance.now()
+      expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
+      return performance.now() - start
+    }
+    await timed()
+    const warm: number[] = []
+    for (const _ of Array.from({length: 20})) warm.push(await timed())
+    const median = warm.toSorted((a, b) => a - b)[10] ?? Infinity
+    expect(median).toBeLessThan(50)
+    await server.endAllRuns()
+    expect(liveWorkers()).toBe(0)
+  })
+})

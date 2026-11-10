@@ -17,7 +17,6 @@ import {
   type TokenUsage,
 } from '@tanstack/ai'
 import {defineLock, InMemoryLockStore, withLocks} from '@tanstack/ai/locks'
-import type {IsolateDriver} from '@tanstack/ai-code-mode'
 import {defineAIPersistence, reconstructChat, withPersistence, type MessageStore} from '@tanstack/ai-persistence'
 import {
   APPROVAL_REQUESTED_EVENT,
@@ -351,7 +350,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  const driver: IsolateDriver | null = await loadIsolateDriver(config.log)
+  const driver = await loadIsolateDriver(config.log)
   await sweepAbandonedRuns(stores.runs, hooks)
 
   const lifecycleChunk = (lifecycle: RunLifecycle): ChatEvent => runLifecycleEvent.create(lifecycle)
@@ -584,6 +583,7 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     endAllRuns: async () => {
       const threadIds = new Set([...live.values()].map((entry) => entry.threadId))
       const ended = await Promise.allSettled([...threadIds].map(endThreadRuns))
+      await driver?.dispose()
       throwRejected(ended, 'conciv: ending the live runs failed')
     },
     driving: (threadId) => liveRunsOf(threadId).length > 0,
