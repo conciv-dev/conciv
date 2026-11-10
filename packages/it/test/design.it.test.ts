@@ -566,7 +566,7 @@ describe('design_check on a paragraph that wraps', () => {
     ])
   })
 
-  it('has no wrap row once the paragraph is as wide as the frame', async () => {
+  it('has no wrap row once the paragraph is as wide as the frame, its padding not counted as a line', async () => {
     expect(await wrapRows(800)).toEqual([])
   })
 })

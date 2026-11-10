@@ -10,7 +10,7 @@ export function wrapsOf(input: {
     if (look.type !== TEXT || look.line_height === null || element === undefined) return []
     const {lineHeight} = element.styles
     const frame = Math.round(look.h / look.line_height)
-    const lines = lineHeight > 0 ? Math.round(element.bounds.h / lineHeight) : frame
+    const lines = lineHeight > 0 ? Math.round((element.textBox ?? element.bounds).h / lineHeight) : frame
     return frame > 0 && lines !== frame ? [{node: look.node, lines, frame}] : []
   })
 }
