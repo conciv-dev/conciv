@@ -1816,6 +1816,21 @@ describe('run start and run end', () => {
     orm.$client.close()
     await Promise.all([cwd, stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
   })
+
+  it('keys an untracked copy inside a git checkout by its package name, with no branch or head', async () => {
+    const waveDir = await mkdtemp(join(FIXTURES, 'untracked-'))
+    importedDirs.push(waveDir)
+    const cwd = await lane({root: FIXTURES, wave: basename(waveDir), label: 'copy'})
+    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-state-'))
+    const home = await mkdtemp(join(tmpdir(), 'conciv-design-untracked-home-'))
+    const orm = openDb({stateRoot, extensions: [design]})
+    const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
+    await commands.find((command) => command.name === 'design:run')?.run({args: ['start', 'm', 'p'], options: {}})
+    const [row] = ProvenanceSchema.parse(await sources.read({from: 'design_runs', select: PROVENANCE}))
+    expect([row?.project_key, row?.branch, row?.head]).toEqual(['design-fixture-host', null, null])
+    orm.$client.close()
+    await Promise.all([stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
+  })
 })
 
 const BACKFILL = 'runs_backfill_wave_lane'

@@ -5,11 +5,12 @@ import {z} from 'zod'
 
 export async function projectKey(input: {cwd: string}): Promise<string> {
   const {cwd} = input
-  const [remote, prefix] = await Promise.all([
+  const [remote, prefix, tracked] = await Promise.all([
     execa('git', ['remote', 'get-url', 'origin'], {cwd, reject: false}),
     execa('git', ['rev-parse', '--show-prefix'], {cwd, reject: false}),
+    execa('git', ['ls-files', '--error-unmatch', PACKAGE_JSON], {cwd, reject: false}),
   ])
-  if (!remote.failed && !prefix.failed) return `${remote.stdout}#${prefix.stdout}`
+  if (!remote.failed && !prefix.failed && !tracked.failed) return `${remote.stdout}#${prefix.stdout}`
   const disk = createStorage({driver: fsDriver({base: cwd, readOnly: true})})
   return PackageSchema.parse(await disk.getItem(PACKAGE_JSON).catch(() => null)).name ?? cwd
 }
