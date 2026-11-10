@@ -276,6 +276,7 @@ export function createStore(input: {db: DesignDb; state: Storage; run: () => Pro
             verdict: written.verdict,
             unsettled: written.unsettled,
             broken: written.broken,
+            broken_by: written.brokenBy,
             live: livePath,
             diff: diffPath,
           })
@@ -509,6 +510,7 @@ function roundOf(input: Stored): Round {
     verdict: head.verdict,
     unsettled: head.unsettled,
     broken: head.broken,
+    brokenBy: head.broken_by,
   })
 }
 

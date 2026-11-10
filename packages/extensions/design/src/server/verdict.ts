@@ -22,7 +22,8 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
     coverage: last.coverage,
     progress: last.progress,
   }
-  if (last.broken !== null) return {verdict: 'broken', reasons: [last.broken, BROKEN_RULE], ...shown}
+  if (last.broken !== null)
+    return {verdict: 'broken', reasons: [last.broken, BROKEN_RULES[last.brokenBy ?? 'compile']], ...shown}
   if (last.unsettled !== null) {
     const {rendered, nodes} = last.coverage
     const told = `the page renders ${rendered} of ${nodes} nodes; the missing ones are listed in coverage.missing`
@@ -41,7 +42,10 @@ export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
 
 const STALL_ROUNDS = 2
 
-const BROKEN_RULE = 'fix the compile error first; nothing else was measured'
+const BROKEN_RULES = {
+  compile: 'fix the compile error first; nothing else was measured',
+  runtime: 'fix the runtime error first; nothing else was measured',
+} as const satisfies Record<NonNullable<Round['brokenBy']>, string>
 
 function requiredOf(root: DesignNode): Map<string, string> {
   return new Map(

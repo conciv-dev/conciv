@@ -2,6 +2,7 @@ import {z} from 'zod'
 import type {Storage} from 'unstorage'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
+import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
@@ -13,6 +14,8 @@ export const DESIGN_TOOL_PREFIX = 'design_'
 
 export const DESIGN_VERDICTS = ['right', 'wrong'] as const
 const CHECK_VERDICTS = ['done', 'not yet', 'stalled', 'unsettled', 'broken'] as const
+
+export const BROKEN_BY = ['compile', 'runtime'] as const
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
@@ -297,7 +300,12 @@ export const RoundSchema = z.object({
     .string()
     .nullable()
     .default(null)
-    .describe('the compile error of a page that does not compile, file:line:column: message; nothing was measured'),
+    .describe('the error of a page that does not compile or throws, file:line:column: message; nothing was measured'),
+  brokenBy: z
+    .enum(BROKEN_BY)
+    .nullable()
+    .default(null)
+    .describe('compile for a transform error, runtime for an error the page throws while rendering'),
 })
 
 const TaggedNodeSchema = z
@@ -358,6 +366,13 @@ const BrokenSchema = z.object({
   compile: CompileErrorSchema.describe('the error the dev server reports for the page'),
 })
 
+const ThrownSchema = z.object({
+  round: z.number(),
+  verdict: z.literal('broken'),
+  reasons: z.array(z.string()),
+  thrown: CompileErrorSchema.describe('the error the page throws while rendering, at the first frame in its own files'),
+})
+
 const MeasuredSchema = RoundSchema.pick({
   round: true,
   rows: true,
@@ -380,6 +395,7 @@ const CheckedOneSchema = z.union([
   MeasuredSchema.extend(JUDGED),
   UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
   BrokenSchema,
+  ThrownSchema,
 ])
 
 export const CheckResultSchema = z.union([
@@ -419,6 +435,14 @@ export const MeasureResultSchema = z.object({
     .number()
     .optional()
     .describe('ms the measure waited for stylesheets and fonts that were still loading when it went ahead'),
+  thrown: z
+    .object({
+      message: z.string(),
+      frames: z.array(RawFrameSchema.required({fileName: true, line: true, column: true})),
+      ago: z.number().describe('ms between the error and the reply'),
+    })
+    .optional()
+    .describe('the last uncaught error or unhandled rejection the page raised while the widget ran'),
 })
 
 const Width = z.number().int().positive()
@@ -454,7 +478,7 @@ export type Coverage = z.output<typeof CoverageSchema>
 export type Counts = z.output<typeof CountsSchema>
 export type Status = z.output<typeof StatusSchema>
 export type Got = z.output<typeof GetResultSchema>
-export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema>
+export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema> | {thrown: CompileError}
 export type Checked = z.output<typeof CheckResultSchema>
 export type CompileError = z.output<typeof CompileErrorSchema>
 export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
@@ -498,7 +522,14 @@ export type Measurer = {
 export type Measured = Pick<
   z.output<typeof MeasureResultSchema>,
   'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks' | 'fontsLoading'
-> & {live: LiveComponent; raster: Raster; path: CapturePath; sources: MeasureSource[]; framework: 'react' | 'solid'}
+> & {
+  live: LiveComponent
+  raster: Raster
+  path: CapturePath
+  sources: MeasureSource[]
+  framework: 'react' | 'solid'
+  thrown?: {message: string; frames: RawFrame[]; at: number}
+}
 
 export type Pairer = (input: {
   design: Design
@@ -512,6 +543,7 @@ export type Pairer = (input: {
 export type Runner = (input: {
   record: TargetRecord
   page: ServerToolPageAccess
+  since: number
   variants?: number[]
 }) => Promise<RoundReply>
 
@@ -532,4 +564,5 @@ export type DesignRuntime = {
   measurer: Measurer
   pairer: Pairer
   comparator: string
+  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }

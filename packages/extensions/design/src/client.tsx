@@ -4,7 +4,13 @@ import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'r
 import {createRoot, onMount, Show, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
 import ScanSearch from 'lucide-solid/icons/scan-search'
-import {CONCIV_UI_SELECTOR, defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
+import {
+  CONCIV_UI_SELECTOR,
+  defineExtension,
+  getExtensionApi,
+  type ClientToolCtx,
+  type RegisterExtension,
+} from '@conciv/extension'
 import type {HostWiring} from '@conciv/extension/host'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {capturePlugins} from '@conciv/extension-page/capture-plugins'
@@ -20,6 +26,7 @@ import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
 import {settled} from './client/settled.js'
+import {thrownOf} from './client/thrown.js'
 
 declare global {
   interface Window {
@@ -186,7 +193,7 @@ declare module '@conciv/protocol/config-types' {
 
 export default design
 
-async function measureStep(input: MeasureInput): Promise<MeasureResult> {
+async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
   const pageError = overlayError()
@@ -194,7 +201,8 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
     doc: document,
     run: () => (size.width === innerWidth ? measureLive({size}) : measureMirror({size})),
   })
-  const queried = {...measured, ...(await pageQueries(document))}
+  const thrown = thrownOf(ctx.consoleEntries())
+  const queried = {...measured, ...(await pageQueries(document)), ...(thrown === null ? {} : {thrown})}
   return pageError === null ? queried : {...queried, pageError}
 }
 

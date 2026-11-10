@@ -64,6 +64,7 @@ const design = defineExtension({
     measurer,
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,
+    symbolicate: server.symbolicate,
   }
   const differ = createDiffer({
     show: config.show,

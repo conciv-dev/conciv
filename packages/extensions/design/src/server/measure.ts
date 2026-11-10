@@ -119,6 +119,9 @@ function measuredFrom(reply: MeasureReply): Measured {
     ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
     ...(reply.fontsLoading === undefined ? {} : {fontsLoading: reply.fontsLoading}),
+    ...(reply.thrown === undefined
+      ? {}
+      : {thrown: {message: reply.thrown.message, frames: reply.thrown.frames, at: Date.now() - reply.thrown.ago}}),
     framework: frameworkOf(reply),
     masks: reply.masks,
   }

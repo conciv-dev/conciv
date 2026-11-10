@@ -1,6 +1,6 @@
 import {sql} from 'drizzle-orm'
 import {check, integer, real, text, type SQLiteTableFn} from 'drizzle-orm/sqlite-core'
-import {DESIGN_VERDICTS, type Design, type IdTree} from '../shared/defs.js'
+import {BROKEN_BY, DESIGN_VERDICTS, type Design, type IdTree} from '../shared/defs.js'
 
 export function designTables(table: SQLiteTableFn) {
   return {
@@ -51,6 +51,7 @@ export function designTables(table: SQLiteTableFn) {
       verdict: text(),
       unsettled: text(),
       broken: text(),
+      broken_by: text({enum: BROKEN_BY}),
       live: text(),
       diff: text(),
       at: integer().notNull(),

@@ -7,17 +7,18 @@ import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {
-  Checked,
-  CompileError,
-  DesignRuntime,
-  Differ,
-  GateRow,
-  Got,
-  RoundReply,
-  Runner,
-  Status,
-  TargetRecord,
+import {
+  BROKEN_BY,
+  type Checked,
+  type CompileError,
+  type DesignRuntime,
+  type Differ,
+  type GateRow,
+  type Got,
+  type RoundReply,
+  type Runner,
+  type Status,
+  type TargetRecord,
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
@@ -40,8 +41,8 @@ export function createDiffer(input: {
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
   const edits = watchEdits({bundler: input.bundler, cwd: runtime.cwd})
-  const brokenOne = async (asked: {record: TargetRecord; compile: CompileError}) => {
-    const {record, compile} = asked
+  const brokenOne = async (asked: {record: TargetRecord; error: CompileError; by: BrokenBy}) => {
+    const {record, error, by} = asked
     const [design, rounds] = await Promise.all([store.design(record.id), store.rounds(record.id)])
     const round = (rounds.at(-1)?.round ?? 0) + 1
     const written = {
@@ -49,11 +50,13 @@ export function createDiffer(input: {
       round,
       at: Date.now(),
       verdict: 'broken' as const,
-      broken: compileLine(compile),
+      broken: compileLine(error),
+      brokenBy: by,
     }
     await store.writeRound({id: record.id, round: written, live: new Uint8Array(), diff: new Uint8Array()})
     const {reasons} = verdictOf({design, rounds: [...rounds, written]})
-    return {round, verdict: 'broken' as const, reasons, compile}
+    const judged = {round, verdict: 'broken' as const, reasons}
+    return by === 'compile' ? {...judged, compile: error} : {...judged, thrown: error}
   }
   const checkedOne = async (asked: {
     record: TargetRecord
@@ -65,8 +68,10 @@ export function createDiffer(input: {
     const measured = await runner({
       record,
       page: tab(asked.session),
+      since: edits.updated(),
       ...(asked.variants === undefined ? {} : {variants: asked.variants}),
     })
+    if ('thrown' in measured) return brokenOne({record, error: measured.thrown, by: 'runtime'})
     if (!('round' in measured))
       return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
@@ -102,7 +107,7 @@ export function createDiffer(input: {
       const one = (record: TargetRecord, variants?: number[]) =>
         compile === null
           ? checkedOne({record, session, nodes, ...(variants === undefined ? {} : {variants})})
-          : brokenOne({record, compile})
+          : brokenOne({record, error: compile, by: 'compile'})
       if (records.length < 2) return one(await currentTarget({runtime, session}))
       const widths = records.map((record) => record.width)
       const variants = []
@@ -127,6 +132,8 @@ export function createDiffer(input: {
 }
 
 type DesignPage = ServerApi<unknown>['page']
+
+type BrokenBy = (typeof BROKEN_BY)[number]
 
 type GetQuery = Parameters<Differ['get']>[0]['input']
 
@@ -303,7 +310,7 @@ function only(input: {checked: Extract<Checked, {rows: unknown}>; nodes: string[
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }
 
-function unsettledReason(measured: Exclude<RoundReply, {round: number}>): string {
+function unsettledReason(measured: Exclude<RoundReply, {round: number} | {thrown: unknown}>): string {
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
   return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
 }
@@ -315,6 +322,7 @@ function fontsLine(waited: number): string {
 function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
   quiet: () => Promise<void>
   compiled: () => Promise<CompileError | null>
+  updated: () => number
   dispose: () => void
 } {
   const {bundler, cwd} = input
@@ -322,10 +330,12 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
     timer: ReturnType<typeof setTimeout> | undefined
     settled: PromiseWithResolvers<void> | null
     failed: CompileError | null
-  } = {timer: undefined, settled: null, failed: null}
+    updated: number
+  } = {timer: undefined, settled: null, failed: null, updated: 0}
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind === 'build-error') state.failed = compileErrorOf({diagnostic, cwd})
     if (diagnostic.kind !== 'hmr-update') return
+    state.updated = diagnostic.timestamp
     const settled = state.settled ?? Promise.withResolvers<void>()
     state.settled = settled
     clearTimeout(state.timer)
@@ -346,6 +356,7 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
       state.failed = await stillFailing({bundler, failed, cwd})
       return state.failed
     },
+    updated: () => state.updated,
     dispose: () => {
       clearTimeout(state.timer)
       unsubscribe?.()

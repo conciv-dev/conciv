@@ -38,6 +38,8 @@ import {picture} from './fixtures/design/picture.js'
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const THROW_BEFORE = 'const gap ='
+const THROWING_LINE = "  if (titles.length > 0) throw new TypeError('the cards fixture throws while rendering')"
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
 
@@ -177,8 +179,9 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', {figma: FIGMA_LINK, image, document: CARDS_DOCUMENT})
 }
 
-function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown}> {
-  if ('unsettled' in checked || 'compile' in checked) throw new Error(`no round: ${JSON.stringify(checked)}`)
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown} | {thrown: unknown}> {
+  if ('unsettled' in checked || 'compile' in checked || 'thrown' in checked)
+    throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
 
@@ -318,6 +321,7 @@ describe('store', () => {
       verdict: null,
       unsettled: null,
       broken: null,
+      brokenBy: null,
     }
     await store.writeRound({id: 'store-1', round, live: blankPng({width: 100, height: 50}), diff: new Uint8Array()})
     expect((await store.rounds('store-1')).map((entry) => entry.round)).toEqual([1])
@@ -473,6 +477,22 @@ describe('design_check on a page that breaks the widget or the build', () => {
       .finally(() => writeFile(CARDS_FILE, source))
     const compile = 'compile' in broken ? broken.compile : null
     expect([broken.verdict, compile?.file, typeof compile?.line]).toEqual(['broken', 'src/Cards.tsx', 'number'])
+    await goto('target')
+    expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
+  })
+
+  it('answers broken with the file and line of an error the page throws while rendering, then measures again once it is fixed', async () => {
+    await goto('target')
+    await cardsTarget()
+    const source = await readFile(CARDS_FILE, 'utf8')
+    const lines = source.split('\n')
+    const at = lines.findIndex((line) => line.includes(THROW_BEFORE))
+    const thrown = kit.page.waitForEvent('pageerror', {timeout: PAGE_DRIVER_TIMEOUT_MS})
+    await writeFile(CARDS_FILE, [...lines.slice(0, at), THROWING_LINE, ...lines.slice(at)].join('\n'))
+    const broken = await thrown.then(() => call('design_check', {}))
+    const error = 'thrown' in broken ? broken.thrown : null
+    await writeFile(CARDS_FILE, source)
+    expect([broken.verdict, error?.file, error?.line]).toEqual(['broken', 'src/Cards.tsx', at + 1])
     await goto('target')
     expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })

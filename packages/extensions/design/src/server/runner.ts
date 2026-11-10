@@ -1,6 +1,9 @@
+import {isAbsolute, relative} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import type {Storage} from 'unstorage'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {CompileError, DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
 import {walk} from '../shared/tree.js'
@@ -17,7 +20,7 @@ import {imageRowsOf} from './image-rows.js'
 export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
   const {runtime, folder} = input
   const {store, measurer} = runtime
-  return async ({record, page, variants}) => {
+  return async ({record, page, since, variants}) => {
     const [design, stored, rounds, image, ids, streak] = await Promise.all([
       store.design(record.id),
       store.mapping(record.id),
@@ -28,6 +31,8 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     ])
     if (image === null) throw toolError('no-target', {message: 'the design image is missing; call design_get again'})
     const measured = await measurer.measure({page, width: record.width, height: record.height})
+    const thrown = await thrownError({measured, since, runtime})
+    if (thrown !== null) return {thrown}
     const count = streak + 1
     const error = measured.pageError === undefined ? {} : {error: measured.pageError}
     const blank = measured.pageError !== undefined || measured.live.children.length === 0
@@ -127,6 +132,7 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
       verdict: 'unsettled',
       unsettled,
       broken: null,
+      brokenBy: null,
     }
     const written =
       unsettled === null
@@ -181,6 +187,42 @@ function unsettledReason(input: {measured: Measured; rendered: number; settled: 
   if (settled === undefined || rendered >= settled.coverage.rendered / 2) return null
   return `The page rendered ${rendered} design nodes, under half the ${settled.coverage.rendered} of round ${settled.round}.`
 }
+
+async function thrownError(input: {
+  measured: Measured
+  since: number
+  runtime: DesignRuntime
+}): Promise<CompileError | null> {
+  const {measured, runtime} = input
+  const {thrown} = measured
+  if (thrown === undefined || (thrown.at < input.since && measured.live.children.length > 0)) return null
+  const at = await located({frames: thrown.frames, runtime})
+  if (at === null) return {message: thrown.message, file: null, line: null, column: null}
+  return {
+    message: thrown.message,
+    file: projectFile({file: at.file, cwd: runtime.cwd}),
+    line: at.line,
+    column: at.column,
+  }
+}
+
+async function located(input: {frames: RawFrame[]; runtime: DesignRuntime}): Promise<SourceLoc | null> {
+  const [frame, ...rest] = input.frames
+  if (frame === undefined) return null
+  const at = await input.runtime.symbolicate([frame])
+  if (at === null) return located({...input, frames: rest})
+  if (!URL.canParse(at.file, frame.fileName)) return at
+  return {...at, file: new URL(at.file, frame.fileName).href}
+}
+
+function projectFile(input: {file: string; cwd: string}): string {
+  const {file, cwd} = input
+  if (!URL.canParse(file)) return isAbsolute(file) ? relative(cwd, file) : file
+  const url = new URL(file)
+  return url.protocol === FILE_PROTOCOL ? relative(cwd, fileURLToPath(url)) : url.pathname.slice(1)
+}
+
+const FILE_PROTOCOL = 'file:'
 
 function shown(last: Round): RoundReply {
   const {round, rows, reflow, coverage, counts, progress} = last

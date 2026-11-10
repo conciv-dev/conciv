@@ -101,7 +101,9 @@ function RoundView(props: {round: Round; id: string; image: (path: string) => st
       >
         {(broken) => (
           <div class="flex flex-col gap-1">
-            <p class="font-medium m-0">Page does not compile</p>
+            <p class="font-medium m-0">
+              {props.round.brokenBy === 'runtime' ? 'Page throws' : 'Page does not compile'}
+            </p>
             <p class="text-xs font-mono m-0">{broken()}</p>
           </div>
         )}
