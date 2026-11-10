@@ -28,6 +28,7 @@ import {createComponentRows} from './server/catalog/component-rows.js'
 import {backfillRelation} from './server/catalog/backfill-relation.js'
 import {createCssTokenSource} from './server/catalog/token-source.js'
 import {createPreviewServer} from './server/catalog/preview-server.js'
+import {openRunsStore} from './server/runs-store.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -53,6 +54,7 @@ const design = defineExtension({
   const files = createStorage({driver: fsDriver({base: FILES_ROOT, readOnly: true})})
   const measurer = createMeasurer({config})
   const home = openHomeDb(server.home)
+  const runsStore = openRunsStore(server.home)
   const componentSources = {'vite-oxc': createViteOxcSource()}
   const catalog = createCatalog({
     home,
@@ -106,6 +108,7 @@ const design = defineExtension({
       catalog,
       catalogConfig: config.catalog,
       hinters,
+      runsStore,
     },
     router: xray.router,
     app: xray.app,
@@ -115,6 +118,7 @@ const design = defineExtension({
       differ.dispose()
       measurer.dispose()
       closeHomeDb(runtime.home)
+      runsStore.close()
     },
   }
 })

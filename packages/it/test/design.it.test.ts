@@ -36,6 +36,7 @@ import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openRunsStore} from '../../extensions/design/src/server/runs-store.js'
 import {importRun} from '../../extensions/design/src/server/import-run.js'
+import {queryRuns} from '../../extensions/design/src/server/query-runs.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -851,6 +852,28 @@ describe('catalog hints on design_get', () => {
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
 
+  it('lists the hinted nodes in hint_vs_drawn once the run is imported, a round or none', async () => {
+    const runs = (args: string[]) => kit.rpc.extensions.run({name: 'design:runs', args})
+    const asked = (input: {sql: string; params?: (string | number)[]}) =>
+      kit.rpc.registry.call({name: 'design_runs', input})
+    await runs(['start', 'it-model', 'it-head'])
+    const got = await hintedTarget()
+    const {runId} = z.object({runId: z.number()}).parse(await runs(['import', kit.stateRoot]))
+    const answer = z
+      .object({columns: z.array(z.string()), rows: z.array(z.object({node: z.string(), hint: z.string()}))})
+      .parse(
+        await asked({
+          sql: 'SELECT node, hint FROM hint_vs_drawn WHERE run_id = ? AND target_id = ?',
+          params: [runId, got.target],
+        }),
+      )
+    expect(answer.columns).toEqual(['node', 'hint'])
+    expect(new Set(answer.rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
+    await expect(
+      asked({sql: "INSERT INTO design_notes (target_id, run_id, text) VALUES ('t', 1, 'x')"}),
+    ).rejects.toThrow('attempt to write a readonly database')
+  })
+
   it('stores the reply design_get returned whole, beside its input', async () => {
     const got = await hintedTarget()
     const StoredSchema = z.object({
@@ -1326,5 +1349,34 @@ describe('runs store', () => {
     const first = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
     const again = ImportedSchema.parse(await run(['import', RUN_FIXTURE]))
     expect([first.imported, again.imported, again.runId]).toEqual([true, false, first.runId])
+  })
+
+  it('answers run_summary per width with the round, verdict and rows of the final gate', async () => {
+    const GateSchema = z.object({
+      variants: z.array(
+        z.object({target: z.string(), round: z.number(), verdict: z.string(), counts: z.object({rows: z.number()})}),
+      ),
+    })
+    const gate = GateSchema.parse(JSON.parse(await readFile(join(RUN_FIXTURE, 'gate-final.json'), 'utf8')))
+    await withRunsStore(async (store) => {
+      const {runId} = importRun({runsStore: store, stateDir: RUN_FIXTURE})
+      const {rows} = queryRuns({
+        runsStore: store,
+        sql: 'SELECT target_id, round, verdict, rows FROM run_summary WHERE run_id = ? ORDER BY width DESC',
+        params: [runId],
+      })
+      expect(rows).toEqual(
+        gate.variants.map((variant) => ({
+          target_id: variant.target,
+          round: variant.round,
+          verdict: variant.verdict,
+          rows: variant.counts.rows,
+        })),
+      )
+      expect(queryRuns({runsStore: store, sql: 'SELECT * FROM mispairs WHERE run_id = 0'}).rows).toEqual([])
+      expect(() => queryRuns({runsStore: store, sql: 'DELETE FROM design_runs'})).toThrow(
+        'attempt to write a readonly database',
+      )
+    })
   })
 })
