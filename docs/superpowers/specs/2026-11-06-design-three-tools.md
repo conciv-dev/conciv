@@ -534,3 +534,8 @@ A page that does not compile is the verdict `broken` (2026-11-10). When the dev 
 the page under check, `design_check` answers `verdict: broken` with the error's first line, file and position, no
 rows, and the rule 'fix the compile error first; nothing else was measured'. The round is stored with that verdict so
 the x-ray shows it.
+
+An image row compares pictures, not file names (2026-11-10). A node with an image fill or an image export matches a
+page element whose picture is the same picture at any size: the two are scaled to the smaller box and compared with
+the paint tolerance the look rows already use. A different file with the same picture is a match; the same file with
+a different picture is a `wrong image` row. The row's text names both pictures when they differ.
