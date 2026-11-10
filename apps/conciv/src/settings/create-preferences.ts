@@ -1,4 +1,4 @@
-import {useQuery, type QueryClient} from '@tanstack/solid-query'
+import {useQuery, type QueryClient} from '@conciv/client'
 import {createMemo} from 'solid-js'
 import {isEqual} from 'es-toolkit'
 import type {SettingsStore} from '@conciv/extension'

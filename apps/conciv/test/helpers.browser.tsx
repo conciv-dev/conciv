@@ -12,7 +12,7 @@ import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
 import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
-import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
+import {QueryClient, QueryClientProvider, type ChatTransportPreference, voteEngineProbeSettled} from '@conciv/client'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
 import {createWarmSession} from '../src/app/warm-session.js'
@@ -30,13 +30,11 @@ import {Dialog} from '@conciv/ui-kit-system'
 import {EngineReachabilityContext, makeEngineReachability} from '../src/app/reachability.js'
 import type {AnyExtension} from '@conciv/extension'
 import type {Grab, GrabProvider} from '@conciv/grab'
-import type {ChatTransportPreference} from '@conciv/client'
 import {PaneContext, makePendingAttachmentQueue, type PaneContextValue} from '../src/app/pane-context.js'
 import {createInstances} from '../src/extension/create-instances.js'
 import {makeGrabStaging} from '../src/pane/grab-staging.js'
 import {makeRefreshCoordinator} from '../src/pane/refresh-coordinator.js'
 import {NoticeContextProvider, NoticeSurface} from '../src/shell/notice-context.js'
-import {onlineManager} from '@tanstack/query-core'
 import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {createConcivRouter, disposeConcivRouter} from '../src/router.js'
 import {createEngineLogin, engineConnected, startEngineLogin} from '../src/app/engine-login.js'
@@ -427,7 +425,7 @@ export function createShellHarness(base: () => string): ShellHarness {
     mounted.disposeLogin = () => {}
     mounted.closeRpc()
     mounted.closeRpc = () => {}
-    onlineManager.setOnline(true)
+    voteEngineProbeSettled(true)
   }
 
   return {

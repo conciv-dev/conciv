@@ -8,6 +8,7 @@ import {engineWebSocket} from '@conciv/contract'
 import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 import {terminalClient, terminalUrl} from './rpc.js'
+import {useTerminalModels} from './terminal-models.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
 
@@ -58,6 +59,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const setViewLocked = host.useViewLock()
   const leaveView = host.useLeaveView()
   const toast = host.useToast()
+  const spawnModel = useTerminalModels().spawnModel
   const [openFailed, setOpenFailed] = createSignal<string | null>(null)
   const openError = (error: unknown): Error => {
     const busy = error instanceof ORPCError && error.code === 'BUSY'
@@ -67,7 +69,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     const id = sessionId()
     if (!id) throw openError(undefined)
     await terminalClient(apiBase())
-      .open({sessionId: id, cols, rows, model: store.spawnModel() ?? undefined})
+      .open({sessionId: id, cols, rows, model: spawnModel() ?? undefined})
       .catch((error: unknown) => {
         throw openError(error)
       })

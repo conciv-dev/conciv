@@ -1,6 +1,6 @@
 import {HostApiProvider} from '@conciv/extension/host'
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
-import {useMutation} from '@tanstack/solid-query'
+import {useMutation} from '@conciv/client'
 import {resetBrowserRpcConnection} from '@conciv/contract'
 import {Show, type JSX} from 'solid-js'
 import {useConnectBinding, useInstances} from '../app/context.js'

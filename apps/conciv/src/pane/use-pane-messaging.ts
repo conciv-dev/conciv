@@ -1,5 +1,4 @@
-import {useMutation, type CreateMutationResult} from '@tanstack/solid-query'
-import type {ChatSession} from '@conciv/client'
+import {useMutation, type CreateMutationResult, type ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 import type {SendContent} from '@conciv/protocol/chat-message-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'

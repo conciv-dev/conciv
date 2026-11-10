@@ -2,6 +2,7 @@ import {createSignal, For, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
 import {z} from 'zod'
 import {makeBrowserRpcClient} from '@conciv/contract'
+import {QueryClient, QueryClientProvider} from '@conciv/client'
 import {collectAttachmentCards, type AnyExtension} from '@conciv/extension'
 import {HostApiProvider} from '@conciv/extension/host'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
@@ -38,6 +39,7 @@ function MountedViews(props: {extension: AnyExtension; clientValue: object}): JS
       <Show keyed when={activeView()}>
         {(view) => (
           <HostApiProvider value={props.clientValue}>
+            <Show when={view.actions}>{(actions) => <Dynamic component={actions()} />}</Show>
             <div
               style={{display: 'flex', 'flex-direction': 'column', width: '800px', height: '480px', overflow: 'hidden'}}
             >
@@ -205,10 +207,12 @@ function mountHost(
         viewLeave={() => {}}
         colorScheme={() => 'dark'}
       >
-        <MountedComposerSlot extension={extension} clientValue={clientValue} />
-        <MountedSurface extension={extension} clientValue={clientValue} />
-        <MountedViews extension={extension} clientValue={clientValue} />
-        <AttachFixtureForm attach={attachFile} />
+        <QueryClientProvider client={new QueryClient()}>
+          <MountedComposerSlot extension={extension} clientValue={clientValue} />
+          <MountedSurface extension={extension} clientValue={clientValue} />
+          <MountedViews extension={extension} clientValue={clientValue} />
+          <AttachFixtureForm attach={attachFile} />
+        </QueryClientProvider>
       </HostApiProvider>
     ),
     mountRoot,

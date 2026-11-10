@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {useMutation} from '@tanstack/solid-query'
+import {useMutation} from '@conciv/client'
 import type {AnyFieldApi} from '@tanstack/solid-form'
 import {useAnnounce, usePreferences} from '../app/context.js'
 import {useAppForm} from './app-form.js'

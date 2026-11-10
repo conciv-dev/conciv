@@ -8,7 +8,7 @@ import {
   useRouter,
   useSearch,
 } from '@tanstack/solid-router'
-import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
+import {QueryClientProvider, useQuery} from '@conciv/client'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'

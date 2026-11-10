@@ -1,8 +1,7 @@
 import {createMemo, Show, type JSX} from 'solid-js'
-import {useIsFetching, useQuery} from '@tanstack/solid-query'
+import {useIsFetching, useQuery, type ChatSession} from '@conciv/client'
 import {Button} from '@conciv/ui-kit-system'
 import {useThread, useThreadViewport} from '@conciv/ui-kit-chat'
-import type {ChatSession} from '@conciv/client'
 import {ConversationSkeleton} from './indicators.js'
 
 const OVERLAY = 'absolute inset-inline-0 top-0 z-1 flex flex-col gap-2 px-5 pt-3 pb-2 [background:var(--chat-bg)]'

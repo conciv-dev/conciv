@@ -1,6 +1,6 @@
 import {createEffect, createMemo, For, Match, on, Show, splitProps, Suspense, Switch, type JSX} from 'solid-js'
 import {createStore} from 'solid-js/store'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@conciv/client'
 import {groupBy, partition} from 'es-toolkit'
 import {useFilter} from '@ark-ui/solid/locale'
 import {

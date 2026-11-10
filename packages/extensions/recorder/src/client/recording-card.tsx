@@ -1,6 +1,5 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
-import {QueryClient, QueryClientProvider, useMutation, useQuery} from '@tanstack/solid-query'
-import {createTanstackQueryUtils} from '@orpc/tanstack-query'
+import {QueryClient, QueryClientProvider, useMutation, useQuery, createTanstackQueryUtils} from '@conciv/client'
 import {getExtensionApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
 import {useAttachment} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
