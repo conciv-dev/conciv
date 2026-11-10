@@ -29,6 +29,8 @@ const ExecuteInputSchema = z.object({
 
 const DiscoverInputSchema = z.object({toolNames: z.array(z.string())})
 
+const RefusedSchema = z.object({cause: z.object({code: z.literal('ECONNREFUSED')})})
+
 const FALLBACK_DESCRIPTIONS = {
   [EXECUTE_TOOL_NAME]:
     'Run TypeScript in the sandbox of a running conciv dev server. Every capability is an async external_* function. external_tabs({}) lists the open conciv tabs (live pages running the conciv widget); external_use_tab({id}) picks one for the rest of the block and returns its instructions and tool signatures. Return a value to pass results back.',
@@ -59,7 +61,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${runner.root} failed`, error))
   }
 
-  async function forward(toolName: ToolName, input: unknown): Promise<unknown> {
+  async function forward(toolName: ToolName, input: unknown, resent = false): Promise<unknown> {
     const runner = await currentRunner()
     if (runner === null) {
       held.runner = null
@@ -69,6 +71,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       return await runner.client.callTool(toolName, input)
     } catch (error) {
       await dropRunner(runner)
+      if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, true)
       const next = await currentRunner()
       const after = next === null ? 'no other conciv dev server is running' : `the next call runs on ${next.root}`
       return failed(

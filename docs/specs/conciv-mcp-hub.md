@@ -350,7 +350,8 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 - Each call (Revision 7): forward the call to the kept runner's `/api/mcp` with `conciv-origin: hub` and
   `conciv-client: <agent>`, with no probe, and return the reply unchanged. The runner is the live engine registered
   longest ago (`checkEngines(home, {timeoutMs: 300})` at startup and after a failure only). A transport error drops
-  the runner, picks again, and replies that the call failed on that engine and was not retried.
+  the runner and picks again. A refused connection (`ECONNREFUSED`: nothing ran) sends the same call once to the
+  new runner, silently; any other failure replies that the call failed on that engine and was not retried.
   No live engine: reply with an MCP error "no conciv dev server is running; start one and open its page" and the
   home folder path read, so a hub started without the user's env is diagnosable.
 - The hub holds no tab between calls; it keeps only its runner client.

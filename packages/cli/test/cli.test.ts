@@ -28,7 +28,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
-import {recordHubConnection, takeHubOperation, withHomeDb} from '@conciv/db'
+import {listEngines, recordHubConnection, registerEngine, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1426,10 +1426,56 @@ describe('cli', () => {
       },
     )
 
-    it('serves only execute_typescript and discover_tools, keeps the engine registered longest ago, and changes it only after it fails', async () => {
+    async function frontOf(home: string, engine: {root: string; base: string}) {
+      const upstream = new URL(engine.base)
+      const mode = {dropCalls: false}
+      const front = createHttpServer(async (request, response) => {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(Buffer.from(chunk))
+        const body = Buffer.concat(chunks)
+        const method = z.object({method: z.string()}).safeParse(JSON.parse(body.toString() || 'null')).data?.method
+        if (mode.dropCalls && method === 'tools/call') {
+          request.socket.destroy()
+          return
+        }
+        const headers = Object.fromEntries(
+          Object.entries(request.headers).flatMap(([key, value]) =>
+            typeof value === 'string' && !['host', 'connection', 'content-length'].includes(key) ? [[key, value]] : [],
+          ),
+        )
+        const answer = await fetch(new URL(request.url ?? '/', upstream.origin), {
+          method: request.method,
+          headers,
+          ...(body.length === 0 ? {} : {body}),
+        })
+        const kept = [...answer.headers].filter(([key]) => !['content-encoding', 'content-length'].includes(key))
+        response.writeHead(answer.status, Object.fromEntries(kept))
+        response.end(Buffer.from(await answer.arrayBuffer()))
+      })
+      front.listen(0, '127.0.0.1')
+      await once(front, 'listening')
+      const port = z.object({port: z.number()}).parse(front.address()).port
+      const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
+      if (row === undefined) throw new Error('the engine has no row in the home db')
+      const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
+      withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
+      return {
+        dropCalls: (drop: boolean) => {
+          mode.dropCalls = drop
+        },
+        close: async () => {
+          front.closeAllConnections()
+          front.close()
+          await once(front, 'close')
+        },
+      }
+    }
+
+    it('serves only execute_typescript and discover_tools, keeps the engine registered longest ago, resends only a refused call', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
       const older = await engineWithTab(home)
+      const front = await frontOf(home, older)
       const newer = await engineWithTab(home)
       const client = await hub(home)
       const survivor = await engineWithTab(home).catch(async (error: unknown) => {
@@ -1449,12 +1495,18 @@ describe('cli', () => {
         expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
         await newer.engine.stop()
         expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
-        await older.engine.stop()
+        front.dropCalls(true)
         const failed = await run(client, 'return 1 + 1')
         expect(failed).toContain(`the call failed on the conciv engine at ${older.root}`)
         expect(failed).toContain('it was not retried')
-        expect(failed).toContain(`the next call runs on ${survivor.root}`)
-        expect(await run(client, 'return await external_tabs({})')).toContain(survivor.sessionId)
+        expect(failed).toContain(`the next call runs on ${older.root}`)
+        front.dropCalls(false)
+        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        await front.close()
+        await older.engine.stop()
+        const resent = await run(client, 'return await external_tabs({})')
+        expect(resent).toContain(survivor.sessionId)
+        expect(resent).not.toContain(older.sessionId)
       } finally {
         await client.close()
         await survivor.engine.stop()
