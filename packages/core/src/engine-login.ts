@@ -278,20 +278,32 @@ function isAuthProcedure(path: readonly string[]): boolean {
   return AUTH_PROCEDURE_PATHS.includes(`${RPC_PREFIX}/${path.join('/')}`)
 }
 
+type GatedConnection =
+  | {phase: 'connecting'}
+  | {phase: 'open'; socket: EngineSocket; release: (() => void) | null}
+  | {phase: 'closed'}
+
 export function rpcSocketGate(trust: ConnectionTrust, authorization: string | undefined): RpcSocketGate {
-  const connection: {socket: EngineSocket | null; release: (() => void) | null} = {socket: null, release: null}
+  const connection: {current: GatedConnection} = {current: {phase: 'connecting'}}
   const admit = (token: string): boolean => {
-    if (connection.socket === null) return false
-    const release = trust.trustConnection(connection.socket, token)
+    const current = connection.current
+    if (current.phase !== 'open') return false
+    const release = trust.trustConnection(current.socket, token)
     if (release === null) return false
-    connection.release?.()
-    connection.release = release
+    current.release?.()
+    connection.current = {...current, release}
     return true
   }
+  const allows = (path: readonly string[]): boolean => {
+    const current = connection.current
+    if (current.phase === 'closed') return false
+    return (current.phase === 'open' && current.release !== null) || isAuthProcedure(path)
+  }
   return {
-    trust: {allows: (path) => connection.release !== null || isAuthProcedure(path), admit},
+    trust: {allows, admit},
     open: (socket) => {
-      connection.socket = socket
+      if (connection.current.phase !== 'connecting') return
+      connection.current = {phase: 'open', socket, release: null}
       const presented = BEARER.exec(authorization ?? '')?.[1]
       if (presented !== undefined) admit(presented)
     },
@@ -299,8 +311,9 @@ export function rpcSocketGate(trust: ConnectionTrust, authorization: string | un
       admit(token)
     },
     close: () => {
-      connection.release?.()
-      connection.release = null
+      const current = connection.current
+      connection.current = {phase: 'closed'}
+      if (current.phase === 'open') current.release?.()
     },
   }
 }

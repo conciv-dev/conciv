@@ -61,7 +61,7 @@ import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
-import {defineWebSocketHelper} from 'hono/ws'
+import {WSContext, defineWebSocketHelper} from 'hono/ws'
 import {createStorage, defineDriver} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import {z} from 'zod'
@@ -79,7 +79,15 @@ import {createSettingsStorage, settingsOnDisk} from '../src/settings/settings-st
 import {runWithSession} from '../src/runtime/session-context.js'
 import {start, composeSystemPrompt} from '../src/start.js'
 import {makeApp} from '../src/app.js'
-import {CODE_LIFETIME_MS, OPEN_PATHS, isOpenPath, makeCodeStore} from '../src/engine-login.js'
+import {
+  CODE_LIFETIME_MS,
+  OPEN_PATHS,
+  isOpenPath,
+  makeCodeStore,
+  makeConnectionTrust,
+  rpcSocketGate,
+  watchTrustedBrowsers,
+} from '../src/engine-login.js'
 import {serveHono} from '@conciv/serve'
 import {Hono} from 'hono'
 import {exchangePrintedCode, loginThroughTerminal, requestPrintedCode} from '@conciv/harness-testkit'
@@ -1006,6 +1014,25 @@ describe('browser rpc over one websocket', () => {
       rmSync(root, {recursive: true, force: true})
     }
   }, 20_000)
+
+  test('a socket that closed before its auth call finished is never trusted afterwards', () => {
+    const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
+    const browsers = watchTrustedBrowsers(concivStateDir(root))
+    const agentToken = 'conciv-agent-token'
+    try {
+      const gate = rpcSocketGate(makeConnectionTrust(agentToken, browsers), undefined)
+      gate.open(new WSContext({send: () => {}, close: () => {}, readyState: 1}))
+      expect(gate.trust.admit(agentToken)).toBe(true)
+      expect(gate.trust.allows(['sessions', 'list'])).toBe(true)
+      gate.close()
+      expect(gate.trust.admit(agentToken)).toBe(false)
+      expect(gate.trust.allows(['sessions', 'list'])).toBe(false)
+      expect(gate.trust.allows(['auth', 'trust'])).toBe(false)
+    } finally {
+      browsers.close()
+      rmSync(root, {recursive: true, force: true})
+    }
+  })
 
   test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
