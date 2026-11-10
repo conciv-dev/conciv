@@ -35,6 +35,13 @@ export function App() {
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
   if (requested === 'tech') return <main className="tech" data-conciv-key="tEcHlP" />
   if (requested === 'agency') return <main className="agency" data-conciv-key="aGnCyP" />
+  if (requested === 'picture') {
+    return (
+      <main className="picture" data-conciv-key="pIcTmn">
+        <img className="picture-image" src={new URLSearchParams(location.search).get('src') ?? ''} alt="" data-conciv-key="pIcTim" />
+      </main>
+    )
+  }
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
   if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />

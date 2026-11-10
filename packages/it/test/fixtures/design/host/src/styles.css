@@ -218,3 +218,20 @@ button {
   margin: 40px;
   background: #426bf2;
 }
+
+#root:has(> .picture) {
+  padding: 0;
+}
+
+.picture {
+  width: 400px;
+  height: 300px;
+  padding: 50px;
+  background: #ffffff;
+}
+
+.picture-image {
+  display: block;
+  width: 200px;
+  height: 100px;
+}

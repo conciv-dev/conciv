@@ -1,25 +1,16 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
-import react from '@vitejs/plugin-react'
 import {differenceCiede2000} from 'culori'
-import {chromium, type Browser, type Page} from 'playwright'
 import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
-import {createLogger, createServer} from 'vite'
-import {afterAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
-import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {extensionTable, openDb} from '@conciv/db'
-import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
-import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
-import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
-import {magicLink} from '@conciv/harness-testkit/login'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
 import type {XrayRouter} from '@conciv/extension-design/server'
@@ -41,12 +32,9 @@ import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
-import {unplugin} from '../src/plugin-instance.js'
-import {renderTargets} from './fixtures/design/render-targets.js'
+import {boot} from './fixtures/design/boot.js'
 
-const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
-const ENDPOINT_FILE = 'dev-endpoint.json'
-const CARDS_FILE = join(HOST_ROOT, 'src', 'Cards.tsx')
+const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
@@ -61,137 +49,12 @@ const NO_IDS = {
 }
 const FIGMA_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=1-2'
 
-const EndpointSchema = z.object({apiBase: z.string().min(1)})
+const [getDef, checkDef] = DESIGN_TOOLS
 
-const [getDef, checkDef, statusDef] = DESIGN_TOOLS
-
-type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
 type ToolOutput<Tool extends {outputSchema?: z.ZodType}> = z.output<NonNullable<Tool['outputSchema']>>
 type OneFrame<Reply> = Exclude<Reply, {variants: unknown}>
 type Got = OneFrame<ToolOutput<typeof getDef>>
 type Checked = OneFrame<ToolOutput<typeof checkDef>>
-type Status = OneFrame<ToolOutput<typeof statusDef>>
-
-type Call = {
-  (name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
-  (name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
-  (name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
-}
-
-type Kit = {
-  rpc: RpcClient
-  browser: Browser
-  page: Page
-  origin: string
-  apiBase: string
-  session: SessionId
-  stateRoot: string
-  targetsDir: string
-  call: Call
-  goto: (to: string) => Promise<void>
-  dispose: () => Promise<void>
-}
-
-function makeCall(rpc: RpcClient): Call {
-  function call(name: 'design_get', input: z.input<typeof getDef.inputSchema>): Promise<Got>
-  function call(name: 'design_check', input: z.input<typeof checkDef.inputSchema>): Promise<Checked>
-  function call(name: 'design_status', input: z.input<typeof statusDef.inputSchema>): Promise<Status>
-  async function call(name: string, input: Record<string, unknown>): Promise<unknown> {
-    const def = [getDef, checkDef, statusDef].find((candidate) => candidate.name === name)
-    if (def?.outputSchema === undefined) throw new Error(`no design tool named ${name}`)
-    return def.outputSchema.parse(await rpc.registry.call({name, input}))
-  }
-  return call
-}
-
-const WIDGET_BOOT = `${react.preambleCode.replace('__BASE__', '/')}\nawait import(${JSON.stringify(EXTENSIONS_ROUTE)})`
-
-async function injectWidget(page: Page, apiBase: string): Promise<void> {
-  await page.evaluate(
-    ({base, entry}) => {
-      if (document.querySelector('meta[name="conciv-api-base"]')) return
-      const apiMeta = document.createElement('meta')
-      apiMeta.name = 'conciv-api-base'
-      apiMeta.content = base
-      const widgetMeta = document.createElement('meta')
-      widgetMeta.name = 'conciv-widget'
-      widgetMeta.content = '{}'
-      const script = document.createElement('script')
-      script.type = 'module'
-      script.textContent = entry
-      document.head.append(apiMeta, widgetMeta, script)
-    },
-    {base: apiBase, entry: WIDGET_BOOT},
-  )
-}
-
-async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
-  const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
-  const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
-  const printed: string[] = []
-  const server = await createServer({
-    root: HOST_ROOT,
-    configFile: false,
-    customLogger: {
-      ...createLogger('silent'),
-      info: (message) => {
-        printed.push(message)
-      },
-    },
-    server: {host: '127.0.0.1', port: 0},
-    plugins: [
-      react(),
-      unplugin.vite({
-        stateRoot,
-        harnessBin: 'true',
-        systemPrompt: false,
-        devEndpointDir,
-        extensions: {design: options.config ?? {}},
-      }),
-    ],
-  })
-  await server.listen()
-  const local = server.resolvedUrls?.local[0]
-  if (local === undefined) throw new Error('the fixture dev server has no local url')
-  const origin = new URL(local).origin
-  const {apiBase} = EndpointSchema.parse(JSON.parse(await readFile(join(devEndpointDir, ENDPOINT_FILE), 'utf8')))
-  const session = (await makeRpcClient(apiBase).sessions.resolve({})).sessionId
-  const rpc = makeRpcClient(apiBase, {headers: {[CONCIV_SESSION_HEADER]: session}})
-  const browser = await chromium.launch({args: ['--disable-features=LocalNetworkAccessChecks']})
-  const targetsDir = await mkdtemp(join(tmpdir(), 'conciv-design-targets-'))
-  await renderTargets({browser, dir: targetsDir})
-  const page = await browser.newPage({viewport: {width: 1280, height: 720}})
-  const goto = (to: string): Promise<void> =>
-    awaitPagePlaneSubscribed(page, async () => {
-      await page.goto(new URL(to.startsWith('/') ? to : `/?variant=${to}`, origin).href, {
-        waitUntil: 'domcontentloaded',
-      })
-      await injectWidget(page, new URL(apiBase).origin)
-      await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {
-        timeout: PAGE_DRIVER_TIMEOUT_MS,
-      })
-    })
-  await goto(await magicLink(new URL(apiBase).origin, () => printed.join('\n'), '/'))
-  return {
-    rpc,
-    browser,
-    page,
-    origin,
-    apiBase,
-    session,
-    stateRoot,
-    targetsDir,
-    call: makeCall(rpc),
-    goto,
-    dispose: async () => {
-      await browser.close()
-      await server.close()
-      await rm(stateRoot, {recursive: true, force: true})
-      await rm(devEndpointDir, {recursive: true, force: true})
-      await rm(targetsDir, {recursive: true, force: true})
-    },
-  }
-}
 
 function target(name: string): string {
   return join(kit.targetsDir, `${name}.png`)
@@ -605,3 +468,89 @@ describe('design_check on a page that breaks the widget or the build', () => {
     expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })
 })
+
+const PICTURE_LINK = 'https://www.figma.com/design/ItPictureKey/x?node-id=2-1'
+const PICTURE_FRAME = {w: 400, h: 300}
+const PICTURE = {x: 50, y: 50, w: 200, h: 100}
+const QUADRANTS = [
+  [214, 69, 69],
+  [46, 160, 67],
+  [44, 92, 201],
+  [240, 200, 40],
+]
+const PICTURE_DOCUMENT = {
+  name: 'it picture',
+  lastModified: '2026-11-10T00:00:00Z',
+  version: '1',
+  nodes: {
+    '2:1': {
+      document: {
+        id: '2:1',
+        name: 'Picture',
+        type: 'FRAME',
+        absoluteBoundingBox: {x: 0, y: 0, width: PICTURE_FRAME.w, height: PICTURE_FRAME.h},
+        fills: [{type: 'SOLID', color: {r: 1, g: 1, b: 1, a: 1}}],
+        children: [
+          {
+            id: '2:2',
+            name: 'Photo',
+            type: 'RECTANGLE',
+            absoluteBoundingBox: {x: PICTURE.x, y: PICTURE.y, width: PICTURE.w, height: PICTURE.h},
+            fills: [{type: 'IMAGE', scaleMode: 'FILL', imageRef: 'photo'}],
+            children: [],
+          },
+        ],
+      },
+    },
+  },
+}
+
+describe('design_check image rows', () => {
+  const folder = join(kit.hostRoot, 'public', 'design')
+  const frame = join(kit.targetsDir, 'picture-frame.png')
+
+  beforeAll(async () => {
+    await mkdir(folder, {recursive: true})
+    await writeFile(join(folder, 'same.png'), painted({width: PICTURE.w * 2, height: PICTURE.h * 2, turned: false}))
+    await writeFile(join(folder, 'other.png'), painted({width: PICTURE.w, height: PICTURE.h, turned: true}))
+    await writeFile(frame, framed())
+  })
+
+  afterAll(() => rm(folder, {recursive: true, force: true}))
+
+  const imageRows = async (src: string): Promise<ReturnType<typeof roundOf>['rows']> => {
+    await goto(`/?variant=picture&src=${encodeURIComponent(src)}`)
+    await call('design_get', {figma: PICTURE_LINK, image: frame, document: PICTURE_DOCUMENT})
+    return roundOf(await call('design_check', {})).rows.filter((row) => row.kind === 'image')
+  }
+
+  it('passes a page that serves the same picture from another file at another size', async () => {
+    expect(await imageRows('/design/same.png')).toEqual([])
+  })
+
+  it('fails a page that serves a different picture, naming both pictures', async () => {
+    const rows = await imageRows('/design/other.png')
+    expect(rows.map((row) => row.node)).toEqual(['2:2'])
+    expect(['/design/2-2.png', '/design/other.png'].every((name) => rows[0]?.text.includes(name))).toBe(true)
+  })
+})
+
+function painted(input: {width: number; height: number; turned: boolean}): Uint8Array {
+  const png = new PNG({width: input.width, height: input.height})
+  Array.from({length: input.width * input.height}, (_, index) => index).forEach((index) => {
+    const x = index % input.width
+    const y = (index - x) / input.width
+    const quadrant = (y < input.height / 2 ? 0 : 2) + (x < input.width / 2 ? 0 : 1)
+    const [red = 0, green = 0, blue = 0] = QUADRANTS[input.turned ? 3 - quadrant : quadrant] ?? []
+    png.data.set([red, green, blue, 255], index * 4)
+  })
+  return new Uint8Array(PNG.sync.write(png))
+}
+
+function framed(): Uint8Array {
+  const png = new PNG({width: PICTURE_FRAME.w, height: PICTURE_FRAME.h})
+  png.data.fill(255)
+  const picture = PNG.sync.read(Buffer.from(painted({width: PICTURE.w, height: PICTURE.h, turned: false})))
+  PNG.bitblt(picture, png, 0, 0, PICTURE.w, PICTURE.h, PICTURE.x, PICTURE.y)
+  return new Uint8Array(PNG.sync.write(png))
+}

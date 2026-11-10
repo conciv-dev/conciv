@@ -1,5 +1,6 @@
 import {parse} from 'culori'
 import {trim} from 'es-toolkit'
+import type {Storage} from 'unstorage'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PageNodeShotSchema, screenshotNodeDef, type PageNodeShot} from '@conciv/extension-page/defs'
 import {z} from 'zod'
@@ -8,35 +9,53 @@ import type {readIds} from '../shared/id-tree.js'
 import {designConfig} from '../shared/tolerances.js'
 import {createRaster} from './raster.js'
 import {nodeLooks} from './node-look.js'
+import {createPictures} from './pictures.js'
 
 export async function imageRowsOf(input: {
   design: Design
   reads: ReturnType<typeof readIds>
   page: ServerToolPageAccess
   mirror: {width: number; height: number} | null
+  folder: Storage
 }): Promise<{rows: GateRow[]; ratios: {node: string; ratio: number}[]}> {
   const {reads} = input
-  const checked = nodeLooks(input.design).flatMap((look): Checked[] => {
-    const element = reads.of(look.node)[0]
-    const named = reads.named(look.node)
-    if (look.asset === null || element === undefined || named.selector === null) return []
-    const row = (text: string): GateRow => ({
-      node: look.node,
-      ...named,
-      kind: IMAGE,
-      name: look.name,
-      text,
-      magnitude: 'paint',
-      token: null,
-    })
-    const background = look.image && look.fill_kind !== IMAGE
-    const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
-    if (!references({shown: element.styles.image ?? '', asset: look.asset}))
-      return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
-    if (background) return []
-    const shot = {selector: named.selector, width: side(look.w), height: side(look.h), scale: 1, reference: look.asset}
-    return [{row: row(expected), node: look.node, shot}]
-  })
+  const pictures = createPictures(input.folder)
+  const looked = await Promise.all(
+    nodeLooks(input.design).map(async (look): Promise<Checked[]> => {
+      const element = reads.of(look.node)[0]
+      const named = reads.named(look.node)
+      if (look.asset === null || element === undefined || named.selector === null) return []
+      const row = (text: string): GateRow => ({
+        node: look.node,
+        ...named,
+        kind: IMAGE,
+        name: look.name,
+        text,
+        magnitude: 'paint',
+        token: null,
+      })
+      const background = look.image && look.fill_kind !== IMAGE
+      const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
+      const shown = pathOf(element.styles.image ?? '')
+      const box = smaller({a: {w: look.w, h: look.h}, b: element.box})
+      const matched =
+        shown !== null &&
+        element.styles.image !== INLINE_SVG &&
+        (shown === pathOf(look.asset) ||
+          (await pictures.same({shown, expected: look.asset, box: {x: 0, y: 0, ...box}})))
+      if (!matched) return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
+      if (background) return []
+      const shot = {
+        selector: named.selector,
+        width: side(look.w),
+        height: side(look.h),
+        scale: 1,
+        reference: look.asset,
+      }
+      return [{row: row(expected), node: look.node, shot}]
+    }),
+  )
+  const checked = looked.flat()
   const asked = checked.flatMap((entry) => (entry.shot === null ? [] : [entry.shot]))
   const shots = await shotsOf({page: input.page, mirror: input.mirror, nodes: asked})
   const found = checked.map((entry) => {
@@ -101,9 +120,10 @@ function ratioOf(shot: PageNodeShot): number | null {
   return painted.seen === 0 ? 0 : painted.wrong / painted.seen
 }
 
-function references(input: {shown: string; asset: string}): boolean {
-  const shown = pathOf(input.shown)
-  return input.shown !== INLINE_SVG && shown !== null && shown === pathOf(input.asset)
+function smaller(input: {a: {w: number; h: number}; b: {w: number; h: number}}): {w: number; h: number} {
+  const {a, b} = input
+  if (b.w <= 0 || b.h <= 0) return a
+  return a.w * a.h <= b.w * b.h ? a : {w: b.w, h: b.h}
 }
 
 function pathOf(url: string): string | null {

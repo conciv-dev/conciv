@@ -1,3 +1,4 @@
+import type {Storage} from 'unstorage'
 import {toolError} from '@conciv/extension'
 import type {DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
@@ -13,7 +14,8 @@ import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
 
-export function createRunner(runtime: DesignRuntime): Runner {
+export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
+  const {runtime, folder} = input
   const {store, measurer} = runtime
   return async ({record, page, variants}) => {
     const [design, stored, rounds, image, ids, streak] = await Promise.all([
@@ -87,6 +89,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       reads: readIds({root: mapped.root, live: measured.live}),
       page,
       mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
+      folder,
     })
     const rows = [...gate.rows, ...images.rows, ...failures]
     const counts = {
