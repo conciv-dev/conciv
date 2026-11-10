@@ -4,7 +4,6 @@ import type {WebStorage} from '@conciv/storage-history'
 import {NavigationStateSchema, type NavigationState} from '@conciv/protocol/chat-types'
 
 const WRITE_DELAY_MS = 300
-const KEEPALIVE_BODY_BUDGET_BYTES = 60 * 1024
 
 type NavigationRpc = Pick<RpcClient, 'navigation'>
 
@@ -31,22 +30,13 @@ export function makeNavigationStorage(
     state.lastStamp = Math.max(Date.now(), state.lastStamp + 1)
     return state.lastStamp
   }
-  const send = (navigation: NavigationState, updatedAt: number, keepalive: boolean): void => {
+  const send = (navigation: NavigationState, updatedAt: number): void => {
     if (!trust.isTrusted()) return
-    rpc.navigation.set({...navigation, updatedAt}, {context: {keepalive}}).catch((error: unknown) => {
+    rpc.navigation.set({...navigation, updatedAt}).catch((error: unknown) => {
       console.warn('[conciv] could not save the navigation', error)
     })
   }
-  const write = new Debouncer((navigation: NavigationState, updatedAt: number) => send(navigation, updatedAt, false), {
-    wait: WRITE_DELAY_MS,
-  })
-  const flushForUnload = (): void => {
-    const pending = write.store.state.lastArgs
-    if (!write.store.state.isPending || !pending) return
-    write.cancel()
-    const [navigation, updatedAt] = pending
-    send(navigation, updatedAt, fitsKeepaliveBudget({...navigation, updatedAt}))
-  }
+  const write = new Debouncer(send, {wait: WRITE_DELAY_MS})
   const restored = trust.ready
     .then((isTrusted) => (isTrusted ? rpc.navigation.get(undefined) : null))
     .catch(() => null)
@@ -66,14 +56,10 @@ export function makeNavigationStorage(
       if (parsed) write.maybeExecute(parsed, stamp())
     },
     restored,
-    flush: flushForUnload,
+    flush: () => write.flush(),
     dispose: () => {
       state.cancelled = true
       write.cancel()
     },
   }
-}
-
-function fitsKeepaliveBudget(body: NavigationState & {updatedAt: number}): boolean {
-  return new TextEncoder().encode(JSON.stringify(body)).byteLength <= KEEPALIVE_BODY_BUDGET_BYTES
 }

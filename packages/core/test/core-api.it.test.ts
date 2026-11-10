@@ -3016,6 +3016,16 @@ return seen`
         await ended()
       })
 
+      it('a program waiting on a tool that never answers ends when its turn stops', async () => {
+        const sessionId = await newSession()
+        codeTurn('await external_fixture_hold({})')
+        await send(sessionId, 'hold', {runId: 'hold-run'})
+        await holdEntered.promise
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['hold-run']})
+        await ended()
+      })
+
       it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
         const discover = await mcpTool('discover_tools')
         const found = JSON.stringify(await discover.execute({toolNames: ['fixture_fail']}))
@@ -3263,13 +3273,14 @@ return seen`
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
   const toolRuns = {ask: 0, echo: 0}
+  const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
   const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
 
   function fixtureExtension() {
     return defineExtension({
       name: 'fixture',
-      tools: [echoTool(), readTool(), quietTool(), askTool(), failTool(), hugeTool(), imageTool()],
+      tools: [echoTool(), readTool(), quietTool(), holdTool(), askTool(), failTool(), hugeTool(), imageTool()],
       attachments: fixtureAttachments(),
     }).server(() => ({context: {}, turnEnd: noteTurnEnd}))
   }
@@ -3307,6 +3318,19 @@ return seen`
       outputSchema: z.unknown(),
       meta: {summary: 'return nothing', category: 'fixture', mutating: false},
     }).server(() => undefined)
+  }
+
+  function holdTool() {
+    return defineTool({
+      name: 'fixture_hold',
+      description: 'Never answer.',
+      inputSchema: z.object({}),
+      outputSchema: z.unknown(),
+      meta: {summary: 'never answer', category: 'fixture', mutating: false},
+    }).server(() => {
+      holdEntered.resolve()
+      return new Promise<never>(() => {})
+    })
   }
 
   function askTool() {

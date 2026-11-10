@@ -875,6 +875,26 @@ describe('model menu', () => {
     await expect.element(input()).toHaveFocus()
   })
 
+  test('/model before the model list arrives opens the menu on its search field, which lists the models once they load', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(search()).toHaveFocus()
+    await expect.element(picker().getByRole('status')).toHaveTextContent('Loading models…')
+    await expect.element(picker().getByRole('option').first()).not.toBeInTheDocument()
+
+    await faults.releaseAll()
+
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(search()).toHaveFocus()
+  })
+
   test('a model list that failed to load offers a retry inside the menu, which then lists the models', async () => {
     const sessionId = await createSession(coreRpc(core()))
     const fault = await faults.install({kind: 'fail', path: ['meta', 'models'], status: 500})
@@ -4889,11 +4909,13 @@ describe('settings page', () => {
 
   afterEach(harness.dispose)
   afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
+  afterEach(() => localStorage.removeItem('conciv-modal-width'))
 
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const gear = () => page.getByRole('link', {name: 'Settings'})
   const back = () => page.getByRole('button', {name: 'Back to chat'})
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
   const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
   const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
@@ -4915,8 +4937,13 @@ describe('settings page', () => {
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
     localStorage.removeItem('conciv:settings-tab')
+    localStorage.removeItem('conciv-modal-width')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
+    await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'horizontal')
+    await expect.element(tab('Advanced')).toBeVisible()
+    harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(probe('light')).toBeInTheDocument()
@@ -4925,9 +4952,7 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
-    await expect
-      .element(page.getByRole('tablist', {name: 'Settings sections'}))
-      .toHaveAttribute('aria-orientation', 'vertical')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
 
     const tabPaths: Record<string, string> = {
       General: 'general',

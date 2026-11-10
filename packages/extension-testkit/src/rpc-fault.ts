@@ -1,16 +1,12 @@
-import type {Page, Route} from 'playwright'
-import {toHttpPath} from '@orpc/client/standard'
+import type {Page} from 'playwright'
 import {rpcObserverFor} from './rpc-observer.js'
-
-const FAILURE_BODY = {json: {}, meta: []}
-
-const RPC_PATH = /^(\/t\/[^/]+)?\/rpc(\/|$)/
+import {samePath} from './rpc-payload.js'
+import {rpcSocketFor, type RpcSocketCall} from './rpc-socket.js'
 
 const ANSWER_TIMEOUT_MS = 15_000
 const RELEASED_GATE_STATUS = 200
 
-type UrlMatcher = (url: URL) => boolean
-type RouteHandler = (route: Route) => Promise<void>
+type PathMatcher = (path: readonly string[]) => boolean
 
 export type RpcFaultInjector = {repair: () => void; dispose: () => Promise<void>; answered: () => Promise<void>}
 
@@ -26,88 +22,61 @@ function answeredBy(page: Page, path: readonly string[] | undefined, status: num
   }
 }
 
-function pathMatcher(path: readonly string[] | undefined): UrlMatcher {
-  if (!path) return (url) => RPC_PATH.test(url.pathname)
-  const httpPath = toHttpPath(path)
-  return (url) => url.pathname.endsWith(httpPath)
+function pathMatcher(path: readonly string[] | undefined): PathMatcher {
+  if (!path) return () => true
+  return (called) => samePath(called, path)
 }
 
-function isPreflight(route: Route): boolean {
-  return route.request().method() === 'OPTIONS'
+async function brokenWhile(
+  page: Page,
+  matches: PathMatcher,
+  answered: () => Promise<void>,
+  breakCall: (call: RpcSocketCall) => void,
+): Promise<RpcFaultInjector> {
+  const socket = rpcSocketFor(page)
+  await socket.installed
+  const broken = {value: true}
+  const remove = socket.rule((call) => {
+    if (!broken.value || !matches(call.path)) return 'pass'
+    breakCall(call)
+    return 'handled'
+  })
+  return {
+    answered,
+    repair: () => {
+      broken.value = false
+    },
+    dispose: async () => {
+      broken.value = false
+      remove()
+    },
+  }
 }
 
-export async function failRpcCalls(
+export function failRpcCalls(
   page: Page,
   options: {path: readonly string[]; status?: number},
 ): Promise<RpcFaultInjector> {
   const status = options.status ?? 500
-  const broken = {value: true}
-  const matcher = pathMatcher(options.path)
-  const answered = answeredBy(page, options.path, status)
-  const handler: RouteHandler = async (route) => {
-    if (isPreflight(route) || !broken.value) return route.continue()
-    await route.fulfill({status, contentType: 'application/json', body: JSON.stringify(FAILURE_BODY)})
-  }
-
-  await page.route(matcher, handler)
-
-  return {
-    answered,
-    repair: () => {
-      broken.value = false
-    },
-    dispose: async () => {
-      broken.value = false
-      await page.unroute(matcher, handler)
-    },
-  }
+  return brokenWhile(page, pathMatcher(options.path), answeredBy(page, options.path, status), (call) => {
+    call
+      .reply(status)
+      .catch((error: unknown) => console.error('[extension-testkit] the rpc failure reply failed', error))
+  })
 }
 
-export async function abortRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcFaultInjector> {
-  const broken = {value: true}
-  const matcher = pathMatcher(options.path)
+export function abortRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcFaultInjector> {
   const answered = (): Promise<void> =>
     Promise.reject(new Error('an aborted rpc call never reaches the server, so it is never answered'))
-  const handler: RouteHandler = async (route) => {
-    if (isPreflight(route) || !broken.value) return route.continue()
-    await route.abort('connectionrefused')
-  }
-
-  await page.route(matcher, handler)
-
-  return {
-    answered,
-    repair: () => {
-      broken.value = false
-    },
-    dispose: async () => {
-      broken.value = false
-      await page.unroute(matcher, handler)
-    },
-  }
+  return brokenWhile(page, pathMatcher(options.path), answered, (call) => call.cut())
 }
 
 export type RpcHold = {hold: () => void; release: () => void}
 
 export async function holdRpcCalls(page: Page): Promise<RpcHold> {
-  const held = {value: false}
-
-  await page.route(
-    (url) => RPC_PATH.test(url.pathname),
-    async (route) => {
-      if (isPreflight(route) || !held.value) return route.continue()
-      await route.abort('connectionrefused')
-    },
-  )
-
-  return {
-    hold: () => {
-      held.value = true
-    },
-    release: () => {
-      held.value = false
-    },
-  }
+  const socket = rpcSocketFor(page)
+  await socket.installed
+  return {hold: socket.hold, release: socket.release}
 }
 
 export type RpcGate = {
@@ -120,29 +89,32 @@ export type RpcGate = {
 
 type CaptureWaiter = {count: number; deliver: () => void}
 
-export async function gateRpcCalls(page: Page, options: {path?: readonly string[]} = {}): Promise<RpcGate> {
-  const matcher = pathMatcher(options.path)
+export async function gateRpcCalls(
+  page: Page,
+  options: {path?: readonly string[]; onRelease?: 'forward' | 'cut'} = {},
+): Promise<RpcGate> {
+  const socket = rpcSocketFor(page)
+  await socket.installed
+  const matches = pathMatcher(options.path)
   const answered = answeredBy(page, options.path, RELEASED_GATE_STATUS)
   const open = {value: false}
-  const captured: Route[] = []
+  const captured: RpcSocketCall[] = []
   const waiters = new Set<CaptureWaiter>()
-  const handler: RouteHandler = async (route) => {
-    if (isPreflight(route) || open.value) return route.continue()
-    captured.push(route)
+  const remove = socket.rule((call) => {
+    if (open.value || !matches(call.path)) return 'pass'
+    captured.push(call)
     for (const waiter of waiters) {
       if (captured.length < waiter.count) continue
       waiters.delete(waiter)
       waiter.deliver()
     }
+    return 'handled'
+  })
+  const settleCall =
+    options.onRelease === 'cut' ? (call: RpcSocketCall) => call.cut() : (call: RpcSocketCall) => call.forward()
+  const settle = (): void => {
+    for (const call of captured.splice(0)) settleCall(call)
   }
-
-  await page.route(matcher, handler)
-
-  const settle = async (): Promise<void> => {
-    const pending = captured.splice(0)
-    await Promise.all(pending.map((route) => route.continue().catch(() => {})))
-  }
-
   return {
     answered,
     pending: () => captured.length,
@@ -154,12 +126,12 @@ export async function gateRpcCalls(page: Page, options: {path?: readonly string[
     },
     release: async () => {
       open.value = true
-      await settle()
+      settle()
     },
     dispose: async () => {
       open.value = true
-      await settle()
-      await page.unroute(matcher, handler)
+      settle()
+      remove()
     },
   }
 }

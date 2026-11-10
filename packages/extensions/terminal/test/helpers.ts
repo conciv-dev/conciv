@@ -111,7 +111,6 @@ export function recordingHarness(): {harness: ServerHarness; captured: HarnessCo
 export type TerminalTestServer = {
   base: string
   wsBase: string
-  rpcWsUrl: string
   sessions: FakeSessions
   stateDir: string
   rpc: ReturnType<typeof makeExtRpcClient<TerminalRouter>>
@@ -151,7 +150,6 @@ export async function startTerminalServer(
   return {
     base: served.base,
     wsBase: served.wsBase,
-    rpcWsUrl: served.wsUrl,
     sessions,
     stateDir,
     rpc: makeExtRpcClient<TerminalRouter>(served.base, 'terminal'),

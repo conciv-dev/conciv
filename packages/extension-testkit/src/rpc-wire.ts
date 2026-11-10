@@ -1,5 +1,6 @@
 import type {Page} from 'playwright'
 import {rpcObserverFor} from './rpc-observer.js'
+import {rpcSocketFor} from './rpc-socket.js'
 
 const WIRE_TIMEOUT_MS = 30_000
 const SESSIONS_BOOT_LIST_TIMEOUT_MS = 5_000
@@ -14,7 +15,8 @@ export type RpcWireWatch = {
   sessionsListedSince: (since: number) => Promise<number | null>
 }
 
-export function watchRpcWire(page: Page): RpcWireWatch {
+export async function watchRpcWire(page: Page): Promise<RpcWireWatch> {
+  await rpcSocketFor(page).installed
   const observer = rpcObserverFor(page)
   const answeredSince = (path: readonly string[], since: number): Promise<number | null> =>
     observer.completed({path, since, timeout: WIRE_TIMEOUT_MS}).then((call) => call.status)

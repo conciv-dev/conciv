@@ -9,7 +9,7 @@ import {
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
 } from '@conciv/protocol/chat-types'
-import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
+import {CONCIV_VERSION_HEADER, RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {concivHome, recordHubConnection, removeHubConnection, withHomeDb} from '@conciv/db'
 import type {HarnessCommand, HarnessModel} from '@conciv/protocol/harness-types'
 import {revokeBrowsers as revokeTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -18,6 +18,7 @@ import type {FixtureSession, PacedRelease, ScriptedTurn} from '@conciv/harness-t
 import type {CoreKit} from './core-testkit.js'
 import type {AlternateHarness} from '@conciv/extension-testkit/core-kit'
 import type {PushWireWatch} from '@conciv/extension-testkit/push-wire'
+import type {RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 
 export type BootCoreInput = {
   id: string
@@ -71,6 +72,7 @@ type FileState = {
   handles: {count: number}
   hubCli: {current: HubCliState}
   push: PushWireWatch | null
+  rpcCalls: RpcCallCursor | null
 }
 
 const FRESH: EngineStaleness = {
@@ -101,6 +103,7 @@ function stateOf(ctx: BrowserCommandContext): FileState {
     handles: {count: 0},
     hubCli: {current: null},
     push: null,
+    rpcCalls: null,
   }
   files.set(key, created)
   return created
@@ -128,7 +131,9 @@ const bootCore: BrowserCommand<[BootCoreInput]> = async (ctx, input): Promise<Bo
   const state = stateOf(ctx)
   if (state.kit) throw new Error('a core is already booted for this test file; call closeCore first')
   const startedAt = Date.now()
-  const {bootCoreKit, watchPushWire} = await testkitOf(ctx)
+  const {bootCoreKit, watchPushWire, rpcSocketFor, rpcCallCursor} = await testkitOf(ctx)
+  await rpcSocketFor(ctx.page).installed
+  state.rpcCalls = rpcCallCursor(ctx.page)
   const kit = await bootCoreKit({
     id: input.id,
     text: input.text,
@@ -159,6 +164,7 @@ const closeCore: BrowserCommand<[]> = async (ctx): Promise<void> => {
   state.staleness.value = FRESH
   restoreHubCli(state)
   state.push = null
+  state.rpcCalls = null
   const kit = state.kit
   state.kit = null
   if (!kit) return
@@ -308,7 +314,11 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => kitOf(ctx).rpcServed(path)
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => {
+  const calls = stateOf(ctx).rpcCalls
+  if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
+  return calls.servedSince(path)
+}
 
 type Injector = {repair: () => void; dispose: () => Promise<void>}
 
@@ -330,13 +340,19 @@ function trackedFault(handle: string, kind: FaultSpec['kind'], injector: Injecto
 async function takeEngineOffline(ctx: BrowserCommandContext): Promise<Injector> {
   const origin = kitOf(ctx).origin
   const offline = {value: true}
+  const rpcSocket = (await testkitOf(ctx)).rpcSocketFor(ctx.page)
   const matcher = (url: URL): boolean => url.origin === origin
   await ctx.page.route(matcher, (route) => (offline.value ? route.abort('connectionrefused') : route.continue()))
+  rpcSocket.hold()
   return {
     repair: () => {
       offline.value = false
+      rpcSocket.release()
     },
-    dispose: () => ctx.page.unroute(matcher),
+    dispose: () => {
+      rpcSocket.release()
+      return ctx.page.unroute(matcher)
+    },
   }
 }
 
@@ -360,7 +376,7 @@ async function detachEngineSockets(ctx: BrowserCommandContext): Promise<Injector
   const host = new URL(kitOf(ctx).origin).host
   const detached = {value: true}
   await ctx.page.routeWebSocket(
-    (url) => url.host === host,
+    (url) => url.host === host && !url.pathname.endsWith(RPC_WS_PATH),
     (socket) => {
       if (!detached.value) socket.connectToServer()
     },
@@ -426,13 +442,8 @@ function gateChatTurns(ctx: BrowserCommandContext): Promise<Fault> {
   )
 }
 
-function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
-  const httpPath = `/rpc/${path.join('/')}`
-  return holdPosts(
-    ctx,
-    (url) => url.pathname.endsWith(httpPath),
-    (route) => route.abort('aborted'),
-  )
+async function cutOnRelease(ctx: BrowserCommandContext, path: string[]): Promise<Fault> {
+  return (await testkitOf(ctx)).gateRpcCalls(ctx.page, {path, onRelease: 'cut'})
 }
 
 function pathOptions(path: string[] | undefined): {path?: string[]} {

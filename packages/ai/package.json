@@ -49,6 +49,8 @@
     "@conciv/db": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@opencode-ai/sdk": "^1.19.4",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
     "@tanstack/ai": "catalog:",
     "@tanstack/ai-client": "catalog:",
     "@tanstack/ai-code-mode": "catalog:",
@@ -58,6 +60,7 @@
     "@tanstack/ai-solid": "catalog:",
     "drizzle-orm": "catalog:",
     "solid-js": "catalog:",
+    "tinypool": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-import type {AnyRouter} from '@orpc/server'
+import {ORPCError, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import {RPCHandler as WebsocketRPCHandler, type MinimalWebsocket} from '@orpc/server/websocket'
 import type {Context, MiddlewareHandler} from 'hono'
@@ -6,12 +6,12 @@ import type {WSContext, WSEvents, WSMessageReceive} from 'hono/ws'
 import type {StandardRPCHandlerOptions} from '@orpc/server/standard'
 import {valid} from 'semver'
 import {z} from 'zod'
-import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders} from '@conciv/protocol/rpc-types'
+import {SOCKET_TRUST_FRAME, SocketTrustFrameSchema} from '@conciv/contract'
+import {CONCIV_VERSION_HEADER, type RpcContext, type RpcHeaders, type RpcSocketTrust} from '@conciv/protocol/rpc-types'
 
 const ADAPTER_REFUSED_STATUS = 500
 
 export const RPC_PREFIX = '/rpc'
-export const RPC_WS_PATH = '/rpc-ws'
 
 const ClientVersionSchema = z
   .string()
@@ -20,10 +20,23 @@ const ClientVersionSchema = z
   .optional()
   .catch(undefined)
 
+const TRUST_FRAME_PREFIX = JSON.stringify({type: SOCKET_TRUST_FRAME}).slice(0, -1)
+
 export type UpgradeWebSocket = (createEvents: (c: Context) => WSEvents) => MiddlewareHandler
 
-export function rpcConnectionContext(requestUrl: string, callerOrigin: string | null): RpcContext {
-  return {origin: new URL(requestUrl).origin, callerOrigin, headers: {}}
+export type RpcSocketGate = {
+  trust: RpcSocketTrust
+  open: (socket: WSContext<unknown>) => void
+  present: (token: string) => void
+  close: () => void
+}
+
+export function rpcConnectionContext(
+  requestUrl: string,
+  callerOrigin: string | null,
+  headers: RpcHeaders = {},
+): RpcContext {
+  return {origin: new URL(requestUrl).origin, callerOrigin, headers}
 }
 
 export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
@@ -34,10 +47,18 @@ export function rpcHandlerOptions(): StandardRPCHandlerOptions<RpcContext> {
           ...options,
           context: {
             ...options.context,
-            headers: options.request.headers,
+            headers: {...options.context.headers, ...options.request.headers},
             clientVersion: clientVersionOf(options.request.headers),
           },
         }),
+    ],
+    clientInterceptors: [
+      (options) => {
+        if (options.context.socket?.allows(options.path) === false) {
+          throw new ORPCError('UNAUTHORIZED', {message: 'this connection is not trusted'})
+        }
+        return options.next()
+      },
     ],
   }
 }
@@ -86,6 +107,24 @@ function peerFrame(data: WSMessageReceive): string | ArrayBuffer | null {
   return null
 }
 
+function trustFrameToken(frame: string | ArrayBuffer): string | null {
+  if (typeof frame !== 'string' || !frame.startsWith(TRUST_FRAME_PREFIX)) return null
+  const parsed = SocketTrustFrameSchema.safeParse(parsedJson(frame))
+  return parsed.success ? parsed.data.token : null
+}
+
+function parsedJson(frame: string): unknown {
+  try {
+    return JSON.parse(frame)
+  } catch {
+    return null
+  }
+}
+
+function upgradeHeaders(c: Context): RpcHeaders {
+  return {'user-agent': c.req.header('user-agent')}
+}
+
 function peerSocket(held: {socket: WSContext<unknown> | null}): MinimalWebsocket {
   return {
     addEventListener: () => {},
@@ -101,25 +140,43 @@ function splitAdapterError(): Error {
 
 export function rpcWebsocketRoute(
   router: AnyRouter,
-  options: {upgrade: UpgradeWebSocket; onError?: (message: string) => void},
+  options: {
+    upgrade: UpgradeWebSocket
+    onError?: (message: string) => void
+    gate?: (c: Context) => RpcSocketGate
+  },
 ): MiddlewareHandler {
   const handler = new WebsocketRPCHandler<RpcContext>(router, rpcHandlerOptions())
   const route = options.upgrade((c) => {
-    const context = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null)
+    const gate = options.gate?.(c)
+    const connection = rpcConnectionContext(c.req.url, c.req.header('origin') ?? null, upgradeHeaders(c))
+    const context = gate === undefined ? connection : {...connection, socket: gate.trust}
     const held: {socket: WSContext<unknown> | null} = {socket: null}
     const peer = peerSocket(held)
     return {
+      onOpen: (_event, ws) => {
+        held.socket = ws
+        gate?.open(ws)
+      },
       onMessage: (event, ws) => {
         held.socket = ws
         const frame = peerFrame(event.data)
         if (frame === null) return
+        const token = trustFrameToken(frame)
+        if (token !== null) {
+          gate?.present(token)
+          return
+        }
         handler.message(peer, frame, {context}).catch((error: unknown) => {
           options.onError?.(`rpc ws frame rejected: ${String(error)}`)
           handler.close(peer)
           ws.close(1011, 'rpc frame rejected')
         })
       },
-      onClose: () => handler.close(peer),
+      onClose: () => {
+        gate?.close()
+        handler.close(peer)
+      },
     }
   })
   return async (c, next) => {

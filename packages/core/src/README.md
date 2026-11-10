@@ -9,7 +9,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start(opts: StartOpts): Promise<Engine>` (`start.ts`): `Engine` = {port, stop, cfg, extensionContexts}
 - `StartOpts`, `PortRequest` = {exact}|{preferred}, `composeSystemPrompt` (`start.ts`)
 - `makeApp(opts): Promise<MadeApp>` / `withBuiltinExtensions` / `slug` / `HealthSchema` / `AppType` (`app.ts`)
-- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `${RPC_PREFIX}/*`, `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
+- Routes (`app.ts`): `GET /health` (`{ok, harness, engine: {stale}, id}`, `id` = the per-start `engineId`), `POST /api/shutdown`, chat-plane routes and WS, push routes and WS, `GET RPC_WS_PATH` (`/rpc-ws`, the browser's one oRPC socket, gated per connection by `rpcSocketGate`), `${RPC_PREFIX}/*` (the HTTP oRPC handler for node callers: CLI, tests, `makeRpcClient`), `/api/mcp`, `/api/tabs`, optional `NATIVE_PAGE_PATH`, `/api/ext/<slug>` per extension
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
@@ -30,6 +30,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `start` (`start.ts`): with an accessToken the app is mounted under `/t/<token>`; a failed bind or endpoint write disposes the app
 - `makeEngineGate` (`engine-login.ts`): only `OPEN_PATHS` (`/health`, the three `/rpc/auth/*` procedures, `/native`) pass without a token; a token comes as `Authorization: Bearer` (browsers) or the `/t/<token>` path (agents, CLI, MCP), which is forwarded as a bearer header
 - `trustingUpgrade` (`engine-login.ts`): every engine socket (chat, push, extension sockets through `ServerApi.upgradeWebSocket`) is admitted by a bearer header or by a first `{type: 'conciv:trust', token}` frame; anything else is closed with 1008, and a revoke closes every socket held by that token with 1008
+- `rpcSocketGate` (`engine-login.ts`): the rpc socket opens untrusted and serves only the three `auth.*` procedures (anything else answers `UNAUTHORIZED`) until a bearer header, a `{type: 'conciv:trust', token}` frame, or a successful `auth.trust` / `auth.exchange` on that socket trusts it; a revoke closes it with 1008 like every other engine socket
 - `makeAuthRouter` (`engine-login.ts`): `auth.exchange` answers `{refused: 'mismatch' | 'expired'}`; five wrong codes retire the printed code
 - `assertUniqueExtensionSlugs` / `assertUniqueCapabilityNames` (`app.ts`): throw on slug or tool-name collisions
 - `requireHarness` (`app.ts`): defaults to 'claude' and throws if none is registered

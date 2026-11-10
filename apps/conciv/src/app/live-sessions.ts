@@ -122,12 +122,14 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
             : start(sessionId, lifecycle),
       },
     })
-    const stopTrust = browserRpcConnection(apiBase).trust.subscribe((status, previous) => {
+    const connection = browserRpcConnection(apiBase)
+    const stopTrust = connection.trust.subscribe((status, previous) => {
       if (status === 'trusted' && engineLocked(previous))
         session.refresh().catch((error: unknown) => console.error('[conciv] re-hydrating the chat failed', error))
     })
     onCleanup(() => {
       stopTrust()
+      connection.release()
       if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
     })
     return session

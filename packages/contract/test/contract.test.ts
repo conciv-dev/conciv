@@ -1,17 +1,10 @@
-import {describe, expect, expectTypeOf, it, afterAll, beforeAll, vi} from 'vitest'
+import {describe, expect, expectTypeOf, it, afterAll, beforeAll} from 'vitest'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
 import type {SessionMeta} from '../src/rows.js'
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient} from '../src/client.js'
 import {createServer, type Server} from 'node:http'
-import {CHAT_DELIVERY_HEADERS, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {CONCIV_VERSION_HEADER} from '@conciv/protocol/rpc-types'
 import contractManifest from '../package.json' with {type: 'json'}
-import {
-  closeBrowserRpcConnection,
-  dynamicBrowserRpcLink,
-  resetBrowserRpcConnection,
-  subscribeRpcReachability,
-} from '../src/browser-transport.js'
 
 describe('client', () => {
   describe('makeRpcClient', () => {
@@ -99,27 +92,6 @@ describe('client', () => {
       expect(client.bound()).toBe(false)
       client.close()
     })
-
-    it('targets the base returned by the accessor at call time, not the base seen at construction', async () => {
-      const requests: string[] = []
-      const originalFetch = globalThis.fetch
-      globalThis.fetch = async (input, init) => {
-        requests.push(new Request(input, init).url)
-        return new Response(JSON.stringify({json: []}), {headers: {'content-type': 'application/json'}})
-      }
-      let currentBase = 'http://client-accessor-one.test'
-      const client = makeBrowserRpcClient(() => currentBase, {transport: 'fetch'})
-      try {
-        await client.rpc.sessions.list(undefined)
-        expect(requests[0]).toContain('client-accessor-one.test')
-        currentBase = 'http://client-accessor-two.test'
-        await client.rpc.sessions.list(undefined)
-        expect(requests[1]).toContain('client-accessor-two.test')
-      } finally {
-        globalThis.fetch = originalFetch
-        client.close()
-      }
-    })
   })
 })
 
@@ -164,139 +136,38 @@ describe('rows', () => {
   })
 })
 
-describe('session header scoping', () => {
-  const seen: (string | null)[] = []
+describe('node rpc client', () => {
   const versions: (string | null)[] = []
-  const headerNames: string[][] = []
 
   let server: Server
   let base = ''
 
-  function listening(instance: Server): Promise<number> {
-    return new Promise((resolve) => {
-      instance.listen(0, '127.0.0.1', () => {
-        const address = instance.address()
-        resolve(typeof address === 'object' && address !== null ? address.port : 0)
-      })
-    })
-  }
-
   beforeAll(async () => {
     server = createServer((request, response) => {
-      const header = request.headers[CONCIV_SESSION_HEADER]
-      seen.push(typeof header === 'string' ? header : null)
       const version = request.headers[CONCIV_VERSION_HEADER]
       versions.push(typeof version === 'string' ? version : null)
-      headerNames.push(Object.keys(request.headers))
       request.resume()
       request.on('end', () => {
         response.writeHead(200, {'content-type': 'application/json'})
         response.end(JSON.stringify({json: {ok: true}, meta: []}))
       })
     })
-    const port = await listening(server)
+    const port = await new Promise<number>((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        resolve(typeof address === 'object' && address !== null ? address.port : 0)
+      })
+    })
     base = `http://127.0.0.1:${port}`
   })
 
   afterAll(async () => {
-    closeBrowserRpcConnection(base)
     await new Promise((resolve) => server.close(resolve))
   })
 
-  it('each client on one api base sends its own session identity, and a session-less client sends none', async () => {
-    const first = dynamicBrowserRpcLink(
-      () => base,
-      () => 'conciv_first',
-    )
-    const second = dynamicBrowserRpcLink(
-      () => base,
-      () => 'conciv_second',
-    )
-    const anonymous = dynamicBrowserRpcLink(() => base)
-
-    await first.call(['probe'], {}, {context: {}})
-    await second.call(['probe'], {}, {context: {}})
-    await anonymous.call(['probe'], {}, {context: {}})
-    await first.call(['probe'], {}, {context: {}})
-
-    expect(seen).toEqual(['conciv_first', 'conciv_second', null, 'conciv_first'])
-  }, 15_000)
-
   it('the node rpc client tells the engine the contract release version', async () => {
-    versions.length = 0
     await makeRpcClient(base).sessions.list(undefined)
 
     expect(versions).toEqual([contractManifest.version])
-  }, 15_000)
-
-  it('the browser rpc link sends only the headers an engine from before release versions lets through cors', async () => {
-    headerNames.length = 0
-    const preVersionEngineAllowed = ['content-type', 'authorization', CONCIV_SESSION_HEADER, ...CHAT_DELIVERY_HEADERS]
-    await dynamicBrowserRpcLink(
-      () => base,
-      () => 'conciv_first',
-    ).call(['probe'], {}, {context: {}})
-
-    const custom = (headerNames[0] ?? []).filter((name) => name.startsWith('x-') || name.startsWith('conciv-'))
-    expect(custom.filter((name) => !preVersionEngineAllowed.includes(name))).toEqual([])
-    expect(custom).toContain(CONCIV_SESSION_HEADER)
-  }, 15_000)
-})
-
-describe('rpc reachability votes', () => {
-  function respondOk(): Server {
-    return createServer((request, response) => {
-      request.resume()
-      request.on('end', () => {
-        response.writeHead(200, {'content-type': 'application/json'})
-        response.end(JSON.stringify({json: {ok: true}, meta: []}))
-      })
-    })
-  }
-
-  function listenOn(instance: Server, port: number): Promise<number> {
-    return new Promise((resolve) => {
-      instance.listen(port, '127.0.0.1', () => {
-        const address = instance.address()
-        resolve(typeof address === 'object' && address !== null ? address.port : 0)
-      })
-    })
-  }
-
-  function closed(instance: Server): Promise<void> {
-    return new Promise((resolve) => instance.close(() => resolve()))
-  }
-
-  it('a listener subscribed before any connection exists hears the outage and the recovery, and stops after unsubscribe', async () => {
-    const probe = createServer()
-    const port = await listenOn(probe, 0)
-    await closed(probe)
-    const base = `http://127.0.0.1:${port}/engine`
-    const votes: boolean[] = []
-    const unsubscribe = subscribeRpcReachability(`${base}/`, (reachable) => votes.push(reachable))
-    const link = dynamicBrowserRpcLink(() => base)
-    const server = respondOk()
-
-    const call = link.call(['probe'], {}, {context: {}})
-    await vi.waitFor(() => expect(votes).toContain(false), {timeout: 2000})
-    await listenOn(server, port)
-    await call
-    expect(votes.at(-1)).toBe(true)
-
-    resetBrowserRpcConnection(base)
-    await closed(server)
-    const afterReset = link.call(['probe'], {}, {context: {}})
-    await vi.waitFor(() => expect(votes.at(-1)).toBe(false), {timeout: 2000})
-    const restarted = respondOk()
-    await listenOn(restarted, port)
-    await afterReset
-    expect(votes.at(-1)).toBe(true)
-
-    unsubscribe()
-    const heard = votes.length
-    await closed(restarted)
-    await expect(link.call(['probe'], {}, {context: {}})).rejects.toThrow()
-    expect(votes.length).toBe(heard)
-    closeBrowserRpcConnection(base)
   }, 15_000)
 })
