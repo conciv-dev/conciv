@@ -236,6 +236,18 @@
 - [ ] **Step 3:** Hints need one shared word: the fuzzy-only hints ("Part" to `Far`) are gone; IT asserts "Header" gets no hint.
 - [ ] **Step 4:** Gates, proof shot of the chip in the round list, commit `design: a named component is a row`.
 
+### Task 7c: A component row fires only where the component can be used
+
+**Files:**
+
+- Modify: `packages/extensions/design/src/server/sources/figma.ts` (per node `figma.component`: the main component's name for INSTANCE and COMPONENT nodes, from the file's `components` map), `src/server/catalog/name-variant-hinter.ts` (certainty only from `figma.component`; layer-name matches stay fuzzy under 1), `src/server/catalog/{entries,walk,vite-oxc-source}.ts` (`Component.framework` from the plugin or parser that saw it render; the walk records each file's framework), `src/server/catalog/component-rows.ts` (rules 2 and 3 of the spec section; the resolved import line), fixture `packages/it/test/fixtures/design/host/vite.config.ts` (the overlay entry as an input so the walk reaches the overlay source)
+- Test: `packages/it/test/design.it.test.ts` catalog describes
+
+- [ ] **Step 1:** Failing ITs: a text node named "96K sold so far" gets no `Far` row and no hint of 1; an INSTANCE whose main component is `Avatar` in a React host with a Solid kit gets a hint and no row; the same in a Solid host gets a row with a resolved import line; a node rendered by the project's `RailButton` which renders the kit `Button` gets no row for `Button`.
+- [ ] **Step 2:** Implement the three rules; the hint probe (`$S/catalog-task8/hint-probe/probe.ts`) on figma5 then shows only INSTANCE nodes at 1.
+- [ ] **Step 3:** Gates, commit `design: a component row fires only where the component can be used`.
+- [ ] **Step 4:** Measure again: `xray8-round-cat-1..2` as Task 8 Step 1 ran them; the row count at the first check, which rows the agent cleared and how, kit imports kept. Row in `xray-build.md`.
+
 ### Task 8: Measure
 
 **Files:**

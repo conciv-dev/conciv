@@ -245,3 +245,35 @@ the agent to ignore the field.
 
 Measure (Task 8) now has its two arms: the x-ray round and Parts states with and without the component row, kit imports
 kept in the final source as the count.
+
+## A component row fires only where the component can be used (2026-11-10, after Measure)
+
+Measure (`$S/figma-loop/catalog-measure.md`, `xray-build.md` rows `xray7-round-cat-1..2`) showed the row as first built
+misfires three ways, and no agent cleared one:
+
+- On figma5 the 10 `Avatar` rows and the `Button` row name `@conciv/ui-kit-system`, a Solid kit, in a React host. The
+  agent could not use them and said so. Hand-drawn avatars went up (2.5 against 0.5 a run) with nothing to import.
+- "96K sold so far" got the hint `Far` at certainty, because "far" is a whole word of the name, and all six runs wrapped
+  that text in `<Far>` to clear the row. "Problem Avatar", a problem-list label, got an `Avatar` row the same way.
+- On the x-ray, `Stat` and `Table` rows named the fixture's own `./src/Stat.tsx`, a path the overlay package cannot
+  import, and a run that did render the rail buttons with the kit `Button` saw its rows stay, because the overlay's
+  source is not in the fixture's catalog walk and the relation never resolved.
+
+Three rules replace "a whole-word name is a hint of 1":
+
+1. A hint at certainty comes from Figma's own component link: the node is an INSTANCE (or a COMPONENT) and its main
+   component's name, with the variant part after `/` or `=` dropped and case and separators ignored, equals a catalog
+   component's name. The adapter carries the main component name per node (`figma.component`). A frame or text whose
+   layer name happens to hold a component's word is a fuzzy hint under 1 at most, never a row.
+2. A row fires only where the component can be used from the element's source file: the file is in the catalog walk
+   (the relation can resolve it), the component's framework is the file's (the catalog records each component's
+   framework from the plugin or parser that saw it render markup; the file's from the same walk), and the import
+   specifier resolves from that file's directory with the project's resolve rules (a bare specifier through
+   `oxc-resolver`, a relative path rewritten to the file's own relative path). The row's import line is the resolved one.
+3. A row clears when the relation says the element is rendered by the named component, or by a component that itself
+   renders it (the kit `Button` inside the project's own `RailButton`).
+
+Where no rule holds the hint is still shown in `design_get` (the fuzzy hint under 1 stays advice) and no row is listed.
+Measure is rerun on the x-ray round state, where the overlay is Solid, the kit is Solid and the relation can resolve once
+the overlay's source is in the walk the x-ray fixture declares (the fixture's `vite.config` names the overlay entry as a
+second input, so the catalog walk reaches it).
