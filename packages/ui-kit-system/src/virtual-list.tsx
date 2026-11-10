@@ -1,9 +1,11 @@
-import {For, Show, onMount, type JSX} from 'solid-js'
+import {Show, onMount, type JSX} from 'solid-js'
+import {Key} from '@solid-primitives/keyed'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
 export type VirtualListProps<Row> = {
   rows: readonly Row[]
   sizeOf: (row: Row) => number
+  keyOf: (row: Row) => string
   children: (row: Row) => JSX.Element
   more?: boolean
   moreRow?: JSX.Element
@@ -24,7 +26,10 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
     },
     get getItemKey() {
       const rows = props.rows
-      return (index: number) => (rows[index] === undefined ? 'more' : index)
+      return (index: number) => {
+        const row = rows[index]
+        return row === undefined ? 'more' : props.keyOf(row)
+      }
     },
     getScrollElement: () => scroller ?? null,
     estimateSize: (index) => {
@@ -49,26 +54,26 @@ export function VirtualList<Row>(props: VirtualListProps<Row>): JSX.Element {
       class={props.class}
     >
       <div role="presentation" style={{position: 'relative', 'block-size': `${virtualizer.getTotalSize()}px`}}>
-        <For each={virtualizer.getVirtualItems()}>
+        <Key each={virtualizer.getVirtualItems()} by={(item) => item.key}>
           {(item) => (
             <div
               role="presentation"
-              data-index={item.index}
+              data-index={item().index}
               ref={(element) => queueMicrotask(() => virtualizer.measureElement(element))}
               style={{
                 position: 'absolute',
                 'inset-block-start': '0',
                 'inset-inline-start': '0',
                 'inline-size': '100%',
-                transform: `translateY(${item.start}px)`,
+                transform: `translateY(${item().start}px)`,
               }}
             >
-              <Show when={props.rows[item.index]} fallback={props.moreRow} keyed>
+              <Show when={props.rows[item().index]} fallback={props.moreRow} keyed>
                 {(row) => props.children(row)}
               </Show>
             </div>
           )}
-        </For>
+        </Key>
       </div>
     </div>
   )

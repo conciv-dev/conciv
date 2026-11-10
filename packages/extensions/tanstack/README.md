@@ -11,7 +11,7 @@ package.json has two entry points. The browser condition and `./client` resolve 
 - `scripts.build` (`package.json`): runs `tsdown`, then `vite build`, then `tsc -p tsconfig.build.json`, then `vite build -c vite.test-host.config.ts`
 - default export (`tsdown.config.ts`): ESM build of `src/server.ts` with `dts: false`
 - default export (`vite.config.ts`): Solid lib build of `src/client.tsx` to `client.js`, with `solid-js`, `zod`, `@conciv/*` and `lucide-solid` kept external
-- default export (`vite.test-host.config.ts`): `testHostConfig` over `test/host` with the React plugin, `clientEntry` set to dist/client.js, output to dist/test-host, and `virtual:conciv-connect-probe` aliased to test/host/conciv/extensions/connect-probe.tsx
+- default export (`vite.test-host.config.ts`): `testHostConfig` over `test/host` with the React plugin, `clientEntry` set to dist/client.js, output to dist/test-host; the React host page (test/host/main.tsx) renders the TanStack Router + Query app and calls `startPageHost` from `@conciv/extension-testkit/host` to log in and serve the page plane, with no widget
 - default export (`vitest.config.ts`): projects `tanstack` (node, 120s timeouts) and `tanstack-browser` (Playwright Chromium, headless, `fileParallelism: false`, 60s timeout)
 - default export (`uno.config.ts`): UnoCSS with `presetConciv`, scanning src/**/*.{ts,tsx}
 - Subdirectories:

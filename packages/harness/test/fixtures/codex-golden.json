@@ -1,7 +1,7 @@
 {
   "messages": [
     {
-      "id": "fixture:h1",
+      "id": "fixture:o265",
       "role": "user",
       "parts": [
         {
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "id": "fixture:h2",
+      "id": "fixture:o418",
       "role": "assistant",
       "parts": [
         {
@@ -53,7 +53,7 @@
       ]
     },
     {
-      "id": "fixture:h3",
+      "id": "fixture:o968",
       "role": "user",
       "parts": [
         {

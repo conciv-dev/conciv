@@ -3,7 +3,6 @@ import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
-import type {ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   SessionId,
   type HarnessMenuEntry,
@@ -12,7 +11,13 @@ import {
   type ReasoningEffort,
   type SessionRecord,
 } from '@conciv/protocol/chat-types'
-import type {HarnessListCursor, HarnessListPage, HarnessSessionMeta} from '@conciv/protocol/harness-types'
+import type {
+  HarnessListCursor,
+  HarnessListPage,
+  HarnessSessionMeta,
+  TranscriptPage,
+  TranscriptTailOptions,
+} from '@conciv/protocol/harness-types'
 import {resolveHarnessModels, type HarnessAdapter} from '@conciv/harness'
 import {clearPageChanges, deleteSessionCaptures, drafts, markers, modelOf, sessions} from '@conciv/db'
 import {
@@ -60,34 +65,23 @@ async function nativeMetaOf(chat: ChatContext, row: SessionRecord): Promise<Harn
   }
 }
 
-async function transcriptOf(
+async function transcriptTailOf(
   chat: ChatContext,
   harnessKind: string,
   nativeId: HarnessSessionId,
   cwd: string,
-  signal: AbortSignal | undefined,
-): Promise<ChatMessage[]> {
+  options: TranscriptTailOptions,
+): Promise<TranscriptPage | null> {
   const history = chat.harnesses.find((harness) => harness.id === harnessKind)?.history
-  if (history === undefined) return []
-  if (history.withinProject && !history.withinProject(cwd, nativeId)) return []
+  if (history === undefined) return null
+  if (history.withinProject && !history.withinProject(cwd, nativeId)) return null
   try {
-    return await history.messages(cwd, nativeId, {signal})
+    return await history.tail(cwd, nativeId, options)
   } catch (error) {
-    if (signal?.aborted) throw error
+    if (options.signal?.aborted) throw error
     logError(`[core] previewing the ${harnessKind} native session ${nativeId} failed: ${String(error)}`)
-    return []
+    return null
   }
-}
-
-function previewWindow(
-  messages: ChatMessage[],
-  before: string | null,
-  limit: number,
-): {messages: ChatMessage[]; earlier: string | null} | null {
-  const end = before === null ? messages.length : messages.findIndex((message) => message.id === before)
-  if (messages.length === 0 || end < 0) return null
-  const start = Math.max(0, end - limit)
-  return {messages: messages.slice(start, end), earlier: start > 0 ? (messages[start]?.id ?? null) : null}
 }
 
 async function listedPages(chat: ChatContext, page: HarnessListPage): Promise<NativePage[]> {
@@ -242,11 +236,16 @@ export function sessionsRouter(deps: RpcDeps) {
       return meta
     }),
     preview: os.sessions.preview.handler(async ({input, errors, signal}) => {
-      const messages = await transcriptOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, signal)
-      const window = previewWindow(messages, input.before, input.limit)
-      if (window === null) throw errors.NOT_FOUND()
+      const page = await transcriptTailOf(chat, input.harness, input.nativeId, input.cwd ?? chat.cwd, {
+        limit: input.limit,
+        before: input.before,
+        signal,
+      })
+      if (page === null || (page.messages.length === 0 && page.earlier === null && input.before === null)) {
+        throw errors.NOT_FOUND()
+      }
       if (input.cwd !== undefined) search.cover(input.cwd)
-      return window
+      return page
     }),
     create: os.sessions.create.handler(async () => {
       const sessionId = SessionId.parse(`conciv_${randomUUID()}`)
