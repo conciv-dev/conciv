@@ -8,7 +8,13 @@ const STATS = [
   {value: '7', label: 'Trucks on the road'},
 ]
 
+const TABS = [
+  {key: 'VwPt1A', label: 'Viewport', items: ['Desktop 1440', 'Laptop 1200']},
+  {key: 'PlNs2B', label: 'Planes', items: ['SRC', 'CSSOM', 'DOM']},
+]
+
 export function XrayProofPage() {
+  const parts = new URLSearchParams(location.search).get('state') === 'parts'
   return (
     <div className="xp-page" data-conciv-key="AHjjUw">
       <header className="xp-topbar" data-conciv-key="LuzDnw">
@@ -26,6 +32,19 @@ export function XrayProofPage() {
         </aside>
         <main className="xp-main" data-conciv-key="n7jFZw">
           <h1 className="xp-greeting" data-conciv-key="dfU4xA">Good morning, Dana</h1>
+          {parts ? (
+            <div className="xp-tabs-row" data-conciv-key="TbRw9C">
+              {TABS.map((tabs) => (
+                <div key={tabs.key} className="xp-tabs" aria-label={tabs.label} data-conciv-key={tabs.key}>
+                  {tabs.items.map((item, index) => (
+                    <span key={item} className={index === 0 ? 'xp-tab xp-tab-on' : 'xp-tab'} data-conciv-key="TbIt4D">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : null}
           <p className="xp-lede" data-conciv-key="5yxPig">
             Harvest week 46. Three fields are ready, two trucks are scheduled, and the Valencia lot still needs a buyer.
           </p>

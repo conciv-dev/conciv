@@ -1,23 +1,26 @@
 import {orderBy} from 'es-toolkit'
 import type {Component, Ranked} from '../../shared/catalog-defs.js'
 
-export function rankComponents(input: {components: Counted[]; flags: Map<string, Flag>; live: Line[]}): Ranked[] {
-  const {components, flags, live} = input
+export function rankComponents(input: {
+  components: Counted[]
+  flags: Map<string, Flag>
+  onPage: Record<string, number>
+  hidden?: boolean
+}): Ranked[] {
+  const {components, flags, onPage} = input
   const shown = components
-    .filter((component) => flags.get(component.id) !== DO_NOT_USE)
+    .filter((component) => input.hidden === true || flags.get(component.id) !== DO_NOT_USE)
     .map((component): Ranked => ({
       ...component,
       rank: 0,
-      onPage: live.filter((source) =>
-        component.sites.some((site) => site.file === source.file && site.line === source.line),
-      ).length,
+      onPage: onPage[component.id] ?? 0,
       tier: tierOf(component),
-      flag: flags.get(component.id) === PREFER ? PREFER : null,
+      flag: flags.get(component.id) ?? null,
     }))
   return orderBy(
     shown,
     [
-      (component) => (component.flag === PREFER ? 1 : 0),
+      (component) => FLAG_ORDER.indexOf(component.flag),
       (component) => component.onPage,
       (component) => component.imports,
       (component) => RANK.tiers.indexOf(component.tier),
@@ -28,14 +31,13 @@ export function rankComponents(input: {components: Counted[]; flags: Map<string,
   ).map((component, index) => ({...component, rank: index + 1}))
 }
 
-type Counted = Component & {imports: number}
+type Counted = Component & {imports: number; previewError: string | null}
 
 type Flag = 'prefer' | 'do-not-use'
 
-type Line = {file: string; line: number}
-
-const PREFER = 'prefer' satisfies Flag
 const DO_NOT_USE = 'do-not-use' satisfies Flag
+
+const FLAG_ORDER: Ranked['flag'][] = [DO_NOT_USE, null, 'prefer']
 
 const RANK = {
   kitWords: ['ui', 'kit'],

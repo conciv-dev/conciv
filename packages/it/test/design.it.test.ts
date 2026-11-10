@@ -965,6 +965,96 @@ describe('token drift', () => {
   })
 })
 
+describe('the x-ray parts', () => {
+  const DRIFT_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=8-1'
+  const BLUE = {r: 0x42 / 255, g: 0x6b / 255, b: 0xf2 / 255, a: 1}
+  const CHIP_IMPORT = "import {Chip} from './src/Chip.tsx'"
+  const PartSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    tier: z.string(),
+    onPage: z.number(),
+    flag: z.string().nullable(),
+    importLine: z.string(),
+    renders: z.array(z.object({node: z.string()})),
+  })
+  const PartsSchema = z.object({components: z.array(PartSchema), hidden: z.array(PartSchema)})
+
+  function boundBox(input: {id: string; name: string; y: number}): unknown {
+    return {
+      id: input.id,
+      name: input.name,
+      type: 'FRAME',
+      absoluteBoundingBox: {x: 40, y: input.y, width: 200, height: 48},
+      fills: [{type: 'SOLID', color: BLUE}],
+      cornerRadius: 16,
+      boundVariables: {topLeftRadius: {type: 'VARIABLE_ALIAS', id: 'radius/xl'}},
+      children: [],
+    }
+  }
+
+  const DRIFT_DOCUMENT = {
+    name: 'it fixture',
+    lastModified: '2026-11-10T00:00:00Z',
+    version: '1',
+    nodes: {
+      '8:1': {
+        document: figmaFrame({
+          id: '8:1',
+          name: 'Drift',
+          box: {x: 0, y: 0, w: 1280, h: 720},
+          children: [boundBox({id: '8:2', name: 'Chip', y: 40}), boundBox({id: '8:3', name: 'Loose', y: 160})],
+        }),
+      },
+    },
+  }
+
+  async function driftParts() {
+    await goto('drift')
+    const image = join(kit.targetsDir, 'drift-figma.png')
+    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const got = await call('design_get', {figma: DRIFT_LINK, image, document: DRIFT_DOCUMENT})
+    const checked = roundOf(await call('design_check', {}))
+    const list = async () => PartsSchema.parse(await xrayRpc.xray.components({id: got.target, round: checked.round}))
+    const section = async () => {
+      const again = await call('design_get', {figma: DRIFT_LINK, image, document: DRIFT_DOCUMENT})
+      return 'components' in again ? (again.components ?? '') : ''
+    }
+    return {list, section}
+  }
+
+  it('lists the drift page Chip with its import line, the page count and the design node it renders', async () => {
+    const {list} = await driftParts()
+    const chip = (await list()).components.find((entry) => entry.name === 'Chip')
+    expect([chip?.importLine, chip?.tier, chip?.onPage, chip?.renders.map((render) => render.node)]).toEqual([
+      CHIP_IMPORT,
+      'app',
+      1,
+      ['8:2'],
+    ])
+  })
+
+  it('prefer moves a part first, do-not-use takes it out of the list and the design_get section', async () => {
+    const {list, section} = await driftParts()
+    const id = (await list()).components.find((entry) => entry.name === 'Chip')?.id ?? ''
+    try {
+      await xrayRpc.xray.flag({id, flag: 'prefer'})
+      const preferred = await list()
+      expect([preferred.components[0]?.name, preferred.components[0]?.flag]).toEqual(['Chip', 'prefer'])
+      expect(await section()).toContain(CHIP_IMPORT)
+      await xrayRpc.xray.flag({id, flag: 'do-not-use'})
+      const hidden = await list()
+      expect([hidden.components.some((entry) => entry.id === id), hidden.hidden.map((entry) => entry.name)]).toEqual([
+        false,
+        ['Chip'],
+      ])
+      expect(await section()).not.toContain(CHIP_IMPORT)
+    } finally {
+      await xrayRpc.xray.flag({id, flag: 'clear'})
+    }
+  })
+})
+
 describe('component previews', () => {
   async function previewed(name: string) {
     const shown = await call('design_components', {show: name})

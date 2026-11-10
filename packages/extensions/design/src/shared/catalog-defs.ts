@@ -42,7 +42,8 @@ const RankedSchema = ComponentSchema.extend({
   imports: z.number(),
   onPage: z.number(),
   tier: z.enum(['kit', 'app', 'other']),
-  flag: z.literal('prefer').nullable(),
+  flag: z.enum(['prefer', 'do-not-use']).nullable(),
+  previewError: z.string().nullable().describe('the first line of what its preview page threw, null when it rendered'),
 })
 
 const NodeRefSchema = z.object({target: z.string(), round: z.number(), node: z.string(), source: z.string()})
@@ -109,7 +110,7 @@ type Scheme = z.output<typeof SchemeSchema>
 type Token = z.output<typeof TokenSchema>
 type CatalogFlag = 'prefer' | 'do-not-use' | 'clear'
 type Catalog = {
-  list(input: {live?: string[]}): Promise<Ranked[]>
+  list(input: {live?: string[]; hidden?: boolean}): Promise<Ranked[]>
   show(name: string): Promise<Component & {nodes: NodeRef[]; preview: string}>
   flag(name: string, flag: CatalogFlag): Promise<void>
   componentOf(source: string): Promise<Component | null>

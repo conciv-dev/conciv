@@ -90,6 +90,7 @@
 .xp-bar-f { --xp-width: 52.885%; --xp-ratio: 9.167; }
 
 .xp-main {
+  position: relative;
   grid-column: 2;
   display: flex;
   flex-direction: column;
@@ -167,3 +168,40 @@
 
 .xp-row-short { width: 71.795%; --xp-ratio: 46.667; }
 .xp-row-full { width: 100%; --xp-ratio: 65; }
+
+.xp-tabs-row {
+  position: absolute;
+  top: 38px;
+  left: 460px;
+  display: flex;
+  gap: 12px;
+}
+
+.xp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 2px;
+  border-radius: 6px;
+  background: var(--xp-row);
+  box-sizing: border-box;
+}
+
+.xp-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 18px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--xp-text-muted);
+}
+
+.xp-tab-on {
+  background: var(--xp-surface);
+  box-shadow: 0 0 0 1px var(--xp-line);
+  font-weight: 600;
+  color: var(--xp-text);
+}

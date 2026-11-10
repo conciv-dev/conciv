@@ -1,18 +1,26 @@
 import {extname, resolve, sep} from 'node:path'
 import type {Storage} from 'unstorage'
 import {ORPCError, os} from '@orpc/server'
+import {groupBy, keyBy, partition} from 'es-toolkit'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import {DESIGN_VERDICTS, type Box, type DesignRuntime, type IdNode} from '../shared/defs.js'
+import {DESIGN_VERDICTS, type Box, type DesignNode, type DesignRuntime, type IdNode} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
-import type {Ranked} from '../shared/catalog-defs.js'
+import {PREVIEW_ROUTE, type Catalog, type Ranked} from '../shared/catalog-defs.js'
 import type {designConfig} from '../shared/tolerances.js'
+import {walk} from '../shared/tree.js'
+import {importLine} from './catalog/import-line.js'
 
-export function createXrayRoutes(input: {runtime: DesignRuntime; hotkeys: DesignConfig['hotkeys']; takumiDir: string}) {
-  const {runtime} = input
+export function createXrayRoutes(input: {
+  runtime: DesignRuntime
+  catalog: Catalog
+  hotkeys: DesignConfig['hotkeys']
+  takumiDir: string
+}) {
+  const {runtime, catalog} = input
   return {
-    router: makeXrayRouter({runtime, hotkeys: input.hotkeys}),
+    router: makeXrayRouter({runtime, catalog, hotkeys: input.hotkeys}),
     app: makeXrayApp({runtime, takumiDir: resolve(input.takumiDir)}),
   }
 }
@@ -31,10 +39,17 @@ const PNG_HEADERS = {'content-type': 'image/png'}
 
 const ImageKindSchema = z.enum(['live', 'diff'])
 
+const RoundQuerySchema = z.object({id: NonEmptySchema, round: z.number().int().positive()})
+
+const TEXT_GAP = ' / '
+
+const DO_NOT_USE = 'do-not-use'
+
 const xrayOs = os.$context<RpcContext>()
 
-function makeXrayRouter(input: {runtime: DesignRuntime; hotkeys: DesignConfig['hotkeys']}) {
+function makeXrayRouter(input: {runtime: DesignRuntime; catalog: Catalog; hotkeys: DesignConfig['hotkeys']}) {
   const {store} = input.runtime
+  const {catalog} = input
   return xrayOs.router({
     xray: {
       hotkeys: xrayOs.handler(() => input.hotkeys),
@@ -61,36 +76,67 @@ function makeXrayRouter(input: {runtime: DesignRuntime; hotkeys: DesignConfig['h
           }),
         )
         .handler(({input: label}) => store.writeLabel({...label, by: LABEL_AUTHOR})),
-      layers: xrayOs
-        .input(z.object({id: NonEmptySchema, round: z.number().int().positive()}))
-        .handler(async ({input: query}) => {
-          const target = (await store.list()).find((record) => record.id === query.id)
-          if (target === undefined) throw new ORPCError('NOT_FOUND', {message: `no design with id ${query.id}`})
-          const [ids, looks, related] = await Promise.all([
-            store.ids(query),
-            store.looks(target.id),
-            store.relation(query),
-          ])
-          if (ids === null) return null
-          const byNode = new Map(looks.map((look) => [look.node, look]))
-          const components = new Map(
-            [...related].map(([node, component]) => [
+      components: xrayOs.input(RoundQuerySchema).handler(async ({input: query}) => {
+        const [ranked, related, design, looks] = await Promise.all([
+          store.sources(query.id).then((live) => catalog.list({live, hidden: true})),
+          store.relation(query),
+          store.design(query.id),
+          store.looks(query.id),
+        ])
+        const names = keyBy(looks, (look) => look.node)
+        const designNodes = keyBy(
+          [...walk(design.root)].map(({node}) => node),
+          (node) => node.id,
+        )
+        const rendered = groupBy([...related], ([, component]) => component.id)
+        const parts = ranked.map((component) =>
+          partOf({
+            component,
+            renders: (rendered[component.id] ?? []).map(([node]) => ({
               node,
-              {
-                id: component.id,
-                name: component.names[0] ?? '',
-                specifier: component.specifier,
-                tier: component.tier,
-                imports: component.imports,
-              },
-            ]),
-          )
-          return {
-            round: query.round,
-            width: target.width,
-            root: layerOf({node: ids.root, byNode, components, scale: target.scale}),
-          }
+              name: names[node]?.name ?? node,
+              text: textsUnder(designNodes[node]).join(TEXT_GAP),
+            })),
+          }),
+        )
+        const [hidden, components] = partition(parts, (part) => part.flag === DO_NOT_USE)
+        return {components, hidden}
+      }),
+      flag: xrayOs
+        .input(z.object({id: NonEmptySchema, flag: z.enum(['prefer', DO_NOT_USE, 'clear'])}))
+        .handler(async ({input: flagged}) => {
+          const component = (await catalog.list({hidden: true})).find((entry) => entry.id === flagged.id)
+          if (component === undefined) throw new ORPCError('NOT_FOUND', {message: `no component with id ${flagged.id}`})
+          await catalog.flag(component.names[0] ?? '', flagged.flag)
         }),
+      layers: xrayOs.input(RoundQuerySchema).handler(async ({input: query}) => {
+        const target = (await store.list()).find((record) => record.id === query.id)
+        if (target === undefined) throw new ORPCError('NOT_FOUND', {message: `no design with id ${query.id}`})
+        const [ids, looks, related] = await Promise.all([
+          store.ids(query),
+          store.looks(target.id),
+          store.relation(query),
+        ])
+        if (ids === null) return null
+        const byNode = new Map(looks.map((look) => [look.node, look]))
+        const components = new Map(
+          [...related].map(([node, component]) => [
+            node,
+            {
+              id: component.id,
+              name: component.names[0] ?? '',
+              specifier: component.specifier,
+              tier: component.tier,
+              imports: component.imports,
+            },
+          ]),
+        )
+        return {
+          round: query.round,
+          width: target.width,
+          root: layerOf({node: ids.root, byNode, components, scale: target.scale}),
+        }
+      }),
     },
   })
 }
@@ -141,6 +187,31 @@ type LayerComponent = Pick<Ranked, 'id' | 'specifier' | 'tier' | 'imports'> & {n
 type Layer = Omit<IdNode, 'fom' | 'children'> & {
   fom: (IdNode['fom'][number] & {box: Box | null; look: Look | null; component: LayerComponent | null})[]
   children: Layer[]
+}
+
+function partOf(input: {component: Ranked; renders: {node: string; name: string; text: string}[]}) {
+  const {component, renders} = input
+  return {
+    id: component.id,
+    name: component.names[0] ?? '',
+    tier: component.tier,
+    imports: component.imports,
+    onPage: component.onPage,
+    flag: component.flag,
+    specifier: component.specifier,
+    importLine: importLine(component),
+    sentence: component.sentence,
+    props: component.props,
+    usage: component.usage,
+    renders,
+    preview: component.previewError === null ? `${PREVIEW_ROUTE}${component.id}` : null,
+    previewError: component.previewError,
+  }
+}
+
+function textsUnder(node: DesignNode | undefined): string[] {
+  if (node === undefined) return []
+  return [...walk(node)].flatMap(({node: each}) => (each.kind === 'text' && each.text !== '' ? [each.text] : []))
 }
 
 function pngResponse(image: Uint8Array | null): Response {

@@ -91,6 +91,7 @@ const design = defineExtension({
   })
   const xray = createXrayRoutes({
     runtime,
+    catalog,
     hotkeys: config.hotkeys,
     takumiDir: dirname(createRequire(import.meta.url).resolve(TAKUMI_WASM_EXPORT)),
   })

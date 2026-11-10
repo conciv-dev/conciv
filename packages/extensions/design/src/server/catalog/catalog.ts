@@ -92,10 +92,11 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
           sites: (sites[row.id] ?? []).map((site) => ({file: site.file, line: site.line})),
         }),
         imports: row.imports,
+        previewError: row.previewError,
       }))
   }
 
-  async function named(name: string): Promise<Component> {
+  async function named(name: string): Promise<Counted> {
     await scanIfStale()
     const found = await rows()
     const component =
@@ -107,7 +108,7 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
 
   async function componentsOf(lines: string[]): Promise<Map<string, Ranked>> {
     await scanIfStale()
-    const found = rankComponents({components: await rows(), flags: new Map(), live: []})
+    const found = rankComponents({components: await rows(), flags: new Map(), onPage: {}})
     return new Map(
       lines.flatMap((source) => {
         const component = enclosing({found, at: located(source)})
@@ -122,10 +123,16 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
       await scanIfStale()
       const key = await project
       const flags = home.select().from(componentFlags).where(eq(componentFlags.project, key)).all()
+      const found = await rows()
+      const rendering = (query.live ?? []).flatMap((source) => {
+        const component = enclosing({found, at: located(source)})
+        return component === null ? [] : [component.id]
+      })
       return rankComponents({
-        components: await rows(),
+        components: found,
         flags: new Map(flags.map((flag) => [flag.componentId, flag.flag])),
-        live: (query.live ?? []).map(located),
+        onPage: countBy(rendering, (id) => id),
+        hidden: query.hidden ?? false,
       })
     },
     async show(name) {
@@ -140,13 +147,7 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
         })
         .from(nodeComponents)
         .where(eq(nodeComponents.component_id, component.id))
-      const key = await project
-      const stored = home
-        .select({error: components.previewError})
-        .from(components)
-        .where(and(eq(components.project, key), eq(components.tree, cwd), eq(components.id, component.id)))
-        .get()
-      const error = stored?.error ?? null
+      const error = component.previewError
       return {...component, nodes, preview: error === null ? `${PREVIEW_ROUTE}${component.id}` : `${ERROR}${error}`}
     },
     async flag(name, flag) {
@@ -175,7 +176,7 @@ export function createCatalog(input: {home: HomeDb; db: DesignDb; cwd: string; s
 
 type DesignDb = ExtensionDb<ReturnType<typeof designTables>>
 
-type Counted = Component & {imports: number}
+type Counted = Component & {imports: number; previewError: string | null}
 
 const CLEAR = 'clear'
 const ERROR = 'error: '

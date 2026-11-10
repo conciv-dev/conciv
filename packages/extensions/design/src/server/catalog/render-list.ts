@@ -1,6 +1,6 @@
-import {basename, extname} from 'node:path'
-import {groupBy, pascalCase} from 'es-toolkit'
+import {groupBy} from 'es-toolkit'
 import type {CatalogConfig, PropSketch, Ranked} from '../../shared/catalog-defs.js'
+import {importLine} from './import-line.js'
 
 export function renderComponents(input: {ranked: Ranked[]; limits: Pick<CatalogConfig, 'appTierFull'>}): string {
   const {ranked, limits} = input
@@ -21,8 +21,6 @@ const BLOCK_GAP = '\n\n'
 
 const FACT_GAP = ' · '
 
-const DEFAULT_EXPORT = 'default'
-
 const SEE_FILE = 'see file'
 
 function block(component: Ranked): string {
@@ -34,12 +32,6 @@ function block(component: Ranked): string {
     ...(component.usage === null ? [] : [component.usage]),
     facts(component),
   ].join('\n')
-}
-
-function importLine(component: Ranked): string {
-  const named = component.names.find((name) => name !== DEFAULT_EXPORT)
-  if (named !== undefined) return `import {${named}} from '${component.specifier}'`
-  return `import ${pascalCase(basename(component.file, extname(component.file)))} from '${component.specifier}'`
 }
 
 function propsLine(sketched: Ranked['props']): string[] {

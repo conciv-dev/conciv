@@ -1,12 +1,16 @@
+import {z} from 'zod'
 import type {IdNode, Mapping, Round, TargetRecord} from '@conciv/extension-design/defs'
 
 export function serveXraySample(state: string | null): void {
   const sample = state === null ? undefined : SAMPLES[state]
   if (sample === undefined) return
+  const flags = new Map<string, Flag | null>()
   const passed = window.fetch.bind(window)
-  window.fetch = (input, init) => {
-    const answer = answerOf({url: urlOf(input), sample: sample()})
-    return answer === null ? passed(input, init) : Promise.resolve(answer)
+  window.fetch = async (input, init) => {
+    const url = urlOf(input)
+    if (procedureOf(url) === 'flag') flagged({flags, body: await bodyOf({input, init})})
+    const answer = answerOf({url, sample: sample(), flags})
+    return answer === null ? passed(input, init) : answer
   }
 }
 
@@ -14,7 +18,33 @@ type Sample = {
   current: TargetRecord | null
   rounds: {target: TargetRecord; rounds: Round[]; mapping: Mapping; unsettled: number}
   layers: {round: number; width: number; root: Layer}
+  parts: Part[]
 }
+
+type Flag = 'prefer' | 'do-not-use'
+
+type Prop = {name: string; type: string; required: boolean; values: string[]}
+
+type Part = {
+  id: string
+  name: string
+  tier: 'kit' | 'app' | 'other'
+  imports: number
+  onPage: number
+  flag: Flag | null
+  specifier: string
+  importLine: string
+  sentence: string | null
+  props: Prop[]
+  usage: string | null
+  renders: {node: string; name: string; text: string}[]
+  preview: string | null
+  previewError: string | null
+}
+
+const FlagCallSchema = z.object({
+  json: z.object({id: z.string(), flag: z.enum(['prefer', 'do-not-use', 'clear'])}),
+})
 
 type Row = Round['rows'][number]
 
@@ -51,11 +81,61 @@ const STAT: Component = {
   imports: 1,
 }
 
+const KIT = '@conciv/ui-kit-system'
+
+const NO_PREVIEW = 'the sample catalog has no preview pages'
+
+const VIEWPORT_KEY = 'VwPt1A'
+
+const PLANES_KEY = 'PlNs2B'
+
+const SEGMENT_GROUP_PROPS: Prop[] = [
+  {name: 'size', type: "'sm' | 'md' | 'lg'", required: false, values: ['sm', 'md', 'lg']},
+  {name: 'value', type: 'string', required: true, values: []},
+  {name: 'onChange', type: '(value: string) => void', required: true, values: []},
+]
+
+const LISTED: Omit<Part, 'id' | 'flag' | 'importLine' | 'preview' | 'previewError'>[] = [
+  kitPart({name: 'Button', imports: 212, onPage: 6, sentence: 'A pressable action.'}),
+  {
+    ...kitPart({name: 'SegmentGroup', imports: 84, onPage: 2, sentence: 'A row of choices where one is on.'}),
+    props: SEGMENT_GROUP_PROPS,
+    usage: '<SegmentGroup.Root value="desktop">',
+    renders: [
+      {node: '1:40', name: 'Viewport', text: 'Desktop 1440 / Laptop 1200'},
+      {node: '1:52', name: 'Planes', text: 'SRC / CSSOM / DOM'},
+    ],
+  },
+  kitPart({name: 'TooltipIconButton', imports: 57, onPage: 4, sentence: 'An icon button that names itself.'}),
+  kitPart({name: 'ScrollArea', imports: 40, onPage: 1, sentence: 'A scrolling box with a thin bar.'}),
+  kitPart({name: 'Switch', imports: 31, onPage: 3, sentence: 'An on and off toggle.'}),
+  kitPart({name: 'Chip', imports: 22, onPage: 2, sentence: 'A small label.'}),
+  kitPart({name: 'StatusDot', imports: 18, onPage: 5, sentence: 'A dot that tells a state.'}),
+  kitPart({name: 'RelativeTime', imports: 12, onPage: 1, sentence: 'A time said as how long ago.'}),
+  kitPart({name: 'Slider', imports: 9, onPage: 1, sentence: 'A value picked along a track.'}),
+  kitPart({name: 'ClipboardCopyButton', imports: 7, onPage: 1, sentence: 'Copies a text and says so.'}),
+  appPart({name: 'StatCard', file: 'Stat', imports: 4, onPage: 3}),
+  appPart({name: 'Sidebar', file: 'Sidebar', imports: 1, onPage: 1}),
+  ...['Tooltip', 'Popover', 'Dialog', 'Menu'].map((name) => kitPart({name, imports: 1, onPage: 0, sentence: null})),
+  ...['Topbar', 'Greeting', 'Figures', 'Portrait', 'TableCard', 'NavLink', 'DashboardPage'].map((name) =>
+    appPart({name, file: name, imports: 1, onPage: 0}),
+  ),
+  ...[
+    'ArrowLeft', 'ArrowDown', 'Box', 'Camera', 'Check', 'ChevronDown', 'ChevronRight', 'CircleAlert', 'Clock',
+    'Copy', 'Download', 'Eye', 'EyeOff', 'File', 'Filter', 'Folder', 'Grid', 'Info', 'Layers', 'Link', 'List',
+    'Lock', 'Menu', 'Minus', 'MousePointerClick', 'PanelLeft', 'Pencil', 'Play', 'Plus', 'Power', 'Puzzle',
+    'RefreshCw', 'Search', 'Settings', 'Share', 'Star', 'Sun', 'Trash', 'Upload', 'User', 'X',
+  ].map((name) => otherPart({name})),
+]
+
+const PREFERRED = new Set(['Chip'])
+
 const SAMPLES: Record<string, () => Sample> = {
   empty: () => ({...roundSample(), current: null}),
   round: roundSample,
   card: roundSample,
   '3d': stackSample,
+  parts: partsSample,
 }
 
 function urlOf(input: RequestInfo | URL): string {
@@ -63,16 +143,101 @@ function urlOf(input: RequestInfo | URL): string {
   return input instanceof URL ? input.href : input
 }
 
-function answerOf(input: {url: string; sample: Sample}): Response | null {
-  const [, procedure] = new URL(input.url).pathname.split(XRAY_PATH)
+function procedureOf(url: string): string | undefined {
+  return new URL(url).pathname.split(XRAY_PATH)[1]
+}
+
+async function bodyOf(input: {input: RequestInfo | URL; init: RequestInit | undefined}): Promise<string> {
+  if (input.input instanceof Request) return input.input.clone().text()
+  return typeof input.init?.body === 'string' ? input.init.body : ''
+}
+
+function flagged(input: {flags: Map<string, Flag | null>; body: string}): void {
+  const call = FlagCallSchema.safeParse(JSON.parse(input.body || 'null'))
+  if (!call.success) return
+  const {id, flag} = call.data.json
+  input.flags.set(id, flag === 'clear' ? null : flag)
+}
+
+function answerOf(input: {url: string; sample: Sample; flags: Map<string, Flag | null>}): Response | null {
+  const procedure = procedureOf(input.url)
+  const parts = input.sample.parts.map((part) => ({...part, flag: flagOf({part, flags: input.flags})}))
   const answers: Record<string, unknown> = {
     current: input.sample.current,
     rounds: input.sample.rounds,
     layers: input.sample.layers,
+    components: {
+      components: parts.filter((part) => part.flag !== 'do-not-use'),
+      hidden: parts.filter((part) => part.flag === 'do-not-use'),
+    },
+    flag: null,
     label: null,
   }
   if (procedure === undefined || !(procedure in answers)) return null
   return Response.json({json: answers[procedure], meta: []})
+}
+
+function flagOf(input: {part: Part; flags: Map<string, Flag | null>}): Flag | null {
+  if (!input.flags.has(input.part.id)) return input.part.flag
+  return input.flags.get(input.part.id) ?? null
+}
+
+function partsSample(): Sample {
+  const sample = roundSample()
+  return {
+    ...sample,
+    layers: {
+      ...sample.layers,
+      root: pageLayer([
+        tabsLayer({id: VIEWPORT_KEY, node: '1:40', name: 'Viewport', box: {x: 960, y: 94, w: 200, h: 28}}),
+        tabsLayer({id: PLANES_KEY, node: '1:52', name: 'Planes', box: {x: 1172, y: 94, w: 180, h: 28}}),
+      ]),
+    },
+    parts: LISTED.map((part) => ({
+      ...part,
+      id: `sample-${part.tier}-${part.name}`,
+      flag: PREFERRED.has(part.name) ? 'prefer' : null,
+      importLine: `import {${part.name}} from '${part.specifier}'`,
+      preview: null,
+      previewError: NO_PREVIEW,
+    })),
+  }
+}
+
+function kitPart(input: {name: string; imports: number; onPage: number; sentence: string | null}) {
+  return {...input, tier: 'kit' as const, specifier: KIT, props: [], usage: null, renders: []}
+}
+
+function appPart(input: {name: string; file: string; imports: number; onPage: number}) {
+  return {
+    name: input.name,
+    tier: 'app' as const,
+    imports: input.imports,
+    onPage: input.onPage,
+    specifier: `./src/${input.file}.tsx`,
+    sentence: null,
+    props: [],
+    usage: null,
+    renders: [],
+  }
+}
+
+function otherPart(input: {name: string}) {
+  return {
+    name: input.name,
+    tier: 'other' as const,
+    imports: 1,
+    onPage: 0,
+    specifier: `lucide-solid/icons/${input.name}`,
+    sentence: null,
+    props: [],
+    usage: null,
+    renders: [],
+  }
+}
+
+function tabsLayer(input: {id: string; node: string; name: string; box: Box}): Layer {
+  return layer({id: input.id, element: 'div', classes: ['xp-tabs'], box: input.box, look: look(input)})
 }
 
 function roundSample(): Sample {
@@ -141,7 +306,8 @@ function sampleOf(input: {ref: string; rows: Row[]; nodes: number}): Sample {
   return {
     current: target,
     rounds: {target, rounds, mapping: {}, unsettled: 0},
-    layers: {round: rounds.length, width: target.width, root: pageLayer()},
+    layers: {round: rounds.length, width: target.width, root: pageLayer([])},
+    parts: [],
   }
 }
 
@@ -201,7 +367,7 @@ function row(input: {node: string; name: string; magnitude: Row['magnitude']; te
   }
 }
 
-function pageLayer(): Layer {
+function pageLayer(extra: Layer[]): Layer {
   return layer({
     id: 'n7jFZw',
     element: 'main',
@@ -230,6 +396,7 @@ function pageLayer(): Layer {
         box: {x: 472, y: 378, w: 56, h: 56},
         look: look({node: '34:617', name: 'Avatar', box: {x: 472, y: 378, w: 56, h: 56}}),
       }),
+      ...extra,
     ],
   })
 }
