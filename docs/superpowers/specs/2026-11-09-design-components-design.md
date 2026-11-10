@@ -224,3 +224,24 @@ node's render) needs the registered tab to render previews off screen and an asy
 browser of its own and will not get one. It is built after Measure (Task 8) shows what the name and variant hint alone
 achieve, as a page verb that loads a preview in a hidden frame of the registered tab and captures it through the capture
 path that exists. Until then `Hinter` stays synchronous and the preview page carries no widget.
+
+## A named component is a row (2026-11-10)
+
+The Parts view runs (`xray6-parts-1`, `xray6-parts-dark-1`) got the per-node hints: the reply said `hint: Chip` on the
+chip nodes and `hint: Button` on the buttons, and the agent drew both by hand anyway, as every kit run before it did.
+A hint is advice, and advice in a reply field is skipped. What the agent does act on is a row from `design_check`, because
+rows stand between it and `done`.
+
+So a hint with no doubt becomes a row. When a design node's name holds a kit component's name as whole words (the hint
+scores 1) and the element it pairs to is not rendered by that component (the relation says another component or none),
+`design_check` lists one row for the node with magnitude `component`: "<node name> is drawn by hand; the design names
+`<Component>` (`import {Component} from '<specifier>'`)". The row counts toward the verdict like a paint row. A node
+whose hint is a guess (under 1) gets no row; a project with no kit tier gets none; `catalog.hint: false` removes them
+with the hints. A `prefer` flag on a component makes its rows fire at any hint score; `do-not-use` makes them never fire.
+
+Hints under certainty must share a word with the component's name to be hints at all: the fuzzy score alone gave
+"Part" the hint `Far` and "Header" the hint `Loader`, a third of all hints on the x-ray frame, and such a hint teaches
+the agent to ignore the field.
+
+Measure (Task 8) now has its two arms: the x-ray round and Parts states with and without the component row, kit imports
+kept in the final source as the count.

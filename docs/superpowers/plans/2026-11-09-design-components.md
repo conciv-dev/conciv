@@ -219,6 +219,23 @@
 - [ ] **Step 2:** Proof and shots as for the other views.
 - [ ] **Step 3: Commit** `design: the overlay parts view`.
 
+### Task 7b: A named component is a row
+
+**Files:**
+
+- Modify: `packages/extensions/design/src/server/catalog/name-variant-hinter.ts` (a hint needs one shared word; score 1 for whole-word names), `src/server/differ.ts` or the row builder the drift rows use (one `component` row per hinted node whose relation disagrees), `src/shared/defs.ts` (`MagnitudeSchema` gains `component`; `GateRow.component` carries name and specifier), `src/server/document.ts` (one rule line: a `component` row is cleared by rendering the node with the named component), `src/xray/panel.tsx` and `card.tsx` (chip "Hand-drawn", the import line in the card)
+- Test: `packages/it/test/design.it.test.ts` (or its catalog describes)
+
+**Interfaces:**
+
+- Consumes: `Hinter.hint` (Task 4), `store.relation` (Task 5), `classifyDrift` (Task 5b) for where rows are added.
+- Produces: `GateRow` with `magnitude: 'component'`, `component: {name, specifier}`.
+
+- [ ] **Step 1:** Failing IT on the drift fixture: a design node named "Chip" paired to a hand-written `div.chip` gets one `component` row naming `Chip` and `./src/Chip.tsx`; the same node rendered by `<Chip>` gets none; `catalog.hint: false` gives none; `do-not-use` on Chip gives none; `prefer` on Chip with a node named "Tag" (hint under 1) gives one.
+- [ ] **Step 2:** Implement; the row text as the spec's "A named component is a row" section gives it.
+- [ ] **Step 3:** Hints need one shared word: the fuzzy-only hints ("Part" to `Far`) are gone; IT asserts "Header" gets no hint.
+- [ ] **Step 4:** Gates, proof shot of the chip in the round list, commit `design: a named component is a row`.
+
 ### Task 8: Measure
 
 **Files:**
