@@ -729,6 +729,81 @@ describe('api codex turns', () => {
   }, 40_000)
 })
 
+describe('api claude turns', () => {
+  const saved = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    CLAUDE_CODE_EFFORT_LEVEL: process.env.CLAUDE_CODE_EFFORT_LEVEL,
+    MAX_THINKING_TOKENS: process.env.MAX_THINKING_TOKENS,
+  }
+  const root = mkdtempSync(join(tmpdir(), 'conciv-claude-turns-'))
+  const bin = join(root, 'bin')
+  const fakeClaude = [
+    '#!/bin/sh',
+    'cat > /dev/null',
+    'printf "%s\\n" "$@" > "$(dirname "$0")/args"',
+    'printf "effort=%s thinking=%s" "$CLAUDE_CODE_EFFORT_LEVEL" "$MAX_THINKING_TOKENS" > "$(dirname "$0")/env"',
+    `echo '{"type":"system","subtype":"init","session_id":"claude-native-1","model":"fake","tools":[]}'`,
+    `echo '{"type":"result","subtype":"success","result":"ok"}'`,
+  ].join('\n')
+  beforeAll(() => {
+    mkdirSync(bin)
+    mkdirSync(join(root, 'home'))
+    writeFileSync(join(bin, 'claude'), fakeClaude, {mode: 0o755})
+    process.env.PATH = `${bin}:${saved.PATH ?? ''}`
+    process.env.HOME = join(root, 'home')
+    delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    delete process.env.MAX_THINKING_TOKENS
+  })
+  const made: {app: MadeApp | null} = {app: null}
+  const kit = sharedKit(() =>
+    createTestkit(claude, async (env) => {
+      const app = await bootMadeApp(env)
+      made.app = app
+      return {fetch: app.fetch, dispose: app.dispose, agentToken: app.agentToken}
+    }).setup(),
+  )
+
+  afterAll(() => {
+    Object.assign(process.env, saved)
+    if (saved.CLAUDE_CODE_EFFORT_LEVEL === undefined) delete process.env.CLAUDE_CODE_EFFORT_LEVEL
+    if (saved.MAX_THINKING_TOKENS === undefined) delete process.env.MAX_THINKING_TOKENS
+    rmSync(root, {recursive: true, force: true})
+  })
+
+  async function cliRun(sessionId: string, model: string, effort: 'high' | null) {
+    if (made.app === null) throw new Error('the app did not boot')
+    made.app.chat.db.update(sessions).set({model, effort}).where(eq(sessions.id, sessionId)).run()
+    await runTurn(kit(), `run ${model}`, sessionId)
+    const args = readFileSync(join(bin, 'args'), 'utf8').split('\n')
+    return {
+      model: args[args.indexOf('--model') + 1],
+      effortFlags: args.filter((arg) => arg === '--effort').length,
+      env: readFileSync(join(bin, 'env'), 'utf8'),
+    }
+  }
+
+  it('runs claude at the effort picked for the session through one setting, a Claude 5 model and a 4.x model alike', async () => {
+    const sessionId = (await kit().rpc.sessions.create()).sessionId
+    await runTurn(kit(), 'first', sessionId)
+    expect(await cliRun(sessionId, 'claude-opus-5', 'high')).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-4-7', 'high')).toEqual({
+      model: 'claude-opus-4-7',
+      effortFlags: 0,
+      env: 'effort=high thinking=',
+    })
+    expect(await cliRun(sessionId, 'claude-opus-5', null)).toEqual({
+      model: 'claude-opus-5',
+      effortFlags: 0,
+      env: 'effort= thinking=',
+    })
+  }, 30_000)
+})
+
 describe('api harness switching', () => {
   type SeenTurn = {harness: string; resumeSessionId: HarnessSessionId | null; model: string | undefined; sent: string}
   const seen: SeenTurn[] = []
@@ -1798,7 +1873,7 @@ describe('rpc wire', () => {
         expect(new Set(after.map((message) => message.id)).size).toBe(after.length)
       })
 
-      it('the chosen effort reaches the turn as reasoning, and a model without effort clears it', async () => {
+      it('the chosen effort reaches the harness, and a model without effort clears it', async () => {
         const sessionId = await newSession()
         const {models} = await chatKit().rpc.meta.models({sessionId})
         const plain = models.find((model) => model.efforts === undefined)
@@ -1807,12 +1882,12 @@ describe('rpc wire', () => {
         expect(await sessionMeta(sessionId)).toMatchObject({effort: 'high'})
         script().scriptTurn({toolCalls: [], text: 'thought hard'})
         await finished(sessionId, 'think about it')
-        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, reasoning: 'high'})
+        expect(lastRunOf(sessionId)).toMatchObject({model: undefined, effort: 'high'})
 
         await chatKit().rpc.sessions.effort({sessionId, effort: null})
         script().scriptTurn({toolCalls: [], text: 'default effort'})
         await finished(sessionId, 'again')
-        expect(lastRunOf(sessionId).reasoning).toBeUndefined()
+        expect(lastRunOf(sessionId).effort).toBeUndefined()
 
         await chatKit().rpc.sessions.effort({sessionId, effort: 'max'})
         await chatKit().rpc.sessions.model({sessionId, model: plain.id})
@@ -3277,7 +3352,7 @@ return seen`
     sessionId: string
     kind: 'chat' | 'compact'
     model: string | undefined
-    reasoning: string | undefined
+    effort: string | undefined
     resumeSessionId: string | null
     messages: string
     tools: string[]
@@ -3476,7 +3551,7 @@ return seen`
               sessionId: deps.sessionId,
               kind: deps.kind,
               model: deps.model,
-              reasoning: options.reasoning?.level,
+              effort: deps.effort,
               resumeSessionId: deps.resumeSessionId,
               messages: JSON.stringify(options.messages),
               tools: (options.tools ?? []).map((tool) => tool.name),

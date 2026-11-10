@@ -100,6 +100,7 @@ export type HarnessChatDeps = {
   sessionId: SessionId
   resumeSessionId: HarnessSessionId | null
   model?: string
+  effort?: ReasoningEffort
   env: Record<string, string | undefined>
   kind: 'chat' | 'compact'
   hasTools?: boolean

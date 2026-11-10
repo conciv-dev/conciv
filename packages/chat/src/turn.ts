@@ -194,6 +194,7 @@ export function turnHooks(
         sessionId,
         resumeSessionId,
         model: model ?? undefined,
+        effort: own?.effort ?? undefined,
         env: deps.harnessEnv?.(sessionId) ?? process.env,
         kind: turn.kind,
         hasTools: toolSet.codeMode.length + toolSet.asking.length > 0,
@@ -201,7 +202,6 @@ export function turnHooks(
       return {
         adapter: config.adapter,
         modelOptions: config.modelOptions,
-        reasoning: own?.effort ?? undefined,
         systemPrompts: systemText === '' ? [] : [systemText],
         codeMode: toolSet.codeMode,
         asking: toolSet.asking,

@@ -240,11 +240,6 @@ minimumReleaseAgeExclude:
   - 'lucide-solid'
   - 'tsdown'
 patchedDependencies:
-  # Effort on Claude 5 models: CLAUDE_CODE_MODEL_REASONING (dist/esm/model-meta.js) lists only 4.x ids, so
-  # fable, claude-fable-5, claude-opus-5, claude-sonnet-5 and [1m] ids sent no effort, and the sonnet and haiku
-  # aliases (now 5.5, effort low..max) used the old thinking budget. Ids the EFFORT_MODELS regex matches now
-  # fall back to the low..max effort levels. Drop it once upstream lists the 5.x models.
-  '@tanstack/ai-claude-code@1.0.1': patches/@tanstack__ai-claude-code@1.0.1.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search). The patch only reaches users because
   # @conciv/client bundles the one solid-query + query-core copy the widget and every extension import; a
