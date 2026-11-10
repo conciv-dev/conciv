@@ -44,15 +44,18 @@ export async function openSource(
   locateResult: LocateResult,
   session: () => string | null,
 ): Promise<OpenSourceResult> {
-  const {rpc} = makeBrowserRpcClient(apiBase, {session})
+  const client = makeBrowserRpcClient(apiBase, {session})
   try {
     if (locateResult.source) {
-      await rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})
+      await client.rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})
       return 'opened'
     }
-    if (locateResult.frames.length) return (await rpc.editor.openFromFrames({frames: locateResult.frames})).status
+    if (locateResult.frames.length)
+      return (await client.rpc.editor.openFromFrames({frames: locateResult.frames})).status
     return 'no-source'
   } catch {
     return 'failed'
+  } finally {
+    client.close()
   }
 }

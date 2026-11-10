@@ -10,7 +10,7 @@ The testkit runs the real product path and fakes only the expensive externals, t
 
 ## Interface
 
-- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./rpc-mounts`, `./rpc-websocket-client`.
+- `package.json:exports` - `.` (`src/testkit.ts`), `./until`, `./login`, `./rpc-mounts`.
 - `vitest.config.ts` - `ciTest()` with the `node` environment.
 - Source: [src](./src/README.md).
 

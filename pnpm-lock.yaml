@@ -3558,6 +3558,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../../contract
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit

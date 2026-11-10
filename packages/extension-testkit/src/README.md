@@ -12,7 +12,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 
 - `getExtensionTestApi` (`get-extension-test-api.ts`): boots the server, resolves a session, starts the host on the plain engine origin, launches the browser on a `#conciv_otp` magic link and returns `ExtensionTestApi` {page, callTool, callToolApproved, runTypescript, discoverTools, session, apiBase, serverContext, secondClient, dispose}; also re-exports `serveDir`, `ServedHost`, `fixtureHost`; types `HostEngine`, `HostHandle`, `ExtensionUnderTest`, `SecondClient`, `ExtensionTestApi`
 - `bootExtensionServer` / `BootedServer` (`boot-server.ts`): runs `@conciv/core/start` with one extension on a temp stateRoot and returns {apiBase (the agent `/t/<agentToken>` base), origin, terminal, extensionContexts, stop}
-- `bootCoreKit` / `CoreKit` (`core-kit.ts`): builds a fake harness plus `makeApp` through `@conciv/harness-testkit` `createTestkit`, returning Kit & {harness, forSession, rpcServed}; `resumeBin` names the bin of the fake's resume command (default the harness id); `rpcServed(path)` counts HTTP RPC calls to that procedure (CORS preflights excluded) whose response the server has produced, so it is ordered before the page sees the reply
+- `bootCoreKit` / `CoreKit` (`core-kit.ts`): builds a fake harness plus `makeApp` through `@conciv/harness-testkit` `createTestkit`, returning Kit & {harness, forSession}; `resumeBin` names the bin of the fake's resume command (default the harness id)
 - `fixtureHost` (`fixture-host.ts`): returns a host factory that serves a prebuilt host dist directory through `serveDir`
 - `serveDir` / `ServedHost` (`serve.ts`): static server for a dir; in .html files it replaces `__CONCIV_API_BASE__` and `__CONCIV_SESSION__`
 - `serveHost` (`serve-host.ts`): HTTP server that answers every request with html(url)
@@ -30,7 +30,7 @@ The testkit runs the real product path. A page under test talks to the engine th
 - `failChatTurns` / `dropChatTurns` / `ChatTurnFault` (`chat-fault.ts`): makes POSTs to CHAT_SSE_PATH return an error status (default 500) or abort them
 - `watchChatWire` / `ChatWireWatch` / `ChatTurnFrame` / `ChatTransport` / `ChatWirePart` (`chat-wire.ts`): captures chat turns sent over the CHAT_WS_PATH websocket or CHAT_SSE_PATH POSTs; exposes nextTurn and socket counters
 - `watchPushWire` / `PushWireWatch` (`push-wire.ts`): counts push sockets and collects approval ids from 'chat' push frames
-- `procedurePathOf` / `samePath` (`rpc-payload.ts`): reads the decoded procedure path from an `/rpc/` URL (null otherwise) and compares two paths
+- `samePath` (`rpc-payload.ts`): compares two procedure paths
 - `makeFakeFrameworkAdapter` / `FrameworkAdapterOverrides` (`framework-fake.ts`): `defineFrameworkAdapter` with canned tanstack-start client, server, queryCache and serverFunctions data, deep-merged with overrides
 - `currentHref` (`navigation-state.ts`): reads the persisted navigation entry href through kit.rpc.navigation.get, '' if none
 - `testHostConfig` / `TestHostConfigOptions` (`test-host-config.ts`): Vite UserConfig for the test host (default root ./host) wiring the conciv build plugin with NO_BUILTINS, a `virtual:conciv-extension-under-test` module, UnoCSS presetConciv, solid and a 'shiki' chunk group

@@ -95,7 +95,7 @@ const testRunnerStream: Plugin = {
     server.middlewares.use((req, res, next) => {
       if (req.url !== FIXTURE_BASE_PATH) return next()
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({base: served.base, wsUrl: served.wsUrl}))
+      res.end(JSON.stringify({base: served.base}))
     })
     server.httpServer?.on('close', () => void served.close())
   },

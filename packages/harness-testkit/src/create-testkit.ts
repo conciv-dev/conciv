@@ -9,7 +9,8 @@ import {ChatContentPartSchema, CONCIV_SESSION_HEADER, type ChatContentPart} from
 import {makeChatSockets, type TurnMessage} from './chat-turn.js'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
-import {makeRpcClient, makeSessionBoundRpcClient, type RpcClient} from './session.js'
+import {makeBrowserRpcClient} from '@conciv/contract'
+import type {RpcClient} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
 
 function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
@@ -107,8 +108,8 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
       const wsBase = `${served.wsBase}/t/${token}`
       const aborts: AbortController[] = []
       const activeSession = {id: ''}
-      const rpc = makeSessionBoundRpcClient(base, () => activeSession.id)
-      const bootstrapRpc = makeRpcClient(base)
+      const browser = makeBrowserRpcClient(base, {session: () => activeSession.id || null})
+      const {rpc} = browser
 
       const post = (path: string, body: unknown, session?: string): Promise<Response> =>
         fetch(`${base}${path}`, {
@@ -119,8 +120,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
           },
           body: JSON.stringify(body),
         })
-      const resolve = async (id?: string): Promise<string> =>
-        (await bootstrapRpc.sessions.resolve(id ? {id} : {})).sessionId
+      const resolve = async (id?: string): Promise<string> => (await rpc.sessions.resolve(id ? {id} : {})).sessionId
       activeSession.id = await resolve()
       const sessionFor = async (session?: string): Promise<string> => session ?? activeSession.id
 
@@ -182,6 +182,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp, options: T
         cleanup: async () => {
           sockets.closeAll()
           for (const abort of aborts) abort.abort()
+          browser.close()
           const closing = await Promise.allSettled([served.close()])
           const disposing = await Promise.allSettled([app.dispose()])
           const removing = await Promise.allSettled(

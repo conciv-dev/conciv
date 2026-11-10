@@ -63,23 +63,18 @@ export type BrowserRpcConnection = {
   close: () => void
 }
 
-type ConnectionEntry = BrowserRpcConnection & {state: TrustState; reconnect: () => void}
+type ConnectionEntry = BrowserRpcConnection & {state: TrustState; reconnect: () => void; holders: Set<object>}
 
 export type ReachabilityListener = (reachable: boolean) => void
 
 declare global {
   // eslint-disable-next-line no-var
-  var __concivBrowserRpcConnectionV4: ConnectionEntry | undefined
+  var __concivBrowserRpcConnectionsV5: Map<string, ConnectionEntry> | undefined
 }
 
-function currentEntry(key: string): ConnectionEntry | undefined {
-  const current = globalThis.__concivBrowserRpcConnectionV4
-  return current?.state.key === key ? current : undefined
-}
-
-function replaceEntry(entry: ConnectionEntry | undefined): void {
-  globalThis.__concivBrowserRpcConnectionV4?.close()
-  globalThis.__concivBrowserRpcConnectionV4 = entry
+function connections(): Map<string, ConnectionEntry> {
+  globalThis.__concivBrowserRpcConnectionsV5 ??= new Map()
+  return globalThis.__concivBrowserRpcConnectionsV5
 }
 
 function readStoredToken(key: string): string | undefined {
@@ -374,6 +369,7 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
     link,
     state,
     trust: makeEngineTrust(key, state, link),
+    holders: new Set(),
     reconnect: () => {
       if (socket.shouldReconnect && socket.readyState !== socket.OPEN && !lifetime.signal.aborted) socket.reconnect()
     },
@@ -386,7 +382,7 @@ function socketConnection(key: string, state: TrustState): ConnectionEntry {
 
 function connectionEntry(apiBase: string): ConnectionEntry {
   const key = normalizeApiBase(apiBase)
-  const existing = currentEntry(key)
+  const existing = connections().get(key)
   if (existing) return existing
   const created = socketConnection(key, {
     key,
@@ -394,24 +390,32 @@ function connectionEntry(apiBase: string): ConnectionEntry {
     token: readStoredToken(key),
     events: new EventTarget(),
   })
-  replaceEntry(created)
+  connections().set(key, created)
   return created
+}
+
+function closeEntry(entry: ConnectionEntry): void {
+  if (connections().get(entry.state.key) === entry) connections().delete(entry.state.key)
+  entry.close()
 }
 
 export function browserRpcConnection(apiBase: string): BrowserRpcConnection {
   return connectionEntry(apiBase)
 }
 
-export function closeBrowserRpcConnection(apiBase: string): void {
-  if (currentEntry(normalizeApiBase(apiBase))) replaceEntry(undefined)
+function holdConnection(key: string): () => void {
+  const entry = connectionEntry(key)
+  const holder = {}
+  entry.holders.add(holder)
+  return () => {
+    if (entry.holders.delete(holder) && entry.holders.size === 0) closeEntry(entry)
+  }
 }
 
 export function resetBrowserRpcConnection(apiBase: string): BrowserRpcConnection {
-  const key = normalizeApiBase(apiBase)
-  const existing = currentEntry(key)
-  if (!existing) return connectionEntry(apiBase)
-  existing.reconnect()
-  return existing
+  const entry = connectionEntry(apiBase)
+  entry.reconnect()
+  return entry
 }
 
 export function engineHeaders(apiBase: string): Record<string, string> {
@@ -441,17 +445,35 @@ export function engineWebSocket(apiBase: string): typeof WebSocket {
 
 export const RPC_UNBOUND_MESSAGE = 'conciv core not connected yet'
 
-export function dynamicBrowserRpcLink(
-  currentApiBase: () => string | null,
-  session?: SessionAccessor,
-): ClientLink<RpcClientContext> {
+export type HeldBrowserRpcLink = {link: ClientLink<RpcClientContext>; release: () => void}
+
+type HeldConnection = {key: string | null; release: () => void}
+
+const NOT_HELD: HeldConnection = {key: null, release: () => {}}
+
+export function heldBrowserRpcLink(currentApiBase: () => string | null, session?: SessionAccessor): HeldBrowserRpcLink {
+  const held: {current: HeldConnection} = {current: NOT_HELD}
+  const hold = (apiBase: string): BrowserRpcConnection => {
+    const key = normalizeApiBase(apiBase)
+    if (held.current.key !== key) {
+      held.current.release()
+      held.current = {key, release: holdConnection(key)}
+    }
+    return connectionEntry(key)
+  }
   return {
-    call: (path, input, options) => {
-      const apiBase = currentApiBase()
-      if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
-      const sessionId = session?.()
-      const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
-      return browserRpcConnection(apiBase).link.call(path, input, {...options, context})
+    link: {
+      call: (path, input, options) => {
+        const apiBase = currentApiBase()
+        if (apiBase === null) throw new Error(RPC_UNBOUND_MESSAGE)
+        const sessionId = session?.()
+        const context = sessionId ? {...options.context, concivSessionId: sessionId} : options.context
+        return hold(apiBase).link.call(path, input, {...options, context})
+      },
+    },
+    release: () => {
+      held.current.release()
+      held.current = NOT_HELD
     },
   }
 }
