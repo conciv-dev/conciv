@@ -151,7 +151,7 @@ function heldText(input: {vote: Vote; entry: Node}): Pick | null {
 }
 
 function displaced(input: {vote: Vote; entry: Node; offered: Scored[]; votes: Ballot[]}): boolean {
-  const {vote, entry} = input
+  const {vote, entry, offered, votes} = input
   const lines = [...walk(entry.node)]
     .flatMap(({node}) => (node.kind === 'text' ? [normalized(node.text)] : []))
     .filter(Boolean)
@@ -160,18 +160,17 @@ function displaced(input: {vote: Vote; entry: Node; offered: Scored[]; votes: Ba
     if (vote.taken.has(element.path) || element.box.w * element.box.h === 0) return []
     if (lines[0] === undefined) return pictured(entry.node) && element.img ? [element] : []
     if (entry.node.kind === 'text' || !text.includes(lines[0])) return text === lines[0] ? [element] : []
-    const held = vote.byPath.get(
-      [element.path, ...element.chain].find((path) => holdsAll({vote, path, said: lines})) ?? '',
-    )
+    const holder = [element.path, ...element.chain].find((path) => holdsAll({vote, path, said: lines})) ?? ''
+    const held = vote.byPath.get(holder)
     return held === undefined || vote.taken.has(held.path) ? [] : [held]
   })
   const scored = uniqBy(carriers, (element) => element.path)
-    .filter((element) => !input.offered.some((rival) => rival.path === element.path))
+    .filter((element) => !offered.some((rival) => rival.path === element.path))
     .flatMap((element) => scoreOf({vote, entry, element, anywhere: true}))
   const pick = picked(scored)
   if (pick === null) return false
   paired({vote, node: entry.node.id, pick})
-  input.votes.push(...ballotsOf({node: entry.node.id, scored, byPath: vote.byPath, won: pick.path}))
+  votes.push(...ballotsOf({node: entry.node.id, scored, byPath: vote.byPath, won: pick.path}))
   return true
 }
 
@@ -407,7 +406,8 @@ function orderedTwin(input: {vote: Vote; entry: Node; scored: Scored[]; pick: Pi
     .toSorted((a, b) => b.score - a.score)
     .slice(0, 2)
     .toSorted((a, b) => a.path.localeCompare(b.path, 'en', {numeric: true}))
-  const twins = entry.parent.children.filter(
+  const placed = entry.parent.children.toSorted((a, b) => shapes.readingOrder({a: boxOf(a), b: boxOf(b)}))
+  const twins = placed.filter(
     (sibling) =>
       sibling === entry.node ||
       twinned({vote, entry: {...entry, node: sibling, box: boxOf(sibling)}, pair, type: entry.node.figma?.type}),
