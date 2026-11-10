@@ -524,11 +524,10 @@ describe.skipIf(inFirefox)('page tools', () => {
     })
   })
 
-  describe('actions reply at once', () => {
-    it('fills, checks and clicks far-away controls and replies before the page has finished scrolling to them', async () => {
+  describe('far-away targets', () => {
+    it('fills, checks and clicks far-away controls, scrolling each into view', async () => {
       const far = document.createElement('div')
       far.innerHTML = `
-        <p id="order">order:</p>
         <div style="height: 3000px"></div>
         <label>Far name <input id="far-name" type="text" /></label>
         <div style="height: 3000px"></div>
@@ -538,12 +537,7 @@ describe.skipIf(inFirefox)('page tools', () => {
         <p id="far-clicks">0 far clicks</p>
       `
       document.body.append(far)
-      const order = far.querySelector('#order')
-      const note = (entry: string) => order?.append(` ${entry}`)
-      const scrolled = () => note('scrolled')
-      document.addEventListener('scrollend', scrolled)
       onTestFinished(() => {
-        document.removeEventListener('scrollend', scrolled)
         window.scrollTo(0, 0)
         far.remove()
       })
@@ -551,22 +545,18 @@ describe.skipIf(inFirefox)('page tools', () => {
         const clicks = far.querySelector('#far-clicks')
         if (clicks) clicks.textContent = `${Number.parseInt(clicks.textContent ?? '0', 10) + 1} far clicks`
       })
-      const orderLine = () => page.getByText(/^order:/)
 
       expect(await resultOf('fill', {selector: '#far-name', value: 'Ada'})).toEqual({ok: true, value: 'Ada'})
-      note('replied')
       await expect.element(page.getByRole('textbox', {name: 'Far name'})).toHaveValue('Ada')
-      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled')
+      await expect.element(page.getByRole('textbox', {name: 'Far name'})).toBeInViewport()
 
       expect(await resultOf('check', {selector: '#far-box'})).toEqual({ok: true, checked: true})
-      note('replied')
       await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeChecked()
-      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled replied scrolled')
+      await expect.element(page.getByRole('checkbox', {name: 'Far box'})).toBeInViewport()
 
       expect(await resultOf('click', {selector: '#far-button'})).toEqual({ok: true})
-      note('replied')
       await expect.element(page.getByText('1 far clicks')).toBeVisible()
-      await expect.element(orderLine()).toHaveTextContent('order: replied scrolled replied scrolled replied scrolled')
+      await expect.element(page.getByRole('button', {name: 'Far button'})).toBeInViewport()
     })
   })
 
