@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
-import {os} from '@orpc/server'
+import {os, type ErrorMap, type Procedure} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, type ServerApi, type ServerHarness} from '@conciv/extension'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
@@ -120,15 +120,32 @@ const terminalOs = os.$context<RpcContext>()
 
 const SessionInputSchema = z.object({sessionId: SessionId})
 
+const OpenInputSchema = TerminalOpenRequestSchema.extend(SessionInputSchema.shape)
+const AliveSchema = z.object({alive: z.boolean()})
+
 const noTty = {NO_TTY: {message: 'harness has no terminal mode'}}
 const busy = {BUSY: {message: 'session busy'}}
 
-function makeTerminalRouter(runtime: TerminalRuntime) {
+type TerminalProcedure<Input extends z.ZodType, Output extends z.ZodType, Errors extends ErrorMap> = Procedure<
+  RpcContext,
+  RpcContext,
+  Input,
+  Output,
+  Errors,
+  Record<never, never>
+>
+export type TerminalRouter = {
+  open: TerminalProcedure<typeof OpenInputSchema, typeof AliveSchema, typeof noTty & typeof busy>
+  close: TerminalProcedure<typeof SessionInputSchema, typeof AliveSchema, typeof busy>
+  state: TerminalProcedure<typeof SessionInputSchema, typeof TerminalStateSchema, Record<never, never>>
+}
+
+function makeTerminalRouter(runtime: TerminalRuntime): TerminalRouter {
   return terminalOs.router({
     open: terminalOs
       .errors({...noTty, ...busy})
-      .input(TerminalOpenRequestSchema.extend(SessionInputSchema.shape))
-      .output(z.object({alive: z.boolean()}))
+      .input(OpenInputSchema)
+      .output(AliveSchema)
       .handler(async ({input, context, errors}) => {
         const {sessionId, ...size} = input
         if (!runtime.server.harness(sessionId).ttyCommand) throw errors.NO_TTY()
@@ -139,7 +156,7 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
     close: terminalOs
       .errors(busy)
       .input(SessionInputSchema)
-      .output(z.object({alive: z.boolean()}))
+      .output(AliveSchema)
       .handler(async ({input, errors}) => {
         if ((await liveTty(runtime, input.sessionId))?.busy()) throw errors.BUSY()
         runtime.tty.close(input.sessionId)
@@ -155,8 +172,6 @@ function makeTerminalRouter(runtime: TerminalRuntime) {
       }),
   })
 }
-
-export type TerminalRouter = ReturnType<typeof makeTerminalRouter>
 
 function ttyApp(upgradeWebSocket: UpgradeWebSocket) {
   return new Hono<TerminalEnv>().get(

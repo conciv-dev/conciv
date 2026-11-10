@@ -75,8 +75,6 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
-    "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",

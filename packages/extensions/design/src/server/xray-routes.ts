@@ -1,11 +1,11 @@
 import {readFile} from 'node:fs/promises'
 import {join, resolve, sep} from 'node:path'
-import {ORPCError, os} from '@orpc/server'
+import {ORPCError, os, type Procedure, type Schema} from '@orpc/server'
 import {Hono, type Context} from 'hono'
 import {getMimeType} from 'hono/utils/mime'
 import {z} from 'zod'
 import type {RpcContext} from '@conciv/protocol/rpc-types'
-import type {TargetStore} from '../shared/types.js'
+import type {DiffReport, TargetRecord, TargetStore} from '../shared/types.js'
 import {TARGET_FILE} from './store.js'
 
 const PAGE_FILE = 'index.html'
@@ -13,15 +13,36 @@ const NOT_BUILT = 'the x-ray page is not built; build @conciv/extension-design'
 const NonEmptySchema = z.string().min(1)
 
 const xrayOs = os.$context<RpcContext>()
+const TargetsInputSchema = z.object({route: z.string().optional()})
+const ReportInputSchema = z.object({id: z.string()})
+type XrayReport = {target: TargetRecord; report: DiffReport | null; targetImage: string; sourceChangedAt: number | null}
+type XrayProcedure<Input extends z.ZodType, Output> = Procedure<
+  RpcContext,
+  RpcContext,
+  Input,
+  Schema<Output, Output>,
+  Record<never, never>,
+  Record<never, never>
+>
+export type XrayRouter = {
+  xray: {
+    targets: XrayProcedure<typeof TargetsInputSchema, TargetRecord[]>
+    report: XrayProcedure<typeof ReportInputSchema, XrayReport>
+  }
+}
 
-export function makeXrayRouter(input: {store: TargetStore; designDir: string; sourceChangedAt: () => number | null}) {
+export function makeXrayRouter(input: {
+  store: TargetStore
+  designDir: string
+  sourceChangedAt: () => number | null
+}): XrayRouter {
   const {store, designDir, sourceChangedAt} = input
   return xrayOs.router({
     xray: {
       targets: xrayOs
-        .input(z.object({route: z.string().optional()}))
+        .input(TargetsInputSchema)
         .handler(({input: filter}) => store.list(filter.route === undefined ? {} : {route: filter.route})),
-      report: xrayOs.input(z.object({id: z.string()})).handler(async ({input: query}) => {
+      report: xrayOs.input(ReportInputSchema).handler(async ({input: query}) => {
         const target = await store.find({id: query.id})
         if (target === null) throw new ORPCError('NOT_FOUND', {message: `no design target with id ${query.id}`})
         return {
@@ -88,4 +109,3 @@ export function makeXrayApp(input: {store: TargetStore; pageDir: string; designD
       return fileResponse(path)
     })
 }
-export type XrayRouter = ReturnType<typeof makeXrayRouter>

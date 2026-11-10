@@ -1,5 +1,5 @@
 import {eq} from 'drizzle-orm'
-import {eventIterator, ORPCError, os} from '@orpc/server'
+import {eventIterator, ORPCError, os, type ErrorMap, type Procedure, type Schema} from '@orpc/server'
 import {z} from 'zod'
 import {subscriptionIterator} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId, type SessionId} from '@conciv/protocol/chat-types'
@@ -38,6 +38,52 @@ const roomOs = wbOs.use(({context, next}) => next({context: {room: serverRoom(co
 
 const scopeInput = z.object({scope: z.enum(['live', 'draft'])})
 const notFound = {NOT_FOUND: {message: 'row not found'}}
+const conflict = {CONFLICT: {message: 'element version conflict', data: z.object({current: elementRow})}}
+const RemoveInput = z.object({id: z.string()})
+const DeletedOutput = z.object({deleted: z.boolean()})
+const ElementsOutput = z.array(elementRow)
+const UpsertInput = scopeInput.extend({row: elementRowInsert})
+const BulkUpsertInput = scopeInput.extend({rows: z.array(elementRowInsert)})
+const BulkUpsertOutput = z.object({rows: z.array(elementRow)})
+const BulkDeleteInput = scopeInput.extend({elementIds: z.array(z.string())})
+const BulkDeleteOutput = z.object({deleted: z.number()})
+const OkOutput = z.object({ok: z.literal(true)})
+const commentPatch = commentRow.omit({id: true, sessionId: true}).partial()
+const pinPatch = pinRow.omit({id: true, room: true}).partial()
+const readPatch = readRow.omit({id: true, sessionId: true}).partial()
+const pendingPatch = pendingRow.omit({id: true, room: true}).partial()
+const replyPatch = replyRow.omit({id: true, room: true}).partial()
+
+type RoomProcedure<
+  Input extends Schema<unknown, unknown>,
+  Output extends Schema<unknown, unknown>,
+  Errors extends ErrorMap = Record<never, never>,
+> = Procedure<RpcContext, RpcContext & {room: SessionId}, Input, Output, Errors, Record<never, never>>
+type TableRouter<Row extends z.ZodType, Insert extends z.ZodType, Patch extends z.ZodType> = {
+  list: RoomProcedure<Schema<unknown, unknown>, z.ZodArray<z.ZodType<z.output<Row>, z.input<Row>>>>
+  insert: RoomProcedure<z.ZodType<z.output<Insert>, z.input<Insert>>, z.ZodType<z.output<Row>, z.input<Row>>>
+  update: RoomProcedure<
+    z.ZodObject<{id: z.ZodString; patch: z.ZodType<Partial<z.output<Row>>, z.input<Patch>>}>,
+    z.ZodType<z.output<Row>, z.input<Row>>,
+    typeof notFound
+  >
+  remove: RoomProcedure<typeof RemoveInput, typeof DeletedOutput>
+}
+export type WhiteboardRouter = {
+  comments: TableRouter<typeof commentRow, typeof commentRowInsert, typeof commentPatch>
+  pins: TableRouter<typeof pinRow, typeof pinRowInsert, typeof pinPatch>
+  reads: TableRouter<typeof readRow, typeof readRowInsert, typeof readPatch>
+  canvasPending: TableRouter<typeof pendingRow, typeof pendingRowInsert, typeof pendingPatch>
+  canvasReplies: TableRouter<typeof replyRow, typeof replyRowInsert, typeof replyPatch>
+  elements: {
+    list: RoomProcedure<typeof scopeInput, typeof ElementsOutput>
+    upsert: RoomProcedure<typeof UpsertInput, typeof elementRow, typeof conflict>
+    bulkUpsert: RoomProcedure<typeof BulkUpsertInput, typeof BulkUpsertOutput>
+    bulkDelete: RoomProcedure<typeof BulkDeleteInput, typeof BulkDeleteOutput>
+  }
+  cursor: RoomProcedure<typeof cursorEventInsert, typeof OkOutput>
+  changes: RoomProcedure<Schema<unknown, unknown>, ReturnType<typeof eventIterator<WhiteboardEvent, WhiteboardEvent>>>
+}
 
 type TableOps<Row extends object, Insert extends object> = {
   toRow: (input: Insert, room: SessionId) => Row
@@ -76,44 +122,44 @@ function tableRouter<RowInput, InsertInput, PatchInput, Row extends RowInput & {
         return row
       }),
     remove: roomOs
-      .input(z.object({id: z.string()}))
-      .output(z.object({deleted: z.boolean()}))
+      .input(RemoveInput)
+      .output(DeletedOutput)
       .handler(async ({input, context}) => ({deleted: await ops.remove(input.id, context.room)})),
   }
 }
 
-export function makeWhiteboardRouter(store: Store) {
+export function makeWhiteboardRouter(store: Store): WhiteboardRouter {
   const db = store.db
   return wbOs.router({
-    comments: tableRouter(commentRow, commentRowInsert, commentRow.omit({id: true, sessionId: true}).partial(), {
+    comments: tableRouter(commentRow, commentRowInsert, commentPatch, {
       toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(comments).where(eq(comments.sessionId, room)),
       insert: (row) => store.insertComment(row),
       update: (id, room, patch) => store.updateComment(id, room, patch),
       remove: (id, room) => store.deleteComment(id, room),
     }),
-    pins: tableRouter(pinRow, pinRowInsert, pinRow.omit({id: true, room: true}).partial(), {
+    pins: tableRouter(pinRow, pinRowInsert, pinPatch, {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(pins).where(eq(pins.room, room)),
       insert: (row) => store.insertPin(row),
       update: (id, room, patch) => store.updatePin(id, room, patch),
       remove: (id, room) => store.deletePin(id, room),
     }),
-    reads: tableRouter(readRow, readRowInsert, readRow.omit({id: true, sessionId: true}).partial(), {
+    reads: tableRouter(readRow, readRowInsert, readPatch, {
       toRow: (input, room) => ({...input, sessionId: room}),
       list: (room) => db.select().from(reads).where(eq(reads.sessionId, room)),
       insert: (row) => store.insertRead(row),
       update: (id, room, patch) => store.updateRead(id, room, patch),
       remove: (id, room) => store.deleteRead(id, room),
     }),
-    canvasPending: tableRouter(pendingRow, pendingRowInsert, pendingRow.omit({id: true, room: true}).partial(), {
+    canvasPending: tableRouter(pendingRow, pendingRowInsert, pendingPatch, {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasPending).where(eq(canvasPending.room, room)),
       insert: (row) => store.insertPending(row),
       update: (id, room, patch) => store.updatePending(id, room, patch),
       remove: (id, room) => store.deletePending(id, room),
     }),
-    canvasReplies: tableRouter(replyRow, replyRowInsert, replyRow.omit({id: true, room: true}).partial(), {
+    canvasReplies: tableRouter(replyRow, replyRowInsert, replyPatch, {
       toRow: (input, room) => ({...input, room}),
       list: (room) => db.select().from(canvasReplies).where(eq(canvasReplies.room, room)),
       insert: (row) => store.insertReply(row),
@@ -123,11 +169,11 @@ export function makeWhiteboardRouter(store: Store) {
     elements: {
       list: roomOs
         .input(scopeInput)
-        .output(z.array(elementRow))
+        .output(ElementsOutput)
         .handler(({input, context}) => store.listElements(input.scope, context.room)),
       upsert: roomOs
-        .errors({CONFLICT: {message: 'element version conflict', data: z.object({current: elementRow})}})
-        .input(scopeInput.extend({row: elementRowInsert}))
+        .errors(conflict)
+        .input(UpsertInput)
         .output(elementRow)
         .handler(async ({input, context, errors}) => {
           const row = {...input.row, room: context.room}
@@ -136,22 +182,22 @@ export function makeWhiteboardRouter(store: Store) {
           return outcome.row
         }),
       bulkUpsert: roomOs
-        .input(scopeInput.extend({rows: z.array(elementRowInsert)}))
-        .output(z.object({rows: z.array(elementRow)}))
+        .input(BulkUpsertInput)
+        .output(BulkUpsertOutput)
         .handler(async ({input, context}) => {
           const rows = input.rows.map((row) => ({...row, room: context.room}))
           return {rows: await store.upsertElements(input.scope, rows)}
         }),
       bulkDelete: roomOs
-        .input(scopeInput.extend({elementIds: z.array(z.string())}))
-        .output(z.object({deleted: z.number()}))
+        .input(BulkDeleteInput)
+        .output(BulkDeleteOutput)
         .handler(async ({input, context}) => ({
           deleted: await store.deleteElements(input.scope, context.room, input.elementIds),
         })),
     },
     cursor: roomOs
       .input(cursorEventInsert)
-      .output(z.object({ok: z.literal(true)}))
+      .output(OkOutput)
       .handler(({input, context}) => {
         store.cursor({...input, room: context.room})
         return {ok: true as const}
@@ -167,5 +213,3 @@ export function makeWhiteboardRouter(store: Store) {
     }),
   })
 }
-
-export type WhiteboardRouter = ReturnType<typeof makeWhiteboardRouter>

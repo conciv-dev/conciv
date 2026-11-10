@@ -68,7 +68,6 @@
     "@excalidraw/mermaid-to-excalidraw": "3.0.0",
     "@libsql/client": "^0.18.0",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@solid-primitives/event-listener": "catalog:",
     "@takumi-rs/core": "^2.18.2",

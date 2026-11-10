@@ -2312,9 +2312,6 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
@@ -2831,9 +2828,6 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
@@ -3104,12 +3098,6 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
@@ -3328,9 +3316,6 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
@@ -3428,12 +3413,6 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
-      '@orpc/client':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
@@ -3608,9 +3587,6 @@ importers:
         specifier: ^0.18.0
         version: 0.18.0
       '@orpc/client':
-        specifier: 'catalog:'
-        version: 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server':
@@ -19485,7 +19461,6 @@ snapshots:
       '@conciv/ui-kit-terminal': link:packages/ui-kit-terminal
       '@lydell/node-pty': 1.1.0
       '@orpc/client': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/contract': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/server': 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@solid-primitives/event-listener': 2.4.6(solid-js@1.9.17)
       hono: 4.13.14

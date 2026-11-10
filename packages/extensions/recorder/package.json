@@ -59,8 +59,6 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
-    "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@rrweb/rrweb-plugin-console-record": "^2.2.0",
     "@rrweb/types": "^2.2.0",

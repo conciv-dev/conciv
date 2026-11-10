@@ -82,7 +82,6 @@
     "@jridgewell/trace-mapping": "0.3.31",
     "@orama/orama": "catalog:",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@tanstack/pacer": "catalog:",
