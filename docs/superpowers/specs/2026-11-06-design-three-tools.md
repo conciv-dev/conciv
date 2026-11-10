@@ -561,3 +561,10 @@ from the design node's line count (the design's `lineHeight` into its box height
 into its height), `design_check` emits a `reflow` row on that text node, 'wraps to N lines, the frame has M', before
 any row on its parents, and the parent's content-taller row names it as the cause. The tolerance on a text's height
 does not hide a line count that differs: lines are counted, not measured.
+
+A page whose height differs from the frame's by more than the frame's own height is the first row (2026-11-10).
+`design_check` emits, before any node row, a `reflow` row on the root: 'the page is H px tall, the frame is F; the
+tallest element past the frame is <element> at <source line>, N px'. The element named is the one whose box extends
+furthest below the frame's bottom among elements whose own height exceeds the frame's and none of whose children's
+does, so the element that grew is named, not the sections that hold it. The coverage sentence follows it, not the
+other way round.
