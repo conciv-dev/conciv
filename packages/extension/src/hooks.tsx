@@ -1,7 +1,6 @@
 import {onCleanup, onMount, splitProps, useContext, type Component, type JSX} from 'solid-js'
 import {HostApiContext, use, type HostWiring} from './host-context.js'
-import {createClientSettings} from './settings-client.js'
-import type {ExtensionScope, SettingsForNamespace} from './types.js'
+import {useScope} from './use-scope.js'
 
 export {useExtensionValue} from './host-context.js'
 
@@ -16,16 +15,6 @@ function layerComponent(hides: boolean, hook: string): Component<{when: boolean;
     const registerLayer = use('registerLayer', hook)
     onMount(() => onCleanup(registerLayer(() => props.when, hides)))
     return <>{props.children}</>
-  }
-}
-
-function useScope<Namespace extends string>(namespace: Namespace): ExtensionScope<Namespace> {
-  const rpc = use('rpc', 'useScope')
-  const following = new AbortController()
-  onCleanup(() => following.abort())
-  return {
-    namespace,
-    settings: createClientSettings<SettingsForNamespace<Namespace>>(rpc, namespace, following.signal),
   }
 }
 

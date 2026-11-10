@@ -3,7 +3,11 @@ import {readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 const SettingsTabSchema = z.enum(['general', 'views', 'shortcuts', 'advanced'])
 
+const LastTabSchema = z.union([SettingsTabSchema, z.object({extension: z.string().min(1)})])
+
 export type SettingsTabId = z.infer<typeof SettingsTabSchema>
+
+export type LastTab = z.infer<typeof LastTabSchema>
 
 const LAST_TAB_KEY = 'conciv:settings-tab'
 
@@ -14,10 +18,10 @@ export const SETTINGS_TAB_ROUTES = {
   advanced: '/panel/$sessionId/settings/advanced',
 } as const
 
-export function readLastTab(): SettingsTabId {
-  return readStorage(LAST_TAB_KEY, (raw) => SettingsTabSchema.safeParse(raw).data, 'general')
+export function readLastTab(): LastTab {
+  return readStorage(LAST_TAB_KEY, (raw) => LastTabSchema.safeParse(JSON.parse(raw)).data, 'general')
 }
 
-export function writeLastTab(tab: SettingsTabId): void {
-  writeStorage(LAST_TAB_KEY, tab)
+export function writeLastTab(tab: LastTab): void {
+  writeStorage(LAST_TAB_KEY, tab, JSON.stringify)
 }

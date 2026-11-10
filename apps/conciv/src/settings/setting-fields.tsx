@@ -1,10 +1,12 @@
 import {For, splitProps, type JSX} from 'solid-js'
 import ChevronDown from 'lucide-solid/icons/chevron-down'
 import {
+  NumberInput,
   RadioGroupPrimitive as RadioGroup,
   SegmentGroup,
   Select,
   Switch,
+  TextField as TextInput,
   createListCollection,
   skinDefinition,
   type SchemePair,
@@ -124,8 +126,7 @@ export function SkinField(props: FieldProps & {skins: readonly SkinName[]; shown
   )
 }
 
-const SELECT_TRIGGER =
-  '!w-auto min-w-37.5 !min-h-8 !py-0 !ps-2.5 !pe-2.5 !rounded-[var(--chat-radius-sm)] !text-[0.75rem] !bg-chat-sunken'
+const SELECT_TRIGGER = '!w-37.5'
 
 export function SelectField(props: FieldProps & {options: readonly Option[]}): JSX.Element {
   const [local] = splitProps(props, ['label', 'hint', 'lock', 'options'])
@@ -186,6 +187,47 @@ export function SwitchField(props: FieldProps): JSX.Element {
         </Switch.Control>
         <Switch.HiddenInput />
       </Switch.Root>
+    </SettingRow>
+  )
+}
+
+type NumberFieldProps = FieldProps & {min?: number; max?: number; step?: number}
+
+export function NumberField(props: NumberFieldProps): JSX.Element {
+  const [local] = splitProps(props, ['label', 'hint', 'lock', 'min', 'max', 'step'])
+  const field = useFieldContext<number | undefined>()
+  return (
+    <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
+      <NumberInput
+        class={CONTROL_WIDTH}
+        value={field().state.value}
+        min={local.min}
+        max={local.max}
+        step={local.step}
+        onValueChange={(value) => field().setValue(value, {dontRunListeners: true})}
+        onValueCommit={(value) => {
+          if (value !== undefined) field().handleChange(value)
+          field().handleBlur()
+        }}
+      />
+    </SettingRow>
+  )
+}
+
+const CONTROL_WIDTH = 'w-37.5'
+
+export function TextField(props: FieldProps): JSX.Element {
+  const [local] = splitProps(props, ['label', 'hint', 'lock'])
+  const field = useFieldContext<string>()
+  return (
+    <SettingRow label={local.label} hint={local.hint} lock={local.lock}>
+      <TextInput
+        class={CONTROL_WIDTH}
+        name={field().name}
+        value={field().state.value}
+        onInput={(event) => field().handleChange(event.currentTarget.value)}
+        onBlur={() => field().handleBlur()}
+      />
     </SettingRow>
   )
 }

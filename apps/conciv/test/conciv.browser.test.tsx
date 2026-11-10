@@ -30,6 +30,7 @@ import {
   expectRetryRecovers,
   type ShellMountOptions,
 } from './helpers.browser.js'
+import {z} from 'zod'
 import {render} from '@solidjs/testing-library'
 import {type JSX, createSignal, onMount, type Component, createMemo, createRoot, For, Show, Suspense} from 'solid-js'
 import {createStore} from 'solid-js/store'
@@ -4867,13 +4868,30 @@ describe('tool outcomes', () => {
 })
 
 describe('settings page', () => {
+  const probeSettingsSchema = z.object({
+    wrap: z.boolean().default(false).meta({title: 'Wrap lines', description: 'Long lines wrap instead of scrolling.'}),
+    density: z.enum(['compact', 'cozy']).default('cozy').meta({title: 'Density'}),
+    theme: z.enum(['plain', 'ocean', 'forest', 'dusk']).default('plain').meta({title: 'Theme'}),
+    fontSize: z.number().int().min(10).max(24).default(13).meta({title: 'Font size'}),
+    greeting: z.string().default('').meta({title: 'Greeting', description: 'Shown above the notes.'}),
+  })
+
   function SchemeProbe(): JSX.Element {
     const scheme = getHostApi().useColorScheme()
-    return <p>Widget colors: {scheme()}</p>
+    const settings = settingsProbe.useSettings()
+    return (
+      <>
+        <p>Widget colors: {scheme()}</p>
+        <p>
+          {`Probe settings: wrap=${settings().wrap} density=${settings().density} theme=${settings().theme} fontSize=${settings().fontSize} greeting=${settings().greeting}`}
+        </p>
+      </>
+    )
   }
 
   const settingsProbe = defineExtension({
     name: 'settings-probe',
+    settings: probeSettingsSchema,
     Surface: SchemeProbe,
     views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
   }).client(() => ({value: {}}))
@@ -4895,6 +4913,12 @@ describe('settings page', () => {
   const command = (label: string) => page.getByRole('button', {name: label, exact: true})
   const clash = () => page.getByRole('status').getByText(/is also/)
   const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
+  const probeValues = (values: string) => page.getByText(`Probe settings: ${values}`, {exact: true})
+  const PROBE_DEFAULTS = 'wrap=false density=cozy theme=plain fontSize=13 greeting='
+  const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
+  const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
+  const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
+  const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
   const skin = (name: string) => page.getByRole('radio', {name, exact: true})
   const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
   const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
@@ -4913,17 +4937,27 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
+    await expect
+      .element(page.getByRole('tablist', {name: 'Settings sections'}))
+      .toHaveAttribute('aria-orientation', 'vertical')
 
-    for (const name of ['Views', 'Shortcuts', 'Advanced']) {
+    const tabPaths: Record<string, string> = {
+      General: 'general',
+      Views: 'views',
+      Shortcuts: 'shortcuts',
+      'Settings probe': 'extensions/settings-probe',
+      Advanced: 'advanced',
+    }
+    for (const name of ['Views', 'Shortcuts', 'Settings probe', 'Advanced']) {
       await tab(name).click()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
-      expect(harness.pathname()).toBe(settingsPath(name.toLowerCase()))
+      expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
-    for (const name of ['Shortcuts', 'Views', 'General']) {
-      await userEvent.keyboard('{ArrowLeft}')
+    for (const name of ['Settings probe', 'Shortcuts', 'Views', 'General']) {
+      await userEvent.keyboard('{ArrowUp}')
       await expect.element(tab(name)).toHaveFocus()
       await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
-      expect(harness.pathname()).toBe(settingsPath(name.toLowerCase()))
+      expect(harness.pathname()).toBe(settingsPath(tabPaths[name] ?? ''))
     }
 
     await colorMode().getByText('Dark', {exact: true}).click()
@@ -4965,6 +4999,38 @@ describe('settings page', () => {
     await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
     await expect.element(skin('Conciv')).toBeChecked()
 
+    await tab('Settings probe').click()
+    await expect.element(page.getByRole('heading', {name: 'Settings probe'})).toBeVisible()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).toBeChecked()
+    await page.getByRole('radiogroup', {name: 'Density'}).getByText('Compact', {exact: true}).click()
+    await page.getByRole('combobox', {name: 'Theme'}).click()
+    await page.getByRole('option', {name: 'Ocean'}).click()
+    await fontSize().click()
+    await userEvent.keyboard('{End}{Backspace}{Backspace}16{Enter}')
+    await greeting().click()
+    await userEvent.keyboard('hi')
+    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
+
+    harness.dispose()
+    harness.mountShell(`/panel/${sessionId}/settings?open=true`, [settingsProbe])
+    await expect.element(tab('Settings probe'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('extensions/settings-probe'))
+    await expect.element(probeValues(PROBE_CHANGED)).toBeInTheDocument()
+    await expect.element(wrapLines()).toBeChecked()
+    await expect
+      .element(page.getByRole('radiogroup', {name: 'Density'}).getByRole('radio', {name: 'Compact'}))
+      .toBeChecked()
+    await expect.element(page.getByRole('combobox', {name: 'Theme'})).toHaveTextContent('Ocean')
+    await expect.element(fontSize()).toHaveValue('16')
+    await expect.element(greeting()).toHaveValue('hi')
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('extensions/nothing-here')}?open=true`, [settingsProbe])
+    await expect.element(tab('General'), {timeout: 8000}).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('general'))
+
     await tab('Shortcuts').click()
     await command('Quick terminal').click()
     await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
@@ -4994,6 +5060,10 @@ describe('settings page', () => {
 
     harness.dispose()
     harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
+    await expect.element(probeValues(PROBE_CHANGED), {timeout: 8000}).toBeInTheDocument()
+    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()
     await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()

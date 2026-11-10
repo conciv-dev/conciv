@@ -71,6 +71,7 @@
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
+    "es-toolkit": "catalog:",
     "hono": "catalog:",
     "semver": "catalog:",
     "zod": "catalog:"

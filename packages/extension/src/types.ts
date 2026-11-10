@@ -132,8 +132,20 @@ export type SettingsState = {
   subscribe: (listener: (snapshot: SettingsSnapshot) => void) => Promise<() => void>
 }
 
-export type ServerApi<Config> = {
+export type ExtensionSettingsSchema = z.ZodObject<Record<string, z.ZodDefault>>
+
+export type NoSettings = z.ZodObject<Record<never, never>>
+
+export type SettingsOf<Schema extends ExtensionSettingsSchema> = z.output<Schema>
+
+export type SettingsReader<Value extends object> = {
+  all: () => Promise<Value>
+  onChange: (fn: (value: Value) => void) => Promise<() => void>
+}
+
+export type ServerApi<Config, SettingsValue extends object = Record<never, never>> = {
   config: Config
+  settings: SettingsReader<SettingsValue>
   scope: <Namespace extends string>(namespace: Namespace) => ExtensionScope<Namespace>
   cwd: string
   basePath: string

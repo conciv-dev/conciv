@@ -1,5 +1,6 @@
-import type {Component} from 'solid-js'
-import type {z} from 'zod'
+import {createMemo, from, type Accessor, type Component} from 'solid-js'
+import {z} from 'zod'
+import {mapValues} from 'es-toolkit'
 import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
@@ -7,14 +8,20 @@ import type {
   ConfigOf,
   ConnectGate,
   ExtensionCommand,
+  ExtensionSettingsSchema,
   ExtensionView,
+  NoSettings,
   RequiredContext,
   ServerApi,
   ServerResult,
+  SettingsOf,
+  SettingsReader,
+  SettingsStore,
   SystemPromptFactory,
   SystemPromptResolver,
 } from './types.js'
 import {useExtensionValue} from './host-context.js'
+import {useScope} from './use-scope.js'
 
 export type AnyToolBuilder = ToolBuilder<
   string,
@@ -30,9 +37,12 @@ export type ExtensionMeta<
   Schema extends z.ZodType,
   Tools extends readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+  Settings extends ExtensionSettingsSchema = NoSettings,
 > = {
   name: Name
   configSchema?: Schema
+  settings?: Settings
+  icon?: Component<{class?: string}>
   tools?: Tools
   attachments?: Attachments
   commands?: readonly ExtensionCommand[]
@@ -49,9 +59,12 @@ export type ExtensionBuilder<
   Tools extends readonly AnyToolBuilder[] = readonly AnyToolBuilder[],
   Attachments extends readonly AnyAttachmentBuilder[] = readonly AnyAttachmentBuilder[],
   ClientValue extends object = Record<never, never>,
+  Settings extends ExtensionSettingsSchema = NoSettings,
 > = {
   name: Name
   configSchema?: Schema
+  settings?: Settings
+  icon?: Component<{class?: string}>
   Component?: Component
   Surface?: Component
   systemPrompt?: SystemPromptResolver
@@ -61,18 +74,25 @@ export type ExtensionBuilder<
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
+  parseSettings: (raw: unknown) => SettingsOf<Settings>
+  readSettings: (store: SettingsStore) => SettingsReader<SettingsOf<Settings>>
+  useSettings: () => Accessor<SettingsOf<Settings>>
   __client?(): ClientFactoryResult<ClientValue>
-  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
+  __server?(
+    server: ServerApi<ConfigOf<Schema>, SettingsOf<Settings>>,
+  ): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useContext: {
     (): ClientValue
     <Selected>(select: (context: ClientValue) => Selected): Selected
   }
   client: <Value extends object>(
     factory: () => ClientFactoryResult<Value>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value>
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value, Settings>
   server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
+    factory: (
+      server: ServerApi<ConfigOf<Schema>, SettingsOf<Settings>>,
+    ) => ServerResult<Context> | Promise<ServerResult<Context>>,
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue, Settings>
 }
 
 export type AnyExtension = ExtensionBuilder<
@@ -80,13 +100,21 @@ export type AnyExtension = ExtensionBuilder<
   z.ZodType,
   readonly AnyToolBuilder[],
   readonly AnyAttachmentBuilder[],
-  object
+  object,
+  ExtensionSettingsSchema
 >
 
 type RegisteredConfig<Schema extends z.ZodType> = [Schema] extends [z.ZodNever] ? never : z.input<Schema>
 
 export type RegisterExtension<Extension> =
-  Extension extends ExtensionBuilder<infer Name, infer Schema, infer Tools, infer _Attachments, infer ClientValue>
+  Extension extends ExtensionBuilder<
+    infer Name,
+    infer Schema,
+    infer Tools,
+    infer _Attachments,
+    infer ClientValue,
+    infer _Settings
+  >
     ? {
         [Key in Name]: {
           config: RegisteredConfig<Schema>
@@ -135,9 +163,27 @@ export function defineExtension<
   Schema extends z.ZodType = z.ZodNever,
   const Tools extends readonly AnyToolBuilder[] = readonly [],
   const Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+  Settings extends ExtensionSettingsSchema = NoSettings,
 >(
-  meta: ExtensionMeta<Name, Schema, Tools, Attachments>,
-): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>> {
+  meta: ExtensionMeta<Name, Schema, Tools, Attachments, Settings>,
+): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings> {
+  const parseSettings = lenientSettings(meta.settings)
+  const readSettings = (store: SettingsStore): SettingsReader<Record<string, unknown>> => ({
+    all: async () => parseSettings(await store.all()),
+    onChange: (fn) => store.onChange((value) => fn(parseSettings(value))),
+  })
+  function useSettings(): Accessor<Record<string, unknown>> {
+    const reader = readSettings(useScope<string>(meta.name).settings.project)
+    const stored = from<Record<string, unknown>>((set) => {
+      const stop = reader.onChange((value) => set(value)).catch(() => () => undefined)
+      reader.all().then(
+        (value) => set(value),
+        () => undefined,
+      )
+      return () => void stop.then((unsubscribe) => unsubscribe())
+    })
+    return createMemo(() => stored() ?? parseSettings({}))
+  }
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
     const value = useExtensionValue(`${meta.name}.useContext`)
     return select ? select(value) : value
@@ -145,6 +191,8 @@ export function defineExtension<
   const builder = {
     name: meta.name,
     configSchema: meta.configSchema,
+    settings: meta.settings,
+    icon: meta.icon,
     Component: meta.Component,
     Surface: meta.Surface,
     systemPrompt: makeSystemPrompt(meta),
@@ -154,6 +202,9 @@ export function defineExtension<
     commands: meta.commands,
     views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
+    parseSettings,
+    readSettings,
+    useSettings,
     useContext,
     client(factory: () => ClientFactoryResult<object>) {
       builder.__client = factory
@@ -163,6 +214,12 @@ export function defineExtension<
       builder.__server = factory
       return builder
     },
-  } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>>
+  } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings>
   return builder
+}
+
+function lenientSettings(schema: ExtensionSettingsSchema | undefined): (raw: unknown) => Record<string, unknown> {
+  const lenient = z.object(mapValues(schema?.shape ?? {}, (field) => field.catch(() => field.parse(undefined))))
+  const settings = lenient.catch(() => lenient.parse({}))
+  return (raw) => settings.parse(raw)
 }

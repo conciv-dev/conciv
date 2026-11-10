@@ -2,7 +2,7 @@ import {splitProps, type ComponentProps} from 'solid-js'
 import {Select as Ark} from '@ark-ui/solid/select'
 
 const TRIGGER =
-  'flex items-center justify-between gap-2 w-full min-h-9 py-2 px-2.5 rounded-chat-surface-md bg-chat-sunken text-chat-text-hi text-[0.8125rem] font-chat [border-width:1px] [border-style:solid] border-chat-line-2 cursor-pointer trans-border focus-ring data-[state=open]:border-chat-accent data-[invalid]:border-chat-danger data-[invalid]:[box-shadow:0_0_0_0.1875rem_color-mix(in_oklch,var(--chat-danger)_14%,transparent)] data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2 data-[readonly]:cursor-default data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
+  'flex items-center justify-between gap-2 w-full py-2 px-2.5 rounded-chat-surface-md bg-chat-sunken text-chat-text-hi text-[0.8125rem] leading-5 font-chat [border-width:1px] [border-style:solid] border-chat-line-2 cursor-pointer trans-border focus-ring data-[state=open]:border-chat-accent data-[invalid]:border-chat-danger data-[invalid]:[box-shadow:0_0_0_0.1875rem_color-mix(in_oklch,var(--chat-danger)_14%,transparent)] data-[readonly]:bg-chat-fill-soft data-[readonly]:text-chat-text-2 data-[readonly]:cursor-default data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed'
 const CONTENT =
   'hidden data-[state=open]:flex data-[state=open]:anim-combo flex-col gap-0.5 z-[2147483647] min-w-[var(--reference-width)] max-h-60 overflow-y-auto rounded-chat-surface-md bg-chat-panel text-chat-text border border-chat-line shadow-chat-lg p-1 font-chat focus-visible:outline-none'
 const ITEM =
