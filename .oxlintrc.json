@@ -371,6 +371,7 @@
     "packages/it/test/fixtures/design/host/**",
     "packages/it/test/fixtures/design/plugin-only/**",
     "packages/it/test/fixtures/design/provenance/**",
+    "packages/it/test/fixtures/trials/**",
     "packages/cli/test/fixtures/**",
     "packages/oxlint-plugin/test/fixtures/**",
     "packages/oxlint-plugin/fixtures/**",

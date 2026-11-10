@@ -1,9 +1,12 @@
+import {randomUUID} from 'node:crypto'
 import {createReadStream} from 'node:fs'
-import {writeFile} from 'node:fs/promises'
+import {readFile, writeFile} from 'node:fs/promises'
 import {resolve} from 'node:path'
 import {createInterface} from 'node:readline'
-import type {z} from 'zod'
+import {z} from 'zod'
+import {CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
+import {designConfig} from '../../../extensions/design/src/shared/tolerances.js'
 import type {open} from './open.js'
 
 export async function readCommands(input: {trial: Trial; commands: string[]; run: RunOptions}): Promise<void> {
@@ -27,14 +30,36 @@ const STDIN = 0
 
 const [getDef, checkDef, statusDef] = DESIGN_TOOLS
 
+const VerdictSchema = z.object({verdict: z.string()})
+
 const COMMANDS: Record<string, Command> = {
   get: ({trial, args: [file]}) => called({trial, name: getDef.name, schema: getDef.outputSchema, file}),
   check: ({trial, args: [file]}) => called({trial, name: checkDef.name, schema: checkDef.outputSchema, file}),
   status: ({trial, args: [file]}) => called({trial, name: statusDef.name, schema: statusDef.outputSchema, file}),
-  run: async ({trial, run, args: [action = '', first = '', second]}) => {
+  run: async ({trial, run, args}) => {
+    const [action = '', first = '', second] = args.join(' ') === 'end' ? ['end', ...(await closing(trial))] : args
     const options = action === 'start' ? run : costOf(second)
-    const args = action === 'start' ? [action, first, second ?? ''] : [action, first]
-    print(JSON.stringify(await trial.rpc.extensions.run({name: RUN_COMMAND, args, options})))
+    const passed = action === 'start' ? [action, first, second ?? ''] : [action, first]
+    print(JSON.stringify(await trial.rpc.extensions.run({name: RUN_COMMAND, args: passed, options})))
+  },
+  turn: async ({trial, args: [file = '']}) => {
+    const runId = randomUUID()
+    const response = await fetch(`${trial.apiBase}${CHAT_SSE_PATH}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        threadId: trial.session,
+        runId,
+        messages: [{id: `${runId}-user`, role: 'user', content: await readFile(resolve(file), 'utf8')}],
+        tools: [],
+        context: [],
+      }),
+      signal: AbortSignal.timeout(designConfig.runs.turnMs),
+    })
+    if (!response.ok) throw new Error(`the engine refused the turn: ${response.status} ${await response.text()}`)
+    await response.text()
+    const {usage} = await trial.rpc.sessions.get({sessionId: trial.session})
+    print(`turn ended cost ${usage?.totalCostUsd ?? 'none'}`)
   },
   screenshot: async ({trial, args: [file = 'trial.png']}) => {
     await trial.page.screenshot({path: resolve(file), fullPage: true})
@@ -63,6 +88,13 @@ async function called<Schema extends z.ZodType>(input: {
   if (input.file === undefined) return print(text)
   await writeFile(resolve(input.file), text)
   print(`wrote ${resolve(input.file)}`)
+}
+
+async function closing(trial: Trial): Promise<string[]> {
+  const {verdict} = VerdictSchema.parse(await trial.rpc.registry.call({name: statusDef.name, input: {}}))
+  const {usage} = await trial.rpc.sessions.get({sessionId: trial.session})
+  const said = verdict.replaceAll(' ', '-')
+  return usage?.totalCostUsd === undefined ? [said] : [said, String(usage.totalCostUsd)]
 }
 
 function costOf(second: string | undefined): {cost?: number} {

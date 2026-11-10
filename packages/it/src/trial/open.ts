@@ -49,7 +49,7 @@ export async function open(input: {
         : '') +
       '\n',
   )
-  return {rpc, page, id: first.target, session}
+  return {rpc, page, id: first.target, session, apiBase}
 }
 
 const ENDPOINT_FILE = 'dev-endpoint.json'
