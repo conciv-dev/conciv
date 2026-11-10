@@ -441,7 +441,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     scoped: extensionDbs,
     sources: sourcesApi,
     commands: extensionCommands,
-  } = extensionDb({orm: db, extensions, home})
+  } = extensionDb({orm: db, extensions, home, cwd: opts.cwd})
   const planeRef: {current: ChatPlane | null} = {current: null}
 
   const runStartListeners: ((sessionId: SessionId) => void)[] = []

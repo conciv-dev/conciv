@@ -24,8 +24,9 @@ import {
   sourceCatalog,
 } from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
+import {extensionDb} from '@conciv/extension/db'
 import type {} from '@conciv/extension-design/client'
-import type {XrayRouter} from '@conciv/extension-design/server'
+import {design, type XrayRouter} from '@conciv/extension-design/server'
 import {
   type Box,
   type Design,
@@ -64,6 +65,7 @@ import {stackRow} from './fixtures/design/stack-row.js'
 import {picture} from './fixtures/design/picture.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
+const DESIGN_PACKAGE = fileURLToPath(new URL('../../extensions/design/package.json', import.meta.url))
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
 const APP_FILE = fileURLToPath(new URL('fixtures/design/host/src/App.tsx', import.meta.url))
@@ -1698,5 +1700,89 @@ describe('the runs store', () => {
         ),
       ).toThrow('CHECK constraint failed: runs_verdict')
     })
+  })
+})
+
+const ProvenanceSchema = z.array(
+  z.object({
+    model: z.string(),
+    project_key: z.string(),
+    branch: z.string().nullable(),
+    head: z.string().nullable(),
+    wave: z.string().nullable(),
+    lane: z.string().nullable(),
+    tools_head: z.string().nullable(),
+    tools_version: z.string().nullable(),
+    tools_fingerprint: z.string().nullable(),
+    verdict: z.string().nullable(),
+    cost: z.number().nullable(),
+  }),
+)
+
+const PROVENANCE = [
+  'model',
+  'project_key',
+  'branch',
+  'head',
+  'wave',
+  'lane',
+  'tools_head',
+  'tools_version',
+  'tools_fingerprint',
+  'verdict',
+  'cost',
+]
+
+async function git(input: {cwd: string; args: string[]}): Promise<string> {
+  return (await promisify(execFile)('git', input.args, {cwd: input.cwd})).stdout.trim()
+}
+
+describe('run start and run end', () => {
+  it('writes the git branch, head, project key and tool version of a git project, and closes with the verdict', async () => {
+    const run = (args: string[], options: Record<string, string | number>) =>
+      kit.rpc.extensions.run({name: 'design:run', args, options})
+    await run(['start', 'it-model', 'it-head'], {wave: 'thirty', lane: 'figma7-1'})
+    await run(['end', 'done'], {cost: 2})
+    const [row] = ProvenanceSchema.parse(
+      await kit.rpc.db.read({from: 'design_runs', where: 'model == "it-model"', select: PROVENANCE}),
+    )
+    const [remote, branch, head] = await Promise.all([
+      git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']}),
+      git({cwd: kit.hostRoot, args: ['rev-parse', '--abbrev-ref', 'HEAD']}),
+      git({cwd: kit.hostRoot, args: ['rev-parse', 'HEAD']}),
+    ])
+    expect(row).toEqual({
+      model: 'it-model',
+      project_key: `${remote}#packages/it/test/fixtures/design/host/`,
+      branch,
+      head,
+      wave: 'thirty',
+      lane: 'figma7-1',
+      tools_head: head,
+      tools_version: z.object({version: z.string()}).parse(JSON.parse(await readFile(DESIGN_PACKAGE, 'utf8'))).version,
+      tools_fingerprint: expect.any(String),
+      verdict: 'done',
+      cost: 2,
+    })
+  })
+
+  it('keys a project without git by its package name, with no branch, head, wave or lane', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-'))
+    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-state-'))
+    const home = await mkdtemp(join(tmpdir(), 'conciv-design-no-git-home-'))
+    await writeFile(join(cwd, 'package.json'), JSON.stringify({name: 'no-git-host'}))
+    const orm = openDb({stateRoot, extensions: [design]})
+    const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
+    await commands.find((command) => command.name === 'design:run')?.run({args: ['start', 'm', 'p'], options: {}})
+    const [row] = ProvenanceSchema.parse(await sources.read({from: 'design_runs', select: PROVENANCE}))
+    expect([row?.project_key, row?.branch, row?.head, row?.wave, row?.lane]).toEqual([
+      'no-git-host',
+      null,
+      null,
+      null,
+      null,
+    ])
+    orm.$client.close()
+    await Promise.all([cwd, stateRoot, home].map((dir) => rm(dir, {recursive: true, force: true})))
   })
 })

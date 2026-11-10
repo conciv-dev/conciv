@@ -76,7 +76,7 @@ export type ExtensionCliCommand<Tables extends ExtensionTables = ExtensionTables
   positionals: readonly string[]
   options?: Record<string, CommandOption>
   scope?: CommandScope
-  run(input: {args: string[]; options: CommandValues; db: ExtensionDb<Tables>; home: string}): unknown
+  run(input: {args: string[]; options: CommandValues; db: ExtensionDb<Tables>; home: string; cwd: string}): unknown
 }
 
 export type ExtensionCliCommands<Tables extends ExtensionTables = ExtensionTables> = Record<

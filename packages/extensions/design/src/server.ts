@@ -29,6 +29,7 @@ import {createCssTokenSource} from './server/catalog/token-source.js'
 import {createPreviewServer} from './server/catalog/preview-server.js'
 import {openStore} from './server/runs/open-store.js'
 import {storeSources} from './server/runs/sources.js'
+import {DESIGN_COMMANDS} from './server/runs/commands/design-commands.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -47,6 +48,7 @@ const design = defineExtension({
   tables: designTables,
   sources: (tables) => ({...designSources(tables), ...storeSources()}),
   migrations,
+  cliCommands: DESIGN_COMMANDS,
   devServer: createPreviewServer,
 }).server((server) => {
   const {config, db} = server
