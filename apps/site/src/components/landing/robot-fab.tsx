@@ -1,4 +1,4 @@
-import {Mascot, type MascotState} from '@conciv/mascot/react'
+import {Mascot, type MascotState} from '@conciv/mascot-react'
 import {useState} from 'react'
 
 type RobotMood = {state: MascotState; working: boolean; follow: boolean}

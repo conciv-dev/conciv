@@ -1,8 +1,8 @@
-# mascot/src/react
+# mascot-react/src
 
 ## Overview
 
-The React compound component over the core service: `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots. Built to `dist/react` by `tsdown.react.config.ts`.
+The React compound component over the core service: `Mascot` with `Head`, `Eyes`, `Antenna`, `Binary` and `Effect` slots. Built to `dist` by `tsdown.config.ts`.
 
 ## Interface
 
@@ -26,5 +26,5 @@ The React compound component over the core service: `Mascot` with `Head`, `Eyes`
 
 ## Verification
 
-- Run: `pnpm exec turbo run test --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first) (vitest, then Playwright on `tests/e2e`)
-- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run test --filter=@conciv/mascot-react` from the repo root (turbo builds the package and its dependencies first)
+- Run: `pnpm exec turbo run typecheck --filter=@conciv/mascot-react` from the repo root (turbo builds the package and its dependencies first)

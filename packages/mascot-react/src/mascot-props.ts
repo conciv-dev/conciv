@@ -1,8 +1,6 @@
 import type {ComponentPropsWithRef, CSSProperties, Ref, RefCallback, RefObject} from 'react'
-import type {MascotActivity, MascotFollow, MascotState} from '../core/config.js'
-import type {CurveStyle, EmitterRect} from '../core/path.js'
-import type {MascotSkin} from '../core/skin.js'
-import {camelCaseProperty, isGeometryProperty, kebabCaseProperty} from '../core/style-merge.js'
+import type {CurveStyle, EmitterRect, MascotActivity, MascotFollow, MascotSkin, MascotState} from '@conciv/mascot'
+import {camelCaseProperty, isGeometryProperty, kebabCaseProperty} from '@conciv/mascot/adapter'
 
 export type MascotLayerProps = ComponentPropsWithRef<'span'>
 

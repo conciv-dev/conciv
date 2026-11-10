@@ -19,8 +19,8 @@ export type {
   MascotFollow,
   MascotSkin,
   MascotState,
-} from '../core/index.js'
-export {robotLayers, robotSkin} from '../core/index.js'
+} from '@conciv/mascot'
+export {robotLayers, robotSkin} from '@conciv/mascot'
 
 export const Mascot = Object.assign(MascotRoot, {
   Head: MascotHead,

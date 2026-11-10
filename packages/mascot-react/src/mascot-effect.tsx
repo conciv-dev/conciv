@@ -1,5 +1,5 @@
 import {type ReactElement, useId, useMemo, useRef} from 'react'
-import type {EffectMount} from '../core/effects/effect.js'
+import type {EffectMount} from '@conciv/mascot'
 import {useMascotContext} from './mascot-context.js'
 import {composeRefs, type MascotLayerProps, mergeStyle} from './mascot-props.js'
 import {useIsomorphicLayoutEffect} from './use-layout-effect.js'

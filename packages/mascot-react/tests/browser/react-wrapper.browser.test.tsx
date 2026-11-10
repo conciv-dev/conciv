@@ -3,8 +3,8 @@ import {createRoot} from 'react-dom/client'
 import {page} from 'vitest/browser'
 import {expect, it, onTestFinished, vi} from 'vitest'
 import gsap from 'gsap'
-import {notesEffect} from '../../src/core/effects/notes.js'
-import {Mascot} from '../../src/react/index.js'
+import {notesEffect} from '@conciv/mascot/effects/notes'
+import {Mascot} from '../../src/index.js'
 import {
   DRAIN_TIMEOUT,
   emittersIn,

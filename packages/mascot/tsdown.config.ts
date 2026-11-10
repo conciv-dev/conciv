@@ -5,6 +5,7 @@ export default defineConfig({
   entry: [
     'src/core/index.ts',
     'src/core/style-merge.ts',
+    'src/core/adapter.ts',
     'src/solid/index.ts',
     'src/core/effects/binary.ts',
     'src/core/effects/matrix.ts',

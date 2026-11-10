@@ -1,7 +1,6 @@
 import {createContext, useContext} from 'react'
-import type {MascotPartProps, MascotService} from '../core/mascot.js'
-import type {CurveStyle} from '../core/path.js'
-import type {MascotPartName} from '../core/slot-contract.js'
+import type {CurveStyle, MascotPartProps, MascotService} from '@conciv/mascot'
+import type {MascotPartName} from '@conciv/mascot/adapter'
 
 export type {MascotPartName}
 

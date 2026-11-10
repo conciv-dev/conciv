@@ -269,7 +269,7 @@
       }
     },
     {
-      "files": ["packages/mascot/src/react/**", "packages/mascot/tests/browser/react-*"],
+      "files": ["packages/mascot-react/**"],
       "rules": {
         "solid/reactivity": "off",
         "solid/no-destructure": "off",

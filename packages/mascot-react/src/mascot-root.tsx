@@ -1,5 +1,5 @@
 import {type ReactElement, useMemo, useRef} from 'react'
-import {installStageSize} from '../core/stage-sheet.js'
+import {installStageSize} from '@conciv/mascot/adapter'
 import {BinaryEffectHost} from './mascot-binary.js'
 import {MascotProvider} from './mascot-context.js'
 import {MascotLayer} from './mascot-layer.js'
