@@ -83,3 +83,26 @@ the table corrected. `hint_vs_drawn` over `xray6`, `xray9`, `xray10`, `xray11` r
 - Whether `INSERT … SELECT` over `ATTACH` needs a column list per table (it does when the runs store has more columns); generate it
   from the drizzle table objects, not by hand.
 - The CLI's table printer: an existing dependency (`cli-table3` or what the CLI already uses), not hand-written.
+
+## The query is the house query (2026-11-10, after Task 4)
+
+Checked against swamp (`_ref/swamp/design/enablers/data-query.md`): one query primitive (a CEL predicate over a typed record), the
+same predicate on the CLI, in expressions and in extension methods, a `select` projection, sort and limit, unknown fields refused with
+the field list, SQLite behind it with indexes. Conciv already has that primitive: `catalogSources` in `@conciv/db` (CEL `where`
+compiled to parameterized SQL, `select`, `order`, `limit`, the unknown-field error naming the fields), sources declared per extension
+from drizzle tables, read through `conciv db read --from <source> --where '<cel>'` and the rpc `db.read`. The design extension already
+declares fifteen sources over its tables. Tasks 1 to 4 built a second door beside it: raw SQL in `queryRuns` behind `design_runs` and
+`conciv tools design runs`. That door closes.
+
+Rulings:
+
+1. The runs store's tables and its six views are design sources, declared beside the existing ones, read through `catalogSources`.
+   `queryRuns`, the `design_runs` tool and the `runs` CLI query are removed; `runs import` stays.
+2. Two members in the host first, never a workaround in the extension: `Source.table` accepts a drizzle view as well as a table; a
+   `Source` may name the database it lives in, and the engine attaches `runs.db` to its connection under that name so one connection
+   answers every source. The field types of a view come from its declared columns.
+3. The agent's door is `design_query`: one MCP tool that is `catalogSources.read` over the design sources, its description listing the
+   sources and their fields, the same `where`, `select`, `order`, `limit`. It lands when a wave needs it, not before.
+4. Not taken from swamp: `--single`, the keyset cursor, SQL pushdown as a separate layer (the CEL compiles whole to SQL here).
+
+Measure: the Task 4 queries rewritten as `conciv db read` calls yield the same rows; the x-ray can read `design_run_summary` over rpc.

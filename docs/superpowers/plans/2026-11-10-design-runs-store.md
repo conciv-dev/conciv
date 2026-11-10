@@ -68,3 +68,17 @@
 - [ ] **Step 1:** Import the state dirs of waves 24, 25, 26 and the xray6/9/10/11 runs from `$S/figma-loop/runs*` with the CLI.
 - [ ] **Step 2:** `run_summary` against `twentyfive.md`, `twentysix.md`, `twentyseven.md`: a table of differences, each explained (view bug fixed, or hand table wrong). `hint_vs_drawn` and `kit_per_round` against `xray-build.md` kit-kept counts.
 - [ ] **Step 3:** Report with the queries used verbatim.
+
+### Task 5: The query is the house query
+
+**Files:**
+
+- Modify: `packages/db/src/source-types.ts` (`Source.table: AnySQLiteTable | SQLiteView`, `Source.database?: string`), `source-catalog.ts` (view name via `getViewName`, database carried), `catalog-sources.ts` (qualified table name when a database is set), `packages/extension/src/extension-db.ts` or the engine's db open (attach `runs.db` as `runs`), `packages/extensions/design/src/server/sources.ts` (runs tables and six views as sources), `tools.ts` (remove `design_runs`), `commands.ts` (remove the query action), `packages/it/scripts/design-trial.ts` if it called the removed CLI
+- Delete: `query-runs.ts`, `shared/runs-def.ts`
+- Test: `packages/db` unit tests for the two new members; `packages/it/test/design.it.test.ts` (replace the queryRuns ITs)
+
+- [ ] **Step 1:** Failing unit tests in `packages/db`: a source over a `sqliteView` lists its declared fields; a source with `database: 'runs'` reads `select … from "runs"."design_rows"`.
+- [ ] **Step 2:** Implement both host members. Commit `db: a source can be a view in an attached database`.
+- [ ] **Step 3:** Failing IT: after `runs import`, `conciv db read --from design_run_summary --where 'cost > 2' --select run,width,verdict` returns the fixture run's widths; `--from design_lost_components --where 'component == "Chip"'` returns the Task 7g rows on the xray11 fixture if present, else the Pill fixture.
+- [ ] **Step 4:** Declare the sources; attach `runs.db`; remove the raw SQL door. Gates. Commit `design: the runs store is read through the house sources`.
+- [ ] **Step 5:** Re-run the Task 4 comparison through `conciv db read`; the same difference table. Report.
