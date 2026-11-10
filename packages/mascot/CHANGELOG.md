@@ -1,5 +1,11 @@
 # @conciv/mascot
 
+## 0.0.22
+
+### Patch Changes
+
+- [#754](https://github.com/conciv-dev/conciv/pull/754) [`a3b5b50`](https://github.com/conciv-dev/conciv/commit/a3b5b5077ae156a96f2abe675d3ac7e3a2eb0a00) Thanks [@omridevk](https://github.com/omridevk)! - The binary emitter takes an `avoid` rectangle (`<Mascot.Binary avoid>` / `configureBinaryEffect({avoid})`), in viewport pixels. With it set, the digits rise to the nearest edge in their way, that rectangle or the top of the viewport, then go around the rectangle's nearer free side and climb along it, or run along the edge when there is no room beside it. A new value retargets the digits already in flight at most once per animation frame. The widget launcher passes the open chat panel's frame, derived from the launcher's position and the panel's measured size, so the robot's digits travel around the panel instead of over its status bar and composer, and follow it while the launcher is dragged or the panel is resized.
+
 ## 0.0.21
 
 ### Patch Changes
