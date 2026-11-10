@@ -109,6 +109,7 @@ export function App() {
         <div className="tall-wrap" data-conciv-key="tAlLwr">
           <img className="tall-line" src={TALL_LINE} alt="" style={{width: new URLSearchParams(location.search).get('width') ?? '100%'}} data-conciv-key="tAlLim" />
         </div>
+        <style data-conciv-key="WuNMlQ">{`body { min-height: ${new URLSearchParams(location.search).get('bodyMin') ?? 'auto'}; }`}</style>
       </main>
     )
   }

@@ -1378,6 +1378,12 @@ describe('design_check on a page far taller than the frame', () => {
   it('has no page row once the image width is constrained', async () => {
     expect((await pageRows('&width=1px')).rows).toEqual([])
   })
+
+  it('names the page height when the body is far taller than the frame, and the verdict is not done', async () => {
+    const {rows} = await pageRows('&width=1px&bodyMin=5000px')
+    expect(rows).toEqual([expect.stringContaining('the page is 5000 px tall, the frame is 400')])
+    expect((await call('design_status', {})).verdict).not.toBe('done')
+  })
 })
 
 describe('design_check on a row near its breakpoint', () => {

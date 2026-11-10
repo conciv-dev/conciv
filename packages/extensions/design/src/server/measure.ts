@@ -127,6 +127,7 @@ function measuredFrom(reply: MeasureReply): Measured {
     path: reply.capturePath,
     sources: reply.opinion ? [reply.source, 'takumi'] : [reply.source],
     overflowX: reply.overflowX,
+    scrollHeight: reply.scrollHeight,
     queries: reply.queries,
     sheets: reply.sheets,
     ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),

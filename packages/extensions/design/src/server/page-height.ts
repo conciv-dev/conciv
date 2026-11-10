@@ -8,11 +8,13 @@ export function pageHeightRows(input: {
   live: LiveComponent
   reads: ReturnType<typeof readIds>
   width: number
+  scrollHeight: number
 }): GateRow[] {
-  const {root, live, reads, width} = input
+  const {root, live, reads, width, scrollHeight} = input
   const frame = Math.round(root.figma?.box.h ?? root.box.h)
   const elements = [...walk(live)].filter(({node}) => node !== live).map(({node}) => node)
-  const page = Math.round(Math.max(frame, ...elements.map(bottomOf)))
+  const drawn = Math.round(Math.max(frame, ...elements.map(bottomOf)))
+  const page = drawn - frame > frame ? drawn : Math.round(Math.max(drawn, scrollHeight))
   if (Math.abs(page - frame) <= frame) return []
   const tall = elements.filter((element) => element.bounds.h > frame)
   const [tallest] = tall

@@ -102,7 +102,13 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     }
     const reflow = {widths, results}
     const reads = readIds({root: mapped.root, live: measured.live})
-    const tall = pageHeightRows({root: design.root, live: measured.live, reads, width: measured.width})
+    const tall = pageHeightRows({
+      root: design.root,
+      live: measured.live,
+      reads,
+      width: measured.width,
+      scrollHeight: measured.scrollHeight,
+    })
     const images = await imageRowsOf({
       design,
       reads,
