@@ -59,7 +59,10 @@ export async function runImport(input: {home: string; dir: string; options: Comm
           tx.insert(storeTables.lanes)
             .values({run_id: copied.runId, path: resolve(options.lane), registered: Date.now()})
             .run()
-        return {...copied, artifacts: storeArtifacts({tx, home: input.home, runId: copied.runId, artifacts})}
+        return {
+          ...copied,
+          artifacts: storeArtifacts({tx, home: input.home, runId: copied.runId, artifacts}).map((row) => row.path),
+        }
       },
       {behavior: 'immediate'},
     )

@@ -4,14 +4,21 @@ import {dirname, join} from 'node:path'
 import type {openStore} from '../open-store.js'
 import {storeTables} from '../store-tables.js'
 
-export function storeArtifacts(input: {tx: Tx; home: string; runId: number; artifacts: Artifact[]}): string[] {
+export function storeArtifacts(input: {
+  tx: Tx
+  home: string
+  runId: number | null
+  folder?: string
+  artifacts: Artifact[]
+}) {
   const {tx, home, runId} = input
   return input.artifacts.map((artifact) => {
-    const path = join(String(runId), artifact.kind, artifact.name)
+    const path = join(input.folder ?? join(String(runId), artifact.kind), artifact.name)
     const file = join(home, ARTIFACTS, path)
     mkdirSync(dirname(file), {recursive: true})
     writeFileSync(file, artifact.bytes)
-    tx.insert(storeTables.artifacts)
+    const {lastInsertRowid} = tx
+      .insert(storeTables.artifacts)
       .values({
         run_id: runId,
         kind: artifact.kind,
@@ -23,7 +30,7 @@ export function storeArtifacts(input: {tx: Tx; home: string; runId: number; arti
         written: Date.now(),
       })
       .run()
-    return path
+    return {artifactId: Number(lastInsertRowid), path}
   })
 }
 

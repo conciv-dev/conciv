@@ -6,6 +6,8 @@ import type {designTables} from '../../tables.js'
 import {runStart} from './run-start.js'
 import {runEnd} from './run-end.js'
 import {runImport} from './run-import.js'
+import {runsGc} from './runs-gc.js'
+import {report} from './report.js'
 
 export const DESIGN_COMMANDS: ExtensionCliCommands<ReturnType<typeof designTables>> = {
   run: {
@@ -43,6 +45,22 @@ export const DESIGN_COMMANDS: ExtensionCliCommands<ReturnType<typeof designTable
     run: ({args: [project], options, home}) => {
       if (project === undefined) throw new Error('run-import takes the project dir')
       return runImport({home, dir: project, options})
+    },
+  },
+  'runs-gc': {
+    description: 'delete expired artifacts of the runs store, and with --state the registered lane dirs',
+    positionals: [],
+    options: {state: {type: 'boolean', description: 'also delete the lane dirs the import registered'}},
+    scope: 'home',
+    run: ({options, home}) => runsGc({home, state: options.state === true}),
+  },
+  report: {
+    description: 'render wave_summary and judged of a wave to <home>/artifacts/reports/<wave>.md: report <wave>',
+    positionals: ['wave'],
+    scope: 'home',
+    run: ({args: [wave], db, home}) => {
+      if (wave === undefined) throw new Error('report takes the wave')
+      return report({db, home, wave})
     },
   },
 }

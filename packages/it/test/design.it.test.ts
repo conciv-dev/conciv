@@ -1,6 +1,7 @@
 /* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
 import {execFile} from 'node:child_process'
 import {createHash} from 'node:crypto'
+import {existsSync} from 'node:fs'
 import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
@@ -47,6 +48,7 @@ import {runsMigrations} from '../../extensions/design/src/server/runs-migrations
 import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
+import {storeArtifacts} from '../../extensions/design/src/server/runs/import/store-artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
@@ -2064,5 +2066,152 @@ describe('run import', () => {
     const read = await sources.read({from: 'design_stored_runs', select: ['wave', 'lane']})
     closeHomeDb(homeOrm)
     expect(read).toEqual([{wave: 'twentyfour', lane: 'figma7-1'}])
+  })
+})
+
+async function withHome<T>(
+  run: (input: {home: string; store: Store; sources: Sources; command: (name: string) => Command}) => Promise<T>,
+): Promise<T> {
+  const [cwd, stateRoot, home] = await Promise.all([
+    tempDir('conciv-gc-cwd-'),
+    tempDir('conciv-gc-state-'),
+    tempDir('conciv-gc-home-'),
+  ])
+  await writeFile(join(cwd, 'package.json'), JSON.stringify({name: 'gc-host'}))
+  const orm = openDb({stateRoot, extensions: [design]})
+  const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
+  const store = openStore(home)
+  const command = (name: string): Command => {
+    const found = commands.find((entry) => entry.name === `design:${name}`)
+    if (found === undefined) throw new Error(`no command design:${name}`)
+    return found
+  }
+  try {
+    return await run({home, store, sources, command})
+  } finally {
+    store.close()
+    orm.$client.close()
+  }
+}
+
+type Command = {run: (call: {args: string[]; options: Record<string, string | boolean | string[]>}) => unknown}
+
+const GcSchema = z.object({removed: z.array(z.string()), kept: z.number()})
+
+describe('runs gc', () => {
+  it('removes an artifact written with a lifetime of 0 days, its row and file, and keeps an infinite one', async () => {
+    await withHome(async ({home, store, sources, command}) => {
+      const [run = 0] = seededRuns(store)
+      const paths = store.orm.transaction((tx) =>
+        storeArtifacts({
+          tx,
+          home,
+          runId: run,
+          artifacts: [
+            {kind: 'screenshot', width: 390, name: '390.png', bytes: Buffer.from('shot'), lifetime: '0'},
+            {kind: 'source', width: null, name: 'source.tar', bytes: Buffer.from('tar'), lifetime: 'infinite'},
+          ],
+        }),
+      )
+      const [expired = '', kept = ''] = paths.map(({path}) => join(home, 'artifacts', path))
+      expect(GcSchema.parse(await command('runs-gc').run({args: [], options: {}}))).toEqual({
+        removed: [expired],
+        kept: 1,
+      })
+      expect(await sources.read({from: 'design_stored_artifacts', select: ['kind']})).toEqual([{kind: 'source'}])
+      expect([existsSync(expired), existsSync(kept)]).toEqual([false, true])
+    })
+  })
+
+  it('with --state removes a registered lane dir, leaves an unregistered dir and never reads source_path', async () => {
+    await withHome(async ({store, sources, command}) => {
+      const [registered, unregistered] = seededRuns(store)
+      const lane = await tempDir('conciv-gc-lane-')
+      const other = await tempDir('conciv-gc-other-')
+      store.orm
+        .insert(storeTables.lanes)
+        .values({run_id: registered ?? 0, path: lane, registered: 0})
+        .run()
+      store.orm.$client
+        .prepare('UPDATE design_runs SET source_path = ?, source_run_id = 1 WHERE run_id = ?')
+        .run(other, unregistered ?? 0)
+      expect(GcSchema.parse(await command('runs-gc').run({args: [], options: {state: true}}))).toEqual({
+        removed: [lane],
+        kept: 0,
+      })
+      expect([existsSync(lane), existsSync(other)]).toEqual([false, true])
+      expect(await sources.read({from: 'design_stored_runs', select: ['run']})).toHaveLength(2)
+    })
+  })
+})
+
+describe('report', () => {
+  it('writes the wave report whose cells equal the wave_summary and judged reads, and records it', async () => {
+    await withHome(async ({home, sources, command}) => {
+      const lanes = ['figma7-1', 'figma7-2']
+      const dirs = await Promise.all(
+        lanes.map((lane) =>
+          fixtureCopy(
+            `ALTER TABLE design_runs ADD COLUMN wave text; ALTER TABLE design_runs ADD COLUMN lane text; UPDATE design_runs SET wave = 'it-wave', lane = '${lane}'`,
+          ),
+        ),
+      )
+      const imported = await Promise.all(
+        dirs.map(async (dir) => ImportedSchema.parse(await command('run-import').run({args: [dir], options: {}}))),
+      )
+      const [first] = imported
+      const [judgedTarget] = z
+        .array(z.object({target: z.string(), width: z.number()}))
+        .parse(await sources.read({from: 'design_judged', where: `run == ${first?.runId}`, limit: 1}))
+      await sources.write({
+        into: 'design_stored_judgements',
+        values: {run: first?.runId, ...judgedTarget, score: 4, reason: 'close', judge_model: 'opus', at: 1},
+      })
+      const printed = z.string().parse(await command('report').run({args: ['it-wave'], options: {}}))
+      expect(printed).toBe(join(home, 'artifacts', 'reports', 'it-wave.md'))
+      const cells = (await readFile(printed, 'utf8'))
+        .split('\n')
+        .filter((line) => line.startsWith('| ') && !line.startsWith('| -'))
+        .map((line) => line.slice(2, -2).split(' | '))
+      const shown = (rows: Record<string, unknown>[]) =>
+        rows.flatMap((row) => [Object.keys(row), Object.values(row).map((value) => String(value ?? ''))])
+      const summary = await sources.read({
+        from: 'design_wave_summary',
+        where: 'wave == "it-wave"',
+        select: ['width', 'runs', 'done', 'median_rows', 'median_pixels', 'median_cost', 'median_lowest_rendered'],
+        order: [{field: 'width', dir: 'asc'}],
+      })
+      const judged = await sources.read({
+        from: 'design_judged',
+        where: 'wave == "it-wave"',
+        select: ['run', 'lane', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
+        order: [
+          {field: 'run', dir: 'asc'},
+          {field: 'target', dir: 'asc'},
+          {field: 'width', dir: 'asc'},
+        ],
+      })
+      expect(summary.map((row) => row.runs)).toEqual(summary.map(() => 2))
+      expect(judged.some((row) => row.score === 4)).toBe(true)
+      const judgedHeader = Object.keys(judged[0] ?? {})
+      expect(cells).toEqual([
+        ...summary.flatMap((row) => shown([row])),
+        judgedHeader,
+        ...judged.map((row) => Object.values(row).map((value) => String(value ?? ''))),
+      ])
+      const [report] = z
+        .array(
+          z.object({wave: z.string(), artifact_id: z.number(), queries: z.array(z.looseObject({from: z.string()}))}),
+        )
+        .parse(await sources.read({from: 'design_stored_reports', select: ['wave', 'artifact_id', 'queries']}))
+      expect(report?.queries.map((query) => query.from)).toEqual(['design_wave_summary', 'design_judged'])
+      expect(
+        await sources.read({
+          from: 'design_stored_artifacts',
+          where: `artifact_id == ${report?.artifact_id}`,
+          select: ['kind', 'path'],
+        }),
+      ).toEqual([{kind: 'report', path: join('reports', 'it-wave.md')}])
+    })
   })
 })
