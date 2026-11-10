@@ -29,6 +29,7 @@ import {
   CHAIN_GROUP_KEY,
   groupNodeIdentity,
   groupParts,
+  isOutsideTurn,
   shareGroupNodes,
   lastGroupedIndex,
   type GroupEntry,
@@ -96,6 +97,8 @@ export type ThreadMessagesProps = {
 const PLAN_LABEL = 'plan'
 const REASONING_LABEL = 'reasoning'
 const PLAN_INLINE_LENGTH = 90
+
+const OUTSIDE_JOIN_CLASS = '-mt-1.5'
 
 const PROMPT_TIME_FORMAT = new Intl.DateTimeFormat(undefined, {hour: '2-digit', minute: '2-digit', hour12: false})
 
@@ -172,7 +175,11 @@ function AssistantTurn(props: {
   const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
   const nodeLive = (node: GroupNode): boolean =>
     node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
-  const folded = () => !message.isLast()
+  const outsideAt = (offset: number): boolean => isOutsideTurn(thread.turns[message.index() + offset]?.turn())
+  const outside = createMemo(() => outsideAt(0))
+  const joinsAbove = createMemo(() => outside() && outsideAt(-1))
+  const joinsBelow = createMemo(() => outside() && outsideAt(1))
+  const folded = () => !message.isLast() && !outside()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentItems = createMemo(() =>
       groupProps.node.indices.flatMap((partIndex) => turnParts.items()[partIndex] ?? []),
@@ -235,7 +242,14 @@ function AssistantTurn(props: {
     }
     return (
       <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
-        <Trace summary={summary()} compactLine={compactLine()} items={items()} folded={folded()} />
+        <Trace
+          summary={summary()}
+          compactLine={compactLine()}
+          items={items()}
+          folded={folded()}
+          headless={outside()}
+          joinsBelow={joinsBelow()}
+        />
       </Show>
     )
   }
@@ -312,10 +326,13 @@ function AssistantTurn(props: {
     </Key>
   )
   return (
-    <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
+    <Message.Root
+      data-conciv-msg
+      class={joinsAbove() ? `${ASSISTANT_ROOT_CLASS} ${OUTSIDE_JOIN_CLASS}` : ASSISTANT_ROOT_CLASS}
+    >
       <NodeListView nodes={nodes()} />
       <Message.Error />
-      <Show when={!runActive()}>
+      <Show when={!runActive() && !outside()}>
         <div class={ANSWER_ACTION_ROW_CLASS}>
           <AssistantActionBar readOnly={config.readOnly()} />
         </div>

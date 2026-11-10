@@ -24,10 +24,11 @@ function spineX(gutter: number): number {
 type RailGeometry = {
   gutter: number
   top: number
-  headerAnchor: number
+  headerAnchor: number | undefined
   rowAnchors: number[]
   runningRowIndex: number
   height: number
+  joinsBelow: boolean
 }
 
 type RailPaths = {spine: string; arms: string}
@@ -35,14 +36,17 @@ type RailPaths = {spine: string; arms: string}
 type InboundConnector = {from: number; to: number}
 
 function railPaths(geometry: RailGeometry): RailPaths {
-  const {gutter, top, headerAnchor, rowAnchors} = geometry
+  const {gutter, top, headerAnchor, rowAnchors, height, joinsBelow} = geometry
   const lastRowAnchor = rowAnchors[rowAnchors.length - 1]
   if (lastRowAnchor === undefined) return {spine: '', arms: ''}
   const x = spineX(gutter)
-  const armAnchors = [headerAnchor, ...rowAnchors.slice(0, -1)]
+  const headerArm = headerAnchor === undefined ? [] : [headerAnchor]
+  const armAnchors = [...headerArm, ...(joinsBelow ? rowAnchors : rowAnchors.slice(0, -1))]
+  const arms = armAnchors.map((y) => `M ${x} ${y} L ${gutter} ${y}`).join(' ')
+  if (joinsBelow) return {spine: `M ${x} ${top} L ${x} ${height}`, arms}
   return {
     spine: `M ${x} ${top} L ${x} ${lastRowAnchor - CORNER_RADIUS} A ${CORNER_RADIUS} ${CORNER_RADIUS} 0 0 0 ${x + CORNER_RADIUS} ${lastRowAnchor} L ${gutter} ${lastRowAnchor}`,
-    arms: armAnchors.map((y) => `M ${x} ${y} L ${gutter} ${y}`).join(' '),
+    arms,
   }
 }
 
@@ -50,7 +54,7 @@ function inboundConnectorOfRunningRow(geometry: RailGeometry): InboundConnector 
   const rowIndex = geometry.runningRowIndex
   const to = geometry.rowAnchors[rowIndex]
   if (to === undefined) return undefined
-  const from = rowIndex === 0 ? geometry.headerAnchor : geometry.rowAnchors[rowIndex - 1]
+  const from = rowIndex === 0 ? (geometry.headerAnchor ?? geometry.top) : geometry.rowAnchors[rowIndex - 1]
   return from === undefined ? undefined : {from, to}
 }
 
@@ -81,8 +85,8 @@ function measuredRows(list: HTMLUListElement | undefined): MeasuredRow[] {
 }
 
 function geometryKey(geometry: RailGeometry): string {
-  const {gutter, top, height, runningRowIndex, rowAnchors} = geometry
-  return `${gutter}|${top}|${height}|${runningRowIndex}|${rowAnchors.join(',')}`
+  const {gutter, top, height, runningRowIndex, rowAnchors, joinsBelow} = geometry
+  return `${gutter}|${top}|${height}|${runningRowIndex}|${joinsBelow}|${rowAnchors.join(',')}`
 }
 
 function gutterToken(root: HTMLElement): number {
@@ -95,6 +99,7 @@ export function TraceRail(props: {
   list: Accessor<HTMLUListElement | undefined>
   liveKey: Accessor<string | undefined>
   open: Accessor<boolean>
+  joinsBelow: Accessor<boolean>
 }): JSX.Element {
   let railSvg: SVGSVGElement | undefined
   let spineLine: SVGPathElement | undefined
@@ -111,20 +116,21 @@ export function TraceRail(props: {
   const readGeometry = (): RailGeometry | undefined => {
     const root = props.root()
     const header = props.header()
-    if (!root || !header) return undefined
+    if (!root) return undefined
     const gutter = gutterToken(root)
     if (!(gutter > 0)) return undefined
     const rootRect = root.getBoundingClientRect()
     if (rootRect.height === 0) return undefined
     const rows = measuredRows(openList())
-    const top = header.getBoundingClientRect().top - rootRect.top
+    const top = header ? header.getBoundingClientRect().top - rootRect.top : 0
     return {
       gutter,
       top,
-      headerAnchor: top + gutter / 2,
+      headerAnchor: header ? top + gutter / 2 : undefined,
       rowAnchors: rows.map(({top: rowTop}) => rowTop - rootRect.top + gutter / 2),
       runningRowIndex: rows.findIndex(({row}) => row.hasAttribute('data-trace-live')),
       height: rootRect.height,
+      joinsBelow: props.joinsBelow(),
     }
   }
 
@@ -202,6 +208,7 @@ export function TraceRail(props: {
 
   createEffect(() => {
     props.open()
+    props.joinsBelow()
     draw()
   })
 

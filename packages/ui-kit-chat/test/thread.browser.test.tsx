@@ -963,6 +963,49 @@ describe('thread session log', () => {
     ]
   }
 
+  function outsideCall(index: number): ChatMessage {
+    return {
+      id: `outside-${index}`,
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: `outside-call-${index}`,
+          name: 'bash',
+          arguments: `{"command":"echo route ${index}"}`,
+          input: {command: `echo route ${index}`},
+          state: 'complete',
+          metadata: {conciv: {origin: 'hub', client: 'claude', run: `outside-call-${index}`}},
+        },
+        {type: 'tool-result', toolCallId: `outside-call-${index}`, content: `route answer ${index}`, state: 'complete'},
+      ],
+    }
+  }
+
+  it('lists outside agent calls as one open list, each from its client, with no fold or message actions', async () => {
+    mountView(() => (
+      <LogThread
+        messages={[
+          {id: 'u1', role: 'user', parts: [{type: 'text', content: 'drive the page from outside'}]},
+          outsideCall(1),
+          outsideCall(2),
+          outsideCall(3),
+        ]}
+      />
+    ))
+
+    await expect.element(page.getByText('route answer 1'), {timeout: 3000}).toBeVisible()
+    await expect.element(page.getByText('route answer 2')).toBeVisible()
+    await expect.element(page.getByText('route answer 3')).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(0)).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(1)).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(2)).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /Show trace/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /Hide trace/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('toolbar', {name: 'Message actions'})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/thread-session-log/outside-calls.png'})
+  })
+
   it('renders text, trace, then text in stream order for a turn with parts interleaved around a tool call', async () => {
     const container = mountView(() => <LogThread messages={messagesWithInterleavedTurn()} />)
 

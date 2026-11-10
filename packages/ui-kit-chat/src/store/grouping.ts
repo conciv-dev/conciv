@@ -64,6 +64,10 @@ function opensTurn(message: ChatMessage, previous: ChatMessage | undefined): boo
   return CompactionMetadataSchema.safeParse(message.metadata).success || outsideRun(message) !== outsideRun(previous)
 }
 
+export function isOutsideTurn(turn: Turn | undefined): boolean {
+  return outsideRun(turn?.messages[0]) !== undefined
+}
+
 function outsideRun(message: ChatMessage | undefined): string | undefined {
   const call = message?.parts.find((part) => part.type === 'tool-call')
   return OutsideCallMetadataSchema.safeParse(call?.metadata).data?.conciv.run
