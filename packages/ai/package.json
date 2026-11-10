@@ -59,8 +59,8 @@
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-solid": "catalog:",
     "drizzle-orm": "catalog:",
+    "piscina": "catalog:",
     "solid-js": "catalog:",
-    "tinypool": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

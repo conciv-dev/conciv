@@ -35,7 +35,7 @@ import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {parseSync} from 'oxc-parser'
-import Tinypool from 'tinypool'
+import {closePool, openPool} from '../src/server/quickjs-thread.js'
 
 describe('chat stores', () => {
   const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
@@ -657,19 +657,14 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
     it('a worker that errors while its pool shuts down never throws on the server thread and leaves no worker', async () => {
       const ours = workersFromHere()
-      const pool = new Tinypool({
-        filename: new URL('../src/server/quickjs-worker.ts', import.meta.url).href,
-        minThreads: 1,
-        maxThreads: 1,
-      })
-      const failures: Error[] = []
-      pool.on('error', (error: Error) => failures.push(error))
-      const [thread] = pool.threads
+      const logged: string[] = []
+      const open = openPool((message) => logged.push(message))
+      const [thread] = open.pool.threads
       if (thread === undefined) throw new Error('the pool booted no worker')
-      const destroying = pool.destroy()
+      const closing = closePool(open)
       expect(() => thread.emit('error', new Error('the worker failed'))).not.toThrow()
-      await destroying
-      expect(failures).toMatchObject([{message: 'the worker failed'}])
+      await closing
+      expect(logged).toEqual(['[ai] the QuickJS worker failed: Error: the worker failed'])
       expect(ours()).toEqual([])
     })
 

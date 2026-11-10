@@ -1,10 +1,10 @@
 import {availableParallelism} from 'node:os'
 import {extname} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {MessageChannel} from 'node:worker_threads'
+import {MessageChannel, type Worker} from 'node:worker_threads'
 import {ORPCError, os} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/message-port'
-import Tinypool, {type TinypoolWorker} from 'tinypool'
+import {move, Piscina, transferableSymbol, valueSymbol} from 'piscina'
 import {z} from 'zod'
 import type {ExecutionResult, IsolateConfig, IsolateContext, IsolateDriver} from '@tanstack/ai-code-mode'
 import type {QuickJSTask} from './quickjs-worker.js'
@@ -19,7 +19,7 @@ type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: 
 
 type Log = (message: string) => void
 
-type OpenPool = {pool: Tinypool; closed: AbortController}
+export type OpenPool = {pool: Piscina<ReturnType<typeof move>, ExecutionResult>; closed: AbortController}
 
 type Retired = {signal: AbortSignal; result: ExecutionResult}
 
@@ -61,14 +61,13 @@ export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): Code
     dispose: async () => {
       const closing = held.open
       held.open = null
-      closing?.closed.abort()
-      await closing?.pool.destroy()
+      if (closing !== null) await closePool(closing)
     },
   }
 }
 
-function openPool(log: Log): OpenPool {
-  const pool = new Tinypool({
+export function openPool(log: Log): OpenPool {
+  const pool = new Piscina<ReturnType<typeof move>, ExecutionResult>({
     filename: WORKER_FILE.href,
     minThreads: 1,
     maxThreads: Math.max(2, availableParallelism()),
@@ -76,6 +75,13 @@ function openPool(log: Log): OpenPool {
   })
   pool.on('error', (error: Error) => log(`[ai] the QuickJS worker failed: ${error.name}: ${error.message}`))
   return {pool, closed: new AbortController()}
+}
+
+export async function closePool(open: OpenPool): Promise<void> {
+  open.closed.abort()
+  const threads = open.pool.threads.filter(running)
+  await Promise.all([open.pool.destroy(), ...threads.map(exitOf)])
+  if (open.pool.threads.length > 0) await closePool(open)
 }
 
 function threadContext(
@@ -122,10 +128,10 @@ async function run(
   }
   const timedOut = AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS)
   const signal = AbortSignal.any([disposed, timedOut, retiring.signal])
-  const aborting: {threads: TinypoolWorker[]} = {threads: []}
+  const aborting: {threads: Worker[]} = {threads: []}
   signal.addEventListener('abort', () => (aborting.threads = pool.threads), {once: true})
   try {
-    return await pool.run(task, {signal, transferList: {transfer: [port2]}})
+    return await pool.run(move({[transferableSymbol]: [port2], [valueSymbol]: task}), {signal})
   } catch (error) {
     if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, log)
     await exited(pool, aborting.threads)
@@ -140,9 +146,16 @@ function abortedWith(reason: unknown, timedOut: AbortSignal, retired: Retired): 
   return reason === timedOut.reason ? TIMED_OUT : STOPPED
 }
 
-async function exited(pool: Tinypool, threads: TinypoolWorker[]): Promise<void> {
-  const ending = threads.filter((thread) => !pool.threads.includes(thread))
-  await Promise.all(ending.map((thread) => new Promise((exit) => thread.once('exit', exit))))
+async function exited(pool: Piscina, threads: Worker[]): Promise<void> {
+  await Promise.all(threads.filter((thread) => running(thread) && !pool.threads.includes(thread)).map(exitOf))
+}
+
+function running(thread: Worker): boolean {
+  return thread.threadId !== -1
+}
+
+function exitOf(thread: Worker): Promise<void> {
+  return new Promise((exit) => thread.once('exit', () => exit()))
 }
 
 function workerFailure(error: unknown, log: Log): ExecutionResult {
