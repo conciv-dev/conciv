@@ -56,8 +56,10 @@
     "@tanstack/ai-mcp": "catalog:",
     "@tanstack/ai-persistence": "catalog:",
     "@tanstack/ai-solid": "catalog:",
+    "birpc": "catalog:",
     "drizzle-orm": "catalog:",
     "solid-js": "catalog:",
+    "tinypool": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
