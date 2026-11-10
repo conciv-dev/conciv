@@ -905,7 +905,7 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     expect(ours()).toEqual([])
   })
 
-  it('the chat server runs every return 1 on the worker it booted and ending all runs frees it', async () => {
+  it('the chat server runs every return 1 on the worker it booted, ending all runs frees it and the next run boots one again', async () => {
     const client = new DatabaseSync(':memory:')
     client.exec(
       'CREATE TABLE chat_runs (run_id text PRIMARY KEY, thread_id text NOT NULL, harness_id text NOT NULL, status text NOT NULL, started_at integer NOT NULL, finished_at integer, error text, error_code text, usage_json text, sandbox_key text, detached_since integer, cancel_requested integer, driver_epoch integer)',
@@ -942,6 +942,11 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
       expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
       expect(ours()).toEqual(booted)
     }
+    await server.endAllRuns()
+    expect(ours()).toEqual([])
+    expect(await runner.run('return 2', () => undefined)).toMatchObject({success: true, result: 2})
+    expect(ours()).toHaveLength(1)
+    expect(await runner.run('return 3', () => undefined)).toMatchObject({success: true, result: 3})
     await server.endAllRuns()
     expect(ours()).toEqual([])
   })
