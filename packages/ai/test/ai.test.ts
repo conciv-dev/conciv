@@ -829,6 +829,52 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     await driver.dispose()
   })
 
+  it('a tool result that cannot be serialized throws in the guest and the next run still works', async () => {
+    const ours = workersFromHere()
+    const driver = dist.quickJSThreadDriver({timeout: 10_000, memoryLimit: 64, maxStackSize: 1024 * 1024}, () => {})
+    const big = {name: 'big', description: 'Returns a bigint.', inputSchema: {}, execute: async () => 1n}
+    const run = async (code: string) => {
+      const context = await driver.createContext({bindings: {big}})
+      const result = await context.execute(code)
+      await context.dispose()
+      return result
+    }
+    expect(
+      await run('try { await big({}); return "no error" } catch (error) { return String(error.message) }'),
+    ).toMatchObject({success: true, value: expect.stringMatching(/BigInt/)})
+    expect(await run('await big({})')).toMatchObject({
+      success: false,
+      error: {message: expect.stringMatching(/BigInt/)},
+    })
+    expect(await run('return 1')).toMatchObject({success: true, value: 1})
+    await driver.dispose()
+    expect(ours()).toEqual([])
+  })
+
+  it('a setup that fails reaches the caller with its real reason and the next run still works', async () => {
+    const ours = workersFromHere()
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    const binding = {name: 'not valid', description: 'Bad name.', inputSchema: {}, execute: async () => null}
+    await expect(driver.createContext({bindings: {'not valid': binding}})).rejects.toThrow(
+      /Failed to create wrapper for not valid/,
+    )
+    expect(await run('return 1')).toMatchObject({success: true, value: 1})
+    await driver.dispose()
+    expect(ours()).toEqual([])
+  })
+
+  it('dispose while a createContext is in flight fails it as disposed and leaves no worker', async () => {
+    const ours = workersFromHere()
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    const claiming = driver.createContext({bindings: {}})
+    await driver.dispose()
+    await expect(claiming).rejects.toThrow('the QuickJS driver was disposed')
+    expect(ours()).toEqual([])
+    expect(await run('return 1')).toMatchObject({success: true, value: 1})
+    await driver.dispose()
+    expect(ours()).toEqual([])
+  })
+
   it('the first execute runs on the worker booted at creation and later executes reuse it', async () => {
     const ours = workersFromHere()
     const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})

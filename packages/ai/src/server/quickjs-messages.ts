@@ -23,6 +23,7 @@ export const WorkerMessageSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('ready')}),
   z.object({type: z.literal('call'), id: z.string(), name: z.string(), args: z.unknown()}),
   z.object({type: z.literal('done'), result: ExecutionResultSchema}),
+  z.object({type: z.literal('failed'), error: z.object({name: z.string(), message: z.string()})}),
 ])
 
 export type WorkerMessage = z.infer<typeof WorkerMessageSchema>
