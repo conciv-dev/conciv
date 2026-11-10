@@ -4908,7 +4908,6 @@ describe('settings page', () => {
   const back = () => page.getByRole('button', {name: 'Back to chat'})
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
   const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
-  const widthHandle = () => page.getByRole('separator', {name: 'Resize chat width'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
   const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
   const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
@@ -4945,13 +4944,6 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
-    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
-    await tab('General').click()
-    await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
-    await expect.element(widthHandle()).toHaveFocus()
-    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
-    await expect.element(sections()).toHaveAttribute('aria-orientation', 'horizontal')
-    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}')
     await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
 
     const tabPaths: Record<string, string> = {
