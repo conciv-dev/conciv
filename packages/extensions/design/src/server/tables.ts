@@ -116,6 +116,7 @@ export function designTables(table: SQLiteTableFn) {
       text: text().notNull(),
       token: text(),
       component: text(),
+      specifier: text(),
       kit_token: text(),
       design_token: text(),
       confidence: real(),

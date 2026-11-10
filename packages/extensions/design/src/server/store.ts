@@ -445,6 +445,7 @@ function rowOf(row: GateRow): Omit<RowRow, 'seq' | 'target_id' | 'run_id' | 'rou
     text: row.text,
     token: row.token ?? null,
     component: row.component ?? null,
+    specifier: row.specifier ?? null,
     kit_token: row.kitToken ?? null,
     design_token: row.designToken ?? null,
     confidence: row.confidence,
@@ -463,6 +464,7 @@ function gateRowOf(row: RowRow): Record<string, unknown> {
     width,
     token,
     component,
+    specifier,
     kit_token: kitToken,
     design_token: designToken,
     ...rest
@@ -472,6 +474,7 @@ function gateRowOf(row: RowRow): Record<string, unknown> {
     ...(width === null ? {} : {width}),
     ...(token === null ? {} : {token}),
     ...(component === null ? {} : {component}),
+    ...(specifier === null ? {} : {specifier}),
     ...(kitToken === null ? {} : {kitToken}),
     ...(designToken === null ? {} : {designToken}),
   }

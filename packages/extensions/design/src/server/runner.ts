@@ -98,14 +98,19 @@ export function createRunner(runtime: DesignRuntime): Runner {
       mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
     })
     const listed = [...gate.rows, ...images.rows, ...failures]
-    const rows = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
-    const drift = rows.filter((row) => row.magnitude === 'token-drift').length
-    const replaced = listed.length - rows.length + drift
+    const classified = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
+    const drift = classified.filter((row) => row.magnitude === 'token-drift').length
+    const replaced = listed.length - classified.length + drift
+    const named =
+      unsettled === null
+        ? await runtime.components.rows({design, reads: readIds({root: mapped.root, live: measured.live}), relation})
+        : []
+    const rows = [...classified, ...named]
     const counts = {
       ...gate.counts,
       reflow: failures.length,
       paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
-      rows: gate.counts.rows + images.rows.length + failures.length - replaced,
+      rows: gate.counts.rows + images.rows.length + failures.length - replaced + named.length,
       drift,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})

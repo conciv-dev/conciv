@@ -37,6 +37,7 @@ const RULES = [
   'A row whose auto-layout says wrap: WRAP keeps all its children on one line at the design width, exactly as the Figma frame shows them; it may wrap only when the viewport is narrower than the row is in the design, never at the design width.',
   'design_check returns the rows to fix and the verdict: a row without a width is about the page at the design width; a row with a width is about the page measured at that width, mostly narrower: it did not reflow as tagged, sticks out, overlaps a sibling or scrolls sideways.',
   'A token-drift row is a flag, not a row to fix: the component uses a kit token whose value the design variable disagrees with. Never edit the element to clear it; change the token in the kit or the variable in the design, or report the drift.',
+  'A component row is cleared by rendering the node with the component it names: import it as the row says and render it there instead of the hand-drawn element.',
 ]
 
 const IMPLIED_FIELDS =

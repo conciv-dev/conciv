@@ -1,4 +1,4 @@
-import {maxBy, orderBy, words} from 'es-toolkit'
+import {intersection, maxBy, orderBy, words} from 'es-toolkit'
 import {z} from 'zod'
 import type {DesignNode} from '../../shared/defs.js'
 import type {Hint, Hinter, Ranked} from '../../shared/catalog-defs.js'
@@ -47,20 +47,21 @@ function bestOf(input: {node: DesignNode; ranked: Ranked[]}): Scored | null {
   const name = folded(raw)
   if (name === '') return null
   const variants = variantsOf(input.node)
-  const spoken = namedSpans({words: lowerWords(raw), ranked: input.ranked})
-  const scored = input.ranked.map((component) => scoreOf({name, variants, component, spoken}))
+  const said = lowerWords(raw)
+  const spoken = namedSpans({words: said, ranked: input.ranked})
+  const scored = input.ranked.map((component) => scoreOf({name, said, variants, component, spoken}))
   const [top, runner] = orderBy(scored, [(entry) => entry.score], ['desc'])
   if (top === undefined) return null
   if (runner !== undefined && top.score - runner.score < designConfig.tolerances.pairMargin) return null
   return top
 }
 
-function scoreOf(input: {name: string; variants: string[]; component: Ranked; spoken: Span[]}): Scored {
-  const {name, variants, component, spoken} = input
-  const said = component.names.find((candidate) => spoken.some((span) => span.name === candidate))
+function scoreOf(input: {name: string; said: string[]; variants: string[]; component: Ranked; spoken: Span[]}): Scored {
+  const {name, said, variants, component, spoken} = input
+  const whole = component.names.find((candidate) => spoken.some((span) => span.name === candidate))
   const named =
-    said ?? maxBy(component.names, (candidate) => SIMILARITY.text.similarity({a: name, b: folded(candidate)}))
-  const nameScore = said === undefined ? textScore({name, candidate: named}) : 1
+    whole ?? maxBy(component.names, (candidate) => SIMILARITY.text.similarity({a: name, b: folded(candidate)}))
+  const nameScore = whole === undefined ? textScore({name, said, candidate: named}) : 1
   const values = new Set(
     component.props === 'see file'
       ? []
@@ -72,8 +73,9 @@ function scoreOf(input: {name: string; variants: string[]; component: Ranked; sp
   return {component: named ?? component.names[0] ?? '', specifier: component.specifier, score}
 }
 
-function textScore(input: {name: string; candidate: string | undefined}): number {
+function textScore(input: {name: string; said: string[]; candidate: string | undefined}): number {
   if (input.candidate === undefined) return 0
+  if (intersection(input.said, lowerWords(input.candidate)).length === 0) return 0
   return SIMILARITY.text.similarity({a: input.name, b: folded(input.candidate)})
 }
 

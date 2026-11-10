@@ -80,11 +80,13 @@ export function createXrayData(input: {
     const rows = round.rows.filter((row) => (row.width ?? designWidth()) === width)
     return Object.values(groupBy(rows, (row) => row.node)).map((group) => {
       const drift = group.find((row) => row.magnitude === DRIFT)
+      const named = group.find((row) => row.magnitude === NAMED)
       return {
         node: group[0]?.node ?? '',
         name: group[0]?.name ?? '',
         magnitude: sortBy(group, [(row) => SEVERITY.indexOf(row.magnitude)])[0]?.magnitude ?? 'other',
         drift: drift === undefined ? null : {kit: drift.kitToken ?? '', design: drift.designToken ?? ''},
+        named: named === undefined ? null : `import {${named.component ?? ''}} from '${named.specifier ?? ''}'`,
         lines: group.map((row) => row.text),
         count: group.filter((row) => row.magnitude !== DRIFT).length,
       }
@@ -186,6 +188,7 @@ export function createXrayData(input: {
       look: found.look,
       component: found.component,
       drift: problem?.drift ?? null,
+      named: problem?.named ?? null,
       layer: found.layer,
       source: row?.source ?? null,
       selector: row?.selector ?? null,
@@ -249,7 +252,19 @@ const HISTORY_LENGTH = 6
 
 const DRIFT = 'token-drift'
 
-const SEVERITY: GateRow['magnitude'][] = ['much', 'noticeably', 'paint', 'slightly', 'reflow', 'pin', 'other', DRIFT]
+const NAMED = 'component'
+
+const SEVERITY: GateRow['magnitude'][] = [
+  'much',
+  'noticeably',
+  'paint',
+  NAMED,
+  'slightly',
+  'reflow',
+  'pin',
+  'other',
+  DRIFT,
+]
 
 const LEGEND_KINDS = ['much', 'noticeably', 'paint', 'matched'] as const
 

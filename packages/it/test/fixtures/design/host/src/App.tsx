@@ -36,6 +36,7 @@ export function App() {
   if (requested === 'empty') return null
   if (requested === 'broken') return <Broken data-conciv-key="f-BlcQ" />
   if (requested === 'drift') return <DriftPage data-conciv-key="k8rCfA" />
+  if (requested === 'drift-hand') return <DriftHandPage data-conciv-key="hNdPgA" />
   if (requested === 'dashboard') return <main className="dashboard" data-conciv-key="dBlROA" />
   if (requested === 'xray') return <XrayProofPage data-conciv-key="8prgZg" />
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
@@ -137,6 +138,15 @@ function DriftPage() {
     <main className="drift" data-conciv-key="JphxEg">
       <Chip data-conciv-key="yPfAfw" />
       <span className="loose" data-conciv-key="Sh110A" />
+    </main>
+  )
+}
+
+function DriftHandPage() {
+  return (
+    <main className="drift" data-conciv-key="hNdMnA">
+      <span className="chip" data-conciv-key="hNdChp" />
+      <span className="loose" data-conciv-key="hNdLse" />
     </main>
   )
 }

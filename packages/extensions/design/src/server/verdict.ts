@@ -59,6 +59,7 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
   const missing = round.coverage.missing.filter((node) => required.has(node))
   const reflow = round.rows.filter((row) => row.magnitude === 'reflow')
   const paint = round.rows.filter((row) => row.magnitude === 'paint' && row.kind !== UNBLOCKING)
+  const named = round.rows.filter((row) => row.magnitude === 'component')
   return [
     ...(much + noticeably + pins + other > 0
       ? [
@@ -68,6 +69,14 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
     ...(paint.length > 0
       ? [
           `${paint.length} paint rows are left (fill, text color, font, line height, radius, border or opacity unlike the design); all must be 0, font family rows only report.`,
+        ]
+      : []),
+    ...(named.length > 0
+      ? [
+          `${named.length} component rows are left: ${named
+            .slice(0, MISSING_SHOWN)
+            .map((row) => `${row.node} is ${row.component ?? ''}`)
+            .join(', ')}; render each with its component.`,
         ]
       : []),
     ...(missing.length > 0

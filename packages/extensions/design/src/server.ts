@@ -24,6 +24,7 @@ import {DESIGN_COMMANDS} from './server/commands.js'
 import {createCatalog} from './server/catalog/catalog.js'
 import {createViteOxcSource} from './server/catalog/vite-oxc-source.js'
 import {createNameVariantHinter} from './server/catalog/name-variant-hinter.js'
+import {createComponentRows} from './server/catalog/component-rows.js'
 import {backfillRelation} from './server/catalog/backfill-relation.js'
 import {createCssTokenSource} from './server/catalog/token-source.js'
 import {createPreviewServer} from './server/catalog/preview-server.js'
@@ -61,6 +62,7 @@ const design = defineExtension({
   })
   const backfilled = backfillRelation({db, catalog}).catch(() => 0)
   const tokenSources = {css: createCssTokenSource({files: config.catalog.tokenFiles, catalog})}
+  const hinters = [createNameVariantHinter()]
   const runtime: DesignRuntime = {
     cwd: server.cwd,
     home,
@@ -81,6 +83,7 @@ const design = defineExtension({
     pairer: pairerBySource({figma: createFigmaNodePairer(), image: createVotePairer()}),
     comparator: config.comparator,
     tokens: config.catalog.tokens.map((source) => tokenSources[source]),
+    components: createComponentRows({catalog, hinters, config: config.catalog}),
   }
   const differ = createDiffer({
     show: config.show,
@@ -102,7 +105,7 @@ const design = defineExtension({
       db,
       catalog,
       catalogConfig: config.catalog,
-      hinters: [createNameVariantHinter()],
+      hinters,
     },
     router: xray.router,
     app: xray.app,

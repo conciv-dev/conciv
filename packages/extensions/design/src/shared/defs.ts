@@ -7,7 +7,8 @@ import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
 import {designTool} from './design-tool.js'
-import {CatalogSchemas, type TokenSource} from './catalog-defs.js'
+import {CatalogSchemas, type Component, type TokenSource} from './catalog-defs.js'
+import type {readIds} from './id-tree.js'
 import {componentsDef} from './components-def.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -229,7 +230,17 @@ const IdNodeSchema = z.object({
 
 export const IdTreeSchema = z.object({root: IdNodeSchema, revoted: z.array(z.string()), gone: z.array(z.string())})
 
-const MagnitudeSchema = z.enum(['much', 'noticeably', 'slightly', 'pin', 'other', 'reflow', 'paint', 'token-drift'])
+const MagnitudeSchema = z.enum([
+  'much',
+  'noticeably',
+  'slightly',
+  'pin',
+  'other',
+  'reflow',
+  'paint',
+  'token-drift',
+  'component',
+])
 
 const GateRowSchema = z.object({
   node: z.string(),
@@ -244,7 +255,13 @@ const GateRowSchema = z.object({
   magnitude: MagnitudeSchema,
   width: z.number().optional().describe('the page width a reflow row was measured at'),
   token: z.string().nullable().optional().describe('the design token a paint row field is bound to'),
-  component: z.string().optional().describe('on a token-drift row, the component that renders the element'),
+  component: z
+    .string()
+    .optional()
+    .describe(
+      'on a token-drift row, the component that renders the element; on a component row, the one the design names',
+    ),
+  specifier: z.string().optional().describe('on a component row, the import path of the component the design names'),
   kitToken: z.string().optional().describe('on a token-drift row, the kit token the page value is'),
   designToken: z.string().optional().describe('on a token-drift row, the design variable the field is bound to'),
   pageValue: z.string().optional().describe('the value the page shows, while the round is classified'),
@@ -610,4 +627,13 @@ export type DesignRuntime = {
   pairer: Pairer
   comparator: string
   tokens: TokenSource[]
+  components: ComponentRows
+}
+
+export type ComponentRows = {
+  rows(input: {
+    design: Design
+    reads: Pick<ReturnType<typeof readIds>, 'mapped' | 'named'>
+    relation: Map<string, Component>
+  }): Promise<GateRow[]>
 }

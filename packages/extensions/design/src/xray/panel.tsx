@@ -371,6 +371,9 @@ function RoundBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
                               <Show when={TAGS[problem.magnitude]}>
                                 {(tag) => <Chip kind="pill" tone={tag().tone} value={tag().label} class="shrink-0" />}
                               </Show>
+                              <Show when={problem.named}>
+                                <Chip kind="pill" tone="accent" value="Hand-drawn" class="shrink-0" />
+                              </Show>
                               <Show when={problem.drift}>
                                 <Chip kind="pill" tone="neutral" value="Token drift" class="shrink-0" />
                               </Show>

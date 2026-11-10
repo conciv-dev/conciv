@@ -150,6 +150,22 @@ export function Card(props: {
             {props.card.name}, instance {props.card.node}
           </span>
         </div>
+        <Show when={props.card.named}>
+          {(line) => (
+            <div class="flex gap-2 items-center" data-conciv-key="NmdRow">
+              <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="NmdLbl">
+                Use
+              </span>
+              <span
+                class="text-[length:var(--chat-text-md)] text-chat-text font-chat-mono [overflow-wrap:anywhere]"
+                data-conciv-key="NmdImp"
+              >
+                {line()}
+              </span>
+              <ClipboardCopyButton text={line()} tooltips={{idle: 'Copy the import'}} class="size-6" />
+            </div>
+          )}
+        </Show>
         <Show when={props.card.component}>
           {(component) => (
             <div class="flex gap-2 items-center" data-conciv-key="VwjYAw">
