@@ -417,6 +417,13 @@ describe('design_check verdict', () => {
     expect(checked.verdict).not.toBe('done')
     expect(checked.reasons.some((reason) => reason.includes('not rendered'))).toBe(true)
   })
+
+  it('names each missing node with its Figma name and the node it belongs under', async () => {
+    await goto('target')
+    await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.reasons.some((reason) => reason.includes('1:10 Card under 1:2 Cards'))).toBe(true)
+  })
 })
 
 describe('design_status', () => {

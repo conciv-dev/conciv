@@ -43,20 +43,35 @@ const STALL_ROUNDS = 2
 
 const BROKEN_RULE = 'fix the compile error first; nothing else was measured'
 
-function requiredOf(root: DesignNode): Set<string> {
-  return new Set(
-    [...walk(root)].flatMap(({node}) => {
+function requiredOf(root: DesignNode): Map<string, string> {
+  return new Map(
+    [...walk(root)].flatMap(({node, parent}) => {
       const box = node.figma?.box ?? node.box
       const decoration = node.gate?.kind === 'decoration'
-      return decoration || box.w <= 0 || box.h <= 0 ? [] : [node.id]
+      return decoration || box.w <= 0 || box.h <= 0 ? [] : [[node.id, placed({node, parent})] as const]
     }),
   )
 }
 
-function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
+function placed(input: {node: DesignNode; parent: DesignNode | null}): string {
+  const {node, parent} = input
+  const own = `${node.id} ${nameOf(node)}`
+  return parent === null ? own : `${own} under ${parent.id} ${nameOf(parent)}`
+}
+
+function nameOf(node: DesignNode): string {
+  if (node.implied === true) return IMPLIED
+  const name = node.figma?.name ?? node.kind
+  return node.kind === 'text' ? `${name} "${node.text}"` : name
+}
+
+function reasonsOf(input: {round: Round; required: Map<string, string>}): string[] {
   const {round, required} = input
   const {much, noticeably, pins, other} = round.counts
-  const missing = round.coverage.missing.filter((node) => required.has(node))
+  const missing = round.coverage.missing.flatMap((node) => {
+    const label = required.get(node)
+    return label === undefined ? [] : [label]
+  })
   const reflow = round.rows.filter((row) => row.magnitude === 'reflow')
   const paint = round.rows.filter((row) => row.magnitude === 'paint' && row.kind !== UNBLOCKING)
   return [
@@ -71,7 +86,7 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
         ]
       : []),
     ...(missing.length > 0
-      ? [`${missing.length} required nodes are not rendered: ${missing.slice(0, MISSING_SHOWN).join(', ')}.`]
+      ? [`${missing.length} required nodes are not rendered: ${missing.slice(0, MISSING_SHOWN).join('; ')}.`]
       : []),
     ...(reflow.length > 0
       ? [
@@ -85,6 +100,8 @@ function reasonsOf(input: {round: Round; required: Set<string>}): string[] {
 }
 
 const MISSING_SHOWN = 10
+
+const IMPLIED = '(an implied group: build it as a container)'
 
 const UNBLOCKING = 'font family'
 
