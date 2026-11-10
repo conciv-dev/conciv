@@ -1,4 +1,4 @@
-import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -258,13 +258,14 @@ describe('catalog component rows', () => {
       children: [namedBox({id: '19:2', name: 'Tag', y: 40}), namedBox({id: '19:3', name: 'Marker', y: 160})],
     })
 
-    async function siteRounds(pages: string[]) {
+    async function siteRounds(pages: string[], edit: () => Promise<void> = async () => {}) {
       await kit.goto(pages[0] ?? '')
       const image = join(kit.targetsDir, 'site-figma.png')
       await writeFile(image, blankPng({width: 1280, height: 720}))
       const got = await call('design_get', {figma: SITE_LINK, image, document: SITE_DOCUMENT})
       return pages.reduce<Promise<{layers: unknown[][]; rows: unknown[][]}[]>>(async (earlier, page, index) => {
         const listed = await earlier
+        if (index > 0) await edit()
         if (index > 0) await kit.goto(page)
         const checked = roundOf(await call('design_check', {}))
         const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
@@ -314,6 +315,17 @@ describe('catalog component rows', () => {
         },
       ])
     })
+    it('lists the row for a kit component the page lost after an edit moved every line of the file that called it', async () => {
+      const file = join(HOST_ROOT, 'src/SitePage.tsx')
+      const source = await readFile(file, 'utf8')
+      try {
+        const rounds = await siteRounds(['site-kit', 'site-hand'], () => writeFile(file, `\n\n\n${source}`))
+        expect(rounds.map((round) => round.rows.map((row) => [row[0], row[1]]))).toEqual([[], [['19:3', 'Badge']]])
+      } finally {
+        await writeFile(file, source)
+      }
+    })
+
     it('lists no row while the call site of a kit component stands and its pairing moved to a sibling, and the row once the call is gone', async () => {
       expect((await siteRounds(['site-kit', 'site-moved', 'site-hand'])).map((round) => round.rows)).toEqual([
         [],
