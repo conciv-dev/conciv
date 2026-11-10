@@ -126,7 +126,6 @@ export function quickJSThreadDriver(
   log: Log,
 ): IsolateDriver & {dispose: () => Promise<void>} {
   const live = new Set<Worker>()
-  const held: {spare: Spare | null; open: boolean} = {spare: null, open: false}
   const boot = (): Spare => {
     const worker = new Worker(new URL('./quickjs-worker.js', import.meta.url))
     live.add(worker)
@@ -135,6 +134,7 @@ export function quickJSThreadDriver(
     worker.on('exit', () => live.delete(worker))
     return {worker, loaded: nextMessage(worker, 'loaded', limits.timeout)}
   }
+  const held: {spare: Spare | null; open: boolean} = {spare: boot(), open: true}
   const reset = (worker: Worker): Spare => {
     worker.unref()
     const loaded = nextMessage(worker, 'loaded', limits.timeout)

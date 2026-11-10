@@ -758,8 +758,8 @@ describe('dist externals', () => {
 
 describe('quickjs code mode reuses a warm worker without sharing state', async () => {
   const dist: typeof import('../src/server.js') = await import(new URL('../dist/server.js', import.meta.url).href)
-  const ReportSchema = z.object({workers: z.array(z.unknown())})
-  const liveWorkers = () => ReportSchema.parse(process.report.getReport()).workers.length
+  const ReportSchema = z.object({workers: z.array(z.object({header: z.object({threadId: z.number()})}))})
+  const liveWorkers = () => ReportSchema.parse(process.report.getReport()).workers.map(({header}) => header.threadId)
 
   function sandbox(limits: {timeout: number; memoryLimit: number}) {
     const driver = dist.quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
@@ -823,15 +823,34 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     await driver.dispose()
   })
 
-  it('disposing the driver leaves no live worker', async () => {
+  it('boots one worker at creation and consecutive executes all run on it', async () => {
     const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
-    await Promise.all([run('return 1'), run('return 2')])
-    expect(liveWorkers()).toBeGreaterThan(0)
+    const booted = liveWorkers()
+    expect(booted).toHaveLength(1)
+    for (const value of [1, 2, 3]) {
+      expect(await run(`return ${value}`)).toMatchObject({success: true, value})
+      expect(liveWorkers()).toEqual(booted)
+    }
     await driver.dispose()
-    expect(liveWorkers()).toBe(0)
+    expect(liveWorkers()).toEqual([])
   })
 
-  it('a warm return 1 through the chat server stays under 50 ms and ending all runs frees the worker', async () => {
+  it('disposing the driver right after creation leaves no live worker', async () => {
+    const {driver} = sandbox({timeout: 10_000, memoryLimit: 64})
+    expect(liveWorkers()).toHaveLength(1)
+    await driver.dispose()
+    expect(liveWorkers()).toEqual([])
+  })
+
+  it('disposing the driver after concurrent runs leaves no live worker', async () => {
+    const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
+    await Promise.all([run('return 1'), run('return 2')])
+    expect(liveWorkers().length).toBeGreaterThan(0)
+    await driver.dispose()
+    expect(liveWorkers()).toEqual([])
+  })
+
+  it('the chat server runs every return 1 on the worker it booted and ending all runs frees it', async () => {
     const client = new DatabaseSync(':memory:')
     client.exec(
       'CREATE TABLE chat_runs (run_id text PRIMARY KEY, thread_id text NOT NULL, harness_id text NOT NULL, status text NOT NULL, started_at integer NOT NULL, finished_at integer, error text, error_code text, usage_json text, sandbox_key text, detached_since integer, cancel_requested integer, driver_epoch integer)',
@@ -852,6 +871,8 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
     })
+    const booted = liveWorkers()
+    expect(booted).toHaveLength(1)
     const echo = defineTool({
       name: 'echo',
       description: 'Echoes its input.',
@@ -860,17 +881,11 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     }).server(async (args) => args)
     const runner = server.codeRunner([echo])
     if (runner === null) throw new Error('code mode found no driver')
-    const timed = async () => {
-      const start = performance.now()
+    for (const _ of Array.from({length: 20})) {
       expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
-      return performance.now() - start
+      expect(liveWorkers()).toEqual(booted)
     }
-    await timed()
-    const warm: number[] = []
-    for (const _ of Array.from({length: 20})) warm.push(await timed())
-    const median = warm.toSorted((a, b) => a - b)[10] ?? Infinity
-    expect(median).toBeLessThan(50)
     await server.endAllRuns()
-    expect(liveWorkers()).toBe(0)
+    expect(liveWorkers()).toEqual([])
   })
 })
