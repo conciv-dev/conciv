@@ -1,3 +1,6 @@
+import type concivPlugin from '@conciv/plugin/esbuild'
 import {unplugin} from '../plugin-instance.js'
 
-export default unplugin.esbuild
+const plugin: typeof concivPlugin = unplugin.esbuild
+
+export default plugin

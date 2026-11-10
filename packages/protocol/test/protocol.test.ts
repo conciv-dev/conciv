@@ -1,5 +1,6 @@
 import {createSignal} from 'solid-js'
-import {describe, expect, it} from 'vitest'
+import type {RunStatus as LibraryRunStatus} from '@tanstack/ai'
+import {describe, expect, expectTypeOf, it} from 'vitest'
 import {chatBusy} from '../src/chat-busy.js'
 import {
   SessionId,
@@ -12,7 +13,7 @@ import {
   MAX_ATTACHMENT_RAW_BYTES,
 } from '../src/chat-types.js'
 import {defineFrameworkAdapter, type FrameworkClientCore, type FrameworkServerCore} from '../src/framework-types.js'
-import {ChatEventType} from '../src/chat-event-types.js'
+import {ChatEventType, type RunStatus} from '../src/chat-event-types.js'
 import {
   decodeEntities,
   isDangerousTag,
@@ -53,6 +54,9 @@ describe('chat busy', () => {
 })
 
 describe('chat types', () => {
+  it('RunStatus names the same statuses as the TanStack AI run store', () => {
+    expectTypeOf<RunStatus>().toEqualTypeOf<LibraryRunStatus>()
+  })
   describe('SessionId (branded, conciv_ prefix)', () => {
     it('accepts an conciv_ id', () => {
       expect(SessionId.safeParse('conciv_018f3a2b-4c5d-6e7f').success).toBe(true)

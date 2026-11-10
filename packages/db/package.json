@@ -39,7 +39,6 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
-    "@tanstack/ai": "catalog:",
     "drizzle-orm": "catalog:",
     "env-paths": "catalog:",
     "zod": "catalog:"

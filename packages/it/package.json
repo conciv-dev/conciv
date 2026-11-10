@@ -74,14 +74,13 @@
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
-    "@conciv/plugin": "workspace:^",
-    "@conciv/protocol": "workspace:^",
-    "unplugin": "catalog:"
+    "@conciv/plugin": "workspace:^"
   },
   "devDependencies": {
     "@conciv/contract": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
     "@types/culori": "catalog:",
     "@types/node": "catalog:",

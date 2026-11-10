@@ -84,7 +84,6 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
-    "@tanstack/ai": "catalog:",
     "@tanstack/ai-mcp": "catalog:",
     "@tanstack/pacer": "catalog:",
     "drizzle-orm": "catalog:",
