@@ -13,7 +13,7 @@ import type {PacedRelease, ScriptedTurn} from '@conciv/harness-testkit'
 import type {BootCoreInput, BootCoreResult, FaultSpec, PointerDrag, PointerHover} from './commands/core-control.js'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {fetchServerSentEvents} from '@conciv/ai/client'
-import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CHAT_HISTORY_PAGE_SIZE, CHAT_SSE_PATH} from '@conciv/protocol/chat-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/solid-query'
 import {type AppContextValue, AppContext} from '../src/app/context.js'
 import {makeLiveSessions} from '../src/app/live-sessions.js'
@@ -186,10 +186,7 @@ type AppContextValueOptions = {
 }
 
 function makeAppContextValue(options: AppContextValueOptions): AppContextValue {
-  const rpc = makeRpcClient(
-    options.base,
-    options.sessionId === undefined ? {} : {headers: {[CONCIV_SESSION_HEADER]: options.sessionId}},
-  )
+  const rpc = makeBrowserRpcClient(options.base, {session: () => options.sessionId ?? null}).rpc
   const queryClient = new QueryClient()
   const announce = options.announce
   const data = makeAppData(rpc, queryClient)
