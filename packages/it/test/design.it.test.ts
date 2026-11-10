@@ -907,6 +907,16 @@ describe('token drift', () => {
     expect((await call('design_status', {})).rows).toEqual(checked.rows)
   })
 
+  it('the x-ray layers name the component that renders a node', async () => {
+    const {got, checked} = await driftRound(kit)
+    const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
+    const placed = layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom)
+    expect(placed.find((entry) => entry.nodeId === '8:2')?.component).toEqual({
+      name: 'Chip',
+      specifier: './src/Chip.tsx',
+    })
+  })
+
   it('reads a light-dark token as one token per scheme and matches page values by kind', async () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-tokens-home-'))
     const home = openHomeDb(homeDir)

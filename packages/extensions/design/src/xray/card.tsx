@@ -1,4 +1,4 @@
-import {For, type JSX} from 'solid-js'
+import {For, Show, type JSX} from 'solid-js'
 import ArrowLeft from 'lucide-solid/icons/arrow-left'
 import {formatHex} from 'culori'
 import {Button, ClipboardCopyButton, TooltipIconButton} from '@conciv/ui-kit-system'
@@ -36,6 +36,9 @@ export function Card(props: {
       page: `${plain(dom()?.box.x)}, ${plain(dom()?.box.y)}`,
       same: whole(look()?.x) === whole(dom()?.box.x) && whole(look()?.y) === whole(dom()?.box.y),
     },
+    ...(props.card.drift === null
+      ? []
+      : [{label: 'Token', design: props.card.drift.design, page: props.card.drift.kit, same: false}]),
   ]
   const wrong = () => {
     const target = props.data.design.latest?.target.id
@@ -130,6 +133,18 @@ export function Card(props: {
             {whereCode(props.card.source)}
           </span>
         </div>
+        <Show when={props.card.component}>
+          {(component) => (
+            <div class="flex gap-2 items-center" data-conciv-key="VwjYAw">
+              <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="vufE2w">
+                In a component
+              </span>
+              <span class="text-[length:var(--chat-text-md)] text-chat-accent" data-conciv-key="nUl7bQ">
+                {component().name}
+              </span>
+            </div>
+          )}
+        </Show>
         <div class="flex gap-2 items-center" data-conciv-key="T1RvXw">
           <span class="text-[length:var(--chat-text-md)] text-chat-text-2" data-conciv-key="eqAZrw">
             On the page

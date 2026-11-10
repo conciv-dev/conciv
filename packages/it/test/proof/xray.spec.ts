@@ -61,6 +61,7 @@ test('the x-ray overlay shows each mockup state on its fixture sample, light and
         await expect(panel.getByRole('radio', {name: 'Desktop 1440'})).toBeChecked()
         await expect(panel.getByRole('switch', {name: 'Outlines of the design'})).toBeChecked()
         await expect(page.getByRole('button', {name: 'Stat / Picked 34:600'})).toBeVisible()
+        await expect(panel.getByRole('list', {name: 'Problems'}).getByText('Token drift', {exact: true})).toHaveCount(1)
         await shot({page, state: 'round', scheme})
       })
 
@@ -129,6 +130,8 @@ test('the x-ray overlay shows each mockup state on its fixture sample, light and
         await expect(panel.getByText('Design wants')).toBeVisible()
         await expect(panel.getByText('div.lp-card')).toBeVisible()
         await expect(panel.getByText('src/Stat.tsx, line 3')).toBeVisible()
+        await expect(panel.getByText('In a component')).toBeVisible()
+        await expect(panel.getByText('Stat', {exact: true})).toBeVisible()
         await expect(panel.getByText('PROBLEMS · 4')).toBeHidden()
         await shot({page, state: 'card', scheme})
       })

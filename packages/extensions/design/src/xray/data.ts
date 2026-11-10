@@ -74,12 +74,16 @@ export function createXrayData(input: {
     const width = viewport()
     if (round === null || width === null) return []
     const rows = round.rows.filter((row) => (row.width ?? designWidth()) === width)
-    return Object.values(groupBy(rows, (row) => row.node)).map((group) => ({
-      node: group[0]?.node ?? '',
-      name: group[0]?.name ?? '',
-      magnitude: sortBy(group, [(row) => SEVERITY.indexOf(row.magnitude)])[0]?.magnitude ?? 'other',
-      lines: group.map((row) => row.text),
-    }))
+    return Object.values(groupBy(rows, (row) => row.node)).map((group) => {
+      const drift = group.find((row) => row.magnitude === DRIFT)
+      return {
+        node: group[0]?.node ?? '',
+        name: group[0]?.name ?? '',
+        magnitude: sortBy(group, [(row) => SEVERITY.indexOf(row.magnitude)])[0]?.magnitude ?? 'other',
+        drift: drift === undefined ? null : {kit: drift.kitToken ?? '', design: drift.designToken ?? ''},
+        lines: group.map((row) => row.text),
+      }
+    })
   })
   const summary = createMemo(() => {
     const round = shownRound()
@@ -146,6 +150,8 @@ export function createXrayData(input: {
       within: found.parent?.fom[0]?.look?.name ?? null,
       magnitude: problem?.magnitude ?? null,
       look: found.look,
+      component: found.component,
+      drift: problem?.drift ?? null,
       layer: found.layer,
       source: row?.source ?? null,
       selector: row?.selector ?? null,
@@ -199,7 +205,9 @@ const POLL_MS = 2000
 
 const HISTORY_LENGTH = 6
 
-const SEVERITY: GateRow['magnitude'][] = ['much', 'noticeably', 'paint', 'slightly', 'reflow', 'pin', 'other']
+const DRIFT = 'token-drift'
+
+const SEVERITY: GateRow['magnitude'][] = ['much', 'noticeably', 'paint', 'slightly', 'reflow', 'pin', 'other', DRIFT]
 
 const LEGEND_KINDS = ['much', 'noticeably', 'paint', 'matched'] as const
 
@@ -217,9 +225,14 @@ function placeOf(
   layer: LayerNode,
   node: string,
   parent: LayerNode | null = null,
-): {layer: LayerNode; parent: LayerNode | null; look: LayerNode['fom'][number]['look']} | null {
+): {
+  layer: LayerNode
+  parent: LayerNode | null
+  look: LayerNode['fom'][number]['look']
+  component: LayerNode['fom'][number]['component']
+} | null {
   const own = layer.fom.find((entry) => entry.nodeId === node)
-  if (own !== undefined) return {layer, parent, look: own.look}
+  if (own !== undefined) return {layer, parent, look: own.look, component: own.component}
   for (const child of layer.children) {
     const found = placeOf(child, node, layer)
     if (found !== null) return found

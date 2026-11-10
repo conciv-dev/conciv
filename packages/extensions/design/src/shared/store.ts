@@ -21,6 +21,7 @@ export type Store = {
   ids(input: {id: string; round?: number}): Promise<IdTree | null>
   looks(id: string): Promise<Look[]>
   writeRelation(input: {id: string; round: number; tree: IdTree}): Promise<Map<string, Component>>
+  relation(input: {id: string; round: number}): Promise<Map<string, Component>>
   unsettledCount(id: string): Promise<number>
   writeUnsettledCount(input: {id: string; count: number}): Promise<void>
   writeRound(input: {

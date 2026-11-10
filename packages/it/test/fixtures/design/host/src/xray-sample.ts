@@ -24,8 +24,10 @@ type Look = Record<string, string | number | boolean | null>
 
 type Placed = {node: string; look: Look}
 
+type Component = {name: string; specifier: string}
+
 type Layer = Omit<IdNode, 'fom' | 'children'> & {
-  fom: (IdNode['fom'][number] & {box: Box | null; look: Look})[]
+  fom: (IdNode['fom'][number] & {box: Box | null; look: Look; component: Component | null})[]
   children: Layer[]
 }
 
@@ -40,6 +42,8 @@ const ROUNDS = [1, 2, 3, 4, 5, 6]
 const STATS_KEY = 'A4VsVg'
 
 const CARD_KEY = 'yW45EQ'
+
+const STAT = {name: 'Stat', specifier: './src/Stat.tsx'}
 
 const SAMPLES: Record<string, () => Sample> = {
   empty: () => ({...roundSample(), current: null}),
@@ -80,6 +84,17 @@ function roundSample(): Sample {
       magnitude: 'paint',
       text: 'Fill is #F8F8F8, the design wants #FFFFFF (color/surface).',
     }),
+    {
+      ...row({
+        node: '34:600',
+        name: 'Stat / Picked',
+        magnitude: 'token-drift',
+        text: 'Stat uses --chat-radius-sm (8px); the design wants radius/lg (12px)',
+      }),
+      component: STAT.name,
+      kitToken: '--chat-radius-sm',
+      designToken: 'radius/lg',
+    },
     row({
       node: '34:610',
       name: 'Stat / Invoices',
@@ -153,9 +168,10 @@ function roundOf(input: {round: number; rows: Row[]; nodes: number; at: number})
       slightly: count('slightly'),
       pins: 0,
       other: 0,
-      rows: rows.length,
+      rows: rows.length - count('token-drift'),
       reflow: 0,
       paint: count('paint'),
+      drift: count('token-drift'),
     },
     pixels: null,
     progress: null,
@@ -222,6 +238,7 @@ function card(input: {label: string; node: string; name: string; x: number}): La
     box,
     background: '#F8F8F8',
     radius: 8,
+    component: STAT,
     look: look({
       node: input.node,
       name: input.name,
@@ -239,6 +256,7 @@ function layer(input: {
   background?: string
   radius?: number
   instance?: string
+  component?: Component
   look?: Placed
   within?: Placed
   children?: Layer[]
@@ -282,6 +300,7 @@ function layer(input: {
               round: ROUNDS.length,
               box: own === undefined ? null : box,
               look: placed.look,
+              component: input.component ?? null,
             },
           ],
     children: input.children ?? [],

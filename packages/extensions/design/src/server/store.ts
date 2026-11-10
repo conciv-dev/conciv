@@ -1,5 +1,5 @@
 import {and, asc, desc, eq, inArray, isNotNull, max} from 'drizzle-orm'
-import {uniqBy} from 'es-toolkit'
+import {uniq, uniqBy} from 'es-toolkit'
 import type {Storage} from 'unstorage'
 import {toolError, type ExtensionDb} from '@conciv/extension'
 import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
@@ -219,6 +219,19 @@ export function createStore(input: {
       (await orm.select().from(nodes).where(eq(nodes.target_id, id)).orderBy(asc(nodes.seq))).map(
         ({seq: _seq, target_id: _target, run_id: _run, ...look}) => look,
       ),
+    relation: async ({id, round}) => {
+      const related = await orm
+        .select({node: nodeComponents.node, source: nodeComponents.source})
+        .from(nodeComponents)
+        .where(and(eq(nodeComponents.target_id, id), eq(nodeComponents.round, round)))
+      const components = await catalog.componentsOf(uniq(related.map((row) => row.source)))
+      return new Map(
+        related.flatMap(({node, source}) => {
+          const component = components.get(source)
+          return component === undefined ? [] : [[node, component]]
+        }),
+      )
+    },
     unsettledCount: async (id) => (await target(id))?.unsettled ?? 0,
     writeUnsettledCount: async ({id, count}) => {
       await orm.update(targets).set({unsettled: count}).where(eq(targets.target_id, id))

@@ -65,10 +65,24 @@ function makeXrayRouter(input: {runtime: DesignRuntime; hotkeys: DesignConfig['h
         .handler(async ({input: query}) => {
           const target = (await store.list()).find((record) => record.id === query.id)
           if (target === undefined) throw new ORPCError('NOT_FOUND', {message: `no design with id ${query.id}`})
-          const [ids, looks] = await Promise.all([store.ids(query), store.looks(target.id)])
+          const [ids, looks, related] = await Promise.all([
+            store.ids(query),
+            store.looks(target.id),
+            store.relation(query),
+          ])
           if (ids === null) return null
           const byNode = new Map(looks.map((look) => [look.node, look]))
-          return {round: query.round, width: target.width, root: layerOf({node: ids.root, byNode, scale: target.scale})}
+          const components = new Map(
+            [...related].map(([node, component]) => [
+              node,
+              {name: component.names[0] ?? '', specifier: component.specifier},
+            ]),
+          )
+          return {
+            round: query.round,
+            width: target.width,
+            root: layerOf({node: ids.root, byNode, components, scale: target.scale}),
+          }
         }),
     },
   })
@@ -92,8 +106,13 @@ function makeXrayApp(input: {runtime: DesignRuntime; takumiDir: string}) {
     })
 }
 
-function layerOf(input: {node: IdNode; byNode: Map<string, Look>; scale: number}): Layer {
-  const {node, byNode, scale} = input
+function layerOf(input: {
+  node: IdNode
+  byNode: Map<string, Look>
+  components: Map<string, LayerComponent>
+  scale: number
+}): Layer {
+  const {node, byNode, components, scale} = input
   return {
     id: node.id,
     dom: node.dom,
@@ -102,7 +121,7 @@ function layerOf(input: {node: IdNode; byNode: Map<string, Look>; scale: number}
     fom: node.fom.map((entry) => {
       const look = byNode.get(entry.nodeId) ?? null
       const box = look === null ? null : {x: look.x * scale, y: look.y * scale, w: look.w * scale, h: look.h * scale}
-      return {...entry, box, look}
+      return {...entry, box, look, component: components.get(entry.nodeId) ?? null}
     }),
     children: node.children.map((child) => layerOf({...input, node: child})),
   }
@@ -110,8 +129,10 @@ function layerOf(input: {node: IdNode; byNode: Map<string, Look>; scale: number}
 
 type Look = Awaited<ReturnType<Store['looks']>>[number]
 
+type LayerComponent = {name: string; specifier: string}
+
 type Layer = Omit<IdNode, 'fom' | 'children'> & {
-  fom: (IdNode['fom'][number] & {box: Box | null; look: Look | null})[]
+  fom: (IdNode['fom'][number] & {box: Box | null; look: Look | null; component: LayerComponent | null})[]
   children: Layer[]
 }
 
