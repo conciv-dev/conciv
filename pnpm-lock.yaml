@@ -60,6 +60,9 @@ catalogs:
     '@solid-primitives/event-listener':
       specifier: ^2.4.6
       version: 2.4.6
+    '@solid-primitives/keyed':
+      specifier: ^1.5.3
+      version: 1.5.3
     '@solid-primitives/resize-observer':
       specifier: ^2.2.0
       version: 2.2.0
@@ -2447,6 +2450,9 @@ importers:
       '@conciv/extension-recorder':
         specifier: workspace:^
         version: link:../extensions/recorder
+      '@conciv/extension-tanstack':
+        specifier: workspace:^
+        version: link:../extensions/tanstack
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
@@ -2568,6 +2574,9 @@ importers:
       unplugin-solid:
         specifier: ^2.0.0
         version: 2.0.0(@testing-library/jest-dom@6.9.1)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(solid-js@1.9.17)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(patch_hash=7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd)(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2641,6 +2650,9 @@ importers:
       '@conciv/browser-fixture':
         specifier: workspace:*
         version: link:../browser-fixture
+      '@conciv/client':
+        specifier: workspace:^
+        version: link:../client
       '@conciv/contract':
         specifier: workspace:^
         version: link:../contract
@@ -2662,6 +2674,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -3109,15 +3124,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@conciv/browser-fixture':
-        specifier: workspace:*
-        version: link:../../browser-fixture
       '@conciv/core':
         specifier: workspace:^
         version: link:../../core
-      '@conciv/embed':
-        specifier: workspace:^
-        version: link:../../embed
       '@conciv/extension-compiler':
         specifier: workspace:^
         version: link:../../extension-compiler
@@ -3127,18 +3136,12 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
-      '@conciv/plugin':
-        specifier: workspace:^
-        version: link:../../plugin
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
-      '@solid-primitives/event-listener':
-        specifier: 'catalog:'
-        version: 2.4.6(solid-js@1.9.17)
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -4633,7 +4636,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/keyed':
-        specifier: ^1.5.3
+        specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
       '@solid-primitives/media':
         specifier: ^2.3.6
@@ -4823,6 +4826,9 @@ importers:
       '@solid-primitives/event-listener':
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
+      '@solid-primitives/keyed':
+        specifier: 'catalog:'
+        version: 1.5.3(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
         version: 2.2.0(solid-js@1.9.17)

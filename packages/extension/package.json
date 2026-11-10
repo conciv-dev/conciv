@@ -47,6 +47,10 @@
     "./rpc-mount": {
       "types": "./dist/rpc-mount.d.ts",
       "import": "./dist/rpc-mount.js"
+    },
+    "./vite": {
+      "types": "./dist/vite-bridge.d.ts",
+      "import": "./dist/vite-bridge.js"
     }
   },
   "publishConfig": {
@@ -81,9 +85,16 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "unplugin-solid": "^2.0.0",
+    "vite": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "solid-js": "^1.9.13"
+    "solid-js": "^1.9.13",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   }
 }

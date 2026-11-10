@@ -24,13 +24,10 @@ type FieldShellProps = {
   description?: JSX.Element
   error?: string
   layout?: 'row' | 'stack'
-  group?: boolean
   disabled?: boolean
-  readOnly?: boolean
-  required?: boolean
   class?: string
   children: JSX.Element
-}
+} & ({group?: false; readOnly?: boolean; required?: boolean} | {group: true; readOnly?: never; required?: never})
 
 export function FieldShell(props: FieldShellProps): JSX.Element {
   const [local] = splitProps(props, [

@@ -6,20 +6,15 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
-import type {Page} from 'playwright'
 import {createServer, type ViteDevServer} from 'vite'
 import ts from 'typescript'
 import {z} from 'zod'
-import {test as browserTest} from '@conciv/browser-fixture'
 import {start, type Engine, type StartOpts} from '@conciv/core/start'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
-import {serveDir, type ServedHost} from '@conciv/extension-testkit'
-import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {bootCoreKit, type CoreKit} from '@conciv/extension-testkit/core-kit'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
-import {makeViteBridge} from '@conciv/plugin/vite'
+import {makeViteBridge} from '@conciv/extension/vite'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
-import {CONCIV_TANSTACK_CLIENT_LABEL} from '../src/client-sentinel.js'
 import tanstackExtension from '../src/server.js'
 import {
   gotoAbout,
@@ -27,7 +22,7 @@ import {
   tanstackAdapter,
   useTanstackTestApi,
   waitForAboutQuery,
-  waitForWidget,
+  waitForPagePlane,
 } from './helpers.js'
 
 async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: string}> {
@@ -38,97 +33,18 @@ async function startTrusted(opts: StartOpts): Promise<{engine: Engine; apiBase: 
 describe('boot', () => {
   const get = useTanstackTestApi()
 
-  test('real TanStack host app and the conciv widget both boot in a real browser', async () => {
+  test('real TanStack host app boots and its page serves the conciv page plane in a real browser', async () => {
     const {api} = get()
 
     await expectLocator(api.page.getByRole('heading', {name: 'TanStack inspection home'})).toBeVisible()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     await gotoAbout(api.page)
     await expectLocator(api.page.getByText('Greeting: hello')).toBeVisible()
     await expectLocator(api.page.getByText('Answer: 42')).toBeVisible()
     await expectLocator(api.page.getByText('Tags: a, b')).toBeVisible()
     await waitForAboutQuery(api.page)
-  })
-
-  test('the tanstack client surface mounts an inspector status chip that stays visible in the panel', async () => {
-    const {api} = get()
-
-    await waitForWidget(api.page)
-    await api.page.getByRole('button', {name: 'Open conciv chat'}).click()
-
-    const chip = api.page
-      .getByRole('dialog', {name: 'conciv chat agent'})
-      .getByRole('status', {name: CONCIV_TANSTACK_CLIENT_LABEL})
-    await expectLocator(chip).toBeVisible({timeout: 15_000})
-  })
-})
-
-describe('connect parity', () => {
-  const hostDist = fileURLToPath(new URL('../dist/test-host', import.meta.url))
-
-  const routerStateSchema = z.object({
-    location: z.object({pathname: z.string(), search: z.string(), hash: z.string()}),
-    matches: z.array(z.looseObject({routeId: z.string(), path: z.string(), loaderData: z.unknown()})),
-  })
-
-  const loaderDataSchema = z.looseObject({
-    server: z.looseObject({greeting: z.string()}),
-    local: z.looseObject({n: z.number()}),
-  })
-
-  const CONNECT_SETUP_TIMEOUT_MS = 120_000
-
-  const test = browserTest.extend<{kit: CoreKit; host: ServedHost; connectedPage: Page}>({
-    kit: [
-      // oxlint-disable-next-line no-empty-pattern -- vitest's fixture parser requires the literal `{}` destructuring
-      async ({}, use) => {
-        const kit = await bootCoreKit({id: 'fake-tanstack', extensions: [tanstackExtension]})
-        await use(kit)
-        await kit.cleanup()
-      },
-      {scope: 'test'},
-    ],
-    host: [
-      async ({kit}, use) => {
-        const host = await serveDir(hostDist, {apiBase: '', session: await kit.session()})
-        await use(host)
-        await host.close()
-      },
-      {scope: 'test'},
-    ],
-    connectedPage: [
-      async ({browser, host, kit}, use) => {
-        const page = await browser.newPage()
-        await page.goto(host.origin, {waitUntil: 'domcontentloaded'})
-        await page.getByRole('button', {name: 'Open conciv chat'}).click({timeout: 30_000})
-        await completeConnectHandshake(page, kit.base, await kit.session())
-        await use(page)
-        await page.close()
-      },
-      {scope: 'test'},
-    ],
-  })
-
-  test.describe('bootConnect: the tanstack client verbs answer the registry through the connect handle', () => {
-    test(
-      'tanstack_router_state reads the live TanStack app the connect handle attached to',
-      async ({connectedPage, kit}) => {
-        await connectedPage.getByRole('link', {name: 'About'}).click()
-        await expectLocator(connectedPage.getByRole('heading', {name: 'About this app'})).toBeVisible()
-
-        const state = routerStateSchema.parse(await kit.rpc.registry.call({name: 'tanstack_router_state', input: {}}))
-
-        expect(state.location.pathname).toBe('/about')
-        const aboutMatch = state.matches.find((match) => match.routeId === '/about')
-        if (!aboutMatch) throw new Error('the router state did not list the /about match')
-        const loaderData = loaderDataSchema.parse(aboutMatch.loaderData)
-        expect(loaderData.server.greeting).toBe('hello')
-        expect(loaderData.local.n).toBe(42)
-      },
-      CONNECT_SETUP_TIMEOUT_MS,
-    )
   })
 })
 
@@ -164,7 +80,7 @@ describe('framework adapter', () => {
 
   test('adapter.client.detect reports the running framework against the real app', async () => {
     const {api} = get()
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     const info = await tanstackAdapter(api).client.detect()
     expect(info).toEqual({name: 'tanstack-start', version: null, router: 'file-based', dev: true})
@@ -172,7 +88,7 @@ describe('framework adapter', () => {
 
   test('adapter.client.data surfaces the router loader cache for the real about route', async () => {
     const {api} = get()
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
 
     const adapter = tanstackAdapter(api)
@@ -188,7 +104,7 @@ describe('framework adapter', () => {
 
   test('adapter.client.data.invalidate re-runs the real router loader', async () => {
     const {api} = get()
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
 
     const adapter = tanstackAdapter(api)
@@ -206,7 +122,7 @@ describe('framework adapter', () => {
 
   test('adapter.queryCache splits the live TanStack Query cache into queries and mutations', async () => {
     const {api} = get()
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     await api.page.getByRole('link', {name: 'About'}).click()
     await waitForAboutQuery(api.page)
@@ -220,7 +136,7 @@ describe('framework adapter', () => {
 
   test('adapter.client.errors.snapshot captures a real runtime error thrown in an event handler', async () => {
     const {api} = get()
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     await api.page.getByRole('link', {name: 'Boom'}).click()
     await expectLocator(api.page.getByRole('heading', {name: 'Boom page'})).toBeVisible()
@@ -471,7 +387,7 @@ describe('router adapter', () => {
   test('callTool drives the fiber-walk adapter against the running TanStack app', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
     await waitForAboutQuery(api.page)
 
@@ -493,7 +409,7 @@ describe('router adapter', () => {
   test('tanstack_router_state redacts secret-keyed search params through dehydrate', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await api.page.getByRole('link', {name: 'Token route'}).click()
     await expectLocator(api.page.getByRole('heading', {name: 'Secret page'})).toBeVisible()
 
@@ -518,7 +434,7 @@ describe('router adapter', () => {
   test('tanstack_query_cache extracts the live TanStack Query cache from the running app', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
     await waitForAboutQuery(api.page)
 
@@ -532,7 +448,7 @@ describe('router adapter', () => {
   test('tanstack_navigate drives real TanStack Router navigation on the running app', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     await api.callToolApproved('tanstack_navigate', {to: '/form'})
 
@@ -543,7 +459,7 @@ describe('router adapter', () => {
   test('navigate threads search through the adapter into the running TanStack Router location', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
 
     const adapter = tanstackAdapter(api)
     await adapter.client.navigation.navigate({to: '/secret', search: {token: 'nav-applied'}})
@@ -557,7 +473,7 @@ describe('router adapter', () => {
   test('tanstack_query_invalidate no-ops on unknown keys and refetches the real key on the running app', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
     await waitForAboutQuery(api.page)
 
@@ -599,7 +515,7 @@ describe('router adapter', () => {
   test('tanstack_loader_data returns dehydrated leaf loader data with depth truncation applied', async () => {
     const {api} = get()
 
-    await waitForWidget(api.page)
+    await waitForPagePlane(api.page)
     await gotoAbout(api.page)
 
     const payload = await api.callTool('tanstack_loader_data', {})

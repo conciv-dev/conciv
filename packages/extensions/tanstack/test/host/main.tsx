@@ -2,9 +2,8 @@ import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import {QueryClient, QueryClientProvider, useQuery} from '@tanstack/react-query'
 import {createRootRoute, createRoute, createRouter, Link, Outlet, RouterProvider} from '@tanstack/react-router'
-import {mountConciv} from '@conciv/embed'
+import {startPageHost} from '@conciv/extension-testkit/host'
 import tanstackExtension from 'virtual:conciv-extension-under-test'
-import connectProbe from 'virtual:conciv-connect-probe'
 
 const queryClient = new QueryClient()
 
@@ -152,5 +151,5 @@ function App() {
 const rootElement = document.getElementById('root')
 if (rootElement) {
   createRoot(rootElement).render(<App />)
-  void mountConciv([tanstackExtension, connectProbe])
+  void startPageHost(tanstackExtension)
 }

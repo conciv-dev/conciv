@@ -51,6 +51,8 @@ import {eq} from 'drizzle-orm'
 import {isEqual} from 'es-toolkit'
 import getPort from 'get-port'
 import {defineWebSocketHelper} from 'hono/ws'
+import {createStorage, defineDriver} from 'unstorage'
+import memoryDriver from 'unstorage/drivers/memory'
 import {z} from 'zod'
 import {hostDocument} from '../src/api/native-page.js'
 import {resolveConfig} from '../src/config.js'
@@ -338,6 +340,7 @@ describe('chat plane', () => {
           native.reads += 1
           return native.messages
         },
+        tail: async () => ({messages: native.messages, earlier: null}),
         observe: () => ({revision: missing, read: missing, close: () => undefined}),
         list: async () => ({sessions: [], next: null}),
         meta: async () => null,
@@ -1098,6 +1101,49 @@ describe('settings storage', () => {
       expect(existsSync(join(root, 'escape.json'))).toBe(false)
     } finally {
       await engine.stop()
+    }
+  })
+
+  test('a local set made while a watched reload is still reading keeps winning in memory and on disk', async () => {
+    const saved = memoryDriver()
+    await saved.setItem?.('probe.json', JSON.stringify({theme: 'light'}), {})
+    const held: {read?: PromiseWithResolvers<void>} = {}
+    const reading = Promise.withResolvers<void>()
+    const watchers: ((event: 'update' | 'remove', key: string) => void)[] = []
+    const driver = defineDriver(() => ({
+      ...saved,
+      name: 'held-read-memory',
+      async getItem(key: string) {
+        if (held.read !== undefined) {
+          reading.resolve()
+          await held.read.promise
+        }
+        return saved.getItem(key)
+      },
+      async watch(callback) {
+        watchers.push(callback)
+        return async () => {}
+      },
+    }))
+    const settings = createSettingsStorage({
+      global: createStorage({driver: driver()}),
+      project: createStorage({driver: memoryDriver()}),
+    })
+    await settings.ready
+    try {
+      const store = settings.scope('probe').settings.global
+      expect(await store.all()).toEqual({theme: 'light'})
+      held.read = Promise.withResolvers<void>()
+      for (const callback of watchers) callback('update', 'probe.json')
+      await reading.promise
+      await store.set('theme', 'dark')
+      held.read.resolve()
+      await setImmediate()
+      await settings.flush()
+      expect(await store.all()).toEqual({theme: 'dark'})
+      expect(JSON.parse(String(await saved.getItem('probe.json', {})))).toEqual({theme: 'dark'})
+    } finally {
+      await settings.close()
     }
   })
 })

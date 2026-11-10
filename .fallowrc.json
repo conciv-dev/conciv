@@ -101,6 +101,7 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": [
+    "@conciv/extension-tanstack",
     "@agentclientprotocol/sdk",
     "@opencode-ai/sdk",
     "@tanstack/ai-mcp",

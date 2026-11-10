@@ -25,6 +25,7 @@ Source for the extension contract: defineExtension, defineTool and defineAttachm
 - `buildCatalog` / `scaffold` / `validateSource` (`catalog.ts`)
 - `createToolRegistry` / `ToolRegistry` / `TOOL_TRANSPORT_ERRORS` / `toInlineJsonSchema` (`tool-registry.ts`)
 - `walkRegistryProcedures` (`registry-walk.ts`)
+- `makeViteBridge(server)` (`vite-bridge.ts`, the `./vite` export): a `BundlerBridge` over a Vite dev server (config, resolve, module graph, transform, urls, reload, restart) whose `subscribe` reports `build-error`, `hmr-update` and `request-trace` diagnostics; the first subscribe wraps the client hot channel, watches file changes and unshifts a request-trace middleware
 - `makeCompositeRpcRouter` / `rpcFetchMiddleware` / `rpcWebsocketRoute` / `RPC_PREFIX` ('/rpc') / `RPC_WS_PATH` ('/rpc-ws') (`rpc-mount.ts`)
 - `ExtensionCommand` / `ExtensionCommandContext` (`types.ts`): `{name, description, run(context)}`; the widget lists it in the `/` menu and calls `run({sessionId})` on pick or when `/<name>` alone is sent
 - `createSettingsStore` (`settings-store.ts`): the `SettingsStore` surface (get, set, delete, all, onChange) over a lazily resolved `SettingsState`, shared by the engine and the client

@@ -50,6 +50,14 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
   const anotherProject = (cwd: string): boolean => rows.some((row) => row.cwd === cwd)
   const listedIn = (row: FixtureSession, cwd: string): boolean =>
     row.cwd === undefined ? !anotherProject(cwd) : row.cwd === cwd
+  const messages: HarnessHistory['messages'] = async (_cwd, sessionId, options) => {
+    const row = rows.find((candidate) => candidate.id === sessionId)
+    const text = row?.text
+    if (row?.messages === undefined && text === undefined) return []
+    await transcripts.wait()
+    options?.signal?.throwIfAborted()
+    return row?.messages ?? [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text ?? ''}]}]
+  }
   return {
     list: (scope, page) => {
       const listed = rows.flatMap((row) => {
@@ -59,15 +67,12 @@ function fixtureHistory(rows: FixtureSession[], transcripts: TranscriptHold): Ha
       const paged = pageAfter(listed, page, (meta) => ({updatedAt: meta.updatedAt, id: meta.id}))
       return Promise.resolve({sessions: paged.items, next: paged.next})
     },
-    messages: async (_cwd, sessionId, options) => {
-      const row = rows.find((candidate) => candidate.id === sessionId)
-      const text = row?.text
-      if (row?.messages === undefined && text === undefined) return []
-      await transcripts.wait()
-      options?.signal?.throwIfAborted()
-      return (
-        row?.messages ?? [{id: `${sessionId}-text`, role: 'assistant', parts: [{type: 'text', content: text ?? ''}]}]
-      )
+    messages,
+    tail: async (cwd, sessionId, {limit, before, signal}) => {
+      const all = await messages(cwd, sessionId, {signal})
+      const end = before === null ? all.length : Number(before)
+      const start = Math.max(0, end - limit)
+      return {messages: all.slice(start, end), earlier: start > 0 ? String(start) : null}
     },
     meta: (cwd, sessionId) => {
       const row = rows.find((candidate) => candidate.id === sessionId)
