@@ -1,6 +1,12 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import type {DebugConfig} from '@tanstack/ai'
+import {
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  parseWithStandardSchema,
+  type DebugConfig,
+  type SchemaInput,
+} from '@tanstack/ai'
 import {createCodeMode, type CodeModeTool, type IsolateDriver} from '@tanstack/ai-code-mode'
 import {codeModeCallEvent, codeModeErrorEvent, codeModeResultEvent} from '@conciv/protocol/chat-event-types'
 import type {ChatTool} from '@conciv/protocol/chat-tool-types'
@@ -105,6 +111,8 @@ function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): Co
   if (!execute) return tool
   return {
     ...tool,
+    inputSchema: convertSchemaToJsonSchema(tool.inputSchema),
+    outputSchema: convertSchemaToJsonSchema(tool.outputSchema),
     execute: async (args, context) => {
       const callId = randomUUID()
       context?.emitCustomEvent(codeModeCallEvent.name, {callId, function: tool.name, args})
@@ -113,10 +121,12 @@ function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): Co
         if (parameter !== undefined) {
           throw new Error(`"${tool.name}" takes "${parameter}", which ${SECRET_REFUSAL}`)
         }
-        const result: unknown = await execute(
-          args,
+        const input = validated(tool.inputSchema, args, `Input validation failed for tool ${tool.name}`)
+        const output: unknown = await execute(
+          input,
           context === undefined ? undefined : {...context, toolCallId: callId},
         )
+        const result = validated(tool.outputSchema, output, `Output validation failed for tool ${tool.name}`)
         context?.emitCustomEvent(codeModeResultEvent.name, {callId, result})
         return result
       } catch (error) {
@@ -127,6 +137,15 @@ function childCall(tool: CodeModeTool, secrets: ReadonlyMap<string, string>): Co
         throw error
       }
     },
+  }
+}
+
+function validated(schema: SchemaInput | undefined, value: unknown, failure: string): unknown {
+  if (schema === undefined || !isStandardSchema(schema)) return value
+  try {
+    return parseWithStandardSchema(schema, value)
+  } catch (error) {
+    throw new Error(`${failure}: ${error instanceof Error ? error.message : 'Validation failed'}`, {cause: error})
   }
 }
 

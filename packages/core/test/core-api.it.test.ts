@@ -3102,7 +3102,7 @@ return seen`
     })
 
     describe('code mode child cards', () => {
-      it('each call in a script shows as its own card under the script, with results, errors and caps, after reload too', async () => {
+      it('each call in a script shows as its own card under the script, with results, errors (bad arguments too) and caps, after reload too', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.echo
         const parent = codeTurn(CHILD_CARD_SCRIPT)
@@ -3113,8 +3113,9 @@ return seen`
         expect(children.map((part) => [part.name, cardMetadata(part)])).toEqual(
           CHILD_CARDS.map((name) => [name, {parentToolCallId: parent}]),
         )
-        expect(children.find((part) => part.name === 'fixture_fail')?.state).toBe('error')
+        expect(children.map((part) => part.state === 'error')).toEqual([false, false, true, true, false])
         const results = resultsOf(await thread(sessionId))
+        expect(results).toContain('Input validation failed for tool fixture_echo')
         expect(results).toContain('the probe broke')
         expect(results).toContain('conciv:truncated')
         expect(results).toContain('120000')
@@ -3238,7 +3239,7 @@ return seen`
   const NEVER_MADE = 'conciv_never-made'
   const DECLARED_MESSAGE = 'PROBE_BROKE: the probe broke'
   const FIXTURE_TOOLS = ['fixture_echo', 'fixture_read', 'fixture_ask']
-  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
+  const CHILD_CARDS = ['fixture_echo', 'fixture_echo', 'fixture_echo', 'fixture_fail', 'fixture_huge']
   const ECHO_DESCRIPTION = 'Echo the text back.\n\nUse it to echo.\n\nNever echo secrets.\n\nKeep it short.'
   const EXPANSION_PART = {type: 'text', content: 'fixture-expanded', metadata: {modelOnly: true}}
   const ONE_PIXEL_PNG =
@@ -3264,6 +3265,7 @@ return seen`
   const CHILD_CARD_SCRIPT = `
   await external_fixture_echo({text: "a"})
   await external_fixture_echo({text: "b"})
+  try { await external_fixture_echo({text: 5}) } catch {}
   try { await external_fixture_fail({spaced: true}) } catch {}
   const huge = await external_fixture_huge({})
   return huge.blob.length
