@@ -1,5 +1,5 @@
 import {createORPCClient, ORPCError, type ClientLink, type ClientOptions} from '@orpc/client'
-import {RPCLink as WebsocketRpcLink, type LinkWebsocketClientOptions} from '@orpc/client/websocket'
+import {StandardRPCLink, type StandardLinkClient} from '@orpc/client/standard'
 import {
   ClientRetryPlugin,
   type ClientRetryPluginAttemptOptions,
@@ -11,6 +11,15 @@ import {
   isContractProcedure,
   type ContractRouterClient,
 } from '@orpc/contract'
+import {
+  decodeResponseMessage,
+  encodeRequestMessage,
+  experimental_ClientPeerWithoutCodec as ClientPeer,
+  MessageType,
+  type DecodedRequestMessage,
+  type DecodedResponseMessage,
+  type EncodedMessage,
+} from '@orpc/standard-server-peer'
 import ReconnectingWebSocket from 'partysocket/ws'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
@@ -31,8 +40,8 @@ const TOKEN_STORAGE_PREFIX = 'conciv:engine-token:'
 const MAGIC_LINK_PARAM = 'conciv_otp'
 const UNAUTHORIZED_STATUS = 401
 const NO_RECONNECT_DELAY_MS = 0
-const SOCKET_CLOSED = 3
-const SOCKET_STATES = [0, 1, 2, SOCKET_CLOSED] as const
+const SOCKET_LINK_URL = 'http://orpc'
+const SOCKET_NOT_OPEN_MESSAGE = 'Cannot send message, WebSocket is not open.'
 
 export const REVOKED_SOCKET_CLOSE_CODE = 1008
 
@@ -84,23 +93,30 @@ function connections(): Map<string, ConnectionEntry> {
   return globalThis.__concivBrowserRpcConnectionsV5
 }
 
-function readStoredToken(key: string): string | undefined {
+function storageRefused(error: unknown): boolean {
+  return error instanceof DOMException && (error.name === 'SecurityError' || error.name === 'QuotaExceededError')
+}
+
+function tokenStorage(): Storage | undefined {
   try {
-    return localStorage.getItem(`${TOKEN_STORAGE_PREFIX}${key}`) ?? undefined
-  } catch {
-    return undefined
+    return typeof localStorage === 'undefined' ? undefined : (localStorage ?? undefined)
+  } catch (error) {
+    if (storageRefused(error)) return undefined
+    throw error
   }
 }
 
+function readStoredToken(key: string): string | undefined {
+  return tokenStorage()?.getItem(`${TOKEN_STORAGE_PREFIX}${key}`) ?? undefined
+}
+
 function writeStoredToken(key: string, token: string | undefined): void {
+  const storage = tokenStorage()
   try {
-    if (token === undefined) {
-      localStorage.removeItem(`${TOKEN_STORAGE_PREFIX}${key}`)
-      return
-    }
-    localStorage.setItem(`${TOKEN_STORAGE_PREFIX}${key}`, token)
-  } catch {
-    return
+    if (token === undefined) storage?.removeItem(`${TOKEN_STORAGE_PREFIX}${key}`)
+    else storage?.setItem(`${TOKEN_STORAGE_PREFIX}${key}`, token)
+  } catch (error) {
+    if (!storageRefused(error)) throw error
   }
 }
 
@@ -231,15 +247,56 @@ function rpcSocketUrl(key: string): string {
   return url.toString()
 }
 
-function socketDelegate(socket: ReconnectingWebSocket): LinkWebsocketClientOptions['websocket'] {
+function frame(encoded: EncodedMessage): string | Uint8Array<ArrayBuffer> {
+  if (typeof encoded === 'string') return encoded
+  return Uint8Array.from(ArrayBuffer.isView(encoded) ? encoded : new Uint8Array(encoded))
+}
+
+function opened(socket: ReconnectingWebSocket): Promise<void> {
+  return new Promise((resolve) => {
+    const settle = (): void => {
+      socket.removeEventListener('open', settle)
+      socket.removeEventListener('close', settle)
+      resolve()
+    }
+    socket.addEventListener('open', settle)
+    socket.addEventListener('close', settle)
+  })
+}
+
+async function sendFrame(socket: ReconnectingWebSocket, [id, type, payload]: DecodedRequestMessage): Promise<void> {
+  const encoded = await encodeRequestMessage(id, type, payload)
+  if (socket.readyState === socket.CONNECTING) await opened(socket)
+  if (socket.readyState === socket.OPEN) socket.send(frame(encoded))
+  else if (type !== MessageType.ABORT_SIGNAL) throw new Error(SOCKET_NOT_OPEN_MESSAGE)
+}
+
+async function receivedFrame(event: MessageEvent): Promise<DecodedResponseMessage> {
+  const raw: unknown = event.data
+  return decodeResponseMessage(
+    raw instanceof Blob ? await raw.arrayBuffer() : raw instanceof ArrayBuffer ? raw : String(raw),
+  )
+}
+
+function socketClient(socket: ReconnectingWebSocket): StandardLinkClient<RpcClientContext> {
+  const peer = new ClientPeer(async (message) => {
+    const sending = sendFrame(socket, message)
+    if (message[1] === MessageType.REQUEST) return sending
+    await sending.catch((error: unknown) => peer.close({id: message[0], reason: error}))
+  })
+  socket.addEventListener('message', (event: MessageEvent) => {
+    void receivedFrame(event)
+      .then((message) => peer.message(message))
+      .catch((error: unknown) => {
+        console.error('[conciv] the dev server sent a frame the rpc client could not read', error)
+        peer.close({reason: error})
+      })
+  })
+  socket.addEventListener('close', () => peer.close())
   return {
-    addEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions) =>
-      socket.addEventListener(type, listener, options),
-    removeEventListener: (type: string, listener: EventListenerOrEventListenerObject, options?: EventListenerOptions) =>
-      socket.removeEventListener(type, listener, options),
-    send: (data) => socket.send(data),
-    get readyState() {
-      return SOCKET_STATES.find((state) => state === socket.readyState) ?? SOCKET_CLOSED
+    call: async (request) => {
+      const response = await peer.request(request)
+      return {...response, body: async () => response.body}
     },
   }
 }
@@ -249,8 +306,8 @@ function socketLink(
   state: TrustState,
   lifetime: AbortSignal,
 ): ClientLink<RpcClientContext> {
-  return new WebsocketRpcLink<RpcClientContext>({
-    websocket: socketDelegate(socket),
+  return new StandardRPCLink<RpcClientContext>(socketClient(socket), {
+    url: SOCKET_LINK_URL,
     headers: sessionHeaders,
     interceptors: [
       (options) => {
