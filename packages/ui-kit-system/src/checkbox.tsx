@@ -38,3 +38,5 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
     </Ark.Root>
   )
 }
+
+export const CheckboxPrimitive = Ark

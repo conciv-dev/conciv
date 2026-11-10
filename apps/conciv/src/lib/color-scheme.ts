@@ -6,7 +6,9 @@ import {createMediaQuery} from './media-query.js'
 
 export type ColorScheme = 'light' | 'dark'
 
-export type HostTheme = {scheme: ColorScheme; skin: SkinName}
+export type HostTheme = {scheme: ColorScheme; skin: SkinName; skinFromPage: boolean}
+
+export type ThemeChoice = {colorScheme: ColorScheme | 'page'; skin: SkinName}
 
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)'
 
@@ -84,7 +86,7 @@ export function themeClasses(theme: HostTheme): string {
   return `${theme.scheme} ${skinClassName(theme.skin)}`
 }
 
-export function createHostTheme(mountHost?: Element): Accessor<HostTheme> {
+export function createHostTheme(mountHost: Element | undefined, choice: Accessor<ThemeChoice>): Accessor<HostTheme> {
   const roots = themeRoots(mountHost)
   const prefersDark = createMediaQuery(DARK_MEDIA_QUERY)
   const [host, setHost] = createStore<HostSignals>(readHostSignals(roots))
@@ -100,9 +102,14 @@ export function createHostTheme(mountHost?: Element): Accessor<HostTheme> {
       `[conciv] unknown ${SKIN_PROPERTY} value "${declared}"; falling back to the "${DEFAULT_SKIN_NAME}" skin.`,
     )
   })
-  const theme = createMemo<HostTheme>(() => ({
-    scheme: host.scheme ?? (prefersDark() ? 'dark' : 'light'),
-    skin: isSkinName(host.declaredSkin) ? host.declaredSkin : DEFAULT_SKIN_NAME,
-  }))
+  const theme = createMemo<HostTheme>(() => {
+    const chosen = choice()
+    const pageSkin = isSkinName(host.declaredSkin) ? host.declaredSkin : null
+    return {
+      scheme: chosen.colorScheme === 'page' ? (host.scheme ?? (prefersDark() ? 'dark' : 'light')) : chosen.colorScheme,
+      skin: pageSkin ?? chosen.skin,
+      skinFromPage: pageSkin !== null,
+    }
+  })
   return theme
 }

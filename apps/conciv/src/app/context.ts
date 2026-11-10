@@ -12,6 +12,7 @@ import type {LiveSessions} from './live-sessions.js'
 import type {WarmSession} from './warm-session.js'
 import type {HostTheme} from '../lib/color-scheme.js'
 import type {LauncherAnchor} from '../lib/draggable-position.js'
+import type {PreferencesApi} from '../settings/preferences-schema.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -36,6 +37,7 @@ export type AppContextValue = {
   apiBase: () => string
   notifyInteractive: () => void
   theme: Accessor<HostTheme>
+  preferences: PreferencesApi
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -136,4 +138,8 @@ export function useNotifyInteractive(): () => void {
 
 export function useHostTheme(): Accessor<HostTheme> {
   return useAppScope('useHostTheme', (app) => app.theme)
+}
+
+export function usePreferences(): PreferencesApi {
+  return useAppScope('usePreferences', (app) => app.preferences)
 }

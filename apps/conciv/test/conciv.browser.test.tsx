@@ -6,6 +6,7 @@ import {HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-type
 import {makeBrowserRpcClient, makeRpcClient, type RpcClient, type EngineStaleness} from '@conciv/contract'
 import appManifest from '../package.json' with {type: 'json'}
 import {until} from '@conciv/harness-testkit/until'
+import {formatForDisplay} from '@tanstack/solid-hotkeys'
 import {ChatPane} from '../src/pane/chat-pane.js'
 import {
   bootedCore,
@@ -3453,7 +3454,7 @@ describe('quick add pane', () => {
 
   const editor = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const closePane = () => page.getByRole('button', {name: 'Close pane'})
-  const splitPane = () => page.getByRole('button', {name: 'Split pane (Mod+D)'})
+  const splitPane = () => page.getByRole('button', {name: 'Split pane', exact: true})
   const sessionTrigger = () => page.getByRole('button', {name: /^Session: /})
 
   const sessionIdsOf = async (rpc: RpcClient): Promise<string[]> =>
@@ -4863,6 +4864,170 @@ describe('tool outcomes', () => {
       await expect.element(page.getByRole('group', {name: 'Error output'})).not.toBeInTheDocument()
     })
   }
+})
+
+describe('settings page', () => {
+  function SchemeProbe(): JSX.Element {
+    const scheme = getHostApi().useColorScheme()
+    return <p>Widget colors: {scheme()}</p>
+  }
+
+  const settingsProbe = defineExtension({
+    name: 'settings-probe',
+    Surface: SchemeProbe,
+    views: [{id: 'notes', label: 'Notes', Component: () => <p>the notes view</p>}],
+  }).client(() => ({value: {}}))
+
+  const coreBase = bootedCore('settings-page')
+  const harness = createShellHarness(coreBase)
+
+  afterEach(harness.dispose)
+  afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
+
+  const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
+  const gear = () => page.getByRole('link', {name: 'Settings'})
+  const back = () => page.getByRole('button', {name: 'Back to chat'})
+  const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
+  const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
+  const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
+  const notesShown = () => page.getByRole('checkbox', {name: /^Notes/})
+  const command = (label: string) => page.getByRole('button', {name: label, exact: true})
+  const clash = () => page.getByRole('status').getByText(/is also/)
+  const quickTerminal = () => page.getByRole('dialog', {name: 'conciv quick terminal'})
+  const skin = (name: string) => page.getByRole('radio', {name, exact: true})
+  const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
+  const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
+  const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all settings?'})
+
+  test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
+    await page.viewport(1000, 900)
+    localStorage.removeItem('conciv:settings-tab')
+    const sessionId = await createSession(coreRpc(coreBase()))
+    const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(probe('light')).toBeInTheDocument()
+    await expect.element(notesTab()).toBeVisible()
+
+    await gear().click()
+    await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('general'))
+
+    for (const name of ['Views', 'Shortcuts', 'Advanced']) {
+      await tab(name).click()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.pathname()).toBe(settingsPath(name.toLowerCase()))
+    }
+    for (const name of ['Shortcuts', 'Views', 'General']) {
+      await userEvent.keyboard('{ArrowLeft}')
+      await expect.element(tab(name)).toHaveFocus()
+      await expect.element(tab(name)).toHaveAttribute('aria-selected', 'true')
+      expect(harness.pathname()).toBe(settingsPath(name.toLowerCase()))
+    }
+
+    await colorMode().getByText('Dark', {exact: true}).click()
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await tab('Views').click()
+    await expect.element(notesShown()).toBeChecked()
+    await page.getByText(/^Notes/).click()
+    await expect.element(notesShown()).not.toBeChecked()
+
+    await back().click()
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
+    expect(harness.pathname()).toBe(`/panel/${sessionId}`)
+    await expect.element(notesTab()).not.toBeInTheDocument()
+
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+    await tab('Shortcuts').click()
+    await expect.element(tab('Shortcuts')).toHaveAttribute('aria-selected', 'true')
+    harness.back()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+    await back().click()
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await gear().click()
+    await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')
+    expect(harness.pathname()).toBe(settingsPath('views'))
+
+    harness.dispose()
+    document.documentElement.style.setProperty('--conciv-skin', 'terminal')
+    harness.mountShell(`${settingsPath('general')}?open=true`, [settingsProbe])
+    await expect.element(colorMode().getByRole('radio', {name: 'Dark'}), {timeout: 8000}).toBeChecked()
+    await expect.element(probe('dark')).toBeInTheDocument()
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).toBeVisible()
+    await expect.element(skin('Terminal')).toBeChecked()
+    document.documentElement.style.removeProperty('--conciv-skin')
+    await expect.element(page.getByText('Set by the page in --conciv-skin')).not.toBeInTheDocument()
+    await expect.element(skin('Conciv')).toBeChecked()
+
+    await tab('Shortcuts').click()
+    await command('Quick terminal').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(command('Quick terminal')).toHaveFocus()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(clash()).toBeVisible()
+    await userEvent.tab()
+    await expect.element(saveClash()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(clash()).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+    expect(harness.pathname()).toBe(settingsPath('shortcuts'))
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}')
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(composer(), {timeout: 8000}).toBeVisible()
+    await expect.element(gear()).toHaveFocus()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(quickTerminal(), {timeout: 8000}).toBeVisible()
+    await quickTerminal().getByRole('button', {name: 'Split pane', exact: true}).hover()
+    await expect
+      .element(page.getByRole('tooltip'), {timeout: 3000})
+      .toHaveTextContent(`Split pane${formatForDisplay('Control+Shift+J')}`)
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('advanced')}?open=true`, [settingsProbe])
+    await resetAll().click()
+    await expect.element(resetDialog()).toBeVisible()
+    await expect.element(resetDialog().getByRole('button', {name: 'Cancel'})).toHaveFocus()
+    expect(harness.pathname()).toBe(settingsPath('advanced/reset'))
+    await userEvent.keyboard('{Escape}')
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath('advanced'))
+    await expect.element(probe('dark')).toBeInTheDocument()
+
+    await resetAll().click()
+    await resetDialog().getByRole('button', {name: 'Reset everything'}).click()
+    await expect.element(page.getByRole('status').getByText('Settings reset')).toBeInTheDocument()
+    await expect.element(resetDialog()).not.toBeInTheDocument()
+    expect(harness.pathname()).toBe(settingsPath('advanced'))
+    await expect.element(probe('light')).toBeInTheDocument()
+
+    await tab('Advanced').click()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(gear()).toHaveFocus()
+    await expect.element(notesTab()).toBeVisible()
+
+    harness.dispose()
+    harness.mountShell(`${settingsPath('shortcuts')}?open=true`, [settingsProbe], {
+      host: {quickTerminal: {hotkey: 'Control+Shift+K'}},
+    })
+    await expect.element(command('New quick terminal pane'), {timeout: 8000}).toBeVisible()
+    await command('New quick terminal pane').click()
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).toBeVisible()
+    await expect.element(saveClash()).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await expect.element(page.getByRole('status').getByText(/set by this project/)).not.toBeInTheDocument()
+    await expect.element(command('New quick terminal pane')).toHaveFocus()
+  }, 60_000)
 })
 
 function pickerRouter(entry: string, view: () => JSX.Element) {

@@ -161,5 +161,6 @@ declare module '@tanstack/solid-router' {
   }
   interface HistoryState {
     sessionMenuOpened?: true
+    restoreFocus?: 'settings'
   }
 }

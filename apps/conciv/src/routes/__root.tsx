@@ -10,11 +10,11 @@ import {
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
-import {HostApiProvider} from '@conciv/extension/host'
+import {HostApiProvider, getHostApi} from '@conciv/extension/host'
 import {showToast} from '@conciv/page'
 import {endRun, endTask, mountSimulator} from '@conciv/extension-page/client'
-import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createEffect, createMemo, createSignal, onCleanup, onMount} from 'solid-js'
+import {createHotkeys} from '@tanstack/solid-hotkeys'
+import {Show, createEffect, createMemo, createReaction, createSignal, onCleanup, onMount} from 'solid-js'
 import {makeEventListener} from '@solid-primitives/event-listener'
 import {
   CONNECTION_CHANGED_EVENT,
@@ -34,6 +34,7 @@ import {
   useLiveSessions,
   useHostTheme,
   useNotifyInteractive,
+  usePreferences,
   useSettings,
   useSuppressed,
   useWarmSession,
@@ -59,10 +60,11 @@ import {setShutter} from '../lib/shutter.js'
 import {PanelChromeContext} from '../app/panel-chrome.js'
 import {createMediaQuery, PHONE_MEDIA_QUERY} from '../lib/media-query.js'
 import {applySchemeClass, applySkinClass, createHostTheme, themeClasses} from '../lib/color-scheme.js'
+import {createPreferences} from '../settings/create-preferences.js'
 import '../styles.css'
 import 'virtual:uno.css'
 
-const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope][data-part="content"][data-state="open"]'
+const OPEN_DISMISSABLE_LAYER_SELECTOR = '[data-scope]:not([data-scope="tabs"])[data-part="content"][data-state="open"]'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
   validateSearch: sessionPickerSearchSchema,
@@ -76,6 +78,15 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 })
 
 function RootComponent() {
+  const app = Route.useRouteContext()()
+  return (
+    <HostApiProvider rpc={app.rpc}>
+      <AppRoot />
+    </HostApiProvider>
+  )
+}
+
+function AppRoot() {
   const app = Route.useRouteContext()()
   const panelParams = useParams({from: '/panel/$sessionId', shouldThrow: false})
   const pipParams = useParams({from: '/pip/$sessionId', shouldThrow: false})
@@ -138,7 +149,14 @@ function RootComponent() {
       }),
     )
   }
-  const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined)
+  const preferences = createPreferences({
+    store: getHostApi().useScope('conciv').settings.project,
+    data: app.data,
+    queryClient: app.queryClient,
+    connected: app.connected,
+    host: app.settings,
+  })
+  const theme = createHostTheme(rootNode instanceof ShadowRoot ? rootNode.host : undefined, preferences.stored)
   const colorScheme = () => theme().scheme
 
   const value: AppContextValue = {
@@ -164,6 +182,7 @@ function RootComponent() {
     apiBase: app.apiBase,
     notifyInteractive: app.notifyInteractive,
     theme,
+    preferences,
   }
 
   createEffect(() => {
@@ -232,9 +251,11 @@ function RootChrome(props: {
   const connected = useConnected()
   const liveSessions = useLiveSessions()
   const notifyInteractive = useNotifyInteractive()
+  const preferences = usePreferences()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
+  const settingsMatch = matchRoute({to: '/panel/$sessionId/settings', fuzzy: true})
   const connectMatch = matchRoute({to: '/panel/connect'})
   const quickMatch = matchRoute({to: '/quick'})
   const closedMatch = matchRoute({to: '/'})
@@ -245,7 +266,8 @@ function RootChrome(props: {
   const awaitingLogin = () => login !== undefined && !engineConnected(login.status())
   const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
   const loginOpen = () => locked() && shutterOpen() && Boolean(closedMatch())
-  const launcherVisible = () => settings.launcher === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
+  const launcherVisible = () =>
+    preferences.launcher() === 'mascot' && settings.modal.enabled && !(phone() && panelOpen())
   const [panelElement, setPanelElement] = createSignal<HTMLElement>()
   const panelSize = createElementSize(panelElement)
   const digitObstacle = createMemo((): PanelFrame | undefined => {
@@ -270,7 +292,7 @@ function RootChrome(props: {
   let hostRestoreTarget: HTMLElement | null = null
 
   const mascotRect = (): {x: number; y: number; width: number; height: number} | null => {
-    if (settings.launcher !== 'mascot') return null
+    if (preferences.launcher() !== 'mascot') return null
     const rect = fabEl?.getBoundingClientRect()
     return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
   }
@@ -304,11 +326,12 @@ function RootChrome(props: {
     }
     void router.navigate({to: '/panel/latest', search: {open: true}, replace: Boolean(quickMatch())})
   }
-  const closePanel = () => {
+  const closePanel = (restoreFocus = true) => {
     if (settings.surface === 'dock') return
     const captured = hostRestoreTarget
     hostRestoreTarget = null
     void setShutter(router, false).then(() => {
+      if (!restoreFocus) return
       if (captured?.isConnected) {
         captured.focus()
         return
@@ -321,6 +344,16 @@ function RootChrome(props: {
     })
   }
   const togglePanel = () => (panelOpen() ? closePanel() : showPanel())
+  const openStoredOnLoad = createReaction(() => {
+    if (!settings.fromHost.defaultOpen && preferences.openOnLoad() && closedMatch()) showPanel()
+  })
+  openStoredOnLoad(() => preferences.status() === 'success')
+  makeEventListener(document, 'pointerdown', (event: PointerEvent) => {
+    if (!preferences.stored().closeOnOutsideClick || !panelOpen() || settings.surface === 'dock') return
+    const root = rootEl?.getRootNode()
+    const widget = root instanceof ShadowRoot ? root.host : rootEl
+    if (widget && !event.composedPath().includes(widget)) closePanel(false)
+  })
   const revealDock = (): boolean =>
     settings.surface === 'dock' && !window.dispatchEvent(new CustomEvent(DOCK_REVEAL_EVENT, {cancelable: true}))
 
@@ -397,6 +430,17 @@ function RootChrome(props: {
     dismissableLayerOpenAtEscapeCapture = false
     if (dismissableLayerWasOpen) return
     if (escapeInTerminal(rootEl)) return
+    const settingsRoute = settingsMatch()
+    if (settingsRoute) {
+      event.preventDefault()
+      void router.navigate({
+        to: '/panel/$sessionId',
+        params: {sessionId: settingsRoute.sessionId},
+        replace: true,
+        state: {restoreFocus: 'settings'},
+      })
+      return
+    }
     if (panelMatch()) {
       if (!shutterOpen()) return
       event.preventDefault()
@@ -422,13 +466,16 @@ function RootChrome(props: {
     })
   }
   const toggleQuick = () => (awaitingLogin() ? showPanel() : switchQuick())
-  if (settings.quickTerminal.enabled) {
-    for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
-  }
+  createHotkeys(() => [
+    ...preferences.shortcut('togglePanel').map((binding) => ({hotkey: toRawHotkey(binding), callback: togglePanel})),
+    ...(settings.quickTerminal.enabled
+      ? preferences.shortcut('quickTerminal').map((binding) => ({hotkey: toRawHotkey(binding), callback: toggleQuick}))
+      : []),
+  ])
 
   return (
     <div class={themeClasses(theme())} ref={(el) => (rootEl = el)} onKeyDown={onKeyDown}>
-      <PanelChromeContext.Provider value={{close: closePanel, frame: setPanelElement}}>
+      <PanelChromeContext.Provider value={{close: () => closePanel(), frame: setPanelElement}}>
         <Outlet />
       </PanelChromeContext.Provider>
       <Show when={launcherVisible()}>

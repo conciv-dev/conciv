@@ -1,0 +1,72 @@
+import {Link, Outlet, createFileRoute} from '@tanstack/solid-router'
+import {For, type JSX} from 'solid-js'
+import {useMutation} from '@tanstack/solid-query'
+import RotateCcw from 'lucide-solid/icons/rotate-ccw'
+import TriangleAlert from 'lucide-solid/icons/triangle-alert'
+import {useAnnounce, usePreferences} from '../app/context.js'
+import type {PreferenceKey} from '../settings/preferences-schema.js'
+import {ActionRow, BUTTON_DANGER_FILL, BUTTON_WARN, Group} from '../settings/settings-ui.js'
+import {writeLastTab} from '../settings/last-tab.js'
+
+const RESETS: {label: string; hint: string; action: string; keys: PreferenceKey[]}[] = [
+  {
+    label: 'Views',
+    hint: 'Show every view again, in the default order.',
+    action: 'Reset views',
+    keys: ['docksHidden', 'docksPinned', 'docksCustomOrder'],
+  },
+  {label: 'Shortcuts', hint: 'Back to the default keys.', action: 'Reset shortcuts', keys: ['commandShortcuts']},
+]
+
+export const Route = createFileRoute('/panel/$sessionId_/settings/advanced')({
+  onEnter: () => writeLastTab('advanced'),
+  component: AdvancedSettings,
+})
+
+function AdvancedSettings(): JSX.Element {
+  const preferences = usePreferences()
+  const announce = useAnnounce()
+  const reset = useMutation(() => ({
+    mutationFn: (keys: PreferenceKey[]) => preferences.reset(keys),
+    onSuccess: () => announce('Settings reset'),
+    onError: () => announce('Could not reset the settings', true),
+  }))
+  return (
+    <div class="flex flex-col gap-3.5">
+      <Group title="Reset" description="Put one part back to its defaults">
+        <For each={RESETS}>
+          {(entry) => (
+            <ActionRow label={entry.label} hint={entry.hint}>
+              <button
+                type="button"
+                class={BUTTON_WARN}
+                disabled={reset.isPending}
+                onClick={() => reset.mutate(entry.keys)}
+              >
+                <RotateCcw class="size-3.25" aria-hidden="true" />
+                {entry.action}
+              </button>
+            </ActionRow>
+          )}
+        </For>
+      </Group>
+      <Group
+        danger
+        title={
+          <>
+            <TriangleAlert class="size-3.75" aria-hidden="true" />
+            Danger zone
+          </>
+        }
+        description="Cannot be undone"
+      >
+        <ActionRow label="Reset all settings" hint="Every setting for this project. Chats and history are kept.">
+          <Link from={Route.fullPath} to="./reset" class={BUTTON_DANGER_FILL}>
+            Reset all
+          </Link>
+        </ActionRow>
+      </Group>
+      <Outlet />
+    </div>
+  )
+}
