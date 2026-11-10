@@ -58,6 +58,7 @@ export const designConfig = Object.assign(
       inlineWidthConfidence: 0.5,
       segmentDistance: 10,
       segmentImageShare: 0.3,
+      assetScale: 2,
       ocrConfidenceFloor: 0.6,
       ocrUpsampleBelowPx: 16,
       ocrTileHeight: 1600,

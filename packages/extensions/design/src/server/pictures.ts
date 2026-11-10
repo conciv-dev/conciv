@@ -11,8 +11,8 @@ export function createPictures(folder: Storage): Pictures {
   return {same}
 
   async function same(input: {shown: string; expected: string; box: Box}): Promise<boolean> {
-    const width = Math.max(1, Math.round(input.box.w))
-    const height = Math.max(1, Math.round(input.box.h))
+    const width = Math.max(1, Math.round(input.box.w * TOLERANCES.assetScale))
+    const height = Math.max(1, Math.round(input.box.h * TOLERANCES.assetScale))
     const [shown, expected] = await Promise.all(
       [input.shown, input.expected].map((path) => rasterOf({path, width, height})),
     )

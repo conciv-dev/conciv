@@ -19,6 +19,7 @@ import {
 } from 'color-blend'
 import {range} from 'es-toolkit'
 import type {z} from 'zod'
+import {designConfig} from '../../shared/tolerances.js'
 import type {figmaSchemas} from './figma-schema.js'
 
 export async function flattenStack(input: {
@@ -47,7 +48,7 @@ type Layer = z.infer<typeof figmaSchemas.layer>
 type Raw = {width: number; height: number; channels: typeof CHANNELS}
 type PixelBlend = typeof color
 
-const ASSET_SCALE = 2
+const ASSET_SCALE = designConfig.tolerances.assetScale
 const CHANNELS = 4
 const TRANSPARENT = {r: 0, g: 0, b: 0, alpha: 0}
 const BLENDS = new Map<string, PixelBlend>([
