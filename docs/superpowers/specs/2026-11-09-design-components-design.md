@@ -277,3 +277,25 @@ Where no rule holds the hint is still shown in `design_get` (the fuzzy hint unde
 Measure is rerun on the x-ray round state, where the overlay is Solid, the kit is Solid and the relation can resolve once
 the overlay's source is in the walk the x-ray fixture declares (the fixture's `vite.config` names the overlay entry as a
 second input, so the catalog walk reaches it).
+
+## A component the page had is a row (2026-11-10, after the second Measure)
+
+With the three rules in place (`xray8-round-cat-1..2`) no component row fired on the x-ray round frame: its controls are
+FRAMEs drawn by hand in Figma, not instances, so no hint reaches certainty. Both runs still stripped the kit (Chip to
+spans, Switch to a local checkbox, `SegmentGroup.Indicator` removed). A design drawn without component instances is the
+common case for a mockup, so the row needs a second source of certainty that does not depend on the design file: the page
+itself. Before the agent's edit, the element was rendered by a kit component; after it, it is not. The relation of the
+previous round holds that fact.
+
+Rule 4: when a design node's paired element was rendered by a kit-tier component in an earlier round of the same target
+and the current round's relation says it is rendered by none or by a component of the project's own, `design_check` lists
+one `component` row for the node: "<node name> was rendered by `<Component>` and is now drawn by hand (`import …`)". The
+row clears when the relation shows the component again, or one that renders it (rule 3). Rules 2 and 3 apply as they are;
+no hint is needed. `catalog.hint: false` does not remove these rows (they come from the relation, not a hint); `do-not-use`
+on the component does, since the user has said the component is not wanted.
+
+`prefer` stays an opt-in: a preferred component's rows fire at any hint score, subject to rule 2, because the user asked
+for it by name.
+
+Measure: `xray9-round-cat-1..2` from the committed overlay (which renders Chip, Switch and `SegmentGroup.Indicator`); the
+count is kit imports kept and the rows the agent cleared by restoring the component.

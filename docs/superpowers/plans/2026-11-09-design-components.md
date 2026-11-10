@@ -248,6 +248,16 @@
 - [ ] **Step 3:** Gates, commit `design: a component row fires only where the component can be used`.
 - [ ] **Step 4:** Measure again: `xray8-round-cat-1..2` as Task 8 Step 1 ran them; the row count at the first check, which rows the agent cleared and how, kit imports kept. Row in `xray-build.md`.
 
+### Task 7d: A component the page had is a row
+
+**Files:**
+
+- Modify: `packages/extensions/design/src/server/catalog/component-rows.ts` (rule 4 from the previous round's relation, `store.relation({id, round: previous})`), `src/server/document.ts` (one rule line), `packages/it/test/design-catalog.it.test.ts`
+
+- [ ] **Step 1:** Failing IT: a fixture node rendered by the kit `Chip` in round 1 and by a `span.chip` in round 2 gets one `component` row with the spec's text; restored to `<Chip>` in round 3 it gets none; `do-not-use` on Chip gives none; `catalog.hint: false` still gives the row.
+- [ ] **Step 2:** Implement; gates; commit `design: a component the page had is a row`.
+- [ ] **Step 3:** Measure `xray9-round-cat-1..2` as Task 7c Step 4 ran them; row in `xray-build.md` with the rows the agent cleared by restoring the component and the kit imports kept.
+
 ### Task 8: Measure
 
 **Files:**
