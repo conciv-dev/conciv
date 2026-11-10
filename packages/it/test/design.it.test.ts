@@ -36,10 +36,12 @@ import {boot} from './fixtures/design/boot.js'
 import {bareButton} from './fixtures/design/bare-button.js'
 import {sideMargin} from './fixtures/design/side-margin.js'
 import {wrapText} from './fixtures/design/wrap-text.js'
+import {tallPage} from './fixtures/design/tall-page.js'
 import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
 const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
+const APP_FILE = fileURLToPath(new URL('fixtures/design/host/src/App.tsx', import.meta.url))
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
 const THROW_BEFORE = 'const gap ='
 const THROWING_LINE = "  if (titles.length > 0) throw new TypeError('the cards fixture throws while rendering')"
@@ -580,6 +582,30 @@ describe('design_check on a paragraph that wraps', () => {
     expect(await wrapRows(1100)).toEqual([
       `text Paragraph [${wrapText.paragraph}] p.wrap-text: breaks into 2 lines, the frame has 3`,
     ])
+  })
+})
+
+describe('design_check on a page far taller than the frame', () => {
+  const pageRows = async (query: string): Promise<{rows: string[]; reasons: string[]}> => {
+    await goto(`/?variant=tall${query}`)
+    const image = join(kit.targetsDir, 'tall-page.png')
+    await writeFile(image, blankPng({width: tallPage.frame.w, height: tallPage.frame.h}))
+    await call('design_get', {figma: tallPage.link, image, document: tallPage.document})
+    const checked = roundOf(await call('design_check', {}))
+    const rows = checked.rows.filter((row) => row.kind === designConfig.rowKinds.page).map((row) => row.text)
+    return {rows, reasons: checked.reasons}
+  }
+
+  it('names the image that makes it tall, before the coverage sentence', async () => {
+    const lines = (await readFile(APP_FILE, 'utf8')).split('\n')
+    const line = lines.findIndex((text) => text.includes('className="tall-line"')) + 1
+    const {rows, reasons} = await pageRows('')
+    const row = `the page is 123184 px tall, the frame is 400; the tallest element past the frame is img.tall-line at src/App.tsx:${line}, 123120 px`
+    expect([rows, reasons[0]]).toEqual([[row], `${row}.`])
+  })
+
+  it('has no page row once the image width is constrained', async () => {
+    expect((await pageRows('&width=1px')).rows).toEqual([])
   })
 })
 

@@ -14,6 +14,7 @@ import {widthsOf} from './widths.js'
 import {verdictOf} from './verdict.js'
 import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
+import {pageHeightRows} from './page-height.js'
 
 export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
   const {runtime, folder} = input
@@ -89,19 +90,21 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
       failures.push(...measuredAt.rows)
     }
     const reflow = {widths, results}
+    const reads = readIds({root: mapped.root, live: measured.live})
+    const tall = pageHeightRows({root: design.root, live: measured.live, reads, width: measured.width})
     const images = await imageRowsOf({
       design,
-      reads: readIds({root: mapped.root, live: measured.live}),
+      reads,
       page,
       mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
       folder,
     })
-    const rows = [...gate.rows, ...images.rows, ...failures]
+    const rows = [...tall, ...gate.rows, ...images.rows, ...failures]
     const counts = {
       ...gate.counts,
-      reflow: gate.counts.reflow + failures.length,
+      reflow: gate.counts.reflow + tall.length + failures.length,
       paint: (gate.counts.paint ?? 0) + images.rows.length,
-      rows: gate.counts.rows + images.rows.length + failures.length,
+      rows: gate.counts.rows + tall.length + images.rows.length + failures.length,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
     const earlier =

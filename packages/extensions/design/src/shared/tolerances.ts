@@ -117,6 +117,7 @@ export const designConfig = Object.assign(
       placeholder: 'data-conciv-placeholder',
       pane: 'data-conciv-design-pane',
     },
+    rowKinds: {page: 'page'},
     propertyAliases,
     folded,
     hex,

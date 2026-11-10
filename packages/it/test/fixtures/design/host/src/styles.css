@@ -272,6 +272,16 @@ button {
   font: 32px/40px monospace;
 }
 
+.tall-title {
+  margin: 0;
+  font: 32px/40px monospace;
+}
+
+.tall-line {
+  display: block;
+  height: auto;
+}
+
 .slowfont {
   padding: 40px;
 }

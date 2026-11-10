@@ -1,4 +1,5 @@
 import type {Design, DesignNode, Round, Status} from '../shared/defs.js'
+import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 
 export function verdictOf(input: {design: Design; rounds: Round[]}): Status {
@@ -79,6 +80,7 @@ function reasonsOf(input: {round: Round; required: Map<string, string>}): string
   const reflow = round.rows.filter((row) => row.magnitude === 'reflow')
   const paint = round.rows.filter((row) => row.magnitude === 'paint' && row.kind !== UNBLOCKING)
   return [
+    ...round.rows.filter((row) => row.kind === designConfig.rowKinds.page).map((row) => `${row.text}.`),
     ...(much + noticeably + pins + other > 0
       ? [
           `${much} rows differ much, ${noticeably} noticeably, ${pins} pin a px size and ${other} differ otherwise; all four must be 0.`,
