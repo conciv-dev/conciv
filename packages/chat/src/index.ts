@@ -233,7 +233,10 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
         }),
         timestamp: Date.now(),
       }))
-      const active = await stores.runs.findActiveRun(sessionId)
+      const active = await stores.runs.findActiveRun(sessionId).catch((error: unknown) => {
+        deps.log(`[chat] reading the active run for a new subscriber failed: ${String(error)}`)
+        return null
+      })
       return active === null ? asks : [...asks, sessionRunEvent.create({runId: active.runId})]
     },
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
