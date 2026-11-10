@@ -23,13 +23,18 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
       return {record, box: element === undefined ? null : rounded(element.bounds)}
     })
   const wraps = wrapsOf({design: input.design, first})
-  const within = (id: string, above: string): boolean => {
-    const parent = byId.get(id)?.parent ?? null
-    return parent !== null && (parent === above || within(parent, above))
+  const explainer = (id: string | null, side: Side): string | null => {
+    const record = id === null ? undefined : byId.get(id)
+    if (record === undefined) return null
+    const element = first(record.id)
+    if (element !== undefined && heightSide({record, element}) === side) return record.id
+    return explainer(record.parent, side)
   }
   const causes = (id: string): string =>
     wraps
-      .filter((wrap) => within(wrap.node, id))
+      .filter(
+        (wrap) => explainer(byId.get(wrap.node)?.parent ?? null, wrap.lines > wrap.frame ? 'taller' : 'shorter') === id,
+      )
       .map((wrap) => `; ${byId.get(wrap.node)?.name ?? ''} [${wrap.node}] ${wrapped(wrap)}`)
       .join('')
   const wrapRows = wraps.flatMap((wrap): GateRow[] => {
@@ -63,6 +68,8 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
   const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
   return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
 }
+
+type Side = 'shorter' | 'taller'
 
 type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
 
@@ -184,9 +191,8 @@ function rowsOf(input: {
   const box = rounded(d.bounds)
   const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
   const farW = container && Math.abs(box.w - r.box.w) > FAR_PX
-  const farH = container && Math.abs(box.h - r.box.h) > FAR_PX
   const ww = widthWord({rendered: box.w, design: r.box.w, tol, far: farW})
-  const hh = box.h / r.box.h
+  const side = heightSide({record: r, element: d})
   const flat = FLAT_KINDS.has(r.kind)
   const want = r.direction === 'row' ? 'row' : 'column'
   const dir = d.styles.flexDirection
@@ -206,10 +212,10 @@ function rowsOf(input: {
           },
         ]
       : []),
-    ...(!flat && r.box.h > FLAT_PX && (hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || farH)
+    ...(side !== null
       ? [
           {
-            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${hh < 1 ? 'shorter' : 'taller'} than the design`}${hh > 1 ? input.causes(r.id) : ''}`,
+            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${side} than the design`}${input.causes(r.id)}`,
             measured: {a: box.h, b: r.box.h, position: false},
           },
         ]
@@ -223,13 +229,25 @@ function rowsOf(input: {
   ]
 }
 
+function heightSide(input: {record: Record; element: LiveComponent}): Side | null {
+  const {record: r, element: d} = input
+  const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
+  const box = rounded(d.bounds)
+  const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
+  const far = container && Math.abs(box.h - r.box.h) > FAR_PX
+  const hh = box.h / r.box.h
+  if (FLAT_KINDS.has(r.kind) || r.box.h <= FLAT_PX) return null
+  if (!(hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || far)) return null
+  return hh < 1 ? 'shorter' : 'taller'
+}
+
 function labelOf(input: {record: Record; element: LiveComponent}): string {
   const {record: r, element: d} = input
   return `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
 }
 
 function wrapped(wrap: {lines: number; frame: number}): string {
-  return `wraps to ${wrap.lines} lines, the frame has ${wrap.frame}`
+  return `${wrap.lines > wrap.frame ? 'wraps to' : 'breaks into'} ${wrap.lines} lines, the frame has ${wrap.frame}`
 }
 
 function widthWord(input: {rendered: number; design: number; tol: number; far: boolean}): string | null {

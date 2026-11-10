@@ -551,11 +551,11 @@ describe('design_check at a width other than the tab', () => {
 })
 
 describe('design_check on a paragraph that wraps', () => {
-  const wrapRows = async (width: number): Promise<string[]> => {
+  const wrapRows = async (width: number, design = wrapText.tall): Promise<string[]> => {
     await goto(`/?variant=wrap&width=${width}`)
     const image = join(kit.targetsDir, 'wrap-text.png')
-    await writeFile(image, blankPng({width: wrapText.frame.w, height: wrapText.frame.h}))
-    await call('design_get', {figma: wrapText.link, image, document: wrapText.document})
+    await writeFile(image, blankPng({width: design.frame.w, height: design.frame.h}))
+    await call('design_get', {figma: wrapText.link, image, document: design.document})
     const checked = roundOf(await call('design_check', {}))
     return checked.rows.filter((row) => row.magnitude === 'reflow').map((row) => row.text)
   }
@@ -568,6 +568,18 @@ describe('design_check on a paragraph that wraps', () => {
 
   it('has no wrap row once the paragraph is as wide as the frame, its padding not counted as a line', async () => {
     expect(await wrapRows(800)).toEqual([])
+  })
+
+  it('counts every line of a text that runs past a short frame', async () => {
+    expect(await wrapRows(480, wrapText.short)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: wraps to 5 lines, the frame has 3`,
+    ])
+  })
+
+  it('says a text breaks into fewer lines than the frame when it is wider', async () => {
+    expect(await wrapRows(1100)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: breaks into 2 lines, the frame has 3`,
+    ])
   })
 })
 

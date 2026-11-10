@@ -759,7 +759,7 @@ function measureTextBox(input: {nodes: Text[]; view: PageWindow}): Box | null {
 
 function measureGlyphs(input: {el: Element; view: PageWindow; size: Size}): Glyph[] {
   const {view, size} = input
-  const page = {x: 0, y: 0, w: size.width, h: size.height}
+  const page = {x: 0, y: 0, w: size.width, h: Number.POSITIVE_INFINITY}
   const texts = glyphNodes(input).flatMap((node) => {
     const range = node.ownerDocument.createRange()
     range.selectNodeContents(node)

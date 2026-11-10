@@ -31,4 +31,25 @@ const DOCUMENT = {
   },
 }
 
-export const wrapText = {link: LINK, frame: FRAME, paragraph: PARAGRAPH, text: TEXT, document: DOCUMENT}
+const SHORT_FRAME = {w: FRAME.w, h: FRAME.h / 2}
+const SHORT_DOCUMENT = {
+  ...DOCUMENT,
+  nodes: {
+    '7:1': {
+      document: {
+        ...DOCUMENT.nodes['7:1'].document,
+        absoluteBoundingBox: {x: 0, y: 0, width: SHORT_FRAME.w, height: SHORT_FRAME.h},
+      },
+    },
+  },
+}
+
+export const wrapText = {
+  link: LINK,
+  frame: FRAME,
+  paragraph: PARAGRAPH,
+  text: TEXT,
+  document: DOCUMENT,
+  tall: {frame: FRAME, document: DOCUMENT},
+  short: {frame: SHORT_FRAME, document: SHORT_DOCUMENT},
+}
