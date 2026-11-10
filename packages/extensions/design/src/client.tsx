@@ -201,8 +201,7 @@ async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<Mea
     doc: document,
     run: () => (size.width === innerWidth ? measureLive({size}) : measureMirror({size})),
   })
-  const thrown = thrownOf(ctx.consoleEntries())
-  const queried = {...measured, ...(await pageQueries(document)), ...(thrown === null ? {} : {thrown})}
+  const queried = {...measured, ...(await pageQueries(document)), ...thrownOf(ctx.consoleEntries())}
   return pageError === null ? queried : {...queried, pageError}
 }
 

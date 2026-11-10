@@ -123,8 +123,6 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       paired({vote, node: entry.node.id, pick: {...held, candidates: []}})
       return
     }
-    const {pairs} = vote
-    const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
     const scored = rivals({vote, entry})
     const voted = picked(scored)
     const pick = voted !== null && sharesParent({vote, entry, path: voted.path}) ? null : voted
@@ -139,9 +137,8 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     }
     votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: null}))
     if (pick !== null && pick.score >= PAIR.threshold) ties.set(entry.node.id, pick.candidates)
-    if (entry.parent === null || parentPath === null || !sameBox({a: entry.box, b: boxOf(entry.parent)})) return
-    const parentPick = pairs.get(entry.parent.id)
-    if (parentPick !== undefined) paired({vote, node: entry.node.id, pick: {...parentPick, candidates: []}})
+    const inherited = sameBoxParent({vote, entry})
+    if (inherited !== undefined) paired({vote, node: entry.node.id, pick: {...inherited, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
 }
@@ -155,6 +152,12 @@ function heldText(input: {vote: Vote; entry: Node}): Pick | null {
   if (held === undefined || text === '' || text !== normalized(entry.node.text)) return null
   const nested = vote.elements.some((other) => other.ancestors.has(held.path) && other.text.trim() !== '')
   return nested ? null : held
+}
+
+function sameBoxParent(input: {vote: Vote; entry: Node}): Pick | undefined {
+  const {vote, entry} = input
+  if (entry.parent === null || !sameBox({a: entry.box, b: boxOf(entry.parent)})) return undefined
+  return vote.pairs.get(entry.parent.id)
 }
 
 function ballotsOf(input: {
