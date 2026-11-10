@@ -33,7 +33,7 @@ export {
   truncationEnvelope,
   type CodeCapability,
 } from './code-mode.js'
-export type {AttachmentExpanders, SessionPort} from './turn.js'
+export {firstUserTitle, type AttachmentExpanders, type SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 

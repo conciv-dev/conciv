@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {and, desc, eq, inArray, isNull, lt, notInArray, or, sql} from 'drizzle-orm'
+import {and, desc, eq, inArray, isNull, lt, max, notInArray, or, sql} from 'drizzle-orm'
 import {keyBy, mapValues, uniqBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {SessionHit, SessionMeta} from '@conciv/contract'
@@ -22,7 +22,8 @@ import type {
   HarnessSessionMeta,
   HarnessSessionPage,
 } from '@conciv/protocol/harness-types'
-import {anchorKey, chatMetadata, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
+import {firstUserTitle} from '@conciv/chat'
+import {anchorKey, chatMessages, chatMetadata, sessions, TRANSCRIPT_NAMESPACE, type ConcivDb} from '@conciv/db'
 import {realpathOrSelf, sameCwd} from '@conciv/harness/cwd'
 import {pageAfter} from '@conciv/harness/page'
 import {logError} from '../lib/debug.js'
@@ -308,6 +309,8 @@ type PageEntry =
 
 type ListedSession = {row: SessionRecord; native: HarnessSessionMeta | undefined}
 
+type ChatFacts = {lastMessageAt: number | null; title: string | null}
+
 type ListedHit = ListedSession & {found: Found; preview: NativeSessionRef | null}
 
 export async function listSessionMetas(
@@ -318,9 +321,13 @@ export async function listSessionMetas(
   const covered = frontier === null ? entries : entries.filter((entry) => !olderThan(entry.cursor, frontier))
   const merged = pageAfter(covered, input.page, (entry) => entry.cursor)
   const listed = await listedSessions(merged.items, input)
+  const chat = chatFactsOf(
+    input.db,
+    listed.flatMap((session) => (session.native ? [] : [session.row.id])),
+  )
   return {
     sessions: listed.map((session) => ({
-      ...rowMeta(session, input),
+      ...rowMeta(session, input, chat.get(session.row.id)),
       cwd: sameCwd(session.row.cwd, input.cwd) ? null : session.row.cwd,
       ...session.found,
       preview: session.preview,
@@ -330,7 +337,40 @@ export async function listSessionMetas(
 }
 
 export function sessionMetaOf(context: MetaContext, session: ListedSession): SessionMeta {
-  return rowMeta(session, context)
+  const chat = session.native ? undefined : chatFactsOf(context.db, [session.row.id]).get(session.row.id)
+  return rowMeta(session, context, chat)
+}
+
+const lastMessageAt = sql<
+  number | null
+>`(select max(${chatMessages.createdAt}) from ${chatMessages} where ${chatMessages.threadId} = ${sessions.id})`
+
+const activeAt = sql<number>`max(${sessions.updatedAt}, coalesce(${lastMessageAt}, 0))`
+
+function chatFactsOf(db: ConcivDb, ids: SessionId[]): Map<string, ChatFacts> {
+  if (ids.length === 0) return new Map()
+  const times = db
+    .select({threadId: chatMessages.threadId, at: max(chatMessages.createdAt)})
+    .from(chatMessages)
+    .where(inArray(chatMessages.threadId, ids))
+    .groupBy(chatMessages.threadId)
+    .all()
+  const firstUsers = db
+    .select({threadId: chatMessages.threadId, message: chatMessages.messageJson})
+    .from(chatMessages)
+    .where(
+      and(
+        inArray(chatMessages.threadId, ids),
+        eq(
+          chatMessages.position,
+          sql`(select min(earliest.position) from ${chatMessages} earliest where earliest.thread_id = ${chatMessages.threadId} and earliest.role = 'user')`,
+        ),
+      ),
+    )
+    .all()
+  const at = new Map(times.map((time) => [time.threadId, time.at]))
+  const titles = new Map(firstUsers.map((first) => [first.threadId, firstUserTitle([first.message]) || null]))
+  return new Map(ids.map((id) => [id, {lastMessageAt: at.get(id) ?? null, title: titles.get(id) ?? null}]))
 }
 
 function nativeEntries(pages: NativePage[]): PageEntry[] {
@@ -347,7 +387,7 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
   const after = input.page.after
   const listingKinds = input.nativePages.map(({harnessKind}) => harnessKind)
   const rows = await input.db
-    .select()
+    .select({row: sessions, activeAt})
     .from(sessions)
     .where(
       and(
@@ -357,19 +397,18 @@ async function concivOnlyEntries(input: SessionListInput): Promise<PageEntry[]> 
         input.search === null ? undefined : sql`${sessions.title} like ${likePattern(input.search)} escape '\\'`,
         after === null
           ? undefined
-          : or(
-              lt(sessions.updatedAt, after.updatedAt),
-              and(eq(sessions.updatedAt, after.updatedAt), lt(sessions.id, after.id)),
-            ),
+          : or(lt(activeAt, after.updatedAt), and(eq(activeAt, after.updatedAt), lt(sessions.id, after.id))),
       ),
     )
-    .orderBy(desc(sessions.updatedAt), desc(sessions.id))
+    .orderBy(desc(activeAt), desc(sessions.id))
     .limit(input.page.limit + 1)
-  return rowsInCwd(rows, input.cwd).map((row) => ({
-    kind: 'row',
-    row,
-    cursor: {updatedAt: row.updatedAt, id: row.id},
-  }))
+  return rows.flatMap((entry) =>
+    rowsInCwd([entry.row], input.cwd).map((row): PageEntry => ({
+      kind: 'row',
+      row,
+      cursor: {updatedAt: entry.activeAt, id: row.id},
+    })),
+  )
 }
 
 function likePattern(search: string): string {
@@ -534,10 +573,10 @@ const keyOf = (native: NativeSession): string => nativeKey(native.harnessKind, n
 
 const nativeKey = (harnessKind: string, nativeId: string): string => JSON.stringify([harnessKind, nativeId])
 
-function rowMeta(session: ListedSession, context: MetaContext): SessionMeta {
+function rowMeta(session: ListedSession, context: MetaContext, chat: ChatFacts | undefined): SessionMeta {
   const row = session.row
   return {
-    ...rowFacts(row, session.native),
+    ...rowFacts(row, session.native, chat),
     harnessKind: row.harnessKind,
     id: row.id,
     running: context.running.has(row.id),
@@ -553,8 +592,14 @@ function rowMeta(session: ListedSession, context: MetaContext): SessionMeta {
 function rowFacts(
   row: SessionRecord,
   native: HarnessSessionMeta | undefined,
+  chat: ChatFacts | undefined,
 ): {title: string; updatedAt: number; sizeBytes?: number} {
-  if (!native) return {title: row.title ?? 'New session', updatedAt: row.updatedAt}
+  if (!native) {
+    return {
+      title: row.title ?? chat?.title ?? 'New session',
+      updatedAt: Math.max(row.updatedAt, chat?.lastMessageAt ?? 0),
+    }
+  }
   return {title: row.title ?? native.derivedTitle, updatedAt: native.updatedAt, sizeBytes: native.sizeBytes}
 }
 

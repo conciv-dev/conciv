@@ -152,7 +152,7 @@ function isBlank(message: ModelMessage): boolean {
   return !hasParts && textOf(message).trim() === ''
 }
 
-function titleOf(messages: ModelMessage[]): string {
+export function firstUserTitle(messages: readonly ModelMessage[]): string {
   return textOf(messages.find((message) => message.role === 'user'))
     .trim()
     .slice(0, TITLE_MAX_CHARS)
@@ -216,7 +216,7 @@ export function turnHooks(
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
             throw new Error('the message is empty')
           }
-          const title = titleOf(messages)
+          const title = firstUserTitle(messages)
           if (title !== '') await deps.sessions.recordTitle(sessionId, title)
           return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
         },

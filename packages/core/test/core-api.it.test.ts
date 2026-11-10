@@ -22,7 +22,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
-import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
+import {drizzleChatStores, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
 import {abortableFetch, type EngineStaleness} from '@conciv/contract'
@@ -104,6 +104,7 @@ import {os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
+import {callTrace} from '../src/api/call-trace.js'
 import {resolveConfig} from '../src/config.js'
 import {openSourceFromFrames} from '../src/editor/open-source.js'
 import {originAllowed} from '../src/lib/cors.js'
@@ -4409,3 +4410,94 @@ function codexHome(): string {
   if (home === undefined) throw new Error('the core test process sets CODEX_HOME')
   return home
 }
+
+describe('session display facts from conciv chat rows', () => {
+  const ROW_AT = Date.parse('2026-08-17T00:00:00.000Z')
+  const saved = process.env.CONCIV_HOME
+  const held: {made: MadeApp | undefined} = {made: undefined}
+  beforeAll(() => {
+    process.env.CONCIV_HOME = tempDir('conciv-facts-home-')
+  })
+  afterAll(() => {
+    if (saved === undefined) delete process.env.CONCIV_HOME
+    else process.env.CONCIV_HOME = saved
+  })
+  const kit = sharedKit(() =>
+    createTestkit(createTestHarness(requireClaude()), async (env) => {
+      const made = await bootMadeApp(env)
+      held.made = made
+      return {fetch: made.fetch, dispose: made.dispose, agentToken: made.agentToken}
+    }).setup(),
+  )
+
+  function made(): MadeApp {
+    if (held.made === undefined) throw new Error('the facts app did not boot')
+    return held.made
+  }
+
+  async function sessionAt(updatedAt: number): Promise<SessionId> {
+    const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
+    made().chat.db.update(sessions).set({updatedAt}).where(eq(sessions.id, sessionId)).run()
+    return sessionId
+  }
+
+  function saveMessages(sessionId: SessionId, ...times: string[]): Promise<void> {
+    const [first = '', ...rest] = times
+    return drizzleChatStores(made().chat.db, {harnessOf: () => 'claude'}).messages.saveThread(sessionId, [
+      {id: `u-${sessionId}`, role: 'user', content: '  fill   the form in the form page ', createdAt: new Date(first)},
+      ...rest.map((at, index) => ({
+        id: `a-${index}-${sessionId}`,
+        role: 'assistant' as const,
+        content: 'done',
+        createdAt: new Date(at),
+      })),
+      {role: 'tool', content: '{}', toolCallId: `t-${sessionId}`},
+    ])
+  }
+
+  it('a session whose native transcript is gone takes lastActive from its newest message and its title from its first user message', async () => {
+    const sessionId = await sessionAt(ROW_AT)
+    made()
+      .chat.db.update(sessions)
+      .set({harnessSessionId: HarnessSessionId.parse(randomUUID())})
+      .where(eq(sessions.id, sessionId))
+      .run()
+    await saveMessages(sessionId, '2026-10-30T08:00:00.000Z', '2026-11-10T09:39:00.000Z', '2026-11-01T00:00:00.000Z')
+    expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({
+      title: 'fill   the form in the form page',
+      updatedAt: Date.parse('2026-11-10T09:39:00.000Z'),
+    })
+  })
+
+  it('a hub tool call recorded through the call trace alone bumps lastActive', async () => {
+    const sessionId = await sessionAt(ROW_AT)
+    const hub: Record<string, string> = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+    const trace = callTrace((name) => hub[name] ?? null)
+    const run = {threadId: sessionId, live: false}
+    const before = Date.now()
+    const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
+    mirror.publish([...trace.start(run, 'hub-call', 'page_route', {}), ...trace.result(run, 'hub-call', '{}', false)])
+    await mirror.settle()
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('New session')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a session with no messages keeps its row time and the New session title', async () => {
+    const sessionId = await sessionAt(ROW_AT)
+    expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
+  })
+
+  it('the session list orders and pages by the derived lastActive', async () => {
+    const soon = Date.now() + 3_600_000
+    const chatted = await sessionAt(ROW_AT)
+    await saveMessages(chatted, new Date(soon + 60_000).toISOString())
+    const touched = await sessionAt(soon)
+    const first = await kit().rpc.sessions.list({limit: 1})
+    const second = await kit().rpc.sessions.list({limit: 1, cursor: first.next})
+    expect([...first.sessions, ...second.sessions].map(({id, updatedAt}) => ({id, updatedAt}))).toEqual([
+      {id: chatted, updatedAt: soon + 60_000},
+      {id: touched, updatedAt: soon},
+    ])
+  })
+})
