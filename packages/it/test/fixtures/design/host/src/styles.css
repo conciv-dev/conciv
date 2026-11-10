@@ -286,6 +286,16 @@ button {
   height: auto;
 }
 
+.stackrow-row {
+  display: flex;
+  height: 200px;
+}
+
+.stackrow-card {
+  flex: 1;
+  background: #000;
+}
+
 .slowfont {
   padding: 40px;
 }

@@ -103,6 +103,16 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'stackrow') {
+    return (
+      <main className="stackrow" data-conciv-key="sTkRmn">
+        <div className="stackrow-row" style={{width: Number(new URLSearchParams(location.search).get('width'))}} data-conciv-key="sTkRrw">
+          <div className="stackrow-card" data-conciv-key="sTkRc1" />
+          <div className="stackrow-card" data-conciv-key="sTkRc2" />
+        </div>
+      </main>
+    )
+  }
   if (requested === 'slowfont') {
     return (
       <main className="slowfont" data-conciv-key="sLwFmn">

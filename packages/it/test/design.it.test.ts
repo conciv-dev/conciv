@@ -37,6 +37,7 @@ import {bareButton} from './fixtures/design/bare-button.js'
 import {sideMargin} from './fixtures/design/side-margin.js'
 import {wrapText} from './fixtures/design/wrap-text.js'
 import {tallPage} from './fixtures/design/tall-page.js'
+import {stackRow} from './fixtures/design/stack-row.js'
 import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
@@ -606,6 +607,29 @@ describe('design_check on a page far taller than the frame', () => {
 
   it('has no page row once the image width is constrained', async () => {
     expect((await pageRows('&width=1px')).rows).toEqual([])
+  })
+})
+
+describe('design_check on a row near its breakpoint', () => {
+  const stackRows = async (width: number): Promise<string[]> => {
+    await goto(`/?variant=stackrow&width=${width}`)
+    const image = join(kit.targetsDir, 'stack-row.png')
+    await writeFile(image, blankPng({width: stackRow.frame.w, height: stackRow.frame.h}))
+    await call('design_get', {figma: stackRow.link, image, document: stackRow.document})
+    const checked = roundOf(await call('design_check', {}))
+    return checked.rows.filter((row) => row.text.includes('did not stack')).map((row) => row.text)
+  }
+  const tolerance = designConfig.tolerances.geometryPx
+
+  it('has no breakpoint row when the row is under its breakpoint by the geometry tolerance', async () => {
+    expect(await stackRows(stackRow.breakpoint - tolerance)).toEqual([])
+  })
+
+  it('says the row did not stack when it is under its breakpoint by more than the geometry tolerance', async () => {
+    const wide = stackRow.breakpoint - tolerance - tolerance
+    expect(await stackRows(wide)).toContain(
+      `frame Row [${stackRow.row}] at ${stackRow.frame.w} wide: did not stack; it is ${wide}px wide, under its breakpoint ${stackRow.breakpoint}px, and its children are not one under another`,
+    )
   })
 })
 

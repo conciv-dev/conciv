@@ -2,6 +2,7 @@ import type {Box, DesignNode, GateRow, LiveComponent, Reflow} from '../shared/de
 import {box as geometry} from '../shared/box.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
+import {designConfig} from '../shared/tolerances.js'
 
 export function reflowAt(input: {
   root: DesignNode
@@ -140,13 +141,13 @@ function twoWay(input: {
   const head = `${kind} ${name} [${node.id}] at ${width} wide`
   const row = (text: string): GateRow[] => [{node: node.id, ...named, kind, name, text, magnitude: 'much'}]
   if (wide >= breakpoint)
-    return oneLine
+    return oneLine || wide - breakpoint <= designConfig.tolerances.geometryPx
       ? []
       : row(
           `${head}: stacked too early; it is ${wide}px wide, at or above its breakpoint ${breakpoint}px, so its children stay on one line`,
         )
   const flowed = tag.kind === 'stack' ? stacked : !oneLine
-  if (flowed) return []
+  if (flowed || breakpoint - wide <= designConfig.tolerances.geometryPx) return []
   const how = tag.kind === 'stack' ? 'are not one under another' : 'stay on one line'
   return row(
     `${head}: did not ${tag.kind}; it is ${wide}px wide, under its breakpoint ${breakpoint}px, and its children ${how}`,
