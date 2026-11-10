@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
@@ -75,17 +74,16 @@ async function hubTraced<Result>(
   const trace = callTrace((header) => rpcHeader(context, header))
   if (trace.hub === null) return run()
   const scope = context.session
-  const callId = randomUUID()
   const mirrored = {threadId: scope.id, live: await scope.run.live()}
   const mirror = trace.mirror(mirrored, {publish: scope.stream.publish, record: scope.run.record})
-  mirror.publish(trace.start(mirrored, callId, name, input))
+  mirror.publish(trace.start(mirrored, name, input))
   try {
     const value = await run()
-    mirror.publish(trace.result(mirrored, callId, cappedText(safeStringify(value)), false))
+    mirror.publish(trace.result(mirrored, cappedText(safeStringify(value)), false))
     await mirror.settle()
     return value
   } catch (error) {
-    mirror.publish(trace.result(mirrored, callId, String(error), true))
+    mirror.publish(trace.result(mirrored, String(error), true))
     await mirror.settle()
     throw error
   }

@@ -1,8 +1,7 @@
 import {createMemo, createSignal, Show, splitProps, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {isEqual} from 'es-toolkit'
-import {z} from 'zod'
-import type {ToolCallPart, ToolResultPart} from '@conciv/protocol/chat-message-types'
+import {OutsideCallMetadataSchema, type ToolCallPart, type ToolResultPart} from '@conciv/protocol/chat-message-types'
 import type {
   ToolCardEntry,
   ToolCardProps,
@@ -89,8 +88,6 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
 
 export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
 
-const OutsideMarkerSchema = z.object({conciv: z.object({origin: z.literal('hub'), client: z.string().nullable()})})
-
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
@@ -165,7 +162,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
 }
 
 function outsideTag(part: ToolCallPart): string | undefined {
-  const marker = OutsideMarkerSchema.safeParse(part.metadata)
+  const marker = OutsideCallMetadataSchema.safeParse(part.metadata)
   if (!marker.success) return undefined
   return `from ${marker.data.conciv.client ?? 'outside agent'}`
 }

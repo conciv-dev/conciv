@@ -257,6 +257,46 @@ describe('grouping diff', () => {
     })
   })
 
+  describe('turn bounds', () => {
+    function outsideCall(id: string, run?: string): ChatMessage {
+      const conciv = {origin: 'hub', client: 'codex', ...(run === undefined ? {} : {run})}
+      const call: ChatPart = {
+        type: 'tool-call',
+        id: `call-${id}`,
+        name: 'execute_typescript',
+        arguments: '{}',
+        state: 'input-complete',
+        metadata: {conciv},
+      }
+      return assistant(id, [call])
+    }
+
+    const keys = (messages: ChatMessage[]) => coalesceTurns(messages).map((turn) => turn.key)
+
+    it('gives each outside call its own turn, and the in-chat reply after them its own', () => {
+      const messages = [
+        user('u1', 'hi'),
+        assistant('a1', [text('ok')]),
+        outsideCall('o1', 'r1'),
+        outsideCall('o2', 'r2'),
+        outsideCall('o3', 'r2'),
+        assistant('a2', [text('back')]),
+      ]
+      expect(keys(messages)).toEqual(['u1', 'a1', 'o1', 'o2', 'a2'])
+    })
+
+    it('keeps outside calls saved without a run in one turn with the replies around them', () => {
+      const messages = [user('u1', 'hi'), outsideCall('o1'), outsideCall('o2'), assistant('a1', [text('ok')])]
+      expect(keys(messages)).toEqual(['u1', 'o1'])
+    })
+
+    it('opens a turn at a compaction marker', () => {
+      const compaction: ChatMessage = {...assistant('c1', [text('summary')]), metadata: {conciv: {compaction: true}}}
+      const messages = [user('u1', 'hi'), assistant('a1', [text('ok')]), compaction, assistant('a2', [text('next')])]
+      expect(keys(messages)).toEqual(['u1', 'a1', 'c1'])
+    })
+  })
+
   describe('a streamed chunk keeps what it did not change', () => {
     function call(id: string, state: 'input-streaming' | 'input-complete'): ChatPart {
       return {type: 'tool-call', id, name: 'Bash', arguments: '{}', state}

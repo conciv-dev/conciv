@@ -2019,7 +2019,9 @@ describe('rpc wire', () => {
         script().release()
         await turn.done()
         const cards = toolCallParts((await chatKit().rpc.chat.hydrate({sessionId})).messages)
-        expect(cards.map(cardMetadata)).toContainEqual({conciv: {origin: 'hub', client: 'codex'}})
+        expect(cards.map(cardMetadata)).toContainEqual({
+          conciv: {origin: 'hub', client: 'codex', run: expect.any(String)},
+        })
       })
 
       it('the CLI resumes its own session while its transcript exists, and starts fresh when it does not', async () => {
@@ -4146,6 +4148,23 @@ describe('outside agent consent', () => {
     const forwarded = outside(runner, `${pick} return await external_page_route({})`)
     await decideOutside(owner, theirs, true)
     expect(await forwarded).toContain(ROUTE.href)
+    const onTab = {[CONCIV_SESSION_HEADER]: theirs, ...HUB}
+    expect(String(await executeOverMcp(owner, onTab, 'return await external_page_route({})'))).toContain(ROUTE.href)
+    const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
+    const ownerParts = ownerCalls.messages.flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === 'tool-call' ? [{name: part.name, id: part.id, metadata: part.metadata}] : [],
+      ),
+    )
+    const top = ownerParts.findLast((part) => part.name === 'execute_typescript')
+    expect(top?.id).toEqual(expect.any(String))
+    const marker = {conciv: {origin: 'hub', client: 'codex', run: top?.id}}
+    expect(ownerParts).toContainEqual({...top, metadata: expect.objectContaining(marker)})
+    expect(ownerParts).toContainEqual({
+      name: 'page_route',
+      id: expect.any(String),
+      metadata: expect.objectContaining({...marker, parentToolCallId: top?.id}),
+    })
     const screenshot = JSON.stringify(
       await executeOverMcp(runner, HUB, `${pick} return await external_page_screenshot({})`),
     )
@@ -4382,7 +4401,10 @@ describe('outside agent consent', () => {
     expect(await waiting).toMatchObject({href: ROUTE.href})
     await hubRpc.server.urls().catch(() => null)
     expect(await starts()).toEqual([
-      expect.objectContaining({toolCallName: 'page_route', metadata: {conciv: {origin: 'hub', client: 'codex'}}}),
+      expect.objectContaining({
+        toolCallName: 'page_route',
+        metadata: {conciv: {origin: 'hub', client: 'codex', run: expect.any(String)}},
+      }),
       expect.objectContaining({toolCallName: 'server_urls'}),
     ])
     expect(await hubCall(base, await newSession(base))).toMatch(RAN)
