@@ -35,6 +35,8 @@ import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {parseSync} from 'oxc-parser'
+import {subscribe, unsubscribe} from 'node:diagnostics_channel'
+import {Worker} from 'node:worker_threads'
 import {closePool, openPool} from '../src/server/quickjs-thread.js'
 
 describe('chat stores', () => {
@@ -541,11 +543,20 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
   }
 
   describe('quickjs code mode runs on a warm worker and shares no state between runs', () => {
-    const ReportSchema = z.object({workers: z.array(z.object({header: z.object({threadId: z.number()})}))})
-    const liveWorkers = () => ReportSchema.parse(process.report.getReport()).workers.map(({header}) => header.threadId)
+    const isWorkerCreated = (message: unknown): message is {worker: Worker} =>
+      typeof message === 'object' && message !== null && 'worker' in message && message.worker instanceof Worker
     const workersFromHere = () => {
-      const before = new Set(liveWorkers())
-      return () => liveWorkers().filter((id) => !before.has(id))
+      const live = new Set<Worker>()
+      const track = (message: unknown) => {
+        if (!isWorkerCreated(message)) return
+        live.add(message.worker)
+        message.worker.once('exit', () => live.delete(message.worker))
+      }
+      subscribe('worker_threads', track)
+      onTestFinished(() => {
+        unsubscribe('worker_threads', track)
+      })
+      return () => [...live].map((worker) => worker.threadId)
     }
     const LIMITS = {timeout: 10_000, memoryLimit: 64}
 
