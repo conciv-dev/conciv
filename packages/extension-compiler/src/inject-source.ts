@@ -9,11 +9,15 @@ type Node = any
 
 const SOURCE_ATTR = 'data-conciv-source'
 const KEY_ATTR = 'data-conciv-key'
+const SITE_ATTR = 'data-conciv-site'
+const FRAMEWORK_PACKAGES = ['solid-js', 'react', 'react-dom']
 const JSX_EXTENSIONS = ['.jsx', '.tsx']
 
 type Disk = {openings: Node[]; locate: (offset: number) => {line: number; column: number}}
 
 type Stamp = {node: Node; index: number; key: string; served: boolean; fresh: boolean}
+
+type Parsed = {openings: Node[]; imported: Set<string>}
 
 export function addSourceToJsx(input: {
   code: string
@@ -25,16 +29,18 @@ export function addSourceToJsx(input: {
   const file = id.split('?')[0] ?? id
   if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
   if (code.includes('data-tsd-source') || code.includes(SOURCE_ATTR)) return null
-  const openings = parseOpenings(file, code)
-  if (!openings || openings.length === 0) return null
+  const parsed = parseModule(file, code)
+  if (parsed === null || parsed.openings.length === 0) return null
+  const {openings, imported} = parsed
   const onDisk = alignedDisk({file, text: readText(file), expected: openings.length})
+  const sites = openings.flatMap((node, index) => (calledComponent({node, imported}) ? [{node, index}] : []))
   const stamps = openings.flatMap((node, index): Stamp[] => {
     if (!hostElement(node.name) || attribute({node, name: SOURCE_ATTR}) !== undefined) return []
     if (attribute({node, name: KEY_ATTR}) !== undefined) return [{node, index, key: '', served: false, fresh: false}]
     const kept = literalKey(onDisk?.openings[index])
     return [{node, index, key: kept ?? randomBytes(4).toString('base64url'), served: true, fresh: kept === null}]
   })
-  if (stamps.length === 0) return null
+  if (stamps.length === 0 && sites.length === 0) return null
   const written = input.persist ? persistKeys({file, root, code, stamps}) : null
   const disk = written === null ? onDisk : alignedDisk({file, text: written, expected: openings.length})
   const rel = inside({file, root}) ? relative(root, file) : file
@@ -45,6 +51,11 @@ export function addSourceToJsx(input: {
     const {line, column} = placed === undefined || disk === null ? locate(stamp.node.start) : disk.locate(placed.start)
     const source = ` ${SOURCE_ATTR}=${JSON.stringify(`${rel}:${line}:${column}`)}`
     s.appendLeft(insertAt(stamp.node), stamp.served ? `${source}${keyText(stamp.key)}` : source)
+  })
+  sites.forEach((site) => {
+    const placed = disk?.openings[site.index]
+    const {line} = placed === undefined || disk === null ? locate(site.node.start) : disk.locate(placed.start)
+    s.appendLeft(insertAt(site.node), ` ${SITE_ATTR}=${JSON.stringify(`${rel}:${line}`)}`)
   })
   return {code: s.toString(), map: s.generateMap({source: file, hires: true})}
 }
@@ -104,9 +115,9 @@ function readText(file: string): string | null {
 
 function alignedDisk(input: {file: string; text: string | null; expected: number}): Disk | null {
   if (input.text === null) return null
-  const openings = parseOpenings(input.file, input.text)
-  if (!openings || openings.length !== input.expected) return null
-  return {openings, locate: makeLocator(input.text)}
+  const parsed = parseModule(input.file, input.text)
+  if (parsed === null || parsed.openings.length !== input.expected) return null
+  return {openings: parsed.openings, locate: makeLocator(input.text)}
 }
 
 function makeLocator(code: string): (offset: number) => {line: number; column: number} {
@@ -122,6 +133,34 @@ function makeLocator(code: string): (offset: number) => {line: number; column: n
     }
     return {line: lo + 1, column: offset - (starts[lo] ?? 0) + 1}
   }
+}
+
+function calledComponent(input: {node: Node; imported: Set<string>}): boolean {
+  const {node, imported} = input
+  if (hostElement(node.name) || attribute({node, name: SITE_ATTR}) !== undefined) return false
+  return imported.has(tagRoot(node.name))
+}
+
+function tagRoot(name: Node): string {
+  if (name?.type === 'JSXIdentifier') return String(name.name ?? '')
+  if (name?.type === 'JSXMemberExpression') return tagRoot(name.object)
+  return ''
+}
+
+function importedComponents(program: Node): Set<string> {
+  const body: Node[] = Array.isArray(program?.body) ? program.body : []
+  return new Set(
+    body
+      .filter(
+        (statement) => statement.type === 'ImportDeclaration' && !frameworkPackage(String(statement.source?.value)),
+      )
+      .flatMap((statement): Node[] => (Array.isArray(statement.specifiers) ? statement.specifiers : []))
+      .map((specifier) => String(specifier.local?.name ?? '')),
+  )
+}
+
+function frameworkPackage(specifier: string): boolean {
+  return FRAMEWORK_PACKAGES.some((name) => specifier === name || specifier.startsWith(`${name}/`))
 }
 
 function hostElement(name: Node): boolean {
@@ -143,7 +182,7 @@ function collectOpenings(node: Node, out: Node[]): void {
   }
 }
 
-function parseOpenings(file: string, code: string): Node[] | null {
+function parseModule(file: string, code: string): Parsed | null {
   let parsed: ReturnType<typeof parseSync>
   try {
     parsed = parseSync(file, code, {sourceType: 'module', lang: file.endsWith('.tsx') ? 'tsx' : 'jsx'})
@@ -153,5 +192,5 @@ function parseOpenings(file: string, code: string): Node[] | null {
   if (parsed.errors.length > 0) return null
   const openings: Node[] = []
   collectOpenings(parsed.program, openings)
-  return openings
+  return {openings, imported: importedComponents(parsed.program)}
 }

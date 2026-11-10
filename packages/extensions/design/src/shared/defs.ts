@@ -65,6 +65,10 @@ const OpinionSchema = z.object({box: BoxSchema, confidence: z.number()})
 
 const LiveComponentFieldsSchema = z.object({
   source: SourceLocSchema.nullable(),
+  site: z
+    .string()
+    .optional()
+    .describe('file:line of the component call that rendered it, from data-conciv-site, when it has no source'),
   key: z.string().nullable().describe('the data-conciv-key the compiler wrote, null without one'),
   instance: z.string().nullable().default(null).describe('the call-site and React keys of the fiber chain'),
   repeat: z.string().nullable().default(null).describe('data-conciv-instance where siblings share the key'),
@@ -225,7 +229,13 @@ const IdNodeSchema = z.object({
   id: z.string().describe('the conciv key the compiler stamped on the site'),
   dom: z.array(LiveComponentFieldsSchema.pick({path: true, text: true, drawn: true, box: true}).extend(DOM_FIELDS)),
   cssom: z.array(LiveStylesSchema.extend({path: z.string(), columns: Count.nullable()})),
-  src: z.object({at: SourceLocSchema.nullable(), element: z.string(), classes: z.array(z.string()), parent: Id}),
+  src: z.object({
+    at: SourceLocSchema.nullable(),
+    site: z.string().optional().describe('file:line of the component call that rendered the site'),
+    element: z.string(),
+    classes: z.array(z.string()),
+    parent: Id,
+  }),
   fom: z.array(FomSchema),
   get children(): z.ZodArray<typeof IdNodeSchema> {
     return z.array(IdNodeSchema)

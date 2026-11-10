@@ -102,7 +102,13 @@ function created(input: {
     id: key,
     dom: [],
     cssom: [],
-    src: {at: element.source, element: element.tag.toLowerCase(), classes: element.hints, parent},
+    src: {
+      at: element.source,
+      ...(element.site === undefined ? {} : {site: element.site}),
+      element: element.tag.toLowerCase(),
+      classes: element.hints,
+      parent,
+    },
     kids: [],
   }
   drafts.set(key, draft)

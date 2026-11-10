@@ -17,6 +17,7 @@ import {mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync} f
 import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
 import {addSourceToJsx} from '../src/inject-source.js'
+import {parseSync, Visitor, type JSXAttributeItem, type JSXElementName} from 'oxc-parser'
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
@@ -348,6 +349,43 @@ describe('inject source', () => {
       expect(keys.filter((key) => key.length !== 6)).toEqual([])
     })
 
+    it('stamps a component imported from outside the framework with its call site, a framework or local component with nothing, a host element with key and source', () => {
+      const code = [
+        "import {Show} from 'solid-js'",
+        "import {Chip} from '@conciv/ui-kit-chat'",
+        "import {Tabs} from './tabs'",
+        '',
+        'export function Panel(props: {open: boolean}) {',
+        '  const label = props.open ? "open" : "closed"',
+        '  return (',
+        '    <section>',
+        '      <Show when={props.open}>',
+        '        <Tabs.List>',
+        '          <h3>{label}</h3>',
+        '          <Chip tone="x" />',
+        '          <Local />',
+        '        </Tabs.List>',
+        '      </Show>',
+        '    </section>',
+        '  )',
+        '}',
+        '',
+        'function Local() {',
+        '  return null',
+        '}',
+        '',
+      ].join('\n')
+      const out = addSourceToJsx({code, id: `${ROOT}/src/Panel.tsx`, root: ROOT, persist: false})
+      expect(stampsOf(out?.code ?? '')).toEqual([
+        {tag: 'section', site: null, source: 'src/Panel.tsx:8:5', keyed: true},
+        {tag: 'Show', site: null, source: null, keyed: false},
+        {tag: 'Tabs.List', site: 'src/Panel.tsx:10', source: null, keyed: false},
+        {tag: 'h3', site: null, source: 'src/Panel.tsx:11:11', keyed: true},
+        {tag: 'Chip', site: 'src/Panel.tsx:12', source: null, keyed: false},
+        {tag: 'Local', site: null, source: null, keyed: false},
+      ])
+    })
+
     it('a transform that does not persist writes nothing and still serves keys', () => {
       const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
       const file = join(dir, 'Built.tsx')
@@ -362,6 +400,41 @@ describe('inject source', () => {
     })
   })
 })
+
+function stampsOf(code: string): {tag: string; site: string | null; source: string | null; keyed: boolean}[] {
+  const found: {tag: string; site: string | null; source: string | null; keyed: boolean}[] = []
+  const program = parseSync('out.tsx', code, {sourceType: 'module', lang: 'tsx'}).program
+  new Visitor({
+    JSXOpeningElement(opening) {
+      const value = (name: string): string | null => attributeValue({attributes: opening.attributes, name})
+      found.push({
+        tag: tagName(opening.name),
+        site: value('data-conciv-site'),
+        source: value('data-conciv-source'),
+        keyed: value('data-conciv-key') !== null,
+      })
+    },
+  }).visit(program)
+  return found
+}
+
+function tagName(name: JSXElementName): string {
+  if (name.type === 'JSXIdentifier') return name.name
+  if (name.type === 'JSXMemberExpression') return `${tagName(name.object)}.${name.property.name}`
+  if (name.type === 'JSXNamespacedName') return `${name.namespace.name}:${name.name.name}`
+  return 'this'
+}
+
+function attributeValue(input: {attributes: JSXAttributeItem[]; name: string}): string | null {
+  const found = input.attributes.find(
+    (attribute) =>
+      attribute.type === 'JSXAttribute' &&
+      attribute.name.type === 'JSXIdentifier' &&
+      attribute.name.name === input.name,
+  )
+  if (found?.type !== 'JSXAttribute' || found.value?.type !== 'Literal') return null
+  return typeof found.value.value === 'string' ? found.value.value : null
+}
 
 describe('load extension packages', () => {
   const here = dirname(fileURLToPath(import.meta.url))

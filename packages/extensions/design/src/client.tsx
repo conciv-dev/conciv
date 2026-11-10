@@ -17,6 +17,7 @@ import {createXrayData} from './xray/data.js'
 import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
+import {readStamps} from './client/stamps.js'
 
 declare global {
   interface Window {
@@ -37,6 +38,7 @@ const PLACEHOLDER_KINDS = ['icon', 'logo', 'image', 'avatar'] as const satisfies
 >[]
 const TOLERANCES = designConfig.tolerances
 const SOURCE_ATTR = designConfig.attributes.source
+const SITE_ATTR = designConfig.attributes.site
 const PLACEHOLDER_ATTR = designConfig.attributes.placeholder
 const propertyAliases = designConfig.propertyAliases
 
@@ -66,7 +68,6 @@ type LiveStyles = LiveComponent['styles']
 type LiveBorder = LiveStyles['border']
 type Gradient = NonNullable<LiveStyles['gradient']>
 type Glyph = LiveComponent['glyphs'][number]
-type SourceLoc = NonNullable<LiveComponent['source']>
 
 type Size = {width: number; height: number}
 type PageWindow = Window & typeof globalThis
@@ -515,9 +516,21 @@ async function collectComponents(input: {root: Document; size: Size; widget: Wid
   const keys = keyed.map((el) => el.getAttribute(KEY_ATTR))
   const repeated = new Set(keys.filter((key, index) => key !== null && keys.indexOf(key) !== index))
   const el = input.root.documentElement
-  const marks = input.widget === 'shown' ? [SOURCE_ATTR, KEY_ATTR] : [SOURCE_ATTR]
+  const marks =
+    input.widget === 'shown' ? `[${SOURCE_ATTR}], [${KEY_ATTR}]` : `[${SOURCE_ATTR}], [${SITE_ATTR}][${KEY_ATTR}]`
   const skip = hiddenOverlays(input.widget).join(', ')
-  return collectUnder({el, size: input.size, view, path: '', scan, walked: {count: 0}, repeated, marks, skip})
+  return collectUnder({
+    el,
+    size: input.size,
+    view,
+    path: '',
+    scan,
+    walked: {count: 0},
+    repeated,
+    marks,
+    skip,
+    site: null,
+  })
 }
 
 function deepKeyed(root: Document | ShadowRoot): Element[] {
@@ -534,8 +547,9 @@ type Walk = {
   scan: Scan
   walked: {count: number}
   repeated: Set<string | null>
-  marks: string[]
+  marks: string
   skip: string
+  site: string | null
 }
 
 function collectUnder(input: Walk): Promise<LiveComponent[]> {
@@ -549,9 +563,9 @@ function collectUnder(input: Walk): Promise<LiveComponent[]> {
     const collected = await done
     if (input.skip !== '' && child.matches(input.skip)) return collected
     await paced(input.walked)
-    const found = input.marks.some((mark) => child.hasAttribute(mark))
+    const found = child.matches(input.marks)
       ? [await componentTree({...input, el: child, path: at})]
-      : await collectUnder({...input, el: child, path: at})
+      : await collectUnder({...input, el: child, path: at, site: readStamps({el: child, above: input.site}).below})
     return collected.concat(found)
   }, Promise.resolve([]))
 }
@@ -576,8 +590,10 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
   const nodes = ownTextNodes(el)
   const box = clipped({rect: el.getBoundingClientRect(), size})
   const style = view.getComputedStyle(el)
+  const {source, site, below} = readStamps({el, above: input.site})
   return {
-    source: readSource(el),
+    source,
+    ...(site === undefined ? {} : {site}),
     key: el.getAttribute(KEY_ATTR),
     bounds: pageBounds({rect: el.getBoundingClientRect(), view}),
     scrolls: el.scrollWidth > el.clientWidth + SCROLL_SLACK,
@@ -601,7 +617,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
     path: input.path,
     drawn: drawnPicture(el),
     placeholder: PLACEHOLDER_KINDS.find((kind) => kind === el.getAttribute(PLACEHOLDER_ATTR)) ?? null,
-    children: await collectUnder(input),
+    children: await collectUnder({...input, site: below}),
   }
 }
 
@@ -627,17 +643,6 @@ function drawnPicture(el: Element): boolean {
   if (tag === 'svg') return el.querySelector(DRAWN_SHAPES) !== null
   if (tag === 'img') return (el.getAttribute('src') ?? '').startsWith(DATA_URL)
   return tag === 'canvas'
-}
-
-function readSource(el: Element): SourceLoc | null {
-  const raw = el.getAttribute(SOURCE_ATTR)
-  if (!raw) return null
-  const parts = raw.split(':')
-  const column = Number(parts.pop())
-  const line = Number(parts.pop())
-  const file = parts.join(':')
-  if (!file || !Number.isFinite(line) || !Number.isFinite(column)) return null
-  return {file, line, column}
 }
 
 const FIBER_PREFIX = '__reactFiber$'

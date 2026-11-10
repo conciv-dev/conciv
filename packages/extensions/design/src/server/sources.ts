@@ -170,6 +170,7 @@ export function designSources(tables: ReturnType<typeof designTables>): Record<s
         name: fomNodes.name,
         instance: fomNodes.instance,
         source: fomNodes.source,
+        site: fomNodes.site,
         confidence: fomNodes.confidence,
         margin: fomNodes.margin,
         round: fomNodes.round,

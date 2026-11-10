@@ -9,7 +9,7 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
   const [related] = await db.orm.select({seq: nodeComponents.seq}).from(nodeComponents).limit(1)
   if (related !== undefined) return 0
   const held = await db.orm
-    .select({targetId: fom.target_id, round: fom.round, node: fom.node, source: fom.source})
+    .select({targetId: fom.target_id, round: fom.round, node: fom.node, source: fom.source, site: fom.site})
     .from(fom)
   const rounds = Object.values(Object.groupBy(held, (row) => `${row.targetId}\n${row.round}`))
   return rounds.reduce(async (written, sites = []) => {
@@ -20,7 +20,10 @@ export async function backfillRelation(input: {db: DesignDb; catalog: Catalog}):
       catalog,
       targetId: first.targetId,
       round: first.round,
-      sites: sites.flatMap((row) => (row.source === null ? [] : [{node: row.node, source: row.source}])),
+      sites: sites.flatMap((row) => {
+        const source = row.source ?? row.site
+        return source === null ? [] : [{node: row.node, source}]
+      }),
     })
     return (await written) + relation.size
   }, Promise.resolve(0))

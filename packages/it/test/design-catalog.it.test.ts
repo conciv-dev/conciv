@@ -6,8 +6,11 @@ import {PNG} from 'pngjs'
 import {afterAll, afterEach, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {closeHomeDb, extensionTable, openDb, openHomeDb} from '@conciv/db'
+import {makeExtRpcClient} from '@conciv/extension'
+import type {XrayRouter} from '@conciv/extension-design/server'
 import {DESIGN_TOOLS, type Design, type DesignNode, type IdNode} from '@conciv/extension-design/defs'
 import {readIds} from '../../extensions/design/src/shared/id-tree.js'
+import {walk} from '../../extensions/design/src/shared/tree.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
 import {createViteOxcSource} from '../../extensions/design/src/server/catalog/vite-oxc-source.js'
@@ -29,6 +32,7 @@ type Kit = Awaited<ReturnType<typeof bootDesignHost>>
 
 const kit = await bootDesignHost()
 const {call} = kit
+const xrayRpc = makeExtRpcClient<XrayRouter>(kit.apiBase, 'design')
 
 afterAll(() => kit.dispose())
 
@@ -216,6 +220,35 @@ describe('catalog component rows', () => {
       [pillRow(14)],
       [],
     ])
+  })
+
+  it('credits the node paired to the root of a kit component that stamps nothing to the component written at its call site', async () => {
+    await kit.goto('drift-kit')
+    const image = join(kit.targetsDir, 'kit-figma.png')
+    await writeFile(image, blankPng({width: 1280, height: 720}))
+    const got = await call('design_get', {
+      figma: 'https://www.figma.com/design/ItFixtureKey/x?node-id=18-1',
+      image,
+      document: documentOf({id: '18:1', children: [namedBox({id: '18:2', name: 'Tag', y: 40})]}),
+    })
+    const checked = roundOf(await call('design_check', {}))
+    const read = async (input: {from: string; select: string[]}) =>
+      z
+        .array(z.record(z.string(), z.unknown()))
+        .parse(
+          await kit.rpc.registry.call({
+            name: 'design_query',
+            input: {...input, where: `target == "${got.target}" && round == ${checked.round} && node == "18:2"`},
+          }),
+        )
+        .map((row) => input.select.map((field) => row[field]))
+    const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
+    const placed = layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom)
+    expect([
+      await read({from: 'node_components', select: ['node', 'source']}),
+      await read({from: 'fom', select: ['node', 'id', 'site']}),
+      placed.find((entry) => entry.nodeId === '18:2')?.component?.name,
+    ]).toEqual([[['18:2', 'src/App.tsx:159']], [['18:2', 'kItPlA', 'src/App.tsx:159']], 'Pill'])
   })
 
   it('lists no row for a component the page lost while the component is do-not-use, and the row once cleared', async () => {

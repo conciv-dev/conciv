@@ -159,7 +159,10 @@ export function createStore(input: {
     },
     mapping: (id) => mappingOf({id}),
     sources: async (id) =>
-      uniqBy(await fomAt({id}), (row) => row.id).flatMap((row) => (row.source === null ? [] : [row.source])),
+      uniqBy(await fomAt({id}), (row) => row.id).flatMap((row) => {
+        const source = row.source ?? row.site
+        return source === null ? [] : [source]
+      }),
     writeRelation: ({id, round, tree}) =>
       relateRound({
         db: input.db,
@@ -168,8 +171,9 @@ export function createStore(input: {
         round,
         sites: [...walk(tree.root)].flatMap(({node: site}) => {
           const {at: loc} = site.src
-          if (loc === null) return []
-          return site.fom.map((entry) => ({node: entry.nodeId, source: `${loc.file}:${loc.line}:${loc.column}`}))
+          const source = loc === null ? site.src.site : `${loc.file}:${loc.line}:${loc.column}`
+          if (source === undefined) return []
+          return site.fom.map((entry) => ({node: entry.nodeId, source}))
         }),
       }),
     writeVotes: async ({id, round, votes: cast}) => {

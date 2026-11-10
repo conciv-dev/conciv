@@ -118,6 +118,7 @@ export const designConfig = Object.assign(
     },
     attributes: {
       source: 'data-conciv-source',
+      site: 'data-conciv-site',
       placeholder: 'data-conciv-placeholder',
       overlay: 'data-conciv-overlay',
     },

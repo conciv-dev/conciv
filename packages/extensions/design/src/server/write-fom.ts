@@ -35,6 +35,7 @@ export function writeFom(written: {
           name: names.get(entry.nodeId) ?? null,
           instance: entry.instance,
           source: loc === null ? null : `${loc.file}:${loc.line}:${loc.column}`,
+          site: site.src.site ?? null,
           confidence: entry.confidence,
           margin: entry.margin,
           round,
