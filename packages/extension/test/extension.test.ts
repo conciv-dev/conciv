@@ -276,11 +276,11 @@ describe('define extension', () => {
   test('readSettings serves the stored values parsed, now and on every change', async () => {
     const ext = defineExtension({name: 'terminal', settings: terminalSettings})
     const saved: {snapshot: SettingsSnapshot; listeners: ((snapshot: SettingsSnapshot) => void)[]} = {
-      snapshot: {version: 1, value: {fontSize: 16, shell: 7}},
+      snapshot: {generation: 'extension-test', version: 1, value: {fontSize: 16, shell: 7}},
       listeners: [],
     }
     const commit = (value: Record<string, unknown>): SettingsSnapshot => {
-      saved.snapshot = {version: saved.snapshot.version + 1, value}
+      saved.snapshot = {...saved.snapshot, version: saved.snapshot.version + 1, value}
       saved.listeners.forEach((listener) => listener(saved.snapshot))
       return saved.snapshot
     }
