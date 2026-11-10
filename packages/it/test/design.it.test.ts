@@ -21,6 +21,7 @@ import {
   closeHomeDb,
   componentScans,
   extensionTable,
+  homeCatalog,
   openDb,
   openHomeDb,
   sourceCatalog,
@@ -58,6 +59,7 @@ import {backfillRelation} from '../../extensions/design/src/server/catalog/backf
 import {createCssTokenSource} from '../../extensions/design/src/server/catalog/token-source.js'
 import {createTokenMap} from '../../extensions/design/src/server/catalog/token-map.js'
 import type {Component, Scan} from '../../extensions/design/src/shared/catalog-defs.js'
+import {lane} from '../src/trial/lane.js'
 import {bootDesignHost} from './fixtures/design/boot.js'
 import {cardsDesign} from './fixtures/design/cards.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
@@ -2213,5 +2215,100 @@ describe('report', () => {
         }),
       ).toEqual([{kind: 'report', path: join('reports', 'it-wave.md')}])
     })
+  })
+})
+
+const TRIAL_BIN = fileURLToPath(new URL('../src/trial/trial.ts', import.meta.url))
+
+const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url))
+
+const STORE_RUN = 'store run '
+
+async function trial(input: {args: string[]; home: string; stdin?: string}): Promise<string> {
+  const running = promisify(execFile)(
+    process.execPath,
+    [fileURLToPath(import.meta.resolve('tsx/cli')), TRIAL_BIN, ...input.args],
+    {env: {...process.env, CONCIV_HOME: input.home}},
+  )
+  running.child.stdin?.end(input.stdin ?? '')
+  return (await running).stdout
+}
+
+function storeRunOf(printed: string): number {
+  const line = printed.split('\n').find((each) => each.startsWith(STORE_RUN))
+  if (line === undefined) throw new Error(`trial serve printed no store run:\n${printed}`)
+  return Number(line.slice(STORE_RUN.length))
+}
+
+describe('trial', () => {
+  const served = {home: '', printed: ''}
+
+  beforeAll(async () => {
+    served.home = await tempDir('conciv-trial-home-')
+    const waveDir = await mkdtemp(join(FIXTURES, 'trial-'))
+    importedDirs.push(waveDir)
+    const project = await lane({root: FIXTURES, wave: basename(waveDir), label: 'serve'})
+    served.printed = await trial({
+      home: served.home,
+      args: ['serve', '--project', project, '--route', '/?variant=target', '--image', target('u1-1280')],
+      stdin: 'run start it-model it-head\ncheck\n',
+    })
+  })
+
+  it('serve with two stdin commands lands its run in the store with a design and a screenshot per width', async () => {
+    const runId = storeRunOf(served.printed)
+    const {sources} = homeCatalog(served.home)
+    const widths = z
+      .array(z.object({width: z.number()}))
+      .parse(await sources.read({from: 'design_run_summary', where: `run == ${runId}`, select: ['width']}))
+    expect(widths.length).toBeGreaterThan(0)
+    const artifacts = z
+      .array(z.object({kind: z.string(), width: z.number().nullable()}))
+      .parse(await sources.read({from: 'design_stored_artifacts', where: `run == ${runId}`, select: ['kind', 'width']}))
+    expect(new Set(artifacts.map((row) => `${row.kind} ${row.width}`))).toEqual(
+      new Set(['source null', ...widths.flatMap(({width}) => [`design ${width}`, `screenshot ${width}`])]),
+    )
+  })
+
+  it('judge names every width of a run whose design or screenshot is missing and writes no judgement', async () => {
+    await withHome(async ({home, sources, command}) => {
+      const dir = await fixtureCopy(
+        "ALTER TABLE design_runs ADD COLUMN wave text; ALTER TABLE design_runs ADD COLUMN lane text; UPDATE design_runs SET wave = 'it-judge', lane = 'figma7-1'",
+      )
+      const {runId} = ImportedSchema.parse(await command('run-import').run({args: [dir], options: {}}))
+      const widths = z
+        .array(z.object({target: z.string(), width: z.number()}))
+        .parse(await sources.read({from: 'design_run_summary', where: `run == ${runId}`, select: ['target', 'width']}))
+      const printed = await trial({home, args: ['judge', 'it-judge']})
+      expect(new Set(printed.trim().split('\n'))).toEqual(
+        new Set(
+          widths.map(
+            (row) => `run ${runId} ${row.target} width ${row.width}: no design and no screenshot artifact; not judged`,
+          ),
+        ),
+      )
+      expect(await sources.read({from: 'design_stored_judgements'})).toEqual([])
+    })
+  })
+
+  it('rescore replays a stored round on the current pairer and prints the pairs before and after', async () => {
+    const runId = storeRunOf(served.printed)
+    const {sources} = homeCatalog(served.home)
+    const [stored] = z.array(z.object({target: z.string(), round: z.number()})).parse(
+      await sources.read({
+        from: 'design_stored_rounds',
+        where: `run == ${runId}`,
+        select: ['target', 'round'],
+        limit: 1,
+      }),
+    )
+    const before = await sources.read({
+      from: 'design_stored_votes',
+      where: `run == ${runId} && round == ${stored?.round} && won == true`,
+    })
+    const printed = await trial({home: served.home, args: ['rescore', String(runId), String(stored?.round)]})
+    expect(printed).toContain(
+      `run ${runId} ${stored?.target} round ${stored?.round}: paired before ${before.length} after `,
+    )
   })
 })
