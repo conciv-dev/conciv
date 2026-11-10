@@ -4,5 +4,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
-  "exclude": ["test/host/**", "test/fixtures/**", "dist", "node_modules"]
+  "exclude": ["test/fixtures/**", "dist", "node_modules"]
 }
