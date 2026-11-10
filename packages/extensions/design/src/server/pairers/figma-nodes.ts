@@ -308,9 +308,9 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const {node, box} = entry
   const shift = shiftOf({node: entry.parent, vote})
   const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
-  const geo = iou({a: box, b: placed})
   const flowed = {...placed, y: placed.y - grownAbove({vote, entry})}
-  if (iou({a: box, b: flowed}) < PAIR.overlapFloor && centerDistance({a: box, b: flowed}) > PAIR.nearCenterPx) return []
+  const geo = iou({a: box, b: flowed})
+  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: flowed}) > PAIR.nearCenterPx) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
