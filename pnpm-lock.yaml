@@ -441,7 +441,6 @@ overrides:
 packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
 patchedDependencies:
-  '@orpc/standard-server-peer@1.16.1': 366277454eed622b897a15eece1b4f4e9f23673f0c279122bab1c80369f16714
   '@tanstack/ai-claude-code@1.0.1': 31b291cbe125c63f2123a0ca4aa4f58a080d74398ac4996ca5b37e32d894fcac
   '@tanstack/ai-code-mode@1.1.0': a8f338ab5115b0f7e8c701a16e8f3f7eb7936d4ec4188b1b9640718e775131ed
   '@tanstack/ai-sandbox-local-process@1.0.0': 59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f
@@ -2195,6 +2194,9 @@ importers:
       '@orpc/contract':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-peer':
+        specifier: 'catalog:'
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       partysocket:
         specifier: 'catalog:'
         version: 1.3.0(react@19.3.1)
@@ -2719,7 +2721,7 @@ importers:
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
       '@orpc/standard-server-peer':
         specifier: 'catalog:'
-        version: 1.16.1(patch_hash=366277454eed622b897a15eece1b4f4e9f23673f0c279122bab1c80369f16714)(@opentelemetry/api@1.9.1)
+        version: 1.16.1(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -21007,7 +21009,7 @@ snapshots:
       '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(patch_hash=366277454eed622b897a15eece1b4f4e9f23673f0c279122bab1c80369f16714)(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -21033,7 +21035,7 @@ snapshots:
       '@orpc/standard-server-fastify': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/standard-server-fetch': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/standard-server-node': 1.16.1(@opentelemetry/api@1.9.1)
-      '@orpc/standard-server-peer': 1.16.1(patch_hash=366277454eed622b897a15eece1b4f4e9f23673f0c279122bab1c80369f16714)(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-peer': 1.16.1(@opentelemetry/api@1.9.1)
       cookie: 1.1.1
     optionalDependencies:
       crossws: 0.4.17(srvx@1.0.8)
@@ -21081,7 +21083,7 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/standard-server-peer@1.16.1(patch_hash=366277454eed622b897a15eece1b4f4e9f23673f0c279122bab1c80369f16714)(@opentelemetry/api@1.9.1)':
+  '@orpc/standard-server-peer@1.16.1(@opentelemetry/api@1.9.1)':
     dependencies:
       '@orpc/shared': 1.16.1(@opentelemetry/api@1.9.1)
       '@orpc/standard-server': 1.16.1(@opentelemetry/api@1.9.1)
