@@ -4901,11 +4901,14 @@ describe('settings page', () => {
 
   afterEach(harness.dispose)
   afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
+  afterEach(() => localStorage.removeItem('conciv-modal-width'))
 
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const gear = () => page.getByRole('link', {name: 'Settings'})
   const back = () => page.getByRole('button', {name: 'Back to chat'})
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
+  const widthHandle = () => page.getByRole('separator', {name: 'Resize chat width'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
   const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
   const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
@@ -4927,8 +4930,13 @@ describe('settings page', () => {
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
     localStorage.removeItem('conciv:settings-tab')
+    localStorage.removeItem('conciv-modal-width')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
+    await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'horizontal')
+    await expect.element(tab('Advanced')).toBeVisible()
+    harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(probe('light')).toBeInTheDocument()
@@ -4937,9 +4945,14 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
-    await expect
-      .element(page.getByRole('tablist', {name: 'Settings sections'}))
-      .toHaveAttribute('aria-orientation', 'vertical')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
+    await tab('General').click()
+    await userEvent.keyboard('{Shift>}{Tab}{Tab}{/Shift}')
+    await expect.element(widthHandle()).toHaveFocus()
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'horizontal')
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
 
     const tabPaths: Record<string, string> = {
       General: 'general',

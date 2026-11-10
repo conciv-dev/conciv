@@ -19,7 +19,7 @@ const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1
 const TITLE =
   'flex-1 m-0 [font-family:var(--chat-font-display)] text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
 const BACK = 'size-9 shrink-0'
-const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'
+const SPLIT = 'flex flex-1 min-h-0 flex-col data-[orientation=vertical]:flex-row'
 const RAIL =
   'relative flex shrink-0 gap-0.5 pt-1.5 px-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [border-block-end:1px_solid_var(--chat-line-soft)] data-[orientation=vertical]:flex-col data-[orientation=vertical]:w-37.5 data-[orientation=vertical]:py-2.5 data-[orientation=vertical]:overflow-x-hidden data-[orientation=vertical]:overflow-y-auto data-[orientation=vertical]:[border-block-end:none] data-[orientation=vertical]:[border-inline-end:1px_solid_var(--chat-line-soft)]'
 const TAB =
@@ -130,12 +130,11 @@ function SettingsLayout(): JSX.Element {
       state: {restoreFocus: 'settings'},
     })
   createResizeObserver(
-    () => split,
+    () => [split, ...(rail?.querySelectorAll('[role=tab]') ?? [])],
     () => {
       if (!split || !rail) return
       if (layout.orientation === 'horizontal') topRowWidth = rail.scrollWidth
-      const wide = getComputedStyle(split).getPropertyValue('--settings-rail').trim() === 'wide'
-      const orientation = wide || topRowWidth > split.clientWidth ? 'vertical' : 'horizontal'
+      const orientation = topRowWidth > split.clientWidth ? 'vertical' : 'horizontal'
       const changed = orientation !== layout.orientation
       setLayout('orientation', orientation)
       const origin = split.getBoundingClientRect()
