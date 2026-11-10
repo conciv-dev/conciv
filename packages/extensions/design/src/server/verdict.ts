@@ -55,7 +55,7 @@ function requiredOf(root: DesignNode): Map<string, string> {
 
 function placed(input: {node: DesignNode; parent: DesignNode | null}): string {
   const {node, parent} = input
-  const own = `${node.id} ${nameOf(node)}`
+  const own = `${node.id} ${nameOf(node)}${node.implied === true ? BUILD_IMPLIED : ''}`
   return parent === null ? own : `${own} under ${parent.id} ${nameOf(parent)}`
 }
 
@@ -101,7 +101,9 @@ function reasonsOf(input: {round: Round; required: Map<string, string>}): string
 
 const MISSING_SHOWN = 10
 
-const IMPLIED = '(an implied group: build it as a container)'
+const IMPLIED = 'implied group'
+
+const BUILD_IMPLIED = ' (build it as a container)'
 
 const UNBLOCKING = 'font family'
 
