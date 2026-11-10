@@ -45,19 +45,26 @@ every key, foreign keys, indexes, checks). The `'run'` shape and the per-project
 `judgements`; the report command writes `reports`; gc deletes. The home is the conciv home the extension server receives,
 nothing else, never a scratch path. A project's `.conciv` folder keeps only the widget's session state and the design asset cache.
 
-### A run carries its provenance from birth
+### The run record, complete
 
-`runs` carries, filled by the extension when a session's first `design_get` creates the row:
+Every column a thesis query may need is on `runs` or one join away. This table is the whole list; a field not here is not recorded.
 
-| column           | meaning                                                                                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `project_key`    | the catalog's `projectKey` of the project dir: origin remote URL plus the path inside the repo, or the package name without git. Same for every worktree and clone |
-| `branch`, `head` | the project's git branch and head commit at start, null without git                                                                                                |
-| `wave`, `lane`   | optional labels from `designConfig.runs.wave` / `.lane` (set per project by whoever runs a measured set), null otherwise                                           |
-| `tools_head`     | the commit of the design extension that served the run                                                                                                             |
+| group       | columns on `runs`                                                                                                | filled                                                                                 |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| who         | `session_id`, `model`, `harness`, `agent_id`                                                                     | at open, from the tool request and the session                                         |
+| where       | `project_key` (catalog key: origin remote plus path for a tracked dir, package name otherwise), `branch`, `head` | at open, from git                                                                      |
+| which tools | `tools_head`, `tools_version`, `tools_fingerprint`                                                               | at open, from the extension package                                                    |
+| which set   | `wave`, `lane`, `arm` (`tools` or `control`)                                                                     | at open, from `designConfig.runs`                                                      |
+| outcome     | `status` (TanStack `RunStatus`), `started`, `ended`, `verdict`, `cost`, `usage` (json), `error`, `error_code`    | `status` and `started` at open; the rest at close from the chat run and the last round |
 
-`model` comes from the tool request, `started` from the first `design_get`, `ended`, `cost` and `verdict` from the close. `prompt_head`
-is dropped (nothing in the product knows the prompt). `source_path` and `source_run_id` stay on the old rows only; nothing writes them.
+One join away: `targets` and `widths` (the design: link, node, document hash, frame per width), `rounds`, `rows`, `votes`, `fom`,
+`nodes`, `tool_calls` (every call with its reply or error), `artifacts` (`screenshot` and `design` per width per check,
+`source_diff` once at close, `report`), `judgements`, `reports`, and the session's `chat_messages` (the prompt and the transcript,
+never copied). `duration_ms` and anything else derivable is a view column.
+
+The `source_diff` artifact is the diff of the project files the agent changed during the run, taken from the chat server's sandbox
+file hooks (TanStack AI `onFileChange` with `diff()`), reached through an `@conciv/extension` server member. It is not a `git diff`
+shelled from the extension.
 
 ### A run rides the house run lifecycle
 
