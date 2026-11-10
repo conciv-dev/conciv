@@ -1,5 +1,12 @@
 # @conciv/e2e-utils
 
+## 0.0.22
+
+### Patch Changes
+
+- Updated dependencies [[`bbc5760`](https://github.com/conciv-dev/conciv/commit/bbc57606fd20f68b991cb04690fa42ce99c7cafd), [`550d871`](https://github.com/conciv-dev/conciv/commit/550d8718dc7aa496bc2c42dd7495a5dd6436abde), [`913bf6e`](https://github.com/conciv-dev/conciv/commit/913bf6e383d82ac9b96df4e723909bde74a5a41c), [`913bf6e`](https://github.com/conciv-dev/conciv/commit/913bf6e383d82ac9b96df4e723909bde74a5a41c)]:
+  - @conciv/harness-testkit@0.0.22
+
 ## 0.0.21
 
 No changes in this release.
