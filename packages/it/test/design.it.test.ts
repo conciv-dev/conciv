@@ -2287,29 +2287,6 @@ describe('trial', () => {
     )
   })
 
-  it('turn on a serve started without --agent refuses and sends nothing to the agent', async () => {
-    const home = await tempDir('conciv-turn-home-')
-    const waveDir = await mkdtemp(join(FIXTURES, 'turn-'))
-    importedDirs.push(waveDir)
-    const project = await lane({root: FIXTURES, wave: basename(waveDir), label: 'serve'})
-    const prompt = join(home, 'prompt.md')
-    await writeFile(prompt, 'Reply with the word ok.')
-    const printed = await trial({
-      home,
-      args: ['serve', '--project', project, '--route', '/?variant=target', '--image', target('u1-1280')],
-      stdin: `run start it-model it-head\nturn ${prompt}\n`,
-    })
-    expect(printed).toContain('turn failed: Error: serve was started without --agent')
-    expect(printed).not.toContain('turn ended')
-    const {sources} = homeCatalog(home)
-    expect(
-      await sources.read({
-        from: 'design_stored_artifacts',
-        where: `run == ${storeRunOf(printed)} && kind == "transcript"`,
-      }),
-    ).toEqual([])
-  })
-
   it('wave prepares a lane from the trial fixture, closes its run with the design status and lands it in the store', async () => {
     const home = await tempDir('conciv-wave-home-')
     const waveDir = await mkdtemp(join(FIXTURES, 'wave-'))

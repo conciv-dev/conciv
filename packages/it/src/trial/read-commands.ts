@@ -9,17 +9,12 @@ import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {designConfig} from '../../../extensions/design/src/shared/tolerances.js'
 import type {open} from './open.js'
 
-export async function readCommands(input: {
-  trial: Trial
-  commands: string[]
-  run: RunOptions
-  agent: boolean
-}): Promise<void> {
+export async function readCommands(input: {trial: Trial; commands: string[]; run: RunOptions}): Promise<void> {
   const lines = input.commands.length > 0 ? input.commands : createInterface({input: createReadStream('', {fd: STDIN})})
   for await (const line of lines) {
     const [name = '', ...args] = line.trim().split(' ').filter(Boolean)
     if (name === 'quit') return
-    await runCommand({trial: input.trial, run: input.run, agent: input.agent, name, args})
+    await runCommand({trial: input.trial, run: input.run, name, args})
   }
 }
 
@@ -27,7 +22,7 @@ type Trial = Awaited<ReturnType<typeof open>>
 
 type RunOptions = {wave?: string; lane?: string}
 
-type Command = (input: {trial: Trial; run: RunOptions; agent: boolean; args: string[]}) => Promise<void>
+type Command = (input: {trial: Trial; run: RunOptions; args: string[]}) => Promise<void>
 
 const RUN_COMMAND = 'design:run'
 
@@ -47,8 +42,7 @@ const COMMANDS: Record<string, Command> = {
     const passed = action === 'start' ? [action, first, second ?? ''] : [action, first]
     print(JSON.stringify(await trial.rpc.extensions.run({name: RUN_COMMAND, args: passed, options})))
   },
-  turn: async ({trial, agent, args: [file = '']}) => {
-    if (!agent) throw new Error('serve was started without --agent')
+  turn: async ({trial, args: [file = '']}) => {
     const runId = randomUUID()
     const response = await fetch(`${trial.apiBase}${CHAT_SSE_PATH}`, {
       method: 'POST',
@@ -73,17 +67,11 @@ const COMMANDS: Record<string, Command> = {
   },
 }
 
-async function runCommand(input: {
-  trial: Trial
-  run: RunOptions
-  agent: boolean
-  name: string
-  args: string[]
-}): Promise<void> {
+async function runCommand(input: {trial: Trial; run: RunOptions; name: string; args: string[]}): Promise<void> {
   const command = COMMANDS[input.name]
   if (command === undefined)
     return print(`unknown command ${input.name}; one of ${Object.keys(COMMANDS).join(', ')}, quit`)
-  await command({trial: input.trial, run: input.run, agent: input.agent, args: input.args}).catch((error: unknown) =>
+  await command({trial: input.trial, run: input.run, args: input.args}).catch((error: unknown) =>
     print(`${input.name} failed: ${String(error)}`),
   )
 }

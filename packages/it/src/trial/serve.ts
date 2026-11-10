@@ -122,7 +122,7 @@ async function served(input: {options: Options; commands: string[]}): Promise<vo
       ...(options.wave === undefined ? {} : {wave: options.wave}),
       ...(options.lane === undefined ? {} : {lane: options.lane}),
     }
-    await readCommands({trial, commands: input.commands, run, agent: options.agent})
+    await readCommands({trial, commands: input.commands, run})
     await importedRun({trial, options})
   } finally {
     await browser.close()
