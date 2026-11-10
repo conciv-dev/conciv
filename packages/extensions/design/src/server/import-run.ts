@@ -1,11 +1,10 @@
 import {existsSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {resolve} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {and, eq, getTableColumns, getTableName, sql, type SQL} from 'drizzle-orm'
 import type {SQLiteTable} from 'drizzle-orm/sqlite-core'
 import {z} from 'zod'
 import {dbFile} from '@conciv/db'
-import {loadDumps} from './dump-source.js'
 import {runsTables} from './runs-tables.js'
 import type {openRunsStore} from './runs-store.js'
 
@@ -13,13 +12,10 @@ export function importRun(input: {runsStore: RunsStore; stateDir: string}): Impo
   const {orm} = input.runsStore
   const sourcePath = resolve(input.stateDir)
   const {path} = dbFile(sourcePath)
-  const dumps = join(sourcePath, DUMPS)
-  const dumped = !existsSync(path) && existsSync(join(dumps, 'runs.json'))
   const mode = existsSync(`${path}-wal`) ? 'mode=ro' : 'immutable=1'
-  orm.$client.prepare('ATTACH DATABASE ? AS source').run(dumped ? MEMORY : `${pathToFileURL(path).href}?${mode}`)
+  orm.$client.prepare('ATTACH DATABASE ? AS source').run(`${pathToFileURL(path).href}?${mode}`)
   try {
-    const dropped = dumped ? {dropped: loadDumps({client: orm.$client, dir: dumps})} : {}
-    return {...orm.transaction((tx) => copied({tx, sourcePath}), {behavior: 'immediate'}), ...dropped}
+    return orm.transaction((tx) => copied({tx, sourcePath}), {behavior: 'immediate'})
   } finally {
     orm.$client.exec('DETACH DATABASE source')
   }
@@ -29,17 +25,7 @@ type RunsStore = ReturnType<typeof openRunsStore>
 
 type Tx = Parameters<Parameters<RunsStore['orm']['transaction']>[0]>[0]
 
-type Imported = {
-  runId: number
-  sourceRunId: number
-  imported: boolean
-  copied: Record<string, number>
-  dropped?: Record<string, string[]>
-}
-
-const DUMPS = 'db'
-
-const MEMORY = ':memory:'
+type Imported = {runId: number; sourceRunId: number; imported: boolean; copied: Record<string, number>}
 
 const {runs, targets, rounds, ...children} = runsTables
 

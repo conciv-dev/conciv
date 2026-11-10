@@ -1532,8 +1532,6 @@ describe('a run database from either branch', () => {
 
 const RUN_FIXTURE = fileURLToPath(new URL('fixtures/runs/twentysix-figma7-1/', import.meta.url))
 
-const DUMPED_RUN = fileURLToPath(new URL('fixtures/runs/twentyseven-figma7-1-dumps/', import.meta.url))
-
 const CountSchema = z.object({count: z.number()})
 
 function countIn(input: {client: DatabaseSync; table: string; where?: string}): number {
@@ -1664,28 +1662,6 @@ describe('runs store', () => {
     })
     const {data} = SummarySchema.parse(JSON.parse(printed.stdout))
     expect(data.map((row) => [row.run, row.width])).toEqual(widths.map((row) => [runId, row.width]))
-  })
-
-  it('imports a run that left only its json dumps, one target per root node, at its three widths', async () => {
-    const ImportedSchema = z.object({
-      runId: z.number(),
-      imported: z.boolean(),
-      dropped: z.record(z.string(), z.array(z.string())),
-    })
-    const {runId, imported, dropped} = ImportedSchema.parse(
-      await kit.rpc.extensions.run({name: 'design:runs', args: ['import', DUMPED_RUN]}),
-    )
-    const summary = await kit.rpc.db.read({
-      from: 'design_run_summary',
-      where: `run == ${runId}`,
-      select: ['width'],
-      order: [{field: 'width', dir: 'desc'}],
-    })
-    expect([imported, summary, dropped.design_runs]).toEqual([
-      true,
-      [{width: 1920}, {width: 1440}, {width: 390}],
-      ['seq'],
-    ])
   })
 
   it('imports a tool call that names a round the run never stored', async () => {
