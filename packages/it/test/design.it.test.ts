@@ -33,7 +33,6 @@ import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
 import {migrations} from '../../extensions/design/src/server/migrations.gen.js'
-import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openRunsStore} from '../../extensions/design/src/server/runs-store.js'
 import {importRun} from '../../extensions/design/src/server/import-run.js'
 import {queryRuns} from '../../extensions/design/src/server/query-runs.js'
@@ -1273,18 +1272,22 @@ function pragma(input: {client: DatabaseSync; statement: string}): unknown[] {
 }
 
 describe('runs store schema', () => {
-  it('keys every child row to its run, target and round, and indexes the round lookups', () => {
-    const client = migrated(runsMigrations)
-    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
-    const parents = (table: string) =>
-      ForeignSchema.parse(pragma({client, statement: `PRAGMA foreign_key_list(${table})`})).map((entry) => entry.table)
-    expect(names('PRAGMA index_list(design_rows)')).toEqual(expect.arrayContaining(['rows_by_round', 'rows_by_node']))
-    expect(new Set(parents('design_rounds'))).toEqual(new Set(['design_runs', 'design_targets']))
-    expect(new Set(parents('design_rows'))).toEqual(new Set(['design_runs', 'design_targets', 'design_rounds']))
-    expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
-    expect(() =>
-      client.exec(`INSERT INTO design_runs (model, prompt_head, started, verdict) VALUES ('m', 'p', 1, 'fine')`),
-    ).toThrow('CHECK constraint failed: runs_verdict')
+  it('keys every child row to its run, target and round, and indexes the round lookups', async () => {
+    await withRunsStore(async (store) => {
+      const client = store.orm.$client
+      const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
+      const parents = (table: string) =>
+        ForeignSchema.parse(pragma({client, statement: `PRAGMA foreign_key_list(${table})`})).map(
+          (entry) => entry.table,
+        )
+      expect(names('PRAGMA index_list(design_rows)')).toEqual(expect.arrayContaining(['rows_by_round', 'rows_by_node']))
+      expect(new Set(parents('design_rounds'))).toEqual(new Set(['design_runs', 'design_targets']))
+      expect(new Set(parents('design_rows'))).toEqual(new Set(['design_runs', 'design_targets', 'design_rounds']))
+      expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
+      expect(() =>
+        client.exec(`INSERT INTO design_runs (model, prompt_head, started, verdict) VALUES ('m', 'p', 1, 'fine')`),
+      ).toThrow('CHECK constraint failed: runs_verdict')
+    })
   })
 
   it('migrates a run database forward with the reply column and the round indexes', () => {
@@ -1377,6 +1380,24 @@ describe('runs store', () => {
       expect(() => queryRuns({runsStore: store, sql: 'DELETE FROM design_runs'})).toThrow(
         'attempt to write a readonly database',
       )
+    })
+  })
+
+  it('imports a tool call that names a round the run never stored', async () => {
+    await withRunsStore(async (store) => {
+      const stateDir = await mkdtemp(join(tmpdir(), 'conciv-run-state-'))
+      await mkdir(join(stateDir, '.conciv'))
+      const client = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+      client.exec(`VACUUM INTO '${join(stateDir, '.conciv', 'conciv.db')}'`)
+      client.close()
+      const copy = new DatabaseSync(join(stateDir, '.conciv', 'conciv.db'))
+      copy.exec(
+        "INSERT INTO design_tool_calls (run_id, target_id, tool, round, input, reply_bytes, duration_ms, at) SELECT run_id, target_id, 'design_status', 0, '{}', 0, 0, at FROM design_rounds LIMIT 1",
+      )
+      copy.close()
+      const {copied} = importRun({runsStore: store, stateDir})
+      await rm(stateDir, {recursive: true, force: true})
+      expect(copied.design_tool_calls).toBe(28)
     })
   })
 })

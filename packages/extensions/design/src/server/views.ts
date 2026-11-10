@@ -31,7 +31,8 @@ export const runsViews = {
 FROM design_runs r
 JOIN design_targets t ON t.run_id = r.run_id
 JOIN design_rounds last ON last.run_id = t.run_id AND last.target_id = t.target_id
-  AND last.round = (SELECT max(x.round) FROM design_rounds x WHERE x.run_id = t.run_id AND x.target_id = t.target_id)`),
+  AND last.round = (SELECT max(x.round) FROM design_rounds x WHERE x.run_id = t.run_id AND x.target_id = t.target_id
+    AND (r.ended IS NULL OR x.at <= r.ended))`),
   round_rows: sqliteView('round_rows', {
     run_id: integer().notNull(),
     target_id: text().notNull(),

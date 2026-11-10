@@ -40,7 +40,6 @@ export const runsRelations = defineRelations(runsTables, (r) => {
       votes: r.many.votes(),
       fom: r.many.fom(),
       nodeComponents: r.many.node_components(),
-      toolCalls: r.many.tool_calls(),
     },
     rows: rounded('rows'),
     missing: rounded('missing'),
@@ -56,10 +55,9 @@ export const runsRelations = defineRelations(runsTables, (r) => {
         from: [r.tool_calls.run_id, r.tool_calls.target_id],
         to: [r.targets.run_id, r.targets.target_id],
       }),
-      roundRow: ofRound('tool_calls'),
     },
-    labels: {run: ofRun('labels'), target: ofTarget('labels'), roundRow: ofRound('labels')},
-    notes: {run: ofRun('notes'), target: ofTarget('notes'), roundRow: ofRound('notes')},
+    labels: child('labels'),
+    notes: child('notes'),
     nodes: child('nodes'),
   }
 })

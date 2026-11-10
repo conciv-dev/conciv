@@ -365,7 +365,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
         at: integer().notNull(),
       },
       (self) => [
-        ...inRound(self),
+        ...owned(self),
         index('tool_calls_by_round').on(self.run_id, self.round),
         check('tool_calls_tool', inArray(self.tool, TOOL_NAMES).inlineParams()),
       ],
@@ -385,7 +385,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
         note: text(),
         at: integer().notNull().default(NOW_MS),
       },
-      (self) => [...inRound(self), check('verdict', sql`${self.verdict} in ('right', 'wrong')`)],
+      (self) => [...owned(self), check('verdict', sql`${self.verdict} in ('right', 'wrong')`)],
     ),
     node_components: table(
       'node_components',
@@ -412,7 +412,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
         text: text().notNull(),
         at: integer().notNull().default(NOW_MS),
       },
-      inRound,
+      owned,
     ),
   }
 }

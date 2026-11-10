@@ -15,9 +15,11 @@ export function openRunsStore(home: string) {
     lock: join(home, 'runs.lock'),
     migrate: (db) => {
       db.$client.exec('PRAGMA foreign_keys = OFF')
+      db.$client.exec('PRAGMA legacy_alter_table = ON')
       migrateSync(runsMigrations, db._.session)
     },
   })
+  opened.$client.exec('PRAGMA legacy_alter_table = OFF')
   opened.$client.exec('PRAGMA foreign_keys = ON')
   opened.$client.exec('PRAGMA synchronous = NORMAL')
   const reader = new DatabaseSync(file, {readOnly: true})
