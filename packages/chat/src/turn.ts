@@ -253,7 +253,7 @@ export function turnHooks(
       if (usage === undefined) return
       const modelId = deps.sessions.row(sessionId)?.model ?? deps.harnessFor(sessionId).defaultModel ?? null
       await deps.sessions.recordUsage(sessionId, {
-        ...tokenUsageToSnapshot(usage),
+        ...tokenUsageToSnapshot(usage, modelId ?? undefined),
         ...(modelId === null ? {} : {modelId}),
       })
     },

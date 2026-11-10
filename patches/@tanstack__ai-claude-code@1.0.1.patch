@@ -1,5 +1,5 @@
 diff --git a/dist/esm/adapters/text.js b/dist/esm/adapters/text.js
-index f840990..84e65a9 100644
+index f840990ddd3ab07ae7a67514a1384319923d7e0a..84e65a9631533a0af205fb06f9b88dbc39cd9e6a 100644
 --- a/dist/esm/adapters/text.js
 +++ b/dist/esm/adapters/text.js
 @@ -2,7 +2,7 @@ import { buildPrompt } from "../messages/prompt.js";
@@ -30,7 +30,7 @@ index f840990..84e65a9 100644
  		args: [],
  		env: {}
 diff --git a/dist/esm/model-meta.js b/dist/esm/model-meta.js
-index 9dbdd9b..d50b51c 100644
+index 9dbdd9bd0dbf1af37c1de87cff013e96b9034e9a..d50b51c7b16544cb26fe0c127975fe9479449d02 100644
 --- a/dist/esm/model-meta.js
 +++ b/dist/esm/model-meta.js
 @@ -55,10 +55,11 @@ var CLAUDE_CODE_MODEL_REASONING = {
@@ -48,66 +48,3 @@ index 9dbdd9b..d50b51c 100644
 +export { CLAUDE_CODE_MODELS, CLAUDE_CODE_MODEL_REASONING, EFFORT_LOW_TO_MAX };
  
  //# sourceMappingURL=model-meta.js.map
-\ No newline at end of file
-diff --git a/dist/esm/stream/translate.js b/dist/esm/stream/translate.js
-index fda8587..35ea1aa 100644
---- a/dist/esm/stream/translate.js
-+++ b/dist/esm/stream/translate.js
-@@ -31,7 +31,18 @@ function stringifyToolResultContent(content) {
- 	if (typeof content === "string") return content;
- 	return content.map((block) => typeof block.text === "string" ? block.text : "").join("");
- }
--function buildUsage(usage, totalCostUsd, modelUsage) {
-+function mainContextWindow(modelUsage, mainModel) {
-+	const main = mainModel === void 0 ? void 0 : modelUsage?.[mainModel];
-+	if (typeof main?.contextWindow === "number" && main.contextWindow > 0) return main.contextWindow;
-+	let best;
-+	for (const entry of Object.values(modelUsage ?? {})) {
-+		if (typeof entry?.contextWindow !== "number" || entry.contextWindow <= 0) continue;
-+		const input = (entry.inputTokens ?? 0) + (entry.cacheReadInputTokens ?? 0) + (entry.cacheCreationInputTokens ?? 0);
-+		if (best === void 0 || input > best.input) best = { input, contextWindow: entry.contextWindow };
-+	}
-+	return best?.contextWindow;
-+}
-+function buildUsage(usage, totalCostUsd, modelUsage, mainModel) {
- 	if (!usage) return void 0;
- 	const cacheWrite = usage.cache_creation_input_tokens ?? 0;
- 	const cacheRead = usage.cache_read_input_tokens ?? 0;
-@@ -48,9 +59,11 @@ function buildUsage(usage, totalCostUsd, modelUsage) {
- 	};
- 	if (Object.keys(promptTokensDetails).length > 0) result.promptTokensDetails = promptTokensDetails;
- 	if (totalCostUsd !== void 0) result.cost = totalCostUsd;
-+	const contextWindow = mainContextWindow(modelUsage, mainModel);
- 	if (totalCostUsd !== void 0 || modelUsage !== void 0) result.providerUsageDetails = {
- 		...totalCostUsd !== void 0 && { totalCostUsd },
--		...modelUsage !== void 0 && { modelUsage }
-+		...modelUsage !== void 0 && { modelUsage },
-+		...contextWindow !== void 0 && { contextWindow }
- 	};
- 	return result;
- }
-@@ -73,6 +86,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
- 	const { model, runId, threadId, genId } = ctx;
- 	const now = () => Date.now();
- 	let runStarted = false;
-+	let sessionModel;
- 	/** Tool calls started but with no result yet. */
- 	const unresolvedToolCalls = /* @__PURE__ */ new Set();
- 	const syntheticOutputToolIds = /* @__PURE__ */ new Set();
-@@ -315,7 +329,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
- 		yield* closePartialReasoning();
- 		yield* closePartialToolUses();
- 		yield* synthesizeUnresolvedResults();
--		const usage = buildUsage(message.usage, message.total_cost_usd, message.modelUsage);
-+		const usage = buildUsage(message.usage, message.total_cost_usd, message.modelUsage, sessionModel);
- 		if (ctx.expectStructuredOutput === true) {
- 			const fromResult = isUsefulStructuredObject(message.structured_output) ? message.structured_output : void 0;
- 			const fromTool = isUsefulStructuredObject(capturedStructuredOutput) ? capturedStructuredOutput : void 0;
-@@ -476,6 +490,7 @@ async function* translateSdkStream(sdkMessages, ctx) {
- 			ctx.onSdkMessage?.(sdkMessage);
- 			if (sdkMessage.type === "system" && sdkMessage.subtype === "init") {
- 				yield* startRun();
-+				sessionModel = sdkMessage.model;
- 				ctx.onSessionId?.(sdkMessage.session_id);
- 				yield {
- 					type: EventType.CUSTOM,
