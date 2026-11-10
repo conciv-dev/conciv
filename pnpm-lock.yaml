@@ -60,6 +60,9 @@ catalogs:
     '@solid-primitives/event-listener':
       specifier: ^2.4.6
       version: 2.4.6
+    '@solid-primitives/keyed':
+      specifier: ^1.5.3
+      version: 1.5.3
     '@solid-primitives/resize-observer':
       specifier: ^2.2.0
       version: 2.2.0
@@ -4618,7 +4621,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/keyed':
-        specifier: ^1.5.3
+        specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
       '@solid-primitives/media':
         specifier: ^2.3.6
@@ -4809,7 +4812,7 @@ importers:
         specifier: 'catalog:'
         version: 2.4.6(solid-js@1.9.17)
       '@solid-primitives/keyed':
-        specifier: ^1.5.3
+        specifier: 'catalog:'
         version: 1.5.3(solid-js@1.9.17)
       '@solid-primitives/resize-observer':
         specifier: 'catalog:'
