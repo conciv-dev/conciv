@@ -338,6 +338,7 @@ describe('chat plane', () => {
           native.reads += 1
           return native.messages
         },
+        tail: async () => ({messages: native.messages, earlier: null}),
         observe: () => ({revision: missing, read: missing, close: () => undefined}),
         list: async () => ({sessions: [], next: null}),
         meta: async () => null,

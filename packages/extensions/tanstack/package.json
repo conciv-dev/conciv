@@ -47,7 +47,7 @@
   },
   "scripts": {
     "build": "tsdown && vite build && tsc -p tsconfig.build.json && vite build -c vite.test-host.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/host/tsconfig.json --noEmit && tsc -p test/host/conciv/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/host/tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
@@ -64,16 +64,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@conciv/browser-fixture": "workspace:*",
     "@conciv/core": "workspace:^",
-    "@conciv/embed": "workspace:^",
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
-    "@solid-primitives/event-listener": "catalog:",
     "@solidjs/testing-library": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

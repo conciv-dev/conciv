@@ -2722,7 +2722,7 @@ describe('rpc wire', () => {
           expect(phalarope?.excerpt).toMatch(/^….*phalarope$/s)
         })
 
-        it('previews a native transcript newest window first, pages back by message, and refuses an unknown one', async () => {
+        it('previews a native transcript newest window first, pages back by its cursor, and refuses an unknown one', async () => {
           const sanderling = claudeId('claude-sanderling')
           writeClaudeLines(
             sanderling,
