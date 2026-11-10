@@ -157,8 +157,30 @@ The store in the conciv home holds 173 runs. A migration adds `session_id` (null
 
 ## Left to the builder
 
-File layout under `runs/` beyond "one export per file"; the markdown shape of the report (the present `thirty.md` is the reference);
-how the session's run id reaches each writer (a map in the design runtime keyed by session id is enough).
+File layout under `runs/` beyond "one export per file"; the markdown shape of the report (the present `thirty.md` is the reference).
+
+Settled while building:
+
+- The session's run reaches each writer through `runs.open(request)` in the design runtime, a map from session id to the
+  open run. A target is found by its latest row among the runs of this project (`project_key`); a check in a session
+  whose run has closed writes into the session's new run and copies the target and its nodes there.
+- `runs.model` and `prompt_head` are nullable: a tool request can carry no model, and nothing writes `prompt_head`.
+- The turn end reaches an extension through `ServerResult.turnEnd(sessionId, run)`, where `run` is the chat run record
+  (status, finishedAt, error with its code, usage). Running and interrupted runs are not closed.
+- Votes and node components wait for their round row and are written in the round's transaction.
+- The `design` artifact of a width is the design image the check measured against; a design has one image, so every
+  width carries the same file until per-width frames are rendered.
+- The `judge` names the target of an artifact from its folder, `<run>/<target>/<kind>-<round>-<width>.png`.
+
+Left open: the `source_diff` artifact. The kind and its lifetime exist; nothing writes it. The chat server builds its
+sandbox with `fileEvents: false`, so no `onFileChange` event reaches any middleware. Writing it needs: `fileEvents`
+turned on in `packages/ai/src/server/chat-server.ts` (a recursive watcher on the project for every chat, a `git show`
+per changed file, and `sandbox.file` custom chunks on every client stream); a `sandbox.onFile` hook on the
+`conciv-turn` middleware passing `{path, type, diff}` to a new `TurnHooks.file`; `SessionPort.onFile` in chat and a
+`ServerResult.turnFile(sessionId, file)` member in `@conciv/extension`; the design server keeping the last `diff()`
+per path per session and writing one `source_diff` row at close (width null, name `source.diff`). Its test needs a
+chat turn that edits a project file, which the design IT host cannot run: it boots with `harnessBin: 'true'` and no
+fake harness.
 
 ## Rulings from the builder check
 

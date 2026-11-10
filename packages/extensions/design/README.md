@@ -28,7 +28,8 @@ src/
     tree.ts            walk over any tree
     box.ts             box geometry
   server/
-    store.ts           the target store on unstorage: record, design, image, mapping, rounds, live and diff images
+    store.ts           the target store over the runs store, live and diff images on unstorage
+    runs/              the runs store: tables, views, sources, the session runs, artifacts and the commands
     differ.ts          the three tool bodies: register or return the design, quiet then run and judge, last round
     tools.ts           the server tool bindings
     document.ts        the design tree as tagged nodes plus rules
@@ -111,6 +112,31 @@ container, or 24 px on a container), shorter or taller (7% more slack), a flex d
 direction, and a box more than 12 px off its parent's offset make a row. Size rows read `slightly` under 8 px or under
 15% and 32 px, `noticeably` under 40% and 96 px, else `much`; position rows `slightly` under 12 px, `noticeably`
 under 32 px, else `much`.
+
+## Runs
+
+Every design session is recorded in one store, `<conciv home>/runs.db`, migrated whenever it is opened. A project's
+`.conciv` keeps no design tables.
+
+- A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session_id`, `model`,
+  `harness`, `agent_id`, `project_key`, `branch`, `head`, the tools head, version and fingerprint, and `wave`, `lane`
+  and `arm` from `designConfig.runs`. Its targets, rounds, rows and tool calls are written there as they happen.
+- Each check writes a `screenshot` and a `design` artifact per measured width under `<home>/artifacts/<run>/<target>/`,
+  with the lifetimes of `designConfig.runs.lifetimes`.
+- The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
+  `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies
+  the target into it.
+
+Commands, all home scope:
+
+- `conciv design:judge <wave> [--judge-model <model>]`: scores each run, target and width of the wave without a
+  judgement by that model, from its `design` and `screenshot` artifacts, with `claude -p` and the Read tool; a
+  missing artifact is named and nothing is written for it.
+- `conciv design:report <wave>`: renders `wave_summary` and `judged` to `<home>/artifacts/reports/<wave>.md`.
+- `conciv design:runs-gc`: deletes the expired artifacts and prints each file removed; runs are kept.
+
+Queries: `conciv db query --from design_run_summary`, `design_judged` and `design_wave_summary` (per wave, arm and
+width); every stored table is `design_stored_<table>`.
 
 ## Sources
 
