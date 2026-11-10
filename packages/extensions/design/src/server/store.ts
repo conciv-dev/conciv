@@ -18,7 +18,10 @@ import type {storeTables} from './runs/store-tables.js'
 export function createStore(input: {
   db: DesignDb
   state: Storage
-  runs: {of: (sessionId: string) => Promise<number | null>}
+  runs: {
+    of: (sessionId: string) => Promise<number | null>
+    latest: () => Promise<{sessionId: string; run: number} | null>
+  }
   project: Promise<string>
   catalog: Catalog
 }): Store {
@@ -79,15 +82,16 @@ export function createStore(input: {
   async function runOf(id: string): Promise<{run: number; row: TargetRow}> {
     const found = await target(id)
     if (found === undefined) throw toolError('no-target', {message: `no design ${id} is registered; call design_get`})
-    const run = await runs.of(found.session)
-    if (run === null)
-      throw toolError('no-target', {message: `the run that held ${id} has ended; call design_get again`})
+    const own = await runs.of(found.session)
+    const latest = own === null ? await runs.latest() : {sessionId: found.session, run: own}
+    if (latest === null) throw toolError('no-target', {message: `no run holds ${id}; call design_get again`})
+    const {run} = latest
     if (run === found.run_id) return {run, row: found}
     const looks = await orm
       .select()
       .from(nodes)
       .where(and(eq(nodes.run_id, found.run_id), eq(nodes.target_id, id)))
-    const moved = {...found, run_id: run}
+    const moved = {...found, run_id: run, session: latest.sessionId}
     orm.transaction((tx) => {
       tx.insert(targets).values(moved).run()
       for (const {seq: _seq, ...look} of looks)

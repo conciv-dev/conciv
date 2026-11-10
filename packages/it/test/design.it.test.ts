@@ -267,7 +267,7 @@ describe('store', () => {
     const store = createStore({
       db,
       state: createStorage({driver: memoryDriver()}),
-      runs: {of: async () => run?.run_id ?? null},
+      runs: {of: async () => run?.run_id ?? null, latest: async () => null},
       project: Promise.resolve('p'),
       catalog,
     })
@@ -1719,6 +1719,73 @@ describe('the store is written at the source', () => {
     const tables = NamedSchema.parse(project.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'design_%'").all())
     project.close()
     expect(tables).toEqual([])
+  })
+})
+
+const TurnUsageSchema = z.object({
+  promptTokens: z.number(),
+  completionTokens: z.number(),
+  totalTokens: z.number(),
+  cost: z.number(),
+})
+
+const ClosedSchema = z.array(
+  z.object({run: z.number(), status: z.string(), ended: z.number().nullable(), cost: z.number().nullable()}),
+)
+
+function runningChatRun(input: {stateRoot: string; session: string; runId: string; cost: number}): void {
+  const project = new DatabaseSync(join(input.stateRoot, '.conciv', 'conciv.db'))
+  const usage = {promptTokens: 10, completionTokens: 5, totalTokens: 15, cost: input.cost}
+  project
+    .prepare(
+      "INSERT INTO chat_runs (run_id, thread_id, harness_id, status, started_at, usage_json) VALUES (?, ?, 'claude', 'running', ?, ?)",
+    )
+    .run(input.runId, input.session, Date.now(), JSON.stringify(usage))
+  project.close()
+}
+
+describe('a run closes with its turn', () => {
+  it('closes the design run with the chat run the next boot swept, once, keeps its rounds, and a check after opens a new run', async () => {
+    const stateRoot = await tempDir('conciv-design-turn-state-')
+    const homeDir = await tempDir('conciv-design-turn-home-')
+    const first = await bootDesignHost({stateRoot, homeDir})
+    const session = first.session
+    try {
+      await first.goto('target')
+      await first.call('design_get', await cardsDesign(first.targetsDir))
+      roundOf(await first.call('design_check', {}))
+    } finally {
+      await first.dispose()
+    }
+    runningChatRun({stateRoot, session, runId: 'it-turn-1', cost: 1.5})
+    runningChatRun({stateRoot, session, runId: 'it-turn-2', cost: 9})
+    const second = await bootDesignHost({stateRoot, homeDir})
+    try {
+      const read = (where: string, select: string) =>
+        homeQuery({home: homeDir, args: ['--from', 'design_stored_runs', '--where', where, '--select', select]})
+      const [closed] = ClosedSchema.parse(await read(`session_id == "${session}"`, 'run,status,ended,cost'))
+      expect(closed).toEqual({run: expect.any(Number), status: 'aborted', ended: expect.any(Number), cost: 1.5})
+      const [usage] = await read(`session_id == "${session}"`, 'usage')
+      expect(TurnUsageSchema.parse(usage?.usage)).toEqual({
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        cost: 1.5,
+      })
+      const kept = await homeQuery({
+        home: homeDir,
+        args: ['--from', 'design_stored_rounds', '--where', `run == ${String(closed?.run)}`, '--select', 'round'],
+      })
+      expect(kept.length).toBeGreaterThan(0)
+      await second.goto('target')
+      roundOf(await second.call('design_check', {}))
+      const opened = ClosedSchema.parse(await read('status == "running"', 'run,status,ended,cost'))
+      expect(opened.map((row) => row.run)).not.toContain(closed?.run)
+      expect(opened).toHaveLength(1)
+      expect(ClosedSchema.parse(await read(`run == ${String(closed?.run)}`, 'run,status,ended,cost'))).toEqual([closed])
+    } finally {
+      await second.dispose()
+    }
   })
 })
 

@@ -17,10 +17,16 @@ import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {unplugin} from '../../../src/plugin-instance.js'
 import {renderTargets} from './render-targets.js'
 
-export async function bootDesignHost(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
-  const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-state-'))
+export async function bootDesignHost(
+  options: {config?: DesignConfigInput; stateRoot?: string; homeDir?: string} = {},
+): Promise<Kit> {
+  const stateRoot = options.stateRoot ?? (await mkdtemp(join(tmpdir(), 'conciv-design-state-')))
   const devEndpointDir = await mkdtemp(join(tmpdir(), 'conciv-design-endpoint-'))
-  const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-home-'))
+  const homeDir = options.homeDir ?? (await mkdtemp(join(tmpdir(), 'conciv-design-home-')))
+  const owned = [
+    ...(options.stateRoot === undefined ? [stateRoot] : []),
+    ...(options.homeDir === undefined ? [homeDir] : []),
+  ]
   const printed: string[] = []
   const server = await createServer({
     root: HOST_ROOT,
@@ -85,9 +91,7 @@ export async function bootDesignHost(options: {config?: DesignConfigInput} = {})
     dispose: async () => {
       await browser.close()
       await server.close()
-      await rm(stateRoot, {recursive: true, force: true})
-      await rm(devEndpointDir, {recursive: true, force: true})
-      await rm(homeDir, {recursive: true, force: true})
+      await Promise.all([...owned, devEndpointDir].map((dir) => rm(dir, {recursive: true, force: true})))
       await rm(targetsDir, {recursive: true, force: true})
     },
   }

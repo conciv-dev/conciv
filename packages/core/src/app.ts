@@ -20,6 +20,7 @@ import {
   type ServerResult,
   type ServerSessions,
   type ToolRequest,
+  type TurnRun,
 } from '@conciv/extension'
 import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ResolvedConcivConfig} from './config.js'
@@ -543,8 +544,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       })
       .join('\n\n')
   }
-  const onRunEnd = async (sessionId: SessionId): Promise<void> => {
-    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+  const onRunEnd = async (sessionId: SessionId, run: TurnRun): Promise<void> => {
+    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId, run)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })

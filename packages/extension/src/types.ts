@@ -8,6 +8,8 @@ import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types
 import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
+import type {RunStatus} from '@conciv/protocol/chat-event-types'
+import type {TokenUsage} from '@conciv/protocol/usage-types'
 import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import type {MigrationMeta} from 'drizzle-orm/migrator'
 import type {
@@ -182,10 +184,19 @@ export type ServerResult<Context> = {
   context: Context
   router?: AnyRouter
   app?: unknown
-  turnEnd?: (sessionId: SessionId) => void | Promise<void>
+  turnEnd?: (sessionId: SessionId, run: TurnRun) => void | Promise<void>
   systemPrompt?: SessionPromptResolver
   dispose?: () => void | Promise<void>
   verbs?: Record<string, ServerVerb>
+}
+
+export type TurnRun = {
+  runId: string
+  status: RunStatus
+  startedAt: number
+  finishedAt?: number
+  error?: {message: string; code?: string}
+  usage?: TokenUsage
 }
 
 export type ServerVerb = (

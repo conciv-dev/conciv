@@ -75,6 +75,7 @@ export type {
   ToolCard,
   ToolRenderer,
   ToolRequest,
+  TurnRun,
 } from './types.js'
 export type {Source, SourceField, SourceListing, SourceOrder, SourceRead, SourceWrite} from '@conciv/db'
 export {MountedExtension, MountedSurface, MountedView} from './mount-extension.js'

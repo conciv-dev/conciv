@@ -19,6 +19,7 @@ export function createSessionRuns(input: {
   const {orm, cwd, extensionDir, labels} = input
   const {runs, rounds} = storeTables
   const held = new Map<string, Promise<number>>()
+  const opened: {last: {sessionId: string; run: Promise<number>} | null} = {last: null}
 
   async function inserted(request: Pick<ToolRequest, 'sessionId' | 'agentId' | 'model'>): Promise<number> {
     const [row] = await orm
@@ -44,10 +45,16 @@ export function createSessionRuns(input: {
       if (known !== undefined) return known
       const opening = inserted(request)
       held.set(request.sessionId, opening)
+      opened.last = {sessionId: request.sessionId, run: opening}
       opening.catch(() => held.delete(request.sessionId))
       return opening
     },
     of: async (sessionId: string): Promise<number | null> => (await held.get(sessionId)) ?? null,
+    latest: async (): Promise<{sessionId: string; run: number} | null> => {
+      const {last} = opened
+      if (last === null || !held.has(last.sessionId)) return null
+      return {sessionId: last.sessionId, run: await last.run}
+    },
     close: async (sessionId: string, state: Closed): Promise<void> => {
       held.delete(sessionId)
       const open = await orm

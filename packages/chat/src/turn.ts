@@ -4,7 +4,7 @@ import {approvalAskOf, ChatEventType, sessionRunEvent, type ChatEvent} from '@co
 import {tokenUsageToSnapshot, toTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {type ContentPart, type ModelMessage} from '@conciv/protocol/chat-message-types'
 import type {TurnHooks} from '@conciv/ai/server'
-import type {AttachmentDocumentPart} from '@conciv/extension'
+import type {AttachmentDocumentPart, TurnRun} from '@conciv/extension'
 import {transcriptPathWithin} from '@conciv/harness'
 import {isHarnessSessionId, SessionId, type HarnessSessionId, type ReasoningEffort} from '@conciv/protocol/chat-types'
 import type {HarnessAdapter} from '@conciv/harness'
@@ -28,7 +28,7 @@ export type SessionPort = {
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
   recordTitle: (sessionId: SessionId, title: string) => Promise<void>
   onRunStart: (sessionId: SessionId) => Promise<void>
-  onRunEnd: (sessionId: SessionId) => Promise<void>
+  onRunEnd: (sessionId: SessionId, run: TurnRun) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
 }
 
@@ -261,11 +261,11 @@ export function turnHooks(
     },
     started: (turn) =>
       deps.sessions.publish(SessionId.parse(turn.threadId), sessionRunEvent.create({runId: turn.runId})),
-    end: async (turn) => {
+    end: async (turn, _lifecycle, record) => {
       const sessionId = SessionId.parse(turn.threadId)
       await context.transcripts.settle(sessionId)
       await recordContext(deps, sessionId)
-      await deps.sessions.onRunEnd(sessionId)
+      await deps.sessions.onRunEnd(sessionId, record)
     },
   }
 }

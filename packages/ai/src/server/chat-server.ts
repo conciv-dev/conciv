@@ -73,7 +73,7 @@ export type TurnPlan = {
 export type TurnHooks = {
   plan: (turn: Turn) => TurnPlan
   usage: (turn: Turn, usage: TokenUsage) => Promise<void>
-  end: (turn: Turn, run: RunLifecycle) => Promise<void>
+  end: (turn: Turn, run: RunLifecycle, record: RunRecord) => Promise<void>
   started: (turn: Turn) => void
 }
 
@@ -227,7 +227,8 @@ async function sweepAbandonedRuns(runs: ChatStores['runs'], hooks: TurnHooks): P
   for (const record of await runs.listRunning()) {
     await runs.update(record.runId, {status: 'aborted', finishedAt: now})
     const turn: Turn = {threadId: record.threadId, runId: record.runId, kind: 'chat'}
-    await hooks.end(turn, lifecycleOf({...record, status: 'aborted', finishedAt: now}))
+    const swept = {...record, status: 'aborted' as const, finishedAt: now}
+    await hooks.end(turn, lifecycleOf(swept), swept)
   }
 }
 
@@ -420,8 +421,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
     const shown = new StreamProcessor({})
     const settle = async (): Promise<void> => {
       try {
-        const lifecycle = await recordLifecycle(turn.runId)
-        if (lifecycle !== null) await hooks.end(turn, lifecycle)
+        const record = await stores.runs.get(turn.runId)
+        if (record !== null) await hooks.end(turn, lifecycleOf(record), record)
       } catch (error) {
         config.log(`[ai] ending run ${turn.runId} failed: ${String(error)}`)
       } finally {

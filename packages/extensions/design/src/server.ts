@@ -5,6 +5,7 @@ import fsDriver from 'unstorage/drivers/fs'
 import {closeHomeDb, openHomeDb} from '@conciv/db'
 import {defineExtension} from '@conciv/extension'
 import {SessionId} from '@conciv/protocol/chat-types'
+import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import {designConfig} from './shared/tolerances.js'
 import type {Design, DesignRuntime, Pairer} from './shared/defs.js'
 import {createStore} from './server/store.js'
@@ -35,6 +36,8 @@ import {DESIGN_COMMANDS} from './server/runs/commands/design-commands.js'
 const DESIGN_EXTENSION_NAME = 'design'
 
 const extensionDir = dirname(createRequire(import.meta.url).resolve('@conciv/extension-design/package.json'))
+
+const UNFINISHED = new Set<RunStatus>(['running', 'interrupted'])
 
 const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
 
@@ -129,6 +132,15 @@ const design = defineExtension({
     },
     router: xray.router,
     app: xray.app,
+    turnEnd: (sessionId, run) =>
+      UNFINISHED.has(run.status)
+        ? undefined
+        : runs.close(sessionId, {
+            status: run.status,
+            ended: run.finishedAt ?? Date.now(),
+            ...(run.usage === undefined ? {} : {usage: run.usage}),
+            ...(run.error === undefined ? {} : {error: run.error}),
+          }),
     dispose: async () => {
       await backfilled
       await Promise.all(runtime.adapters.map((adapter) => adapter.dispose?.()))
