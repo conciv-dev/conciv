@@ -112,11 +112,15 @@ const BUILD_IMPLIED = ' (build it as a container)'
 const UNBLOCKING = 'font family'
 
 function stalled(rounds: Round[]): boolean {
-  const recent = rounds.slice(-(STALL_ROUNDS + 1)).map((round) => round.counts.much)
-  const [first = 0] = recent
+  const recent = rounds.slice(-(STALL_ROUNDS + 1)).map((round) => round.counts)
+  const [first] = recent
   return (
-    first > 0 &&
+    first !== undefined &&
+    first.much > 0 &&
     recent.length === STALL_ROUNDS + 1 &&
-    recent.every((much, index) => index === 0 || much >= (recent[index - 1] ?? much))
+    recent.every((counts, index) => {
+      const before = recent[index - 1]
+      return before === undefined || (counts.much >= before.much && counts.rows >= before.rows)
+    })
   )
 }

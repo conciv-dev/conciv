@@ -77,7 +77,7 @@ mismatched pixels), and gives one verdict:
 
 - `done`: `much + noticeably + pins = 0`, every required node rendered (zero-size nodes, collapsed children and
   decorations are not required), no `sticksOut`, no `overflowX`, every reflow tag `ok` at 1024 and 768.
-- `stalled`: `much` has not fallen for two rounds in a row.
+- `stalled`: neither `much` nor the number of rows has fallen for two rounds in a row.
 - `not yet`: otherwise; `reasons` says which condition failed, one sentence each with the numbers.
 
 Pixels are reported, never judged (blank images and font substitution dominate the share).
