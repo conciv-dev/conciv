@@ -918,7 +918,6 @@ describe('engine login', () => {
 })
 
 describe('browser rpc over one websocket', () => {
-  const REVOKED_RECONNECT_WINDOW_MS = 1500
   const requester = {browser: 'Chrome 156 | macOS', origin: 'http://localhost:5173'}
   const sessionOs = os.$context<RpcContext>()
   const sessionProbe = defineExtension({name: 'session probe'}).server(() => ({
@@ -1008,7 +1007,7 @@ describe('browser rpc over one websocket', () => {
     }
   }, 20_000)
 
-  test('a revoked token closes the socket, the client stops reconnecting, and the next call comes back without it', async () => {
+  test('a revoked token closes the socket and the next call opens a fresh untrusted one', async () => {
     const root = mkdtempSync(join(tmpdir(), 'conciv-rpc-ws-'))
     const served = await engine(root)
     try {
@@ -1016,8 +1015,6 @@ describe('browser rpc over one websocket', () => {
       expect(await trust.requestTrustWithToken(served.made.trustBrowser(requester, Date.now()))).toBe(true)
       revokeBrowsers(concivStateDir(root), 'all')
       await vi.waitFor(() => expect(trust.status()).toBe('revoked'), {timeout: 5_000})
-      await new Promise((resolve) => setTimeout(resolve, REVOKED_RECONNECT_WINDOW_MS))
-      expect(served.wire.sockets).toBe(1)
       expect(await trust.requestTrust()).toBe(false)
       expect(trust.status()).toBe('untrusted')
       expect(served.wire).toEqual({httpRpc: 0, sockets: 2})

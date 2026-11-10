@@ -55,11 +55,13 @@ export function rpcSocketFor(page: Page): RpcSocket {
   const existing = sockets.get(page)
   if (existing) return existing
   const state: SocketState = {rules: [], listeners: new Set(), live: new Set(), opened: 0, held: false}
+  const installed = page.routeWebSocket(
+    (url) => url.pathname.endsWith(RPC_WS_PATH),
+    (route) => connect(route, state),
+  )
+  installed.catch(() => undefined)
   const created: RpcSocket = {
-    installed: page.routeWebSocket(
-      (url) => url.pathname.endsWith(RPC_WS_PATH),
-      (route) => connect(route, state),
-    ),
+    installed,
     rule: (rule) => {
       state.rules.unshift(rule)
       return () => {
