@@ -14,7 +14,7 @@ export function localSandbox(config: {dir: string}): SandboxProvider {
   const minted: Minted[] = []
   const track = (handle: SandboxHandle, signal: AbortSignal | undefined): SandboxHandle => {
     const entry: Minted = {handle, signal, spawned: []}
-    minted.push(entry)
+    minted.splice(0, minted.length, ...minted.filter((earlier) => !finished(earlier)), entry)
     const tracked: SandboxHandle['process'] = {
       exec: (command, options) => handle.process.exec(command, options),
       spawn: async (command, options) => {
@@ -49,6 +49,11 @@ function takeForDestroy(minted: Minted[], id: string): Minted | undefined {
   const chosen = forId.find((entry) => entry.signal?.reason === RUN_CANCEL_REASON) ?? forId[0]
   if (chosen !== undefined) minted.splice(minted.indexOf(chosen), 1)
   return chosen
+}
+
+function finished(entry: Minted): boolean {
+  if (entry.signal?.reason === RUN_CANCEL_REASON || entry.spawned.length === 0) return false
+  return entry.spawned.every((spawned) => !groupAlive(spawned.pid))
 }
 
 async function killLeftovers(spawned: SpawnHandle): Promise<void> {

@@ -29,6 +29,7 @@ import {
 } from '@conciv/protocol/chat-event-types'
 import {UsageSnapshotSchema, contextUsedTokens, tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {createTextChunks, fakeText, storyConnection} from '../src/testkit.js'
+import {localSandbox} from '../src/server/local-sandbox.js'
 import type {FakeResponse, FakeResponseStep} from '@tanstack/ai/testing'
 import {chmodSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -813,6 +814,35 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     {
       skip: ['interrupts', 'activities', 'generationRuns', 'artifacts', 'blobs', 'log', 'sessions'],
       checks: ['messages.metadata', 'runs.listByThread.state'],
+    },
+  )
+})
+
+describe('local sandbox', () => {
+  function groupAlive(group: number): boolean {
+    try {
+      process.kill(-group, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  it(
+    'forgets a finished run, so a destroy that names no cancelled run stops the live one',
+    {timeout: 15_000},
+    async () => {
+      const provider = localSandbox({dir: mkdtempSync(join(tmpdir(), 'conciv-local-sandbox-'))})
+      const finished = await provider.create({})
+      await (await finished.process.spawn('true')).wait()
+      const live = await provider.create({})
+      const agent = await live.process.spawn('sleep 600')
+      try {
+        await provider.destroy({id: live.id})
+        expect(groupAlive(agent.pid)).toBe(false)
+      } finally {
+        await agent.kill('SIGKILL')
+      }
     },
   )
 })
