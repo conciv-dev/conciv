@@ -36,14 +36,9 @@ export async function imageRowsOf(input: {
       })
       const background = look.image && look.fill_kind !== IMAGE
       const expected = `wrong image at [${look.node}]: ${look.asset} expected${background ? ' as the background' : ''}`
-      const shown = pathOf(element.styles.image ?? '')
       const box = smaller({a: {w: look.w, h: look.h}, b: element.box})
-      const matched =
-        shown !== null &&
-        element.styles.image !== INLINE_SVG &&
-        (shown === pathOf(look.asset) ||
-          (await pictures.same({shown, expected: look.asset, box: {x: 0, y: 0, ...box}})))
-      if (!matched) return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
+      if (!(await showsAsset({shown: element.styles.image ?? '', asset: look.asset, box, pictures})))
+        return [{row: row(`${expected}, ${foundIn(element)}`), node: look.node, shot: null}]
       if (background) return []
       const shot = {
         selector: named.selector,
@@ -118,6 +113,18 @@ function ratioOf(shot: PageNodeShot): number | null {
     {seen: 0, wrong: 0},
   )
   return painted.seen === 0 ? 0 : painted.wrong / painted.seen
+}
+
+async function showsAsset(input: {
+  shown: string
+  asset: string
+  box: {w: number; h: number}
+  pictures: ReturnType<typeof createPictures>
+}): Promise<boolean> {
+  const shown = pathOf(input.shown)
+  if (shown === null || input.shown === INLINE_SVG) return false
+  if (shown === pathOf(input.asset)) return true
+  return input.pictures.same({shown, expected: input.asset, box: {x: 0, y: 0, ...input.box}})
 }
 
 function smaller(input: {a: {w: number; h: number}; b: {w: number; h: number}}): {w: number; h: number} {
