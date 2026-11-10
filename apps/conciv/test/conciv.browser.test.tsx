@@ -706,6 +706,22 @@ describe('chat pane', () => {
   })
 })
 
+const LONG_ACTION_NAME = 'long-composer-action'
+const LONG_ACTION_LABEL = 'AN_EXTENSION_COMPOSER_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
+
+const longComposerAction = defineExtension({
+  name: LONG_ACTION_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(LONG_ACTION_NAME).useSlot() === 'composer'}>
+      <span>{LONG_ACTION_LABEL}</span>
+    </Show>
+  ),
+})
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof longComposerAction> {}
+}
+
 describe('composer overflow', () => {
   const menuitem = (name: string | RegExp) => page.getByRole('menuitem', {name})
 
@@ -733,7 +749,7 @@ describe('composer overflow', () => {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const commandOption = (position: number) => page.getByRole('option').nth(position)
 
-  async function mountComposer(width?: number): Promise<PaneMount> {
+  async function mountComposer(width?: number, extensions?: PaneMountOptions['extensions']): Promise<PaneMount> {
     const sessionId = await createSession(coreRpc(core()))
     const [requests, setRequests] = createSignal<string[]>([])
     const mount = mountPane(
@@ -741,6 +757,7 @@ describe('composer overflow', () => {
         base: core(),
         sessionId,
         width,
+        extensions,
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
@@ -772,6 +789,17 @@ describe('composer overflow', () => {
 
     await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
     await expect.element(newSessionItem()).not.toBeInTheDocument()
+  })
+
+  test('a long extension action in the row leaves the message input visible and typeable', async () => {
+    await mountComposer(undefined, [longComposerAction])
+
+    await expect.element(page.getByText(LONG_ACTION_LABEL)).toBeVisible()
+    await expect.element(input()).toBeVisible()
+    await userEvent.click(input())
+    await userEvent.keyboard('still typeable')
+
+    await expect.element(input().getByText('still typeable')).toBeVisible()
   })
 
   test('a session that is already compacting cannot be compacted again from the overflow menu', async () => {

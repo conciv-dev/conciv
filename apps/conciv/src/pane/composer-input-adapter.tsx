@@ -64,6 +64,7 @@ export function ComposerInputAdapter(props: ComposerInputAdapterProps): JSX.Elem
   return (
     <div class="contents" ref={bind}>
       <RichTextField
+        class="grow basis-16"
         value={composer.text()}
         onValueChange={composer.setText}
         onSubmit={submit}
