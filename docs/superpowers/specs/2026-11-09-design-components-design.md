@@ -336,3 +336,25 @@ Two rulings:
    site can be paired, credited and listed in a row. An element with neither key nor site stays as it is.
 
 Measure: `xray10-round-cat-1..2`; the first check must credit Chip, and a run that drops `<Chip>` must see the rule-4 row.
+
+## A built package is read from its declarations, and a lost component is one whose call site is gone (2026-11-10, after Task 7f)
+
+Task 7f made Chip's root a node and paired it, and still no row named Chip: the catalog has no Chip. `@conciv/ui-kit-chat/tools`
+resolves to `dist/tools.js`, the walk followed the bundled chunk and recorded minified locals with no names. The Dependencies section
+already rules that a built target is read from the package's `.d.ts`; the walk did not do that for a workspace package whose export
+condition points at `dist`.
+
+Two rulings:
+
+1. When a specifier resolves to a built file (`dist`, a bundled chunk, any file the project does not transform), the walk never parses
+   that file's JavaScript for components. It reads the declaration beside it (`types` condition, or the extension map), follows its
+   `export … from` chain through declarations only, and names each component by its exported name there. A workspace package counts as
+   built when its export condition points at `dist`; `source` or `development` conditions that point at `src` still win when present.
+2. Rule 4 (a component the page had is a row) fires only when the component's call site is gone from the page's source: the relation
+   saw it in an earlier round, and no element in the current round carries a site inside a file that still imports and calls it. A
+   pairing that moved from a kit root to a neighbour is not a loss. This stops the misfire of `xray10-round-cat-1` round 4 (`Button` on
+   `7:334` while the Button stood in the source).
+
+Public props widened to accept HTML attributes by Task 7f are accepted: a kit root that forwards its rest props has those props.
+
+Measure: `xray11-round-cat-1..2` on sonnet, the model Task 7e used, so the rows compare.

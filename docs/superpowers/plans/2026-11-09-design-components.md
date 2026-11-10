@@ -280,6 +280,17 @@
 - [ ] **Step 3:** Implement; gates; commit `design: a site element is a node of the id tree`.
 - [ ] **Step 4:** Measure `xray10-round-cat-1..2`; row in `xray-build.md`: Chip credited at the first check yes or no, rule-4 rows first/last, rows cleared by restoring, kit imports kept, the agent's words.
 
+### Task 7g: A built package is read from its declarations, and a lost component is one whose call site is gone
+
+**Files:**
+
+- Modify: `packages/extensions/design/src/server/catalog/walk.ts` (built target: declarations only), `parse-module.ts` (export names from a declaration's `export … from` chain), `component-rows.ts` (rule 4 requires the call site gone), `packages/it/test/design-catalog.it.test.ts`
+
+- [ ] **Step 1:** Failing unit test on the walk: a fixture package whose `exports` point at `dist/x.js` with `dist/x.d.ts` re-exporting `Chip` from `./styled/chip.js`; the scan lists `Chip` with that specifier and no minified name. Then the real check: after a scan of the x-ray host, `components` holds `Chip` from `@conciv/ui-kit-chat/tools`.
+- [ ] **Step 2:** Implement; gates; commit `catalog: a built package is read from its declarations`.
+- [ ] **Step 3:** Failing IT: a round where the kit root is paired to a sibling while the call site stands gives no rule-4 row; deleting the call site gives it. Implement; gates; commit `design: a lost component is one whose call site is gone`.
+- [ ] **Step 4:** Measure `xray11-round-cat-1..2` on sonnet; row in `xray-build.md` with the Task 7f columns.
+
 ### Task 8: Measure
 
 **Files:**
