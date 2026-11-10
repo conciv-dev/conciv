@@ -24,7 +24,7 @@ async function* readLinesForward(
     const carried: Buffer[] = []
     let lineStart = 0
     let position = 0
-    let chunk = await readChunk(file, position, signal)
+    let chunk = await readChunk(file, signal)
     while (chunk.byteLength > 0) {
       let from = 0
       let newline = chunk.indexOf(NEWLINE, from)
@@ -37,7 +37,7 @@ async function* readLinesForward(
       }
       carried.push(chunk.subarray(from))
       position += chunk.byteLength
-      chunk = await readChunk(file, position, signal)
+      chunk = await readChunk(file, signal)
     }
     yield {line: Buffer.concat(carried).toString('utf8'), offset: lineStart}
   } finally {
@@ -45,9 +45,9 @@ async function* readLinesForward(
   }
 }
 
-async function readChunk(file: FileHandle, position: number, signal: AbortSignal | undefined): Promise<Buffer> {
+async function readChunk(file: FileHandle, signal: AbortSignal | undefined): Promise<Buffer> {
   signal?.throwIfAborted()
   const chunk = Buffer.allocUnsafe(CHUNK_BYTES)
-  const {bytesRead} = await file.read(chunk, 0, CHUNK_BYTES, position)
+  const {bytesRead} = await file.read(chunk, 0, CHUNK_BYTES, null)
   return chunk.subarray(0, bytesRead)
 }
