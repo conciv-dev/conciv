@@ -118,6 +118,11 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   const votes: Ballot[] = []
   order.forEach((entry) => {
     if (kept.has(entry.node.id)) return
+    const held = heldText({vote, entry})
+    if (held !== null) {
+      paired({vote, node: entry.node.id, pick: {...held, candidates: []}})
+      return
+    }
     const {pairs} = vote
     const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
     const scored = rivals({vote, entry})
@@ -139,6 +144,17 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
     if (parentPick !== undefined) paired({vote, node: entry.node.id, pick: {...parentPick, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
+}
+
+function heldText(input: {vote: Vote; entry: Node}): Pick | null {
+  const {vote, entry} = input
+  if (entry.node.kind !== 'text' || entry.parent === null) return null
+  const held = vote.pairs.get(entry.parent.id)
+  const element = held === undefined ? undefined : vote.byPath.get(held.path)
+  const text = element === undefined ? '' : normalized(element.text)
+  if (held === undefined || text === '' || text !== normalized(entry.node.text)) return null
+  const nested = vote.elements.some((other) => other.ancestors.has(held.path) && other.text.trim() !== '')
+  return nested ? null : held
 }
 
 function ballotsOf(input: {

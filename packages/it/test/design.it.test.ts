@@ -33,6 +33,7 @@ import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {createVotePairer} from '../../extensions/design/src/server/pairers/vote.js'
 import {boot} from './fixtures/design/boot.js'
+import {bareButton} from './fixtures/design/bare-button.js'
 import {picture} from './fixtures/design/picture.js'
 
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
@@ -518,6 +519,18 @@ const SLOW_DOCUMENT = {
     },
   },
 }
+
+describe('design_check on a button whose label is bare text', () => {
+  it('pairs the design label with the button that holds it and compares its font with the button font', async () => {
+    await goto('barebutton')
+    const image = join(kit.targetsDir, 'bare-button.png')
+    await writeFile(image, blankPng({width: bareButton.frame.w, height: bareButton.frame.h}))
+    await call('design_get', {figma: bareButton.link, image, document: bareButton.document})
+    const checked = roundOf(await call('design_check', {}))
+    const label = checked.rows.filter((row) => row.node === bareButton.label).map((row) => row.kind)
+    expect([checked.coverage.missing.includes(bareButton.label), label.includes('font family')]).toEqual([false, true])
+  })
+})
 
 describe('design_check on a page whose fonts load slowly', () => {
   it('measures the same page on the first check, while an @import font is still loading, and on the second', async () => {

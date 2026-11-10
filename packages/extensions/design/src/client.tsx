@@ -632,7 +632,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
       .join('')
       .trim(),
     box,
-    textBox: measureTextBox({nodes, size}),
+    textBox: measureTextBox({nodes, view}),
     glyphs: measureGlyphs({el, view, size}),
     axis: readAxis(el),
     columns: readColumns(style),
@@ -784,7 +784,7 @@ function ownTextNodes(el: Element): Text[] {
   )
 }
 
-function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
+function measureTextBox(input: {nodes: Text[]; view: PageWindow}): Box | null {
   const first = input.nodes[0]
   if (first === undefined) return null
   const rects = input.nodes.map((node) => {
@@ -796,7 +796,7 @@ function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
   const top = Math.min(...rects.map((rect) => rect.top))
   const right = Math.max(...rects.map((rect) => rect.right))
   const bottom = Math.max(...rects.map((rect) => rect.bottom))
-  return clipped({rect: new DOMRect(left, top, right - left, bottom - top), size: input.size})
+  return pageBounds({rect: new DOMRect(left, top, right - left, bottom - top), view: input.view})
 }
 
 function measureGlyphs(input: {el: Element; view: PageWindow; size: Size}): Glyph[] {

@@ -66,6 +66,15 @@ export function App() {
       </main>
     )
   }
+  if (requested === 'barebutton') {
+    return (
+      <main className="barebutton" data-conciv-key="bArEmn">
+        <button type="button" className="barebutton-button" data-conciv-key="bArEbt">
+          Contact Us
+        </button>
+      </main>
+    )
+  }
   if (requested === 'slowfont') {
     return (
       <main className="slowfont" data-conciv-key="sLwFmn">

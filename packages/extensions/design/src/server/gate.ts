@@ -10,7 +10,11 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
   const {reads} = input
   const records = recordsOf(input.design.root)
   const byId = new Map(records.map((record) => [record.id, record]))
-  const first = (id: string): LiveComponent | undefined => reads.of(id)[0]
+  const held = heldTexts({design: input.design, reads})
+  const first = (id: string): LiveComponent | undefined => {
+    const element = reads.of(id)[0]
+    return element === undefined || !held.has(id) ? element : textOf(element)
+  }
   const grouped = Map.groupBy(records, (record) => record.parent ?? '')
   const kidsOf = (id: string): Placed[] =>
     (grouped.get(id) ?? []).map((record) => {
@@ -38,7 +42,7 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     revoted: 0,
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
-  const painted = [...rows, ...lookRows({design: input.design, reads, live: input.live})]
+  const painted = [...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
   return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
 }
 
@@ -77,6 +81,23 @@ const AXES = {
 } as const
 const FLAT_KINDS = new Set(['text', 'line'])
 const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
+
+function heldTexts(input: {design: Design; reads: ReturnType<typeof readIds>}): Set<string> {
+  const {reads} = input
+  return new Set(
+    [...walk(input.design.root)].flatMap(({node, parent}) => {
+      const own = reads.of(node.id)[0]
+      if (node.kind !== 'text' || parent === null || own === undefined || own.textBox === null) return []
+      return reads.of(parent.id)[0]?.path === own.path ? [node.id] : []
+    }),
+  )
+}
+
+function textOf(element: LiveComponent): LiveComponent {
+  if (element.textBox === null) return element
+  const sizing: LiveComponent['styles']['sizing'] = {width: 'auto', height: 'auto'}
+  return {...element, bounds: element.textBox, styles: {...element.styles, sizing}}
+}
 
 function recordsOf(root: DesignNode): Record[] {
   return [...walk(root)].flatMap(({node, parent}): Record[] => {
@@ -331,7 +352,12 @@ const distance = designConfig.colorMetrics.ciede2000
 const WEIGHT_STEP = 100
 const QUOTES = ['"', "'"]
 
-function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): GateRow[] {
+function lookRows(input: {
+  design: Design
+  reads: ReturnType<typeof readIds>
+  live: LiveComponent
+  held: Set<string>
+}): GateRow[] {
   const {reads} = input
   const parents = new Map([...walk(input.live)].map(({node, parent}) => [node, parent]))
   const behind = (element: LiveComponent | null | undefined): string => {
@@ -341,7 +367,7 @@ function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; liv
   return nodeLooks(input.design).flatMap((look) => {
     const element = reads.of(look.node)[0]
     if (element === undefined) return []
-    const seen = {look, element, under: behind(parents.get(element))}
+    const seen = {look, element, under: behind(input.held.has(look.node) ? element : parents.get(element))}
     return compared(seen).map((found) => ({
       node: look.node,
       ...reads.named(look.node),
