@@ -52,7 +52,12 @@ type ThreadWindow = {limit?: number; before?: string}
 const metadataAt = (namespace: string, key: string) =>
   and(eq(chatMetadata.namespace, namespace), eq(chatMetadata.key, key))
 
-export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (threadId: string) => string}): ChatStores {
+type StoreOptions = {
+  harnessOf: (threadId: string) => string
+  saved?: (threadId: string, messages: readonly ModelMessage[]) => void
+}
+
+export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): ChatStores {
   const get = async (runId: string): Promise<RunRecord | null> => {
     const rows = await db.select().from(chatRuns).where(eq(chatRuns.runId, runId)).limit(1)
     const row = rows[0]
@@ -127,12 +132,14 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: {harnessOf: (thr
       loadThread,
       saveThread: async (threadId, messages) => {
         db.transaction((tx) => {
-          tx.delete(chatMessages)
+          const dropped = tx
+            .delete(chatMessages)
             .where(and(eq(chatMessages.threadId, threadId), gte(chatMessages.position, messages.length)))
             .run()
-          tx.run(
+          const written = tx.run(
             sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json`,
           )
+          if (Number(dropped.changes) > 0 || Number(written.changes) > 0) opts.saved?.(threadId, messages)
         })
       },
     },

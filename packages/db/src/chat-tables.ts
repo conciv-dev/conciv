@@ -1,4 +1,3 @@
-import {sql} from 'drizzle-orm'
 import {index, integer, primaryKey, sqliteTable, text} from 'drizzle-orm/sqlite-core'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import type {ModelMessage} from '@conciv/protocol/chat-message-types'
@@ -35,15 +34,10 @@ export const chatMessages = sqliteTable(
     messageId: text('message_id'),
     role: text('role').$type<ModelMessage['role']>().notNull(),
     messageJson: text('message_json', {mode: 'json'}).$type<ModelMessage>().notNull(),
-    createdAt: integer('created_at').generatedAlwaysAs(
-      sql`case when json_type(message_json, '$.createdAt') = 'text' then cast(round(unixepoch(json_extract(message_json, '$.createdAt'), 'subsec') * 1000) as integer) end`,
-      {mode: 'virtual'},
-    ),
   },
   (table) => [
     primaryKey({columns: [table.threadId, table.position]}),
     index('chat_messages_thread_message').on(table.threadId, table.messageId),
-    index('chat_messages_thread_created').on(table.threadId, table.createdAt),
   ],
 )
 

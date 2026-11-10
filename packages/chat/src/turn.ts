@@ -26,7 +26,7 @@ export type SessionPort = {
   recordNativeId: (sessionId: SessionId, harnessId: string, nativeId: HarnessSessionId) => Promise<void>
   recordUsage: (sessionId: SessionId, usage: UsageSnapshot) => Promise<void>
   recordContextTokens: (sessionId: SessionId, contextTokens: number) => Promise<void>
-  recordTitle: (sessionId: SessionId, title: string) => Promise<void>
+  recordActivity: (sessionId: SessionId, title: string) => void
   onRunStart: (sessionId: SessionId) => Promise<void>
   onRunEnd: (sessionId: SessionId) => Promise<void>
   publish: (sessionId: SessionId, chunk: ChatEvent) => void
@@ -216,8 +216,6 @@ export function turnHooks(
           if (turn.kind === 'chat' && lastUser !== undefined && isBlank(lastUser)) {
             throw new Error('the message is empty')
           }
-          const title = firstUserTitle(messages)
-          if (title !== '') await deps.sessions.recordTitle(sessionId, title)
           return turn.kind === 'compact' ? messages : expandedLastUser(messages, deps)
         },
         providerMessages: async (messages) => {

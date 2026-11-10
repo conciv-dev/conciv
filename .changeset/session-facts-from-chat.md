@@ -2,4 +2,4 @@
 '@conciv/core': patch
 ---
 
-A session whose harness transcript is gone now shows its real last activity and title: lastActive comes from the newest message conciv recorded for it (hub tool calls included), and the title from its first user message, before falling back to "New session". The session list orders and pages by that same derived time.
+A session's lastActive and title now follow its conciv chat: every saved chat message (chat turns, hub tool calls, imported transcript messages) bumps the session's updated time, and the first user message titles a session that has no title yet, so they stay right after the harness transcript is cleaned up. A one-time migration repairs existing rows from their stored messages.

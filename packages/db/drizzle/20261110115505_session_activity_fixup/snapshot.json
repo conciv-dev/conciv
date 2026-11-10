@@ -1,8 +1,8 @@
 {
+  "id": "6c6fbf72-43f6-41a3-861f-a4079fbdeefa",
+  "prevIds": ["3b92ee71-3734-4145-b677-510bd4dfa127"],
   "version": "7",
   "dialect": "sqlite",
-  "id": "f3ba1d4e-ab19-486d-b453-90cf24b2036d",
-  "prevIds": ["3b92ee71-3734-4145-b677-510bd4dfa127"],
   "ddl": [
     {
       "name": "css_bundles",
@@ -557,19 +557,6 @@
       "entityType": "columns"
     },
     {
-      "table": "chat_messages",
-      "name": "created_at",
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": {
-        "as": "(case when json_type(message_json, '$.createdAt') = 'text' then cast(round(unixepoch(json_extract(message_json, '$.createdAt'), 'subsec') * 1000) as integer) end)",
-        "type": "virtual"
-      },
-      "entityType": "columns"
-    },
-    {
       "table": "chat_metadata",
       "name": "namespace",
       "type": "text",
@@ -929,24 +916,6 @@
         },
         {
           "value": "message_id",
-          "isExpression": false
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "origin": "manual",
-      "entityType": "indexes"
-    },
-    {
-      "table": "chat_messages",
-      "name": "chat_messages_thread_created",
-      "columns": [
-        {
-          "value": "thread_id",
-          "isExpression": false
-        },
-        {
-          "value": "created_at",
           "isExpression": false
         }
       ],

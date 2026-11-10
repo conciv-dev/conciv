@@ -1,2 +1,0 @@
-ALTER TABLE `chat_messages` ADD `created_at` integer GENERATED ALWAYS AS (case when json_type(message_json, '$.createdAt') = 'text' then cast(round(unixepoch(json_extract(message_json, '$.createdAt'), 'subsec') * 1000) as integer) end) VIRTUAL;--> statement-breakpoint
-CREATE INDEX `chat_messages_thread_created` ON `chat_messages` (`thread_id`,`created_at`);

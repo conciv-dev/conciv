@@ -22,7 +22,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, test, vi, beforeEach} from 'vitest'
-import {drizzleChatStores, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
+import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue, RESULT_CAP_CHARS} from '@conciv/chat'
 import {abortableFetch, type EngineStaleness} from '@conciv/contract'
@@ -44,6 +44,8 @@ import {
   chatRuns,
   concivHome,
   listEngines,
+  migrations,
+  openDb,
   recordHubConnection,
   registerEngine,
   removeHubConnection,
@@ -52,6 +54,8 @@ import {
   withHomeDb,
 } from '@conciv/db'
 import {asc, eq} from 'drizzle-orm'
+import {drizzle} from 'drizzle-orm/node-sqlite'
+import {migrateSync} from 'drizzle-orm/sqlite-core/async/session'
 import {isEqual} from 'es-toolkit'
 import {
   createFakeHarness,
@@ -4411,66 +4415,38 @@ function codexHome(): string {
   return home
 }
 
-describe('session display facts from conciv chat rows', () => {
+describe('session activity recorded with its chat messages', () => {
   const ROW_AT = Date.parse('2026-08-17T00:00:00.000Z')
   const saved = process.env.CONCIV_HOME
   const held: {made: MadeApp | undefined} = {made: undefined}
   beforeAll(() => {
-    process.env.CONCIV_HOME = tempDir('conciv-facts-home-')
+    process.env.CONCIV_HOME = tempDir('conciv-activity-home-')
   })
   afterAll(() => {
     if (saved === undefined) delete process.env.CONCIV_HOME
     else process.env.CONCIV_HOME = saved
   })
   const kit = sharedKit(() =>
-    createTestkit(createTestHarness(requireClaude()), async (env) => {
-      const made = await bootMadeApp(env)
-      held.made = made
-      return {fetch: made.fetch, dispose: made.dispose, agentToken: made.agentToken}
+    createTestkit(createFakeHarness({id: 'fake-activity'}), async (env) => {
+      const booted = await bootMadeApp(env, {home: tempDir('conciv-activity-home-')})
+      held.made = booted
+      return {fetch: booted.fetch, dispose: booted.dispose, agentToken: booted.agentToken}
     }).setup(),
   )
 
   function made(): MadeApp {
-    if (held.made === undefined) throw new Error('the facts app did not boot')
+    if (held.made === undefined) throw new Error('the activity app did not boot')
     return held.made
   }
 
-  async function sessionAt(updatedAt: number): Promise<SessionId> {
+  async function staleSession(): Promise<SessionId> {
     const sessionId = SessionId.parse((await kit().rpc.sessions.create()).sessionId)
-    made().chat.db.update(sessions).set({updatedAt}).where(eq(sessions.id, sessionId)).run()
+    made().chat.db.update(sessions).set({updatedAt: ROW_AT}).where(eq(sessions.id, sessionId)).run()
     return sessionId
   }
 
-  function saveMessages(sessionId: SessionId, ...times: string[]): Promise<void> {
-    const [first = '', ...rest] = times
-    return drizzleChatStores(made().chat.db, {harnessOf: () => 'claude'}).messages.saveThread(sessionId, [
-      {id: `u-${sessionId}`, role: 'user', content: '  fill   the form in the form page ', createdAt: new Date(first)},
-      ...rest.map((at, index) => ({
-        id: `a-${index}-${sessionId}`,
-        role: 'assistant' as const,
-        content: 'done',
-        createdAt: new Date(at),
-      })),
-      {role: 'tool', content: '{}', toolCallId: `t-${sessionId}`},
-    ])
-  }
-
-  it('a session whose native transcript is gone takes lastActive from its newest message and its title from its first user message', async () => {
-    const sessionId = await sessionAt(ROW_AT)
-    made()
-      .chat.db.update(sessions)
-      .set({harnessSessionId: HarnessSessionId.parse(randomUUID())})
-      .where(eq(sessions.id, sessionId))
-      .run()
-    await saveMessages(sessionId, '2026-10-30T08:00:00.000Z', '2026-11-10T09:39:00.000Z', '2026-11-01T00:00:00.000Z')
-    expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({
-      title: 'fill   the form in the form page',
-      updatedAt: Date.parse('2026-11-10T09:39:00.000Z'),
-    })
-  })
-
   it('a hub tool call recorded through the call trace alone bumps lastActive', async () => {
-    const sessionId = await sessionAt(ROW_AT)
+    const sessionId = await staleSession()
     const hub: Record<string, string> = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
     const trace = callTrace((name) => hub[name] ?? null)
     const run = {threadId: sessionId, live: false}
@@ -4483,21 +4459,70 @@ describe('session display facts from conciv chat rows', () => {
     expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
   })
 
+  it('a chat message bumps lastActive and its first user message titles the session', async () => {
+    const sessionId = await staleSession()
+    const before = Date.now()
+    await runTurn(kit(), '  fill the form in the form page ', sessionId)
+    await runTurn(kit(), 'and submit it', sessionId)
+    const meta = await kit().rpc.sessions.get({sessionId})
+    expect(meta.title).toBe('fill the form in the form page')
+    expect(meta.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a chat message never overwrites a title the session already has', async () => {
+    const sessionId = await staleSession()
+    await kit().rpc.sessions.rename({sessionId, title: 'kept'})
+    await runTurn(kit(), 'a different first message', sessionId)
+    expect((await kit().rpc.sessions.get({sessionId})).title).toBe('kept')
+  })
+
   it('a session with no messages keeps its row time and the New session title', async () => {
-    const sessionId = await sessionAt(ROW_AT)
+    const sessionId = await staleSession()
     expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
   })
 
-  it('the session list orders and pages by the derived lastActive', async () => {
-    const soon = Date.now() + 3_600_000
-    const chatted = await sessionAt(ROW_AT)
-    await saveMessages(chatted, new Date(soon + 60_000).toISOString())
-    const touched = await sessionAt(soon)
-    const first = await kit().rpc.sessions.list({limit: 1})
-    const second = await kit().rpc.sessions.list({limit: 1, cursor: first.next})
-    expect([...first.sessions, ...second.sessions].map(({id, updatedAt}) => ({id, updatedAt}))).toEqual([
-      {id: chatted, updatedAt: soon + 60_000},
-      {id: touched, updatedAt: soon},
+  it('the fix-up migration repairs a stale row from its newest message and first user message', () => {
+    const stateRoot = tempDir('conciv-activity-fixup-')
+    const stateDir = join(stateRoot, '.conciv')
+    mkdirSync(stateDir, {recursive: true})
+    const client = new DatabaseSync(join(stateDir, 'conciv.db'))
+    const fixup = migrations.findIndex((migration) => migration.name.endsWith('_session_activity_fixup'))
+    migrateSync(migrations.slice(0, fixup), drizzle({client})._.session)
+    const row = {harnessKind: 'claude', origin: 'chat', cwd: stateRoot, createdAt: ROW_AT, updatedAt: ROW_AT} as const
+    const stale = drizzle({client})
+    stale
+      .insert(sessions)
+      .values([
+        {...row, id: SessionId.parse('conciv_stale'), title: null},
+        {...row, id: SessionId.parse('conciv_titled'), title: 'kept'},
+        {...row, id: SessionId.parse('conciv_quiet'), title: null},
+      ])
+      .run()
+    const thread = (threadId: string) => [
+      {role: 'user', content: [{type: 'text', content: '  fill the form '}], createdAt: '2026-10-30T08:00:00.000Z'},
+      {role: 'assistant', content: 'done', createdAt: '2026-11-10T09:39:00.000Z'},
+      {role: 'tool', content: '{}', toolCallId: `t-${threadId}`},
+    ]
+    const insert = client.prepare(
+      'INSERT INTO chat_messages (thread_id, position, role, message_json) VALUES (?, ?, ?, ?)',
+    )
+    for (const threadId of ['conciv_stale', 'conciv_titled']) {
+      thread(threadId).forEach((message, position) =>
+        insert.run(threadId, position, message.role, JSON.stringify(message)),
+      )
+    }
+    client.close()
+    const db = openDb(stateRoot)
+    const repaired = db
+      .select({id: sessions.id, title: sessions.title, updatedAt: sessions.updatedAt})
+      .from(sessions)
+      .orderBy(asc(sessions.id))
+      .all()
+    db.$client.close()
+    expect(repaired).toEqual([
+      {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
+      {id: 'conciv_stale', title: 'fill the form', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
+      {id: 'conciv_titled', title: 'kept', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
     ])
   })
 })

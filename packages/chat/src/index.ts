@@ -8,7 +8,7 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
+import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
@@ -21,7 +21,7 @@ import {
 import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
-import {turnHooks, type TurnDeps} from './turn.js'
+import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
 export {
   assistCapabilities,
@@ -33,7 +33,7 @@ export {
   truncationEnvelope,
   type CodeCapability,
 } from './code-mode.js'
-export {firstUserTitle, type AttachmentExpanders, type SessionPort} from './turn.js'
+export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000
 
@@ -104,7 +104,12 @@ export type ChatPlane = {
 }
 
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
-  const stores = drizzleChatStores(deps.db, {harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id})
+  const stores = drizzleChatStores(deps.db, {
+    harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
+    saved: (threadId, messages) => {
+      if (isSessionId(threadId)) deps.sessions.recordActivity(threadId, firstUserTitle(messages))
+    },
+  })
   const approvals = createApprovalStore(
     {...stores.metadata, keysEndingWith: (namespace, suffix) => metadataKeysEndingWith(deps.db, namespace, suffix)},
     deps.hubAccess,
