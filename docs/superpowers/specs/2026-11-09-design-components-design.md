@@ -319,3 +319,20 @@ that file and line, so the node is "rendered by `Chip`" with the kit's specifier
 Elements without a site and without a key are credited as before.
 
 Measure: `xray9-round-cat-1..2` as planned once the stamp is in: a run that removes `<Chip>` sees the rule-4 row.
+
+## A site element is a node, and the kit forwards its props (2026-11-10, after Task 7e)
+
+With call sites stamped, the relation names Button, TooltipIconButton, SegmentGroup, ScrollArea and Switch on the x-ray
+round. Chip is still invisible: `Chip` in `ui-kit-chat` splits only its named props and forwards nothing, so the site never
+reaches the page, and both measure runs replaced the three `<Chip>` uses with spans unseen.
+
+Two rulings:
+
+1. Every kit component forwards its rest props to its root element. That is the contract a stamped call site relies on,
+   and the contract a consumer expects of a kit (`class`, `data-*`, `aria-*` on the root). The kit packages are ours; the
+   components that do not forward are fixed in the kit, never worked around in the walk.
+2. An element carrying `data-conciv-site` and no key is a node of the id tree like a keyed element: the walk mints its
+   id from the site and its ordinal among siblings with the same site, so a kit root that received only the forwarded
+   site can be paired, credited and listed in a row. An element with neither key nor site stays as it is.
+
+Measure: `xray10-round-cat-1..2`; the first check must credit Chip, and a run that drops `<Chip>` must see the rule-4 row.

@@ -269,6 +269,17 @@
 - [ ] **Step 3:** Implement; gates in `extension-compiler`, `extensions/design`, `it`; the proof; commit `design: the call site is stamped, so a kit component is credited with what it renders`.
 - [ ] **Step 4:** Measure `xray9-round-cat-1..2` as Task 7c Step 4 ran them; row in `xray-build.md`: component rows first/last, rows cleared by restoring the component, kit imports kept, the agent's words.
 
+### Task 7f: A site element is a node, and the kit forwards its props
+
+**Files:**
+
+- Modify: `packages/ui-kit-chat/src/**` and `packages/ui-kit-system/src/**` (every component whose root does not spread its rest props; list them first with a scan of `splitProps` calls that drop the rest), the design client walk (`src/client/stamps.ts` and the id-tree builder: a site-only element is a node, id from site plus ordinal), `packages/it/test/design-catalog.it.test.ts`
+
+- [ ] **Step 1:** Kit audit: a unit test per kit package that renders every exported component with `data-probe="x"` and asserts the attribute lands on an element; fix each component it fails on. Commit `ui-kit: every component forwards its rest props to its root`.
+- [ ] **Step 2:** Failing IT: a fixture kit component rendered as `createElement` with forwarded props but no key (the `Pill` fixture as it is) and a second one whose call site is the only stamp: both roots are nodes in `xray.layers`, paired, with `component.name`; replacing one with a span gives the rule-4 row.
+- [ ] **Step 3:** Implement; gates; commit `design: a site element is a node of the id tree`.
+- [ ] **Step 4:** Measure `xray10-round-cat-1..2`; row in `xray-build.md`: Chip credited at the first check yes or no, rule-4 rows first/last, rows cleared by restoring, kit imports kept, the agent's words.
+
 ### Task 8: Measure
 
 **Files:**
