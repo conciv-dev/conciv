@@ -4141,6 +4141,14 @@ describe('outside agent consent', () => {
     const forwarded = outside(runner, `${pick} return await external_page_route({})`)
     await decideOutside(owner, theirs, true)
     expect(await forwarded).toContain(ROUTE.href)
+    const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
+    expect(
+      ownerCalls.messages.flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === 'tool-call' ? [{name: part.name, metadata: part.metadata}] : [],
+        ),
+      ),
+    ).toEqual([{name: 'page_route', metadata: expect.objectContaining({conciv: {origin: 'hub', client: 'codex'}})}])
     const screenshot = JSON.stringify(
       await executeOverMcp(runner, HUB, `${pick} return await external_page_screenshot({})`),
     )
@@ -4148,6 +4156,10 @@ describe('outside agent consent', () => {
       JSON.stringify({type: 'image', source: {type: 'data', value: SCREENSHOT.image, mimeType: 'image/webp'}}),
     )
     expect(await outside(runner, `${pick} return await external_page_route({})`)).toContain(ROUTE.href)
+    const pickMine = `await external_use_tab({id: "${mine}"});`
+    expect(await outside(runner, `${pickMine} return await external_page_route({})`)).toContain(ROUTE.href)
+    const catalog = `${pickMine} return Object.keys(await external_conciv_extensions({verb: "catalog"}))`
+    expect(await outside(runner, catalog)).toMatch(/"result":\["/)
     expect(await outside(runner, 'return await external_page_route({})')).toContain('NO_TAB')
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
   })

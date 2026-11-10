@@ -235,7 +235,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
   const executionId = randomUUID()
   calls.publish(calls.trace.start(calls.run, executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
-    .run(typescriptCode, calls.trace.shown ? executionId : null)
+    .run(typescriptCode, executionId)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success

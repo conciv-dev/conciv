@@ -310,11 +310,11 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
   - Its description carries the agent guidance below (harnesses read MCP instructions differently, and
     `createMCPServer` 1.1.0 has no server `instructions` option).
 - Every other capability in an outside run except `external_tabs` is forwarded: before `external_use_tab` it throws `NO_TAB: call
-  external_use_tab({id}) first; external_tabs({}) lists the open tabs`. After it, the call becomes
-  `execute_typescript` with code `return await external_<name>(<input as JSON>)` on the owning engine's
-  `/api/mcp`, headers `conciv-session-id: <id>`, `conciv-origin: hub`, `conciv-client: <client>` (passed on from
-  the runner's request), token from the owner's `apiBase`. The owner's reply becomes the capability's result, or
-  its thrown error with the owner's declared code. The same path is used when the owner is the runner itself, so
+  external_use_tab({id}) first; external_tabs({}) lists the open tabs`. After it (Revision 7), the call becomes
+  one `registry.call({name, input})` on the owning engine's `/rpc`, headers `conciv-session-id: <id>`,
+  `conciv-origin: hub`, `conciv-client: <client>` (passed on from the runner's request), token from the owner's
+  `apiBase`; when the owner is the runner it is the same procedure called in process. The owner's reply becomes the
+  capability's result, or its thrown error with the owner's declared code. The same path is used when the owner is the runner itself, so
   consent, the marker and the transcript mirroring happen once, on the owner, by the code that already does them.
   Image parts in the owner's reply are passed on as image parts, not dropped. An outside call that lands while the
   tab's own turn is running is still saved to that chat (`packages/core/src/api/call-trace.ts`); saves to one chat

@@ -31,7 +31,8 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - MCP `POST /` (`mcp.ts`): 403 'forbidden host' when `loopbackHostAllowlist(host)` is empty, which is the DNS rebinding protection; auth stays with the engine gate in front of the route
 - `sessionTools` (`mcp.ts`): lists no tools when `codeRunner` returns null
 - `sessionTools` (`mcp.ts`): every hub-origin call is refused first when `deps.hubRefusal(client)` says the calling agent is disconnected (outside runs included, whatever `hubAccess` says), and again after the Allow card resolves; an outside run skips the consent check (the owning engine asks), and only an outside run sees `external_use_tab`; for a hub-origin session the consent check runs when a tool is called, never on initialize or `tools/list`, and holds the call up to 50 s (`OUTSIDE_DECISION_WAIT_MS` in `app.ts`) for the user's Allow or Deny, ending early when the request aborts
-- `outsideRunCapabilities` (`outside-run.ts`): a forwarded call before `use_tab` throws `NO_TAB`; the pick lives for one request; an owner that stops answering gives 'the conciv engine at <root> stopped answering'
+- `outsideRunCapabilities` (`outside-run.ts`): a forwarded call before `use_tab` throws `NO_TAB`; the pick lives for one request; each forwarded call is one `registry.call` on the owner with the session, `conciv-origin: hub` and client headers (no nested `execute_typescript`), so the owner's hub admission and `hubTraced` marker apply
+- `createOwnerCalls` (`owner-calls.ts`): one kept oRPC client per owner `apiBase`, the caller's signal in every fetch init; the engine's own tabs are called in process through the same router (`createRouterClient`); an owner error keeps its code as a `toolError`, a transport error drops that client and gives 'the conciv engine at <root> stopped answering'
 - `createOutsideTabs` (`outside-tabs.ts`): an unreadable home db throws 'cannot read the conciv home folder <home>'; a 404 or unparsable `/api/tabs` lists the engine as 'engine too old; upgrade its @conciv packages'; a tab open on no engine or on two engines throws `TAB_NOT_OPEN`; every probe times out after 300 ms
 - `runExecute` (`mcp.ts`): output failing `ExecuteResultSchema` becomes 'the sandbox returned an unreadable result'; error codes are decoded only when listed in `runner.declaredCodes`
 - `cappedParts` / `cappedText` (`mcp.ts`): text over `RESULT_CAP_CHARS` becomes a truncation envelope
@@ -46,7 +47,7 @@ Hono sub-apps for the core server: an MCP endpoint that exposes the sandboxed Ty
 - `mcp.ts`: `logError` when code mode is unavailable or execute fails outside the sandbox
 - `pushRoutes` (`push.ts`): sends WebSocket frames and aborts its AbortController on close or error
 - `makeNativePageApp` (`native-page.ts`): reads bundle files from disk
-- `outside-tabs.ts`: reads the home db and fetches each engine's `/api/tabs`; `outside-run.ts`: opens an MCP client to the owning engine per forwarded call
+- `outside-tabs.ts`: reads the home db and fetches each engine's `/api/tabs`; `owner-calls.ts`: fetches the owning engine's `/rpc` for every forwarded call
 
 ## Verification
 

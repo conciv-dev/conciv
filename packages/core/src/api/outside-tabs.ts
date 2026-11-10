@@ -19,7 +19,7 @@ type TabRow = TabsListing['tabs'][number]
 
 type EngineListing = {row: EngineRow; tabs: Tabs} | {unreachable: Unreachable}
 
-type OwnedTab = {apiBase: string; root: string; instructions: string | null; tools: TabOpen['tools']}
+type OwnedTab = {engine: string; apiBase: string; root: string; instructions: string | null; tools: TabOpen['tools']}
 
 export function createOutsideTabs(given: string | undefined) {
   const home = given ?? concivHome({env: process.env})
@@ -89,7 +89,13 @@ async function openOn(row: EngineRow, tab: SessionId): Promise<OwnedTab | null> 
     if (!response.ok) return null
     const answer = TabOpenSchema.safeParse(await response.json())
     if (!answer.success || !answer.data.open) return null
-    return {apiBase: row.apiBase, root: row.root, instructions: answer.data.instructions, tools: answer.data.tools}
+    return {
+      engine: row.id,
+      apiBase: row.apiBase,
+      root: row.root,
+      instructions: answer.data.instructions,
+      tools: answer.data.tools,
+    }
   } catch {
     return null
   }
