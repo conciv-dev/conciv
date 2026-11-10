@@ -5,11 +5,12 @@ import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
+import type {BrowserTabFocus} from '../page-bus.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 
 export type PushDeps = {
-  queries: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<PageQuery>
+  queries: (sessionId: SessionId, signal: AbortSignal, focus: () => BrowserTabFocus) => AsyncIterable<PageQuery>
   events: (sessionId: SessionId, signal: AbortSignal) => AsyncIterable<ChatEvent>
 }
 
@@ -40,7 +41,11 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
     upgrade((c) => {
       const requested = SessionId.safeParse(new URL(c.req.raw.url).searchParams.get(PUSH_SESSION_PARAM))
       const abort = new AbortController()
-      const held: {sink: WSContext | null; page: AbortController | null} = {sink: null, page: null}
+      const held: {sink: WSContext | null; page: AbortController | null; focus: BrowserTabFocus} = {
+        sink: null,
+        page: null,
+        focus: {focusedAt: 0, visible: false},
+      }
       const send = (frame: PushFrame): void => held.sink?.send(JSON.stringify(frame))
       const servePage = (sessionId: SessionId, serving: boolean): void => {
         if (serving === (held.page !== null)) return
@@ -50,7 +55,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
         const page = new AbortController()
         held.page = page
         pump(
-          deps.queries(sessionId, AbortSignal.any([abort.signal, page.signal])),
+          deps.queries(sessionId, AbortSignal.any([abort.signal, page.signal]), () => held.focus),
           ({requestId, query}) => send({channel: 'page', requestId, query}),
           'page query',
         )
@@ -69,6 +74,11 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           held.sink = ws
           const frame = PageServingFrameSchema.safeParse(parsedJson(event.data))
           if (!requested.success || !frame.success) return
+          const reported = frame.data.focus
+          if (reported !== undefined) {
+            const focusedAt = reported.focused ? performance.now() : held.focus.focusedAt
+            held.focus = {focusedAt, visible: reported.visible}
+          }
           servePage(requested.data, frame.data.serving)
         },
         onClose: () => abort.abort(),

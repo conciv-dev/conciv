@@ -95,6 +95,7 @@ import {
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
 import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
@@ -3950,8 +3951,68 @@ describe('outside sessions', () => {
       const page = {href: route.href, title: route.title, state: route.state}
       expect(await listTabs()).toEqual({
         project: {name: 'tabs-fixture', root: app, branch: 'feature-x'},
-        tabs: [{sessionId: await kit().session(), harness: 'fake-tabs', browserTabs: 1, session, page}],
+        tabs: [
+          {
+            sessionId: await kit().session(),
+            harness: 'fake-tabs',
+            browserTabs: [{id: expect.stringMatching(/^b\d+$/), page}],
+            session,
+            page,
+          },
+        ],
       })
+    })
+
+    it('a page query goes to the one browser tab focused last, and the listing names every browser tab', async () => {
+      const sessionId = await kit().session()
+      const asSession = makeRpcClient(kit().base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      async function browserTab(pathname: string) {
+        const heard: string[] = []
+        const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
+        const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
+        await once(socket, 'open')
+        const report = (focused: boolean) =>
+          socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
+        report(false)
+        const Frame = z.object({channel: z.string(), requestId: z.string().optional()})
+        const ready = Promise.withResolvers<void>()
+        const answering = async () => {
+          for await (const [data] of frames) {
+            const frame = Frame.parse(JSON.parse(String(data)))
+            if (frame.channel === 'ready') ready.resolve()
+            if (frame.channel !== 'page' || frame.requestId === undefined) continue
+            heard.push(pathname)
+            const result = {...route, href: `http://localhost:5173${pathname}`, pathname, search: ''}
+            await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
+          }
+        }
+        answering().catch(() => {})
+        await ready.promise
+        pages.push(() => socket.close())
+        return {heard, report, close: () => socket.close()}
+      }
+      const first = await browserTab('/first')
+      const second = await browserTab('/second')
+      const listedFirst = async () => (await listTabs()).tabs[0]?.browserTabs[0]?.page?.href
+      const routeCall = {name: 'page_route', input: {}}
+      const routed = async () => z.object({href: z.string()}).parse(await asSession.registry.call(routeCall)).href
+      second.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/second'), {timeout: 3000})
+      const listing = await listTabs()
+      expect(listing.tabs[0]?.browserTabs.map((entry) => entry.page?.href)).toEqual([
+        'http://localhost:5173/second',
+        'http://localhost:5173/first',
+      ])
+      expect(listing.tabs[0]?.page?.href).toBe('http://localhost:5173/second')
+      const [firstHeard, secondHeard] = [first.heard.length, second.heard.length]
+      expect(await routed()).toBe('http://localhost:5173/second')
+      expect([first.heard.length - firstHeard, second.heard.length - secondHeard]).toEqual([0, 1])
+      first.report(true)
+      await vi.waitFor(async () => expect(await listedFirst()).toBe('http://localhost:5173/first'), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/first')
+      first.close()
+      await vi.waitFor(async () => expect((await listTabs()).tabs[0]?.browserTabs).toHaveLength(1), {timeout: 3000})
+      expect(await routed()).toBe('http://localhost:5173/second')
     })
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
@@ -4002,8 +4063,8 @@ describe('outside agent consent', () => {
       }
     }
     replies().catch(() => {})
-    const open = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
-    await vi.waitFor(async () => expect((await open()).open).toBe(true), {timeout: 3000})
+    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
   }
 

@@ -13,7 +13,7 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 - `resolveConfig(options, root)` / `ResolvedConcivConfig` / `defineConfig` (`config.ts`)
 - `CoreRuntime`, `EngineScope`, `SessionScope`, `ScopedToolCall`, `session` (`runtime.ts`)
 - `CodeRunCard`, `codeRunTool`, `EXECUTE_TOOL_NAME`, `coreToolCards` (`cards.tsx`)
-- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); `PageBus.openSessions()` lists `{sessionId, subscribers}` for every session with at least one subscriber
+- `makePageBus(timeoutMs=5000)` / `pageQueryStream` / `makeJournal` / `PageEnv` (`page-bus.ts`); each subscriber is one browser tab with an engine-assigned id (`b1`, `b2`, ...) and a focus getter (`{focusedAt, visible}`, fed by the push socket's `page-serving` frames); `PageBus.ask(sessionId, query, browserTab?)` sends the query to exactly one browser tab, the named one or else the one focused last (then visible, then subscribed last), under a random request id only that tab sees, and a named browser tab that is not open fails `no-widget` naming the open ids; `PageBus.openSessions()` lists `{sessionId, browserTabs}` (ids, the default target first) for every session with at least one subscriber
 - `makeBuiltinRegistry(deps)` / `toolFailureFromPage` (`tool-registry.ts`)
 - Subdirectories:
   - api: [./api/README.md](./api/README.md) - MCP, tabs, push and native-page routes

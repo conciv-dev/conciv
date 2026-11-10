@@ -88,7 +88,7 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
     },
     page: {
       ask: async (name, input) => (await page.bus.ask(id, {name, input, agentId})).result,
-      queries: (signal) => pageQueryStream(page.bus, id, signal),
+      queries: (signal, focus) => pageQueryStream(page.bus, id, signal, focus),
       reply: (requestId, outcome) => page.bus.resolve(id, requestId, outcome),
       connected: () => page.bus.connected(id),
       changes: () => page.journal.list(id),

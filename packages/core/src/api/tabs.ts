@@ -23,6 +23,8 @@ const SessionQuerySchema = SessionId.optional().catch(undefined)
 
 const PageSchema = TabsSchema.shape.tabs.element.shape.page
 
+type TabPage = Tabs['tabs'][number]['page']
+
 const PackageNameSchema = z.object({name: z.string()})
 
 const HEAD_REF = 'ref: refs/heads/'
@@ -56,28 +58,36 @@ async function listTabs(deps: TabsDeps): Promise<Tabs> {
   const open = deps.bus.openSessions()
   const [metas, pages, name, branch] = await Promise.all([
     Promise.all(open.map((entry) => deps.session(entry.sessionId))),
-    Promise.all(open.map((entry) => probePage(deps.bus, entry.sessionId))),
+    Promise.all(open.map((entry) => browserTabPages(deps.bus, entry))),
     projectName(deps.root),
     gitBranch(deps.root),
   ])
   const tabs = open.flatMap((entry, index) => {
     const meta = metas[index]
     if (meta === undefined || meta === null || meta.hidden) return []
+    const browserTabs = pages[index] ?? []
     return [
       {
         sessionId: entry.sessionId,
         harness: meta.harnessKind,
-        browserTabs: entry.subscribers,
+        browserTabs,
         session: {title: meta.title, updatedAt: meta.updatedAt, running: meta.running},
-        page: pages[index] ?? null,
+        page: browserTabs[0]?.page ?? null,
       },
     ]
   })
   return {project: {name, root: deps.root, branch}, tabs}
 }
 
-function probePage(bus: PageBus, sessionId: SessionId): Promise<Tabs['tabs'][number]['page']> {
-  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}).then(
+function browserTabPages(
+  bus: PageBus,
+  entry: {sessionId: SessionId; browserTabs: string[]},
+): Promise<Array<{id: string; page: TabPage}>> {
+  return Promise.all(entry.browserTabs.map(async (id) => ({id, page: await probePage(bus, entry.sessionId, id)})))
+}
+
+function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Promise<TabPage> {
+  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, browserTab).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
     () => null,
   )

@@ -179,7 +179,7 @@ Response zod schema in `@conciv/protocol`:
   tabs: Array<{
     sessionId: SessionId
     harness: string
-    browserTabs: number
+    browserTabs: Array<{id: string, page: {href: string, title: string, state: 'visible' | 'hidden'} | null}>
     session: {title: string, updatedAt: number, running: boolean}
     page: {href: string, title: string, state: 'visible' | 'hidden'} | null
   }>
@@ -209,9 +209,9 @@ terminal no browser tab has focus.) The page-side body in `packages/extensions/p
 
 ### Several browser tabs
 
-`bus.ask` goes to every subscriber and the first reply wins, so `page` describes whichever browser tab answered first,
-and page actions run in every browser tab of the session. The listing carries `browserTabs`; the instructions tell
-the agent to warn the user when it is above 1.
+Revision 7: `bus.ask` sends each query to exactly one browser tab, the one focused last (each widget reports focus
+and visibility in its `page-serving` push frame), so `page` describes that browser tab. The listing carries
+`browserTabs: [{id, href, pageTitle, state}]`, the browser tab a call goes to listed first.
 
 ### Engine: outside calls, consent and marker
 
@@ -332,8 +332,9 @@ The engine that receives it (the runner) runs the code in its sandbox like any o
 > more than one matches, do not guess: ask the user which one, naming the field that differs. Prefer a tab whose
 > state is visible only when the user says "this one" or "the one I have open". If none match, say so and list what
 > is open. Then call external_use_tab({id}) once and follow the instructions it returns. Start every later block with
-> await external_use_tab({id}) and call the tools it listed. If browserTabs is above 1, tell the user page actions run
-> in every browser tab of that session. If a call says the user must allow this session, tell the user to click
+> await external_use_tab({id}) and call the tools it listed. When a session has more than one browser tab (browserTabs
+> lists each with its href), calls go to the one focused last, which is the first listed; tell the user which one
+> (href). If a call says the user must allow this session, tell the user to click
 > Allow in the conciv tab, then retry; if it says the user denied outside agents, stop and tell the user, do not
 > retry. If a call says the tab is not open, call external_tabs({}) again.
 

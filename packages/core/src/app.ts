@@ -699,7 +699,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       plane,
       upgrade: socketUpgrade,
       push: {
-        queries: (sessionId, signal) => runtime.forSession(sessionId).page.queries(signal),
+        queries: (sessionId, signal, focus) => runtime.forSession(sessionId).page.queries(signal, focus),
         events: (sessionId, signal) => runtime.forSession(sessionId).stream.events(signal),
       },
     },

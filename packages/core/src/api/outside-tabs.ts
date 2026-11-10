@@ -112,7 +112,12 @@ function tabRow(listing: Tabs) {
     lastActive: new Date(tab.session.updatedAt).toISOString(),
     running: tab.session.running,
     harness: tab.harness,
-    browserTabs: tab.browserTabs,
+    browserTabs: tab.browserTabs.map((browserTab) => ({
+      id: browserTab.id,
+      ...(browserTab.page === null
+        ? {}
+        : {href: browserTab.page.href, pageTitle: browserTab.page.title, state: browserTab.page.state}),
+    })),
   })
 }
 
