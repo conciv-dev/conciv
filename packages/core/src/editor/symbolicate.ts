@@ -1,6 +1,6 @@
 import {readFile, realpath} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
-import {resolve, sep} from 'node:path'
+import {isAbsolute, relative, resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor} from '@jridgewell/trace-mapping'
 
 export type RawFrame = {fileName: string; line: number; column?: number; fn?: string}
@@ -8,6 +8,7 @@ export type SourceLoc = {file: string; line: number; column: number}
 
 const SERVER_PREFIX = /^about:\/\/React\/Server\//
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+const VITE_FS = '/@fs/'
 
 function normalizeUrl(url: string): string {
   return url.replace(SERVER_PREFIX, '').split('?')[0] ?? url
@@ -32,17 +33,31 @@ async function readUrl(url: string, root: string, fetchImpl: typeof fetch): Prom
   return readFileInRoot(clean, root)
 }
 
-async function loadSourceMap(chunkUrl: string, root: string, fetchImpl: typeof fetch): Promise<unknown> {
+async function loadSourceMap(
+  chunkUrl: string,
+  root: string,
+  fetchImpl: typeof fetch,
+): Promise<{map: unknown; url: string}> {
   const clean = normalizeUrl(chunkUrl)
   const js = await readUrl(chunkUrl, root, fetchImpl)
   const m = js.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
+  const base = URL.canParse(clean) ? clean : resolve(root, clean)
   if (m) {
     const u = (m[1] ?? '').trim()
     if (u.startsWith('data:'))
-      return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
-    return JSON.parse(await readUrl(new URL(u, clean).href, root, fetchImpl))
+      return {map: JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8')), url: base}
+    const url = new URL(u, clean).href
+    return {map: JSON.parse(await readUrl(url, root, fetchImpl)), url}
   }
-  return JSON.parse(await readUrl(clean + '.map', root, fetchImpl))
+  return {map: JSON.parse(await readUrl(clean + '.map', root, fetchImpl)), url: base + '.map'}
+}
+
+function projectPath(source: string, root: string): string {
+  if (!URL.canParse(source)) return isAbsolute(source) ? relative(root, source) : source
+  const url = new URL(source)
+  if (url.protocol === 'file:') return relative(root, fileURLToPath(url))
+  if (url.pathname.startsWith(VITE_FS)) return relative(root, url.pathname.slice(VITE_FS.length - 1))
+  return url.pathname.slice(1)
 }
 
 export async function symbolicateFrame(
@@ -51,11 +66,12 @@ export async function symbolicateFrame(
   fetchImpl: typeof fetch = fetch,
 ): Promise<SourceLoc | null> {
   try {
-    const map = await loadSourceMap(frame.fileName, root, fetchImpl)
-    const tm = new AnyMap(map as never)
+    const {map, url} = await loadSourceMap(frame.fileName, root, fetchImpl)
+    const tm = new AnyMap(map as never, url)
     for (const col of [(frame.column ?? 1) - 1, frame.column ?? 0, 0]) {
       const pos = originalPositionFor(tm, {line: frame.line, column: Math.max(0, col)})
-      if (pos.source) return {file: pos.source, line: pos.line ?? frame.line, column: pos.column ?? 0}
+      if (pos.source)
+        return {file: projectPath(pos.source, root), line: pos.line ?? frame.line, column: pos.column ?? 0}
     }
   } catch {
     return null

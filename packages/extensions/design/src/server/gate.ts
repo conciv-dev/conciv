@@ -5,24 +5,51 @@ import {designConfig} from '../shared/tolerances.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
 import {nodeLooks} from './node-look.js'
+import {wrapsOf} from './wraps.js'
 
 export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): Gate {
   const {reads} = input
   const records = recordsOf(input.design.root)
   const byId = new Map(records.map((record) => [record.id, record]))
-  const first = (id: string): LiveComponent | undefined => reads.of(id)[0]
+  const held = heldTexts({design: input.design, reads})
+  const first = (id: string): LiveComponent | undefined => {
+    const element = reads.of(id)[0]
+    return element === undefined || !held.has(id) ? element : textOf(element)
+  }
   const grouped = Map.groupBy(records, (record) => record.parent ?? '')
   const kidsOf = (id: string): Placed[] =>
     (grouped.get(id) ?? []).map((record) => {
       const element = first(record.id)
       return {record, box: element === undefined ? null : rounded(element.bounds)}
     })
+  const wraps = wrapsOf({design: input.design, first})
+  const explainer = (id: string | null, side: Side): string | null => {
+    const record = id === null ? undefined : byId.get(id)
+    if (record === undefined) return null
+    const element = first(record.id)
+    if (element !== undefined && heightSide({record, element}) === side) return record.id
+    return explainer(record.parent, side)
+  }
+  const causes = (id: string): string =>
+    wraps
+      .filter(
+        (wrap) => explainer(byId.get(wrap.node)?.parent ?? null, wrap.lines > wrap.frame ? 'taller' : 'shorter') === id,
+      )
+      .map((wrap) => `; ${byId.get(wrap.node)?.name ?? ''} [${wrap.node}] ${wrapped(wrap)}`)
+      .join('')
+  const wrapRows = wraps.flatMap((wrap): GateRow[] => {
+    const record = byId.get(wrap.node)
+    const element = first(wrap.node)
+    if (record === undefined || element === undefined) return []
+    const base = {node: record.id, ...reads.named(record.id), kind: record.kind, name: record.name}
+    return [{...base, text: `${labelOf({record, element})}: ${wrapped(wrap)}`, magnitude: 'reflow'}]
+  })
   const rows = records.flatMap((record) => {
     const element = first(record.id)
     if (element === undefined) return []
     const parent = record.parent === null ? undefined : byId.get(record.parent)
     const parentElement = parent === undefined ? undefined : first(parent.id)
-    return rowsOf({record, element, parent, parentElement, kidsOf}).map((row) =>
+    return rowsOf({record, element, parent, parentElement, kidsOf, causes}).map((row) =>
       worded({record, named: reads.named(record.id), row}),
     )
   })
@@ -38,9 +65,11 @@ export function gateOf(input: {design: Design; reads: ReturnType<typeof readIds>
     revoted: 0,
     dupes: records.filter((record) => reads.of(record.id).length > 1).map((record) => record.id),
   }
-  const painted = [...rows, ...lookRows({design: input.design, reads, live: input.live})]
+  const painted = [...wrapRows, ...rows, ...lookRows({design: input.design, reads, live: input.live, held})]
   return {rows: painted.filter((row) => row.magnitude !== 'slightly'), coverage, counts: countsOf(painted)}
 }
+
+type Side = 'shorter' | 'taller'
 
 type Gate = {rows: GateRow[]; coverage: Coverage; counts: Counts}
 
@@ -77,6 +106,23 @@ const AXES = {
 } as const
 const FLAT_KINDS = new Set(['text', 'line'])
 const FlowSchema = z.object({mode: z.enum(['HORIZONTAL', 'VERTICAL']), gap: z.number(), pad: z.array(z.number())})
+
+function heldTexts(input: {design: Design; reads: ReturnType<typeof readIds>}): Set<string> {
+  const {reads} = input
+  return new Set(
+    [...walk(input.design.root)].flatMap(({node, parent}) => {
+      const own = reads.of(node.id)[0]
+      if (node.kind !== 'text' || parent === null || own === undefined || own.textBox === null) return []
+      return reads.of(parent.id)[0]?.path === own.path ? [node.id] : []
+    }),
+  )
+}
+
+function textOf(element: LiveComponent): LiveComponent {
+  if (element.textBox === null) return element
+  const sizing: LiveComponent['styles']['sizing'] = {width: 'auto', height: 'auto'}
+  return {...element, bounds: element.textBox, styles: {...element.styles, sizing}}
+}
 
 function recordsOf(root: DesignNode): Record[] {
   return [...walk(root)].flatMap(({node, parent}): Record[] => {
@@ -135,18 +181,18 @@ function rowsOf(input: {
   parent: Record | undefined
   parentElement: LiveComponent | undefined
   kidsOf: (id: string) => Placed[]
+  causes: (id: string) => string
 }): Row[] {
   const {record: r, element: d, parent, parentElement: pd, kidsOf} = input
-  const label = `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
+  const label = labelOf({record: r, element: d})
   const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
   const pinsWidth = d.styles.sizing.width === 'fixed'
   const pinsHeight = d.styles.sizing.height === 'fixed'
   const box = rounded(d.bounds)
   const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
   const farW = container && Math.abs(box.w - r.box.w) > FAR_PX
-  const farH = container && Math.abs(box.h - r.box.h) > FAR_PX
   const ww = widthWord({rendered: box.w, design: r.box.w, tol, far: farW})
-  const hh = box.h / r.box.h
+  const side = heightSide({record: r, element: d})
   const flat = FLAT_KINDS.has(r.kind)
   const want = r.direction === 'row' ? 'row' : 'column'
   const dir = d.styles.flexDirection
@@ -166,10 +212,10 @@ function rowsOf(input: {
           },
         ]
       : []),
-    ...(!flat && r.box.h > FLAT_PX && (hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || farH)
+    ...(side !== null
       ? [
           {
-            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${hh < 1 ? 'shorter' : 'taller'} than the design`}`,
+            head: `${label}: ${contentWord({r, d, kids: kidsOf(r.id), axis: 'h'}) ?? `box ${side} than the design`}${input.causes(r.id)}`,
             measured: {a: box.h, b: r.box.h, position: false},
           },
         ]
@@ -182,6 +228,30 @@ function rowsOf(input: {
       : positionRows({label, r, d, box, parent, pd, siblings: kidsOf(parent.id)})),
   ]
 }
+
+function heightSide(input: {record: Record; element: LiveComponent}): Side | null {
+  const {record: r, element: d} = input
+  const container = !r.leaf || r.kind === 'wrapper' || r.kind === 'layered'
+  const box = rounded(d.bounds)
+  const tol = r.leaf ? LEAF_TOLERANCE : CONTAINER_TOLERANCE
+  const far = container && Math.abs(box.h - r.box.h) > FAR_PX
+  const hh = box.h / r.box.h
+  if (FLAT_KINDS.has(r.kind) || r.box.h <= FLAT_PX) return null
+  if (!(hh < 1 - tol - HEIGHT_SLACK || hh > 1 + tol + HEIGHT_SLACK || far)) return null
+  return hh < 1 ? 'shorter' : 'taller'
+}
+
+function labelOf(input: {record: Record; element: LiveComponent}): string {
+  const {record: r, element: d} = input
+  return `${r.kind} ${r.name} [${r.id}] ${d.tag}.${d.hints[0] ?? ''}`
+}
+
+function wrapped(wrap: {lines: number; frame: number}): string {
+  const noun = LINE_PLURAL.select(wrap.lines) === 'one' ? 'line' : 'lines'
+  return `${wrap.lines > wrap.frame ? 'wraps to' : 'breaks into'} ${wrap.lines} ${noun}, the frame has ${wrap.frame}`
+}
+
+const LINE_PLURAL = new Intl.PluralRules('en')
 
 function widthWord(input: {rendered: number; design: number; tol: number; far: boolean}): string | null {
   const {rendered, design, tol, far} = input
@@ -331,7 +401,12 @@ const distance = designConfig.colorMetrics.ciede2000
 const WEIGHT_STEP = 100
 const QUOTES = ['"', "'"]
 
-function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; live: LiveComponent}): GateRow[] {
+function lookRows(input: {
+  design: Design
+  reads: ReturnType<typeof readIds>
+  live: LiveComponent
+  held: Set<string>
+}): GateRow[] {
   const {reads} = input
   const parents = new Map([...walk(input.live)].map(({node, parent}) => [node, parent]))
   const behind = (element: LiveComponent | null | undefined): string => {
@@ -341,7 +416,7 @@ function lookRows(input: {design: Design; reads: ReturnType<typeof readIds>; liv
   return nodeLooks(input.design).flatMap((look) => {
     const element = reads.of(look.node)[0]
     if (element === undefined) return []
-    const seen = {look, element, under: behind(parents.get(element))}
+    const seen = {look, element, under: behind(input.held.has(look.node) ? element : parents.get(element))}
     return compared(seen).map((found) => ({
       node: look.node,
       ...reads.named(look.node),

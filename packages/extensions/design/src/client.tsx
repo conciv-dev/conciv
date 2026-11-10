@@ -1,15 +1,15 @@
 import Specificity, {type SpecificityObject} from '@bramus/specificity'
 import {snapdom} from '@zumer/snapdom'
-import {createCache, createMirror, rebuildIntoSandboxedIframe, snapshot} from 'rrweb-snapshot'
 import {createRoot, createSignal, onMount, Show, type JSX} from 'solid-js'
 import ScanSearch from 'lucide-solid/icons/scan-search'
-import {defineExtension, getExtensionApi, type RegisterExtension} from '@conciv/extension'
+import {defineExtension, getExtensionApi, type ClientToolCtx, type RegisterExtension} from '@conciv/extension'
 import {ComposerActions} from '@conciv/ui-kit-chat'
 import {capturePlugins} from '@conciv/extension-page/capture-plugins'
 import {formatHex, formatHex8, parse} from 'culori'
 import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
-import {DESIGN_TOOLS, type Box, type LiveComponent, type Widget} from './shared/defs.js'
+import type {Box, LiveComponent, Widget} from './shared/defs.js'
+import {DESIGN_TOOLS} from './shared/design-tools.js'
 import {designConfig} from './shared/tolerances.js'
 import {hiddenOverlays} from './shared/overlays.js'
 import {XrayOverlay} from './xray/overlay.js'
@@ -19,6 +19,9 @@ import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
 import {readStamps} from './client/stamps.js'
 import {siteNodeKey} from './client/site-node-key.js'
+import {settled} from './client/settled.js'
+import {thrownOf} from './client/thrown.js'
+import {buildMirror} from './client/mirror.js'
 
 declare global {
   interface Window {
@@ -76,8 +79,6 @@ type MirrorSlot = Size & {frame: Promise<HTMLIFrameElement>}
 
 const [WIDGET_ROOT_SELECTOR = ''] = hiddenOverlays('hidden')
 const MIRROR_ATTR = 'data-conciv-mirror'
-const MIRROR_BLOCKED = `${hiddenOverlays('hidden').join(', ')}, iframe, video, audio, object, embed`
-const OFFSCREEN_STYLE = 'position:fixed;left:-100000px;top:0;pointer-events:none'
 const MIRROR_EXCLUDE = ['style', 'link']
 const NORMAL_LINE_HEIGHT = 1.2
 const DATA_URL_COMMA = ','
@@ -158,7 +159,7 @@ function xraySwitch() {
   return {on, toggle: () => setOn(!on())}
 }
 
-async function measureStep(input: MeasureInput): Promise<MeasureResult> {
+async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<MeasureResult> {
   const size = {width: input.width ?? innerWidth, height: input.height ?? innerHeight}
   releaseMirror()
   const pageError = overlayError()
@@ -166,7 +167,7 @@ async function measureStep(input: MeasureInput): Promise<MeasureResult> {
     doc: document,
     run: () => (size.width === innerWidth ? measureLive({size, widget: input.widget}) : measureMirror({size})),
   })
-  const queried = {...measured, ...(await pageQueries(document))}
+  const queried = {...measured, ...(await pageQueries(document)), ...thrownOf(ctx.consoleEntries())}
   return pageError === null ? queried : {...queried, pageError}
 }
 
@@ -180,6 +181,7 @@ function overlayError(): string | null {
 
 async function measureLive(input: {size: Size; widget: Widget}): Promise<Measuring> {
   const {size, widget} = input
+  const fontsLoading = await settled({doc: document, cap: TOLERANCES.settleWait})
   const longestTask = watchLongTasks()
   const components = await collectComponents({root: document, size, widget})
   const masks = canvasBoxes({root: document, size})
@@ -201,6 +203,7 @@ async function measureLive(input: {size: Size; widget: Widget}): Promise<Measuri
     framework: pageFramework(),
     scheme: pageScheme(),
     ...(longest === null ? {} : {longestTask: longest}),
+    ...(fontsLoading === null ? {} : {fontsLoading}),
   }
 }
 
@@ -227,6 +230,7 @@ async function measureMirror(input: {size: Size}): Promise<Measuring> {
 
 async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Measuring> {
   const {doc, size} = input
+  const fontsLoading = await settled({doc, cap: TOLERANCES.settleWait})
   const measured = await collectComponents({root: doc, size, widget: 'hidden'})
   const masks = canvasBoxes({root: doc, size})
   const opinion = await secondOpinion({doc, ...size, components: measured, wasm: takumiWasm()})
@@ -244,12 +248,14 @@ async function measureMirrorDoc(input: {doc: Document; size: Size}): Promise<Mea
     overflowX: sidewaysScroll(doc),
     framework: pageFramework(),
     scheme: pageScheme(),
+    ...(fontsLoading === null ? {} : {fontsLoading}),
   }
 }
 
 async function shotsStep(input: ShotsInput): Promise<{shots: NodeShot[]}> {
   const size = {width: input.width, height: input.height}
   const doc = size.width === innerWidth ? document : mirrorDocument(await mirrorAt(size))
+  await settled({doc, cap: TOLERANCES.settleWait})
   return frozen({
     doc,
     run: async () => {
@@ -334,49 +340,9 @@ function mirrorAt(size: Size): Promise<HTMLIFrameElement> {
   const slot = mirrorSlot.current
   if (slot !== null && slot.width === size.width && slot.height === size.height) return slot.frame
   releaseMirror()
-  const frame = buildMirror(size)
+  const frame = buildMirror({size, marker: MIRROR_ATTR})
   mirrorSlot.current = {...size, frame}
   return frame
-}
-
-async function buildMirror(size: Size): Promise<HTMLIFrameElement> {
-  const source = createMirror()
-  const tree = snapshot(document, {
-    mirror: source,
-    blockSelector: MIRROR_BLOCKED,
-    maskAllInputs: true,
-    inlineStylesheet: true,
-  })
-  if (tree === null) throw new Error('the page could not be snapshotted for the mirror')
-  const host = offscreenHost()
-  const rebuilt = createMirror()
-  const {iframe} = rebuildIntoSandboxedIframe(tree, {
-    root: host,
-    mirror: rebuilt,
-    cache: createCache(),
-    hackCss: false,
-    iframeAttributes: {
-      width: String(size.width),
-      height: String(size.height),
-      style: 'border:0',
-      tabindex: '-1',
-      'aria-hidden': 'true',
-    },
-  })
-  const widget = document.querySelector(WIDGET_ROOT_SELECTOR)
-  const placeholder = widget === null ? null : rebuilt.getNode(source.getId(widget))
-  placeholder?.parentNode?.removeChild(placeholder)
-  await mirrorDocument(iframe).fonts.ready
-  return iframe
-}
-
-function offscreenHost(): HTMLDivElement {
-  const host = document.createElement('div')
-  host.setAttribute(MIRROR_ATTR, '')
-  host.setAttribute('aria-hidden', 'true')
-  host.setAttribute('style', OFFSCREEN_STYLE)
-  document.body.append(host)
-  return host
 }
 
 function mirrorDocument(frame: HTMLIFrameElement): Document {
@@ -613,7 +579,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
       .join('')
       .trim(),
     box,
-    textBox: measureTextBox({nodes, size}),
+    textBox: measureTextBox({nodes, view}),
     glyphs: measureGlyphs({el, view, size}),
     axis: readAxis(el),
     columns: readColumns(style),
@@ -758,7 +724,7 @@ function ownTextNodes(el: Element): Text[] {
   )
 }
 
-function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
+function measureTextBox(input: {nodes: Text[]; view: PageWindow}): Box | null {
   const first = input.nodes[0]
   if (first === undefined) return null
   const rects = input.nodes.map((node) => {
@@ -770,12 +736,12 @@ function measureTextBox(input: {nodes: Text[]; size: Size}): Box | null {
   const top = Math.min(...rects.map((rect) => rect.top))
   const right = Math.max(...rects.map((rect) => rect.right))
   const bottom = Math.max(...rects.map((rect) => rect.bottom))
-  return clipped({rect: new DOMRect(left, top, right - left, bottom - top), size: input.size})
+  return pageBounds({rect: new DOMRect(left, top, right - left, bottom - top), view: input.view})
 }
 
 function measureGlyphs(input: {el: Element; view: PageWindow; size: Size}): Glyph[] {
   const {view, size} = input
-  const page = {x: 0, y: 0, w: size.width, h: size.height}
+  const page = {x: 0, y: 0, w: size.width, h: Number.POSITIVE_INFINITY}
   const texts = glyphNodes(input).flatMap((node) => {
     const range = node.ownerDocument.createRange()
     range.selectNodeContents(node)

@@ -1,5 +1,7 @@
+import type {Storage} from 'unstorage'
+import type {RawFrame, SourceLoc} from '@conciv/protocol/page-types'
 import {toolError} from '@conciv/extension'
-import type {DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
+import type {CompileError, DesignRuntime, IdTree, Measured, Raster, Round, RoundReply, Runner} from '../shared/defs.js'
 import type {Component} from '../shared/catalog-defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {readIds} from '../shared/id-tree.js'
@@ -15,10 +17,12 @@ import {progressOf} from './progress.js'
 import {imageRowsOf} from './image-rows.js'
 import {classifyDrift} from './catalog/drift.js'
 import {createTokenMap} from './catalog/token-map.js'
+import {pageHeightRows} from './page-height.js'
 
-export function createRunner(runtime: DesignRuntime): Runner {
+export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
+  const {runtime, folder} = input
   const {store, measurer} = runtime
-  return async ({record, page, variants}) => {
+  return async ({record, page, since, variants}) => {
     const [design, stored, rounds, image, ids, streak] = await Promise.all([
       store.design(record.id),
       store.mapping(record.id),
@@ -36,6 +40,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
       height: record.height,
       widget,
     })
+    const thrown = await thrownError({measured, since, runtime})
+    if (thrown !== null) return {thrown}
     const count = streak + 1
     const error = measured.pageError === undefined ? {} : {error: measured.pageError}
     const blank = measured.pageError !== undefined || measured.live.children.length === 0
@@ -76,9 +82,11 @@ export function createRunner(runtime: DesignRuntime): Runner {
       : widthsOf({design, styles: measured.queries, ...(variants === undefined ? {} : {variants})})
     const results = []
     const failures = []
+    const waits = measured.fontsLoading === undefined ? [] : [measured.fontsLoading]
     for (const {width} of widths) {
       const narrow =
         width === measured.width ? measured : await measurer.measure({page, width, height: REFLOW_HEIGHT, widget})
+      if (narrow !== measured && narrow.fontsLoading !== undefined) waits.push(narrow.fontsLoading)
       const at = idTreeOf({live: narrow.live, sheets: narrow.sheets, mapping, previous: null})
       const measuredAt = reflowAt({
         root: design.root,
@@ -91,13 +99,16 @@ export function createRunner(runtime: DesignRuntime): Runner {
       failures.push(...measuredAt.rows)
     }
     const reflow = {widths, results}
+    const reads = readIds({root: mapped.root, live: measured.live})
+    const tall = pageHeightRows({root: design.root, live: measured.live, reads, width: measured.width})
     const images = await imageRowsOf({
       design,
-      reads: readIds({root: mapped.root, live: measured.live}),
+      reads,
       page,
       mirror: measured.sources.includes('mirror') ? {width: record.width, height: record.height} : null,
+      folder,
     })
-    const listed = [...gate.rows, ...images.rows, ...failures]
+    const listed = [...tall, ...gate.rows, ...images.rows, ...failures]
     const classified = await drifted({runtime, rows: listed, relation, scheme: measured.scheme})
     const drift = classified.filter((row) => row.magnitude === 'token-drift').length
     const replaced = listed.length - classified.length + drift
@@ -105,7 +116,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       unsettled === null
         ? await runtime.components.rows({
             design,
-            reads: readIds({root: mapped.root, live: measured.live}),
+            reads,
             relation,
             earlier: await Promise.all(
               measuredRounds.map((earlier) => store.relation({id: record.id, round: earlier.round})),
@@ -115,9 +126,9 @@ export function createRunner(runtime: DesignRuntime): Runner {
     const rows = [...classified, ...named]
     const counts = {
       ...gate.counts,
-      reflow: failures.length,
+      reflow: gate.counts.reflow + tall.length + failures.length,
       paint: (gate.counts.paint ?? 0) + images.rows.length - replaced,
-      rows: gate.counts.rows + images.rows.length + failures.length - replaced + named.length,
+      rows: gate.counts.rows + tall.length + images.rows.length + failures.length - replaced + named.length,
       drift,
     }
     const pixels = compared({live: measured.raster, target, comparator: runtime.comparator})
@@ -147,6 +158,7 @@ export function createRunner(runtime: DesignRuntime): Runner {
       verdict: 'unsettled',
       unsettled,
       broken: null,
+      brokenBy: null,
     }
     const written =
       unsettled === null
@@ -164,7 +176,8 @@ export function createRunner(runtime: DesignRuntime): Runner {
         ...images.ratios.map(({node, ratio}) => `image ${node} mismatch ${ratio.toFixed(RATIO_DIGITS)}`),
       ],
     })
-    const reply = {round, rows, reflow, coverage: judged, counts, progress}
+    const late = waits.length === 0 ? {} : {fontsLoading: Math.max(...waits)}
+    const reply = {round, rows, reflow, coverage: judged, counts, progress, ...late}
     return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
   }
 }
@@ -215,6 +228,26 @@ function unsettledReason(input: {measured: Measured; rendered: number; settled: 
   if (rendered === 0) return 'The page rendered no design nodes.'
   if (settled === undefined || rendered >= settled.coverage.rendered / 2) return null
   return `The page rendered ${rendered} design nodes, under half the ${settled.coverage.rendered} of round ${settled.round}.`
+}
+
+async function thrownError(input: {
+  measured: Measured
+  since: number
+  runtime: DesignRuntime
+}): Promise<CompileError | null> {
+  const {measured, runtime} = input
+  const {thrown} = measured
+  if (thrown === undefined || (thrown.at < input.since && measured.live.children.length > 0)) return null
+  const at = await located({frames: thrown.frames, runtime})
+  if (at === null) return {message: thrown.message, file: null, line: null, column: null}
+  return {message: thrown.message, file: at.file, line: at.line, column: at.column}
+}
+
+async function located(input: {frames: RawFrame[]; runtime: DesignRuntime}): Promise<SourceLoc | null> {
+  const [frame, ...rest] = input.frames
+  if (frame === undefined) return null
+  const at = await input.runtime.symbolicate([frame])
+  return at ?? located({...input, frames: rest})
 }
 
 function shown(last: Round): RoundReply {

@@ -769,7 +769,7 @@ describe('editor symbolicate', () => {
 
     it('resolves an http frame via the injected fetch', async () => {
       const gen = new GenMapping()
-      addMapping(gen, {generated: {line: 2, column: 0}, source: 'src/App.tsx', original: {line: 9, column: 0}})
+      addMapping(gen, {generated: {line: 2, column: 0}, source: 'App.tsx', original: {line: 9, column: 0}})
       const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
       const body = `void 0;\nvoid 1;\n//# sourceMappingURL=data:application/json;base64,${b64}`
       const fakeFetch = (async () => new Response(body)) as unknown as typeof fetch
@@ -779,6 +779,21 @@ describe('editor symbolicate', () => {
         fakeFetch,
       )
       expect(loc?.file).toBe('src/App.tsx')
+    })
+
+    it('carries the project path of a source its map names relative to the map', async () => {
+      const root = mkdtempSync(join(tmpdir(), 'conciv-project-'))
+      mkdirSync(join(root, 'dist'))
+      const gen = new GenMapping()
+      addMapping(gen, {generated: {line: 2, column: 0}, source: '../src/Cards.tsx', original: {line: 61, column: 2}})
+      const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
+      writeFileSync(
+        join(root, 'dist', 'cards.js'),
+        `void 0;\nvoid 1;\n//# sourceMappingURL=data:application/json;base64,${b64}`,
+      )
+      const loc = await symbolicateFrame({fileName: 'dist/cards.js', line: 2, column: 1}, root)
+      rmSync(root, {recursive: true, force: true})
+      expect(loc).toEqual({file: 'src/Cards.tsx', line: 61, column: 2})
     })
 
     it('refuses a non-loopback http frame (SSRF)', async () => {

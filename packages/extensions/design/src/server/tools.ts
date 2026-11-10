@@ -12,14 +12,8 @@ import type {
   PropSketch,
   Ranked,
 } from '../shared/catalog-defs.js'
-import {
-  DESIGN_TOOL_PREFIX,
-  DESIGN_TOOLS,
-  DESIGN_VERDICTS,
-  type DesignRuntime,
-  type Differ,
-  type Got,
-} from '../shared/defs.js'
+import {DESIGN_TOOL_PREFIX, DESIGN_VERDICTS, type DesignRuntime, type Differ, type Got} from '../shared/defs.js'
+import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import type {ToolReply} from '../shared/tool-reply.js'
 import {renderComponents} from './catalog/render-list.js'
 import {figmaRef} from './figma-ref.js'

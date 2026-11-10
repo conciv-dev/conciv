@@ -2,23 +2,26 @@ import {isAbsolute, join, relative} from 'node:path'
 import {setTimeout as delay} from 'node:timers/promises'
 import {stripVTControlCharacters} from 'node:util'
 import {omit} from 'es-toolkit'
+import {AsyncRetryer} from '@tanstack/pacer/async-retryer'
 import {z} from 'zod'
 import {toolError, type ServerApi} from '@conciv/extension'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import type {BundlerBridge, BundlerDiagnostic} from '@conciv/protocol/bundler-types'
+import {consoleDef, reloadDef} from '@conciv/extension-page/defs'
 import {SessionId} from '@conciv/protocol/chat-types'
-import type {
-  Checked,
-  CompileError,
-  DesignRuntime,
-  Differ,
-  GateRow,
-  Got,
-  RoundReply,
-  Runner,
-  Status,
-  TargetRecord,
-  Widget,
+import {
+  BROKEN_BY,
+  type Checked,
+  type CompileError,
+  type DesignRuntime,
+  type Differ,
+  type GateRow,
+  type Got,
+  type RoundReply,
+  type Runner,
+  type Status,
+  type TargetRecord,
+  type Widget,
 } from '../shared/defs.js'
 import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
@@ -42,8 +45,8 @@ export function createDiffer(input: {
     call: (name, query) => page.ask({sessionId: SessionId.parse(session), name, input: query}),
   })
   const edits = watchEdits({bundler: input.bundler, cwd: runtime.cwd})
-  const brokenOne = async (asked: {record: TargetRecord; compile: CompileError}) => {
-    const {record, compile} = asked
+  const brokenOne = async (asked: {record: TargetRecord; error: CompileError; by: BrokenBy}) => {
+    const {record, error, by} = asked
     const [design, rounds] = await Promise.all([store.design(record.id), store.rounds(record.id)])
     const round = (rounds.at(-1)?.round ?? 0) + 1
     const written = {
@@ -51,11 +54,13 @@ export function createDiffer(input: {
       round,
       at: Date.now(),
       verdict: 'broken' as const,
-      broken: compileLine(compile),
+      broken: compileLine(error),
+      brokenBy: by,
     }
     await store.writeRound({id: record.id, round: written, live: new Uint8Array(), diff: new Uint8Array()})
     const {reasons} = verdictOf({design, rounds: [...rounds, written]})
-    return {round, verdict: 'broken' as const, reasons, compile}
+    const judged = {round, verdict: 'broken' as const, reasons}
+    return by === 'compile' ? {...judged, compile: error} : {...judged, thrown: error}
   }
   const checkedOne = async (asked: {
     record: TargetRecord
@@ -67,12 +72,15 @@ export function createDiffer(input: {
     const measured = await runner({
       record,
       page: tab(asked.session),
+      since: edits.updated(),
       ...(asked.variants === undefined ? {} : {variants: asked.variants}),
     })
+    if ('thrown' in measured) return brokenOne({record, error: measured.thrown, by: 'runtime'})
     if (!('round' in measured))
       return {...measured, verdict: 'unsettled' as const, reasons: [unsettledReason(measured)]}
     const {verdict, reasons} = verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)})
-    const checked = shown({...measured, verdict, reasons})
+    const late = measured.fontsLoading === undefined ? [] : [fontsLine(measured.fontsLoading)]
+    const checked = shown({...measured, verdict, reasons: [...reasons, ...late]})
     return nodes === undefined ? checked : only({checked, nodes})
   }
   const statusOne = async (record: TargetRecord) =>
@@ -107,11 +115,18 @@ export function createDiffer(input: {
       await edits.quiet()
       const compile = await edits.compiled()
       const records = await store.variants(session)
+      const single = records.length < 2 ? await currentTarget({runtime, session}) : null
+      const threw = await threwBeforeEdit({
+        runtime,
+        records: single === null ? records : [single],
+        edited: edits.updated(),
+      })
+      if (compile === null && threw) await reloaded(tab(session))
       const one = (record: TargetRecord, variants?: number[]) =>
         compile === null
           ? checkedOne({record, session, nodes, ...(variants === undefined ? {} : {variants})})
-          : brokenOne({record, compile})
-      if (records.length < 2) return one(await currentTarget({runtime, session}))
+          : brokenOne({record, error: compile, by: 'compile'})
+      if (single !== null) return one(single)
       const widths = records.map((record) => record.width)
       const variants = []
       for (const record of records)
@@ -136,6 +151,8 @@ export function createDiffer(input: {
 
 type DesignPage = ServerApi<unknown>['page']
 
+type BrokenBy = (typeof BROKEN_BY)[number]
+
 type GetQuery = Parameters<Differ['get']>[0]['input']
 
 type OneQuery = {
@@ -151,8 +168,6 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
 
 const TOLERANCES = designConfig.tolerances
 
-const SETTLE_WAIT_MS = 5000
-
 const NOTHING_MEASURED = {
   rows: [],
   reflow: {widths: [], results: []},
@@ -163,6 +178,8 @@ const NOTHING_MEASURED = {
   tree: '',
   unsettled: null,
 }
+
+const ConsoleSchema = consoleDef.outputSchema ?? z.never()
 
 const LocSchema = z.object({line: z.number(), column: z.number()})
 
@@ -323,6 +340,35 @@ function judgedAll<Variant extends {verdict: Status['verdict']; reasons: string[
   return {verdict: (open.find((variant) => variant.verdict === 'not yet') ?? first).verdict, reasons}
 }
 
+async function threwBeforeEdit(input: {
+  runtime: DesignRuntime
+  records: TargetRecord[]
+  edited: number
+}): Promise<boolean> {
+  const lasts = await Promise.all(
+    input.records.map(async (record) => (await input.runtime.store.rounds(record.id)).at(-1)),
+  )
+  return lasts.some((round) => round?.brokenBy === 'runtime' && round.at < input.edited)
+}
+
+async function reloaded(page: ServerToolPageAccess): Promise<void> {
+  const before = Date.now()
+  await page.call(reloadDef.name, {})
+  const retryer = new AsyncRetryer(() => freshPage({page, before}), {
+    backoff: 'fixed',
+    baseWait: TOLERANCES.widgetPoll,
+    maxAttempts: Math.ceil(TOLERANCES.widgetWait / TOLERANCES.widgetPoll) + 1,
+    throwOnError: false,
+  })
+  await retryer.execute()
+}
+
+async function freshPage(input: {page: ServerToolPageAccess; before: number}): Promise<void> {
+  const logged = ConsoleSchema.safeParse(await input.page.call(consoleDef.name, {}).catch(() => null))
+  if (!logged.success || logged.data.entries.some((entry) => entry.ts < input.before))
+    throw new Error('the page before the reload still answers')
+}
+
 async function currentTarget(input: {runtime: DesignRuntime; session: string}): Promise<TargetRecord> {
   const record = await input.runtime.store.current(input.session)
   if (record !== null) return record
@@ -334,14 +380,19 @@ function only(input: {checked: Extract<Checked, {rows: unknown}>; nodes: string[
   return {...input.checked, rows: input.checked.rows.filter((row) => wanted.has(row.node))}
 }
 
-function unsettledReason(measured: Exclude<RoundReply, {round: number}>): string {
+function unsettledReason(measured: Exclude<RoundReply, {round: number} | {thrown: unknown}>): string {
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
   return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
+}
+
+function fontsLine(waited: number): string {
+  return `fonts were still loading; measured after ${waited} ms`
 }
 
 function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
   quiet: () => Promise<void>
   compiled: () => Promise<CompileError | null>
+  updated: () => number
   dispose: () => void
 } {
   const {bundler, cwd} = input
@@ -349,10 +400,12 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
     timer: ReturnType<typeof setTimeout> | undefined
     settled: PromiseWithResolvers<void> | null
     failed: CompileError | null
-  } = {timer: undefined, settled: null, failed: null}
+    updated: number
+  } = {timer: undefined, settled: null, failed: null, updated: 0}
   const unsubscribe = bundler?.subscribe?.((diagnostic) => {
     if (diagnostic.kind === 'build-error') state.failed = compileErrorOf({diagnostic, cwd})
     if (diagnostic.kind !== 'hmr-update') return
+    state.updated = diagnostic.timestamp
     const settled = state.settled ?? Promise.withResolvers<void>()
     state.settled = settled
     clearTimeout(state.timer)
@@ -365,7 +418,7 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
     quiet: () =>
       Promise.race([
         state.settled?.promise ?? Promise.resolve(),
-        delay(TOLERANCES.settleQuiet + SETTLE_WAIT_MS, undefined, {ref: false}),
+        delay(TOLERANCES.settleQuiet + TOLERANCES.settleWait, undefined, {ref: false}),
       ]),
     compiled: async () => {
       const {failed} = state
@@ -373,6 +426,7 @@ function watchEdits(input: {bundler: BundlerBridge | undefined; cwd: string}): {
       state.failed = await stillFailing({bundler, failed, cwd})
       return state.failed
     },
+    updated: () => state.updated,
     dispose: () => {
       clearTimeout(state.timer)
       unsubscribe?.()

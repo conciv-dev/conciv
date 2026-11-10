@@ -21,10 +21,10 @@ export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void}
     return {level, original}
   })
   const onError = (e: ErrorEvent): void => {
-    push('error', [e.message])
+    push('uncaught', [e.error instanceof Error ? (e.error.stack ?? e.message) : e.message])
   }
   const onRejection = (e: PromiseRejectionEvent): void => {
-    push('error', [String(e.reason)])
+    push('unhandled', [e.reason instanceof Error ? (e.reason.stack ?? String(e.reason)) : String(e.reason)])
   }
   window.addEventListener('error', onError)
   window.addEventListener('unhandledrejection', onRejection)

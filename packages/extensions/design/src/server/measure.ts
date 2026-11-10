@@ -5,7 +5,6 @@ import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PAGE_PING_TOOL} from '@conciv/protocol/page-types'
 import {captureDef, PageCaptureSchema} from '@conciv/extension-page/defs'
 import {
-  DESIGN_TOOLS,
   LiveComponentsSchema,
   type LiveComponent,
   type Measured,
@@ -13,6 +12,7 @@ import {
   type Raster,
   type Widget,
 } from '../shared/defs.js'
+import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {designConfig} from '../shared/tolerances.js'
 import {hiddenOverlays} from '../shared/overlays.js'
 import {createRaster} from './raster.js'
@@ -131,6 +131,10 @@ function measuredFrom(reply: MeasureReply): Measured {
     sheets: reply.sheets,
     ...(reply.longestTask === undefined ? {} : {longestTask: reply.longestTask}),
     ...(reply.pageError === undefined ? {} : {pageError: reply.pageError}),
+    ...(reply.fontsLoading === undefined ? {} : {fontsLoading: reply.fontsLoading}),
+    ...(reply.thrown === undefined
+      ? {}
+      : {thrown: {message: reply.thrown.message, frames: reply.thrown.frames, at: Date.now() - reply.thrown.ago}}),
     framework: frameworkOf(reply),
     masks: reply.masks,
     scheme: reply.scheme,

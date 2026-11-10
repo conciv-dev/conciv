@@ -11,7 +11,8 @@ import {
   type SQLiteColumn,
   type SQLiteTableFn,
 } from 'drizzle-orm/sqlite-core'
-import {DESIGN_TOOLS, DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
+import {BROKEN_BY, DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../shared/defs.js'
+import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {MAGNITUDES} from '../shared/magnitudes.js'
 import {RUN_VERDICTS} from '../shared/run-verdicts.js'
 import type {ToolReply} from '../shared/tool-reply.js'
@@ -113,6 +114,7 @@ export function designTables(table: SQLiteTableFn, store: 'run' | 'runs' = 'run'
       verdict: text(),
       unsettled: text(),
       broken: text(),
+      broken_by: text({enum: BROKEN_BY}),
       live: text(),
       diff: text(),
       ids: text({mode: 'json'}).$type<IdTree>(),

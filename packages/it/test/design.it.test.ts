@@ -12,14 +12,13 @@ import {expect as expectLocator} from 'playwright/test'
 import {PNG} from 'pngjs'
 import {createStorage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
-import {afterAll, afterEach, describe, expect, it} from 'vitest'
+import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {closeHomeDb, componentScans, extensionTable, openDb, openHomeDb} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {} from '@conciv/extension-design/client'
 import type {XrayRouter} from '@conciv/extension-design/server'
 import {
-  DESIGN_TOOLS,
   type Box,
   type Design,
   type DesignNode,
@@ -28,6 +27,7 @@ import {
   type Raster,
   type Round,
 } from '@conciv/extension-design/defs'
+import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
@@ -47,10 +47,21 @@ import type {Component, Scan} from '../../extensions/design/src/shared/catalog-d
 import {bootDesignHost} from './fixtures/design/boot.js'
 import {cardsDesign} from './fixtures/design/cards.js'
 import {figmaFrame} from './fixtures/design/figma-frame.js'
+import {bareButton} from './fixtures/design/bare-button.js'
+import {sideMargin} from './fixtures/design/side-margin.js'
+import {wrapText} from './fixtures/design/wrap-text.js'
+import {tallPage} from './fixtures/design/tall-page.js'
+import {stackRow} from './fixtures/design/stack-row.js'
+import {picture} from './fixtures/design/picture.js'
 
 const HOST_ROOT = fileURLToPath(new URL('fixtures/design/host/', import.meta.url))
 const CARDS_FILE = fileURLToPath(new URL('fixtures/design/host/src/Cards.tsx', import.meta.url))
+const STYLES_FILE = fileURLToPath(new URL('fixtures/design/host/src/styles.css', import.meta.url))
+const APP_FILE = fileURLToPath(new URL('fixtures/design/host/src/App.tsx', import.meta.url))
 const PAGE_DRIVER_TIMEOUT_MS = 30_000
+const THROW_BEFORE = 'const gap ='
+const THROWING_LINE = "  if (titles.length > 0) throw new TypeError('the cards fixture throws while rendering')"
+const HOT_UPDATED = '[vite] hot updated'
 const COLOR_DELTA_E = 3
 const PAIR_BUDGET_MS = 20_000
 
@@ -153,8 +164,9 @@ async function cardsTarget(): Promise<Got> {
   return call('design_get', await cardsDesign(kit.targetsDir))
 }
 
-function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown}> {
-  if ('unsettled' in checked || 'compile' in checked) throw new Error(`no round: ${JSON.stringify(checked)}`)
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown} | {thrown: unknown}> {
+  if ('unsettled' in checked || 'compile' in checked || 'thrown' in checked)
+    throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
 
@@ -287,7 +299,7 @@ describe('store', () => {
         candidates: [],
         revoted: 0,
       },
-      counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, reflow: 0, paint: 0, rows: 0},
+      counts: {much: 0, noticeably: 0, slightly: 0, pins: 0, other: 0, reflow: 0, paint: 0, rows: 0, drift: 0},
       pixels: {share: 0},
       progress: null,
       at: 1,
@@ -295,6 +307,7 @@ describe('store', () => {
       verdict: null,
       unsettled: null,
       broken: null,
+      brokenBy: null,
     }
     await store.writeRound({
       id: 'store-1',
@@ -406,6 +419,13 @@ describe('design_check verdict', () => {
     const checked = roundOf(await call('design_check', {}))
     expect(checked.verdict).not.toBe('done')
     expect(checked.reasons.some((reason) => reason.includes('not rendered'))).toBe(true)
+  })
+
+  it('names each missing node with its Figma name and the node it belongs under', async () => {
+    await goto('target')
+    await cardsTarget()
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.reasons.some((reason) => reason.includes('1:10 Card under 1:2 Cards'))).toBe(true)
   })
 })
 
@@ -1251,6 +1271,203 @@ describe('design_check on a page that breaks the widget or the build', () => {
     await goto('target')
     expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
   })
+
+  it('answers broken with the file and line of an error the page throws while rendering, then measures again once it is fixed', async () => {
+    await goto('target')
+    await cardsTarget()
+    const source = await readFile(CARDS_FILE, 'utf8')
+    const lines = source.split('\n')
+    const at = lines.findIndex((line) => line.includes(THROW_BEFORE))
+    const thrown = kit.page.waitForEvent('pageerror', {timeout: PAGE_DRIVER_TIMEOUT_MS})
+    await writeFile(CARDS_FILE, [...lines.slice(0, at), THROWING_LINE, ...lines.slice(at)].join('\n'))
+    const broken = await thrown.then(() => call('design_check', {}))
+    const error = 'thrown' in broken ? broken.thrown : null
+    const updated = kit.page.waitForEvent('console', {
+      predicate: (message) => message.text().includes(HOT_UPDATED),
+      timeout: PAGE_DRIVER_TIMEOUT_MS,
+    })
+    await writeFile(CARDS_FILE, source)
+    await updated
+    expect([broken.verdict, error?.file, error?.line]).toEqual(['broken', 'src/Cards.tsx', at + 1])
+    expect(roundOf(await call('design_check', {})).verdict).not.toBe('broken')
+  })
+})
+
+const SLOW_LINK = 'https://www.figma.com/design/ItSlowFontKey/x?node-id=3-1'
+const SLOW_FRAME = {w: 1280, h: 400}
+const SLOW_FONT_FILE = '/slow/fonts/'
+const FALLBACK_FAMILY = 'font-family: monospace;'
+const SLOW_FAMILY = "font-family: 'Slow Sans', monospace;"
+const SLOW_DOCUMENT = {
+  name: 'it slow font',
+  lastModified: '2026-11-10T00:00:00Z',
+  version: '1',
+  nodes: {
+    '3:1': {
+      document: figmaFrame({
+        id: '3:1',
+        name: 'Report',
+        box: {x: 0, y: 0, ...SLOW_FRAME},
+        children: [figmaFrame({id: '3:2', name: 'Paragraph', box: {x: 40, y: 40, w: 480, h: 160}})],
+      }),
+    },
+  },
+}
+
+describe('design_check on a button whose label is bare text', () => {
+  it('pairs the design label with the button that holds it and compares its font with the button font', async () => {
+    await goto('barebutton')
+    const image = join(kit.targetsDir, 'bare-button.png')
+    await writeFile(image, blankPng({width: bareButton.frame.w, height: bareButton.frame.h}))
+    await call('design_get', {figma: bareButton.link, image, document: bareButton.document})
+    const checked = roundOf(await call('design_check', {}))
+    const label = checked.rows.filter((row) => row.node === bareButton.label).map((row) => row.kind)
+    expect([checked.coverage.missing.includes(bareButton.label), label.includes('font family')]).toEqual([false, true])
+  })
+})
+
+describe('design_check at a width other than the tab', () => {
+  it('keeps a margin the page sets from a variable, though a later rule in the block sets one side again', async () => {
+    await goto('sidemargin')
+    const image = join(kit.targetsDir, 'side-margin.png')
+    await writeFile(image, blankPng({width: sideMargin.frame.w, height: sideMargin.frame.h}))
+    await call('design_get', {figma: sideMargin.link, image, document: sideMargin.document})
+    const checked = roundOf(await call('design_check', {}))
+    expect(checked.rows.filter((row) => row.node === sideMargin.panel).map((row) => row.text)).toEqual([])
+  })
+})
+
+describe('design_check on a paragraph that wraps', () => {
+  const wrapRows = async (width: number, design = wrapText.tall): Promise<string[]> => {
+    await goto(`/?variant=wrap&width=${width}`)
+    const image = join(kit.targetsDir, 'wrap-text.png')
+    await writeFile(image, blankPng({width: design.frame.w, height: design.frame.h}))
+    await call('design_get', {figma: wrapText.link, image, document: design.document})
+    const checked = roundOf(await call('design_check', {}))
+    return checked.rows.filter((row) => row.magnitude === 'reflow').map((row) => row.text)
+  }
+
+  it('names the text and its line counts when it wraps to one more line than the frame', async () => {
+    expect(await wrapRows(640)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: wraps to 4 lines, the frame has 3`,
+    ])
+  })
+
+  it('has no wrap row once the paragraph is as wide as the frame, its padding not counted as a line', async () => {
+    expect(await wrapRows(800)).toEqual([])
+  })
+
+  it('counts every line of a text that runs past a short frame', async () => {
+    expect(await wrapRows(480, wrapText.short)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: wraps to 5 lines, the frame has 3`,
+    ])
+  })
+
+  it('says a text breaks into fewer lines than the frame when it is wider', async () => {
+    expect(await wrapRows(1100)).toEqual([
+      `text Paragraph [${wrapText.paragraph}] p.wrap-text: breaks into 2 lines, the frame has 3`,
+    ])
+  })
+})
+
+describe('design_check on a page far taller than the frame', () => {
+  const pageRows = async (query: string): Promise<{rows: string[]; reasons: string[]}> => {
+    await goto(`/?variant=tall${query}`)
+    const image = join(kit.targetsDir, 'tall-page.png')
+    await writeFile(image, blankPng({width: tallPage.frame.w, height: tallPage.frame.h}))
+    await call('design_get', {figma: tallPage.link, image, document: tallPage.document})
+    const checked = roundOf(await call('design_check', {}))
+    const rows = checked.rows.filter((row) => row.kind === designConfig.rowKinds.page).map((row) => row.text)
+    return {rows, reasons: checked.reasons}
+  }
+
+  it('names the image that makes it tall, before the coverage sentence', async () => {
+    const lines = (await readFile(APP_FILE, 'utf8')).split('\n')
+    const line = lines.findIndex((text) => text.includes('className="tall-line"')) + 1
+    const {rows, reasons} = await pageRows('')
+    const row = `the page is 123184 px tall, the frame is 400; the tallest element past the frame is img.tall-line at src/App.tsx:${line}, 123120 px`
+    expect([rows, reasons[0]]).toEqual([[row], `${row}.`])
+  })
+
+  it('has no page row once the image width is constrained', async () => {
+    expect((await pageRows('&width=1px')).rows).toEqual([])
+  })
+})
+
+describe('design_check on a row near its breakpoint', () => {
+  const stackRows = async (width: number): Promise<string[]> => {
+    await goto(`/?variant=stackrow&width=${width}`)
+    const image = join(kit.targetsDir, 'stack-row.png')
+    await writeFile(image, blankPng({width: stackRow.frame.w, height: stackRow.frame.h}))
+    await call('design_get', {figma: stackRow.link, image, document: stackRow.document})
+    const checked = roundOf(await call('design_check', {}))
+    return checked.rows.filter((row) => row.text.includes('did not stack')).map((row) => row.text)
+  }
+  const tolerance = designConfig.tolerances.geometryPx
+
+  it('has no breakpoint row when the row is under its breakpoint by the geometry tolerance', async () => {
+    expect(await stackRows(stackRow.breakpoint - tolerance)).toEqual([])
+  })
+
+  it('says the row did not stack when it is under its breakpoint by more than the geometry tolerance', async () => {
+    const wide = stackRow.breakpoint - tolerance - tolerance
+    expect(await stackRows(wide)).toContain(
+      `frame Row [${stackRow.row}] at ${stackRow.frame.w} wide: did not stack; it is ${wide}px wide, under its breakpoint ${stackRow.breakpoint}px, and its children are not one under another`,
+    )
+  })
+})
+
+describe('design_check on a page whose fonts load slowly', () => {
+  it('measures the same page on the first check, while an @import font is still loading, and on the second', async () => {
+    await goto('slowfont')
+    const image = join(kit.targetsDir, 'slow-font.png')
+    await writeFile(image, blankPng({width: SLOW_FRAME.w, height: SLOW_FRAME.h}))
+    await call('design_get', {figma: SLOW_LINK, image, document: SLOW_DOCUMENT})
+    const slowly = (response: {url: () => string}): boolean => response.url().includes(SLOW_FONT_FILE)
+    const requested = kit.page.waitForRequest(slowly)
+    const landed = kit.page.waitForResponse(slowly)
+    const styles = await readFile(STYLES_FILE, 'utf8')
+    await writeFile(STYLES_FILE, styles.replace(FALLBACK_FAMILY, SLOW_FAMILY))
+    const [first, second] = await requested
+      .then(() => call('design_check', {}))
+      .then(async (checked) => [roundOf(checked), roundOf(await landed.then(() => call('design_check', {})))])
+      .finally(() => writeFile(STYLES_FILE, styles))
+    expect([second?.round, second?.unchanged]).toEqual([first?.round, true])
+  })
+})
+
+describe('design_check image rows', () => {
+  const PICTURE = picture.box
+  const folder = join(kit.hostRoot, 'public', 'design')
+  const frame = join(kit.targetsDir, 'picture-frame.png')
+
+  beforeAll(async () => {
+    await mkdir(folder, {recursive: true})
+    await writeFile(
+      join(folder, 'same.png'),
+      picture.painted({width: PICTURE.w * 2, height: PICTURE.h * 2, turned: false}),
+    )
+    await writeFile(join(folder, 'other.png'), picture.painted({width: PICTURE.w, height: PICTURE.h, turned: true}))
+    await writeFile(frame, picture.framed())
+  })
+
+  afterAll(() => rm(folder, {recursive: true, force: true}))
+
+  const imageRows = async (src: string): Promise<ReturnType<typeof roundOf>['rows']> => {
+    await goto(`/?variant=picture&src=${encodeURIComponent(src)}`)
+    await call('design_get', {figma: picture.link, image: frame, document: picture.document})
+    return roundOf(await call('design_check', {})).rows.filter((row) => row.kind === 'image')
+  }
+
+  it('passes a page that serves the same picture from another file at another size', async () => {
+    expect(await imageRows('/design/same.png')).toEqual([])
+  })
+
+  it('fails a page that serves a different picture, naming both pictures', async () => {
+    const rows = await imageRows('/design/other.png')
+    expect(rows.map((row) => row.node)).toEqual(['2:2'])
+    expect(['/design/2-2.png', '/design/other.png'].every((name) => rows[0]?.text.includes(name))).toBe(true)
+  })
 })
 
 const NamedSchema = z.array(z.looseObject({name: z.string()}))
@@ -1292,6 +1509,24 @@ describe('runs store schema', () => {
     expect(names('PRAGMA table_info(design_tool_calls)')).toContain('reply')
     expect(names('PRAGMA table_info(design_node_components)')).toContain('run_id')
     expect(names('PRAGMA table_info(design_fom_nodes)')).toContain('fill_kind')
+  })
+})
+
+describe('a run database from either branch', () => {
+  it.each(['twentyeight-figma7-1', 'catalog-era'])('opens %s and migrates it to the merged tables', async (name) => {
+    const stateRoot = await mkdtemp(join(tmpdir(), 'conciv-design-forward-'))
+    await mkdir(join(stateRoot, '.conciv'))
+    const source = new DatabaseSync(fileURLToPath(new URL(`fixtures/runs/${name}/.conciv/conciv.db`, import.meta.url)))
+    source.exec(`VACUUM INTO '${join(stateRoot, '.conciv', 'conciv.db')}'`)
+    source.close()
+    const orm = openDb({stateRoot, extensions: [{name: 'design', migrations}]})
+    const client = orm.$client
+    const names = (statement: string) => NamedSchema.parse(pragma({client, statement})).map((entry) => entry.name)
+    expect(names('PRAGMA table_info(design_rounds)')).toEqual(expect.arrayContaining(['broken_by', 'drift']))
+    expect(names('PRAGMA index_list(design_rows)')).toContain('rows_by_round')
+    expect(names('PRAGMA table_info(design_fom)')).toContain('site')
+    client.close()
+    await rm(stateRoot, {recursive: true, force: true})
   })
 })
 

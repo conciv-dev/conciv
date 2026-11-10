@@ -352,6 +352,7 @@ function roundOf(input: {round: number; rows: Row[]; nodes: number; at: number})
     verdict: 'not yet',
     unsettled: null,
     broken: null,
+    brokenBy: null,
   }
 }
 

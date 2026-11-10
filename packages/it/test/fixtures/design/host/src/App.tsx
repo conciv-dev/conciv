@@ -28,6 +28,10 @@ const LOOK_CLASSES: Record<string, string> = {webfont: 'webfont', container: 'we
 const CONTAINER_CSS =
   '#root { container-type: inline-size; } @container (min-width: 600px) { .toolbar { padding-bottom: 12px; } }'
 const FIELD_BORDER = {borderColor: '#d64545', borderRadius: 0}
+const SLOW_FONT_CSS = "@import url('/slow-font.css');"
+const SLOW_FONT_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
+const WRAP_TEXT = 'The quarterly report lists every invoice that was paid late, with the customer and the days overdue.'
+const TALL_LINE = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='360'/>"
 const TYPE_SIZES = [12, 16, 24, 32]
 const TYPE_STRINGS = ['Export the quarterly report', 'EXPORT', '1,240.00']
 
@@ -44,6 +48,13 @@ export function App() {
   if (requested === 'bentolio') return <main className="bentolio" data-conciv-key="bNtLiO" />
   if (requested === 'tech') return <main className="tech" data-conciv-key="tEcHlP" />
   if (requested === 'agency') return <main className="agency" data-conciv-key="aGnCyP" />
+  if (requested === 'picture') {
+    return (
+      <main className="picture" data-conciv-key="pIcTmn">
+        <img className="picture-image" src={new URLSearchParams(location.search).get('src') ?? ''} alt="" data-conciv-key="pIcTim" />
+      </main>
+    )
+  }
   if (requested === 'stripe') return <Stripe data-conciv-key="lRWD-g" />
   if (requested === 'sections') return <TwoSections data-conciv-key="GAoSTQ" />
   if (requested === 'contents') return <ContentsGrid data-conciv-key="x9JTfp" />
@@ -63,6 +74,59 @@ export function App() {
           <textarea className="contact-field contact-message" placeholder="Message" data-conciv-key="rLmLTw" />
           <button type="submit" data-conciv-key="Yqw8VA">Send</button>
         </form>
+      </main>
+    )
+  }
+  if (requested === 'barebutton') {
+    return (
+      <main className="barebutton" data-conciv-key="bArEmn">
+        <button type="button" className="barebutton-button" data-conciv-key="bArEbt">
+          Contact Us
+        </button>
+      </main>
+    )
+  }
+  if (requested === 'sidemargin') {
+    return (
+      <main className="sidemargin" data-conciv-key="sDmGmn">
+        <div className="sidemargin-panel" data-conciv-key="sDmGpn" />
+      </main>
+    )
+  }
+  if (requested === 'wrap') {
+    return (
+      <main className="wrap" data-conciv-key="wRaPmn">
+        <p className="wrap-text" style={{width: Number(new URLSearchParams(location.search).get('width'))}} data-conciv-key="wRaPtx">
+          {WRAP_TEXT}
+        </p>
+      </main>
+    )
+  }
+  if (requested === 'tall') {
+    return (
+      <main className="tall" data-conciv-key="tAlLmn">
+        <p className="tall-title" data-conciv-key="tAlLtx">Tall page</p>
+        <div className="tall-wrap" data-conciv-key="tAlLwr">
+          <img className="tall-line" src={TALL_LINE} alt="" style={{width: new URLSearchParams(location.search).get('width') ?? '100%'}} data-conciv-key="tAlLim" />
+        </div>
+      </main>
+    )
+  }
+  if (requested === 'stackrow') {
+    return (
+      <main className="stackrow" data-conciv-key="sTkRmn">
+        <div className="stackrow-row" style={{width: Number(new URLSearchParams(location.search).get('width'))}} data-conciv-key="sTkRrw">
+          <div className="stackrow-card" data-conciv-key="sTkRc1" />
+          <div className="stackrow-card" data-conciv-key="sTkRc2" />
+        </div>
+      </main>
+    )
+  }
+  if (requested === 'slowfont') {
+    return (
+      <main className="slowfont" data-conciv-key="sLwFmn">
+        <style data-conciv-key="sLwFst">{SLOW_FONT_CSS}</style>
+        <p className="slowfont-text" data-conciv-key="sLwFtx">{SLOW_FONT_TEXT}</p>
       </main>
     )
   }

@@ -13,7 +13,8 @@ import {CONCIV_SESSION_HEADER, type SessionId} from '@conciv/protocol/chat-types
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
-import {DESIGN_TOOL_PREFIX, DESIGN_TOOLS} from '@conciv/extension-design/defs'
+import {DESIGN_TOOL_PREFIX} from '@conciv/extension-design/defs'
+import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {unplugin} from '../src/plugin-instance.js'
 import {renderTargets} from '../test/fixtures/design/render-targets.js'
 

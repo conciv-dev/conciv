@@ -251,7 +251,7 @@ function RoundBody(props: {data: ReturnType<typeof createXrayData>}): JSX.Elemen
         {(broken) => (
           <div class="flex shrink-0 flex-col gap-1 items-stretch" data-conciv-key="DgUr0g">
             <h2 class="text-xl text-chat-text-hi font-semibold m-0" data-conciv-key="C3gLmQ">
-              Page does not compile
+              {props.data.shownRound()?.brokenBy === 'runtime' ? 'Page throws' : 'Page does not compile'}
             </h2>
             <p class="text-xs text-chat-text-2 font-chat-mono m-0" data-conciv-key="6nr1kA">
               {broken()}

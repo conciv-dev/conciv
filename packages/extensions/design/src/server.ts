@@ -37,7 +37,9 @@ const TAKUMI_WASM_EXPORT = 'takumi-paint/takumi_paint_wasm_bg.wasm'
 
 const FILES_ROOT = '/'
 
-const ASSET_FOLDER = ['public', 'design']
+const PUBLIC_FOLDER = 'public'
+
+const ASSET_FOLDER = [PUBLIC_FOLDER, 'design']
 
 const design = defineExtension({
   name: DESIGN_EXTENSION_NAME,
@@ -87,11 +89,15 @@ const design = defineExtension({
     comparator: config.comparator,
     tokens: config.catalog.tokens.map((source) => tokenSources[source]),
     components: createComponentRows({catalog, hinters, config: config.catalog, cwd: server.cwd}),
+    symbolicate: server.symbolicate,
   }
   const differ = createDiffer({
     show: config.show,
     runtime,
-    runner: createRunner(runtime),
+    runner: createRunner({
+      runtime,
+      folder: createStorage({driver: fsDriver({base: join(server.cwd, PUBLIC_FOLDER), readOnly: true})}),
+    }),
     page: server.page,
     bundler: server.bundler,
   })

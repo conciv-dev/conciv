@@ -2,6 +2,7 @@ import type {Box, DesignNode, GateRow, LiveComponent, Reflow} from '../shared/de
 import {box as geometry} from '../shared/box.js'
 import {walk} from '../shared/tree.js'
 import type {readIds} from '../shared/id-tree.js'
+import {designConfig} from '../shared/tolerances.js'
 
 export function reflowAt(input: {
   root: DesignNode
@@ -98,10 +99,7 @@ function verdictOf(input: {tag: Tag; element: LiveComponent | undefined}): Reflo
     .map((kid) => kid.bounds)
   const box = element.bounds
   const outside = rs.filter((r) => r.x + r.w > box.x + box.w + EDGE_PX || r.x < box.x - EDGE_PX).length
-  const stacked = rs.every((r, index) => {
-    const before = rs[index - 1]
-    return before === undefined || r.y >= before.y + before.h - EDGE_PX
-  })
+  const stacked = stackedOf(rs)
   const lines = new Set(rs.map((r) => Math.round(r.y / LINE_PX))).size
   const least = tag.minChildWidth
   const tooNarrow = least === undefined ? 0 : rs.filter((r) => r.w < least - 1).length
@@ -130,13 +128,10 @@ function twoWay(input: {
   const [first] = rs
   if (first === undefined || rs.length < 2) return []
   const oneLine = rs.every((r) => r.y < first.y + first.h - EDGE_PX && r.y + r.h > first.y + EDGE_PX)
-  const stacked = rs.every((r, index) => {
-    const before = rs[index - 1]
-    return before === undefined || r.y >= before.y + before.h - EDGE_PX
-  })
+  const stacked = stackedOf(rs)
   const wide = Math.round(element.bounds.w)
-  const kind = node.gate?.kind ?? node.kind
-  const name = node.figma?.name ?? ''
+  if (Math.abs(wide - breakpoint) <= designConfig.tolerances.geometryPx) return []
+  const {kind, name} = labelOf(node)
   const head = `${kind} ${name} [${node.id}] at ${width} wide`
   const row = (text: string): GateRow[] => [{node: node.id, ...named, kind, name, text, magnitude: 'much'}]
   if (wide >= breakpoint)
@@ -194,4 +189,15 @@ function covers(input: {a: Box; b: Box}): boolean {
   const x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)
   const y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)
   return x > COVER_PX && y > COVER_PX && a.w > 0 && b.w > 0
+}
+
+function stackedOf(rs: Box[]): boolean {
+  return rs.every((r, index) => {
+    const before = rs[index - 1]
+    return before === undefined || r.y >= before.y + before.h - EDGE_PX
+  })
+}
+
+function labelOf(node: DesignNode): {kind: string; name: string} {
+  return {kind: node.gate?.kind ?? node.kind, name: node.figma?.name ?? ''}
 }

@@ -57,6 +57,7 @@ export function roundOf(input: Stored): Round {
     verdict: head.verdict,
     unsettled: head.unsettled,
     broken: head.broken,
+    brokenBy: head.broken_by,
   })
 }
 

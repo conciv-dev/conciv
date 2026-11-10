@@ -1,8 +1,10 @@
 import {formatHex, parse} from 'culori'
+import {groupBy} from 'es-toolkit'
 import {z} from 'zod'
 import type {Ballot, Box, DesignNode, IdNode, LiveComponent, Match, Pairer} from '../../shared/defs.js'
 import {designConfig} from '../../shared/tolerances.js'
 import {walk} from '../../shared/tree.js'
+import {layoutVote} from './layout-vote.js'
 
 export function createFigmaNodePairer(): Pairer {
   return (request) => Promise.resolve(pairNodes(request))
@@ -18,6 +20,7 @@ type Element = {
   tag: string
   classes: string[]
   cssom: IdNode['cssom'][number] | undefined
+  sole: {box: Box; cssom: IdNode['cssom'][number] | undefined} | undefined
   chain: string[]
   ancestors: Set<string>
 }
@@ -73,16 +76,6 @@ const IMAGE_TAGS = new Set(['img', 'svg'])
 
 const SVG = 'svg'
 
-const FLEX = 'flex'
-
-const GRID = 'grid'
-
-const ROW = 'row'
-
-const HORIZONTAL = 'HORIZONTAL'
-
-const FLOWS = new Set([HORIZONTAL, 'VERTICAL'])
-
 function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   const elements = elementsOf(input.ids)
   const byPath = new Map(elements.map((element) => [element.path, element]))
@@ -118,8 +111,11 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
   const votes: Ballot[] = []
   order.forEach((entry) => {
     if (kept.has(entry.node.id)) return
-    const {pairs} = vote
-    const parentPath = entry.parent === null ? null : (pairs.get(entry.parent.id)?.path ?? null)
+    const held = heldText({vote, entry})
+    if (held !== null) {
+      paired({vote, node: entry.node.id, pick: {...held, candidates: []}})
+      return
+    }
     const scored = rivals({vote, entry})
     const voted = picked(scored)
     const pick = voted !== null && sharesParent({vote, entry, path: voted.path}) ? null : voted
@@ -127,18 +123,34 @@ function pairNodes(input: Parameters<Pairer>[0]): Awaited<ReturnType<Pairer>> {
       const ordered = orderedTwin({vote, entry, scored, pick})
       const painted = paintedTwin({pick, scored, byPath, node: entry.node})
       const outer = painted === pick.path ? outermostTwin({pick, scored, byPath}) : painted
-      const chosen = {...pick, path: ordered ?? outer}
+      const chosen = {...pick, path: ordered ?? holdingTwin({vote, entry, pick, scored, path: outer})}
       paired({vote, node: entry.node.id, pick: chosen})
       votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: chosen.path}))
       return
     }
     votes.push(...ballotsOf({node: entry.node.id, scored, byPath, won: null}))
     if (pick !== null && pick.score >= PAIR.threshold) ties.set(entry.node.id, pick.candidates)
-    if (entry.parent === null || parentPath === null || !sameBox({a: entry.box, b: boxOf(entry.parent)})) return
-    const parentPick = pairs.get(entry.parent.id)
-    if (parentPick !== undefined) paired({vote, node: entry.node.id, pick: {...parentPick, candidates: []}})
+    const inherited = sameBoxParent({vote, entry})
+    if (inherited !== undefined) paired({vote, node: entry.node.id, pick: {...inherited, candidates: []}})
   })
   return {root: matchOf({node: input.design.root, pairs: vote.pairs, ties, lives}), partial: false, votes}
+}
+
+function heldText(input: {vote: Vote; entry: Node}): Pick | null {
+  const {vote, entry} = input
+  if (entry.node.kind !== 'text' || entry.parent === null) return null
+  const held = vote.pairs.get(entry.parent.id)
+  const element = held === undefined ? undefined : vote.byPath.get(held.path)
+  const text = element === undefined ? '' : normalized(element.text)
+  if (held === undefined || text === '' || text !== normalized(entry.node.text)) return null
+  const nested = vote.elements.some((other) => other.ancestors.has(held.path) && other.text.trim() !== '')
+  return nested ? null : held
+}
+
+function sameBoxParent(input: {vote: Vote; entry: Node}): Pick | undefined {
+  const {vote, entry} = input
+  if (entry.parent === null || !sameBox({a: entry.box, b: boxOf(entry.parent)})) return undefined
+  return vote.pairs.get(entry.parent.id)
 }
 
 function ballotsOf(input: {
@@ -206,7 +218,7 @@ function elementsOf(root: IdNode): Element[] {
     node.dom.map((dom, index) => ({dom, site: node, cssom: node.cssom[index]})),
   )
   const tags = new Map(doms.map(({dom, site}) => [dom.path, site.src.element]))
-  return doms.flatMap(({dom, site, cssom}) => {
+  const elements = doms.flatMap(({dom, site, cssom}): Element[] => {
     const tag = site.src.element
     const chain = prefixes(dom.path).filter((path) => tags.has(path))
     if (SKIPPED_TAGS.has(tag) || chain.some((path) => tags.get(path) === SVG)) return []
@@ -221,10 +233,16 @@ function elementsOf(root: IdNode): Element[] {
         tag,
         classes: site.src.classes,
         cssom,
+        sole: undefined,
         chain,
         ancestors: new Set(chain),
       },
     ]
+  })
+  const children = groupBy(elements, (element) => element.chain[0] ?? '')
+  return elements.map((element) => {
+    const [only, ...rest] = children[element.path] ?? []
+    return rest.length === 0 && only !== undefined ? {...element, sole: {box: only.box, cssom: only.cssom}} : element
   })
 }
 
@@ -290,8 +308,9 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const {node, box} = entry
   const shift = shiftOf({node: entry.parent, vote})
   const placed = {...element.box, x: element.box.x + shift.x, y: element.box.y + shift.y}
-  const geo = iou({a: box, b: placed})
-  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: placed}) > PAIR.nearCenterPx) return []
+  const flowed = {...placed, y: placed.y - grownAbove({vote, entry})}
+  const geo = iou({a: box, b: flowed})
+  if (geo < PAIR.overlapFloor && centerDistance({a: box, b: flowed}) > PAIR.nearCenterPx) return []
   if (node.implied === true && !holdsChildren({node, box: placed})) return []
   if (element.kids === 0 && holdsText(node)) return []
   const anchor = anchorOf({node, vote})
@@ -309,8 +328,21 @@ function scoreOf(input: {vote: Vote; entry: Node; element: Element}): Scored[] {
   const parent = anchor === null ? 0 : PAIR.parentBonus
   const dom = PAIR.overlapWeight * geo + textual + image + parent
   const src = kindOf({node, element}) + PAIR.nameWeight * namedAs({node, element})
-  const cssom = layoutOf({node, element})
+  const cssom = layoutVote({node, element})
   return [{path: element.path, score: dom + src + cssom, layers: {dom, src, cssom}}]
+}
+
+function grownAbove(input: {vote: Vote; entry: Node}): number {
+  const {vote, entry} = input
+  const siblings = entry.parent?.children ?? []
+  return siblings.reduce((total, sibling) => {
+    const design = boxOf(sibling)
+    const path = vote.pairs.get(sibling.id)?.path
+    const element = path === undefined ? undefined : vote.byPath.get(path)
+    const above = sibling !== entry.node && design.y + design.h <= entry.box.y + SAME_BOX_PX
+    if (element === undefined || !above || sibling.figma?.absolute === true) return total
+    return total + element.box.h - design.h
+  }, 0)
 }
 
 function holdsText(node: DesignNode): boolean {
@@ -337,23 +369,6 @@ function namedAs(input: {node: DesignNode; element: Element}): number {
   if (input.node.kind === 'text' || name.split(' ')[0] === typed) return 0
   const tokens = [input.element.tag, ...input.element.classes.flatMap((hint) => [hint, ...normalized(hint).split(' ')])]
   return Math.max(0, ...tokens.map((token) => dice({a: name, b: normalized(token)})))
-}
-
-function layoutOf(input: {node: DesignNode; element: Element}): number {
-  const {node, element} = input
-  const {cssom} = element
-  if (cssom === undefined) return 0
-  const laidOut = cssom.display.includes(FLEX) || cssom.display.includes(GRID)
-  const mode = node.figma?.mode ?? null
-  if (mode !== null && FLOWS.has(mode)) {
-    if (node.children.some((child) => child.implied === true)) return 0
-    const flex = cssom.display.includes(FLEX)
-    if (!flex && (cssom.columns ?? 0) < 2) return 0
-    const row = flex ? cssom.flexDirection.startsWith(ROW) : true
-    return row === (mode === HORIZONTAL) ? PAIR.layoutRoleWeight : -PAIR.layoutRoleWeight
-  }
-  if (node.kind !== 'text') return 0
-  return laidOut && element.kids > 0 ? -PAIR.layoutRoleWeight : PAIR.layoutRoleWeight
 }
 
 function orderedTwin(input: {vote: Vote; entry: Node; scored: Scored[]; pick: Pick}): string | null {
@@ -413,6 +428,30 @@ function outermostTwin(input: {pick: Pick; scored: Scored[]; byPath: Map<string,
     })
     .toSorted((a, b) => a.chain.length - b.chain.length)
   return outer[0]?.path ?? pick.path
+}
+
+function holdingTwin(input: {vote: Vote; entry: Node; pick: Pick; scored: Scored[]; path: string}): string {
+  const {vote, pick, path} = input
+  const texts = [...walk(input.entry.node)].flatMap(({node}) => (node.kind === 'text' ? [normalized(node.text)] : []))
+  const said = texts.filter(Boolean)
+  if (pick.margin > TWIN_MARGIN || said.length === 0 || holdsAll({vote, path, said})) return path
+  const winner = vote.byPath.get(path)
+  const holders = input.scored
+    .filter(
+      (rival) =>
+        pick.score - rival.score <= TWIN_MARGIN &&
+        winner?.ancestors.has(rival.path) === true &&
+        holdsAll({vote, path: rival.path, said}),
+    )
+    .toSorted((a, b) => (vote.byPath.get(b.path)?.chain.length ?? 0) - (vote.byPath.get(a.path)?.chain.length ?? 0))
+  return holders[0]?.path ?? path
+}
+
+function holdsAll(input: {vote: Vote; path: string; said: string[]}): boolean {
+  const {vote, path} = input
+  const held = vote.elements.filter((element) => element.path === path || element.ancestors.has(path))
+  const text = normalized(held.map((element) => element.text).join(' '))
+  return input.said.every((line) => text.includes(line))
 }
 
 function solidFill(node: DesignNode): string | null {

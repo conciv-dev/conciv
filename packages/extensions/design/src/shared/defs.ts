@@ -3,13 +3,12 @@ import type {Storage} from 'unstorage'
 import type {HomeDb} from '@conciv/db'
 import type {ServerToolPageAccess} from '@conciv/extension/registry'
 import {PageNodeShotSchema, screenshotNodeDef} from '@conciv/extension-page/defs'
+import {RawFrameSchema, type RawFrame, type SourceLoc} from '@conciv/protocol/page-types'
 import type {Store} from './store.js'
 import {ProgressSchema} from './progress.js'
 import {LiveStylesSchema} from './live-styles.js'
-import {designTool} from './design-tool.js'
 import {CatalogSchemas, type Component, type TokenSource} from './catalog-defs.js'
 import type {readIds} from './id-tree.js'
-import {componentsDef} from './components-def.js'
 import {MAGNITUDES} from './magnitudes.js'
 
 const ROLES = ['placeholder', 'data', 'unknown'] as const
@@ -24,6 +23,8 @@ export const WIDGETS = ['hidden', 'shown'] as const
 const WidgetSchema = z
   .enum(WIDGETS)
   .describe('hidden leaves the conciv widget and overlay out of every measurement; shown measures them as page')
+
+export const BROKEN_BY = ['compile', 'runtime'] as const
 
 const MeasureSourceSchema = z.enum(['dom', 'mirror', 'takumi'])
 const CapturePathSchema = z.enum(['region', 'snapdom-live', 'snapdom-mirror', 'cdp'])
@@ -339,7 +340,12 @@ export const RoundSchema = z.object({
     .string()
     .nullable()
     .default(null)
-    .describe('the compile error of a page that does not compile, file:line:column: message; nothing was measured'),
+    .describe('the error of a page that does not compile or throws, file:line:column: message; nothing was measured'),
+  brokenBy: z
+    .enum(BROKEN_BY)
+    .nullable()
+    .default(null)
+    .describe('compile for a transform error, runtime for an error the page throws while rendering'),
 })
 
 const TaggedNodeSchema = z
@@ -361,7 +367,7 @@ const LinksSchema = z.union([z.url(), z.array(z.url()).min(1)])
 
 const PathsSchema = z.union([z.string().meta({format: 'path'}), z.array(z.string().meta({format: 'path'}))])
 
-const GetInputSchema = z
+export const GetInputSchema = z
   .object({
     figma: LinksSchema.optional().describe('the Figma frame link, with its node-id; a list, one link per width'),
     document: z
@@ -385,7 +391,7 @@ const GetResultSchema = z.object({
   components: z.string().optional().describe('the project components to build from, as design_components lists them'),
 })
 
-const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
+export const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
 
 const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
 
@@ -403,6 +409,13 @@ const BrokenSchema = z.object({
   compile: CompileErrorSchema.describe('the error the dev server reports for the page'),
 })
 
+const ThrownSchema = z.object({
+  round: z.number(),
+  verdict: z.literal('broken'),
+  reasons: z.array(z.string()),
+  thrown: CompileErrorSchema.describe('the error the page throws while rendering, at the first frame in its own files'),
+})
+
 const MeasuredSchema = RoundSchema.pick({
   round: true,
   rows: true,
@@ -412,6 +425,7 @@ const MeasuredSchema = RoundSchema.pick({
   progress: true,
 }).extend({
   unchanged: z.literal(true).optional().describe('the page measured as the last round did; this is that round'),
+  fontsLoading: z.number().optional().describe('ms a measure of this check waited for fonts that were still loading'),
   progress: ProgressSchema.nullable().optional(),
   ...UnsettledSchema.partial().shape,
 })
@@ -424,9 +438,10 @@ const CheckedOneSchema = z.union([
   MeasuredSchema.extend(JUDGED),
   UnsettledSchema.extend({verdict: z.literal('unsettled'), reasons: z.array(z.string())}),
   BrokenSchema,
+  ThrownSchema,
 ])
 
-const CheckResultSchema = z.union([
+export const CheckResultSchema = z.union([
   CheckedOneSchema,
   z.object({...JUDGED, variants: z.array(z.intersection(CheckedOneSchema, z.object(VARIANT)))}),
 ])
@@ -438,12 +453,12 @@ const StatusSchema = MeasuredSchema.pick({round: true, rows: true, progress: tru
   coverage: CoverageSchema.nullable(),
 })
 
-const StatusReplySchema = z.union([
+export const StatusReplySchema = z.union([
   StatusSchema,
   z.object({...JUDGED, variants: z.array(StatusSchema.extend(VARIANT))}),
 ])
 
-const MeasureResultSchema = z.object({
+export const MeasureResultSchema = z.object({
   image: z.string(),
   width: z.number(),
   height: z.number(),
@@ -461,74 +476,32 @@ const MeasureResultSchema = z.object({
   scheme: CatalogSchemas.Scheme.default('light').describe('the prefers-color-scheme of the page when it was measured'),
   longestTask: z.number().optional(),
   pageError: z.string().optional().describe('the first line of the dev server error overlay covering the page'),
+  fontsLoading: z
+    .number()
+    .optional()
+    .describe('ms the measure waited for stylesheets and fonts that were still loading when it went ahead'),
+  thrown: z
+    .object({
+      message: z.string(),
+      frames: z.array(RawFrameSchema.required({fileName: true, line: true, column: true})),
+      ago: z.number().describe('ms between the error and the reply'),
+    })
+    .optional()
+    .describe('the last uncaught error or unhandled rejection the page raised while the widget ran'),
 })
 
 const Width = z.number().int().positive()
 
-const MeasureInputSchema = z.object({
+export const MeasureInputSchema = z.object({
   width: Width.optional().describe('the width to measure at; the mirror is read when it differs from the tab width'),
   height: Width.optional().describe('the height to capture'),
   widget: WidgetSchema.default('hidden'),
   timeout: z.number().int().positive().optional(),
 })
 
-const getDef = designTool({
-  name: `${DESIGN_TOOL_PREFIX}get`,
-  summary:
-    'Returns the design to build from a Figma frame link: every node of the frame with its id, box, paint, text, auto layout, the groups its layout implies and how it reflows at narrower widths, plus the rules the page must follow. The first call registers the frame as the design of the page; later calls return the stored design. With several links, one frame per width, each frame is registered and the reply holds one design per frame in variants.',
-  running: 'Reading the design',
-  done: 'Read the design',
-  input: GetInputSchema,
-  output: GetReplySchema,
-  keywords: ['design', 'figma', 'frame', 'nodes', 'build'],
-})
+export const ShotsInputSchema = z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)})
 
-const checkDef = designTool({
-  name: `${DESIGN_TOOL_PREFIX}check`,
-  summary:
-    'Measures the page now against the design, node by node through the elements that render each node, and returns what to fix with the verdict: a row per box that is pinned, sized or placed unlike the design, the reflow checks at the widths the design and the page media queries name, which nodes are rendered, missing or rendered twice, and done, not yet with the reasons, stalled when the large differences stopped falling, unsettled when the page did not render or rendered under half the nodes of the last settled round, or broken when the page does not compile: the reply names the file, line and error, has no rows, and nothing else was measured until the compile error is fixed; from the second unsettled check in a row the reply also carries the coverage and the rows of what did render. A page that measures as it did last time returns that same round with unchanged: true; change what the rows name to get a new round. With several frames each is measured at its width against its own nodes and the reply holds one result per frame in variants; done is every variant done.',
-  running: 'Checking the page against the design',
-  done: 'Checked the page against the design',
-  input: z.object({nodes: z.array(z.string()).optional().describe('list the rows of these design nodes only')}),
-  output: CheckResultSchema,
-  keywords: ['design', 'measure', 'rows', 'reflow', 'verdict'],
-})
-
-const statusDef = designTool({
-  name: `${DESIGN_TOOL_PREFIX}status`,
-  summary:
-    'Says where the page stands without measuring it: the verdict, counts, coverage and rows of the last design_check, or that there is none yet; with several frames, one per variant.',
-  running: 'Reading the design status',
-  done: 'Read the design status',
-  input: z.object({}),
-  output: StatusReplySchema,
-  keywords: ['design', 'status', 'verdict'],
-})
-
-const measureDef = designTool({
-  name: `${DESIGN_TOOL_PREFIX}measure`,
-  summary: 'measure the page at a width: components, pixels and how they were taken',
-  running: 'Measuring the page',
-  done: 'Measured the page',
-  input: MeasureInputSchema,
-  output: MeasureResultSchema,
-  keywords: ['design', 'measure'],
-  catalog: false,
-})
-
-const shotsDef = designTool({
-  name: `${DESIGN_TOOL_PREFIX}shots`,
-  summary:
-    'capture elements alone at a width, from the mirror when the width is not the tab width, each beside a reference',
-  running: 'Capturing elements',
-  done: 'Captured elements',
-  input: z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)}),
-  output: z.object({shots: z.array(PageNodeShotSchema.nullable())}),
-  keywords: ['design', 'image'],
-  catalog: false,
-})
-
-export const DESIGN_TOOLS = [getDef, checkDef, statusDef, measureDef, shotsDef, componentsDef] as const
+export const ShotsResultSchema = z.object({shots: z.array(PageNodeShotSchema.nullable())})
 
 type Rgb = [number, number, number]
 type MeasureSource = z.output<typeof MeasureSourceSchema>
@@ -552,7 +525,7 @@ export type Coverage = z.output<typeof CoverageSchema>
 export type Counts = z.output<typeof CountsSchema>
 export type Status = z.output<typeof StatusSchema>
 export type Got = z.output<typeof GetResultSchema>
-export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema>
+export type RoundReply = z.output<typeof MeasuredSchema> | z.output<typeof UnsettledSchema> | {thrown: CompileError}
 export type Checked = z.output<typeof CheckResultSchema>
 export type CompileError = z.output<typeof CompileErrorSchema>
 export type Ballot = {node: string; candidate: string; path: string; won: boolean} & Record<Layer, number>
@@ -595,8 +568,24 @@ export type Measurer = {
 
 export type Measured = Pick<
   z.output<typeof MeasureResultSchema>,
-  'route' | 'width' | 'overflowX' | 'queries' | 'sheets' | 'longestTask' | 'pageError' | 'masks' | 'scheme'
-> & {live: LiveComponent; raster: Raster; path: CapturePath; sources: MeasureSource[]; framework: 'react' | 'solid'}
+  | 'route'
+  | 'width'
+  | 'overflowX'
+  | 'queries'
+  | 'sheets'
+  | 'longestTask'
+  | 'pageError'
+  | 'masks'
+  | 'scheme'
+  | 'fontsLoading'
+> & {
+  live: LiveComponent
+  raster: Raster
+  path: CapturePath
+  sources: MeasureSource[]
+  framework: 'react' | 'solid'
+  thrown?: {message: string; frames: RawFrame[]; at: number}
+}
 
 export type Pairer = (input: {
   design: Design
@@ -610,6 +599,7 @@ export type Pairer = (input: {
 export type Runner = (input: {
   record: TargetRecord
   page: ServerToolPageAccess
+  since: number
   variants?: number[]
 }) => Promise<RoundReply>
 
@@ -633,6 +623,7 @@ export type DesignRuntime = {
   comparator: string
   tokens: TokenSource[]
   components: ComponentRows
+  symbolicate: (frames: RawFrame[]) => Promise<SourceLoc | null>
 }
 
 export type ComponentRows = {

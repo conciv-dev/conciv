@@ -77,7 +77,7 @@ mismatched pixels), and gives one verdict:
 
 - `done`: `much + noticeably + pins = 0`, every required node rendered (zero-size nodes, collapsed children and
   decorations are not required), no `sticksOut`, no `overflowX`, every reflow tag `ok` at 1024 and 768.
-- `stalled`: `much` has not fallen for two rounds in a row.
+- `stalled`: neither `much` nor the number of rows has fallen for two rounds in a row.
 - `not yet`: otherwise; `reasons` says which condition failed, one sentence each with the numbers.
 
 Pixels are reported, never judged (blank images and font substitution dominate the share).
@@ -495,7 +495,6 @@ every other width are inferred from that frame's layout tags. Omri: use the vari
 - At a variant's width, the page is measured against that variant's nodes: layout rows, paint rows, image rows, assets.
   `design_nodes` holds every variant's nodes, keyed by target. A conciv id pairs per variant; the Figma node ids differ
   across frames, the id in the page does not, so `getFOM(id)` answers per target.
-- Between two variant widths the reflow rows stay inferred, from the nearest variant above the measured width.
 - `design_status` shows the verdict per variant; `done` is every variant done. `design_check` reports rows grouped by
   variant.
 - Assets are exported once per Figma node id; a picture shared by three frames is three node ids and three files.
@@ -578,3 +577,42 @@ reach them without an eval.
   `addSourceToJsx` stamping (`persist: true`), so every element of the overlay carries `data-conciv-key` from the
   source file and pairs like any element on the page. Nobody writes a key by hand.
 - No new verb and no approval bypass: `page_eval` keeps asking.
+
+An image row compares pictures, not file names (2026-11-10). A node with an image fill or an image export matches a
+page element whose picture is the same picture at any size: the two are scaled to the smaller box and compared with
+the paint tolerance the look rows already use. A different file with the same picture is a match; the same file with
+a different picture is a `wrong image` row. The row's text names both pictures when they differ.
+
+A page that throws while rendering is the verdict `broken` (2026-11-10). When the page under check reports an
+uncaught error or an unhandled rejection between navigation and settle, or renders no design node while the console
+holds such an error, `design_check` answers `verdict: broken` with the error's first line, file and position when the
+stack has them, no rows, and the rule 'fix the runtime error first; nothing else was measured'. The round is stored
+with that verdict so the x-ray shows it, the same way a page that does not compile is.
+
+A text node pairs with the element whose only text it is (2026-11-10). When a design text node's parent is paired to
+an element whose text content, trimmed, is that node's text and which holds no other element with text, the text node
+pairs to that element's text, measured as the range box of its text, and its look rows read the element's font, colour
+and line height. The agent is never asked to wrap a button's label in a span.
+
+A check reloads a page that threw before the last edit (2026-11-10). When the last stored round is `broken` with a
+runtime error and a file under the project changed after that error, `design_check` reloads the page once before it
+measures, so a fix the framework could not apply to an unmounted root is seen. A page that throws again after the
+reload is `broken` with the new error.
+
+A text that wraps to more lines than the frame is a row (2026-11-10). When a paired text element's line count differs
+from the design node's line count (the design's `lineHeight` into its box height against the element's `lineHeight`
+into its height), `design_check` emits a `reflow` row on that text node, 'wraps to N lines, the frame has M', before
+any row on its parents, and the parent's content-taller row names it as the cause. The tolerance on a text's height
+does not hide a line count that differs: lines are counted, not measured.
+
+A page whose height differs from the frame's by more than the frame's own height is the first row (2026-11-10).
+`design_check` emits, before any node row, a `reflow` row on the root: 'the page is H px tall, the frame is F; the
+tallest element past the frame is <element> at <source line>, N px'. The element named is the one whose box extends
+furthest below the frame's bottom among elements whose own height exceeds the frame's and none of whose descendants'
+does, so the element that grew is named, not the sections that hold it, through `display: contents` wrappers too. The coverage sentence follows it, not the
+other way round.
+
+A design with frames is measured at its frames' widths only (2026-11-10). A breakpoint width (a tag's `breakpoint`, a
+page query) between two frames is not measured: its rows compared the page against a breakpoint inferred from one
+frame's children (the sum of their drawn widths), while the design's next frame says what the page does there. A
+single-frame design keeps its breakpoint widths.

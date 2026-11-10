@@ -8,7 +8,8 @@ import {z} from 'zod'
 import {closeHomeDb, extensionTable, openDb, openHomeDb} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
 import type {XrayRouter} from '@conciv/extension-design/server'
-import {DESIGN_TOOLS, type Design, type DesignNode, type IdNode} from '@conciv/extension-design/defs'
+import type {Design, DesignNode, IdNode} from '@conciv/extension-design/defs'
+import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {readIds} from '../../extensions/design/src/shared/id-tree.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {designTables} from '../../extensions/design/src/server/tables.js'
@@ -42,8 +43,9 @@ function blankPng(input: {width: number; height: number}): Uint8Array {
   return new Uint8Array(PNG.sync.write(png))
 }
 
-function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown}> {
-  if ('unsettled' in checked || 'compile' in checked) throw new Error(`no round: ${JSON.stringify(checked)}`)
+function roundOf(checked: Checked): Exclude<Checked, {unsettled: true} | {compile: unknown} | {thrown: unknown}> {
+  if ('unsettled' in checked || 'compile' in checked || 'thrown' in checked)
+    throw new Error(`no round: ${JSON.stringify(checked)}`)
   return checked
 }
 
@@ -263,7 +265,7 @@ describe('catalog component rows', () => {
       await read({from: 'node_components', select: ['node', 'source']}),
       await read({from: 'fom', select: ['node', 'id', 'site']}),
       placed.find((entry) => entry.nodeId === '18:2')?.component?.name,
-    ]).toEqual([[['18:2', 'src/App.tsx:159']], [['18:2', 'kItPlA', 'src/App.tsx:159']], 'Pill'])
+    ]).toEqual([[['18:2', 'src/App.tsx:223']], [['18:2', 'kItPlA', 'src/App.tsx:223']], 'Pill'])
   })
 
   describe('a kit root that carries only its call site', () => {

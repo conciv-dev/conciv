@@ -296,6 +296,7 @@ export function createStore(input: {
             verdict: written.verdict,
             unsettled: written.unsettled,
             broken: written.broken,
+            broken_by: written.brokenBy,
             live: livePath,
             diff: diffPath,
             ids: ids === undefined ? null : {...ids.tree, root: attached({node: ids.tree.root, mapping: {}})},

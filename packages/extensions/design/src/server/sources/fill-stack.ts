@@ -19,6 +19,7 @@ import {
 } from 'color-blend'
 import {range} from 'es-toolkit'
 import type {z} from 'zod'
+import {designConfig} from '../../shared/tolerances.js'
 import type {figmaSchemas} from './figma-schema.js'
 
 export async function flattenStack(input: {
@@ -47,7 +48,7 @@ type Layer = z.infer<typeof figmaSchemas.layer>
 type Raw = {width: number; height: number; channels: typeof CHANNELS}
 type PixelBlend = typeof color
 
-const ASSET_SCALE = 2
+const ASSET_SCALE = designConfig.tolerances.assetScale
 const CHANNELS = 4
 const TRANSPARENT = {r: 0, g: 0, b: 0, alpha: 0}
 const BLENDS = new Map<string, PixelBlend>([
@@ -90,15 +91,10 @@ async function blended(input: {
 }
 
 async function paintedLayer(input: {layer: Layer; images: Map<string, Uint8Array>; raw: Raw}): Promise<Buffer | null> {
-  const {layer, raw} = input
+  const {layer} = input
   const drawn = await drawnLayer(input)
   if (drawn === null) return null
-  return drawn
-    .ensureAlpha()
-    .linear([1, 1, 1, layer.opacity], [0, 0, 0, 0])
-    .resize(raw.width, raw.height, {fit: 'fill'})
-    .raw()
-    .toBuffer()
+  return drawn.ensureAlpha().linear([1, 1, 1, layer.opacity], [0, 0, 0, 0]).raw().toBuffer()
 }
 
 async function drawnLayer(input: {layer: Layer; images: Map<string, Uint8Array>; raw: Raw}): Promise<Sharp | null> {
