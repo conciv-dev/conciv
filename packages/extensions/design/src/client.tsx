@@ -18,6 +18,7 @@ import {secondOpinion} from './client/takumi.js'
 import {pageQueries} from './client/queries.js'
 import {frozen} from './client/freeze.js'
 import {readStamps} from './client/stamps.js'
+import {siteNodeKey} from './client/site-node-key.js'
 
 declare global {
   interface Window {
@@ -512,12 +513,14 @@ async function collectComponents(input: {root: Document; size: Size; widget: Wid
   const view = input.root.defaultView
   if (view === null) return []
   const scan = scanSheets({doc: input.root, view})
-  const keyed = input.widget === 'shown' ? deepKeyed(input.root) : [...input.root.querySelectorAll(`[${KEY_ATTR}]`)]
-  const keys = keyed.map((el) => el.getAttribute(KEY_ATTR))
+  const stamped = `[${KEY_ATTR}], [${SITE_ATTR}]`
+  const keyed =
+    input.widget === 'shown' ? deepMatching({root: input.root, stamped}) : [...input.root.querySelectorAll(stamped)]
+  const keys = keyed.map(nodeKey)
   const repeated = new Set(keys.filter((key, index) => key !== null && keys.indexOf(key) !== index))
   const el = input.root.documentElement
   const marks =
-    input.widget === 'shown' ? `[${SOURCE_ATTR}], [${KEY_ATTR}]` : `[${SOURCE_ATTR}], [${SITE_ATTR}][${KEY_ATTR}]`
+    input.widget === 'shown' ? `[${SOURCE_ATTR}], [${KEY_ATTR}], [${SITE_ATTR}]` : `[${SOURCE_ATTR}], [${SITE_ATTR}]`
   const skip = hiddenOverlays(input.widget).join(', ')
   return collectUnder({
     el,
@@ -533,10 +536,14 @@ async function collectComponents(input: {root: Document; size: Size; widget: Wid
   })
 }
 
-function deepKeyed(root: Document | ShadowRoot): Element[] {
-  const all = [...root.querySelectorAll('*')]
-  const own = all.filter((el) => el.hasAttribute(KEY_ATTR))
-  return own.concat(all.flatMap((el) => (el.shadowRoot === null ? [] : deepKeyed(el.shadowRoot))))
+function deepMatching(input: {root: Document | ShadowRoot; stamped: string}): Element[] {
+  const all = [...input.root.querySelectorAll('*')]
+  const own = all.filter((el) => el.matches(input.stamped))
+  return own.concat(all.flatMap((el) => (el.shadowRoot === null ? [] : deepMatching({...input, root: el.shadowRoot}))))
+}
+
+function nodeKey(el: Element): string | null {
+  return el.getAttribute(KEY_ATTR) ?? siteNodeKey(el)
 }
 
 type Walk = {
@@ -594,7 +601,7 @@ async function componentTree(input: Walk): Promise<LiveComponent> {
   return {
     source,
     ...(site === undefined ? {} : {site}),
-    key: el.getAttribute(KEY_ATTR),
+    key: nodeKey(el),
     bounds: pageBounds({rect: el.getBoundingClientRect(), view}),
     scrolls: el.scrollWidth > el.clientWidth + SCROLL_SLACK,
     owner: ownerPath(el),
@@ -663,17 +670,21 @@ function instancePath(el: Element): string | null {
 
 function stampRepeat(input: {el: Element; repeated: Set<string | null>}): string | null {
   const {el} = input
-  const key = el.getAttribute(KEY_ATTR)
+  const key = nodeKey(el)
   const siblings = [...(el.parentElement?.children ?? [])]
-  if (key === null || !input.repeated.has(key)) return null
+  if (key === null) return null
+  if (!input.repeated.has(key)) return el.hasAttribute(KEY_ATTR) ? null : stampedAs({el, stamp: key})
   const read = listKey(el)
   const kept = el.getAttribute(INSTANCE_ATTR)
   if (read === null && kept !== null) return kept
   const above = el.parentElement?.closest(`[${KEY_ATTR}]`) ?? null
   const prefix = above === null ? '' : `${above.getAttribute(INSTANCE_ATTR) ?? above.getAttribute(KEY_ATTR) ?? ''}/`
-  const stamp = `${prefix}${key}/${read ?? String(siblings.indexOf(el))}`
-  el.setAttribute(INSTANCE_ATTR, stamp)
-  return stamp
+  return stampedAs({el, stamp: `${prefix}${key}/${read ?? String(siblings.indexOf(el))}`})
+}
+
+function stampedAs(input: {el: Element; stamp: string}): string {
+  input.el.setAttribute(INSTANCE_ATTR, input.stamp)
+  return input.stamp
 }
 
 function listKey(el: Element): string | null {

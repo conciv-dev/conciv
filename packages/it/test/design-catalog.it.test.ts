@@ -251,6 +251,67 @@ describe('catalog component rows', () => {
     ]).toEqual([[['18:2', 'src/App.tsx:159']], [['18:2', 'kItPlA', 'src/App.tsx:159']], 'Pill'])
   })
 
+  describe('a kit root that carries only its call site', () => {
+    const SITE_LINK = 'https://www.figma.com/design/ItFixtureKey/x?node-id=19-1'
+    const SITE_DOCUMENT = documentOf({
+      id: '19:1',
+      children: [namedBox({id: '19:2', name: 'Tag', y: 40}), namedBox({id: '19:3', name: 'Marker', y: 160})],
+    })
+
+    async function siteRounds(pages: string[]) {
+      await kit.goto(pages[0] ?? '')
+      const image = join(kit.targetsDir, 'site-figma.png')
+      await writeFile(image, blankPng({width: 1280, height: 720}))
+      const got = await call('design_get', {figma: SITE_LINK, image, document: SITE_DOCUMENT})
+      return pages.reduce<Promise<{layers: unknown[][]; rows: unknown[][]}[]>>(async (earlier, page, index) => {
+        const listed = await earlier
+        if (index > 0) await kit.goto(page)
+        const checked = roundOf(await call('design_check', {}))
+        const layers = await xrayRpc.xray.layers({id: got.target, round: checked.round})
+        const placed =
+          layers === null ? [] : [...walk(layers.root)].flatMap(({node}) => node.fom.map((entry) => ({node, entry})))
+        return [
+          ...listed,
+          {
+            layers: placed
+              .filter(({entry}) => entry.nodeId === '19:2' || entry.nodeId === '19:3')
+              .map(({node, entry}) => [entry.nodeId, node.id, entry.component?.name])
+              .toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
+            rows: checked.rows
+              .filter((row) => row.magnitude === 'component')
+              .map((row) => [row.node, row.component, row.specifier, row.text]),
+          },
+        ]
+      }, Promise.resolve([]))
+    }
+
+    it('makes the roots of two kit components with no key nodes, paired and credited, and lists the one the page then draws by hand', async () => {
+      expect(await siteRounds(['site-kit', 'site-hand'])).toEqual([
+        {
+          layers: [
+            ['19:2', 'src/SitePage.tsx:7/0', 'Pill'],
+            ['19:3', 'src/SitePage.tsx:8/0', 'Badge'],
+          ],
+          rows: [],
+        },
+        {
+          layers: [
+            ['19:2', 'src/SitePage.tsx:16/0', 'Pill'],
+            ['19:3', 'sThBdg', 'SiteHandPage'],
+          ],
+          rows: [
+            [
+              '19:3',
+              'Badge',
+              './ui-kit/Badge.tsx',
+              "Marker was rendered by `Badge` and is now drawn by hand (`import {Badge} from './ui-kit/Badge.tsx'`)",
+            ],
+          ],
+        },
+      ])
+    })
+  })
+
   it('lists no row for a component the page lost while the component is do-not-use, and the row once cleared', async () => {
     const pages = ['drift-kit', 'drift-hand']
     const flagged = await call('design_components', {doNotUse: 'Pill'})
