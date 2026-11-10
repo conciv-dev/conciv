@@ -14,9 +14,9 @@ export function pageHeightRows(input: {
   const elements = [...walk(live)].filter(({node}) => node !== live).map(({node}) => node)
   const page = Math.round(Math.max(frame, ...elements.map(bottomOf)))
   if (Math.abs(page - frame) <= frame) return []
-  const tall = (element: LiveComponent): boolean => element.bounds.h > frame
-  const [tallest] = elements
-    .filter((element) => tall(element) && !element.children.some(tall))
+  const tall = elements.filter((element) => element.bounds.h > frame)
+  const [tallest] = tall
+    .filter((element) => !tall.some((other) => other.path.startsWith(`${element.path}/`)))
     .toSorted((a, b) => bottomOf(b) - bottomOf(a))
   const named =
     tallest === undefined

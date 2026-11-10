@@ -97,7 +97,9 @@ export function App() {
     return (
       <main className="tall" data-conciv-key="tAlLmn">
         <p className="tall-title" data-conciv-key="tAlLtx">Tall page</p>
-        <img className="tall-line" src={TALL_LINE} alt="" style={{width: new URLSearchParams(location.search).get('width') ?? '100%'}} data-conciv-key="tAlLim" />
+        <div className="tall-wrap" data-conciv-key="tAlLwr">
+          <img className="tall-line" src={TALL_LINE} alt="" style={{width: new URLSearchParams(location.search).get('width') ?? '100%'}} data-conciv-key="tAlLim" />
+        </div>
       </main>
     )
   }

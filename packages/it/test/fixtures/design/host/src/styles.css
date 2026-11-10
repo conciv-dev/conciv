@@ -277,6 +277,10 @@ button {
   font: 32px/40px monospace;
 }
 
+.tall-wrap {
+  display: contents;
+}
+
 .tall-line {
   display: block;
   height: auto;
