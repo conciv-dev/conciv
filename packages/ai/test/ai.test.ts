@@ -13,7 +13,7 @@ import {
   type TurnHooks,
 } from '../src/server.js'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, onTestFinished} from 'vitest'
 import {z} from 'zod'
 import {
   approvalAskOf,
@@ -525,7 +525,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
-    return createChatServer({
+    const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
@@ -533,6 +533,8 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       firstOutputTimeoutMs: 30_000,
       log,
     })
+    onTestFinished(() => server.endAllRuns())
+    return server
   }
 
   runPersistenceConformance(
@@ -760,6 +762,10 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
   const dist: typeof import('../src/server.js') = await import(new URL('../dist/server.js', import.meta.url).href)
   const ReportSchema = z.object({workers: z.array(z.object({header: z.object({threadId: z.number()})}))})
   const liveWorkers = () => ReportSchema.parse(process.report.getReport()).workers.map(({header}) => header.threadId)
+  const workersFromHere = () => {
+    const before = new Set(liveWorkers())
+    return () => liveWorkers().filter((id) => !before.has(id))
+  }
 
   function sandbox(limits: {timeout: number; memoryLimit: number}) {
     const driver = dist.quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
@@ -823,31 +829,34 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     await driver.dispose()
   })
 
-  it('boots one worker at creation and consecutive executes all run on it', async () => {
+  it('the first execute runs on the worker booted at creation and later executes reuse it', async () => {
+    const ours = workersFromHere()
     const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
-    const booted = liveWorkers()
+    expect(await run('return 1')).toMatchObject({success: true, value: 1})
+    const booted = ours()
     expect(booted).toHaveLength(1)
-    for (const value of [1, 2, 3]) {
+    for (const value of [2, 3, 4]) {
       expect(await run(`return ${value}`)).toMatchObject({success: true, value})
-      expect(liveWorkers()).toEqual(booted)
+      expect(ours()).toEqual(booted)
     }
     await driver.dispose()
-    expect(liveWorkers()).toEqual([])
+    expect(ours()).toEqual([])
   })
 
   it('disposing the driver right after creation leaves no live worker', async () => {
+    const ours = workersFromHere()
     const {driver} = sandbox({timeout: 10_000, memoryLimit: 64})
-    expect(liveWorkers()).toHaveLength(1)
     await driver.dispose()
-    expect(liveWorkers()).toEqual([])
+    expect(ours()).toEqual([])
   })
 
   it('disposing the driver after concurrent runs leaves no live worker', async () => {
+    const ours = workersFromHere()
     const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 64})
     await Promise.all([run('return 1'), run('return 2')])
-    expect(liveWorkers().length).toBeGreaterThan(0)
+    expect(ours().length).toBeGreaterThan(0)
     await driver.dispose()
-    expect(liveWorkers()).toEqual([])
+    expect(ours()).toEqual([])
   })
 
   it('the chat server runs every return 1 on the worker it booted and ending all runs frees it', async () => {
@@ -856,6 +865,7 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
       'CREATE TABLE chat_runs (run_id text PRIMARY KEY, thread_id text NOT NULL, harness_id text NOT NULL, status text NOT NULL, started_at integer NOT NULL, finished_at integer, error text, error_code text, usage_json text, sandbox_key text, detached_since integer, cancel_requested integer, driver_epoch integer)',
     )
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
+    const ours = workersFromHere()
     const server = await dist.createChatServer({
       stores: dist.drizzleChatStores(drizzle({client}), {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
@@ -871,8 +881,6 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
       firstOutputTimeoutMs: 30_000,
       log: () => undefined,
     })
-    const booted = liveWorkers()
-    expect(booted).toHaveLength(1)
     const echo = defineTool({
       name: 'echo',
       description: 'Echoes its input.',
@@ -881,11 +889,14 @@ describe('quickjs code mode reuses a warm worker without sharing state', async (
     }).server(async (args) => args)
     const runner = server.codeRunner([echo])
     if (runner === null) throw new Error('code mode found no driver')
+    expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
+    const booted = ours()
+    expect(booted).toHaveLength(1)
     for (const _ of Array.from({length: 20})) {
       expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
-      expect(liveWorkers()).toEqual(booted)
+      expect(ours()).toEqual(booted)
     }
     await server.endAllRuns()
-    expect(liveWorkers()).toEqual([])
+    expect(ours()).toEqual([])
   })
 })
