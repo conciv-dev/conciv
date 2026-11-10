@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {once} from 'node:events'
 import {orderBy} from 'es-toolkit'
 import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
@@ -84,7 +85,11 @@ export type PageAnswer = {result: Record<string, unknown>; capture?: PageCapture
 export type BrowserTabFocus = {focusedAt: number; visible: boolean}
 
 export type PageBus = {
-  ask: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>, browserTab?: string) => Promise<PageAnswer>
+  ask: (
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    route?: {browserTab: string} | {mutating: boolean},
+  ) => Promise<PageAnswer>
   connected: (sessionId: SessionId) => boolean
   anySubscriber: () => boolean
   openSessions: () => Array<{sessionId: SessionId; browserTabs: string[]}>
@@ -106,9 +111,12 @@ type SessionPage = {pending: Pending<PageOutcome>; browserTabs: Map<string, Brow
 
 const UNREPORTED: BrowserTabFocus = {focusedAt: 0, visible: false}
 
+const BROWSER_TAB_RETURN_MS = 5000
+
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const subscribed = {count: 0}
+  const arrivals = new EventTarget()
 
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
@@ -132,6 +140,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     subscribed.count += 1
     const id = `b${subscribed.count}`
     page.browserTabs.set(id, {id, order: subscribed.count, emit, focus})
+    arrivals.dispatchEvent(new Event(sessionId))
     return () => {
       page.browserTabs.delete(id)
       page.pending.abandon(id, pageFailure('no-widget', `browser tab ${id} closed before it replied`))
@@ -165,32 +174,68 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     throw pageFailure('no-widget', `browser tab ${browserTab ?? ''} is not open; open browser tabs: ${open}`)
   }
 
-  async function ask(
+  async function send(
     sessionId: SessionId,
+    tab: BrowserTab,
     query: Omit<PageQuery, 'requestId'>,
-    browserTab?: string,
-  ): Promise<PageAnswer> {
-    const page = bySession.get(sessionId)
-    const tab = target(sessionId, page, browserTab)
+    ms: number,
+  ): Promise<PageOutcome> {
     const requestId = randomUUID()
-    const declared = query.input['timeout']
-    const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     const settled = pageOf(sessionId)
     tab.emit({requestId, ...query})
-    const outcome = await settled.pending
+    return settled.pending
       .await(requestId, tab.id, ms)
       .catch((error: unknown) => {
         throw isPageFailure(error) ? error : pageFailure('timeout', 'page did not reply (no widget connected?)')
       })
       .finally(() => dropIfIdle(sessionId, settled))
+  }
+
+  function servingAgain(sessionId: SessionId, ms: number): Promise<unknown> {
+    if (connected(sessionId)) return Promise.resolve()
+    return once(arrivals, sessionId, {signal: AbortSignal.timeout(Math.max(ms, 0))})
+  }
+
+  async function ask(
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    route?: {browserTab: string} | {mutating: boolean},
+  ): Promise<PageAnswer> {
+    const pinned = route !== undefined && 'browserTab' in route ? route.browserTab : undefined
+    const tab = target(sessionId, bySession.get(sessionId), pinned)
+    const declared = query.input['timeout']
+    const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
+    const deadline = Date.now() + ms
+    const outcome = await send(sessionId, tab, query, ms).catch(async (error: unknown) => {
+      if (route === undefined || 'browserTab' in route || !isPageFailure(error)) throw error
+      if (route.mutating) {
+        throw pageFailure(
+          'no-widget',
+          `the page reloaded or closed during ${query.name}; it may already have run. Take a new snapshot before continuing`,
+        )
+      }
+      await servingAgain(sessionId, Math.min(BROWSER_TAB_RETURN_MS, deadline - Date.now())).catch(() => {
+        throw error
+      })
+      return send(
+        sessionId,
+        target(sessionId, bySession.get(sessionId), undefined),
+        query,
+        Math.max(deadline - Date.now(), 0),
+      )
+    })
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
     if (outcome.capture === undefined) return {result: outcome.result}
     return {result: outcome.result, capture: outcome.capture}
   }
 
+  function connected(sessionId: SessionId): boolean {
+    return (bySession.get(sessionId)?.browserTabs.size ?? 0) > 0
+  }
+
   return {
     ask,
-    connected: (sessionId) => (bySession.get(sessionId)?.browserTabs.size ?? 0) > 0,
+    connected,
     anySubscriber,
     openSessions,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,

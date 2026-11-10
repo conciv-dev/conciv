@@ -86,7 +86,7 @@ function browserTabPages(
 }
 
 function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Promise<TabPage> {
-  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, browserTab).then(
+  const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, {browserTab}).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
     () => null,
   )

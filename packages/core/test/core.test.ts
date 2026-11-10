@@ -676,6 +676,66 @@ describe('page bus and the session scope', () => {
     expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {clicked: 'yes'}})).toBe(false)
   })
 
+  function replyingTab(bus: ReturnType<typeof makePageBus>, result: Record<string, unknown>): unknown[] {
+    const frames: unknown[] = []
+    bus.subscribe(SESSION_A, (frame) => {
+      frames.push(frame)
+      const requestId = requestIdOf(frame)
+      if (requestId !== null) queueMicrotask(() => bus.resolve(SESSION_A, requestId, {ok: true, result}))
+    })
+    return frames
+  }
+
+  it('a reading call that loses its browser tab is sent once more to the next tab that serves the session', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await setImmediate()
+    const reloaded = replyingTab(bus, {href: '/after-reload'})
+    expect(await answered).toEqual({result: {href: '/after-reload'}})
+    expect(reloaded).toHaveLength(1)
+  })
+
+  it('a reading call that loses its browser tab goes at once to the other tab of the session, focused last', async () => {
+    const bus = makePageBus(2000)
+    const other = replyingTab(bus, {href: '/other'})
+    const lost = bus.subscribe(
+      SESSION_A,
+      () => {},
+      () => ({focusedAt: 1, visible: true}),
+    )
+    const answered = bus.ask(SESSION_A, {name: 'page_snapshot', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    expect(await answered).toEqual({result: {href: '/other'}})
+    expect(other).toHaveLength(1)
+  })
+
+  it('a reading call whose browser tab never comes back fails as before once its own timeout runs out', async () => {
+    const bus = makePageBus(100)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_route', input: {}, agentId: SESSION_A}, {mutating: false})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {code: 'no-widget', message: 'browser tab b1 closed before it replied'},
+    })
+  })
+
+  it('a changing call that loses its browser tab is never sent again and says it may already have run', async () => {
+    const bus = makePageBus(2000)
+    const lost = bus.subscribe(SESSION_A, () => {})
+    const answered = bus.ask(SESSION_A, {name: 'page_click', input: {}, agentId: SESSION_A}, {mutating: true})
+    lost()
+    await expect(answered).rejects.toMatchObject({
+      error: {
+        code: 'no-widget',
+        message:
+          'the page reloaded or closed during page_click; it may already have run. Take a new snapshot before continuing',
+      },
+    })
+    expect(replyingTab(bus, {})).toHaveLength(0)
+  })
+
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()
     try {
