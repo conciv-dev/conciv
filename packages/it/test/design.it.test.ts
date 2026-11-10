@@ -2241,11 +2241,22 @@ const STORE_RUN = 'store run '
 
 const TRIAL_FIXTURE = fileURLToPath(new URL('fixtures/trials/figma7/', import.meta.url))
 
-async function trial(input: {args: string[]; home: string; stdin?: string}): Promise<string> {
+const MOBILE_LINK = 'https://www.figma.com/design/V1Ty9hzxZiyT32hKXNekD0/x?node-id=100-1468'
+
+const DesignRootSchema = z.object({root: z.custom<Parameters<typeof walk>[0]>()})
+
+const PinnedDocumentSchema = z.object({
+  nodes: z.record(
+    z.string(),
+    z.object({document: z.object({absoluteBoundingBox: z.object({width: z.number(), height: z.number()})})}),
+  ),
+})
+
+async function trial(input: {args: string[]; home: string; stdin?: string; env?: NodeJS.ProcessEnv}): Promise<string> {
   const running = promisify(execFile)(
     process.execPath,
     [fileURLToPath(import.meta.resolve('tsx/cli')), TRIAL_BIN, ...input.args],
-    {env: {...process.env, CONCIV_HOME: input.home}},
+    {env: {...(input.env ?? process.env), CONCIV_HOME: input.home}},
   )
   running.child.stdin?.end(input.stdin ?? '')
   return (await running).stdout
@@ -2344,6 +2355,61 @@ describe('trial', () => {
         select: ['model', 'wave', 'lane', 'verdict'],
       }),
     ).toEqual([{model: 'it-model', wave: name, lane: 'lane-1', verdict: 'not-yet'}])
+  })
+
+  it('wave with a pinned figma, document and image design lands a run whose target has the document node count', async () => {
+    const home = await tempDir('conciv-wave-home-')
+    const waveDir = await mkdtemp(join(FIXTURES, 'pinned-'))
+    importedDirs.push(waveDir)
+    const document = join(TRIAL_FIXTURE, 'designs', 'rest-raw-mobile.json')
+    const printed = await trial({
+      home,
+      env: Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'FIGMA_API_KEY')),
+      args: [
+        'wave',
+        basename(waveDir),
+        '--runs',
+        '1',
+        '--model',
+        'it-model',
+        '--no-agent',
+        '--blind',
+        '--width',
+        '390',
+        '--trial',
+        TRIAL_FIXTURE,
+        '--route',
+        '/?variant=agency',
+        '--design',
+        `figma:${MOBILE_LINK},document:${document},image:${join(TRIAL_FIXTURE, 'designs', 'target-mobile.png')}`,
+      ],
+    })
+    const line = printed.split('\n').find((each) => each.startsWith(`lane-1 ${STORE_RUN}`))
+    if (line === undefined) throw new Error(`trial wave printed no store run for lane-1:\n${printed}`)
+    const runId = Number(line.slice(`lane-1 ${STORE_RUN}`.length))
+    const {sources} = homeCatalog(home)
+    const [stored] = z
+      .array(z.object({link: z.string(), width: z.number(), height: z.number(), design: DesignRootSchema}))
+      .parse(
+        await sources.read({
+          from: 'design_stored_targets',
+          where: `run == ${runId}`,
+          select: ['link', 'width', 'height', 'design'],
+        }),
+      )
+    const frame = PinnedDocumentSchema.parse(JSON.parse(await readFile(document, 'utf8'))).nodes['100:1468']
+    const said = printed.split('\n').find((each) => each.startsWith('lane-1 target '))
+    expect([
+      stored?.link,
+      stored?.width,
+      stored?.height,
+      stored === undefined ? 0 : [...walk(stored.design.root)].length,
+    ]).toEqual([
+      'V1Ty9hzxZiyT32hKXNekD0/100:1468',
+      frame?.document.absoluteBoundingBox.width,
+      frame?.document.absoluteBoundingBox.height,
+      Number(said?.split(' nodes ')[1]?.split(' ')[0]),
+    ])
   })
 
   it('judge names every width of a run whose design or screenshot is missing and writes no judgement', async () => {

@@ -22,6 +22,8 @@ export async function wave(argv: string[]): Promise<void> {
       'lane-root': {type: 'string', default: FIXTURES_ROOT},
       route: {type: 'string'},
       agent: {type: 'boolean', default: true},
+      blind: {type: 'boolean', default: false},
+      width: {type: 'string'},
     },
   })
   const [name] = positionals
@@ -30,16 +32,20 @@ export async function wave(argv: string[]): Promise<void> {
   if (model === undefined) throw new Error('trial wave takes --model <model>')
   if (values.trial === undefined)
     throw new Error('trial wave takes --trial <dir> holding src, assets, prompt.md, head.txt')
-  const designs = values.design.flatMap((ref) => {
-    const at = ref.indexOf(':')
-    return [`--${DesignKindSchema.parse(ref.slice(0, at))}`, ref.slice(at + 1)]
-  })
+  const designs = values.design.flatMap((triple) =>
+    triple.split(',').flatMap((ref) => {
+      const at = ref.indexOf(':')
+      return [`--${DesignKindSchema.parse(ref.slice(0, at))}`, ref.slice(at + 1)]
+    }),
+  )
   const shared = [
     '--wave',
     name,
     ...designs,
     ...(values.agent ? ['--agent', '--model', model] : []),
     ...(values.route === undefined ? [] : ['--route', values.route]),
+    ...(values.blind ? ['--blind'] : []),
+    ...(values.width === undefined ? [] : ['--width', values.width]),
   ]
   const trial = resolve(values.trial)
   const root = resolve(values['lane-root'])
