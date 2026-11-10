@@ -19,4 +19,14 @@ export const {
   node_components,
 } = runsTables
 
-export const {run_summary, round_rows, hint_vs_drawn, kit_per_round, mispairs, lost_components} = runsViews
+export const {
+  run_summary,
+  round_rows,
+  hint_vs_drawn,
+  kit_per_round,
+  mispairs,
+  lost_components,
+  page_height_rows,
+  broken_rounds,
+  lowest_rendered,
+} = runsViews

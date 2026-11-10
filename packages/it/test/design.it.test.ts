@@ -1616,6 +1616,22 @@ describe('runs store', () => {
     )
   })
 
+  it('answers the wave questions: broken rounds, page-height rows and the lowest rendered count per width', async () => {
+    const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
+    const broken = countIn({client: source, table: 'design_rounds', where: 'WHERE broken IS NOT NULL'})
+    const page = countIn({client: source, table: 'design_rows', where: "WHERE kind = 'page'"})
+    const targets = countIn({client: source, table: 'design_targets'})
+    source.close()
+    const {runId} = await importedFixture()
+    const where = `run == ${runId}`
+    const [brokenRows, pageRows, lowest] = await Promise.all(
+      ['design_broken_rounds', 'design_page_height_rows', 'design_lowest_rendered'].map((from) =>
+        kit.rpc.db.read({from, where}),
+      ),
+    )
+    expect([brokenRows?.length, pageRows?.length, lowest?.length]).toEqual([broken, page, targets])
+  })
+
   it('reads the run summary of every imported run through the CLI, filtered by cost', async () => {
     const {runId} = await importedFixture()
     const source = new DatabaseSync(join(RUN_FIXTURE, '.conciv', 'conciv.db'), {readOnly: true})
