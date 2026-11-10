@@ -1,5 +1,5 @@
 import {Outlet, createFileRoute, useMatchRoute} from '@tanstack/solid-router'
-import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
+import {For, Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
@@ -92,7 +92,7 @@ function SettingsLayout(): JSX.Element {
         }),
     }))
   const tabs = [...mainTabs, ...extensionTabs, advancedTab]
-  const orientation = createMemo(() => (tabs.length <= MAX_TOP_ROW_TABS ? 'horizontal' : 'vertical'))
+  const orientation = tabs.length <= MAX_TOP_ROW_TABS ? 'horizontal' : 'vertical'
   const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
   const close = () =>
@@ -113,13 +113,13 @@ function SettingsLayout(): JSX.Element {
       <Tabs.Root
         class={SPLIT}
         value={current()}
-        orientation={orientation()}
+        orientation={orientation}
         onValueChange={(details) => select(details.value)}
       >
         <Tabs.List class={RAIL} aria-label="Settings sections">
           <Tabs.Indicator class={INDICATOR} />
           <For each={[...mainTabs, ...extensionTabs]}>{(tab) => <TabTrigger tab={tab} />}</For>
-          <Show when={orientation() === 'vertical'}>
+          <Show when={orientation === 'vertical'}>
             <span class={SPACER} aria-hidden="true" />
           </Show>
           <TabTrigger tab={advancedTab} />
