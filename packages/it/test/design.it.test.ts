@@ -796,6 +796,11 @@ describe('catalog hints on design_get', () => {
     return call('design_get', {figma: HINTED_LINK, image, document: HINTED_DOCUMENT})
   }
 
+  function firstOfTier(input: {text: string; tier: string}): string {
+    const block = input.text.split('\n\n').find((each) => each.split('\n').at(-1)?.startsWith(`${input.tier} · `))
+    return block?.split('\n')[0] ?? ''
+  }
+
   it('hints the component a node names as a whole word, and none where two catalog names are named', async () => {
     const got = await hintedTarget()
     expect(NAMES.map((name) => got.nodes.find((node) => node.name === name)?.hint?.component ?? null)).toEqual([
@@ -805,6 +810,17 @@ describe('catalog hints on design_get', () => {
       null,
       'TooltipIconButton',
     ])
+  })
+
+  it('orders each tier by the components the design hints at, and keeps the order without a design', async () => {
+    const got = await hintedTarget()
+    const text = got.components ?? ''
+    expect([firstOfTier({text, tier: 'kit'}), firstOfTier({text, tier: 'app'})]).toEqual([
+      "import {Button} from '@conciv/ui-kit-system'",
+      "import {Chip} from './src/Chip.tsx'",
+    ])
+    const listed = await call('design_components', {})
+    expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
 })
 

@@ -6,6 +6,7 @@ import type {
   CatalogConfig,
   CatalogFlag,
   Component,
+  Hint,
   Hinter,
   NodeRef,
   PropSketch,
@@ -155,10 +156,10 @@ async function withCatalog(input: {reply: GetReply; ctx: DesignContext}): Promis
 async function withComponents(input: {got: Got; ranked: Ranked[]; ctx: DesignContext}): Promise<Got> {
   const {got, ranked, ctx} = input
   const config = ctx.catalogConfig
-  const section = config.section ? {components: renderComponents({ranked, limits: config})} : {}
-  if (!config.hint) return {...got, ...section}
-  const design = await ctx.design.store.design(got.target)
-  const hints = new Map(ctx.hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]))
+  const hints = config.hint ? await hintsOf({got, ranked, ctx}) : new Map<string, Hint>()
+  const section = config.section
+    ? {components: renderComponents({ranked, limits: config, hints: [...hints.values()]})}
+    : {}
   if (hints.size === 0) return {...got, ...section}
   return {
     ...got,
@@ -169,6 +170,13 @@ async function withComponents(input: {got: Got; ranked: Ranked[]; ctx: DesignCon
       return hint === undefined ? node : {...node, hint}
     }),
   }
+}
+
+async function hintsOf(input: {got: Got; ranked: Ranked[]; ctx: DesignContext}): Promise<Map<string, Hint>> {
+  const {got, ranked, ctx} = input
+  const design = await ctx.design.store.design(got.target)
+  const config = ctx.catalogConfig
+  return new Map(ctx.hinters.flatMap((hinter) => [...hinter.hint({design, ranked, config})]))
 }
 
 type ComponentsInput = z.output<typeof componentsDef.inputSchema>

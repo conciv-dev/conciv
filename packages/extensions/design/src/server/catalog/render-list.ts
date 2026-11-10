@@ -1,11 +1,16 @@
-import {groupBy} from 'es-toolkit'
-import type {CatalogConfig, PropSketch, Ranked} from '../../shared/catalog-defs.js'
+import {groupBy, orderBy} from 'es-toolkit'
+import type {CatalogConfig, Hint, PropSketch, Ranked} from '../../shared/catalog-defs.js'
 import {importLine} from './import-line.js'
 
-export function renderComponents(input: {ranked: Ranked[]; limits: Pick<CatalogConfig, 'appTierFull'>}): string {
+export function renderComponents(input: {
+  ranked: Ranked[]
+  limits: Pick<CatalogConfig, 'appTierFull'>
+  hints?: Hint[]
+}): string {
   const {ranked, limits} = input
   if (ranked.length === 0) return NONE
-  const {kit = [], app = [], other = []} = groupBy(ranked, (component) => component.tier)
+  const hints = input.hints ?? []
+  const {kit = [], app = [], other = []} = groupBy(wanted({ranked, hints}), (component) => component.tier)
   const shownApp = app.slice(0, limits.appTierFull)
   return [
     ...kit.map(block),
@@ -22,6 +27,23 @@ const BLOCK_GAP = '\n\n'
 const FACT_GAP = ' · '
 
 const SEE_FILE = 'see file'
+
+const PREFER = 'prefer'
+
+function wanted(input: {ranked: Ranked[]; hints: Hint[]}): Ranked[] {
+  const {ranked, hints} = input
+  if (hints.length === 0) return ranked
+  return orderBy(
+    ranked,
+    [
+      (component) => (component.flag === PREFER ? 1 : 0),
+      (component) =>
+        hints.filter((hint) => hint.specifier === component.specifier && component.names.includes(hint.component))
+          .length,
+    ],
+    ['desc', 'desc'],
+  )
+}
 
 function block(component: Ranked): string {
   return [
