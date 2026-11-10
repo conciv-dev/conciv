@@ -64,7 +64,7 @@
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "test": "vitest run && playwright test",
-    "trial": "tsx src/trial/trial.ts"
+    "trial": "tsx scripts/design-trial.ts"
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
