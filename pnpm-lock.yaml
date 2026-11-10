@@ -447,6 +447,7 @@ patchedDependencies:
   '@tanstack/ai-sandbox-local-process@1.0.0': 59897914bf1cea1cc05631c16c4eb474c839117c39f5e2f6494904b72f7d168f
   '@tanstack/ai-sandbox@1.2.0': 1f0bbb1c2df79421e9d78a7fca119ecc8e5f5574b4c2904b53fab831b1e40978
   '@tanstack/solid-query@5.105.0': 15e4256eca76974bb5eae84daea1511f5f908d88beb1142a00bf011c84f24fde
+  tinypool@2.2.0: e024d529745e6d978f04eb01fc5acb859129202432288507ddd7aa7588f5c64d
   vitest@5.0.5: 7189da9e8689d861418382a9ed5eb375dff9411258170717551be5f672ece1cd
 
 importers:
@@ -1848,7 +1849,7 @@ importers:
         version: 1.9.17
       tinypool:
         specifier: 'catalog:'
-        version: 2.2.0
+        version: 2.2.0(patch_hash=e024d529745e6d978f04eb01fc5acb859129202432288507ddd7aa7588f5c64d)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -30218,7 +30219,7 @@ snapshots:
 
   oxfmt@0.75.0(@astrojs/compiler-rs@0.5.2)(svelte@5.57.3(@typescript-eslint/types@8.72.1)):
     dependencies:
-      tinypool: 2.2.0
+      tinypool: 2.2.0(patch_hash=e024d529745e6d978f04eb01fc5acb859129202432288507ddd7aa7588f5c64d)
     optionalDependencies:
       '@astrojs/compiler-rs': 0.5.2
       '@oxfmt/binding-android-arm-eabi': 0.75.0
@@ -31925,7 +31926,7 @@ snapshots:
       fdir: 6.5.0(picomatch@4.0.7)
       picomatch: 4.0.7
 
-  tinypool@2.2.0: {}
+  tinypool@2.2.0(patch_hash=e024d529745e6d978f04eb01fc5acb859129202432288507ddd7aa7588f5c64d): {}
 
   tinyps@0.5.1: {}
 

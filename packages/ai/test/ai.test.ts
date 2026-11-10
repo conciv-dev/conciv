@@ -9,6 +9,7 @@ import {
   createChatServer,
   drizzleChatStores,
   makeTextAdapter,
+  quickJSThreadDriver,
   toolApprovalId,
   type TurnHooks,
 } from '../src/server.js'
@@ -34,8 +35,7 @@ import {tmpdir} from 'node:os'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {parseSync} from 'oxc-parser'
-
-const dist: typeof import('../src/server.js') = await import(new URL('../dist/server.js', import.meta.url).href)
+import Tinypool from 'tinypool'
 
 describe('chat stores', () => {
   const CHAT_TABLES = `CREATE TABLE \`chat_runs\` (
@@ -528,7 +528,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
   async function chatServer(hooks: TurnHooks, log: (message: string) => void, db = chatDb()) {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
-    return createChatServer({
+    const server = await createChatServer({
       stores: drizzleChatStores(db, {harnessOf: () => 'test-harness'}),
       sandbox: {dir, journalDir: join(dir, 'runs')},
       hooks,
@@ -536,6 +536,8 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       firstOutputTimeoutMs: 30_000,
       log,
     })
+    onTestFinished(() => server.endAllRuns())
+    return server
   }
 
   describe('quickjs code mode runs on a warm worker and shares no state between runs', () => {
@@ -552,7 +554,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
     }
 
     function sandbox(limits: {timeout: number; memoryLimit: number}, bindings: Record<string, ToolBinding> = {}) {
-      const driver = dist.quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
+      const driver = quickJSThreadDriver({...limits, maxStackSize: 1024 * 1024}, () => undefined)
       onTestFinished(() => driver.dispose())
       const run = async (code: string) => {
         const context = await driver.createContext({bindings})
@@ -594,16 +596,20 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
 
     it('a timed out run and a run over its memory limit retire their worker and the next run works', async () => {
       const ours = workersFromHere()
-      const {run} = sandbox({timeout: 1_000, memoryLimit: 16})
-      const [timedOutOn] = ours()
-      expect(await run('globalThis.leak = 1; while (true) {}')).toMatchObject({error: {name: 'TimeoutError'}})
+      const {driver, run} = sandbox({timeout: 10_000, memoryLimit: 16})
+      const gone = (before: number[]) => before.filter((id) => !ours().includes(id))
+      const beforeTimeout = ours()
+      const looping = await driver.createContext({bindings: {}, timeout: 1_000})
+      expect(await looping.execute('globalThis.leak = 1; while (true) {}')).toMatchObject({
+        error: {name: 'TimeoutError'},
+      })
+      expect(gone(beforeTimeout)).toHaveLength(1)
       expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
-      expect(ours()).not.toContain(timedOutOn)
-      const [overMemoryOn] = ours()
+      const beforeOverMemory = ours()
       const overMemory = await run("globalThis.leak = 1; let text = 'x'; while (true) text += text")
       expect(overMemory).toMatchObject({success: false, error: {name: 'MemoryLimitError'}})
+      expect(gone(beforeOverMemory)).toHaveLength(1)
       expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
-      expect(ours()).not.toContain(overMemoryOn)
     })
 
     it('a run stopped mid-flight ends its worker and the next run works on a replacement', async () => {
@@ -622,6 +628,49 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       expect(await running).toMatchObject({success: false, error: {name: 'AbortError'}})
       expect(ours()).not.toContain(stoppedOn)
       expect(await run('return typeof leak')).toMatchObject({success: true, value: 'undefined'})
+    })
+
+    it('a run that times out retires only its own worker, and a concurrent run keeps its worker', async () => {
+      const ours = workersFromHere()
+      const entered = Promise.withResolvers<void>()
+      const release = Promise.withResolvers<string>()
+      const wait = binding('wait', () => {
+        entered.resolve()
+        return release.promise
+      })
+      const {driver} = sandbox(LIMITS, {wait})
+      const [survivor] = ours()
+      const steady = await driver.createContext({bindings: {wait}})
+      const waiting = steady.execute('return await wait({})')
+      await entered.promise
+      const looping = await driver.createContext({bindings: {}, timeout: 1_000})
+      expect(await looping.execute("console.log('spinning'); while (true) {}")).toMatchObject({
+        success: false,
+        error: {name: 'TimeoutError'},
+        logs: ['spinning'],
+      })
+      expect(ours()).toEqual([survivor])
+      release.resolve('kept')
+      expect(await waiting).toMatchObject({success: true, value: 'kept'})
+      expect(ours()).toEqual([survivor])
+    })
+
+    it('a worker that errors while its pool shuts down never throws on the server thread and leaves no worker', async () => {
+      const ours = workersFromHere()
+      const pool = new Tinypool({
+        filename: new URL('../src/server/quickjs-worker.ts', import.meta.url).href,
+        minThreads: 1,
+        maxThreads: 1,
+      })
+      const failures: Error[] = []
+      pool.on('error', (error: Error) => failures.push(error))
+      const [thread] = pool.threads
+      if (thread === undefined) throw new Error('the pool booted no worker')
+      const destroying = pool.destroy()
+      expect(() => thread.emit('error', new Error('the worker failed'))).not.toThrow()
+      await destroying
+      expect(failures).toMatchObject([{message: 'the worker failed'}])
+      expect(ours()).toEqual([])
     })
 
     it('concurrent runs run side by side and each sees only its own globals', async () => {
@@ -655,13 +704,11 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       expect(ours()).toEqual([])
     })
 
-    it('the chat server runs every return 1 on the worker it booted, and endAllRuns frees it until the next run', async () => {
+    it('the chat server runs every return 1 on the worker its driver booted, and endAllRuns frees it until the next run', async () => {
       const ours = workersFromHere()
-      const dir = mkdtempSync(join(tmpdir(), 'conciv-ai-'))
-      const server = await dist.createChatServer({
-        stores: dist.drizzleChatStores(chatDb(), {harnessOf: () => 'test-harness'}),
-        sandbox: {dir, journalDir: join(dir, 'runs')},
-        hooks: {
+      const logged: string[] = []
+      const server = await chatServer(
+        {
           plan: () => {
             throw new Error('no turn runs here')
           },
@@ -669,10 +716,9 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
           end: async () => undefined,
           started: () => undefined,
         },
-        codeModeResult: (value) => value,
-        firstOutputTimeoutMs: 30_000,
-        log: () => undefined,
-      })
+        (message) => logged.push(message),
+      )
+      const onQuickJS = logged.some((message) => message.includes('@tanstack/ai-isolate-node'))
       const echo = defineTool({
         name: 'echo',
         description: 'Echoes its input.',
@@ -682,7 +728,7 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       const runner = server.codeRunner([echo])
       if (runner === null) throw new Error('code mode found no driver')
       const booted = ours()
-      expect(booted).toHaveLength(1)
+      expect(booted).toHaveLength(onQuickJS ? 1 : 0)
       for (const _ of Array.from({length: 20})) {
         expect(await runner.run('return 1', () => undefined)).toMatchObject({success: true, result: 1})
         expect(ours()).toEqual(booted)
@@ -690,9 +736,10 @@ CREATE INDEX \`chat_messages_thread_message\` ON \`chat_messages\` (\`thread_id\
       await server.endAllRuns()
       expect(ours()).toEqual([])
       expect(await runner.run('return 2', () => undefined)).toMatchObject({success: true, result: 2})
-      expect(ours()).toHaveLength(1)
+      expect(ours()).toHaveLength(booted.length)
       await server.endAllRuns()
       expect(ours()).toEqual([])
+      expect(logged.filter((message) => message.includes('QuickJS worker failed'))).toEqual([])
     })
   })
 

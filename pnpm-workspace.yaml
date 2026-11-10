@@ -284,5 +284,12 @@ patchedDependencies:
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
   # re-suspending (focus loss in the composer and model search); drop once a solid-query release includes it
   '@tanstack/solid-query@5.105.0': patches/@tanstack__solid-query@5.105.0.patch
+  # ThreadPool.destroy and recycleWorkers (dist/index.js:678,691 in 2.2.0) wait for exit with events.once on the
+  # ThreadWorker wrapper, which has once but no removeListener; a worker that emits error meanwhile makes once's
+  # error listener throw a TypeError out of Worker.emit, an uncaught exception on the host thread. The worker
+  # error handler (dist/index.js:548) also removes and respawns a worker that destroy or an abort already removed,
+  # so a pool can boot a worker after destroy. The patch waits on the wrapper's own once('exit') and skips the
+  # remove-and-respawn for a worker no longer in the pool. Drop it once a tinypool release fixes both.
+  tinypool@2.2.0: patches/tinypool@2.2.0.patch
   # vitest-dev/vitest#11709: read cached server modules as utf-8 (fixes #11682 code.charCodeAt crash); drop once a vitest release includes it
   vitest@5.0.5: patches/vitest@5.0.5.patch

@@ -1,4 +1,6 @@
 import {availableParallelism} from 'node:os'
+import {extname} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {MessageChannel} from 'node:worker_threads'
 import {ORPCError, os} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/message-port'
@@ -11,12 +13,7 @@ const HARD_STOP_GRACE_MS = 1000
 
 const SPARE_IDLE_MS = 60_000
 
-const RETIRING_ERRORS: ReadonlySet<string> = new Set([
-  'TimeoutError',
-  'MemoryLimitError',
-  'StackOverflowError',
-  'WasmRuntimeError',
-])
+const WORKER_FILE = new URL(`./quickjs-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url)
 
 type QuickJSThreadLimits = {timeout: number; memoryLimit: number; maxStackSize: number}
 
@@ -24,11 +21,15 @@ type Log = (message: string) => void
 
 type OpenPool = {pool: Tinypool; closed: AbortController}
 
+type Retired = {signal: AbortSignal; result: ExecutionResult}
+
+type ToolContext = {bindings: IsolateConfig['bindings']; retire: (result: ExecutionResult) => void}
+
 export type CodeDriver = IsolateDriver & {dispose: () => Promise<void>}
 
 const toolRouter = {
   call: os
-    .$context<{bindings: IsolateConfig['bindings']}>()
+    .$context<ToolContext>()
     .input(z.object({name: z.string(), args: z.unknown()}))
     .handler(async ({input, context}) => {
       const binding = context.bindings[input.name]
@@ -39,6 +40,10 @@ const toolRouter = {
         throw new ORPCError('TOOL_FAILED', {message: error instanceof Error ? error.message : String(error)})
       }
     }),
+  retire: os
+    .$context<ToolContext>()
+    .input(z.object({error: z.object({name: z.string(), message: z.string()}), logs: z.array(z.string())}))
+    .handler(({input, context}) => context.retire({success: false, ...input})),
 }
 
 export type ToolRouter = typeof toolRouter
@@ -64,7 +69,7 @@ export function quickJSThreadDriver(limits: QuickJSThreadLimits, log: Log): Code
 
 function openPool(log: Log): OpenPool {
   const pool = new Tinypool({
-    filename: new URL('./quickjs-worker.js', import.meta.url).href,
+    filename: WORKER_FILE.href,
     minThreads: 1,
     maxThreads: Math.max(2, availableParallelism()),
     idleTimeout: SPARE_IDLE_MS,
@@ -100,7 +105,13 @@ async function run(
 ): Promise<ExecutionResult> {
   const timeout = config.timeout ?? limits.timeout
   const {port1, port2} = new MessageChannel()
-  toolHandler.upgrade(port1, {context: {bindings: config.bindings}})
+  const retiring = new AbortController()
+  const retired: Retired = {signal: retiring.signal, result: STOPPED}
+  const retire = (result: ExecutionResult) => {
+    retired.result = result
+    retiring.abort()
+  }
+  toolHandler.upgrade(port1, {context: {bindings: config.bindings, retire}})
   const task: QuickJSTask = {
     code,
     names: Object.keys(config.bindings),
@@ -110,24 +121,23 @@ async function run(
     port: port2,
   }
   const timedOut = AbortSignal.timeout(timeout + HARD_STOP_GRACE_MS)
-  const signal = AbortSignal.any([disposed, timedOut])
+  const signal = AbortSignal.any([disposed, timedOut, retiring.signal])
   const aborting: {threads: TinypoolWorker[]} = {threads: []}
   signal.addEventListener('abort', () => (aborting.threads = pool.threads), {once: true})
   try {
-    const result: ExecutionResult = await pool.run(task, {signal, transferList: {transfer: [port2]}})
-    if (retires(result)) await pool.recycleWorkers()
-    return result
+    return await pool.run(task, {signal, transferList: {transfer: [port2]}})
   } catch (error) {
-    if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(pool, error, log)
+    if (!signal.aborted) return closed.signal.aborted ? STOPPED : workerFailure(error, log)
     await exited(pool, aborting.threads)
-    return signal.reason === timedOut.reason ? TIMED_OUT : STOPPED
+    return abortedWith(signal.reason, timedOut, retired)
   } finally {
     port1.close()
   }
 }
 
-function retires(result: ExecutionResult): boolean {
-  return !result.success && RETIRING_ERRORS.has(result.error?.name ?? '')
+function abortedWith(reason: unknown, timedOut: AbortSignal, retired: Retired): ExecutionResult {
+  if (reason === retired.signal.reason) return retired.result
+  return reason === timedOut.reason ? TIMED_OUT : STOPPED
 }
 
 async function exited(pool: Tinypool, threads: TinypoolWorker[]): Promise<void> {
@@ -135,10 +145,9 @@ async function exited(pool: Tinypool, threads: TinypoolWorker[]): Promise<void> 
   await Promise.all(ending.map((thread) => new Promise((exit) => thread.once('exit', exit))))
 }
 
-async function workerFailure(pool: Tinypool, error: unknown, log: Log): Promise<ExecutionResult> {
+function workerFailure(error: unknown, log: Log): ExecutionResult {
   const {name, message} = error instanceof Error ? error : {name: 'WorkerError', message: String(error)}
   log(`[ai] the QuickJS worker failed: ${name}: ${message}`)
-  await pool.recycleWorkers()
   return failure(name, message)
 }
 
