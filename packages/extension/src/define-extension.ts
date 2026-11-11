@@ -1,6 +1,6 @@
 import {createMemo, from, type Accessor, type Component} from 'solid-js'
 import {z} from 'zod'
-import {mapValues} from 'es-toolkit'
+import {mapValues, once} from 'es-toolkit'
 import type {RegisteredTools, ToolBinding, ToolBuilder, ToolErrors} from './define-tool.js'
 import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
@@ -23,6 +23,7 @@ import type {
 import {useExtensionValue} from './host-context.js'
 import {useScope} from './use-scope.js'
 import {mergeSettings} from './merge-settings.js'
+import type {SettingsScope} from '@conciv/contract'
 
 export type AnyToolBuilder = ToolBuilder<
   string,
@@ -175,8 +176,8 @@ export function defineExtension<
   })
   function useSettings(): Accessor<Record<string, unknown>> {
     const scope = useScope<string>(meta.name)
-    const project = followStore(scope.settings.project)
-    const global = followStore(scope.settings.global)
+    const project = followStore(scope.settings.project, settingsFailure(meta.name, 'project'))
+    const global = followStore(scope.settings.global, settingsFailure(meta.name, 'global'))
     return createMemo(() => parseSettings(mergeSettings(project() ?? {}, global() ?? {})))
   }
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
@@ -213,15 +214,22 @@ export function defineExtension<
   return builder
 }
 
-function followStore(store: SettingsStore): Accessor<Readonly<Record<string, unknown>> | undefined> {
+function followStore(store: SettingsStore, failure: string): Accessor<Readonly<Record<string, unknown>> | undefined> {
   return from<Readonly<Record<string, unknown>>>((set) => {
-    const stop = store.onChange((value) => set(value)).catch(() => () => undefined)
-    store.all().then(
-      (value) => set(value),
-      () => undefined,
-    )
+    const report = once((error: unknown) => console.error(failure, error))
+    const stop = store
+      .onChange((value) => set(value))
+      .catch((error: unknown) => {
+        report(error)
+        return () => undefined
+      })
+    store.all().then((value) => set(value), report)
     return () => void stop.then((unsubscribe) => unsubscribe())
   })
+}
+
+function settingsFailure(name: string, scope: SettingsScope): string {
+  return `conciv: the ${scope} settings of extension "${name}" could not be read or followed; the values that apply leave them out`
 }
 
 function lenientSettings(schema: ExtensionSettingsSchema | undefined): (raw: unknown) => Record<string, unknown> {
