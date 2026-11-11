@@ -492,15 +492,14 @@ describe('api extension server surfaces', () => {
     const transcript = requireTranscriptPath(claude)(server.cwd, token)
     try {
       const sessionId = SessionId.parse(await kit.session())
-      const window = {from: Date.now(), to: Date.now() + 60_000}
-      expect(await server.sessions.transcript(sessionId, window)).toBeNull()
+      expect(await server.sessions.transcript(sessionId, null)).toBeNull()
 
       await server.sessions.recordToken(sessionId, token)
       mkdirSync(dirname(transcript), {recursive: true})
       writeFileSync(
         transcript,
         [
-          JSON.stringify({type: 'user', timestamp: new Date(window.from).toISOString(), message: {content: 'go'}}),
+          JSON.stringify({type: 'user', timestamp: new Date().toISOString(), message: {content: 'go'}}),
           JSON.stringify({
             type: 'assistant',
             message: {id: 'm1', model: 'claude-sonnet-4-5', content: [], usage: {input_tokens: 10, output_tokens: 4}},
@@ -509,7 +508,10 @@ describe('api extension server surfaces', () => {
         ].join('\n'),
       )
 
-      expect(await server.sessions.transcript(sessionId, window)).toEqual({
+      expect(await server.sessions.transcript(sessionId, null)).toEqual(
+        await server.sessions.transcript(sessionId, token),
+      )
+      expect(await server.sessions.transcript(sessionId, null)).toEqual({
         nativeId: token,
         model: 'claude-sonnet-4-5',
         usage: {promptTokens: 10, completionTokens: 4, totalTokens: 14, cost: 0.5},

@@ -2815,7 +2815,7 @@ describe('resume.command', () => {
 
 describe('transcript usage', () => {
   const cwd = mkdtempSync(join(tmpdir(), 'conciv-usage-'))
-  const window = {from: Date.parse('2026-11-10T10:00:00.000Z'), to: Date.parse('2026-11-10T11:00:00.000Z')}
+  const elsewhere = mkdtempSync(join(tmpdir(), 'conciv-usage-elsewhere-'))
 
   const user = (timestamp: string) =>
     JSON.stringify({type: 'user', timestamp, message: {role: 'user', content: 'build the page'}})
@@ -2825,15 +2825,18 @@ describe('transcript usage', () => {
       message: {id, model, role: 'assistant', content: [{type: 'text', text: 'ok'}], usage},
     })
   const result = (cost: number) => JSON.stringify({type: 'result', total_cost_usd: cost})
-  const write = (id: string, lines: string[]) => {
-    mkdirSync(transcriptRoot(cwd), {recursive: true})
-    writeFileSync(transcriptPath(cwd, id), lines.join('\n'))
+  const write = (project: string, id: string, lines: string[]) => {
+    mkdirSync(transcriptRoot(project), {recursive: true})
+    writeFileSync(transcriptPath(project, id), lines.join('\n'))
   }
 
   beforeAll(() => {
-    write('before-window', [user('2026-11-10T09:00:00.000Z'), assistant('b1', 'claude-opus-4-5', {input_tokens: 9})])
-    write('older-in-window', [user('2026-11-10T10:05:00.000Z'), assistant('o1', 'claude-opus-4-5', {input_tokens: 9})])
-    write('the-run', [
+    write(cwd, 'other-run', [user('2026-11-10T10:45:00.000Z'), assistant('o1', 'claude-opus-4-5', {input_tokens: 9})])
+    write(elsewhere, 'agent-elsewhere', [
+      user('2026-11-10T09:00:00.000Z'),
+      assistant('e1', 'claude-opus-4-5', {input_tokens: 9}),
+    ])
+    write(cwd, 'the-run', [
       user('2026-11-10T10:30:00.000Z'),
       assistant('a1', 'claude-sonnet-4-5', {
         input_tokens: 10,
@@ -2854,10 +2857,13 @@ describe('transcript usage', () => {
     ])
   })
 
-  afterAll(() => rmSync(transcriptRoot(cwd), {recursive: true, force: true}))
+  afterAll(() => {
+    rmSync(transcriptRoot(cwd), {recursive: true, force: true})
+    rmSync(transcriptRoot(elsewhere), {recursive: true, force: true})
+  })
 
-  it('reads the newest transcript that began inside the window', async () => {
-    expect(await transcriptUsage({cwd, ...window})).toEqual({
+  it('reads the transcript the native id names, whatever transcript is newer', async () => {
+    expect(await transcriptUsage({cwd, nativeId: HarnessSessionId.parse('the-run')})).toEqual({
       nativeId: 'the-run',
       model: 'claude-sonnet-4-5',
       usage: {
@@ -2871,10 +2877,9 @@ describe('transcript usage', () => {
     })
   })
 
-  it('reads the transcript a native id names, whatever its start', async () => {
-    const named = await transcriptUsage({cwd, ...window, nativeId: HarnessSessionId.parse('before-window')})
-    expect(named).toEqual({
-      nativeId: 'before-window',
+  it('finds the transcript of an agent that ran in another project folder by its id', async () => {
+    expect(await transcriptUsage({cwd, nativeId: HarnessSessionId.parse('agent-elsewhere')})).toEqual({
+      nativeId: 'agent-elsewhere',
       model: 'claude-opus-4-5',
       usage: {promptTokens: 9, completionTokens: 0, totalTokens: 9},
     })
@@ -2884,7 +2889,7 @@ describe('transcript usage', () => {
     expect(claude.history?.transcriptUsage).toBe(transcriptUsage)
   })
 
-  it('answers null when no transcript began inside the window', async () => {
-    expect(await transcriptUsage({cwd, from: window.to + 1, to: window.to + 2})).toBeNull()
+  it('answers null when no transcript has the id', async () => {
+    expect(await transcriptUsage({cwd, nativeId: HarnessSessionId.parse('never-ran')})).toBeNull()
   })
 })

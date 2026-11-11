@@ -11,7 +11,7 @@ import {logError} from '../lib/debug.js'
 import {pageQueryStream} from '../page-bus.js'
 import type {SessionPrimitives} from './primitives.js'
 import {runWithSession} from './session-context.js'
-import type {CoreRuntime, EngineScope, SessionScope, ToolCatalog} from './scope-types.js'
+import type {CoreRuntime, EngineScope, SessionScope, ToolCallOptions, ToolCatalog} from './scope-types.js'
 
 const MAX_NAVIGATION_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000
 
@@ -76,13 +76,18 @@ function makeSessionScope(deps: CoreRuntimeDeps, id: SessionId): SessionScope {
   const model = deps.model(id)
   const view = registry.whenPageConnected(() => page.bus.connected(id))
   const agentId: string = id
-  const requestFor = (toolCallId: string | undefined): ToolRequest =>
-    toolCallId === undefined ? {sessionId: id, agentId, model} : {sessionId: id, agentId, model, toolCallId}
+  const requestFor = (options: ToolCallOptions = {}): ToolRequest => ({
+    sessionId: id,
+    agentId,
+    model,
+    ...(options.toolCallId === undefined ? {} : {toolCallId: options.toolCallId}),
+    ...(options.harnessSessionId === undefined ? {} : {harnessSessionId: options.harnessSessionId}),
+  })
   return {
     id,
     model,
     tools: {
-      call: (name, input, options) => registry.call(name, input, {request: requestFor(options?.toolCallId)}),
+      call: (name, input, options) => registry.call(name, input, {request: requestFor(options)}),
       has: (name) => registry.has(name),
       catalog: view.catalog,
     },

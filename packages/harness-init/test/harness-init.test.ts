@@ -1,4 +1,5 @@
 import {spawn} from 'node:child_process'
+import {once} from 'node:events'
 import {mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, cpSync} from 'node:fs'
 import {createServer, type IncomingHttpHeaders, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import {tmpdir} from 'node:os'
@@ -29,7 +30,7 @@ describe('bridge', () => {
 
   const ErrorFrameSchema = z.object({error: z.object({message: z.string()})})
 
-  type Recorded = {body: string; session: string | null; headers: IncomingHttpHeaders}
+  type Recorded = {method: string; body: string; session: string | null; headers: IncomingHttpHeaders}
 
   type Served = {server: Server; url: string; recorded: Recorded[]}
 
@@ -71,7 +72,7 @@ describe('bridge', () => {
     const recorded: Recorded[] = []
     const server = createServer((incoming, response) => {
       void bodyOf(incoming).then((body) => {
-        const entry = {body, session: sessionOf(incoming), headers: incoming.headers}
+        const entry = {method: incoming.method ?? '', body, session: sessionOf(incoming), headers: incoming.headers}
         recorded.push(entry)
         respond(entry, response)
       })
@@ -225,6 +226,25 @@ describe('bridge', () => {
 
       expect(onlyFrame(lines)).toEqual({jsonrpc: '2.0', id: 1, result: {ok: true}})
       expect(served.recorded[0]?.session).toBe(CLAUDE_SESSION)
+    })
+
+    it('tells the server its claude session ended when claude closes its stdin', async () => {
+      const served = await serve((_recorded, response) => {
+        response.writeHead(204)
+        response.end()
+      })
+      const cwd = projectServedBy('one', served.url)
+      const child = spawn(process.execPath, [scratch.bridge], {
+        cwd,
+        env: bridgeEnv({}),
+        stdio: ['pipe', 'ignore', 'ignore'],
+      })
+      child.stdin.end()
+      await once(child, 'exit')
+
+      expect(served.recorded.map(({method, session}) => ({method, session}))).toEqual([
+        {method: 'DELETE', session: CLAUDE_SESSION},
+      ])
     })
 
     it('sends the standard headers of a request that names its protocol version in its envelope', async () => {

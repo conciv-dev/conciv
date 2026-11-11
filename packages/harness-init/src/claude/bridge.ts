@@ -1,12 +1,11 @@
 import {CONCIV_CLAUDE_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {CONCIV_STATE_DIR} from '@conciv/protocol/state-types'
 import {CLAUDE_CONNECT_ENDPOINT_FILE} from './endpoint.js'
+import {CLAUDE_SESSION_ENV} from './names.js'
 
 export const CLAUDE_CONNECT_BRIDGE_FILE = 'conciv-mcp-bridge.mjs'
 
 export const CLAUDE_CONNECT_BRIDGE_TIMEOUT_VAR = 'CONCIV_MCP_TIMEOUT_MS'
-
-const CLAUDE_SESSION_VAR = 'CLAUDE_CODE_SESSION_ID'
 
 const BRIDGE_TIMEOUT_MS = 180_000
 
@@ -17,7 +16,7 @@ import {createInterface} from 'node:readline'
 
 const stateDirName = '${CONCIV_STATE_DIR}'
 const endpointFileName = '${CLAUDE_CONNECT_ENDPOINT_FILE}'
-const claudeSessionId = process.env.${CLAUDE_SESSION_VAR} ?? ''
+const claudeSessionId = process.env.${CLAUDE_SESSION_ENV} ?? ''
 
 function readTextOrNull(path) {
   try {
@@ -186,9 +185,23 @@ async function forward(line) {
   }
 }
 
-createInterface({input: process.stdin}).on('line', (line) => {
-  if (line.trim().length === 0) return
-  void forward(line)
-})
+async function ended() {
+  const resolved = endpoint()
+  if (resolved.url === null || claudeSessionId === '') return
+  await fetch(resolved.url, {
+    method: 'DELETE',
+    headers: {'${CONCIV_CLAUDE_SESSION_HEADER}': claudeSessionId},
+    signal: AbortSignal.timeout(timeoutMs()),
+  }).catch(() => null)
+}
+
+createInterface({input: process.stdin})
+  .on('line', (line) => {
+    if (line.trim().length === 0) return
+    void forward(line)
+  })
+  .on('close', () => {
+    void ended()
+  })
 `
 }

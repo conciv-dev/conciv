@@ -12,6 +12,7 @@ import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {extensionDb} from '@conciv/extension/db'
 import {
+  SessionEndReason,
   type AnyExtension,
   type AnyToolBuilder,
   type AttachmentDocumentPart,
@@ -47,6 +48,7 @@ import {
   nativeIdFor,
   recordFirstTitle,
   recordNativeId,
+  rowByNativeRef,
   sweepEmptyRows,
   type RowScope,
 } from './sessions/session-rows.js'
@@ -420,6 +422,8 @@ async function mcpSessionId(
   return anonymousExternalRow(rows)
 }
 
+type SessionEnd = {reason: SessionEndReason; harnessSessionId?: HarnessSessionId}
+
 const DiscoveredSchema = z.object({tools: TabOpenSchema.shape.tools})
 
 async function discoveredTools(plane: ChatPlane, sessionId: SessionId): Promise<TabOpen['tools']> {
@@ -475,7 +479,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     return harnesses.find((adapter) => adapter.id === kind) ?? harness
   }
   const scopedToolCall: ScopedToolCall = (name, input, request) =>
-    runtime.forSession(request.sessionId).tools.call(name, input, {toolCallId: request.toolCallId})
+    runtime.forSession(request.sessionId).tools.call(name, input, request)
 
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => nativeIdFor(db, sessionId),
@@ -485,14 +489,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => modelOf(db, sessionId),
-    transcript: async (sessionId, window) => {
+    transcript: async (sessionId, harnessSessionId) => {
       const row = currentRow(db, sessionId)
-      const nativeId = row?.harnessSessionId ?? undefined
-      const found = await harnessFor(sessionId).history?.transcriptUsage?.({
-        cwd: row?.cwd ?? opts.cwd,
-        ...window,
-        ...(nativeId === undefined ? {} : {nativeId}),
-      })
+      const nativeId = harnessSessionId ?? row?.harnessSessionId ?? null
+      if (nativeId === null) return null
+      const found = await harnessFor(sessionId).history?.transcriptUsage?.({cwd: row?.cwd ?? opts.cwd, nativeId})
       return found ?? null
     },
     onChatTurn: (listener) => runStartListeners.push(listener),
@@ -576,15 +577,13 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
   }
-  const holders = createSessionHolders({
-    db,
-    ended: async (sessionId, reason) => {
-      const settled = await Promise.allSettled(sessionEnds.map((hook) => hook(sessionId, {reason})))
-      settled.forEach((outcome) => {
-        if (outcome.status === 'rejected') logError(`[core] session-end hook failed: ${String(outcome.reason)}`)
-      })
-    },
-  })
+  const sessionEnded = async (sessionId: SessionId, end: SessionEnd): Promise<void> => {
+    const settled = await Promise.allSettled(sessionEnds.map((hook) => hook(sessionId, end)))
+    settled.forEach((outcome) => {
+      if (outcome.status === 'rejected') logError(`[core] session-end hook failed: ${String(outcome.reason)}`)
+    })
+  }
+  const holders = createSessionHolders({db, ended: (sessionId, reason) => sessionEnded(sessionId, {reason})})
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -739,7 +738,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       harnessId: harness.id,
       mcp: {
-        codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+        codeRunner: (sessionId, publish, caller) => plane.codeRunner(sessionId, publish, caller),
+        harnessEnded: async (nativeId) => {
+          const row = await rowByNativeRef(db, {harnessKind: harness.id, cwd: opts.cwd, nativeId})
+          if (row !== null) await sessionEnded(row.id, {reason: SessionEndReason.DETACHED, harnessSessionId: nativeId})
+        },
         outsideCapabilities: ({sessionId, client, pid, signal}) =>
           outsideRunCapabilities({
             tabs: outsideTabs,

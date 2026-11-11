@@ -1,7 +1,8 @@
-import {readdir, stat} from 'node:fs/promises'
-import {join} from 'node:path'
+import type {Dirent} from 'node:fs'
+import {readdir} from 'node:fs/promises'
+import {dirname, join} from 'node:path'
 import {z} from 'zod'
-import {HarnessSessionId} from '@conciv/protocol/chat-types'
+import type {HarnessSessionId} from '@conciv/protocol/chat-types'
 import type {TranscriptUsage, TranscriptUsageQuery} from '@conciv/protocol/harness-types'
 import type {TokenUsage} from '@conciv/protocol/usage-types'
 import {parseJsonOrNull} from '@conciv/harness-init/json'
@@ -10,40 +11,22 @@ import {whenMissing} from '../_shared/when-missing.js'
 import {transcriptPath, transcriptRoot, withinProject} from './history.js'
 
 export async function transcriptUsage(query: TranscriptUsageQuery): Promise<TranscriptUsage | null> {
-  if (query.nativeId !== undefined) return usageOfNamed(query.cwd, query.nativeId)
-  const read = await Promise.all((await candidates(query)).map((id) => readTranscript(query.cwd, id)))
-  const inside = read.flatMap((transcript) => {
-    const firstAt = transcript?.firstAt
-    return transcript === null || firstAt === undefined || firstAt < query.from || firstAt > query.to
-      ? []
-      : [{transcript, firstAt}]
-  })
-  const newest = inside.toSorted((a, b) => b.firstAt - a.firstAt).at(0)
-  return newest === undefined ? null : usageOf(newest.transcript)
-}
-
-async function usageOfNamed(cwd: string, nativeId: HarnessSessionId): Promise<TranscriptUsage | null> {
-  if (!withinProject(cwd, nativeId)) return null
-  const transcript = await readTranscript(cwd, nativeId)
-  return transcript === null ? null : usageOf(transcript)
-}
-
-async function candidates(query: TranscriptUsageQuery): Promise<HarnessSessionId[]> {
-  const root = transcriptRoot(query.cwd)
-  const names = await readdir(root).catch(whenMissing<string[]>([]))
-  const touched = await Promise.all(
-    names
-      .filter((name) => name.endsWith(JSONL))
-      .map(async (name) => ({name, info: await stat(join(root, name)).catch(whenMissing(null))})),
+  const {cwd, nativeId} = query
+  const own = withinProject(cwd, nativeId) ? await readTranscript(transcriptPath(cwd, nativeId), nativeId) : null
+  if (own !== null) return usageOf(own)
+  const projects = dirname(transcriptRoot(cwd))
+  const entries = await readdir(projects, {withFileTypes: true}).catch(whenMissing<Dirent[]>([]))
+  const found = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => readTranscript(join(projects, entry.name, `${nativeId}${JSONL}`), nativeId)),
   )
-  return touched.flatMap(({name, info}) => {
-    const id = HarnessSessionId.safeParse(name.slice(0, -JSONL.length))
-    return info !== null && info.mtimeMs >= query.from && id.success ? [id.data] : []
-  })
+  const transcript = found.find((each) => each !== null)
+  return transcript === undefined ? null : usageOf(transcript)
 }
 
-async function readTranscript(cwd: string, nativeId: HarnessSessionId): Promise<Transcript | null> {
-  const folded = await foldJsonlFile(transcriptPath(cwd, nativeId), emptyFold(), foldLine).catch(whenMissing(null))
+async function readTranscript(path: string, nativeId: HarnessSessionId): Promise<Transcript | null> {
+  const folded = await foldJsonlFile(path, emptyFold(), foldLine).catch(whenMissing(null))
   return folded === null ? null : {nativeId, ...folded}
 }
 
@@ -78,23 +61,15 @@ function mostUsed(names: string[]): string | undefined {
 }
 
 function emptyFold(): Fold {
-  return {firstAt: undefined, messages: new Map(), costs: []}
+  return {messages: new Map(), costs: []}
 }
 
 function foldLine(state: Fold, line: string): Fold {
   const raw = parseJsonOrNull(line.trim())
   if (raw === null) return state
-  foldFirstAt(state, raw)
   foldAssistant(state, raw)
   foldResult(state, raw)
   return state
-}
-
-function foldFirstAt(state: Fold, raw: unknown): void {
-  if (state.firstAt !== undefined) return
-  const stamped = StampedSchema.safeParse(raw)
-  const at = stamped.success && stamped.data.timestamp !== undefined ? Date.parse(stamped.data.timestamp) : Number.NaN
-  if (!Number.isNaN(at)) state.firstAt = at
 }
 
 function foldAssistant(state: Fold, raw: unknown): void {
@@ -112,8 +87,6 @@ function foldResult(state: Fold, raw: unknown): void {
 const JSONL = '.jsonl'
 
 const SYNTHETIC = '<synthetic>'
-
-const StampedSchema = z.object({timestamp: z.string().optional()}).loose()
 
 const UsageSchema = z
   .object({
@@ -136,7 +109,6 @@ const AssistantSchema = z
 const ResultSchema = z.object({type: z.literal('result'), total_cost_usd: z.number()}).loose()
 
 type Fold = {
-  firstAt: number | undefined
   messages: Map<string, {model: string; usage: AssistantUsage}>
   costs: number[]
 }

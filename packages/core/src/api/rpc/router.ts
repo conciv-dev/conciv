@@ -16,6 +16,8 @@ import {makeHubAdmission, makeSessionOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {cappedText, safeStringify} from '@conciv/chat'
+import {CONCIV_CLAUDE_SESSION_HEADER, HarnessSessionId} from '@conciv/protocol/chat-types'
+import {ORPCError} from '@orpc/server'
 import {callTrace} from '../call-trace.js'
 
 export const PAGE_ERROR_NAME = {
@@ -38,6 +40,16 @@ function registryCallError(error: unknown, errors: RegistryErrors): Error {
   if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
   if (isPageFailure(error)) return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
   return error instanceof Error ? error : new Error(String(error))
+}
+
+function callerHarness(context: RpcContext): {harnessSessionId?: HarnessSessionId} {
+  const raw = rpcHeader(context, CONCIV_CLAUDE_SESSION_HEADER)?.trim()
+  if (!raw) return {}
+  const parsed = HarnessSessionId.safeParse(raw)
+  if (!parsed.success) {
+    throw new ORPCError('BAD_REQUEST', {message: `the ${CONCIV_CLAUDE_SESSION_HEADER} header carries a malformed id`})
+  }
+  return {harnessSessionId: parsed.data}
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
@@ -153,7 +165,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         if (!context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
         return hubTraced(context, input.name, input.input, () =>
-          context.session.tools.call(input.name, input.input).catch((error: unknown) => {
+          context.session.tools.call(input.name, input.input, callerHarness(context)).catch((error: unknown) => {
             throw registryCallError(error, errors)
           }),
         )

@@ -130,9 +130,14 @@ under 32 px, else `much`.
 Every design session is recorded in one store, `<conciv home>/runs.db`, migrated whenever it is opened. A project's
 `.conciv` keeps no design tables.
 
-- A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session`, `model`,
-  `harness`, `agent_id`, `project_key`, `branch`, `head`, and the tools head, version and fingerprint. Its targets,
-  rounds, rows and tool calls are written there as they happen.
+- A run is one agent conversation. A tool call carries the harness session id of the agent that made it (for Claude,
+  `CLAUDE_CODE_SESSION_ID`, sent by the plugin bridge and by `.conciv/bin/conciv`); a call without one (the widget
+  chat) is keyed on its tab session. The first `design_get` or `design_check` of a conversation on a tab opens a
+  `running` run with `harness_session_id` and its provenance: `session` (the tab), `model` (the tab's model for a
+  widget chat run, null for an agent run until its close), `harness`, `agent_id`, `project_key`, `branch`, `head`, and
+  the tools head, version and fingerprint. Another conversation on the same tab opens its own run; a conversation that
+  comes back to the tab finds its running run again. Its targets, rounds, rows and tool calls are written there as
+  they happen.
 - Every per-run table carries `run` and `session`; per-check tables also `target`, `round` and, where it applies,
   `width`, so `--where 'session == "..."'` works on every source.
 - Every check writes a round with a `state`: `measured`, `unsettled` (the page rendered too little and the check
@@ -160,14 +165,16 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
   holds the session from its first `use_tab`, and the run closes when the engine ends that session (`sessionEnd`):
   the hub detaches when its agent exits, a boot finds the hub's pid dead, or the engine is disposed. It closes
   `completed` when its last round's verdict is `done`, else `aborted`, with `ended`.
-- A run that closes without usage from the chat server (an external session, or a turn end that carried none) takes
-  `model`, `usage` and `cost` from its harness transcript (`server.sessions.transcript`, for Claude
-  `history.transcriptUsage` in `@conciv/harness`): the transcript the session row names as its harness session id,
-  else the newest whose first record falls between the run's `started` and `ended`. `model` is kept when the run opened
-  with one, else the model of most assistant messages; `usage` is their summed usage; `cost` is the summed
-  `total_cost_usd` of the transcript's result records, null when it has none. The transcript's id is stored as
-  `harness_session_id`, in `design_stored_runs` and `design_run_summary`. A run with no transcript keeps the three null
-  and gets `error_code` `no-transcript` when it has no other error. Harnesses other than Claude read no transcript usage.
+- A Claude agent with the conciv plugin closes its runs when it exits: its bridge sees stdin close and sends `DELETE`
+  to the engine's MCP endpoint with its session id, and the engine ends that agent's session with
+  `{harnessSessionId}`, which closes every running run keyed on it, on any tab.
+- A run with a harness session id takes `model`, `usage` and `cost` at close from that exact transcript
+  (`server.sessions.transcript`, for Claude `history.transcriptUsage` in `@conciv/harness`, which looks the id up in
+  the project's transcript folder, then in every project folder). A run without one takes them from the chat run
+  that ends the turn, else from the transcript its session row names. `model` is the transcript's model of most
+  assistant messages; `usage` is their summed usage; `cost` is the summed `total_cost_usd` of the transcript's result
+  records, null when it has none. A run with no transcript keeps the three null and gets `error_code`
+  `no-transcript` when it has no other error. Harnesses other than Claude read no transcript usage.
 
 Queries: `conciv db query --from design_run_summary` (one row per run and target, with `status`, `ended`, `model`
 and `harness` to filter by, as in `--where 'status == "completed"'`; a run with no target or no round still has a row,

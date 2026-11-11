@@ -1,6 +1,7 @@
 import {safe, toORPCError, type ORPCError} from '@orpc/client'
 import {z} from 'zod'
 import {
+  CONCIV_CLAUDE_SESSION_HEADER,
   CONCIV_CLIENT_HEADER,
   CONCIV_ORIGIN_HEADER,
   CONCIV_SESSION_HEADER,
@@ -11,7 +12,7 @@ import {
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 import {concivHome, existingDb, listEngines, readCatalog, withHomeDb} from '@conciv/db'
 import {initContributions} from '@conciv/harness-init/registry'
-import {INIT_HARNESS_IDS} from '@conciv/protocol/harness-types'
+import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-types'
 import type {CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {engineOrigin} from './engine-origin.js'
@@ -79,8 +80,12 @@ type RpcCall = (rpc: RpcClient) => Promise<unknown>
 type EngineOrigin = Awaited<ReturnType<typeof engineOrigin>>
 
 async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<unknown> {
-  const session = {[CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin))}
-  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: callingAgent(process.env)}
+  const agent = callingAgent(process.env)
+  const session = {
+    [CONCIV_SESSION_HEADER]: target.tab ?? (await sessionId(engine.origin)),
+    ...harnessSession(agent, process.env),
+  }
+  const hub = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
   return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
@@ -122,14 +127,21 @@ function loads(input: {root: string; extension: string}): boolean {
   }
 }
 
-function callingAgent(env: NodeJS.ProcessEnv): string {
-  const shellEnv = (id: (typeof INIT_HARNESS_IDS)[number]) => initContributions[id].hub?.shellEnv
+function callingAgent(env: NodeJS.ProcessEnv): InitHarnessId | typeof TERMINAL_CLIENT {
+  const shellEnv = (id: InitHarnessId) => initContributions[id].hub?.shellEnv
   return (
     INIT_HARNESS_IDS.find((id) => {
       const variable = shellEnv(id)
       return variable !== undefined && Boolean(env[variable])
     }) ?? TERMINAL_CLIENT
   )
+}
+
+function harnessSession(agent: InitHarnessId | typeof TERMINAL_CLIENT, env: NodeJS.ProcessEnv): Record<string, string> {
+  if (agent === TERMINAL_CLIENT) return {}
+  const variable = initContributions[agent].hub?.sessionEnv
+  const value = variable === undefined ? undefined : env[variable]?.trim()
+  return value ? {[CONCIV_CLAUDE_SESSION_HEADER]: value} : {}
 }
 
 function rejectedByServer(error: unknown): boolean {

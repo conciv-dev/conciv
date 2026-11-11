@@ -39,7 +39,13 @@ export type ExtensionView = {
   actions?: Component
 }
 
-export type ToolRequest = {sessionId: SessionId; agentId: string; model: string | null; toolCallId?: string}
+export type ToolRequest = {
+  sessionId: SessionId
+  agentId: string
+  model: string | null
+  toolCallId?: string
+  harnessSessionId?: HarnessSessionId
+}
 
 export type ExtensionServerTool = {
   name: string
@@ -133,7 +139,7 @@ export type ServerSessions = {
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
   chatBusy(sessionId: SessionId): Promise<boolean>
   model(sessionId: SessionId): Promise<string | null>
-  transcript(sessionId: SessionId, window: {from: number; to: number}): Promise<TranscriptUsage | null>
+  transcript(sessionId: SessionId, harnessSessionId: HarnessSessionId | null): Promise<TranscriptUsage | null>
   onChatTurn(listener: (sessionId: SessionId) => void): void
 }
 
@@ -188,7 +194,10 @@ export type ServerResult<Context> = {
   router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: SessionId, run: TurnRun) => void | Promise<void>
-  sessionEnd?: (sessionId: SessionId, end: {reason: SessionEndReason}) => void | Promise<void>
+  sessionEnd?: (
+    sessionId: SessionId,
+    end: {reason: SessionEndReason; harnessSessionId?: HarnessSessionId},
+  ) => void | Promise<void>
   systemPrompt?: SessionPromptResolver
   dispose?: () => void | Promise<void>
   verbs?: Record<string, ServerVerb>

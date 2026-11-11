@@ -275,8 +275,9 @@ type McpDeps = {
   codeRunner: (
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
-    capabilities?: readonly CodeCapability[],
+    caller?: {capabilities?: readonly CodeCapability[]; harnessSessionId?: HarnessSessionId},
   ) => Promise<CodeRunner | null>
+  harnessEnded: (nativeId: HarnessSessionId) => Promise<void>
   outsideCapabilities: (caller: {
     sessionId: SessionId
     client: string | null
@@ -300,7 +301,7 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
   }
 }
 
-type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
+type McpCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal; nativeId: HarnessSessionId | null}
 
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCaller) {
   const origin = caller.trace.hub
@@ -312,13 +313,19 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   }
   const run = {threadId: scope.id, live: await scope.run.live()}
   const mirror = caller.trace.mirror(run, {publish: scope.stream.publish, record: scope.run.record})
-  const runner = await deps.codeRunner(
-    scope.id,
-    (chunk) => mirror.publish([caller.trace.mark(chunk)]),
-    origin !== null && caller.outside
-      ? deps.outsideCapabilities({sessionId: scope.id, client: origin.client, pid: origin.pid, signal: caller.signal})
-      : undefined,
-  )
+  const runner = await deps.codeRunner(scope.id, (chunk) => mirror.publish([caller.trace.mark(chunk)]), {
+    ...(origin !== null && caller.outside
+      ? {
+          capabilities: deps.outsideCapabilities({
+            sessionId: scope.id,
+            client: origin.client,
+            pid: origin.pid,
+            signal: caller.signal,
+          }),
+        }
+      : {}),
+    ...(caller.nativeId === null ? {} : {harnessSessionId: caller.nativeId}),
+  })
   const sessionLines = await deps.sessionPrompt(scope.id)
   if (runner === null) {
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
@@ -358,20 +365,32 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   return [...discoverTools, ...askingTools, executeTool]
 }
 
-const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
-  if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
-  const header = sessionIdFromHeaders(c.req.raw.headers)
-  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
-  const trace = callTrace((name) => c.req.raw.headers.get(name))
-  const scope = await c.var.mcp.resolveSession(header, nativeId)
-  const caller = {trace, outside: trace.hub !== null && header === null && nativeId === null, signal: c.req.raw.signal}
-  const server = createMCPServer({
-    name: 'conciv',
-    version: corePackage.version,
-    tools: await sessionTools(c.var.mcp, scope, caller),
-    onerror: (error) => logError(`[mcp] ${error.message}`),
+const app = new Hono<{Variables: McpVars}>()
+  .delete('/', async (c) => {
+    if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
+    const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+    if (nativeId !== null) await c.var.mcp.harnessEnded(nativeId)
+    return c.body(null, 204)
   })
-  return server.handle(c.req.raw)
-})
+  .post('/', async (c) => {
+    if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
+    const header = sessionIdFromHeaders(c.req.raw.headers)
+    const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+    const trace = callTrace((name) => c.req.raw.headers.get(name))
+    const scope = await c.var.mcp.resolveSession(header, nativeId)
+    const caller = {
+      trace,
+      outside: trace.hub !== null && header === null && nativeId === null,
+      signal: c.req.raw.signal,
+      nativeId,
+    }
+    const server = createMCPServer({
+      name: 'conciv',
+      version: corePackage.version,
+      tools: await sessionTools(c.var.mcp, scope, caller),
+      onerror: (error) => logError(`[mcp] ${error.message}`),
+    })
+    return server.handle(c.req.raw)
+  })
 
 export default app

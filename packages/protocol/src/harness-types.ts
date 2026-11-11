@@ -76,6 +76,7 @@ type HarnessInitBase<Id extends string> = {
   hub?: {
     name: string
     shellEnv: string
+    sessionEnv?: string
     add: (command: string[], env: Readonly<Record<string, string>>) => string[]
     remove?: string[]
   }
@@ -181,6 +182,6 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   transcriptUsage?(query: TranscriptUsageQuery): Promise<TranscriptUsage | null>
 }
 
-export type TranscriptUsageQuery = {cwd: string; from: number; to: number; nativeId?: HarnessSessionId}
+export type TranscriptUsageQuery = {cwd: string; nativeId: HarnessSessionId}
 
 export type TranscriptUsage = {nativeId: HarnessSessionId; model: string; usage: TokenUsage; cost?: number}

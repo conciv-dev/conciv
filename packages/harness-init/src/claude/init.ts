@@ -1,4 +1,5 @@
 import type {HarnessInit, HarnessInitCard, HarnessInitCommand, HarnessInitPlan} from '@conciv/protocol/harness-types'
+import {CLAUDE_SESSION_ENV} from './names.js'
 import {claudeConfigDir, claudeConnectServesProject} from './install-state.js'
 import {claudeConnectDir, claudeConnectPluginFiles, CLAUDE_CONNECT_INSTALL_TARGET} from './plugin-files.js'
 
@@ -40,6 +41,7 @@ export const claudeInit: HarnessInit<'claude'> = {
   hub: {
     name: 'Claude',
     shellEnv: 'CLAUDECODE',
+    sessionEnv: CLAUDE_SESSION_ENV,
     add: (command, env) => [
       'claude',
       'mcp',

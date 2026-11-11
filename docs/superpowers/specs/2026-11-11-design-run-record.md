@@ -31,6 +31,15 @@ Before the new schema first opens the store, the old `runs.db` is copied to `run
 script outside the repo reads the old file and writes its 186 runs into the new schema through the product's write path or plain
 SQL; fields the old runs never had stay null. The script is never committed.
 
+## A run is one agent conversation
+
+The harness session id is captured by the product, never filled in by hand. Claude Code exports `CLAUDE_CODE_SESSION_ID`
+to every command it runs and to every MCP server it starts (verified 2026-11-11). The conciv plugin bridge and the
+`.conciv/bin/conciv` CLI send it with every tool call; reading the variable is the claude harness adapter's job, so another
+CLI maps its own variable. The engine hands it to the extension with the call. A run is keyed on the harness session id: a new
+agent conversation on the same tab is a new run; the tab's conciv session stays on the row. At close, the run reads model,
+usage and cost from that exact transcript through the existing transcript reader.
+
 ## Every row knows where it came from
 
 Swamp's model: no joins needed, because each record carries its provenance. Every per-run table carries `run` and `session`;

@@ -1,8 +1,10 @@
-import {execFile} from 'node:child_process'
+import {execFile, spawn} from 'node:child_process'
+import {once} from 'node:events'
 import {existsSync} from 'node:fs'
 import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
+import {createInterface} from 'node:readline'
 import {DatabaseSync} from 'node:sqlite'
 import {setImmediate as nextTurn} from 'node:timers/promises'
 import {fileURLToPath} from 'node:url'
@@ -31,6 +33,8 @@ import {
 import {DESIGN_TOOLS} from '@conciv/extension-design/design-tools'
 import {HarnessSessionId, TabsSchema} from '@conciv/protocol/chat-types'
 import {claude} from '@conciv/harness/claude'
+import {claudeConnectBridgeSource, CLAUDE_CONNECT_BRIDGE_FILE} from '@conciv/harness-init/claude/bridge'
+import {claudeConnectEndpointFile} from '@conciv/harness-init/claude/endpoint'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
@@ -2170,22 +2174,42 @@ describe('a run closes with its session', () => {
   })
 })
 
-describe('a run closes from its harness transcript', () => {
-  it('fills the model, usage and cost of an external session run from its claude transcript and names the transcript', async () => {
-    const homeDir = await tempDir('conciv-design-transcript-home-')
+describe('a run is one agent conversation', () => {
+  it('opens one run per claude session the CLI names on one tab, and fills each from its own transcript at close', async () => {
+    const homeDir = await tempDir('conciv-design-agents-home-')
     const engine = await bootDesignHost({homeDir})
     const {session} = engine
-    const nativeId = HarnessSessionId.parse(`design-transcript-${process.pid}`)
-    const transcript = claude.history?.transcriptPath?.(HOST_ROOT, nativeId)
+    const first = HarnessSessionId.parse(`design-agent-a-${process.pid}`)
+    const second = HarnessSessionId.parse(`design-agent-b-${process.pid}`)
+    const transcript = claude.history?.transcriptPath?.(await tempDir('conciv-agent-cwd-'), first)
     if (transcript === undefined) throw new Error('the claude harness names no transcript path')
+    const check = (agent: HarnessSessionId) =>
+      promisify(execFile)(
+        process.execPath,
+        [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'check', '--tab', session],
+        {
+          cwd: engine.stateRoot,
+          env: {
+            ...process.env,
+            CONCIV_PORT: new URL(engine.apiBase).port,
+            CONCIV_TOKEN: engine.token,
+            CONCIV_SESSION_ID: '',
+            CLAUDECODE: '1',
+            CLAUDE_CODE_SESSION_ID: agent,
+          },
+        },
+      ).catch((failed: unknown) => PrintedSchema.parse(failed))
     try {
       await engine.goto('target')
-      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
       await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      await check(first)
+      await check(second)
+      await check(first)
       await mkdir(join(transcript, '..'), {recursive: true})
       await writeFile(transcript, syntheticTranscript(new Date().toISOString()))
+      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
       await engine.rpc.sessions.detach({pid: process.pid})
-      const [stored] = await homeQuery({
+      const stored = await homeQuery({
         home: homeDir,
         args: [
           '--from',
@@ -2193,41 +2217,105 @@ describe('a run closes from its harness transcript', () => {
           '--where',
           `session == "${session}"`,
           '--select',
-          fields('run', 'model', 'usage', 'cost', 'harness_session_id', 'error_code'),
+          fields('harness_session_id', 'status', 'model', 'usage', 'cost', 'error_code'),
+          '--order',
+          'run',
         ],
       })
-      expect(stored).toEqual({
-        run: expect.any(Number),
-        model: 'claude-sonnet-4-5',
-        usage: {
-          promptTokens: 134,
-          completionTokens: 12,
-          totalTokens: 146,
-          promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+      const closed = {status: 'aborted', model: null, usage: null, cost: null, error_code: 'no-transcript'}
+      expect(stored).toEqual([
+        {...closed, harness_session_id: null},
+        {
+          harness_session_id: first,
+          status: 'aborted',
+          model: 'claude-sonnet-4-5',
+          usage: {
+            promptTokens: 134,
+            completionTokens: 12,
+            totalTokens: 146,
+            promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+            cost: 0.75,
+          },
           cost: 0.75,
+          error_code: null,
         },
-        cost: 0.75,
-        harness_session_id: nativeId,
-        error_code: null,
-      })
-      const summary = await homeQuery({
+        {...closed, harness_session_id: second},
+      ])
+      const checks = await homeQuery({
         home: homeDir,
-        args: [
-          '--from',
-          'design_run_summary',
-          '--where',
-          `run == ${String(stored?.run)}`,
-          '--select',
-          fields('harness_session_id'),
-        ],
+        args: ['--from', 'design_stored_rounds', '--where', `session == "${session}"`, '--select', fields('run')],
       })
-      expect(summary).toEqual([{harness_session_id: nativeId}])
+      expect(new Set(checks.map((row) => row.run)).size).toBe(2)
     } finally {
       await engine.dispose()
       await rm(transcript, {force: true})
     }
   })
 
+  it('names the claude session of a plugin bridge call on its run, and closes the run when claude closes the bridge', async () => {
+    const homeDir = await tempDir('conciv-design-bridge-home-')
+    const engine = await bootDesignHost({homeDir})
+    const agent = HarnessSessionId.parse(`design-bridge-${process.pid}`)
+    const bridge = join(await tempDir('conciv-design-bridge-'), CLAUDE_CONNECT_BRIDGE_FILE)
+    await writeFile(bridge, claudeConnectBridgeSource())
+    const endpoint = claudeConnectEndpointFile({
+      stateDir: join(engine.stateRoot, '.conciv'),
+      mcpUrl: `${engine.apiBase}/api/mcp`,
+    })
+    await mkdir(join(endpoint.path, '..'), {recursive: true})
+    await writeFile(endpoint.path, endpoint.contents)
+    const child = spawn(process.execPath, [bridge], {
+      cwd: engine.stateRoot,
+      env: {...process.env, CLAUDE_CODE_SESSION_ID: agent},
+      stdio: ['pipe', 'pipe', 'inherit'],
+    })
+    const replies = createInterface({input: child.stdout})[Symbol.asyncIterator]()
+    const send = async (message: Record<string, unknown>) => {
+      child.stdin.write(`${JSON.stringify({jsonrpc: '2.0', ...message})}\n`)
+      if (!('id' in message)) return null
+      return (await replies.next()).value
+    }
+    const design = await cardsDesign(engine.targetsDir)
+    const runs = () =>
+      homeQuery({
+        home: homeDir,
+        args: [
+          '--from',
+          'design_stored_runs',
+          '--where',
+          `harness_session_id == "${agent}"`,
+          '--select',
+          fields('status', 'ended'),
+        ],
+      })
+    try {
+      await engine.goto('target')
+      await send({
+        id: 1,
+        method: 'initialize',
+        params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: 'claude-code', version: '0'}},
+      })
+      await send({method: 'notifications/initialized'})
+      await send({
+        id: 2,
+        method: 'tools/call',
+        params: {
+          name: 'execute_typescript',
+          arguments: {typescriptCode: `return await external_design_get(${JSON.stringify({...design, route: '/'})})`},
+        },
+      })
+      expect(await runs()).toEqual([{status: 'running', ended: null}])
+      child.stdin.end()
+      await once(child, 'exit')
+      expect(await runs()).toEqual([{status: 'aborted', ended: expect.any(Number)}])
+    } finally {
+      child.kill()
+      await engine.dispose()
+    }
+  })
+})
+
+describe('a run closes from its harness transcript', () => {
   it('records no-transcript on an external session run that has no transcript, with model, usage and cost null', async () => {
     const homeDir = await tempDir('conciv-design-no-transcript-home-')
     const engine = await bootDesignHost({homeDir})

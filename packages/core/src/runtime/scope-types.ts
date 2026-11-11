@@ -16,8 +16,10 @@ export type ToolCatalog = ToolRegistry['catalog']
 
 export type ScopedToolCall = (name: string, input: unknown, request: ToolRequest) => Promise<unknown>
 
+export type ToolCallOptions = Pick<ToolRequest, 'toolCallId' | 'harnessSessionId'>
+
 export type SessionTools = {
-  call: (name: string, input: unknown, options?: {toolCallId?: string}) => Promise<unknown>
+  call: (name: string, input: unknown, options?: ToolCallOptions) => Promise<unknown>
   has: (name: string) => boolean
   catalog: ToolCatalog
 }

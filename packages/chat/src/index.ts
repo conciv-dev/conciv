@@ -8,7 +8,13 @@ import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
 import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
-import {CHAT_SSE_PATH, CHAT_WS_PATH, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
+import {
+  CHAT_SSE_PATH,
+  CHAT_WS_PATH,
+  SessionId,
+  type HarnessSessionId,
+  type HubAccess,
+} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {UiAnswer} from '@conciv/protocol/ui-types'
 import {
@@ -64,6 +70,8 @@ export type CodeRunner = {
   declaredCodes: ReadonlySet<string>
 }
 
+type CodeRunnerCaller = {capabilities?: readonly CodeCapability[]; harnessSessionId?: HarnessSessionId}
+
 type AdmittedCall = {
   toolName: string
   input: unknown
@@ -97,7 +105,7 @@ export type ChatPlane = {
   codeRunner: (
     sessionId: SessionId,
     publish: (chunk: ChatEvent) => void,
-    capabilities?: readonly CodeCapability[],
+    caller?: CodeRunnerCaller,
   ) => Promise<CodeRunner | null>
   admitCall: (sessionId: SessionId, call: AdmittedCall) => Promise<CallRefusal | null>
   pendingAsks: (sessionId: SessionId) => Promise<ChatEvent[]>
@@ -241,10 +249,11 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
       })),
     outsideDenied: (sessionId) => approvals.outsideDenied(sessionId),
     allowOutside: (sessionId) => approvals.allowOutside(sessionId),
-    codeRunner: async (sessionId, publish, given) => {
+    codeRunner: async (sessionId, publish, caller = {}) => {
       const model = deps.sessions.row(sessionId)?.model ?? null
-      const capabilities = given ?? deps.capabilities(sessionId)
-      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model})
+      const capabilities = caller.capabilities ?? deps.capabilities(sessionId)
+      const harness = caller.harnessSessionId === undefined ? {} : {harnessSessionId: caller.harnessSessionId}
+      const toolSet = chatToolSet(capabilities, {sessionId, agentId: sessionId, model, ...harness})
       const runner = server.codeRunner(toolSet.codeMode)
       if (runner === null) return null
       const emitter = (parentToolCallId: string | null) => (name: string, value: Record<string, unknown>) => {

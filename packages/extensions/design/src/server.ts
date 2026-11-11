@@ -4,7 +4,7 @@ import {createStorage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs'
 import {closeHomeDb, openHomeDb} from '@conciv/db'
 import {defineExtension} from '@conciv/extension'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
 import {designConfig} from './shared/tolerances.js'
 import type {Design, DesignRuntime, Pairer} from './shared/defs.js'
@@ -68,7 +68,11 @@ const design = defineExtension({
     cwd: server.cwd,
     extensionDir,
     harness: (sessionId) => server.harness(SessionId.parse(sessionId)).id,
-    transcript: (sessionId, window) => server.sessions.transcript(SessionId.parse(sessionId), window),
+    transcript: (sessionId, harnessSessionId) =>
+      server.sessions.transcript(
+        SessionId.parse(sessionId),
+        harnessSessionId === null ? null : HarnessSessionId.parse(harnessSessionId),
+      ),
   })
   const componentSources = {'vite-oxc': createViteOxcSource()}
   const catalog = createCatalog({
@@ -146,7 +150,7 @@ const design = defineExtension({
             ...(run.usage === undefined ? {} : {usage: run.usage}),
             ...(run.error === undefined ? {} : {error: run.error}),
           }),
-    sessionEnd: (sessionId) => runs.end(sessionId),
+    sessionEnd: (sessionId, end) => runs.end(sessionId, end.harnessSessionId),
     dispose: async () => {
       await backfilled
       await runs.endAll()

@@ -84,6 +84,7 @@
     "@conciv/extension": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness": "workspace:^",
+    "@conciv/harness-init": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
