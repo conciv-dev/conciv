@@ -266,8 +266,21 @@ test.describe('composer rich input', () => {
       await expect(input).toHaveText('')
     })
 
-    test('Escape closes the typeahead first, cancels the run next, and closes the panel last', async ({page}) => {
+    test('Escape closes the typeahead first, cancels the run next, and closes the panel while the run is stopping', async ({
+      page,
+    }) => {
       test.setTimeout(180_000)
+      const heldStops: Array<() => void> = []
+      await page.routeWebSocket(/\/rpc-ws/, (socket) => {
+        const server = socket.connectToServer()
+        socket.onMessage((message) => {
+          if (message.toString().includes('/chat/stop')) {
+            heldStops.push(() => server.send(message))
+            return
+          }
+          server.send(message)
+        })
+      })
       await openComposer(page)
       const input = composer(page)
 
@@ -290,14 +303,15 @@ test.describe('composer rich input', () => {
         await expect(panel(page)).toBeVisible()
 
         await page.keyboard.press('Escape')
-        await expect(stop).toBeHidden({timeout: 30_000})
+        await expect(page.getByRole('button', {name: 'Stopping the run'})).toBeVisible({timeout: 30_000})
         await expect(panel(page)).toBeVisible()
+
+        await page.keyboard.press('Escape')
+        await expect(panel(page)).toBeHidden({timeout: 10_000})
       } finally {
+        for (const send of heldStops) send()
         suite.kit().harness.script.release()
       }
-
-      await page.keyboard.press('Escape')
-      await expect(panel(page)).toBeHidden({timeout: 30_000})
     })
 
     test('a reload restores the caret where the draft left it, not at the end', async ({page}) => {
