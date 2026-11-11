@@ -1,6 +1,5 @@
 import {createSignal, type Accessor} from 'solid-js'
-import type {QueryClient, QueryKey} from '@tanstack/solid-query'
-import type {ChatSession} from '@conciv/client'
+import type {QueryClient, QueryKey, ChatSession} from '@conciv/client'
 import type {AppData} from '../data/app-data.js'
 import type {LiveSessions} from '../app/live-sessions.js'
 

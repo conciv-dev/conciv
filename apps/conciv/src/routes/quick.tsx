@@ -1,5 +1,5 @@
 import {createFileRoute, redirect, useRouter} from '@tanstack/solid-router'
-import {useQuery, useMutation} from '@tanstack/solid-query'
+import {useQuery, useMutation} from '@conciv/client'
 import {createHotkeys, formatForDisplay} from '@tanstack/solid-hotkeys'
 import {For, Show, Suspense, createEffect, on, onCleanup, onMount, type JSX} from 'solid-js'
 import {Button, TooltipIconButton, createResizable} from '@conciv/ui-kit-system'

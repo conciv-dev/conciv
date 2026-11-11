@@ -19,7 +19,7 @@ import {start as startEngine} from '@conciv/core'
 import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
-import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -28,7 +28,7 @@ import {type Detected, detectFramework, detectProject, type Framework} from '../
 import {execFileOutcome} from '../src/init/exec.js'
 import {detectHarnesses} from '@conciv/harness-init/detect'
 import {createHubConnections} from '@conciv/harness-init/hub'
-import {recordHubConnection, takeHubOperation, withHomeDb} from '@conciv/db'
+import {listEngines, recordHubConnection, registerEngine, takeHubOperation, withHomeDb} from '@conciv/db'
 import type {HarnessId} from '../src/init/harness-detect.js'
 import {type ConfirmedSelections, type InitOutput, interactiveTerminal, type PlanPrompts} from '../src/init/wizard.js'
 import {captureFile, guardBackups, onInterrupt} from '../src/init/interrupt.js'
@@ -1050,16 +1050,34 @@ describe('cli', () => {
 
   async function engineWithTab(
     home: string,
-    shared?: {root: string; sessionId: string},
-    extensions?: Parameters<typeof startEngine>[0]['extensions'],
+    given: {
+      shared?: {root: string; sessionId: string}
+      extensions?: Parameters<typeof startEngine>[0]['extensions']
+      hubAccess?: 'session' | 'open'
+    } = {},
   ) {
-    const root = shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
-    const options = {harnessBin: 'true', stateRoot: root, systemPrompt: false}
-    const engine = await startEngine({options, root, launchEditor: () => {}, homeDir: home, extensions})
+    const root = given.shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
+    const engine = await startEngine({
+      options: {
+        harnessBin: 'true',
+        stateRoot: root,
+        systemPrompt: `the instructions of ${root}`,
+        hubAccess: given.hubAccess ?? 'session',
+      },
+      root,
+      launchEditor: () => {},
+      homeDir: home,
+      extensions: given.extensions,
+    })
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
-    const sessionId = shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    await page.page.queries(undefined, {signal: pages.signal})
+    const queries = await page.page.queries(undefined, {signal: pages.signal})
+    const route = {href: `http://localhost${root}`, title: root, state: 'visible', pathname: root, search: ''}
+    const answer = async () => {
+      for await (const {requestId} of queries) await page.page.reply({requestId, outcome: {ok: true, result: route}})
+    }
+    answer().catch(() => {})
     return {engine, sessionId, base, page, root}
   }
 
@@ -1177,7 +1195,7 @@ describe('cli', () => {
         meta: {summary: 'light the lantern over the page', category: 'act', mutating: true},
       }).client()
       const cwdEngine = await engineWithTab(home)
-      const holder = await engineWithTab(home, undefined, [defineExtension({name: 'lantern', tools: [lantern]})])
+      const holder = await engineWithTab(home, {extensions: [defineExtension({name: 'lantern', tools: [lantern]})]})
       const project = mkdtempSync(join(tmpdir(), 'conciv-project-'))
       mkdirSync(join(project, '.conciv'))
       const recorded = {port: cwdEngine.engine.port, token: cwdEngine.engine.agentToken}
@@ -1201,7 +1219,7 @@ describe('cli', () => {
     it('--tab refuses to guess when two running servers hold the same tab, naming both', async () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const first = await engineWithTab(home)
-      const second = await engineWithTab(home, first)
+      const second = await engineWithTab(home, {shared: first})
       try {
         expect(await conciv(tmpdir(), home, ['tools', 'tabs', '--tab', first.sessionId])).toMatchObject({
           ok: false,
@@ -1284,24 +1302,24 @@ describe('cli', () => {
       const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
       const adding = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
-      const hub = createHubConnections(home, async (argv) => {
+      const connections = createHubConnections(home, async (argv) => {
         if (argv.includes('add')) {
           adding.resolve()
           await release.promise
         }
         return {ok: true, output: '', message: ''}
       })
-      const connecting = hub.connect('claude', ['conciv'])
+      const connecting = connections.connect('claude', ['conciv'])
       await adding.promise
-      expect(await hub.disconnect('claude')).toEqual({
+      expect(await connections.disconnect('claude')).toEqual({
         ok: true,
         note: 'Claude is still being (dis)connected, so its conciv-hub entry stays for now; conciv refuses it until you reconnect.',
       })
       release.resolve()
       expect(await connecting).toEqual({ok: false, message: 'Claude was disconnected while connecting; connect again'})
-      expect(hub.list()).toEqual([])
-      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
-      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+      expect(connections.list()).toEqual([])
+      expect(await connections.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(connections.list()).toMatchObject([{harness: 'claude'}])
     })
 
     it('a reconnect waits out a slow remove, so the remove never deletes the entry the reconnect installed', async () => {
@@ -1309,7 +1327,7 @@ describe('cli', () => {
       const entries = new Set<string>()
       const removing = Promise.withResolvers<void>()
       const release = Promise.withResolvers<void>()
-      const hub = createHubConnections(home, async (argv) => {
+      const connections = createHubConnections(home, async (argv) => {
         if (argv.includes('remove')) {
           removing.resolve()
           await release.promise
@@ -1319,19 +1337,19 @@ describe('cli', () => {
         entries.add('conciv-hub')
         return {ok: true, output: '', message: ''}
       })
-      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
-      const disconnecting = hub.disconnect('claude')
+      expect(await connections.connect('claude', ['conciv'])).toEqual({ok: true})
+      const disconnecting = connections.disconnect('claude')
       await removing.promise
-      expect(hub.list()).toEqual([])
-      expect(await hub.connect('claude', ['conciv'])).toEqual({
+      expect(connections.list()).toEqual([])
+      expect(await connections.connect('claude', ['conciv'])).toEqual({
         ok: false,
         message: 'Claude is still being (dis)connected; try again in a moment',
       })
       release.resolve()
       expect(await disconnecting).toEqual({ok: true})
-      expect(await hub.connect('claude', ['conciv'])).toEqual({ok: true})
+      expect(await connections.connect('claude', ['conciv'])).toEqual({ok: true})
       expect(entries.has('conciv-hub')).toBe(true)
-      expect(hub.list()).toMatchObject([{harness: 'claude'}])
+      expect(connections.list()).toMatchObject([{harness: 'claude'}])
     })
 
     it('a lease lasts as long as its process or the agent CLI it spawned, up to a ten minute ceiling against pid reuse', async () => {
@@ -1421,29 +1439,127 @@ describe('cli', () => {
       },
     )
 
-    it('serves only execute_typescript and discover_tools, and reaches the newest engine across a restart', async () => {
+    async function frontOf(home: string, engine: {root: string; base: string}) {
+      const upstream = new URL(engine.base)
+      const mode = {dropCalls: false}
+      const front = createHttpServer(async (request, response) => {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(Buffer.from(chunk))
+        const body = Buffer.concat(chunks)
+        const method = z.object({method: z.string()}).safeParse(JSON.parse(body.toString() || 'null')).data?.method
+        if (mode.dropCalls && method === 'tools/call') {
+          request.socket.destroy()
+          return
+        }
+        const headers = Object.fromEntries(
+          Object.entries(request.headers).flatMap(([key, value]) =>
+            typeof value === 'string' && !['host', 'connection', 'content-length'].includes(key) ? [[key, value]] : [],
+          ),
+        )
+        const answer = await fetch(new URL(request.url ?? '/', upstream.origin), {
+          method: request.method,
+          headers,
+          ...(body.length === 0 ? {} : {body}),
+        })
+        const kept = [...answer.headers].filter(([key]) => !['content-encoding', 'content-length'].includes(key))
+        response.writeHead(answer.status, Object.fromEntries(kept))
+        response.end(Buffer.from(await answer.arrayBuffer()))
+      })
+      front.listen(0, '127.0.0.1')
+      await once(front, 'listening')
+      const port = z.object({port: z.number()}).parse(front.address()).port
+      const row = withHomeDb(home, listEngines).find((entry) => entry.root === engine.root)
+      if (row === undefined) throw new Error('the engine has no row in the home db')
+      const apiBase = `http://127.0.0.1:${port}${upstream.pathname}`
+      withHomeDb(home, (db) => registerEngine(db, {...row, apiBase}))
+      return {
+        dropCalls: (drop: boolean) => {
+          mode.dropCalls = drop
+        },
+        close: async () => {
+          front.closeAllConnections()
+          front.close()
+          await once(front, 'close')
+        },
+      }
+    }
+
+    const ReplySchema = z.object({content: z.array(z.object({type: z.string(), text: z.string().optional()}))})
+
+    it('serves only execute_typescript and discover_tools, sends a block with tab to the engine holding it, keeps the engine registered longest ago for the rest, resends only a refused call', async () => {
       const {home, mcp} = fakeClaude()
       expect(mcp('connect', 'claude')).toMatchObject({status: 0})
-      const first = await engineWithTab(home)
+      const older = await engineWithTab(home, {hubAccess: 'open'})
+      const front = await frontOf(home, older)
+      const newer = await engineWithTab(home, {hubAccess: 'open'})
       const client = await hub(home)
+      const survivor = await engineWithTab(home).catch(async (error: unknown) => {
+        await client.close()
+        throw error
+      })
       try {
         expect((await client.tools()).map((tool) => tool.name).toSorted()).toEqual([
           'discover_tools',
           'execute_typescript',
         ])
-        expect(await run(client, 'return await external_tabs({})')).toContain(first.sessionId)
+        const route = 'return await external_page_route({})'
+        const onTab = async (engine: {sessionId: string}, typescriptCode: string) =>
+          ReplySchema.parse(await client.callTool('execute_typescript', {typescriptCode, tab: engine.sessionId}))
+            .content
+        const instructionsOf = async (engine: {base: string; sessionId: string}) =>
+          TabOpenSchema.parse(await (await fetch(`${engine.base}/api/tabs?session=${engine.sessionId}`)).json())
+            .instructions
+        for (const engine of [newer, older]) {
+          const [lead, ...rest] = await onTab(engine, route)
+          expect(lead).toEqual({type: 'text', text: await instructionsOf(engine)})
+          expect(lead?.text).toContain(`the instructions of ${engine.root}`)
+          expect(JSON.stringify(rest)).toContain(`"pathname\\":\\"${engine.root}`)
+        }
+        const again = JSON.stringify(await onTab(older, route))
+        expect([again.includes(`"pathname\\":\\"${older.root}`), again.includes('the instructions of')]).toEqual([
+          true,
+          false,
+        ])
+        const sessionHeaders = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_SESSION_HEADER]: older.sessionId}
+        const ownerMcp = await createMCPClient({
+          transport: {type: 'http', url: `${older.base}/api/mcp`, headers: sessionHeaders},
+        })
+        const signatures = await ownerMcp.callTool('discover_tools', {toolNames: ['page_route']})
+        await ownerMcp.close()
+        expect(JSON.stringify(signatures)).toContain('page_route')
+        expect(await client.callTool('discover_tools', {toolNames: ['page_route'], tab: older.sessionId})).toEqual(
+          signatures,
+        )
+        expect(await onTab({sessionId: 'conciv_gone'}, route)).toEqual([
+          {type: 'text', text: 'TAB_NOT_OPEN: tab conciv_gone is not open; call external_tabs({})'},
+        ])
+        expect(await run(client, route)).toContain(
+          'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
+        )
+        expect(await run(client, 'return await external_tabs({})')).toContain(older.sessionId)
         const headers = {[CONCIV_ORIGIN_HEADER]: 'hub'}
-        const direct = await createMCPClient({transport: {type: 'http', url: `${first.base}/api/mcp`, headers}})
+        const direct = await createMCPClient({transport: {type: 'http', url: `${older.base}/api/mcp`, headers}})
         const engineReply = await direct.callTool('execute_typescript', {typescriptCode: 'return 1 + 1'})
         await direct.close()
         expect(JSON.stringify(engineReply.content)).toContain('{\\"result\\":2')
+        await newer.engine.stop()
         expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
-        await first.engine.stop()
-        const second = await engineWithTab(home)
-        expect(await run(client, 'return await external_tabs({})')).toContain(second.sessionId)
-        await second.engine.stop()
+        expect(JSON.stringify(await onTab(older, route))).toContain(`"pathname\\":\\"${older.root}`)
+        front.dropCalls(true)
+        const failed = await run(client, 'return 1 + 1')
+        expect(failed).toContain(`the call failed on the conciv engine at ${older.root}`)
+        expect(failed).toContain('it was not retried')
+        expect(failed).toContain(`the next call runs on ${older.root}`)
+        front.dropCalls(false)
+        expect(await run(client, 'return 1 + 1')).toBe(JSON.stringify(engineReply))
+        await front.close()
+        await older.engine.stop()
+        const resent = await run(client, 'return await external_tabs({})')
+        expect(resent).toContain(survivor.sessionId)
+        expect(resent).not.toContain(older.sessionId)
       } finally {
         await client.close()
+        await survivor.engine.stop()
       }
     })
 
@@ -1452,7 +1568,7 @@ describe('cli', () => {
       const client = await hub(home)
       try {
         const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
-        expect(execute?.description).toContain('external_use_tab({id})')
+        expect(execute?.description).toContain('pass its id as tab')
         const reply = await run(client, 'return 1')
         expect(reply).toContain('no conciv dev server is running; start one and open its page')
         expect(reply).toContain(home)

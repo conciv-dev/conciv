@@ -13,7 +13,7 @@ Headless per-message action bar (copy, reload, edit, export, speak, feedback) an
 
 ## Invariants
 
-- `action-bar.tsx:Copy` copies only the `text` parts of the message joined by blank lines (`messageText`), and resets the copied state after `copiedDuration` (default 3000 ms).
+- `action-bar.tsx:Copy` copies its `text` prop when given, else only the `text` parts of the message joined by blank lines (`messageText`), and resets the copied state after `copiedDuration` (default 3000 ms).
 - Buttons built with `createActionButton` render only when their handler exists (for example `onFeedback` in `ActionHandlers`).
 
 ## Side Effects

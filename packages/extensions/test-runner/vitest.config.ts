@@ -3,8 +3,7 @@ import {playwright} from '@vitest/browser-playwright'
 import {defineConfig} from 'vitest/config'
 import {ciTest, ciTestSolidBrowser} from '@conciv/vitest-config'
 import type {Plugin} from 'vite'
-import {RPCHandler} from '@orpc/server/node'
-import {rpcConnectionContext, rpcHandlerOptions} from '@conciv/extension/rpc-mount'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {serveExtensionRpc} from '@conciv/harness-testkit/rpc-mounts'
 import {makeTestRunnerRouter} from './src/server.js'
 import type {TestEvent, TestRunResult} from './src/shared/events.js'
@@ -84,33 +83,20 @@ const fixtureManager: TestRunnerManager = {
   stop: async () => {},
 }
 
-const FIXTURE_ORIGIN = 'http://127.0.0.1'
 const FIXTURE_BASE_PATH = '/__test-runner-fixture'
+
+const served = await serveExtensionRpc({slug: 'test-runner', router: makeTestRunnerRouter(fixtureManager)})
+served.unref()
 
 const testRunnerStream: Plugin = {
   name: 'test-runner-stream-fixture',
-  async configureServer(server) {
-    const router = makeTestRunnerRouter(fixtureManager)
-    const composite = {ext: {'test-runner': router}}
-    const handler = new RPCHandler(composite, rpcHandlerOptions())
-    server.middlewares.use((req, res, next) => {
-      if (!req.url?.startsWith('/rpc/')) return next()
-      void handler
-        .handle(req, res, {
-          prefix: '/rpc',
-          context: rpcConnectionContext(new URL(req.url, FIXTURE_ORIGIN).toString(), null),
-        })
-        .then((result) => {
-          if (!result.matched) next()
-        })
-    })
-    const served = await serveExtensionRpc({slug: 'test-runner', router})
+  config: () => ({server: {proxy: {[RPC_WS_PATH]: {target: served.base, ws: true}}}}),
+  configureServer(server) {
     server.middlewares.use((req, res, next) => {
       if (req.url !== FIXTURE_BASE_PATH) return next()
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({base: served.base, wsUrl: served.wsUrl}))
+      res.end(JSON.stringify({base: served.base}))
     })
-    served.unref()
     server.httpServer?.on('close', () => void served.close())
   },
 }

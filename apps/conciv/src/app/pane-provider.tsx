@@ -1,5 +1,5 @@
 import type {JSX} from 'solid-js'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery} from '@conciv/client'
 import {useRouter} from '@tanstack/solid-router'
 import {
   useAnnounce,

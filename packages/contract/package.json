@@ -40,6 +40,8 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
+    "@orpc/standard-server-peer": "catalog:",
+    "partysocket": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

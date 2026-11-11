@@ -41,6 +41,7 @@ import {
   ToolProvider,
   useThread,
   Composer,
+  ComposerActions,
   ComposerHandlersProvider,
   useComposerContext,
   type AttachmentAdapter,
@@ -706,6 +707,34 @@ describe('chat pane', () => {
   })
 })
 
+const LONG_ACTION_NAME = 'long-composer-action'
+const LONG_ACTION_LABEL = 'AN_EXTENSION_COMPOSER_LABEL_LONG_ENOUGH_TO_CROWD_THE_WHOLE_ROW'
+const PINNED_ACTION_TOOLTIP = 'Run the pinned extension action'
+const [pinnedActionRuns, setPinnedActionRuns] = createSignal(0)
+
+const longComposerAction = defineExtension({
+  name: LONG_ACTION_NAME,
+  Component: () => (
+    <Show when={getExtensionApi(LONG_ACTION_NAME).useSlot() === 'composer'}>
+      <span>{LONG_ACTION_LABEL}</span>
+      <ComposerActions.ActionButton
+        visible="always"
+        tooltip={PINNED_ACTION_TOOLTIP}
+        onClick={() => setPinnedActionRuns((runs) => runs + 1)}
+      >
+        P
+      </ComposerActions.ActionButton>
+      <Show when={pinnedActionRuns() > 0}>
+        <p>the pinned extension action ran</p>
+      </Show>
+    </Show>
+  ),
+})
+
+declare module '@conciv/protocol/config-types' {
+  interface ExtensionRegistry extends RegisterExtension<typeof longComposerAction> {}
+}
+
 describe('composer overflow', () => {
   const menuitem = (name: string | RegExp) => page.getByRole('menuitem', {name})
 
@@ -733,7 +762,7 @@ describe('composer overflow', () => {
   const compactItem = () => page.getByRole('menuitem', {name: 'Compress the conversation'})
   const commandOption = (position: number) => page.getByRole('option').nth(position)
 
-  async function mountComposer(width?: number): Promise<PaneMount> {
+  async function mountComposer(width?: number, extensions?: PaneMountOptions['extensions']): Promise<PaneMount> {
     const sessionId = await createSession(coreRpc(core()))
     const [requests, setRequests] = createSignal<string[]>([])
     const mount = mountPane(
@@ -741,6 +770,7 @@ describe('composer overflow', () => {
         base: core(),
         sessionId,
         width,
+        extensions,
         onNewSession: () => setRequests((current) => [...current, 'a new session']),
       },
       () => (
@@ -772,6 +802,21 @@ describe('composer overflow', () => {
 
     await expect.element(page.getByText('the pane requested a new session')).toBeVisible()
     await expect.element(newSessionItem()).not.toBeInTheDocument()
+  })
+
+  test('a long extension action in the row leaves the message input and a pinned action reachable', async () => {
+    await mountComposer(undefined, [longComposerAction])
+
+    await expect.element(page.getByText(LONG_ACTION_LABEL)).toBeVisible()
+    const pinnedAction = page.getByRole('button', {name: PINNED_ACTION_TOOLTIP})
+    await expect.element(pinnedAction).toBeVisible()
+    await userEvent.click(pinnedAction)
+    await expect.element(page.getByText('the pinned extension action ran')).toBeVisible()
+    await expect.element(input()).toBeVisible()
+    await userEvent.click(input())
+    await userEvent.keyboard('still typeable')
+
+    await expect.element(input().getByText('still typeable')).toBeVisible()
   })
 
   test('a session that is already compacting cannot be compacted again from the overflow menu', async () => {
@@ -873,6 +918,26 @@ describe('model menu', () => {
     await expect.element(prompt('Opus 5.5')).toBeVisible()
     await expect.element(input()).toHaveTextContent('typed before the models arrived')
     await expect.element(input()).toHaveFocus()
+  })
+
+  test('/model before the model list arrives opens the menu on its search field, which lists the models once they load', async () => {
+    const sessionId = await createSession(coreRpc(core()))
+    await faults.install({kind: 'gate', path: ['meta', 'models']})
+    keep(mountPane({base: core(), sessionId, width: 460}, () => <ChatPane sessionId={sessionId} />))
+
+    await userEvent.click(input())
+    await userEvent.keyboard('/model')
+    await expect.element(page.getByRole('option').first()).toHaveTextContent('/modelSwitch the model')
+    await userEvent.keyboard('{Enter}')
+
+    await expect.element(search()).toHaveFocus()
+    await expect.element(picker().getByRole('status')).toHaveTextContent('Loading models…')
+    await expect.element(picker().getByRole('option').first()).not.toBeInTheDocument()
+
+    await faults.releaseAll()
+
+    await expect.element(model('Opus 5.5')).toHaveAttribute('aria-selected', 'true')
+    await expect.element(search()).toHaveFocus()
   })
 
   test('a model list that failed to load offers a retry inside the menu, which then lists the models', async () => {
@@ -1748,13 +1813,16 @@ describe('harness switching', () => {
     await expect.element(prompt('Alpha Model (Alpha)')).toHaveTextContent('alpha model (alpha)')
   })
 
-  test('the menu of a harness with no models keeps focus in its search while the session list refreshes', async () => {
+  test('the menu of a harness with no models, opened after a trip to settings, keeps focus in its search while the sessions refresh', async () => {
     const rpc = coreRpc(core())
     const sessionId = await createSession(rpc)
     await rpc.sessions.switchHarness({sessionId, harnessId: 'gamma'})
     await rpc.sessions.rename({sessionId, title: 'Listed before the menu'})
     shell.mountShell(`/panel/${sessionId}?open=true`)
     await expect.element(page.getByText('Listed before the menu').first()).toBeVisible()
+    await userEvent.click(page.getByRole('link', {name: 'Settings'}))
+    await userEvent.click(page.getByRole('button', {name: 'Back to chat'}))
+    await expect.element(input()).toBeVisible()
 
     await userEvent.click(prompt('Gamma'))
     await expect.element(search()).toHaveFocus()
@@ -2821,18 +2889,6 @@ describe('session options outside agents', () => {
     await expect.element(launcher()).toBeVisible()
     await expect.element(waiting()).not.toBeInTheDocument()
     expect(await call).toContain('{\\"result\\":1')
-  }, 30_000)
-
-  test('a call forwarded from another engine shows only its tool row, never the forwarding execute', async () => {
-    const sessionId = await createSession(coreRpc(coreBase()))
-    harness.mountShell(`/panel/${sessionId}?open=true`)
-    const waiting = coreControl.hubExecute(sessionId, 'return 1')
-    await approve()
-    expect(await waiting).toContain('{\\"result\\":1')
-    const forwarded = 'return await external_page_route({})'
-    expect(await coreControl.hubExecute(sessionId, forwarded, 'hub-forward')).toContain('page_route')
-    await expect.element(page.getByRole('button', {name: /^failed route/}), {timeout: 8000}).toBeVisible()
-    await expect.element(page.getByRole('button', {name: /exec return await/})).not.toBeInTheDocument()
   }, 30_000)
 })
 
@@ -4901,11 +4957,13 @@ describe('settings page', () => {
 
   afterEach(harness.dispose)
   afterEach(() => document.documentElement.style.removeProperty('--conciv-skin'))
+  afterEach(() => localStorage.removeItem('conciv-modal-width'))
 
   const composer = () => page.getByRole('textbox', {name: 'Message the conciv agent'})
   const gear = () => page.getByRole('link', {name: 'Settings'})
   const back = () => page.getByRole('button', {name: 'Back to chat'})
   const tab = (name: string) => page.getByRole('tab', {name, exact: true})
+  const sections = () => page.getByRole('tablist', {name: 'Settings sections'})
   const colorMode = () => page.getByRole('radiogroup', {name: 'Color mode'})
   const probe = (scheme: string) => page.getByText(`Widget colors: ${scheme}`)
   const notesTab = () => page.getByRole('tab', {name: 'Notes', exact: true})
@@ -4927,8 +4985,13 @@ describe('settings page', () => {
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
     localStorage.removeItem('conciv:settings-tab')
+    localStorage.removeItem('conciv-modal-width')
     const sessionId = await createSession(coreRpc(coreBase()))
     const settingsPath = (name: string) => `/panel/${sessionId}/settings/${name}`
+    harness.mountShell(`/panel/${sessionId}/settings/general?open=true`, [])
+    await expect.element(sections(), {timeout: 8000}).toHaveAttribute('aria-orientation', 'horizontal')
+    await expect.element(tab('Advanced')).toBeVisible()
+    harness.dispose()
     harness.mountShell(`/panel/${sessionId}?open=true`, [settingsProbe])
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(probe('light')).toBeInTheDocument()
@@ -4937,9 +5000,7 @@ describe('settings page', () => {
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
     expect(harness.pathname()).toBe(settingsPath('general'))
-    await expect
-      .element(page.getByRole('tablist', {name: 'Settings sections'}))
-      .toHaveAttribute('aria-orientation', 'vertical')
+    await expect.element(sections()).toHaveAttribute('aria-orientation', 'vertical')
 
     const tabPaths: Record<string, string> = {
       General: 'general',

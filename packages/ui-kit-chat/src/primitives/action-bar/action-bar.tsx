@@ -144,13 +144,14 @@ type CopyProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> &
   Slottable<JSX.ButtonHTMLAttributes<HTMLButtonElement>> & {
     copiedDuration?: number
     writeText?: (text: string) => Promise<void>
+    text?: string
   }
 
 function Copy(props: CopyProps): JSX.Element {
   const message = useMessage()
-  const [local, rest] = splitProps(props, ['copiedDuration', 'writeText'])
+  const [local, rest] = splitProps(props, ['copiedDuration', 'writeText', 'text'])
   const clipboard = createClipboardCopy({
-    text: () => messageText(message.message()),
+    text: () => local.text ?? messageText(message.message()),
     resetMs: () => local.copiedDuration ?? 3000,
     writeText: (text) => (local.writeText ?? writeClipboardText)(text),
   })

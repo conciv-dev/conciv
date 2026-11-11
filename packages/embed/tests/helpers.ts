@@ -8,7 +8,6 @@ import {createServer, type Server, request as httpRequest, type IncomingMessage}
 import {listenLocal} from '@conciv/extension-testkit/listen-local'
 import type {Duplex} from 'node:stream'
 import {test, expect, type Page} from '@playwright/test'
-import {serveHost} from '@conciv/extension-testkit/serve-host'
 import type {DraftRow} from '@conciv/contract'
 import {until} from '@conciv/harness-testkit/until'
 import {magicLink, requestPrintedCode} from '@conciv/harness-testkit/login'
@@ -48,7 +47,39 @@ export async function bootEmbedKit(
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const embedBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
+const embedDist = path.join(dirname, '../dist')
+const WIDGET_FILE = /^\/(?:conciv-widget\.global\.js|widget\/[\w-]+(?:\.[\w-]+)*\.js)$/
+
+export async function serveWidgetHost(html: (url: URL) => string): Promise<{base: string; close: () => Promise<void>}> {
+  const server: Server = createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    if (!WIDGET_FILE.test(url.pathname)) {
+      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
+      res.end(html(url))
+      return
+    }
+    fs.readFile(path.join(embedDist, url.pathname), (error, body) => {
+      if (error) {
+        res.writeHead(404)
+        res.end()
+        return
+      }
+      res.writeHead(200, {'content-type': 'text/javascript; charset=utf-8'})
+      res.end(body)
+    })
+  })
+  const {base, close} = await listenLocal(server)
+  return {
+    base,
+    close: async () => {
+      try {
+        await close()
+      } catch (error) {
+        console.error('[embed-testkit] widget host close failed:', error)
+      }
+    },
+  }
+}
 
 const AGENT_BASE = /^(?<origin>https?:\/\/[^/]+)\/t\/(?<token>[^/]+)(?<rest>\/.*)?$/
 
@@ -70,7 +101,7 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string}
     <meta name="conciv-widget" content='${opts.widget ?? '{}'}'>
   </head><body>
     ${opts.body ?? '<div id="probe">page-bus-ok</div>'}
-    <script>${embedBundle}</script>
+    <script src="/conciv-widget.global.js"></script>
   </body></html>`
 }
 
@@ -191,7 +222,7 @@ export function setupWidgetSuite(options: Parameters<typeof bootEmbedKit>[0] = {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit(options)
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
   test.afterEach(async () => {
@@ -217,7 +248,7 @@ export function setupProxiedEmbedSuite(opts: {text?: string} = {}): ProxiedEmbed
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: opts.text})
     core = await proxyTo(kit.base)
-    host = await serveHost(() => hostPage({apiBase: core.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost(() => hostPage({apiBase: core.base, widget: '{"quickTerminal":false}'}))
   })
 
   test.afterEach(async () => {

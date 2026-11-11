@@ -20,6 +20,11 @@ import {createServer} from 'node:http'
 import {listenLocal} from '../src/listen-local.js'
 import {gateRpcCalls} from '../src/rpc-fault.js'
 import {rpcObserverFor, observeRpc} from '../src/rpc-observer.js'
+import {rpcSocketFor} from '../src/rpc-socket.js'
+import {os} from '@orpc/server'
+import {StandardRPCJsonSerializer, StandardRPCSerializer} from '@orpc/client/standard'
+import {encodeRequestMessage, MessageType} from '@orpc/standard-server-peer'
+import {serveRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
 import {test as browserTest} from '@conciv/browser-fixture'
 import {launch} from '../src/launch.js'
 import {settleTeardown} from '../src/settle-teardown.js'
@@ -193,24 +198,6 @@ describe('core kit seams', () => {
       expect(rejected.status).toBe(403)
       expect(accepted.headers.get('access-control-allow-origin')).toBe(ORIGIN)
     }, 30_000)
-
-    it('counts an rpc call once it resolves, and never a preflight or a call to another procedure', async () => {
-      const kit = await bootCoreKit({id: 'seams-rpc-served', staleness: () => STALENESS})
-      state.kit = kit
-      const engine = ['meta', 'engine']
-      const before = kit.rpcServed(engine)
-
-      await kit.rpc.meta.engine()
-      const afterCall = kit.rpcServed(engine)
-      await fetch(`${kit.base}/rpc/meta/engine`, {
-        method: 'OPTIONS',
-        headers: {origin: kit.base, 'access-control-request-method': 'POST'},
-      })
-      await kit.rpc.sessions.list({})
-
-      expect(afterCall).toBe(before + 1)
-      expect(kit.rpcServed(engine)).toBe(before + 1)
-    }, 30_000)
   })
 })
 
@@ -349,7 +336,7 @@ describe('page rpc observer', () => {
   const PING_PATH = ['ext', 'ping', 'ping']
   const CORE_NAMESAKE_PATH = ['ping']
 
-  test('the page observer sees extension rpc calls from the page-load one onward, over the fetch transport', async () => {
+  test('the page observer sees extension rpc calls from the page-load one onward, over one websocket', async () => {
     const api = await getExtensionTestApi({server: ping, host: fixtureHost(hostDist)})
     try {
       await playwrightExpect(api.page.getByText('pong: boot')).toBeVisible()
@@ -359,7 +346,7 @@ describe('page rpc observer', () => {
       await playwrightExpect(api.page.getByText('pong: again')).toBeVisible()
       const roundtrip = await observer.completed({path: PING_PATH, since: mark})
       playwrightExpect(roundtrip.status).toBe(200)
-      playwrightExpect(observer.socketCount()).toBe(0)
+      playwrightExpect(observer.socketCount()).toBe(1)
       playwrightExpect(observer.startedCount({path: PING_PATH, since: mark})).toBe(1)
       playwrightExpect(observer.startedCount({path: PING_PATH})).toBe(2)
     } finally {
@@ -405,6 +392,63 @@ describe('page rpc observer', () => {
       await api.dispose()
     }
   })
+})
+
+describe('rpc socket routing', () => {
+  const CLOSE_EVENT = 'conciv-test:close-rpc-socket'
+
+  browserTest(
+    'a socket the page closes is closed on the engine too, ending the calls it carried',
+    async ({browser}) => {
+      const started = Promise.withResolvers<void>()
+      const ended = Promise.withResolvers<void>()
+      const router = {
+        wait: os.handler(
+          ({signal}) =>
+            new Promise<null>((resolve) => {
+              started.resolve()
+              signal?.addEventListener('abort', () => {
+                ended.resolve()
+                resolve(null)
+              })
+            }),
+        ),
+      }
+      const served = await serveRpcRouter({router})
+      const page = await browser.newPage()
+      try {
+        await page.goto(served.base)
+        await rpcSocketFor(page).installed
+        const body = new StandardRPCSerializer(new StandardRPCJsonSerializer()).serialize(undefined)
+        const frame = await encodeRequestMessage('1', MessageType.REQUEST, {
+          url: new URL('http://orpc/wait'),
+          method: 'POST',
+          headers: {},
+          body,
+        })
+        if (typeof frame !== 'string') throw new Error('the rpc request frame encoded to binary')
+        await page.evaluate(
+          ({url, frame, closeEvent}) =>
+            new Promise<void>((resolve) => {
+              const socket = new WebSocket(url)
+              socket.addEventListener('open', () => {
+                socket.send(frame)
+                resolve()
+              })
+              window.addEventListener(closeEvent, () => socket.close(1000))
+            }),
+          {url: served.wsUrl, frame, closeEvent: CLOSE_EVENT},
+        )
+        await started.promise
+        await page.evaluate((closeEvent) => window.dispatchEvent(new Event(closeEvent)), CLOSE_EVENT)
+        await ended.promise
+      } finally {
+        await page.close()
+        await served.close()
+      }
+    },
+    15_000,
+  )
 })
 
 describe('rpc observer dispose', () => {

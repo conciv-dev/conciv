@@ -1,0 +1,5 @@
+---
+'@conciv/ai': patch
+---
+
+The QuickJS Code Mode fallback keeps one warm worker per chat server on a piscina pool (replacing tinypool) instead of booting a worker per execution, so a short `execute_typescript` run takes milliseconds instead of a few hundred. Every execution still gets a fresh QuickJS runtime; a timed out, stopped, crashed or over-limit run retires only its own worker, other running or idle workers stay, and ending all runs shuts the pool down without a worker error during shutdown reaching the server thread and without waiting forever on a worker that will not leave. If the shutdown itself fails, `endAllRuns` reports it in the same `AggregateError` as any failed cancel writes.

@@ -1,5 +1,5 @@
 import {createMemo, type Accessor} from 'solid-js'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery} from '@conciv/client'
 import type {ChatModels} from '@conciv/protocol/chat-types'
 import {useAppData, useAppQueryClient} from '../app/context.js'
 

@@ -1,18 +1,19 @@
+import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {generateMessageId} from '@conciv/protocol/chat-message-types'
+import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, HUB_FORWARD_ORIGIN} from '@conciv/protocol/chat-types'
+import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/chat'
 import {logError} from '../lib/debug.js'
 
 const HubOriginSchema = z.object({
-  origin: z.enum(['hub', HUB_FORWARD_ORIGIN]).optional().catch(undefined),
+  origin: z.enum(['hub']).optional().catch(undefined),
   client: z.string().max(64).optional().catch(undefined),
 })
 
-type HubOrigin = {client: string | null; forwarded: boolean}
+type HubOrigin = {client: string | null}
 
-type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
+type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 
 type CallRun = {threadId: string; live: boolean}
 
@@ -20,17 +21,18 @@ type MirrorSink = {publish: (chunk: ChatEvent) => void; record: (chunks: readonl
 
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
-  const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client}}
+  const callId = randomUUID()
+  const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client, run: callId}}
   return {
     hub,
-    shown: hub?.forwarded !== true,
+    callId,
     mark: (chunk: ChatEvent): ChatEvent => marked(chunk, marker),
-    start: (run: CallRun, callId: string, toolName: string, input: unknown): ChatEvent[] => [
+    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => [
       ...(run.live ? [] : [runStarted(run.threadId, callId)]),
-      ...(hub?.forwarded === true ? [] : startChunks(callId, toolName, input, marker)),
+      ...startChunks(callId, toolName, input, marker),
     ],
-    result: (run: CallRun, callId: string, text: string, failed: boolean): ChatEvent[] => [
-      ...(hub?.forwarded === true ? [] : [resultChunk(callId, text, failed, marker)]),
+    result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
+      resultChunk(callId, text, failed, marker),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],
     mirror: (run: CallRun, sink: MirrorSink) => mirrorRun(run, marker !== null, sink),
@@ -66,7 +68,7 @@ function hubOrigin(header: (name: string) => string | null): HubOrigin | null {
     client: header(CONCIV_CLIENT_HEADER) ?? undefined,
   })
   if (parsed.origin === undefined) return null
-  return {client: parsed.client ?? null, forwarded: parsed.origin === HUB_FORWARD_ORIGIN}
+  return {client: parsed.client ?? null}
 }
 
 function marked(chunk: ChatEvent, marker: CallMarker): ChatEvent {

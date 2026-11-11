@@ -31,9 +31,10 @@ type ActionPairing = {
 }
 
 const TRIGGER_TOOLTIP = 'More composer actions'
-const TRIGGER_CLASS = 'size-8'
+const TRIGGER_CLASS = 'size-8 shrink-0'
 const ACTION_CLASS = 'size-8'
-const REGION_CLASS = 'empty:hidden flex gap-1 items-center'
+const REGION_CLASS = 'empty:hidden flex gap-1 items-center shrink-0'
+const CHILDREN_CLASS = 'empty:hidden flex flex-wrap gap-1 items-center min-w-0 overflow-x-clip'
 
 const NO_MENU_CONTENT: ActionMenuEntry[] = []
 
@@ -80,7 +81,7 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
             rowElement = element
             observe(element)
           }}
-          class="flex gap-1 items-center"
+          class="flex gap-1 min-w-0 items-center"
         >
           <div
             ref={(element) => {
@@ -91,7 +92,7 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
           >
             {coordinator.slotRender('leading')?.()}
           </div>
-          {local.children}
+          <div class={CHILDREN_CLASS}>{local.children}</div>
           <Show
             when={coordinator.anyCollapsed()}
             fallback={<span aria-hidden="true" class={`${ACTION_CLASS} shrink-0 invisible`} />}

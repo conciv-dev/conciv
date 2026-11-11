@@ -13,8 +13,7 @@
     ".": "./src/testkit.ts",
     "./until": "./src/until.ts",
     "./login": "./src/login.ts",
-    "./rpc-mounts": "./src/rpc-mounts.ts",
-    "./rpc-websocket-client": "./src/rpc-websocket-client.ts"
+    "./rpc-mounts": "./src/rpc-mounts.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -13,7 +13,7 @@ import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-test
 import {rpcCallCursor, type RpcCallCursor} from '@conciv/extension-testkit/rpc-counts'
 import {makeApprovingRegistryCall, until} from '@conciv/harness-testkit'
 import {serveExtensionRpc, type ServedRpcRouter} from '@conciv/harness-testkit/rpc-mounts'
-import {rpcOverWebsocket} from '@conciv/harness-testkit/rpc-websocket-client'
+import {heldBrowserRpcLink} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER, SessionId} from '@conciv/protocol/chat-types'
 import whiteboard from '../src/server.js'
 import {autoCommitDraft} from '../src/server/auto-commit.js'
@@ -872,23 +872,23 @@ describe('router', () => {
     })
 
     it('answers the same procedures over the websocket mount under ext.whiteboard', async () => {
-      const socket = new WebSocket(served.wsUrl)
-      const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {
-        path: ['ext', 'whiteboard'],
-        session: ROOM_WS,
-      })
+      const held = heldBrowserRpcLink(
+        () => served.base,
+        () => ROOM_WS,
+      )
+      const wsClient = createORPCClient<RouterClient<WhiteboardRouter>>(held.link, {path: ['ext', 'whiteboard']})
       const pin = pinIn(ROOM_WS, 'cws')
       expect(await wsClient.pins.insert(withoutRoom(pin))).toEqual(pin)
       expect(await clientFor(ROOM_WS).pins.list()).toEqual([pin])
-      socket.close()
+      held.release()
     })
 
     it('streams typed change events over the websocket mount', async () => {
-      const socket = new WebSocket(served.wsUrl)
-      const wsClient = rpcOverWebsocket<RouterClient<WhiteboardRouter>>(socket, {
-        path: ['ext', 'whiteboard'],
-        session: ROOM_WS_STREAM,
-      })
+      const held = heldBrowserRpcLink(
+        () => served.base,
+        () => ROOM_WS_STREAM,
+      )
+      const wsClient = createORPCClient<RouterClient<WhiteboardRouter>>(held.link, {path: ['ext', 'whiteboard']})
       const abort = new AbortController()
       const changes = await wsClient.changes(undefined, {signal: abort.signal})
       await new Promise((resolve) => setTimeout(resolve, 50))
@@ -899,7 +899,7 @@ describe('router', () => {
       expect(first.value.table).toBe('pins')
       expect(JSON.stringify(first.value)).toContain('"cid":"cws2"')
       await changes.return(undefined).catch(() => {})
-      socket.close()
+      held.release()
     })
 
     it('streams cursor events', async () => {

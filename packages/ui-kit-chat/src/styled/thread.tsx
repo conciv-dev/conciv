@@ -15,7 +15,7 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Key} from '@solid-primitives/keyed'
-import {isEqual} from 'es-toolkit'
+import {isEqual, takeRightWhile} from 'es-toolkit'
 import ArrowDown from 'lucide-solid/icons/arrow-down'
 import {TruncatedTextGroup} from '@conciv/ui-kit-system'
 import type {ChatPart, ToolCallPart} from '@conciv/protocol/chat-message-types'
@@ -29,6 +29,7 @@ import {
   CHAIN_GROUP_KEY,
   groupNodeIdentity,
   groupParts,
+  isOutsideTurn,
   shareGroupNodes,
   lastGroupedIndex,
   type GroupEntry,
@@ -59,6 +60,8 @@ import {
   PROMPT_ROOT_CLASS,
   PROMPT_TEXT_CLASS,
   PROMPT_TIME_CLASS,
+  TURN_FRAME_CLASS,
+  TURN_LEAD_CLASS,
 } from './turn-classes.js'
 import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {partIsModelOnly} from '../primitives/message-part/part-visibility.js'
@@ -137,6 +140,29 @@ function planBody(part: () => Extract<ChatPart, {type: 'thinking'}>): (() => JSX
   return () => <TraceBodyFrame>{text}</TraceBodyFrame>
 }
 
+function outsideCallsMarkdown(turns: readonly Turn[]): string {
+  return turns
+    .flatMap((turn) =>
+      turn.parts.flatMap((part) =>
+        part.type === 'tool-call' ? [`\`\`\`\n${part.name}(${part.arguments})\n\`\`\``] : [],
+      ),
+    )
+    .join('\n\n')
+}
+
+function useOutsideAt(): (offset: number) => boolean {
+  const message = useMessage()
+  const thread = useThread()
+  return (offset) => isOutsideTurn(thread.turns[message.index() + offset]?.turn())
+}
+
+function TurnFrame(props: ParentProps): JSX.Element {
+  const message = useMessage()
+  const outsideAt = useOutsideAt()
+  const lead = createMemo(() => message.index() > 0 && !(outsideAt(0) && outsideAt(-1)))
+  return <div class={lead() ? `${TURN_FRAME_CLASS} ${TURN_LEAD_CLASS}` : TURN_FRAME_CLASS}>{props.children}</div>
+}
+
 function createCallDuration(callId: string | undefined, ctx: ToolViewCtx): Accessor<number | undefined> {
   return createMemo(() => (callId === undefined ? undefined : ctx.durationFor?.(callId)))
 }
@@ -172,7 +198,16 @@ function AssistantTurn(props: {
   const groupStillOpen = (node: GroupNodeGroup): boolean => (node.indices.at(-1) ?? -1) === lastGroupedPartIndex()
   const nodeLive = (node: GroupNode): boolean =>
     node.type === 'part' ? partLive(node.index) : node.indices.some(partLive) || (runActive() && groupStillOpen(node))
-  const folded = () => !message.isLast()
+  const outsideAt = useOutsideAt()
+  const outside = createMemo(() => outsideAt(0))
+  const joinsBelow = createMemo(() => outside() && outsideAt(1))
+  const outsideRunText = () =>
+    outsideCallsMarkdown(
+      takeRightWhile(thread.turns.slice(0, message.index() + 1), (item) => isOutsideTurn(item.turn())).map((item) =>
+        item.turn(),
+      ),
+    )
+  const folded = () => !message.isLast() && !outside()
   const ChainGroup = (groupProps: GroupRenderProps): JSX.Element => {
     const segmentItems = createMemo(() =>
       groupProps.node.indices.flatMap((partIndex) => turnParts.items()[partIndex] ?? []),
@@ -235,7 +270,14 @@ function AssistantTurn(props: {
     }
     return (
       <Show when={segmentRollup().toolCalls > 0 || reasoned()}>
-        <Trace summary={summary()} compactLine={compactLine()} items={items()} folded={folded()} />
+        <Trace
+          summary={summary()}
+          compactLine={compactLine()}
+          items={items()}
+          folded={folded()}
+          headless={outside()}
+          joinsBelow={joinsBelow()}
+        />
       </Show>
     )
   }
@@ -315,9 +357,12 @@ function AssistantTurn(props: {
     <Message.Root data-conciv-msg class={ASSISTANT_ROOT_CLASS}>
       <NodeListView nodes={nodes()} />
       <Message.Error />
-      <Show when={!runActive()}>
+      <Show when={!runActive() && !joinsBelow()}>
         <div class={ANSWER_ACTION_ROW_CLASS}>
-          <AssistantActionBar readOnly={config.readOnly()} />
+          <AssistantActionBar
+            readOnly={config.readOnly() || outside()}
+            copyText={outside() ? outsideRunText() : undefined}
+          />
         </div>
       </Show>
     </Message.Root>
@@ -341,7 +386,7 @@ function UserTurn(): JSX.Element {
   const promptText = createMemo(() => promptTextOf(message.message()))
   const timeLabel = createMemo(() => promptTimeLabel(message.message().messages[0]?.createdAt))
   return (
-    <>
+    <TurnFrame>
       <TurnPrefix />
       <Message.If hasAttachments>
         <div class="flex flex-wrap gap-1 self-end">
@@ -359,7 +404,7 @@ function UserTurn(): JSX.Element {
           <Show when={timeLabel()}>{(value) => <span class={PROMPT_TIME_CLASS}>{value()}</span>}</Show>
         </Message.Root>
       </Message.If>
-    </>
+    </TurnFrame>
   )
 }
 
@@ -400,7 +445,7 @@ function TurnPrefix(): JSX.Element {
 function AssistantMessageView(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   return (
-    <>
+    <TurnFrame>
       <TurnPrefix />
       <Show
         when={config.assistant()}
@@ -416,7 +461,7 @@ function AssistantMessageView(): JSX.Element {
       >
         {(component) => <Dynamic component={component()} />}
       </Show>
-    </>
+    </TurnFrame>
   )
 }
 
@@ -464,7 +509,7 @@ function ThreadViewport(props: ParentProps<{ref?: (element: HTMLElement) => void
     <div class="flex flex-1 flex-col min-h-0 relative">
       <ThreadPrimitive.Viewport
         ref={props.ref}
-        class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto"
+        class="px-5 pb-4 pt-3 flex flex-1 flex-col gap-1.5 min-h-0 relative overflow-y-auto [&>[data-thread-list]]:gap-0"
         role="log"
         aria-live="off"
         footer={<LatestStrip />}

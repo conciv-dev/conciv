@@ -1,5 +1,11 @@
 import {acquirePushChannel} from '@conciv/client'
-import {browserRpcConnection, forgetMagicLinkCode, makeBrowserRpcClient, readMagicLinkCode} from '@conciv/contract'
+import {
+  browserRpcConnection,
+  forgetMagicLinkCode,
+  makeBrowserRpcClient,
+  readMagicLinkCode,
+  type EngineTrust,
+} from '@conciv/contract'
 import {collectClientEffects, collectClientTools, type AnyExtension, type ClientEffect} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, startPagePlane} from '@conciv/page'
 
@@ -9,7 +15,9 @@ export async function startPageHost(extension: AnyExtension): Promise<PageHost> 
   installReactBridge()
   const apiBase = metaContent('conciv-api-base')
   const session = metaContent('conciv-session')
-  await loginHost(apiBase).catch((error: unknown) =>
+  const connection = browserRpcConnection(apiBase)
+  window.addEventListener('pagehide', connection.release, {once: true})
+  await loginHost(connection.trust).catch((error: unknown) =>
     console.error('[conciv testkit] the host could not log in to the engine', error),
   )
   const client = runClientFactory(extension)
@@ -26,8 +34,7 @@ function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
 }
 
-async function loginHost(apiBase: string): Promise<void> {
-  const {trust} = browserRpcConnection(apiBase)
+async function loginHost(trust: EngineTrust): Promise<void> {
   const code = readMagicLinkCode()
   if (!(await trust.requestTrust()) && code !== undefined) await trust.requestTrustWithCode(code)
   forgetMagicLinkCode()

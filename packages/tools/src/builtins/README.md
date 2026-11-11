@@ -16,7 +16,7 @@ Builtin tools for an agent working against a dev server: seven `server_*` tools 
   - `server_reload` `{file}`: `bundler.reload()`, then waits for the page hot update; returns `{ok, applied, waitedMs}`.
   - `server_restart` `{force?}`: `bundler.restart(force ?? false)`.
 - `BUILTIN_OPEN_TOOL` (`server-tools.ts`): tool `open`, input `OpenInput`, output `{ok: true, file, line?}`.
-- `BUILTIN_TABS_TOOL` (`server-tools.ts`): tool `tabs`, no input, output `TabsListingSchema` from `ctx.listTabs()` (`TabsToolContext`); `TABS_GUIDANCE` is the text telling an agent how to pick a tab with `external_tabs({})` and `external_use_tab({id})`.
+- `BUILTIN_TABS_TOOL` (`server-tools.ts`): tool `tabs`, no input, output `TabsListingSchema` from `ctx.listTabs()` (`TabsToolContext`); its hint (`TABS_GUIDANCE`, module private) tells an agent to list with `external_tabs({})`, match the user's words, then pass that tab's id as `tab` on every `execute_typescript` and `discover_tools` call of the hub.
 - `OpenInput` (`open-input.ts`): `{file: string (min 1), line?: coerced int >= 1}`.
 - `AnyRecord`, `OkResult`, `ElementTarget` `{selector?, ref?, name?}`, `BuiltinCategory` (`'read' | 'act' | 'edit-live' | 'react' | 'server'`) (`shared.ts`).
 

@@ -45,6 +45,11 @@ function decoded(payload: unknown): PushFrame | null {
   return parsed.success ? parsed.data : null
 }
 
+function browserTabFocus(): {focused: boolean; visible: boolean} | null {
+  if (typeof document === 'undefined') return null
+  return {focused: document.hasFocus(), visible: document.visibilityState === 'visible'}
+}
+
 export type PushChannelOptions = {apiBase: string; sessionId: string}
 
 export function openPushChannel(options: PushChannelOptions): PushChannel {
@@ -70,8 +75,20 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
   const pageServers = new Set<(frame: PushFrame) => void>()
   const announceServing = (): void => {
     if (socket.readyState !== socket.OPEN) return
-    const frame: PageServingFrame = {channel: 'page-serving', serving: pageServers.size > 0}
+    const focus = browserTabFocus()
+    const serving = pageServers.size > 0
+    const frame: PageServingFrame =
+      focus === null ? {channel: 'page-serving', serving} : {channel: 'page-serving', serving, focus}
     socket.send(JSON.stringify(frame))
+  }
+  const announceFocus = (): void => {
+    if (pageServers.size > 0) announceServing()
+  }
+  const focusEvents = new AbortController()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('focus', announceFocus, {signal: focusEvents.signal})
+    window.addEventListener('blur', announceFocus, {signal: focusEvents.signal})
+    document.addEventListener('visibilitychange', announceFocus, {signal: focusEvents.signal})
   }
   socket.addEventListener('open', () => {
     if (pageServers.size > 0) announceServing()
@@ -105,6 +122,7 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
       ),
     dispose: () => {
       sinks.clear()
+      focusEvents.abort()
       socket.close()
     },
   }

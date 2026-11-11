@@ -1,4 +1,4 @@
-import {makeRpcClient} from '@conciv/contract'
+import {makeBrowserRpcClient, type RpcClient} from '@conciv/contract'
 import {until} from './until.js'
 
 const PRINTED_CODE = /#conciv_otp=(\d{6})/g
@@ -9,12 +9,22 @@ function printedCodes(text: string): string[] {
   return [...text.matchAll(PRINTED_CODE)].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
 }
 
+async function withBrowserRpc<Result>(origin: string, use: (rpc: RpcClient) => Promise<Result>): Promise<Result> {
+  const browser = makeBrowserRpcClient(origin)
+  try {
+    return await use(browser.rpc)
+  } finally {
+    browser.close()
+  }
+}
+
 export async function requestPrintedCode(origin: string, terminal: TerminalReader): Promise<string> {
   const seen = printedCodes(await terminal()).length
-  await makeRpcClient(origin).auth.requestCode({reissue: true})
+  await withBrowserRpc(origin, (rpc) => rpc.auth.requestCode({reissue: true}))
   const found: {code: string | undefined} = {code: undefined}
   await until(async () => {
-    found.code = printedCodes(await terminal())[seen]
+    const codes = printedCodes(await terminal())
+    found.code = codes.length > seen ? codes.at(-1) : undefined
     return found.code !== undefined
   })
   if (found.code === undefined) throw new Error('the engine printed no login code')
@@ -22,7 +32,7 @@ export async function requestPrintedCode(origin: string, terminal: TerminalReade
 }
 
 export async function exchangePrintedCode(origin: string, code: string): Promise<string> {
-  const result = await makeRpcClient(origin).auth.exchange({code})
+  const result = await withBrowserRpc(origin, (rpc) => rpc.auth.exchange({code}))
   if (!('token' in result)) throw new Error(`the engine refused the printed login code: ${result.refused}`)
   return result.token
 }

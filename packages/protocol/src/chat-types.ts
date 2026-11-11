@@ -19,8 +19,6 @@ export const CONCIV_ORIGIN_HEADER = 'conciv-origin'
 
 export const CONCIV_CLIENT_HEADER = 'conciv-client'
 
-export const HUB_FORWARD_ORIGIN = 'hub-forward'
-
 export const OUTSIDE_SESSION_TARGET = 'outside-session'
 
 export type HubAccess = 'open' | 'session' | 'project'
@@ -232,26 +230,25 @@ export const ChatLaunchSchema = z.object({
 })
 export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
 
+const TabPageSchema = z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable()
+
 export const TabsSchema = z.object({
   project: z.object({name: z.string().nullable(), root: z.string(), branch: z.string().nullable()}),
   tabs: z.array(
     z.object({
       sessionId: SessionId,
       harness: z.string(),
-      browserTabs: z.number(),
+      browserTabs: z.array(z.object({id: z.string(), page: TabPageSchema})),
       session: z.object({title: z.string(), updatedAt: z.number(), running: z.boolean()}),
-      page: z.object({href: z.string(), title: z.string(), state: z.enum(['visible', 'hidden'])}).nullable(),
+      page: TabPageSchema,
     }),
   ),
 })
 export type Tabs = z.infer<typeof TabsSchema>
 
-const TabToolSchema = z.object({name: z.string(), description: z.string(), typeStub: z.string()})
-
 export const TabOpenSchema = z.object({
   open: z.boolean(),
   instructions: z.string().nullable(),
-  tools: z.array(TabToolSchema),
 })
 export type TabOpen = z.infer<typeof TabOpenSchema>
 
@@ -269,7 +266,14 @@ export const TabsListingSchema = z.object({
       running: z.boolean(),
       state: z.enum(['visible', 'hidden']).optional(),
       harness: z.string(),
-      browserTabs: z.number(),
+      browserTabs: z.array(
+        z.object({
+          id: z.string(),
+          href: z.string().optional(),
+          pageTitle: z.string().optional(),
+          state: z.enum(['visible', 'hidden']).optional(),
+        }),
+      ),
     }),
   ),
   unreachable: z.array(z.object({root: z.string(), error: z.string()})),

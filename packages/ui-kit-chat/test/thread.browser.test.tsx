@@ -963,6 +963,94 @@ describe('thread session log', () => {
     ]
   }
 
+  function outsideCall(index: number): ChatMessage {
+    return {
+      id: `outside-${index}`,
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-call',
+          id: `outside-call-${index}`,
+          name: 'bash',
+          arguments: `{"command":"echo route ${index}"}`,
+          input: {command: `echo route ${index}`},
+          state: 'complete',
+          metadata: {conciv: {origin: 'hub', client: 'claude', run: `outside-call-${index}`}},
+        },
+        {type: 'tool-result', toolCallId: `outside-call-${index}`, content: `route answer ${index}`, state: 'complete'},
+      ],
+    }
+  }
+
+  const NORMAL_CHAT: ChatMessage[] = [
+    {id: 'u1', role: 'user', parts: [{type: 'text', content: 'why is the build red'}]},
+    {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'The type check fails on line 9.'}]},
+    {id: 'u2', role: 'user', parts: [{type: 'text', content: 'fix it'}]},
+    {id: 'a2', role: 'assistant', parts: [{type: 'text', content: 'Fixed the type on line 9, the build is green.'}]},
+  ]
+
+  const AFTER_OUTSIDE: ChatMessage[] = [
+    {id: 'u3', role: 'user', parts: [{type: 'text', content: 'what did the agent run'}]},
+    {id: 'a3', role: 'assistant', parts: [{type: 'text', content: 'It echoed three routes.'}]},
+  ]
+
+  function OutsideJourney(): JSX.Element {
+    const chat = createChat({threadId: 'thread-outside-journey', connection: storyConnection()})
+    onMount(() => chat.setMessages(NORMAL_CHAT))
+    const driveFromOutside = () =>
+      chat.setMessages([...NORMAL_CHAT, outsideCall(1), outsideCall(2), outsideCall(3), ...AFTER_OUTSIDE])
+    return (
+      <ChatProvider chat={chat}>
+        <button type="button" onClick={driveFromOutside}>
+          outside agent drives the tab
+        </button>
+        <ToolProvider value={ctxWith(catalogOf({}))}>
+          <div class="flex flex-col h-200 w-110 [background:var(--chat-bg)]">
+            <Thread>
+              <Thread.Viewport>
+                <Thread.Messages />
+              </Thread.Viewport>
+            </Thread>
+          </div>
+        </ToolProvider>
+      </ChatProvider>
+    )
+  }
+
+  it('lists outside agent calls as one open list with a copy-only action row under the last call', async () => {
+    mountView(() => <OutsideJourney />)
+
+    await expect.element(page.getByText('Fixed the type on line 9, the build is green.'), {timeout: 3000}).toBeVisible()
+    await page.screenshot({path: '__screenshots__/thread-session-log/padding-normal-chat.png'})
+
+    await page.getByRole('button', {name: 'outside agent drives the tab'}).click()
+
+    await expect.element(page.getByText('It echoed three routes.'), {timeout: 3000}).toBeVisible()
+    await expect.element(page.getByText('route answer 1')).toBeVisible()
+    await expect.element(page.getByText('route answer 2')).toBeVisible()
+    await expect.element(page.getByText('route answer 3')).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(0)).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(1)).toBeVisible()
+    await expect.element(page.getByText('from claude').nth(2)).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /Show trace/})).not.toBeInTheDocument()
+    await expect.element(page.getByRole('button', {name: /Hide trace/})).not.toBeInTheDocument()
+    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-calls.png'})
+
+    const toolbars = page.getByRole('toolbar', {name: 'Message actions'})
+    await expect.element(toolbars.nth(3)).toBeInTheDocument()
+    await expect.element(toolbars.nth(4)).not.toBeInTheDocument()
+    await page.getByText('route answer 3').hover()
+    const outsideActions = toolbars.nth(2)
+    await expect.element(outsideActions.getByRole('button', {name: 'Copy'})).toBeVisible()
+    await expect.element(outsideActions.getByRole('button', {name: /Refresh|Reload/})).not.toBeInTheDocument()
+    await expect.element(toolbars.nth(3).getByRole('button', {name: /Refresh|Reload/})).toBeVisible()
+    await page.screenshot({path: '__screenshots__/thread-session-log/padding-outside-copy-row.png'})
+
+    await outsideActions.getByRole('button', {name: 'Copy'}).click()
+    await expect.element(outsideActions.getByRole('status')).toHaveTextContent('Could not copy the message')
+    await expect.element(outsideActions.getByRole('button', {name: 'Copy failed'})).toBeVisible()
+  })
+
   it('renders text, trace, then text in stream order for a turn with parts interleaved around a tool call', async () => {
     const container = mountView(() => <LogThread messages={messagesWithInterleavedTurn()} />)
 

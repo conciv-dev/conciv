@@ -168,14 +168,14 @@ function VirtualMessages(props: {
     if (index === items().length - 1) return undefined
     const item = items()[index]
     if (!item) return undefined
-    return estimator?.estimateTurn(item.turn())
+    return estimator?.estimateTurn(item.turn(), index)
   }
   const measureViewportMetrics = (): void => {
     const viewport = props.internal.element()
     const node = spacer()
     if (!viewport || !node) return
     setMetrics({
-      gap: Number.parseFloat(getComputedStyle(viewport).rowGap) || 0,
+      gap: Number.parseFloat(getComputedStyle(node).rowGap) || 0,
       scrollMargin: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop,
     })
   }
@@ -251,7 +251,12 @@ function VirtualMessages(props: {
     }
   })
   return (
-    <div ref={setSpacer} class={SPACER} style={{'--chat-thread-total-size': `${virtualizer.totalSize()}px`}}>
+    <div
+      ref={setSpacer}
+      data-thread-list
+      class={SPACER}
+      style={{'--chat-thread-total-size': `${virtualizer.totalSize()}px`}}
+    >
       <For each={virtualizer.items}>
         {(item) => (
           <div

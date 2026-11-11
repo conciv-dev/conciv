@@ -31,8 +31,8 @@ import {
   browserBase,
   openLoggedIn,
   logInFromPanelNotice,
+  serveWidgetHost,
 } from '../helpers.js'
-import {serveHost} from '@conciv/extension-testkit/serve-host'
 import {currentHref} from '@conciv/extension-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
@@ -47,6 +47,7 @@ import type {PageToNativeMessage} from '@conciv/extension-ios/bridge'
 import {Buffer} from 'node:buffer'
 import type {DraftRow} from '@conciv/contract'
 import {watchRpcWire} from '@conciv/extension-testkit/rpc-wire'
+import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {z} from 'zod'
 import {completeConnectHandshake} from '@conciv/extension-testkit/connect-handshake'
 import {makeExtRpcClient} from '@conciv/extension'
@@ -60,7 +61,7 @@ test.describe('embed boot', () => {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
   test.afterEach(async () => {
@@ -84,6 +85,12 @@ test.describe('embed boot', () => {
       const first = await openPage(page)
       await openPanel(first)
       await first.getByRole('tab', {name: 'Terminal'}).click()
+      await expect(
+        first
+          .getByRole('tabpanel', {name: 'Terminal'})
+          .getByRole('alert')
+          .filter({hasText: 'Couldn’t open the terminal.'}),
+      ).toBeVisible({timeout: 30_000})
       await until(async () => (await currentHref(kit)).includes('/terminal'), {hangGuardMs: 30_000, intervalMs: 100})
       expect(await currentHref(kit)).toMatch(/\/terminal\?.*open=true/)
       await first.close()
@@ -131,6 +138,23 @@ test.describe('embed boot', () => {
       await openPanel(page)
       await sendMessage(page, 'hi there', ASSISTANT_TEXT)
     })
+
+    test('every rpc call from login to a reply rides one websocket and none goes over http', async ({page}) => {
+      test.setTimeout(120_000)
+      const httpRpc: string[] = []
+      const rpcSockets: string[] = []
+      page.on('request', (request) => {
+        if (new URL(request.url()).pathname.includes('/rpc/')) httpRpc.push(request.url())
+      })
+      page.on('websocket', (socket) => {
+        if (new URL(socket.url()).pathname.endsWith(RPC_WS_PATH)) rpcSockets.push(socket.url())
+      })
+      await openPage(page)
+      await openPanel(page)
+      await sendMessage(page, 'hi there', ASSISTANT_TEXT)
+      expect(httpRpc).toEqual([])
+      expect(rpcSockets).toHaveLength(1)
+    })
   })
 
   test.describe('embed at a phone viewport', () => {
@@ -150,7 +174,7 @@ test.describe('embed boot', () => {
 
   test.describe('embed settings', () => {
     test('modal disabled renders no fab', async ({page}) => {
-      const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
+      const disabledHost = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
       await openLoggedIn(page, kit, disabledHost.base)
       await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
       expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
@@ -415,7 +439,7 @@ test.describe('dead engine boot', () => {
     }) => {
       test.setTimeout(90_000)
       const dead = await reserveDeadPort()
-      const host = await serveHost(() =>
+      const host = await serveWidgetHost(() =>
         hostPage({apiBase: `${dead.base}${new URL(kit.base).pathname}`, widget: '{"quickTerminal":false}'}),
       )
       let proxy: ProxyCore | null = null
@@ -441,6 +465,60 @@ test.describe('dead engine boot', () => {
         await host.close()
         if (proxy) await proxy.close()
       }
+    })
+  })
+})
+
+test.describe('widget lazy chunks', () => {
+  const REPLY = [
+    'Here is the pipeline.',
+    '',
+    '```ts',
+    'const total = 1',
+    '```',
+    '',
+    '```mermaid',
+    'flowchart LR',
+    '  A[Save file] --> B["$$x^2$$"]',
+    '  B --> C[Watcher fires]',
+    '```',
+  ].join('\n')
+
+  const suite = setupWidgetSuite({text: REPLY})
+
+  function widgetChunks(page: Page): string[] {
+    const fetched: string[] = []
+    page.on('request', (request) => {
+      const {pathname} = new URL(request.url())
+      if (pathname.startsWith('/widget/')) fetched.push(pathname.slice('/widget/'.length))
+    })
+    return fetched
+  }
+
+  const isMermaid = (chunk: string) => chunk.startsWith('mermaid')
+  const isKatex = (chunk: string) => chunk.startsWith('katex')
+
+  test.describe('mermaid and katex load only when a message needs them', () => {
+    test('mounts without them, then highlights code and draws a diagram with math once a reply carries them', async ({
+      page,
+    }) => {
+      test.setTimeout(240_000)
+      const fetched = widgetChunks(page)
+      await openPanelOnNewSession(page, suite)
+
+      expect(fetched.length).toBeGreaterThan(0)
+      expect(fetched.filter(isMermaid)).toEqual([])
+      expect(fetched.filter(isKatex)).toEqual([])
+
+      await sendChatMessage(page, 'show me the pipeline')
+
+      const log = chatLog(page)
+      await expect(log.getByText('const', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(log.getByText('Watcher fires', {exact: true})).toBeVisible({timeout: 30_000})
+      await expect(log.getByText('A[Save file] --> B', {exact: false})).toHaveCount(0)
+      await expect(log.getByRole('math')).toBeVisible({timeout: 30_000})
+      expect(fetched.filter(isMermaid).length).toBeGreaterThan(0)
+      expect(fetched.filter(isKatex).length).toBeGreaterThan(0)
     })
   })
 })
@@ -492,7 +570,9 @@ test.describe('element capture', () => {
   test.beforeAll(async () => {
     kit = await bootEmbedKit()
     sessionId = await kit.session()
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
+    host = await serveWidgetHost(() =>
+      hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+    )
   })
 
   test.afterAll(async () => {
@@ -640,7 +720,7 @@ test.describe('host hotkey isolation', () => {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit()
-    host = await serveHost(() =>
+    host = await serveWidgetHost(() =>
       hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_SEARCH_HOTKEY}),
     )
   })
@@ -694,7 +774,7 @@ test.describe('idle fetch heartbeat', () => {
       page,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(page)
+      const wire = await watchRpcWire(page)
       const hold = await holdRpcCalls(page)
       await openLoggedIn(page, suite.kit(), suite.host().base)
       await openChatPanel(page)
@@ -721,7 +801,7 @@ test.describe('mid session outage', () => {
 
   test.beforeAll(async () => {
     kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
+    host = await serveWidgetHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}'}))
   })
 
   test.afterAll(async () => {
@@ -796,7 +876,7 @@ test.describe('mount ready', () => {
 
   test.beforeAll(async () => {
     kit = await bootEmbedKit({text: 'ready contract'})
-    host = await serveHost(() => handleHostPage())
+    host = await serveWidgetHost(() => handleHostPage())
   })
 
   test.afterAll(async () => {
@@ -920,7 +1000,7 @@ test.describe('native widget', () => {
     test('opens the panel on native open and is idempotent, and closes on native close', async ({
       page: fixturePage,
     }) => {
-      const wire = watchRpcWire(fixturePage)
+      const wire = await watchRpcWire(fixturePage)
       const {page} = await openNative(fixturePage)
       await wire.sessionsBootTraffic()
       await callNative(page, 'open', {v: 1, seq: 1})
@@ -935,7 +1015,7 @@ test.describe('native widget', () => {
       page: fixturePage,
     }) => {
       test.setTimeout(120_000)
-      const wire = watchRpcWire(fixturePage)
+      const wire = await watchRpcWire(fixturePage)
       const {page, bridge} = await openNative(fixturePage)
       await wire.sessionsBootTraffic()
       const picked = Promise.withResolvers<PageToNativeMessage>()
@@ -997,7 +1077,9 @@ test.describe('page dispatch parity', () => {
 
     test.beforeAll(async ({browser}) => {
       kit = await bootEmbedKit()
-      host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
+      host = await serveWidgetHost(() =>
+        hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+      )
       page = await browser.newPage()
       await openPagePlaneHost(page, kit, host.base)
     })
@@ -1020,7 +1102,7 @@ test.describe('page dispatch parity', () => {
 
     test.beforeAll(async ({browser}) => {
       kit = await bootEmbedKit()
-      host = await serveHost(() => handleHostPage(HOST_BODY))
+      host = await serveWidgetHost(() => handleHostPage(HOST_BODY))
       page = await browser.newPage()
       await page.goto(host.base, {waitUntil: 'domcontentloaded'})
       await page.evaluate(() => {
@@ -1088,7 +1170,7 @@ test.describe('panel focus', () => {
     await expect(opener).toBeVisible({timeout: 30_000})
   }
 
-  type HostedPanel = {host: Awaited<ReturnType<typeof serveHost>>; page: Page; hostButton: Locator}
+  type HostedPanel = {host: Awaited<ReturnType<typeof serveWidgetHost>>; page: Page; hostButton: Locator}
 
   const dedicatedHosts: Array<{close: () => Promise<void>}> = []
 
@@ -1097,7 +1179,7 @@ test.describe('panel focus', () => {
   })
 
   async function openPanelOverFocusedHostButton(page: Page): Promise<HostedPanel> {
-    const host = await serveHost(() =>
+    const host = await serveWidgetHost(() =>
       hostPage({
         apiBase: suite.kit().base,
         widget: '{"quickTerminal":false}',
@@ -1133,7 +1215,7 @@ test.describe('panel focus', () => {
 
     test('paints the shell while the session list is still loading, then focuses the composer', async ({page}) => {
       test.setTimeout(90_000)
-      const host = await serveHost(() =>
+      const host = await serveWidgetHost(() =>
         hostPage({apiBase: suite.kit().base, widget: '{"quickTerminal":false,"transport":"fetch"}'}),
       )
       dedicatedHosts.push(host)
@@ -1180,7 +1262,7 @@ test.describe('panel focus', () => {
   test.describe('panel restore-on-load never steals focus from the host page', () => {
     test('reloading with a restored open panel leaves an autofocused host input focused', async ({page}) => {
       test.setTimeout(180_000)
-      const host = await serveHost(() =>
+      const host = await serveWidgetHost(() =>
         hostPage({
           apiBase: suite.kit().base,
           widget: '{"quickTerminal":false}',
@@ -1215,7 +1297,7 @@ test.describe('rebind', () => {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: ASSISTANT_TEXT})
-    host = await serveHost(() => handleHostPage())
+    host = await serveWidgetHost(() => handleHostPage())
   })
 
   test.afterEach(async () => {
@@ -1301,7 +1383,7 @@ test.describe('recording attachment', () => {
 
   test.beforeAll(async () => {
     kit = await bootEmbedKit({text: 'Recording received', extensions: [recorderServer]})
-    host = await serveHost(() =>
+    host = await serveWidgetHost(() =>
       hostPage({
         apiBase: kit.base,
         widget: '{"quickTerminal":false}',
@@ -1484,7 +1566,7 @@ test.describe('remount', () => {
   let host: {base: string; close: () => Promise<void>}
 
   test.beforeAll(async () => {
-    host = await serveHost(() => handleHostPage())
+    host = await serveWidgetHost(() => handleHostPage())
   })
 
   test.afterAll(async () => {
@@ -1549,7 +1631,9 @@ test.describe('selection containment', () => {
 
   test.beforeEach(async () => {
     kit = await bootEmbedKit({text: ASSISTANT_REPLY})
-    host = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}))
+    host = await serveWidgetHost(() =>
+      hostPage({apiBase: kit.base, widget: '{"quickTerminal":false}', body: HOST_BODY}),
+    )
   })
 
   test.afterEach(async () => {
