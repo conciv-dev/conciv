@@ -50,8 +50,9 @@ Two moves, both inside oRPC:
    hub admission and the `approval: 'ask'` gate in its own chain. It hands them to the tool call as a
    `gate` on the registry call context (`RegistryCallContext.gate`, internal plumbing between core and the
    registry, not part of the authoring API). `compileTool` runs the gate as the innermost middleware, right
-   before the handler. A refusal therefore throws through every middleware the extension declared, with
-   the call's `path`, validated `input` and `context.request`.
+   before the handler. A refusal therefore throws through the extension's middleware, with the call's
+   `path`, the `input` as the agent sent it (input validation runs after the middleware) and
+   `context.request`.
 
    The gate keeps today's order and messages: disconnected client, then the outside-session admission, then
    the `approval: 'ask'` hold. It also wraps the hub mirror, so only admitted calls are mirrored into the tab,
