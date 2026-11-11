@@ -42,6 +42,7 @@ export type StartOpts = {
   nativePageDir?: string
   devEndpointDir?: string
   homeDir?: string
+  listening?: Promise<void>
 }
 
 export type Engine = {
@@ -109,16 +110,6 @@ function serveRequestedPort(
   return servePreferredPort(fetchHandler, request.preferred)
 }
 
-async function servePort(
-  fetchHandler: FetchHandler,
-  request: PortRequest | undefined,
-  state: {file: string; token: string},
-): Promise<Served> {
-  const serving = await serveRequestedPort(fetchHandler, request, state.file)
-  writePersistedPort(state.file, {port: serving.port, token: state.token})
-  return serving
-}
-
 function cleanupAfterFailedStart(steps: readonly ShutdownStep[]): Promise<void> {
   return runInOrder(steps, 'conciv: stopping the engine failed').catch((failure: unknown) =>
     console.error('conciv: cleanup after a failed start also failed', inspect(failure, {depth: null})),
@@ -134,22 +125,28 @@ function onceNotifier(callback?: () => void): () => void {
   }
 }
 
-function registerForOutsideAgents(home: string, row: EngineRow): () => void {
+type Registration = {retire: () => void; owner: EngineRow | undefined}
+
+async function registerForOutsideAgents(home: string, row: EngineRow): Promise<Registration> {
   try {
     withHomeDb(home, (db) => registerEngine(db, row))
   } catch (error) {
     console.error('conciv: engine not registered for outside agents', error)
-    return () => {}
+    return {retire: () => {}, owner: undefined}
   }
-  checkEngines(home, {timeoutMs: 2000}).catch((error: unknown) =>
-    console.error('conciv: checking registered engines failed', error),
-  )
-  return () => {
-    try {
-      withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
-    } catch (error) {
-      console.error('conciv: engine row not retired', error)
-    }
+  const checked = await checkEngines(home, {timeoutMs: 2000}).catch((error: unknown) => {
+    console.error('conciv: checking registered engines failed', error)
+    return {live: [], unreachable: []}
+  })
+  return {
+    retire: () => {
+      try {
+        withHomeDb(home, (db) => retireEngine(db, row.id, Date.now()))
+      } catch (error) {
+        console.error('conciv: engine row not retired', error)
+      }
+    },
+    owner: checked.live.find((live) => live.root === row.root && live.id !== row.id),
   }
 }
 
@@ -224,7 +221,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   let serving: Served
   try {
-    serving = await servePort(fetchHandler, opts.port, {file: paths.server, token: agentToken})
+    serving = await serveRequestedPort(fetchHandler, opts.port, paths.server)
   } catch (error) {
     await cleanupAfterFailedStart([dispose])
     throw error
@@ -234,26 +231,41 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const endpointDir = opts.devEndpointDir ?? defaultDevEndpointDir()
   const base = tokenScopedBase()
-  try {
-    if (base) {
-      const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
-      writePrivateFile(endpoint.path, endpoint.contents)
+  const lifecycle = {stopped: false, retire: (): void => {}}
+  const publish = async (): Promise<void> => {
+    if (!base || lifecycle.stopped) return
+    if (opts.nativePageDir) writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
+    const registration = await registerForOutsideAgents(home, {
+      id: engineId,
+      pid: process.pid,
+      root: opts.root,
+      apiBase: base,
+    })
+    lifecycle.retire = registration.retire
+    if (lifecycle.stopped) return registration.retire()
+    if (registration.owner !== undefined) {
+      console.warn(
+        `conciv: the engine of pid ${registration.owner.pid} already serves ${opts.root}; its ${paths.dir} files stay as they are`,
+      )
+      return
     }
-    if (opts.nativePageDir && base) {
-      writeDevEndpoint(endpointDir, {apiBase: base, token: agentToken, pid: process.pid})
-    }
-  } catch (error) {
-    await cleanupAfterFailedStart([close, dispose])
-    throw error
+    writePersistedPort(paths.server, {port, token: agentToken})
+    const endpoint = claudeConnectEndpointFile({stateDir: paths.dir, mcpUrl: `${base}/api/mcp`})
+    writePrivateFile(endpoint.path, endpoint.contents)
   }
-  const retire = base
-    ? registerForOutsideAgents(home, {
-        id: engineId,
-        pid: process.pid,
-        root: opts.root,
-        apiBase: base,
-      })
-    : () => {}
+  if (opts.listening) {
+    opts.listening
+      .then(publish)
+      .catch((error: unknown) => console.error('conciv: publishing the engine endpoint failed', error))
+  }
+  if (!opts.listening) {
+    try {
+      await publish()
+    } catch (error) {
+      await cleanupAfterFailedStart([close, dispose])
+      throw error
+    }
+  }
   const clearEndpoint = (): void => {
     if (!opts.nativePageDir) return
     try {
@@ -269,8 +281,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     extensionContexts,
     trustBrowser,
     stop: async () => {
+      lifecycle.stopped = true
       clearEndpoint()
-      retire()
+      lifecycle.retire()
       await runInOrder([close, dispose], 'conciv: stopping the engine failed')
     },
   }

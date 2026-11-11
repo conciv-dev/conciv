@@ -167,9 +167,16 @@ async function bootEngine(
     nativePageDir,
     devEndpointDir: options.devEndpointDir,
     homeDir: options.homeDir,
+    listening: whenListening(server),
     print: (text) => server.config.logger.info(text),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
+}
+
+function whenListening(server: ViteDevServer): Promise<void> | undefined {
+  const http = server.httpServer
+  if (http === null) return undefined
+  return new Promise((resolve) => http.once('listening', () => resolve()))
 }
 
 const EMBED_LATE_DISCOVERED_DEPENDENCIES = [

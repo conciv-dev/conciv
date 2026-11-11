@@ -36,7 +36,7 @@ The plugin internals: booting the engine process, the Vite hook (HTML tags, widg
 - `bin-shim.ts:installConcivBinShim` - creates `<stateDir>/bin` and symlinks `conciv` to `@conciv/cli/bin`.
 - `extensions-entry.ts:writeExtensionsEntry` - creates `.conciv/` and writes `extensions-client.gen.tsx`.
 - `extensions-watch.ts:watchExtensionsDir` - a `chokidar` `watch` on `<root>/conciv`; logs watcher errors.
-- `vite.ts` - `configureServer` boots the engine, mounts the widget middleware and stops the engine when the HTTP server closes; `makeViteBridge` unshifts a request-trace middleware and listens to `server.watcher` changes.
+- `vite.ts` - `configureServer` boots the engine with `listening` set to the HTTP server's `listening` event (none in middleware mode), mounts the widget middleware and stops the engine when the HTTP server closes; `makeViteBridge` unshifts a request-trace middleware and listens to `server.watcher` changes.
 - `nextjs.ts:withConciv` - writes missing keys into `process.env`.
 - `open-editor.ts` - launches the editor process.
 

@@ -46,7 +46,8 @@ Top-level engine modules. `start` resolves config, builds the Hono app with `mak
 
 - `start` (`start.ts`): writes the system prompt file, the persisted-port file and the MCP connect endpoint file; binds 127.0.0.1
 - `start` (`start.ts`): with nativePageDir writes the dev-endpoint file; `stop` removes it
-- `start` (`start.ts`): registers `{id, pid, root, apiBase}` in the home db (`homeDir`, else `CONCIV_HOME`, else the platform folder) after the port is known, checks the other rows once in the background, and `stop` retires the row; every home db failure is logged and never stops the engine
+- `start` (`start.ts`): registers `{id, pid, root, apiBase}` in the home db (`homeDir`, else `CONCIV_HOME`, else the platform folder) after the port is known, checks the other rows once, and `stop` retires the row; every home db failure is logged and never stops the engine
+- `start` (`start.ts`): with `listening` (the bundler's own server listening), the dev-endpoint file, the home db row, the persisted-port file and the MCP connect endpoint file are written only once it resolves, so a dev server that fails to bind writes none of them; when another live engine of the same root is in the home db, the persisted-port and MCP connect endpoint files are left as that engine wrote them
 - `stop` (`start.ts`): closes the listener first, then disposes the app; `dispose` (`app.ts`) ends every live run, runs the extension disposers, then closes the database; each step runs even when an earlier one fails and the failures are rethrown as one `AggregateError` (`lib/shutdown.ts:runInOrder`)
 - `harnessEnv` (`start.ts`): reads process.env and adds CONCIV_SESSION_ID for child harness processes
 - `makeApp` (`app.ts`): opens the SQLite DB, sweeps empty rows, records usage, titles and native ids; runs extension `__server` factories; the chat plane spawns harness processes
