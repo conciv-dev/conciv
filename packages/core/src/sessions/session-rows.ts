@@ -229,11 +229,14 @@ export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> 
   return mintExternalRow(scope)
 }
 
-export async function recordFirstTitle(db: ConcivDb, sessionId: SessionId, title: string): Promise<void> {
-  await db
-    .update(sessions)
-    .set({title})
-    .where(and(eq(sessions.id, sessionId), isNull(sessions.title), isNull(sessions.harnessSessionId)))
+export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string, at: number): void {
+  db.update(sessions)
+    .set({
+      updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
+      title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
+    })
+    .where(eq(sessions.id, sessionId))
+    .run()
 }
 
 export async function sweepEmptyRows(db: ConcivDb): Promise<void> {

@@ -35,7 +35,7 @@ import {
   ensureAgentRow,
   ensureRow,
   nativeIdFor,
-  recordFirstTitle,
+  recordActivity,
   recordNativeId,
   sweepEmptyRows,
   type RowScope,
@@ -267,7 +267,7 @@ function sessionPort(
       const usage = currentRow(db, sessionId)?.usage
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
-    recordTitle: (sessionId, title) => recordFirstTitle(db, sessionId, title),
+    recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
     onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,
