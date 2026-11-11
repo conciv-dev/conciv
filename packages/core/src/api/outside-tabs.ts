@@ -44,13 +44,15 @@ export function createOutsideTabs(given: string | undefined) {
   async function find(tab: SessionId): Promise<OwnedTab> {
     const checked = await liveEngines()
     const answers = await Promise.all(checked.live.map((row) => openOn(row, tab)))
-    const [only, second] = answers.flatMap((answer) => (answer === null ? [] : [answer]))
+    const owners = answers.flatMap((answer) => (answer === null ? [] : [answer]))
+    const [only, second] = owners
     if (only === undefined) {
-      throw toolError('TAB_NOT_OPEN', {message: `tab ${tab} is not open; call external_tabs({})`})
+      throw toolError('TAB_NOT_OPEN', {message: notOpen({tab, open: (await list()).tabs})})
     }
     if (second !== undefined) {
+      const roots = owners.map((owner) => owner.root).join(', ')
       throw toolError('TAB_NOT_OPEN', {
-        message: `tab ${tab} is open on two engines (${only.root} and ${second.root}); ask the user to close one of the browser tabs`,
+        message: `tab ${tab} is open in ${owners.length} running conciv dev servers: ${roots}.`,
       })
     }
     return only
@@ -83,6 +85,13 @@ async function openOn(row: EngineRow, tab: SessionId): Promise<OwnedTab | null> 
   } catch {
     return null
   }
+}
+
+function notOpen(input: {tab: SessionId; open: TabRow[]}): string {
+  const gone = `tab ${input.tab} is not open in any running conciv dev server`
+  if (input.open.length === 0) return `${gone}; no conciv tab is open now, ask the user to open the page`
+  const named = input.open.map((row) => `${row.tab} in ${row.root}${row.href === undefined ? '' : ` at ${row.href}`}`)
+  return `${gone}; open now: ${named.join('; ')}. Take the one for your project.`
 }
 
 function tabRow(listing: Tabs) {

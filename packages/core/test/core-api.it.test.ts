@@ -4176,6 +4176,16 @@ describe('outside agent consent', () => {
     expect(await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')).toContain('TAB_NOT_OPEN')
   })
 
+  it('a tab that is no longer open is refused with the tabs open now, their project root and page, so the agent re-takes one', async () => {
+    const home = tempDir('conciv-home-')
+    const [runner, owner] = [await boot('open', home), await boot('session', home)]
+    const reopened = await openTab(owner)
+    const refused = await outside(runner, 'return await external_use_tab({id: "conciv_gone"})')
+    expect(refused).toContain('TAB_NOT_OPEN')
+    expect(refused).toContain(`open now: ${reopened} in `)
+    expect(refused).toContain(ROUTE.href)
+  })
+
   it('a hub that picks a tab attaches its pid and host to that session, and detaching its pid clears them', async () => {
     const [home, root] = [connectedHome(), tempDir('conciv-consent-')]
     const runner = await boot('open', home)

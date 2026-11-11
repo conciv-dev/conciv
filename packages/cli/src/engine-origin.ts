@@ -2,7 +2,8 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {z} from 'zod'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
-import {TabOpenSchema, type SessionId} from '@conciv/protocol/chat-types'
+import {createOutsideTabs} from '@conciv/core/outside-tabs'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import {userFailure} from './failure.js'
 
@@ -38,7 +39,7 @@ export function discoveredEngine(directory: string): ServerState | undefined {
 type EngineOrigin = {origin: string; outside: boolean}
 
 export async function engineOrigin(cwd: string, env: NodeJS.ProcessEnv, tab: SessionId | null): Promise<EngineOrigin> {
-  if (tab !== null) return {origin: await tabOwner(await liveEngines(env), tab), outside: true}
+  if (tab !== null) return {origin: await tabOwner(env, tab), outside: true}
   const discovered = discoveredEngine(cwd)
   const port = env.CONCIV_PORT ?? discovered?.port
   const token = env.CONCIV_TOKEN ?? discovered?.token
@@ -57,29 +58,13 @@ async function liveEngines(env: NodeJS.ProcessEnv): Promise<EngineRow[]> {
   return (await checkEngines(concivHome({env}), {timeoutMs: PROBE_MS})).live
 }
 
-async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
-  const answers = await Promise.allSettled(live.map((row) => holdsTab(row, tab)))
-  const owners = live.filter((_row, index) => {
-    const answer = answers[index]
-    return answer?.status === 'fulfilled' && answer.value
-  })
-  const [owner, ...others] = owners
-  if (owner !== undefined && others.length === 0) return owner.apiBase
-  if (owner !== undefined) {
-    const roots = owners.map((row) => row.root).join(', ')
-    throw userFailure(`tab ${tab} is open in ${owners.length} running conciv dev servers: ${roots}.`, {
-      hint: 'stop all but one of them, or reload the page so only one server holds the tab.',
+async function tabOwner(env: NodeJS.ProcessEnv, tab: SessionId): Promise<string> {
+  const owned = await createOutsideTabs(concivHome({env}))
+    .find(tab)
+    .catch((error: unknown) => {
+      throw userFailure(error instanceof Error ? error.message : String(error), {
+        hint: 'pass --tab with the tab open for your project, or close all but one browser tab that holds it; conciv tools tabs lists the open tabs.',
+      })
     })
-  }
-  const silent = answers.filter((answer) => answer.status === 'rejected').length
-  const unanswered = silent === 0 ? '' : ` (${silent} of them did not answer)`
-  throw userFailure(`tab ${tab} is not open in any of the ${live.length} running conciv dev servers${unanswered}.`, {
-    hint: 'conciv tools tabs lists the open tabs; open the page again if it was closed.',
-  })
-}
-
-async function holdsTab(row: EngineRow, tab: SessionId): Promise<boolean> {
-  const response = await fetch(`${row.apiBase}/api/tabs?session=${tab}`, {signal: AbortSignal.timeout(PROBE_MS)})
-  if (!response.ok) throw new Error(`${row.root} answered ${response.status}`)
-  return TabOpenSchema.parse(await response.json()).open
+  return owned.apiBase
 }

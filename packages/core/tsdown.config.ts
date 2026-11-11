@@ -6,6 +6,7 @@ export default defineConfig({
     config: 'src/config.ts',
     app: 'src/app.ts',
     runtime: 'src/runtime.ts',
+    'outside-tabs': 'src/api/outside-tabs.ts',
     'search-index-worker': 'src/sessions/search-index-worker.ts',
   },
   format: 'esm',

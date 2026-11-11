@@ -42,6 +42,10 @@
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js"
     },
+    "./outside-tabs": {
+      "types": "./dist/outside-tabs.d.ts",
+      "import": "./dist/outside-tabs.js"
+    },
     "./cards": {
       "browser": {
         "types": "./dist/cards.d.ts",
