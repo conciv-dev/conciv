@@ -1,5 +1,11 @@
 export const CONCIV_BIN = '.conciv/bin/conciv'
 
+export const CONCIV_SECTION_START = '<!-- conciv:start -->'
+
+export const CONCIV_SECTION_END = '<!-- conciv:end -->'
+
+export const CLAUDE_AGENTS_IMPORT = '@AGENTS.md'
+
 export const CONCIV_RANKING_SENTENCE = `This project has conciv installed. For everything in the running browser, use the conciv CLI through Bash (\`${CONCIV_BIN} tools page ...\`, \`${CONCIV_BIN} tools react ...\`, \`${CONCIV_BIN} tools design ...\`, \`${CONCIV_BIN} tools server ...\`). Use browser MCP tools only when a conciv command cannot do what you need.`
 
 export const DESIGN_BULLET = `Building or matching a page from a design ("build this page from this Figma frame", "make this page match the design", a Figma link or a PNG mockup): get the design with \`${CONCIV_BIN} tools design get --figma <frame link>\` (repeat \`--figma\` with one frame link per width, or pass \`--image <png>\` for an image). When the page is new, build it with the app's own components (\`${CONCIV_BIN} tools design components\`) before the first check. Then save, run \`${CONCIV_BIN} tools design check\`, fix only what its rows name, and repeat until its verdict is \`done\`. Never replace an expression with the design's sample text, and never set a width or height to a pixel value to match the design. Do not judge a design match from a screenshot.`

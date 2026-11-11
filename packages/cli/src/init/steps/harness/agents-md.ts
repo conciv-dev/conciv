@@ -1,13 +1,20 @@
 import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {CONCIV_BIN, CONCIV_COMMAND_GUIDE, CONCIV_RANKING_SENTENCE} from '@conciv/harness-init/agent-guide'
+import {
+  CLAUDE_AGENTS_IMPORT,
+  CONCIV_BIN,
+  CONCIV_COMMAND_GUIDE,
+  CONCIV_RANKING_SENTENCE,
+  CONCIV_SECTION_END,
+  CONCIV_SECTION_START,
+} from '@conciv/harness-init/agent-guide'
 import {harnessAgentsMdNote, type HarnessId} from '../../harness-detect.js'
 import {captureFile} from '../../interrupt.js'
 import type {ManualCard} from '../../ledger.js'
 import type {InitContext, InitStep} from '../../pipeline.js'
 
-const startMarker = '<!-- conciv:start -->'
-const endMarker = '<!-- conciv:end -->'
+const startMarker = CONCIV_SECTION_START
+const endMarker = CONCIV_SECTION_END
 
 export function agentsSection(consented: HarnessId[]): string {
   const setUpFor =
@@ -84,7 +91,7 @@ function mismatchedTargets(cwd: string): string[] {
   return targets(cwd).filter((file) => existsSync(file) && markerSpan(readFileSync(file, 'utf8')).kind === 'mismatched')
 }
 
-const CLAUDE_IMPORT = '@AGENTS.md'
+const CLAUDE_IMPORT = CLAUDE_AGENTS_IMPORT
 
 function claudeFileOf(cwd: string): string {
   return join(cwd, 'CLAUDE.md')

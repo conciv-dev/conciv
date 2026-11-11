@@ -24,7 +24,7 @@ Runs the `conciv init` pipeline. It checks the project, detects framework, packa
 ## Invariants
 
 - `runInit` (`pipeline.ts`): refuses on a non-interactive terminal unless --yes or --dry-run, and refuses when `preflight` fails, before anything is written
-- `preflight` (`preflight.ts`): needs package.json in cwd; without force, refuses a dirty git tree or an unreadable git status; no repository is allowed
+- `preflight` (`preflight.ts`): needs package.json in cwd; without force, refuses a dirty git tree or an unreadable git status; no repository is allowed; a changed AGENTS.md or CLAUDE.md in cwd does not count when, its conciv section and `@AGENTS.md` line set aside, it equals the committed file (init wrote that change)
 - `settleStep` (`pipeline.ts`): detect 'present' records 'already' and skips apply; a detect error counts as missing; dry run calls only plan
 - `settleStep` (`pipeline.ts`): an apply throw, or verify false after apply, makes the step manual with `step.manualCard`
 - `stepList` (`pipeline.ts`): order is install @conciv/it, framework (if selected), AGENTS.md, one step per harness file init, one `connect-<agent>` step per found harness that has a `hub` (already connected ones settle as 'already'), docs pack (if selected)

@@ -2374,6 +2374,25 @@ describe('init', () => {
         expect(await preflight(cwd, false)).toEqual(refused)
         expect(await preflight(cwd, true)).toEqual({ok: true})
       })
+
+      it('runs over the AGENTS.md and CLAUDE.md its own last run wrote, and refuses once the user edited outside its section', async () => {
+        const repo = dir()
+        const cwd = join(repo, 'apps', 'web')
+        mkdirSync(cwd, {recursive: true})
+        writeFileSync(join(cwd, 'package.json'), '{}')
+        writeFileSync(join(cwd, 'AGENTS.md'), '# web\n')
+        execFileSync('git', ['init'], {cwd: repo})
+        execFileSync('git', ['add', '.'], {cwd: repo})
+        execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed'], {cwd: repo})
+        writeFileSync(join(cwd, 'AGENTS.md'), `# web\n\n${agentsSection(['claude'])}\n`)
+        writeFileSync(join(cwd, 'CLAUDE.md'), '@AGENTS.md\n')
+        expect(await preflight(cwd, false)).toEqual({ok: true})
+        writeFileSync(join(cwd, 'AGENTS.md'), `# web\n\nmy own rule\n\n${agentsSection(['claude'])}\n`)
+        expect(await preflight(cwd, false)).toEqual({
+          ok: false,
+          reason: 'uncommitted changes — commit first or pass --force',
+        })
+      })
     })
   })
 
