@@ -75,6 +75,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/it": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",

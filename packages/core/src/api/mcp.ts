@@ -219,6 +219,7 @@ type CallPublisher = {
   settle: () => Promise<void>
   trace: CallTrace
   run: {threadId: string; live: boolean}
+  signal: AbortSignal
 }
 
 function replyText(reply: ExecuteReply): string {
@@ -233,7 +234,7 @@ async function publishResult(calls: CallPublisher, reply: ExecuteReply): Promise
 async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
   calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
-    .run(typescriptCode, calls.trace.callId)
+    .run(typescriptCode, calls.trace.callId, calls.signal)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
@@ -246,7 +247,7 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
   calls.publish(calls.trace.start(calls.run, tool.name, input))
-  const reply: ExecuteReply = await tool.run(input, calls.trace.callId).then(
+  const reply: ExecuteReply = await tool.run(input, calls.trace.callId, calls.signal).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
@@ -307,7 +308,13 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
     logError('[mcp] code mode is unavailable (no isolate driver or an empty registry); no tools registered')
     return []
   }
-  const calls: CallPublisher = {publish: mirror.publish, settle: mirror.settle, trace: caller.trace, run}
+  const calls: CallPublisher = {
+    publish: mirror.publish,
+    settle: mirror.settle,
+    trace: caller.trace,
+    run,
+    signal: caller.signal,
+  }
   const discover = runner.discover
   const discoverTools =
     discover === null

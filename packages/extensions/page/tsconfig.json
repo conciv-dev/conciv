@@ -1,15 +1,7 @@
 {
-  "extends": "../../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node", "vite/client"],
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "types": ["node", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vitest.config.ts"],
-  "exclude": ["test/fixtures/react-app.tsx", "test/page.browser.test.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vitest.config.ts"]
 }

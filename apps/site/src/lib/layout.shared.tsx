@@ -1,5 +1,5 @@
 import type {BaseLayoutProps} from 'fumadocs-ui/layouts/shared'
-import {ConcivLockup} from '@conciv/brand/react'
+import {ConcivLockup} from '@conciv/brand-react'
 
 export function baseOptions(): BaseLayoutProps {
   return {

@@ -699,6 +699,7 @@ test.describe('forced drop', () => {
 test.describe('host hotkey isolation', () => {
   const HOST_SEARCH_HOTKEY = `
   <button type="button">Host focus target</button>
+  <button type="button">Host next target</button>
   <div id="host-search" role="status" aria-label="host search">host search idle</div>
   <script>
     function isEditingContent(event) {
@@ -758,6 +759,21 @@ test.describe('host hotkey isolation', () => {
       await page.keyboard.press('/')
 
       await expect(hostSearch(page)).toHaveText('host search open', {timeout: 30_000})
+    })
+
+    test('Tab pressed with focus on the host page moves to the next host control, never into the open panel', async ({
+      page,
+    }) => {
+      test.setTimeout(120_000)
+      await openPanelOnNewSession(page, suite)
+      await expect(composer(page)).toBeVisible()
+
+      await page.getByRole('button', {name: 'Host focus target'}).click()
+      await page.keyboard.press('Tab')
+
+      const next = page.getByRole('button', {name: 'Host next target'})
+      await expect(next).toBeFocused({timeout: 5_000})
+      await expect(next.and(page.locator(':focus-visible'))).toBeVisible({timeout: 5_000})
     })
   })
 })

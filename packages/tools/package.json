@@ -48,8 +48,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.cards.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.cards.json --noEmit",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
@@ -66,6 +66,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",

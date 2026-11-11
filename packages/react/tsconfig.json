@@ -1,14 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.react.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2024", "DOM"],
-    "jsx": "react-jsx",
     "types": ["vite/client", "node"],
     "paths": {
       "@conciv/react": ["./src/index.ts"]

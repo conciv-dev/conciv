@@ -63,6 +63,7 @@
     "@conciv/extension-compiler": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

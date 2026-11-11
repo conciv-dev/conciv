@@ -1,3 +1,5 @@
+import {readdirSync} from 'node:fs'
+import {join} from 'node:path'
 import {expect, test, type Page} from '@playwright/test'
 import {loginWidget} from '@conciv/e2e-utils/widget'
 import {makeCallTool, resolveSession} from '../packed/engine-client.js'
@@ -104,6 +106,13 @@ test.describe.serial('installed extension on packed Next 16.2 (turbopack + webpa
     await expect(chip(page)).toBeVisible()
     expect(await page.getByText(SECOND_SENTINEL).count()).toBe(0)
   }
+
+  test('the packed install resolves one @tanstack/ai-sandbox, so SandboxCapability stays single (#107)', () => {
+    const copies = readdirSync(join(fixture.root, 'node_modules/.pnpm')).filter((entry) =>
+      entry.startsWith('@tanstack+ai-sandbox@'),
+    )
+    expect(copies).toHaveLength(1)
+  })
 
   test('turbopack: renders the chip, degrades gracefully router-less, and lives through add/remove', async ({page}) => {
     test.setTimeout(CELL_TIMEOUT)

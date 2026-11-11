@@ -23,22 +23,6 @@ export default defineConfig({
           },
         },
       },
-      {
-        extends: true,
-        esbuild: {jsx: 'automatic', jsxImportSource: 'react'},
-        test: {
-          ...ciTest(),
-          name: 'brand-react-browser',
-          include: ['tests/browser/react-lockup.browser.test.tsx'],
-          fileParallelism: false,
-          browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright({}),
-            instances: [{browser: 'chromium'}],
-          },
-        },
-      },
     ],
   },
 })

@@ -1,7 +1,7 @@
 import 'virtual:uno.css'
 import {afterEach, describe, expect, it, test, onTestFinished} from 'vitest'
 import {fitHeight, measureTextArea} from '../src/autosize.js'
-import {createSignal, For, createRoot, type JSX} from 'solid-js'
+import {createSignal, For, Show, createRoot, type JSX} from 'solid-js'
 import {render} from '@solidjs/testing-library'
 import {page, userEvent} from 'vitest/browser'
 import {createClipboardCopy} from '../src/clipboard.js'
@@ -1074,6 +1074,39 @@ describe.each([
     await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
 
     expect(spanReading(host, SHORT).hasAttribute('aria-describedby')).toBe(false)
+  })
+})
+
+describe('shared truncated text group', () => {
+  const LONG = 'I accept the terms and conditions. Required. Validation runs on submit and again on blur.'
+
+  it('takes the reveal away when the text that opened it unmounts, and reveals a remounted one again', async () => {
+    const [shown, setShown] = createSignal(true)
+    const {unmount} = render(() => (
+      <TruncatedTextGroup>
+        <ul class="m-0 p-0 list-none flex flex-row gap-2">
+          <li class="flex max-w-40 min-w-0" aria-label="clipped row">
+            <Show when={shown()}>
+              <TruncatedText class="flex-1 min-w-0" text={LONG} />
+            </Show>
+          </li>
+        </ul>
+      </TruncatedTextGroup>
+    ))
+    onTestFinished(unmount)
+    const row = page.getByRole('listitem', {name: 'clipped row'})
+
+    await row.hover()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG)
+
+    setShown(false)
+    await expect.element(page.getByRole('tooltip')).not.toBeInTheDocument()
+
+    await userEvent.unhover(row)
+    setShown(true)
+    await expect.element(row).toHaveTextContent(LONG)
+    await row.hover()
+    await expect.element(page.getByRole('tooltip')).toHaveTextContent(LONG)
   })
 })
 

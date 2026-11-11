@@ -6,7 +6,8 @@ import {isPageVerbError, isToolError} from '@conciv/extension'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
-import type {RegistryCallErrorName} from '@conciv/contract'
+import type {Router} from '@orpc/server'
+import type {contract, RegistryCallErrorName} from '@conciv/contract'
 import {widgetCaller} from '../../lib/cors.js'
 import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
@@ -94,7 +95,7 @@ async function hubTraced<Result>(
   }
 }
 
-export function makeRpcRouter(deps: RpcDeps) {
+export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const engine = deps.runtime.engine
@@ -146,7 +147,9 @@ export function makeRpcRouter(deps: RpcDeps) {
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
         await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
         const run = (): Promise<unknown> =>
-          assist === undefined ? context.session.tools.call(input.name, input.input) : assist.execute(input.input)
+          assist === undefined
+            ? context.session.tools.call(input.name, input.input, {signal})
+            : assist.execute(input.input)
         return hubTraced(context, input.name, input.input, () =>
           run().catch((error: unknown) => {
             throw registryCallError(error, errors)

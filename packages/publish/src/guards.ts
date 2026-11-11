@@ -78,6 +78,7 @@ export const PUBLIC_PACKAGES = [
   '@conciv/extension-page',
   '@conciv/extension-design',
   '@conciv/mascot',
+  '@conciv/mascot-react',
   '@conciv/embed',
   '@conciv/react',
   '@conciv/preact',

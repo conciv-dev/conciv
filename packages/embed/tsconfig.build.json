@@ -1,13 +1,1 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "rootDir": "src",
-    "noEmit": false,
-    "emitDeclarationOnly": true,
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "dist",
-    "incremental": false
-  },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
-}
+{"extends": ["./tsconfig.json", "@conciv/tsconfig/tsconfig.build.json"]}

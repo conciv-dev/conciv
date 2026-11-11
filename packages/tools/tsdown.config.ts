@@ -4,5 +4,5 @@ export default defineConfig({
   entry: ['src/tools.ts', 'src/defs.ts', 'src/builtins.ts'],
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: false,
 })

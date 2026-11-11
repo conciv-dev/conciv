@@ -634,6 +634,12 @@ decided by the tool's existing `mutating` mark (`packages/extensions/page/src/sh
 - A healthy tab is not slowed: the wait exists only after a tab was lost mid-call.
 - The other browser tab of the same session, when one is open, counts as "a tab serving again": the resend
   goes to the tab focused last, by the rule of part 4.
+- **Abort:** a call its caller gives up on stops at once. The caller is the agent that cancels the tool call
+  (an outside agent through the hub, or the chat's own run when it stops), the rpc client that aborts
+  `registry.call`, or the `execute_typescript` program that ends (done, failed, timed out or stopped) with the
+  call still running. The engine drops the waiting query and fails the call with an abort error; it never
+  waits out the timeout and never resends after an abort. The page is not told: it runs a query the moment it
+  gets it, so there is nothing left to drop there, and a late reply settles nothing.
 
 ### Tests (existing files only; one journey per file, no timing guesses)
 

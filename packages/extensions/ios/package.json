@@ -67,6 +67,7 @@
   "devDependencies": {
     "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "solid-js": "catalog:",

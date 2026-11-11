@@ -1,11 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.base.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "lib": ["ES2024"],
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]

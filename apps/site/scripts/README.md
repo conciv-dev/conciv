@@ -2,12 +2,11 @@
 
 ## Overview
 
-Build-time scripts: build a JSON manifest of the site's own source, and pre-highlight the landing page code snippets.
+Build-time scripts: build a JSON manifest of the site's own source.
 
 ## Interface
 
 - `buildManifest(siteDir)` (`build-source-manifest.mjs`): maps text files under `src/` plus `package.json` to their contents; run directly it writes `public/site-source.json`
-- `highlight-snippets.ts`: renders `FRAMEWORK_SNIPPETS` with shiki, twoslash and `codeToKeyedTokens`, writes `MAGIC_MOVE_STEPS` and `SNIPPET_TWOSLASH`; run by `pnpm gen:snippets`
 
 ## Invariants
 
@@ -17,7 +16,6 @@ Build-time scripts: build a JSON manifest of the site's own source, and pre-high
 ## Side Effects
 
 - `build-source-manifest.mjs`: writes `public/site-source.json`
-- `highlight-snippets.ts`: overwrites `src/components/landing/framework-snippets.gen.ts`
 
 ## Verification
 

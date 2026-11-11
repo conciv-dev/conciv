@@ -9,6 +9,7 @@ export default defineConfig({
     projects: [
       {
         oxc: {jsx: {runtime: 'automatic', importSource: 'react'}},
+        optimizeDeps: {include: ['react/jsx-dev-runtime', '@zumer/snapdom']},
         test: {
           ...ciTest(),
           name: 'browser',
@@ -25,10 +26,11 @@ export default defineConfig({
       },
       {
         oxc: {jsx: {runtime: 'automatic', importSource: 'react'}},
+        optimizeDeps: {include: ['react/jsx-dev-runtime', '@zumer/snapdom']},
         test: {
           ...ciTest(),
           name: 'browser-firefox',
-          include: ['test/page.browser.test.tsx'],
+          include: ['test/page.browser.test.ts'],
           fileParallelism: false,
           browser: {
             enabled: true,

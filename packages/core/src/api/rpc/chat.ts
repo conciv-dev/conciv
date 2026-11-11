@@ -1,6 +1,9 @@
+import type {Router} from '@orpc/server'
+import type {contract} from '@conciv/contract'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {os, type RpcDeps, type SessionOs} from './mount.js'
 
-export function chatRouter(deps: RpcDeps, sessionOs: SessionOs) {
+export function chatRouter(deps: RpcDeps, sessionOs: SessionOs): Router<typeof contract.chat, RpcContext> {
   return {
     events: os.chat.events.handler(({input, signal}) =>
       deps.runtime.forSession(input.sessionId).stream.events(signal ?? new AbortController().signal),

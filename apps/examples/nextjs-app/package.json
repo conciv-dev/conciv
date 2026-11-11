@@ -25,6 +25,6 @@
     "@types/react-dom": "catalog:",
     "eslint": "^10.13.0",
     "eslint-config-next": "16.4.3",
-    "typescript": "catalog:"
+    "typescript": "catalog:ts6"
   }
 }

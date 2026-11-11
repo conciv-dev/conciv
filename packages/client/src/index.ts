@@ -15,5 +15,6 @@ export {
   useQueryClient,
   type CreateMutationResult,
   type QueryKey,
+  type UseQueryResult,
 } from '@tanstack/solid-query'
 export {createTanstackQueryUtils} from '@orpc/tanstack-query'

@@ -12,13 +12,13 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 - [src/cards/README.md](./src/cards/README.md): `UiCard`, `OpenCard`, `ExtensionsCard`.
 - Exports (`package.json`): `.` -> `dist/tools.js`, `./defs` -> `dist/defs.js`, `./builtins` -> `dist/builtins.js`, `./cards` -> `dist/cards.js` (`browser` and `import` conditions), `./package.json`. No bin.
 - Dependencies: `@conciv/extension`, `@conciv/extension-page`, `@conciv/protocol`, `@conciv/solid-diffs`, `@conciv/ui-kit-chat`, `@conciv/ui-kit-system`, `lucide-solid`, `zod`; peer `solid-js` ^1.9.13.
-- Scripts: `build` (`tsdown && vite build && tsc -p tsconfig.cards.build.json`), `typecheck` (`tsconfig.json` and `tsconfig.cards.json`), `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`).
+- Scripts: `build` (`tsdown && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json`), `lint` (`oxlint`), `test` (`vitest run`), `publint`, `attw` (`--profile esm-only`).
 
 ## Invariants
 
 - ESM only (`"type": "module"`, attw `esm-only`); only `dist` is published (`files`).
 - `vite.config.ts` uses `emptyOutDir: false` because tsdown writes `dist/` first in the `build` script.
-- Card `.tsx` code is type-checked separately with the DOM lib and Solid JSX (`tsconfig.cards.json`); `tsconfig.json` covers only `src/**/*.ts` and `test/**/*.ts`.
+- `tsconfig.json` extends the Solid preset, so card `.tsx` code is type-checked with the DOM lib and Solid JSX alongside `src/**/*.ts` and `test/**/*.ts`.
 
 ## Side Effects
 

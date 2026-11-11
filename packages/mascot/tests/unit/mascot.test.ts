@@ -97,35 +97,6 @@ process.stdout.write(
 )
 `
 
-  const REACT_PROBE = `import {Mascot} from '@conciv/mascot/react'
-import {createElement} from 'react'
-import {renderToString} from 'react-dom/server'
-
-const markup = renderToString(createElement(Mascot, null))
-
-const rendered = ['root', 'head', 'antenna', 'eyes', 'effect'].filter((part) =>
-  markup.includes('data-part="' + part + '"'),
-)
-
-const installedFrameworks = ['solid-js', 'react', 'react-dom'].filter((name) => {
-  try {
-    import.meta.resolve(name)
-    return true
-  } catch {
-    return false
-  }
-})
-
-process.stdout.write(
-  JSON.stringify({
-    Mascot: typeof Mascot,
-    parts: Object.keys(Mascot).toSorted(),
-    rendered,
-    frameworks: installedFrameworks,
-  }),
-)
-`
-
   function expectedMounts(): Record<string, string[]> {
     const binaryMounts = ['binaryEffect', 'configureBinaryEffect']
     return Object.fromEntries(
@@ -189,15 +160,6 @@ process.stdout.write(
       frameworks: ['solid-js'],
     })
   }, 60_000)
-
-  test('a packed install with only react present imports and renders the react wrapper subpath', () => {
-    expect(probeInstall(['react', 'react-dom'], REACT_PROBE)).toEqual({
-      Mascot: 'function',
-      parts: ['Antenna', 'Binary', 'Effect', 'Eyes', 'Head'],
-      rendered: ['root', 'head', 'antenna', 'eyes', 'effect'],
-      frameworks: ['react', 'react-dom'],
-    })
-  }, 60_000)
 })
 
 describe('publish surface', () => {
@@ -209,7 +171,6 @@ describe('publish surface', () => {
   const effectSubpaths = Object.keys(EFFECT_MOUNTS).map((name) => `./effects/${name}`)
   const IMPORT_PATTERN = /(?:from|import)\s*["'](\.[^"']*)["']/g
   const FRAMEWORK_PATTERN = /(?:from|import)\s*["'](?:solid-js|react|react-dom)(?:\/[^"']*)?["']/
-  const SOLID_PATTERN = /(?:from|import)\s*["']solid-js(?:\/[^"']*)?["']/
   const REACT_PATTERN = /(?:from|import)\s*["']react(?:-dom)?(?:\/[^"']*)?["']/
 
   function readManifest(): unknown {
@@ -276,7 +237,7 @@ describe('publish surface', () => {
   }
 
   function builtEntries(): string[] {
-    return ['.', ...effectSubpaths].map(exportedImportFile)
+    return ['.', './adapter', ...effectSubpaths].map(exportedImportFile)
   }
 
   const isEffectModule = (file: string): boolean => file.startsWith(effectsDirectory)
@@ -305,7 +266,7 @@ describe('publish surface', () => {
   })
 
   test('every published entry declares its types next to its module', () => {
-    for (const subpath of ['.', './solid', './react', ...effectSubpaths]) {
+    for (const subpath of ['.', './solid', './adapter', ...effectSubpaths]) {
       expect(readFileSync(exportedTypesFile(subpath), 'utf8').length).toBeGreaterThan(0)
     }
   })
@@ -348,18 +309,29 @@ describe('publish surface', () => {
     expect(framework).toEqual([])
   })
 
-  test.each(['./solid', './react'])('the %s entry is a place the framework is imported', (subpath) => {
-    const framework = moduleGraph(exportedImportFile(subpath))
+  test('the ./solid entry is a place the framework is imported', () => {
+    const framework = moduleGraph(exportedImportFile('./solid'))
       .filter((file) => FRAMEWORK_PATTERN.test(readFileSync(file, 'utf8')))
       .map(packageRelative)
     expect(framework).not.toEqual([])
-    expect(builtEntries()).not.toContain(exportedImportFile(subpath))
+    expect(builtEntries()).not.toContain(exportedImportFile('./solid'))
   })
 
-  test('neither wrapper entry reaches the other framework', () => {
+  test('the solid entry never reaches react', () => {
     const solidGraph = moduleGraph(exportedImportFile('./solid'))
-    const reactGraph = moduleGraph(exportedImportFile('./react'))
     expect(solidGraph.filter((file) => REACT_PATTERN.test(readFileSync(file, 'utf8')))).toEqual([])
-    expect(reactGraph.filter((file) => SOLID_PATTERN.test(readFileSync(file, 'utf8')))).toEqual([])
+  })
+
+  test('the adapter entry carries exactly the names the framework wrappers build on', async () => {
+    const adapter: unknown = await import(exportedImportFile('./adapter'))
+    expect(Object.keys(adapter ?? {}).toSorted()).toEqual([
+      'activityChannels',
+      'camelCaseProperty',
+      'followChannels',
+      'installStageSize',
+      'isGeometryProperty',
+      'kebabCaseProperty',
+      'partAlreadyProvided',
+    ])
   })
 })

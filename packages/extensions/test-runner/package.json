@@ -79,6 +79,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "catalog:",

@@ -90,14 +90,19 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     await closeClient(runner)
   }
 
-  async function forward(toolName: ToolName, input: unknown, resent = false): Promise<unknown> {
+  async function forward(
+    toolName: ToolName,
+    input: unknown,
+    signal: AbortSignal | undefined,
+    resent = false,
+  ): Promise<unknown> {
     const picked = currentRunner()
     const runner = await picked
     try {
-      return await runner.client.callTool(toolName, input)
+      return await runner.client.callTool(toolName, input, {signal})
     } catch (error) {
       await dropRunner(picked, runner)
-      if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, true)
+      if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, signal, true)
       const after = await currentRunner().then(
         (next) => `the next call runs on ${next.root}`,
         () => 'no other conciv dev server is running',
@@ -123,7 +128,13 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     await closeClient(owner)
   }
 
-  async function onTab(toolName: ToolName, input: unknown, tab: SessionId, resent = false): Promise<unknown> {
+  async function onTab(
+    toolName: ToolName,
+    input: unknown,
+    tab: SessionId,
+    signal: AbortSignal | undefined,
+    resent = false,
+  ): Promise<unknown> {
     const entry = entryOf(tab)
     const kept = (entry.owner ??= findOwner(home, tab, {...headers, [CONCIV_SESSION_HEADER]: tab}))
     const owner = await kept.catch((error: unknown) => {
@@ -131,14 +142,14 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       throw error
     })
     try {
-      const reply = await owner.client.callTool(toolName, input)
+      const reply = await owner.client.callTool(toolName, input, {signal})
       if (ErrorReplySchema.safeParse(reply).success && !(await holdsTab(owner, tab))) {
         await forget(entry, kept, owner)
       }
       return greeted(entry, owner, reply)
     } catch (error) {
       await forget(entry, kept, owner)
-      if (!resent && RefusedSchema.safeParse(error).success) return onTab(toolName, input, tab, true)
+      if (!resent && RefusedSchema.safeParse(error).success) return onTab(toolName, input, tab, signal, true)
       throw new Error(
         `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
         {cause: error},
@@ -147,9 +158,13 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   }
 
   function routed(toolName: ToolName) {
-    return async ({tab: given, ...input}: {tab?: string | undefined}): Promise<unknown> => {
+    return async (
+      {tab: given, ...input}: {tab?: string | undefined},
+      context?: {abortSignal?: AbortSignal},
+    ): Promise<unknown> => {
       const tab = TabInputSchema.parse(given)
-      const call = tab === undefined ? forward(toolName, input) : onTab(toolName, input, tab)
+      const signal = context?.abortSignal
+      const call = tab === undefined ? forward(toolName, input, signal) : onTab(toolName, input, tab, signal)
       return call.catch((error: unknown) => failed(errorText(error)))
     }
   }

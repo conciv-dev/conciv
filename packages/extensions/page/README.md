@@ -2,7 +2,7 @@
 
 ## Overview
 
-package.json routes the `.` export through conditions: `browser` resolves to dist/client.js and `import` resolves to dist/server.js. It also exports `./client`, `./server`, `./defs` and `./capture-plugins`. The build runs in three steps: tsdown bundles src/server.ts, src/shared/defs.ts and src/client/capture-plugins.ts as ESM; vite builds src/client.tsx with solid into dist/client.js; tsc emits declarations only. vitest runs three browser projects through Playwright: `browser` (Chromium) uses the React JSX runtime, `browser-solid` (Chromium) covers `*.solid.browser.test.tsx`, and `browser-firefox` runs only the one-line-text capture test from page.browser.test.tsx in Firefox at device pixel ratio 2, where snapdom's line-wrap drift shows. `pnpm test` runs the Firefox project on its own with coverage off, then the Chromium projects: CI turns on v8 coverage, which only works in Chromium. Children: src/ (sources) and test/ (page.browser.test.tsx, page.solid.browser.test.tsx and fixtures/).
+package.json routes the `.` export through conditions: `browser` resolves to dist/client.js and `import` resolves to dist/server.js. It also exports `./client`, `./server`, `./defs` and `./capture-plugins`. The build runs in three steps: tsdown bundles src/server.ts, src/shared/defs.ts and src/client/capture-plugins.ts as ESM; vite builds src/client.tsx with solid into dist/client.js; tsc emits declarations only. vitest runs three browser projects through Playwright: `browser` (Chromium) runs the React tests, which build their tree with `createElement`, `browser-solid` (Chromium) covers `*.solid.browser.test.tsx`, and `browser-firefox` runs only the one-line-text capture test from page.browser.test.ts in Firefox at device pixel ratio 2, where snapdom's line-wrap drift shows. `pnpm test` runs the Firefox project on its own with coverage off, then the Chromium projects: CI turns on v8 coverage, which only works in Chromium. Children: src/ (sources) and test/ (page.browser.test.ts, page.solid.browser.test.tsx and fixtures/).
 
 ## Interface
 
@@ -23,13 +23,13 @@ package.json routes the `.` export through conditions: `browser` resolves to dis
 - `emptyOutDir: false` (`vite.config.ts`) keeps the tsdown output in dist when vite builds
 - `define: {'import.meta.hot': 'import.meta.hot'}` (`vite.config.ts`) leaves import.meta.hot untouched in the built client
 - `fileParallelism: false` (`vitest.config.ts`) runs browser test files one at a time in both projects
-- `exclude` (`tsconfig.json`, `tsconfig.refs.json`) leaves test/fixtures/react-app.tsx and test/page.browser.test.tsx out of the solid typecheck
+- test/fixtures/react-app.ts and test/page.browser.test.ts build their React tree with `createElement`, not JSX, so the one Solid `tsconfig.json` type-checks them
 - `peerDependencies.solid-js` (`package.json`) requires `^1.9.13`
 
 ## Side Effects
 
 - `build` script (`package.json`) writes bundles and .d.ts files to dist/
-- `tsBuildInfoFile` (`tsconfig.json`) writes .tsbuildinfo; `outDir` (`tsconfig.refs.json`) writes .tsc-refs/, which `.gitignore` ignores
+- `typecheck` writes .tsbuildinfo beside `tsconfig.json`
 - `provider: playwright({})` (`vitest.config.ts`) launches headless Chromium for tests
 
 ## Verification

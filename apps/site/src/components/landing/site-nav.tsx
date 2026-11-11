@@ -1,5 +1,5 @@
 import {Link} from '@tanstack/react-router'
-import {ConcivLockup} from '@conciv/brand/react'
+import {ConcivLockup} from '@conciv/brand-react'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
 import {GitHubStarLink} from './github-star-link'

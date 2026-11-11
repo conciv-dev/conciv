@@ -19,7 +19,7 @@ import {loginThroughTerminal} from '@conciv/harness-testkit'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
-import {approvalAskOf} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, ChatEventType} from '@conciv/protocol/chat-event-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -1584,6 +1584,52 @@ describe('cli', () => {
       } finally {
         await client.close()
         await survivor.engine.stop()
+      }
+    })
+
+    it('a block its agent cancels stops on the engine holding the tab and drops its page query', async () => {
+      const {home, mcp} = fakeClaude()
+      expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+      const holder = await engineWithTab(home, {hubAccess: 'open'})
+      const sessionId = (await makeRpcClient(holder.base).sessions.create(undefined)).sessionId
+      const page = makeRpcClient(holder.base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+      const listening = new AbortController()
+      const queries = await page.page.queries(undefined, {signal: listening.signal})
+      const events = await page.chat.events({sessionId}, {signal: listening.signal})
+      const client = await createMCPClient({
+        transport: stdioTransport({
+          command: process.execPath,
+          args: [bin, 'mcp', 'serve', '--agent', 'claude'],
+          env: {CONCIV_HOME: home},
+        }),
+        name: 'cli-test',
+        prior: {kind: 'legacy'},
+      })
+      try {
+        const cancelling = new AbortController()
+        const typescriptCode = 'return await external_page_route({})'
+        const running = client.callTool(
+          'execute_typescript',
+          {typescriptCode, tab: sessionId},
+          {signal: cancelling.signal},
+        )
+        const asked = await queries.next()
+        cancelling.abort()
+        await expect(running).rejects.toThrow()
+        const seen: unknown[] = []
+        for await (const chunk of events) {
+          seen.push(chunk)
+          if (chunk.type === ChatEventType.RUN_FINISHED) break
+        }
+        expect(JSON.stringify(seen.at(-2))).toMatch(/abort/i)
+        const requestId = asked.done === true ? '' : asked.value.requestId
+        await expect(page.page.reply({requestId, outcome: {ok: true, result: {}}})).rejects.toMatchObject({
+          code: 'UNKNOWN_REQUEST',
+        })
+      } finally {
+        listening.abort()
+        await client.close()
+        await holder.engine.stop()
       }
     })
 

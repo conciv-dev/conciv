@@ -150,7 +150,7 @@ const WRAPPERS = [
     subpath: '@conciv/mascot/solid',
     summary: 'The Solid compound component: <Mascot> with Head, Eyes, Antenna, Binary.',
   },
-  {subpath: '@conciv/mascot/react', summary: 'The React mirror of the same compound component and slots.'},
+  {subpath: '@conciv/mascot-react', summary: 'The React mirror of the same compound component and slots.'},
 ]
 
 const effectSubpath = (name: EffectName): string => `@conciv/mascot/effects/${name}`

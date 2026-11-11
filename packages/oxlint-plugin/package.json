@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "lucide-solid": "catalog:",

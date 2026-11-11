@@ -37,8 +37,12 @@ describe('catalog', () => {
       writeManifest(join(root, 'packages', 'a'), {
         name: '@conciv/a',
         dependencies: {zod: 'catalog:', 'only-in-a': '^1.0.0'},
+        devDependencies: {typescript: 'catalog:'},
       }),
-      writeManifest(join(root, 'packages', 'b'), {name: '@conciv/b', devDependencies: {zod: 'catalog:default'}}),
+      writeManifest(join(root, 'packages', 'b'), {
+        name: '@conciv/b',
+        devDependencies: {zod: 'catalog:default', typescript: 'catalog:ts6'},
+      }),
     ])
     await expect(assertSharedDependenciesCatalogued(root)).resolves.toBeUndefined()
   })

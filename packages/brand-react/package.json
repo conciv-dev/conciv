@@ -1,0 +1,57 @@
+{
+  "name": "@conciv/brand-react",
+  "version": "0.0.22",
+  "private": true,
+  "description": "The conciv logo as React components: the crimson chat-bubble robot mark and the full lockup with its hover animation.",
+  "keywords": [
+    "brand",
+    "conciv",
+    "logo",
+    "react"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/brand-react"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/conciv-lockup.d.ts",
+      "import": "./dist/conciv-lockup.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "motion": "catalog:"
+  },
+  "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "playwright": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  }
+}
