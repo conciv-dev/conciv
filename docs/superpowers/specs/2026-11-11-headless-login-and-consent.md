@@ -1,6 +1,6 @@
-# Consent token: unattended outside-agent runs
+# Headless login and outside-agent consent
 
-Status: proposal, waiting for Omri's decision. Nothing is implemented.
+Status: Part 1 approved for build, Part 2 waiting for a decision. Nothing is implemented yet.
 Date: 2026-11-11. Source read at `origin/main` `bd47e7526`. All `file:line` references are to that commit.
 
 ## The ask
@@ -48,62 +48,74 @@ No test bypasses consent in product code. They act as the user through the real 
 
 That works inside a test that owns the server process. It does not help `claude -p` or a `playwright-cli` session against a dev server, where nobody is positioned to answer prompts or read the terminal.
 
-## Proposal
+## Decision
 
-One rule: a caller that presents the consent token is admitted at gates 5 and 6 without a prompt. Every other gate stays as it is.
+Discussed with Omri on 2026-11-11. The token idea is dropped: both problems have a smaller answer.
 
-### Option 1 (recommended): a shared secret in the environment
+1. **Browser login: `conciv auth link`.** Approved. Build it.
+2. **Approve prompts for outside agents: remove them.** Proposed, waiting for Omri's yes.
+3. **Allow prompt:** already off on main (`hubAccess` defaults to `'open'`). The `design-catalog` branch picks that up when it takes main.
 
-- **Who mints it.** The person or script starting the run: `export CONCIV_CONSENT_TOKEN="$(uuidgen)"`. Core never generates, stores or prints it.
-- **Where it lives.** Only in the environment of the dev server process and of the callers. No file, nothing in `.conciv/`, nothing in the Vite config, so it cannot be committed. It is read in `resolveConfig` next to the other `CONCIV_*` variables (`config.ts:57-71`) and deliberately has no `ConcivConfig` option.
-- **How a caller presents it.** A new header `conciv-consent: <token>`.
-  - CLI: `packages/cli/src/request.ts:70` and `packages/cli/src/hub.ts:75` add it when `CONCIV_CONSENT_TOKEN` is set in their environment.
-  - Claude plugin bridge: `packages/harness-init/src/claude/bridge.ts:122-128` adds it the same way. If `claude -p` hands its environment to plugin MCP servers (to confirm when implementing), `CONCIV_CONSENT_TOKEN=... claude -p ...` is the whole user-facing step.
-- **What core does.** `callTrace` (`call-trace.ts:22-40`) already parses the caller's hub headers in one place. It gains one boolean, `unattended`, true when the engine was started with a token and the header matches it under the existing constant-time compare (`sameCode`, `engine-login.ts:57-61`). `admitOutside` (`app.ts:605`), `refuseUnapproved` (`router.ts:65`) and the MCP `admit` (`mcp.ts:294`) return "allowed" when it is true. Three call sites, no new store, no new RPC procedure.
-- **Scope.** One engine process. Every session on that engine, every tool.
-- **Expiry.** The engine process. Stop the dev server and the token is dead.
-- **What it does not change.** Gate 2 (the caller still needs the engine token), gate 4 (a disconnected agent stays refused; disconnect is the user's explicit "no") and gate 7 (outside agents still cannot answer prompts).
-- **What the user sees.** One line at engine start saying unattended consent is on, never the value. Calls still mirror into the chat as outside calls (`hubTraced`, `router.ts:74-96`), and carry an "unattended" mark so the transcript shows nobody approved them.
-- **Hardening.** Refuse to start when the variable is set but shorter than 32 characters. Ignore the header on requests that carry an `Origin` (a browser must never be the one presenting it). Never echo the header in logs or error messages.
-- **Size.** About 40 lines of product code across core, CLI and bridge, plus one journey test in the existing CLI test file: engine with `hubAccess: 'session'` and a token; a hub-labelled call to a tool that asks succeeds with the header and is refused without it.
+With all three, a headless run is: start the dev server, `conciv auth link <page>`, open the link, run the agent. No clicks, no token to pass around, no log scraping.
 
-### Option 2: minted, stored tokens
+## Part 1: `conciv auth link <page-url>` (approved)
 
-- `conciv consent create [--ttl 1h] [--label ci]` writes a hash row to `.conciv/consent-tokens.json` (same shape and `0600` write path as `trusted-browsers.json`, `engine-trust.ts:53-75`) and prints the token once to stdout. `conciv consent list` / `revoke`. Core watches the file as it does trusted browsers (`engine-login.ts:161-185`) so a revoke takes effect on a running engine.
-- Presentation and the three gate call sites are the same as option 1.
-- Gains: attach to a dev server that is already running, no restart; per-token label, expiry and revoke; several tokens at once.
-- Costs: a new state file, three CLI subcommands, expiry and revoke logic, a token printed to a terminal (scrollback, CI logs), and a long-lived secret on disk next to the engine token.
+### What it does
 
-### Comparison
+Prints a one-time login link for a page, for example `http://localhost:3001/#conciv_otp=123456`. Opening it in any browser logs that browser in, exactly as if the user had clicked "Authorize conciv" and typed the code from the terminal. The widget already handles that link (`apps/conciv/src/app/engine-login.tsx:75-80`), so the widget does not change.
 
-|                                        | Option 1: env secret          | Option 2: stored tokens           |
-| -------------------------------------- | ----------------------------- | --------------------------------- |
-| New surface                            | 1 env var, 1 header           | 1 header, 1 file, 3 CLI commands  |
-| Works on an already running dev server | No, restart with the variable | Yes                               |
-| Expiry                                 | Engine process                | Per token TTL                     |
-| Revoke                                 | Stop the engine               | `conciv consent revoke`           |
-| Token ever printed or written to disk  | No                            | Yes, once to stdout; hash on disk |
-| Product code                           | ~40 lines                     | ~200 lines                        |
+The code is not tied to a browser when issued. The first browser to present it is logged in, and the engine records that browser at that moment (`engine-login.ts:298-303,317-323`). It then appears in `conciv auth revoke` like any other and can be revoked. Login is trust between one browser and one dev server, not per chat session.
 
-Recommendation: option 1. Headless runs and tests start their own dev server, so "restart with the variable" costs nothing there, and it is the only option where the secret is never printed or stored. Option 2's header and gate changes are identical, so it can be added later without reshaping anything if attaching to a running server turns out to matter.
+### Why it is safe to hand the code to the CLI
 
-### Browser authorization (gate 3)
+`auth.requestCode` returns only the expiry (`packages/contract/src/contract.ts:214`) and prints the code to the dev server terminal, because its caller is the untrusted browser. The CLI is different: it already holds the engine token from `.conciv/server.json`, which is full trust in the engine. Giving that caller a code grants nothing it could not already do.
 
-The consent token should not cover this. Browser trust is a transport credential, and the engine token already is one. Two ways work today with no product change:
+### Shape
 
-1. Seed the tab before the widget boots: set `localStorage['conciv:engine-token:<apiBase>']` to the engine token from `.conciv/server.json` (Playwright `addInitScript` or `storageState`). The widget presents it through `auth.trust` and never asks for a code. This is read from source (`browser-transport.ts:350-356`, `engine-login.ts:194,312-316`) and has not been run.
-2. Open the page on the printed `#conciv_otp=<code>` link, as the e2e helpers do.
+- **Contract** (`packages/contract/src/contract.ts`, `auth`): one new procedure, `issueCode`, no input, output `{code, expiresAt}` with `code` matching `LOGIN_CODE_PATTERN`.
+- **Core** (`packages/core/src/engine-login.ts`):
+  - The code store gains `issue()`, which makes a fresh code and returns it without printing. `request()` keeps printing and is built on the same code path. The engine still holds one live code at a time, so issuing a link replaces a code a human was about to type; the dialog's "new code" covers that.
+  - `auth.issueCode` is not in `AUTH_PROCEDURE_PATHS` / `OPEN_PATHS`, so the engine gate already refuses it without a trusted token (`engine-login.ts:370-389`) and an untrusted socket cannot call it (`:274-278`).
+  - It is further limited to the engine token: the handler refuses unless the request's bearer token is the engine token. A logged-in browser must not be able to invite other browsers. `ConnectionTrust` (`:187-200`) is where that check belongs.
+  - The code is never printed or logged by core on this path.
+- **CLI** (`packages/cli/src/auth.ts`): `conciv auth link <url>` beside `revoke`, built with the same `@bomb.sh/router` pieces (`command`, `argument` with a zod URL schema, `envelopeFlag`, `handler`).
+  - It uses the engine of the current directory only (`discoveredEngine(cwd)`, as `runRevoke` does), never the home db fallback, and sends no session and no `conciv-origin` header. A link for some other project's dev server would be a surprise.
+  - Output is the CLI's normal JSON envelope: `{"ok":true,"data":{"link":"...","expiresAt":...}}`. No raw-text mode; a script reads `.data.link`.
+  - The link is the given URL with `conciv_otp=<code>` merged into its fragment, keeping any fragment already there.
+  - No dev server running is the usual "No conciv dev server" user failure.
+- **Docs:** `packages/cli/src/README.md`, `packages/core/src/README.md`, and the site docs page that covers `conciv auth`, if there is one. One changeset.
 
-The first relies on an internal storage key and the second on scraping the terminal. If Omri wants a supported path, the smallest one is a URL fragment `#conciv_token=<engine token>` handled beside the existing `conciv_otp` fragment (`browser-transport.ts:40,123-139`): read it, call `requestTrustWithToken`, strip it from the URL. That is new public surface, so it is a separate yes/no.
+### Test
 
-## Decisions for Omri
+One journey in the existing CLI test file, extending the engine test that already logs in and revokes (`packages/cli/test/cli.test.ts:1004`): get a link from `conciv auth link`, exchange its code, the token works, the engine printed nothing, a browser token is refused when it tries to issue a code, revoke locks the browser out. No new test file.
 
-1. Option 1 or option 2.
-2. Does the token cover Approve (gate 6) as well as Allow (gate 5)? The proposal says both; a run that still stops on `page_eval` is not unattended.
-3. Scope: every session on the engine (proposed), or one named session.
-4. Browser authorization: leave as the localStorage recipe, or add the `#conciv_token=` fragment.
-5. Whether the `design-catalog` branch should take main's `hubAccess` default of `'open'`. That alone removes the Allow prompt there; Approve still needs the token.
+### Usage
+
+```sh
+playwright-cli open "$(conciv auth link http://localhost:3001/ | jq -r .data.link)"
+```
+
+### Possible next step, not in this build
+
+`harness-testkit` (`login.ts`) and the e2e helpers (`e2e/e2e-utils/src/widget.ts`) scrape the printed code from the server log. They could use the new procedure instead. Needs Omri's yes.
+
+## Part 2: remove Approve for outside agents (waiting for yes)
+
+`refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`) asks before a non-widget caller runs a tool with `approval: 'ask'`. Proposal: skip it when the caller is labelled as an outside agent.
+
+Why:
+
+- It is not a security boundary (see "What the engine token already is").
+- For an outside Claude or Codex it is a second prompt. The agent's own permission mode already decides whether the tool call may run, which is the rule `AGENTS.md` states for CLI commands.
+- The calls still show in the chat as outside calls (`hubTraced`, `router.ts:74-96`).
+
+What is lost: a per-call "are you sure" for outside agents. Someone who wants a human in the loop keeps `hubAccess: 'session'` or `'project'`: one Allow, then no further prompts.
+
+Open points:
+
+- `refuseUnapproved` also runs for the in-widget agent when it calls tools through the `conciv` CLI. The proposal leaves that alone. Deleting the gate for everyone is a larger behaviour change and a separate question.
+- Not yet traced: whether outside calls through the MCP `execute_typescript` tool hit a separate per-call prompt inside the code runner. Check before building.
 
 ## Finding to weigh separately
 
-Gates 5 and 6 can be skipped today by any process that holds the engine token, by leaving out `conciv-origin` or by sending a loopback `Origin` header, and the same process can answer prompts through `chat.permissionDecision`. This spec does not change that and does not depend on it. It is written down here because it defines what the consent token is: a visible switch for cooperative tooling, not a new privilege.
+Gates 5 and 6 can be skipped today by any process that holds the engine token, by leaving out `conciv-origin` or by sending a loopback `Origin` header, and the same process can answer prompts through `chat.permissionDecision`. Nothing here changes that. It is written down because it is the reason Part 2 costs no real protection.
