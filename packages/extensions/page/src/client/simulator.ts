@@ -370,6 +370,30 @@ export function simulateFill(options: {
   element.dispatchEvent(new Event('change', {bubbles: true}))
 }
 
+function proposeEdit(options: {host: HTMLElement; inputType: string; data: string | null}): boolean {
+  const {host, inputType, data} = options
+  const init = {bubbles: true, composed: true, inputType, data}
+  if (!host.dispatchEvent(new InputEvent('beforeinput', {...init, cancelable: true}))) return false
+  host.textContent = data ?? ''
+  host.dispatchEvent(new InputEvent('input', init))
+  return true
+}
+
+export function typeByEvents(options: {host: HTMLElement; value: string}): void {
+  const {host, value} = options
+  if (!proposeEdit({host, inputType: 'deleteContent', data: null}) || value === '') return
+  proposeEdit({host, inputType: 'insertText', data: value})
+}
+
+export function typeByCommands(options: {host: HTMLElement; value: string}): void {
+  const {host, value} = options
+  const doc = host.ownerDocument
+  host.focus({preventScroll: true})
+  doc.getSelection()?.selectAllChildren(host)
+  doc.execCommand('delete')
+  if (value !== '') doc.execCommand('insertText', false, value)
+}
+
 function pageBody(): HTMLElement {
   return document.body ?? document.documentElement
 }

@@ -131,11 +131,6 @@ function outcomeOf<Result extends Record<string, unknown>>(result: Result | stri
   return ok(result)
 }
 
-function fieldValue(el: Element): string {
-  if (!isField(el)) return ''
-  return isSensitiveField(el) ? MASKED_VALUE : el.value
-}
-
 async function setCheckedOn(input: ClientToolLocator, ctx: ClientToolCtx, checked: boolean): Promise<PageResult> {
   const element = ctx.target(input)
   if (isDisabled(element)) badArgs('That element is disabled.')
@@ -411,9 +406,7 @@ const fillTool = fillDef
   .client(
     acting(async (input, ctx) => {
       const element = actionableTarget(ctx, input)
-      const problem = await fill({element, value: input.value, agent: ctx.agentId})
-      if (problem) badArgs(problem)
-      return ok({value: fieldValue(element)})
+      return outcomeOf(await fill({element, value: input.value, agent: ctx.agentId}))
     }),
   )
   .render(actCard)
