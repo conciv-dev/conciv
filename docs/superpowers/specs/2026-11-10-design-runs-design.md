@@ -87,6 +87,15 @@ A design run is the design work of one session. `runs` gains `session_id` and `s
   that says so; its rounds, rows and artifacts stay, and `wave_summary` counts it in `runs` but not in `done`.
 - **Boot**: because `sweepAbandonedRuns` fires `TurnHooks.end` for every run it aborts, a dead engine's design runs close at the
   next boot of that project with no extension code of their own.
+- **External sessions** (an agent that reaches the engine through the hub, `conciv mcp serve`, or the CLI; the design thesis runs
+  are these): there is no chat-server turn, so the house must know when the agent is gone. The hub process lives as long as the
+  agent's session: when it takes a tab (`use_tab`) it attaches to that session with its pid and host (`sessions.attachedPid`,
+  `attachedAt`, columns that exist and were never written), and when its stdin closes it detaches. The engine fires one
+  `ServerResult.sessionEnd(sessionId, {reason: 'detached' | 'dead' | 'disposed'})` member on detach, when a sweep at boot and in
+  `runs-gc` finds an attached pid dead on this host, and at dispose. The design extension closes the session's running run on it:
+  `completed` when the last check's verdict is `done`, else `aborted`; `cost` and `usage` stay null for external sessions (the house
+  has no usage for them) and the README says so. This is swamp's lesson (register with pid, detach, reap the dead) done once in the
+  host, not in the extension.
 - **Transcript**: the chat server's `withPersistence` already stores every message in `chat_messages`, and the journal holds the
   raw agent events for the run's life. The design store keeps no transcript artifact; a view joining a design run to its session's
   messages is the way to read it.
