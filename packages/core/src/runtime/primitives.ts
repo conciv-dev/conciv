@@ -3,9 +3,9 @@ import type {ToolRegistry} from '@conciv/extension/registry'
 import type {ConcivDb} from '@conciv/db'
 import type {TabsListing} from '@conciv/protocol/chat-types'
 import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
-import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
+import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page/page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
-import {makePageQueues} from '../page-queue.js'
+import {makePageQueues} from '../page/page-queue.js'
 
 export type SessionPrimitives = {
   stream: SessionBus

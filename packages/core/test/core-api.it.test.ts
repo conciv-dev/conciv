@@ -534,9 +534,17 @@ describe('connect hub', () => {
     rmSync(root, {recursive: true, force: true})
   })
 
-  const hubInstalls = async () => (await kit().rpc.meta.hubAgents()).installs
+  const hubAgents = async () => {
+    const stream = await kit().rpc.meta.hubAgents()
+    const first = await stream.next()
+    await stream.return?.(undefined)
+    if (first.done === true) throw new Error('meta.hubAgents ended before its first snapshot')
+    return first.value
+  }
 
-  const hubConnections = async () => (await kit().rpc.meta.hubAgents()).connections
+  const hubInstalls = async () => (await hubAgents()).installs
+
+  const hubConnections = async () => (await hubAgents()).connections
 
   const claudeConnection = {harnessId: 'claude', name: 'Claude'}
 
@@ -601,6 +609,23 @@ describe('connect hub', () => {
       ok: true,
       note: 'OpenCode keeps its conciv-hub entry in opencode.json; conciv refuses it until you reconnect.',
     })
+  })
+
+  it('an agent connected or disconnected outside the engine reaches a meta.hubAgents subscriber', async () => {
+    const stream = await kit().rpc.meta.hubAgents()
+    onTestFinished(async () => {
+      await stream.return?.(undefined)
+    })
+    const nextConnections = async () => {
+      const step = await stream.next()
+      if (step.done === true) throw new Error('meta.hubAgents ended while it was watched')
+      return step.value.connections
+    }
+    expect(await nextConnections()).toEqual([])
+    withHomeDb(engineHome, (db) => recordHubConnection(db, 'claude', Date.now()))
+    expect(await nextConnections()).toEqual([claudeConnection])
+    withHomeDb(engineHome, (db) => removeHubConnection(db, 'claude'))
+    expect(await nextConnections()).toEqual([])
   })
 
   it('an outside agent can neither connect nor disconnect agents, and the harness CLI never runs', async () => {

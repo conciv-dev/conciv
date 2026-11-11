@@ -10,7 +10,14 @@ import {
 } from '@conciv/client'
 import {getExtensionApi, makeExtRpcClient} from '@conciv/extension'
 import {Button} from '@conciv/ui-kit-system'
-import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
+import {
+  RECORDER_MIME,
+  RECORDER_NAME,
+  REPLAY_MIN_EVENTS,
+  recordingPoster,
+  recordingRefJson,
+  type RrwebEvent,
+} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {loadPlayerKit, mountStreamPlayer, type PlayerKit, type StreamPlayerHandle} from './player.js'
 import {saveFileToDisk} from './download.js'
@@ -22,7 +29,7 @@ const VIEWER_RENEW_MS = 7000
 type ReplaySource = {events: RrwebEvent[]; cursor: number}
 
 function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
-  if (!recording || recording.events.length < 2) return undefined
+  if (!recording || recording.events.length < REPLAY_MIN_EVENTS) return undefined
   return recording
 }
 
@@ -46,29 +53,30 @@ function RecorderPanel(): JSX.Element {
   const utils = createTanstackQueryUtils(rpc)
   const queryClient = useQueryClient()
   const viewerId = crypto.randomUUID()
+  const presence = (live: boolean): Promise<void> =>
+    rpc.presence({viewerId, live}).then(
+      () => undefined,
+      (error: unknown) => console.error('[conciv] the recorder viewer lease could not be renewed', error),
+    )
   const [presenceReady] = createResource(async () => {
-    await rpc.presence({viewerId, live: true}).catch(() => {})
+    await presence(true)
     return true
   })
-  makeTimer(() => void rpc.presence({viewerId, live: true}).catch(() => {}), VIEWER_RENEW_MS, setInterval)
-  onCleanup(() => void rpc.presence({viewerId, live: false}).catch(() => {}))
+  makeTimer(() => void presence(true), VIEWER_RENEW_MS, setInterval)
+  onCleanup(() => void presence(false))
   const pinned = (): {clientId: string} => ({clientId: store.clientId()})
-  const hasReplay = (data: {events: RrwebEvent[]} | undefined): boolean => (data?.events?.length ?? 0) >= 2
   const recording = useQuery(() => ({
-    ...utils.window.queryOptions({input: pinned()}),
+    ...utils.replay.experimental_liveOptions({input: pinned()}),
     enabled: presenceReady() === true,
     refetchOnWindowFocus: false,
-    refetchInterval: (query: {state: {data?: {events: RrwebEvent[]}}}) => (hasReplay(query.state.data) ? false : 1000),
   }))
   const log = useQuery(() => ({
     ...utils.log.queryOptions({input: pinned()}),
     refetchOnWindowFocus: false,
-    refetchInterval: (query: {state: {data?: {entries: unknown[]}}}) =>
-      (query.state.data?.entries?.length ?? 0) > 0 ? false : 1000,
   }))
   const reset = useMutation(() =>
     utils.reset.mutationOptions({
-      onSuccess: () => queryClient.invalidateQueries(),
+      onSuccess: () => void queryClient.invalidateQueries(),
       onError: () => toast('Could not start a new recording. Is the page still connected?'),
     }),
   )
@@ -83,7 +91,8 @@ function RecorderPanel(): JSX.Element {
   const replayRef = (kit: PlayerKit, source: ReplaySource) => (container: HTMLDivElement) => {
     if (source.events.length < 2) return
     const mounted = mountStreamPlayer(kit, container, source, {
-      pull: (cursor) => rpc.events({cursor, ...pinned()}),
+      follow: (cursor, signal) =>
+        rpc.events({cursor, ...pinned()}, {signal, context: {retry: Number.POSITIVE_INFINITY}}),
       onLive: setLive,
     })
     playerHandle = mounted

@@ -160,14 +160,6 @@ function normalizeApiBase(apiBase: string): string {
   return `${url.origin}${path}`
 }
 
-function isAbortedFailure(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-}
-
-export function isRetryableRpcFailure(alive: boolean, error: unknown): boolean {
-  return alive && !(error instanceof ORPCError) && !isAbortedFailure(error)
-}
-
 function isStreamingCall(path: readonly string[]): boolean {
   const procedure = getContractRouter(contract, path)
   return isContractProcedure(procedure) && getEventIteratorSchemaDetails(procedure['~orpc'].outputSchema) !== undefined

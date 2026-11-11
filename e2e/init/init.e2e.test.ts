@@ -56,8 +56,8 @@ function stripViteWiring(cloneDir: string): void {
     .split('\n')
     .filter((line) => !line.includes('@conciv/'))
     .join('\n')
-    .replace(/,?\s*conciv\(\{devEndpointDir: E2E_DEV_ENDPOINT_DIR\}\)/, '')
-  expect(stripped).not.toContain('conciv')
+    .replace(/,?\s*conciv\(\{[^}]*\}\)/, '')
+  expect(stripped).not.toMatch(/conciv|extensions/)
   writeFileSync(configPath, stripped)
 }
 
@@ -69,8 +69,8 @@ function stripNextjsWiring(cloneDir: string): void {
     .split('\n')
     .filter((line) => !line.includes('@conciv/'))
     .join('\n')
-    .replace('withConciv(nextConfig)', 'nextConfig')
-  expect(stripped).not.toContain('Conciv')
+    .replace(/withConciv\((\w+)(?:, \{[^}]*\})?\)/, '$1')
+  expect(stripped).not.toMatch(/Conciv|extensions/)
   writeFileSync(configPath, stripped)
 }
 

@@ -37,7 +37,7 @@ import {currentHref} from '@conciv/extension-testkit/navigation-state'
 import {until} from '@conciv/harness-testkit/until'
 import {GRAB_MIME, parseGrabPayload, type GrabPayload} from '@conciv/grab/grab-attachment'
 import {watchChatWire} from '@conciv/extension-testkit/chat-wire'
-import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
+import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder/server'
 import type {SessionCaptures} from '@conciv/protocol/element-capture-types'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {holdRpcCalls, failRpcCalls, gateRpcCalls} from '@conciv/extension-testkit/rpc-fault'
@@ -1428,10 +1428,15 @@ test.describe('recording attachment', () => {
       await openPanel(page)
       const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
       const client: {id?: string} = {}
-      const clicksAppendedSince = async (cursor: number): Promise<number> => {
+      const clicksStreamedSince = async (cursor: number, wanted: number, signal: AbortSignal): Promise<number> => {
         if (!client.id) throw new Error('no recorder client connected')
-        const appended = AppendedEventsSchema.parse(await recorderRpc.events({cursor, clientId: client.id}))
-        return appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
+        let clicks = 0
+        for await (const batch of await recorderRpc.events({cursor, clientId: client.id}, {signal})) {
+          const appended = AppendedEventsSchema.parse(batch)
+          clicks += appended.events.filter((event) => ClickEventSchema.safeParse(event).success).length
+          if (clicks >= wanted) return clicks
+        }
+        return clicks
       }
 
       await page.getByRole('tab', {name: 'Recorder'}).click()
@@ -1449,10 +1454,7 @@ test.describe('recording attachment', () => {
 
       await page.getByRole('button', {name: 'Embed fixture'}).click()
       await page.getByRole('button', {name: 'Embed fixture'}).click()
-      await until(async () => (await clicksAppendedSince(captureBaseline)) >= 2, {
-        hangGuardMs: 30_000,
-        intervalMs: 100,
-      })
+      expect(await clicksStreamedSince(captureBaseline, 2, AbortSignal.timeout(30_000))).toBe(2)
 
       const send = page.getByRole('button', {name: 'Send to agent'})
       await send.waitFor({state: 'visible', timeout: 15_000})

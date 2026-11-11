@@ -25,7 +25,6 @@ Defines the oRPC `contract` router between conciv core and its clients (sessions
 - `readMagicLinkCode()` / `forgetMagicLinkCode()` (`browser-transport.ts`): read `#conciv_otp=` with `URLSearchParams`, and strip it from the URL only once the engine has answered the exchange (a reload before then keeps the code and retries it).
 - `engineHeaders(apiBase)` / `engineWebSocket(apiBase)` (`browser-transport.ts`): the `Authorization: Bearer` header for raw browser fetches (the held token, else the stored one; it creates no connection), and a `WebSocket` constructor whose sockets take the token of the base's open connection (else the stored one), report a revocation to that connection (else forget the stored token), never create a connection, and send `{type: SOCKET_TRUST_FRAME, token}` on open and mark the connection untrusted on a `REVOKED_SOCKET_CLOSE_CODE` (1008) close.
 - `LOGIN_CODE_PATTERN`, `ExchangeResultSchema`, `SOCKET_TRUST_FRAME`, `SocketTrustFrameSchema`, `ENGINE_TOKEN_MAX_LENGTH` (`contract.ts`).
-- `isRetryableRpcFailure(alive, error)` (`browser-transport.ts`): true only when the connection is alive, the error is not an `ORPCError` and not an `AbortError`.
 - `RPC_UNBOUND_MESSAGE` = `'conciv core not connected yet'` (`browser-transport.ts`, re-exported from `client.ts`); types `RpcClientContext`, `SessionAccessor`, `BrowserRpcConnection`, `ReachabilityListener`.
 
 ## Invariants

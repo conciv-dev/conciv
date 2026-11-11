@@ -21,7 +21,7 @@ import type {createHubInstaller} from './hub.js'
 import type {createSettingsStorage} from '../../settings/settings-storage.js'
 import type {McpVars} from '../mcp.js'
 import type {createTabs} from '../tabs.js'
-import type {PageQueues} from '../../page-queue.js'
+import type {PageQueues} from '../../page/page-queue.js'
 
 export type ChatContext = {
   defaultHarness: HarnessAdapter
