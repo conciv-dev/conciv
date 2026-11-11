@@ -14,6 +14,7 @@ import {
 } from '@conciv/db'
 import {INIT_HARNESS_IDS, type InitHarnessId} from '@conciv/protocol/harness-types'
 import {initContributions} from './registry.js'
+import {pidAlive} from './pid-alive.js'
 
 const RUN_TIMEOUT_MS = 30_000
 const LEASE_CEILING_MS = 10 * 60_000
@@ -161,16 +162,8 @@ function leaseOf(home: string, operation: HubOperation): {ok: true} | {ok: false
 
 function staleFor(now: number): (held: HubOperation) => boolean {
   return (held) =>
-    now - held.startedAt > LEASE_CEILING_MS || (!alive(held.pid) && (held.childPid === null || !alive(held.childPid)))
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return error instanceof Error && 'code' in error && error.code === 'EPERM'
-  }
+    now - held.startedAt > LEASE_CEILING_MS ||
+    (!pidAlive(held.pid) && (held.childPid === null || !pidAlive(held.childPid)))
 }
 
 function busy(name: string): string {

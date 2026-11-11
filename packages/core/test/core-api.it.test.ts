@@ -16,7 +16,7 @@ import {
 import {createHash, randomUUID} from 'node:crypto'
 import {EventEmitter, on} from 'node:events'
 import {open, writeFile} from 'node:fs/promises'
-import {execFileSync} from 'node:child_process'
+import {execFileSync, spawnSync} from 'node:child_process'
 import {request as httpRequest} from 'node:http'
 import {DatabaseSync} from 'node:sqlite'
 import {hostname, tmpdir} from 'node:os'
@@ -4201,6 +4201,60 @@ describe('outside agent consent', () => {
     } finally {
       db.$client.close()
     }
+  })
+
+  it('a held session ends detached when its hub detaches, disposed when its engine stops, dead when a boot finds its hub gone', async () => {
+    const [home, root] = [connectedHome(), tempDir('conciv-consent-')]
+    const ended: [string, string][] = []
+    const listener = defineExtension({name: 'ends'}).server(() => ({
+      context: {},
+      sessionEnd: (sessionId, end) => {
+        ended.push([sessionId, end.reason])
+      },
+    }))
+    const bootListening = () =>
+      start({
+        options: {stateRoot: root, hubAccess: 'open'},
+        root,
+        launchEditor: () => {},
+        harness: createFakeHarness(),
+        homeDir: home,
+        extensions: [listener],
+      })
+    const first = await bootListening()
+    const base = `http://127.0.0.1:${first.port}/t/${first.agentToken}`
+    const [gone, kept] = [await newSession(base), await newSession(base)]
+    const rpc = makeRpcClient(base)
+    await rpc.sessions.take({sessionId: SessionId.parse(gone), pid: process.pid})
+    await rpc.sessions.detach({pid: process.pid})
+    expect(ended).toEqual([[gone, 'detached']])
+    await rpc.sessions.take({sessionId: SessionId.parse(kept), pid: process.pid})
+    await first.stop()
+    expect(ended).toEqual([
+      [gone, 'detached'],
+      [kept, 'disposed'],
+    ])
+    const db = existingDb({stateRoot: root})
+    const exited = spawnSync('true').pid
+    const hold = (sessionId: string, pid: number) =>
+      db
+        .update(sessions)
+        .set({attachedPid: pid, attachedAt: Date.now(), attachedHost: hostname()})
+        .where(eq(sessions.id, sessionId))
+        .run()
+    hold(gone, exited)
+    hold(kept, process.pid)
+    db.$client.close()
+    const second = await bootListening()
+    engines.push(second)
+    await vi.waitFor(() => expect(ended).toContainEqual([gone, 'dead']), {timeout: 3000})
+    await second.stop()
+    expect(ended).toEqual([
+      [gone, 'detached'],
+      [kept, 'disposed'],
+      [gone, 'dead'],
+      [kept, 'disposed'],
+    ])
   })
 
   it('a forwarded call larger than the reply cap hands the block its typed result, not a truncated string', async () => {

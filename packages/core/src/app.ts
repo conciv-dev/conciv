@@ -493,6 +493,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       context,
       dispose: result?.dispose,
       turnEnd: result?.turnEnd,
+      sessionEnd: result?.sessionEnd,
       systemPrompt: result?.systemPrompt,
       verbs: result?.verbs ?? {},
     }
@@ -532,6 +533,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const sessionEnds = mounted.flatMap((entry) => (entry.sessionEnd ? [entry.sessionEnd] : []))
   const sessionPrompts = mounted.flatMap((entry) => (entry.systemPrompt ? [entry.systemPrompt] : []))
   const sessionPrompt = async (sessionId: SessionId): Promise<string> => {
     const settled = await Promise.allSettled(sessionPrompts.map((resolve) => resolve({cwd: opts.cwd, sessionId})))
@@ -549,6 +551,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
   }
+  const holders = createSessionHolders({
+    db,
+    ended: async (sessionId, reason) => {
+      const settled = await Promise.allSettled(sessionEnds.map((hook) => hook(sessionId, {reason})))
+      settled.forEach((outcome) => {
+        if (outcome.status === 'rejected') logError(`[core] session-end hook failed: ${String(outcome.reason)}`)
+      })
+    },
+  })
   const sessionModel = (sessionId: SessionId): string | null => modelOf(db, sessionId)
   const makeToolCtx = (sessionId: SessionId): ConcivToolContext => ({
     askUi: () => runtime.forSession(sessionId).asks.ui(),
@@ -633,9 +644,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       logError(`[core] the configured session row could not be ensured: ${String(error)}`),
     )
   }
-  void sweepEmptyRows(db).catch((error: unknown) =>
-    logError(`[core] the empty session row sweep failed: ${String(error)}`),
-  )
+  void holders
+    .sweep()
+    .catch((error: unknown) => logError(`[core] the dead session holder sweep failed: ${String(error)}`))
+    .then(() => sweepEmptyRows(db))
+    .catch((error: unknown) => logError(`[core] the empty session row sweep failed: ${String(error)}`))
 
   const runtime = makeCoreRuntime({primitives, plane, db, model: sessionModel, staleness})
 
@@ -669,7 +682,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     sources: sourcesApi,
     admitOutside,
     hub,
-    holders: createSessionHolders(db),
+    holders,
     auth: makeAuthRouter({
       codes: makeCodeStore({now: Date.now, print: opts.print ?? ((text) => console.log(text))}),
       trust,
@@ -748,7 +761,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const dispose = (): Promise<void> =>
     runInOrder(
-      [() => plane.endAllRuns(), ...disposers, search.dispose, () => browsers.close(), () => db.$client.close()],
+      [
+        () => plane.endAllRuns(),
+        holders.dispose,
+        ...disposers,
+        search.dispose,
+        () => browsers.close(),
+        () => db.$client.close(),
+      ],
       'conciv: disposing the engine failed',
     )
 

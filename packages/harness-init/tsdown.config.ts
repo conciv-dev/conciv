@@ -6,6 +6,7 @@ export default defineConfig({
     'src/agent-guide.ts',
     'src/detect.ts',
     'src/hub.ts',
+    'src/pid-alive.ts',
     'src/claude/init.ts',
     'src/claude/bridge.ts',
     'src/claude/endpoint.ts',

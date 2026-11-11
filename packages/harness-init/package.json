@@ -28,6 +28,10 @@
       "types": "./dist/hub.d.ts",
       "import": "./dist/hub.js"
     },
+    "./pid-alive": {
+      "types": "./dist/pid-alive.d.ts",
+      "import": "./dist/pid-alive.js"
+    },
     "./detect": {
       "types": "./dist/detect.d.ts",
       "import": "./dist/detect.js"

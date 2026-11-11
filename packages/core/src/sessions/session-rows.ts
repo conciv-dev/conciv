@@ -240,7 +240,12 @@ export async function sweepEmptyRows(db: ConcivDb): Promise<void> {
   await db
     .delete(sessions)
     .where(
-      and(inArray(sessions.origin, ['chat', 'external']), isNull(sessions.harnessSessionId), isNull(sessions.title)),
+      and(
+        inArray(sessions.origin, ['chat', 'external']),
+        isNull(sessions.harnessSessionId),
+        isNull(sessions.title),
+        isNull(sessions.attachedPid),
+      ),
     )
 }
 
