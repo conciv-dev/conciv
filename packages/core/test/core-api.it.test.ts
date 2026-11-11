@@ -4602,7 +4602,7 @@ describe('session activity recorded with its chat messages', () => {
     const run = {threadId: sessionId, live: false}
     const before = Date.now()
     const mirror = trace.mirror(run, {publish: () => {}, record: (chunks) => made().plane.record(sessionId, chunks)})
-    mirror.publish([...trace.start(run, 'hub-call', 'page_route', {}), ...trace.result(run, 'hub-call', '{}', false)])
+    mirror.publish([...trace.start(run, 'page_route', {}), ...trace.result(run, '{}', false)])
     await mirror.settle()
     const meta = await kit().rpc.sessions.get({sessionId})
     expect(meta.title).toBe('New session')
