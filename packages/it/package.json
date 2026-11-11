@@ -59,7 +59,7 @@
   },
   "scripts": {
     "build": "tsdown && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/fixtures/design/host/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",

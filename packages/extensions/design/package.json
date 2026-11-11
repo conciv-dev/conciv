@@ -42,7 +42,7 @@
   },
   "scripts": {
     "build": "tsdown && vite build && vite build --config vite.xray.config.ts && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/fixtures/host/tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
