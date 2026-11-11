@@ -26,7 +26,6 @@ import ShieldCheck from 'lucide-solid/icons/shield-check'
 import Unplug from 'lucide-solid/icons/unplug'
 import {Show, Suspense, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
 import {z} from 'zod'
-import {isSessionId} from '@conciv/protocol/chat-types'
 import {
   useAnnounce,
   useAppData,
@@ -89,8 +88,10 @@ const panelSessionSearchSchema = z.object({
 export const Route = createFileRoute('/panel/$sessionId')({
   validateSearch: panelSessionSearchSchema,
   beforeLoad: async ({context, params}) => {
-    if (isSessionId(params.sessionId)) return
-    const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
+    const {sessionId} = await context.queryClient.ensureQueryData(
+      context.data.utils.sessions.resolve.queryOptions({input: {id: params.sessionId}}),
+    )
+    if (sessionId === params.sessionId) return
     throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
   },
   component: PanelSession,

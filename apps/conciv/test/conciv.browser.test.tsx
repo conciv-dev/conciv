@@ -2515,6 +2515,16 @@ describe('panel header', () => {
     await expect.element(skeleton()).not.toBeInTheDocument()
   }, 30_000)
 
+  test('a panel restored onto a session the engine no longer has opens it as a fresh session, not a dead panel', async () => {
+    const gone = `conciv_gone_${crypto.randomUUID()}`
+    harness.mountShell(`/panel/${gone}?open=true`)
+
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'}), {timeout: 8000}).toBeVisible()
+    await expect.element(page.getByRole('button', {name: /^New session, session options$/})).toBeVisible()
+    expect(harness.pathname()).toBe(`/panel/${gone}`)
+    await expect(coreRpc(coreBase()).sessions.get({sessionId: gone})).resolves.toMatchObject({id: gone})
+  })
+
   test('a user opens the session menu by clicking the title, renames in place and switches sessions', async () => {
     const TITLE = 'the titled session'
     const RENAMED = 'renamed from the header'

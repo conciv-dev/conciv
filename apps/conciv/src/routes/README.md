@@ -24,7 +24,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 ## Invariants
 
 - `__root.tsx:Route.validateSearch`: `open` is either `true` or absent; a malformed `sessionSearch` or `allProjects` falls back to its default (zod `.catch`), and a digit-only term is coerced back to a string
-- `panel.$sessionId.tsx:Route.beforeLoad`: a param that fails `isSessionId` is resolved through `rpc.sessions.resolve` and redirected with `replace: true`
+- `panel.$sessionId.tsx:Route.beforeLoad`: every param goes through `sessions.resolve` (a cached query): a native harness id redirects to its conciv session with `replace: true`, and a conciv id the engine no longer has (an empty session swept at boot, a restored route) is recreated as a fresh empty session under the same id, so the panel never opens on a session that 404s and its page-bus tab stays listed
 - `panel.$sessionId.$view.tsx:Route.beforeLoad`: an unknown view id redirects to `/panel/$sessionId`
 - the session menu is open exactly when `/panel/$sessionId/options` or `/panel/$sessionId/$view/options` matches by path alone (`matchRoute` with `includeSearch: false`, so a search write from inside the menu, such as `sessionSearch`, never closes it mid-navigation); any navigation off those routes (a session pick, a new session, a view tab, back) closes it, and opening or closing it never remounts the chat pane or the view
 - `panel.$sessionId.tsx:useSessionMenu`: opening pushes the `options` child with history state `sessionMenuOpened`; closing an in-app opened menu (that mark and `useCanGoBack()`) goes back one entry, a menu loaded directly on `/options` replaces it with the parent; picking a session while the menu is open (in-app or loaded directly) replaces the `options` entry, and picking the active session closes the menu the same way, so no close leaves a duplicate history entry
@@ -37,7 +37,7 @@ TanStack Solid file routes; the route is the layout: closed, panel, per-session 
 
 ## Side Effects
 
-- `panel.latest.tsx`, `panel.$sessionId.tsx`: `rpc.sessions.resolve` network calls in `beforeLoad`
+- `panel.latest.tsx`, `panel.$sessionId.tsx`: `sessions.resolve` network calls in `beforeLoad`
 - `__root.tsx:RootComponent`: registers quick-terminal hotkeys (`createHotkey` per `settings.quickTerminal.hotkeys`), `window` `resize` and capture `keydown` (Escape) listeners, and navigates with `setShutter`
 - `quick.tsx`: `Mod+D` adds a pane; `window` `pointermove`/`pointerup` listeners during resize; navigation to `/pip/$sessionId`
 - `pip.$sessionId.tsx:PipSession`: opens a popup through `openPipWindow`
