@@ -2016,6 +2016,38 @@ describe('cli', () => {
         }
       })
 
+      it('a task whose queue result arrived in a later reply is dropped, and every task says when it expires', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = rawHub(home)
+        try {
+          const started = await client.execute(QUEUE, engine.sessionId)
+          expect(started).toMatchObject({resultType: 'task', ttlMs: 3_600_000})
+          const task = TaskSchema.parse(started)
+          await play(0)
+          await vi.waitFor(async () =>
+            expect(JSON.stringify(await client.execute('return 1', engine.sessionId))).toMatch(
+              /queue q_\S+ finished: 2 played, 0 failed/,
+            ),
+          )
+          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
+      it('the first tools/list already carries the engine description, not the built-in text', async () => {
+        const {home, engine} = await queueTab()
+        const client = await hub(home)
+        try {
+          const execute = (await client.tools()).find((tool) => tool.name === 'execute_typescript')
+          expect(execute?.description).toContain('Rules of the sandbox')
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
       it('megabytes of logs or of an error message reach the agent capped through the hub', async () => {
         const {home, engine} = await queueTab()
         const client = await hub(home)

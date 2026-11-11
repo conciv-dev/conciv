@@ -36,6 +36,10 @@ const CLIENT_CAPABILITIES = 'io.modelcontextprotocol/clientCapabilities'
 
 const TASK_POLL_MS = 1000
 
+const TASK_TTL_MS = 60 * 60_000
+
+const DESCRIBE_MS = 2_000
+
 const UNKNOWN_TASK = -32602
 
 const TOO_OLD = 'engine too old; upgrade its @conciv packages'
@@ -97,7 +101,7 @@ type TaskReply = {
   status: 'working'
   createdAt: string
   lastUpdatedAt: string
-  ttlMs: null
+  ttlMs: number
   pollIntervalMs: number
 }
 
@@ -215,6 +219,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       codeExecuteReply,
       signal,
     )
+    settleDelivered(executed.value?.finished ?? [])
     const queued = executed.value?.queued ?? []
     if (tab === undefined || queued.length === 0 || !TasksCapableSchema.safeParse(envelope).success) {
       return executed.reply
@@ -229,8 +234,18 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       status: 'working',
       createdAt: now,
       lastUpdatedAt: now,
-      ttlMs: null,
+      ttlMs: TASK_TTL_MS,
       pollIntervalMs: TASK_POLL_MS,
+    }
+  }
+
+  function settleDelivered(finished: readonly PageQueueResult[]): void {
+    const delivered = new Set(finished.map((result) => result.queueId))
+    const expired = Date.now() - TASK_TTL_MS
+    for (const [taskId, task] of queueTasks) {
+      const queued = task.queued.filter((handle) => !delivered.has(handle.queueId))
+      task.queued = queued
+      if (queued.length === 0 || Date.parse(task.createdAt) < expired) queueTasks.delete(taskId)
     }
   }
 
@@ -250,7 +265,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       }),
     )
     const settled = polled.flatMap((state) => (state === null || state.status === 'playing' ? [] : [state]))
-    const stamped = {taskId, createdAt: task.createdAt, ttlMs: null}
+    const stamped = {taskId, createdAt: task.createdAt, ttlMs: TASK_TTL_MS}
     if (settled.length < task.queued.length) {
       return {
         resultType: 'complete',
@@ -297,13 +312,10 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     server.server.setRequestHandler('tasks/get', {params: TaskIdParamsSchema}, queueTask)
   }
 
-  const descriptions: Record<ToolName, string> = {...FALLBACK_DESCRIPTIONS}
-  void currentRunner()
-    .then(
-      (runner) => toolDescriptions(runner.described),
-      () => FALLBACK_DESCRIPTIONS,
-    )
-    .then((described) => Object.assign(descriptions, described))
+  const descriptions = await currentRunner().then(
+    (runner) => toolDescriptions(runner.described),
+    () => FALLBACK_DESCRIPTIONS,
+  )
   const server = createMCPServer({
     name: 'conciv-hub',
     version: cliManifest.version,
@@ -347,7 +359,7 @@ async function firstUsable(rows: EngineRow[], headers: Record<string, string>, t
 
 async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | null> {
   const rpc = makeRpcClient(row.apiBase, {headers})
-  return rpc.code.describe().then(
+  return rpc.code.describe(undefined, {signal: AbortSignal.timeout(DESCRIBE_MS)}).then(
     (described) => ({root: row.root, rpc, described}),
     (error: unknown) => {
       if (engineTooOld(error)) return null
