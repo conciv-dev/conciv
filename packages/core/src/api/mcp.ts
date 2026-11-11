@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
@@ -226,37 +225,35 @@ function replyText(reply: ExecuteReply): string {
   return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
-async function publishResult(calls: CallPublisher, callId: string, reply: ExecuteReply): Promise<void> {
-  calls.publish(calls.trace.result(calls.run, callId, replyText(reply), reply.isError === true))
+async function publishResult(calls: CallPublisher, reply: ExecuteReply): Promise<void> {
+  calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
   await calls.settle()
 }
 
 async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<ExecuteReply> {
-  const executionId = randomUUID()
-  calls.publish(calls.trace.start(calls.run, executionId, EXECUTE_TOOL_NAME, {typescriptCode}))
+  calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
-    .run(typescriptCode, executionId)
+    .run(typescriptCode, calls.trace.callId)
     .catch((error: unknown) => ({success: false, error: {message: String(error)}}))
   const parsed = ExecuteResultSchema.safeParse(raw)
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
   const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
-  await publishResult(calls, executionId, reply)
+  await publishResult(calls, reply)
   return reply
 }
 
 async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
-  const callId = randomUUID()
-  calls.publish(calls.trace.start(calls.run, callId, tool.name, input))
-  const reply: ExecuteReply = await tool.run(input, callId).then(
+  calls.publish(calls.trace.start(calls.run, tool.name, input))
+  const reply: ExecuteReply = await tool.run(input, calls.trace.callId).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
       isError: true,
     }),
   )
-  await publishResult(calls, callId, reply)
+  await publishResult(calls, reply)
   return reply
 }
 

@@ -16,6 +16,7 @@ const SUMMARY = 'flex-1 min-w-0 truncate text-chat-md leading-none [font-family:
 const COMPACT_LINE = 'flex-1 min-w-0 truncate text-chat-xs leading-none [font-family:var(--chat-mono)] text-chat-text-3'
 const TOGGLE =
   'flex-none text-chat-xs leading-none [font-family:var(--chat-font)] text-chat-dim group-hover:text-chat-affordance trans-color-bg motion-reduce:[transition:none]'
+const ROOT = 'min-w-0 w-full relative'
 const ROWS = 'relative flex flex-col gap-px min-w-0 p-0 m-0 list-none'
 
 export function Trace(props: {
@@ -24,6 +25,8 @@ export function Trace(props: {
   items: TraceItem[]
   label?: string
   folded?: boolean
+  headless?: boolean
+  joinsBelow?: boolean
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -34,6 +37,8 @@ export function Trace(props: {
     'items',
     'label',
     'folded',
+    'headless',
+    'joinsBelow',
     'defaultOpen',
     'open',
     'onOpenChange',
@@ -46,7 +51,7 @@ export function Trace(props: {
     folded: () => local.folded ?? false,
     defaultOpen: local.defaultOpen,
   })
-  const open = () => local.open ?? fold.open()
+  const open = () => local.headless === true || (local.open ?? fold.open())
   const change = (next: boolean) => {
     fold.setOpen(next)
     local.onOpenChange?.(next)
@@ -63,26 +68,35 @@ export function Trace(props: {
       open={open()}
       onOpenChange={(details) => change(details.open)}
       ref={setRootEl}
-      class="min-w-0 w-full relative"
+      class={local.headless ? `${ROOT} pt-px` : ROOT}
     >
-      <TraceRail root={rootEl} header={headerEl} list={listEl} liveKey={lastLiveKey} open={open} />
-      <div ref={setHeaderEl} class={HEADER_ITEM}>
-        <Collapsible.Trigger class={HEADER_ROW}>
-          <Show
-            when={open()}
-            fallback={
-              <>
-                <TruncatedText class={COMPACT_LINE} text={local.compactLine} />
-                <span class={TOGGLE}>Show trace</span>
-              </>
-            }
-          >
-            <span class={HEADER_LABEL}>Trace</span>
-            <TruncatedText class={SUMMARY} text={local.summary} />
-            <span class={TOGGLE}>Hide trace</span>
-          </Show>
-        </Collapsible.Trigger>
-      </div>
+      <TraceRail
+        root={rootEl}
+        header={headerEl}
+        list={listEl}
+        liveKey={lastLiveKey}
+        open={open}
+        joinsBelow={() => local.joinsBelow ?? false}
+      />
+      <Show when={!local.headless}>
+        <div ref={setHeaderEl} class={HEADER_ITEM}>
+          <Collapsible.Trigger class={HEADER_ROW}>
+            <Show
+              when={open()}
+              fallback={
+                <>
+                  <TruncatedText class={COMPACT_LINE} text={local.compactLine} />
+                  <span class={TOGGLE}>Show trace</span>
+                </>
+              }
+            >
+              <span class={HEADER_LABEL}>Trace</span>
+              <TruncatedText class={SUMMARY} text={local.summary} />
+              <span class={TOGGLE}>Hide trace</span>
+            </Show>
+          </Collapsible.Trigger>
+        </div>
+      </Show>
       <Collapsible.Content>
         <ul ref={setListEl} class={ROWS} aria-label={local.label ?? 'Execution trace'}>
           <For each={local.items}>{(item) => item.render(branchFor(item))}</For>

@@ -1,5 +1,6 @@
+import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {generateMessageId} from '@conciv/protocol/chat-message-types'
+import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
 import {safeStringify} from '@conciv/chat'
@@ -12,7 +13,7 @@ const HubOriginSchema = z.object({
 
 type HubOrigin = {client: string | null}
 
-type CallMarker = {conciv: {origin: 'hub'; client: string | null}} | null
+type CallMarker = z.infer<typeof OutsideCallMetadataSchema> | null
 
 type CallRun = {threadId: string; live: boolean}
 
@@ -20,15 +21,17 @@ type MirrorSink = {publish: (chunk: ChatEvent) => void; record: (chunks: readonl
 
 export function callTrace(header: (name: string) => string | null) {
   const hub = hubOrigin(header)
-  const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client}}
+  const callId = randomUUID()
+  const marker: CallMarker = hub === null ? null : {conciv: {origin: 'hub', client: hub.client, run: callId}}
   return {
     hub,
+    callId,
     mark: (chunk: ChatEvent): ChatEvent => marked(chunk, marker),
-    start: (run: CallRun, callId: string, toolName: string, input: unknown): ChatEvent[] => [
+    start: (run: CallRun, toolName: string, input: unknown): ChatEvent[] => [
       ...(run.live ? [] : [runStarted(run.threadId, callId)]),
       ...startChunks(callId, toolName, input, marker),
     ],
-    result: (run: CallRun, callId: string, text: string, failed: boolean): ChatEvent[] => [
+    result: (run: CallRun, text: string, failed: boolean): ChatEvent[] => [
       resultChunk(callId, text, failed, marker),
       ...(run.live ? [] : [runFinished(run.threadId, callId)]),
     ],

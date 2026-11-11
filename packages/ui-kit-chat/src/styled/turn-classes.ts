@@ -2,6 +2,10 @@ export const TURN_MEASURE_CLASS = 'w-full [max-width:max(68ch,86cqi)]'
 
 export const TURN_INDENT_CLASS = 'ps-[var(--chat-trace-gutter)]'
 
+export const TURN_FRAME_CLASS = 'flex flex-col gap-1.5'
+
+export const TURN_LEAD_CLASS = 'pt-1.5'
+
 export const PROMPT_ROOT_CLASS = `relative flex items-start gap-0 min-w-0 self-stretch anim-msg ${TURN_MEASURE_CLASS}`
 
 export const PROMPT_GUTTER_CLASS =

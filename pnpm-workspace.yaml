@@ -27,6 +27,7 @@ catalog:
   # same release and pnpm never installs two copies of @tanstack/ai.
   '@tanstack/ai': 1.2.0
   '@tanstack/ai-client': 1.1.0
+  '@tanstack/ai-event-client': 1.0.1
   '@tanstack/ai-persistence': 1.0.1
   '@tanstack/ai-code-mode': 1.1.0
   '@tanstack/ai-isolate-node': 1.1.0
@@ -75,6 +76,7 @@ catalog:
   '@tanstack/solid-query': '^5.107.1'
   '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
+  '@tanstack/store': 0.11.2
   '@tiptap/core': '^3.32.1'
   '@tiptap/extension-document': '^3.32.1'
   '@tiptap/extension-hard-break': '^3.32.1'
