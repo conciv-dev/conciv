@@ -4489,7 +4489,7 @@ describe('session activity recorded with its chat messages', () => {
     expect(await kit().rpc.sessions.get({sessionId})).toMatchObject({title: 'New session', updatedAt: ROW_AT})
   })
 
-  it('the fix-up migration repairs a stale row from its newest message and first user message', () => {
+  it('the fix-up migration repairs a stale row from its newest message and first user message, and leaves a native-backed row untitled', () => {
     const stateRoot = tempDir('conciv-activity-fixup-')
     const stateDir = join(stateRoot, '.conciv')
     mkdirSync(stateDir, {recursive: true})
@@ -4504,6 +4504,12 @@ describe('session activity recorded with its chat messages', () => {
         {...row, id: SessionId.parse('conciv_stale'), title: null},
         {...row, id: SessionId.parse('conciv_titled'), title: 'kept'},
         {...row, id: SessionId.parse('conciv_quiet'), title: null},
+        {
+          ...row,
+          id: SessionId.parse('conciv_native'),
+          title: null,
+          harnessSessionId: HarnessSessionId.parse(randomUUID()),
+        },
       ])
       .run()
     const thread = (threadId: string) => [
@@ -4514,7 +4520,7 @@ describe('session activity recorded with its chat messages', () => {
     const insert = client.prepare(
       'INSERT INTO chat_messages (thread_id, position, role, message_json) VALUES (?, ?, ?, ?)',
     )
-    for (const threadId of ['conciv_stale', 'conciv_titled']) {
+    for (const threadId of ['conciv_stale', 'conciv_titled', 'conciv_native']) {
       thread(threadId).forEach((message, position) =>
         insert.run(threadId, position, message.role, JSON.stringify(message)),
       )
@@ -4528,6 +4534,7 @@ describe('session activity recorded with its chat messages', () => {
       .all()
     db.$client.close()
     expect(repaired).toEqual([
+      {id: 'conciv_native', title: null, updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
       {id: 'conciv_quiet', title: null, updatedAt: ROW_AT},
       {id: 'conciv_stale', title: 'fill the form', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
       {id: 'conciv_titled', title: 'kept', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
