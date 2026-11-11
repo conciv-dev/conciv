@@ -147,6 +147,16 @@ call moved only the first target, and during those re-registering calls (9.9 s a
 also closed the machine's `default` playwright session (not product). Fix agent dispatched 07:45 (route applies to every target of
 the call and the run; the crash's cause and a clear after-crash error).
 
+**After run 5** fixes: a `design_get` route moves every target of the run and a re-put keeps the frame in its set, so no
+re-registration (ebfd05259); a tab that went without its goodbye is named "crashed; reload it" (8a3ec0762). The Chromium crash
+itself was a renderer null pointer during the (now removed) asset rewrite, not proven to be conciv's.
+
+**Run 6** = store runs 180, 181 (08:12, 8.3 min, $1.29, 43 turns, sonnet, CLI only, hub connected): one round, measured the
+starter home at `/` again (no `--route`, 73/105/78 rows); then the live tab dropped out of `tabs` after a Vite full reload
+(the agent's route-file moves) and every page tool said "the page is showing another session" until a manual full navigation;
+the agent fell back to its own browser (run 181, two refused checks) and stopped. Fix agent dispatched 08:36: the tab after a full
+reload, and the product leading the agent to `--route` (init guide, tool description, low-coverage reply).
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
