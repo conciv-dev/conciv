@@ -22,6 +22,7 @@ import type {
 } from './types.js'
 import {useExtensionValue} from './host-context.js'
 import {useScope} from './use-scope.js'
+import {mergeSettings} from './merge-settings.js'
 
 export type AnyToolBuilder = ToolBuilder<
   string,
@@ -173,16 +174,10 @@ export function defineExtension<
     onChange: (fn) => store.onChange((value) => fn(parseSettings(value))),
   })
   function useSettings(): Accessor<Record<string, unknown>> {
-    const reader = readSettings(useScope<string>(meta.name).settings.project)
-    const stored = from<Record<string, unknown>>((set) => {
-      const stop = reader.onChange((value) => set(value)).catch(() => () => undefined)
-      reader.all().then(
-        (value) => set(value),
-        () => undefined,
-      )
-      return () => void stop.then((unsubscribe) => unsubscribe())
-    })
-    return createMemo(() => stored() ?? parseSettings({}))
+    const scope = useScope<string>(meta.name)
+    const project = followStore(scope.settings.project)
+    const global = followStore(scope.settings.global)
+    return createMemo(() => parseSettings(mergeSettings(project() ?? {}, global() ?? {})))
   }
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
     const value = useExtensionValue(`${meta.name}.useContext`)
@@ -216,6 +211,17 @@ export function defineExtension<
     },
   } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>, Settings>
   return builder
+}
+
+function followStore(store: SettingsStore): Accessor<Readonly<Record<string, unknown>> | undefined> {
+  return from<Readonly<Record<string, unknown>>>((set) => {
+    const stop = store.onChange((value) => set(value)).catch(() => () => undefined)
+    store.all().then(
+      (value) => set(value),
+      () => undefined,
+    )
+    return () => void stop.then((unsubscribe) => unsubscribe())
+  })
 }
 
 function lenientSettings(schema: ExtensionSettingsSchema | undefined): (raw: unknown) => Record<string, unknown> {

@@ -2,7 +2,7 @@ import {useQuery, type QueryClient} from '@conciv/client'
 import {createMemo} from 'solid-js'
 import type {SettingsScope} from '@conciv/contract'
 import type {AppData} from '../data/app-data.js'
-import {mergeSettings} from './merge-settings.js'
+import {mergeSettings} from '@conciv/extension'
 
 type SettingsLayersOptions = {
   data: AppData

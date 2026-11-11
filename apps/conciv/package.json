@@ -51,7 +51,6 @@
     "@tanstack/solid-hotkeys": "catalog:",
     "@tanstack/solid-pacer": "catalog:",
     "@tanstack/solid-router": "catalog:",
-    "defu": "catalog:",
     "es-toolkit": "catalog:",
     "lucide-solid": "catalog:",
     "semver": "catalog:",

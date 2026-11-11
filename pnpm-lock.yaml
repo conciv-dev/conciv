@@ -622,9 +622,6 @@ importers:
       '@tanstack/solid-router':
         specifier: 'catalog:'
         version: 1.170.43(solid-js@1.9.17)
-      defu:
-        specifier: 'catalog:'
-        version: 6.1.7
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0
@@ -2682,6 +2679,9 @@ importers:
       '@orpc/server':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)(crossws@0.4.17(srvx@1.0.8))(ws@8.22.0)
+      defu:
+        specifier: 'catalog:'
+        version: 6.1.7
       es-toolkit:
         specifier: 'catalog:'
         version: 1.53.0

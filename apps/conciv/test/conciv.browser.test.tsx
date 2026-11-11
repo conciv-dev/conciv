@@ -4977,6 +4977,7 @@ describe('settings page', () => {
   const PROBE_CHANGED = 'wrap=true density=compact theme=ocean fontSize=16 greeting=hi'
   const scope = () => page.getByRole('radiogroup', {name: 'Settings scope'})
   const scopeOption = (name: string) => scope().getByRole('radio', {name, exact: true})
+  const PROBE_WRAPPED = 'wrap=true density=cozy theme=plain fontSize=13 greeting='
   const wrapLines = () => page.getByRole('switch', {name: 'Wrap lines'})
   const fontSize = () => page.getByRole('spinbutton', {name: 'Font size'})
   const greeting = () => page.getByRole('textbox', {name: 'Greeting'})
@@ -5190,8 +5191,19 @@ describe('settings page', () => {
     harness.mountShell(reloadAt, [settingsProbe])
     await expect.element(scopeOption('All projects'), {timeout: 8000}).toBeChecked()
     await expect.element(probe('light')).toBeInTheDocument()
+    await tab('Settings probe').click()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).toBeChecked()
+    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
     await scope().getByText('This project', {exact: true}).click()
     await expect.element(scopeOption('This project')).toBeChecked()
+    await expect.element(page.getByText('From all projects', {exact: true})).toBeVisible()
+    await page.getByText('Wrap lines', {exact: true}).click()
+    await expect.element(wrapLines()).not.toBeChecked()
+    await expect.element(probeValues(PROBE_DEFAULTS)).toBeInTheDocument()
+    await tab('Advanced').click()
+    await page.getByRole('button', {name: 'Reset extension settings', exact: true}).click()
+    await expect.element(probeValues(PROBE_WRAPPED)).toBeInTheDocument()
 
     await resetAll().click()
     await expect.element(resetDialog()).toBeVisible()

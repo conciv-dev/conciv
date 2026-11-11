@@ -9,7 +9,6 @@ import {QuickSearchSchema, quickPaneIds, quickSearchFor} from '../src/lib/quick-
 import {WS_RPC_PAYLOAD_BUDGET_BYTES} from '@conciv/protocol/rpc-types'
 import {checkSend, MAX_CONTENT_PARTS} from '../src/pane/send-checks.js'
 import {parseConcivSettings} from '../src/data/settings.js'
-import {mergeSettings} from '../src/settings/merge-settings.js'
 import {
   clamp,
   cornerAt,
@@ -291,23 +290,6 @@ describe('settings', () => {
         'Mod+j',
       ])
     })
-  })
-
-  it('merges project over global: arrays replace, records merge per key, missing and null fall through', () => {
-    const global = {
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['notes', 'terminal'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+T']},
-    }
-    const project = {launcher: null, docksHidden: ['files'], commandShortcuts: {quickTerminal: ['Mod+K']}}
-    expect(mergeSettings(project, global)).toEqual({
-      skin: 'terminal',
-      launcher: 'hidden',
-      docksHidden: ['files'],
-      commandShortcuts: {togglePanel: ['Mod+J'], quickTerminal: ['Mod+K']},
-    })
-    expect(mergeSettings({}, global)).toEqual(global)
   })
 })
 

@@ -21,8 +21,9 @@ debounced write) and `settings-extensions.md` (generated extension pages).
   global one; it never yields both.) VS Code merges settings layers the same way.
 - Defaults come from the zod schema parse after the merge (`PreferencesSchema.parse`, `extension.parseSettings`),
   as today. Defaults are never written to a file.
-- One merge function in the app, used by `create-preferences.ts` and the extension settings form. No merge in
-  the engine; the engine keeps one store per file (Devframe's shape).
+- One merge function, `mergeSettings` in `@conciv/extension`, used by `defineExtension().useSettings()` (so a
+  running extension applies project over global over defaults), `create-preferences.ts` and the extension
+  settings form. No merge in the engine; the engine keeps one store per file (Devframe's shape).
 
 ## What each view shows
 
@@ -32,7 +33,9 @@ debounced write) and `settings-extensions.md` (generated extension pages).
 - `All projects`: every field shows the global value (or the default). Editing writes the global file. A field
   that this project overrides carries a "This project overrides it" note, since the change will not apply here.
 - Where a value came from is decided by key presence in each file, never by comparing values.
-- Writing a value equal to the default deletes the key in the edited file (today's rule, per file).
+- Writing a value equal to what applies without that key in the edited file deletes the key: in `This project`
+  that is the global value over the default, in `All projects` the default. A file only holds keys that change
+  something.
 - Advanced "Reset all" clears the file of the selected scope only, and its confirmation text names that scope.
 
 ## Reads
