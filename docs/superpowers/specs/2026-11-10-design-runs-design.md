@@ -96,6 +96,16 @@ A design run is the design work of one session. `runs` gains `session_id` and `s
   `completed` when the last check's verdict is `done`, else `aborted`; `cost` and `usage` stay null for external sessions (the house
   has no usage for them) and the README says so. This is swamp's lesson (register with pid, detach, reap the dead) done once in the
   host, not in the extension.
+- **Model, usage and cost of an external session** come from the harness transcript, which the house already reads (for Claude,
+  `packages/harness/src/claude/history.ts`: `transcriptRoot(cwd)`, the assistant-record usage schema; the other harnesses have
+  their readers in `packages/harness/src/<kind>`). A run whose session has no chat-server usage is closed from the transcript: the
+  run's `harness` and the project cwd name the transcript folder, the transcript whose first record falls inside the run's window
+  (`started` to `ended`, or the one the session row already claims as `harnessSessionId`) is the run's; `model` is the model of its
+  assistant records (the most used one when several), `usage` is their usage summed as a `TokenUsage`, `cost` is
+  `tokenUsageToSnapshot(usage).totalCostUsd` when the harness reports it, else the house price table if one exists, else null with
+  `usage` kept so a view can derive it. The same read backfills rows closed before this landed (`design:runs-gc` fills `model`,
+  `usage`, `cost` where null and the transcript is still on disk). Never null by design: a run without a transcript records why in
+  `error` (`no-transcript`).
 - **Transcript**: the chat server's `withPersistence` already stores every message in `chat_messages`, and the journal holds the
   raw agent events for the run's life. The design store keeps no transcript artifact; a view joining a design run to its session's
   messages is the way to read it.
