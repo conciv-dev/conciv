@@ -76,7 +76,7 @@ export type PageBus = {
   anySubscriber: () => boolean
   openSessions: () => Array<{sessionId: SessionId; subscribers: number}>
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
-  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => () => void
+  subscribe: (sessionId: SessionId, emit: (frame: unknown) => void) => (reason?: unknown) => void
   serve: (name: string, verb: ServerVerb) => void
 }
 
@@ -88,7 +88,7 @@ export type CaptureSink = (params: {
 
 export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
 
-type Subscriber = {emit: (frame: unknown) => void; silent: number; unsubscribe: () => void}
+type Subscriber = {emit: (frame: unknown) => void; silent: number; unsubscribe: (reason?: unknown) => void}
 
 type SessionPage = {pending: Pending<PageOutcome>; subscribers: Set<Subscriber>}
 
@@ -98,10 +98,13 @@ const PING_ABOVE_MS = 5000
 const PING_BUDGET_MS = 1000
 const SILENT_LIMIT = 3
 
+export const TAB_CRASHED = 'the tab crashed'
+
 export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const idState = {n: 0}
   const served = new Map<string, ServerVerb>()
+  const crashed = new Set<SessionId>()
 
   const nextRequestId = (): string => {
     idState.n += 1
@@ -129,11 +132,13 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const subscriber: Subscriber = {
       emit,
       silent: 0,
-      unsubscribe: () => {
+      unsubscribe: (reason) => {
         page.subscribers.delete(subscriber)
+        if (reason === TAB_CRASHED && page.subscribers.size === 0) crashed.add(sessionId)
         dropIfIdle(sessionId, page)
       },
     }
+    crashed.delete(sessionId)
     page.subscribers.add(subscriber)
     return subscriber.unsubscribe
   }
@@ -183,6 +188,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     if (verb !== undefined) return {result: await verb(query.input, {sessionId})}
     const page = bySession.get(sessionId)
     if (page === undefined || page.subscribers.size === 0) {
+      if (crashed.has(sessionId)) throw pageFailure('no-widget', `the tab of session "${sessionId}" crashed; reload it`)
       if (anySubscriber()) {
         throw pageFailure(
           'no-widget',
@@ -254,7 +260,7 @@ export async function* pageQueryStream(
       waiter.wake = () => {}
     }
   } finally {
-    unsubscribe()
+    unsubscribe(signal.reason)
     signal.removeEventListener('abort', onAbort)
   }
 }

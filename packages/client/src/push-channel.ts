@@ -76,6 +76,12 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
   socket.addEventListener('open', () => {
     if (pageServers.size > 0) announceServing()
   })
+  const leaving = (): void => {
+    if (socket.readyState !== socket.OPEN || pageServers.size === 0) return
+    const frame: PageServingFrame = {channel: 'page-serving', serving: false}
+    socket.send(JSON.stringify(frame))
+  }
+  globalThis.addEventListener?.('pagehide', leaving)
   const servePage = (sink: (frame: PushFrame) => void): (() => void) => {
     pageServers.add(sink)
     const unsubscribe = subscribe(sink)
@@ -104,6 +110,8 @@ export function openPushChannel(options: PushChannelOptions): PushChannel {
         abortSignal,
       ),
     dispose: () => {
+      globalThis.removeEventListener?.('pagehide', leaving)
+      leaving()
       sinks.clear()
       socket.close()
     },

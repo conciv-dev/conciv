@@ -1938,6 +1938,32 @@ function reachedDone(input: {home: string; session: string}): void {
   store.close()
 }
 
+describe('design_check after the tab went away', () => {
+  it('says the tab crashed and to reload it after a renderer crash, and that no widget is connected after a navigation away', async () => {
+    const engine = await bootDesignHost()
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+      await engine.page.goto('about:blank')
+      await expect(engine.call('design_check', {})).rejects.toThrow(
+        `no widget connected to session "${engine.session}"`,
+      )
+      await engine.goto('target')
+      roundOf(await engine.call('design_check', {}))
+      const cdp = await engine.page.context().newCDPSession(engine.page)
+      const crashed = engine.page.waitForEvent('crash')
+      void cdp.send('Page.crash').catch(() => null)
+      await crashed
+      await expect(engine.call('design_check', {})).rejects.toThrow(
+        `the tab of session "${engine.session}" crashed; reload it`,
+      )
+    } finally {
+      await engine.dispose()
+    }
+  })
+})
+
 describe('a run closes with its session', () => {
   it('closes the run of an external session when its hub detaches, completed at done and aborted short of it, with no cost or usage', async () => {
     const homeDir = await tempDir('conciv-design-detach-home-')

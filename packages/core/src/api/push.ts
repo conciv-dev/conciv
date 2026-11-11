@@ -5,6 +5,7 @@ import {PageServingFrameSchema, PUSH_SESSION_PARAM, PUSH_WS_PATH, type PushFrame
 import type {WSContext} from 'hono/ws'
 import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {logError} from '../lib/debug.js'
+import {TAB_CRASHED} from '../page-bus.js'
 
 export type PageQuery = {requestId: string; query: unknown}
 
@@ -71,7 +72,7 @@ export function pushRoutes(deps: PushDeps, upgrade: UpgradeWebSocket) {
           if (!requested.success || !frame.success) return
           servePage(requested.data, frame.data.serving)
         },
-        onClose: () => abort.abort(),
+        onClose: () => abort.abort(held.page === null ? undefined : TAB_CRASHED),
         onError: () => abort.abort(),
       }
     }),
