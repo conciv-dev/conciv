@@ -4,7 +4,7 @@ import {command, description, name, option, schema} from '@bomb.sh/router'
 import {createMCPClient, type MCPClient} from '@tanstack/ai-mcp'
 import {createMCPServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
-import {checkEngines, concivHome} from '@conciv/db'
+import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
 import {
   CONCIV_CLIENT_HEADER,
@@ -64,30 +64,35 @@ type TabOwner = {root: string; apiBase: string; instructions: string | null; cli
 
 type Lookup = Promise<TabOwner | Reply>
 
+type Picked = Runner | Reply | null
+
 type TabEntry = {owner: Lookup | null; greeted: boolean}
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
-  const held: {runner: Promise<Runner | null> | null} = {runner: null}
+  const held: {runner: Promise<Picked> | null} = {runner: null}
   const tabs = new Map<SessionId, TabEntry>()
   const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
 
-  function currentRunner(): Promise<Runner | null> {
-    held.runner ??= pickRunner(home, headers).catch(noRunner)
+  function currentRunner(): Promise<Picked> {
+    held.runner ??= pickRunner(home, headers)
     return held.runner
   }
 
-  async function dropRunner(runner: Runner | null): Promise<void> {
+  async function dropRunner(runner: Picked): Promise<void> {
     if (runner === null || (await held.runner) !== runner) return
     held.runner = null
-    await closeClient(runner)
+    if ('client' in runner) await closeClient(runner)
   }
 
   async function forward(toolName: ToolName, input: unknown, resent = false): Promise<unknown> {
     const runner = await currentRunner()
-    if (runner === null) {
+    if (runner === null || !('client' in runner)) {
       held.runner = null
-      return failed(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
+      return (
+        runner ??
+        failed(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
+      )
     }
     try {
       return await runner.client.callTool(toolName, input)
@@ -95,7 +100,10 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       await dropRunner(runner)
       if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, true)
       const next = await currentRunner()
-      const after = next === null ? 'no other conciv dev server is running' : `the next call runs on ${next.root}`
+      const after =
+        next !== null && 'client' in next
+          ? `the next call runs on ${next.root}`
+          : 'no other conciv dev server is running'
       return failed(
         `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
       )
@@ -120,7 +128,10 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   async function onTab(toolName: ToolName, input: unknown, tab: SessionId, resent = false): Promise<unknown> {
     const entry = entryOf(tab)
     const kept = (entry.owner ??= findOwner(home, tab, {...headers, [CONCIV_SESSION_HEADER]: tab}))
-    const owner = await kept
+    const owner = await kept.catch((error: unknown) => {
+      if (entry.owner === kept) entry.owner = null
+      throw error
+    })
     if (!('client' in owner)) {
       await forget(entry, kept)
       return owner
@@ -190,18 +201,18 @@ export const serveCommand = command(
   handler((model) => runHub(process.env, ServeModelSchema.parse(model).agent)),
 )
 
-async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner | null> {
-  const row = (await checkEngines(home, {timeoutMs: PROBE_MS})).live[0]
+async function pickRunner(home: string, headers: Record<string, string>): Promise<Picked> {
+  const checked = await liveEngines(home)
+  if ('isError' in checked) return checked
+  const row = checked.live[0]
   if (row === undefined) return null
-  const client = await createMCPClient({
-    transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers},
-    name: 'conciv-hub',
-  })
+  const client = await connect(row, headers)
+  if ('isError' in client) return client
   return {root: row.root, client}
 }
 
-async function startupDescriptions(runner: Runner | null): Promise<Record<ToolName, string>> {
-  if (runner === null) return FALLBACK_DESCRIPTIONS
+async function startupDescriptions(runner: Picked): Promise<Record<ToolName, string>> {
+  if (runner === null || !('client' in runner)) return FALLBACK_DESCRIPTIONS
   const tools = await runner.client.tools()
   const described = (tool: ToolName) =>
     tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
@@ -209,9 +220,7 @@ async function startupDescriptions(runner: Runner | null): Promise<Record<ToolNa
 }
 
 async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Lookup {
-  const checked = await checkEngines(home, {timeoutMs: PROBE_MS}).catch((error: unknown) =>
-    failed(`cannot read the conciv home folder ${home}: ${errorText(error)}`),
-  )
+  const checked = await liveEngines(home)
   if ('isError' in checked) return checked
   const answers = await Promise.all(checked.live.map(async (row) => ({row, answer: await tabAnswer(row.apiBase, tab)})))
   const [only, second] = answers.filter(({answer}) => answer?.open === true)
@@ -221,15 +230,22 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
       `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
     )
   }
-  try {
-    const client = await createMCPClient({
-      transport: {type: 'http', url: `${only.row.apiBase}/api/mcp`, headers},
-      name: 'conciv-hub',
-    })
-    return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer?.instructions ?? null, client}
-  } catch (error) {
-    return failed(`connecting to the conciv engine at ${only.row.root} failed (${errorText(error)}); nothing ran`)
-  }
+  const client = await connect(only.row, headers)
+  if ('isError' in client) return client
+  return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer?.instructions ?? null, client}
+}
+
+function liveEngines(home: string): Promise<Awaited<ReturnType<typeof checkEngines>> | Reply> {
+  return checkEngines(home, {timeoutMs: PROBE_MS}).catch((error: unknown) =>
+    failed(`cannot read the conciv home folder ${home}: ${errorText(error)}`),
+  )
+}
+
+function connect(row: EngineRow, headers: Record<string, string>): Promise<MCPClient | Reply> {
+  return createMCPClient({transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers}, name: 'conciv-hub'}).catch(
+    (error: unknown) =>
+      failed(`connecting to the conciv engine at ${row.root} failed (${errorText(error)}); nothing ran`),
+  )
 }
 
 async function tabAnswer(apiBase: string, tab: SessionId): Promise<TabOpen | null> {
@@ -237,9 +253,15 @@ async function tabAnswer(apiBase: string, tab: SessionId): Promise<TabOpen | nul
     const response = await fetch(`${apiBase}/api/tabs?session=${tab}`, {signal: AbortSignal.timeout(PROBE_MS)})
     if (!response.ok) return null
     return TabOpenSchema.safeParse(await response.json()).data ?? null
-  } catch {
-    return null
+  } catch (error) {
+    if (isUnanswered(error)) return null
+    throw error
   }
+}
+
+function isUnanswered(error: unknown): boolean {
+  if (error instanceof TypeError || error instanceof SyntaxError) return true
+  return error instanceof DOMException && error.name === 'TimeoutError'
 }
 
 async function holdsTab(apiBase: string, tab: SessionId): Promise<boolean> {
@@ -258,11 +280,6 @@ async function closeClient(owner: {root: string; client: MCPClient}): Promise<vo
   await owner.client
     .close()
     .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${owner.root} failed`, error))
-}
-
-function noRunner(error: unknown): null {
-  logHub('picking a conciv engine failed', error)
-  return null
 }
 
 function failed(text: string): Reply {

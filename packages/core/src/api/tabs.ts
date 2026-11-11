@@ -5,6 +5,7 @@ import {Hono} from 'hono'
 import {z} from 'zod'
 import type {SessionMeta} from '@conciv/contract'
 import {SessionId, TabsSchema, type TabOpen, type Tabs} from '@conciv/protocol/chat-types'
+import {isPageFailure} from '@conciv/protocol/page-types'
 import type {PageBus} from '../page-bus.js'
 
 const PAGE_PROBE_MS = 200
@@ -88,7 +89,10 @@ function browserTabPages(
 function probePage(bus: PageBus, sessionId: SessionId, browserTab: string): Promise<TabPage> {
   const answered = bus.ask(sessionId, {name: 'page_route', input: {}, agentId: sessionId}, {browserTab}).then(
     (answer) => PageSchema.catch(null).parse(answer.result),
-    () => null,
+    (error: unknown) => {
+      if (isPageFailure(error)) return null
+      throw error
+    },
   )
   return Promise.race([answered, delay(PAGE_PROBE_MS, null)])
 }

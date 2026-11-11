@@ -1072,13 +1072,22 @@ describe('cli', () => {
     const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
     const sessionId = given.shared?.sessionId ?? (await makeRpcClient(base).sessions.create(undefined)).sessionId
     const page = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
-    const queries = await page.page.queries(undefined, {signal: pages.signal})
+    const stopped = new AbortController()
+    const listening = AbortSignal.any([pages.signal, stopped.signal])
+    const queries = await page.page.queries(undefined, {signal: listening})
     const route = {href: `http://localhost${root}`, title: root, state: 'visible', pathname: root, search: ''}
     const answer = async () => {
       for await (const {requestId} of queries) await page.page.reply({requestId, outcome: {ok: true, result: route}})
     }
-    answer().catch(() => {})
-    return {engine, sessionId, base, page, root}
+    const answering = answer().catch((error: unknown) => {
+      if (!listening.aborted) throw error
+    })
+    const stop = async () => {
+      stopped.abort()
+      await answering
+      await engine.stop()
+    }
+    return {engine: {...engine, stop}, sessionId, base, page, root}
   }
 
   describe('conciv tools on any tab', () => {
@@ -1494,7 +1503,12 @@ describe('cli', () => {
       const newer = await engineWithTab(home, {hubAccess: 'open'})
       const client = await hub(home)
       const survivor = await engineWithTab(home).catch(async (error: unknown) => {
-        await client.close()
+        await client.close().catch((closing: unknown) => {
+          throw new AggregateError(
+            [error, closing],
+            'the survivor engine did not start and the hub client did not close',
+          )
+        })
         throw error
       })
       try {
@@ -1576,6 +1590,27 @@ describe('cli', () => {
         await client.close()
       }
     })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable home folder is named as such, never reported as no dev server running',
+      async () => {
+        const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
+        withHomeDb(home, listEngines)
+        chmodSync(join(home, 'home.db'), 0o000)
+        try {
+          const client = await hub(home)
+          try {
+            const reply = await run(client, 'return 1')
+            expect(reply).toContain(`cannot read the conciv home folder ${home}`)
+            expect(reply).not.toContain('no conciv dev server is running')
+          } finally {
+            await client.close()
+          }
+        } finally {
+          chmodSync(join(home, 'home.db'), 0o600)
+        }
+      },
+    )
   })
 
   describe('prod closure', () => {

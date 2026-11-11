@@ -3993,7 +3993,8 @@ describe('outside sessions', () => {
         const heard: string[] = []
         const answers = {silent: false}
         const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
+        const listening = AbortSignal.timeout(10_000)
+        const frames = on(socket, 'message', {signal: listening})
         await once(socket, 'open')
         const report = (focused: boolean) =>
           socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
@@ -4011,7 +4012,9 @@ describe('outside sessions', () => {
             await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
           }
         }
-        answering().catch(() => {})
+        answering().catch((error: unknown) => {
+          if (!listening.aborted) throw error
+        })
         await ready.promise
         pages.push(() => socket.close())
         const silence = () => {
@@ -4043,10 +4046,10 @@ describe('outside sessions', () => {
       expect(await routed()).toBe('http://localhost:5173/second')
       second.silence()
       const waited = second.heard.length
-      const inFlight = routed().then(String, String)
+      const inFlight = expect(routed()).rejects.toThrow(/browser tab b\d+ closed before it replied/)
       await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
       second.close()
-      expect(await inFlight).toMatch(/browser tab b\d+ closed before it replied/)
+      await inFlight
     })
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
@@ -4230,7 +4233,7 @@ describe('outside agent consent', () => {
       'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
-    const routed = onTab('return await external_page_route({})').then(String, String)
+    const routed = onTab('return await external_page_route({})').then(String)
     await decideOutside(owner, theirs, true)
     expect(await routed).toContain(ROUTE.href)
     const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
