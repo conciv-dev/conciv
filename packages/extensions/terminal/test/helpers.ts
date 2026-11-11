@@ -22,6 +22,7 @@ function fakeSessions(): FakeSessions {
     },
     chatBusy: () => Promise.resolve(false),
     model: () => Promise.resolve(null),
+    transcript: () => Promise.resolve(null),
     onChatTurn: () => {},
   }
 }

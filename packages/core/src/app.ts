@@ -484,6 +484,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     chatBusy: async (sessionId) => (await planeRef.current?.live(sessionId)) === true,
     model: async (sessionId) => modelOf(db, sessionId),
+    transcript: async (sessionId, window) => {
+      const row = currentRow(db, sessionId)
+      const nativeId = row?.harnessSessionId ?? undefined
+      const found = await harnessFor(sessionId).history?.transcriptUsage?.({
+        cwd: row?.cwd ?? opts.cwd,
+        ...window,
+        ...(nativeId === undefined ? {} : {nativeId}),
+      })
+      return found ?? null
+    },
     onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const serverHarness = (sessionId: SessionId): ServerHarness => makeServerHarness(harnessFor(sessionId), opts.cwd)

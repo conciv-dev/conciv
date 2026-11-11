@@ -5,7 +5,7 @@ import type {ContentPart, ChatMessage} from '@conciv/protocol/chat-message-types
 import type {AnyRouter} from '@orpc/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ToolCardProps, ToolCardView} from '@conciv/protocol/tool-view-types'
-import type {HarnessConnectContext} from '@conciv/protocol/harness-types'
+import type {HarnessConnectContext, TranscriptUsage} from '@conciv/protocol/harness-types'
 import type {TtyCommand} from '@conciv/protocol/terminal-types'
 import type {HarnessSessionId, SessionId} from '@conciv/protocol/chat-types'
 import type {RunStatus} from '@conciv/protocol/chat-event-types'
@@ -132,6 +132,7 @@ export type ServerSessions = {
   recordToken(sessionId: SessionId, token: HarnessSessionId): Promise<void>
   chatBusy(sessionId: SessionId): Promise<boolean>
   model(sessionId: SessionId): Promise<string | null>
+  transcript(sessionId: SessionId, window: {from: number; to: number}): Promise<TranscriptUsage | null>
   onChatTurn(listener: (sessionId: SessionId) => void): void
 }
 

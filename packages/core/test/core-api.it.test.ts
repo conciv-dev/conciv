@@ -478,6 +478,48 @@ describe('api extension server surfaces', () => {
       await kit.cleanup()
     }
   }, 30_000)
+
+  test('the sessions surface reads the model, usage and cost of a session from its harness transcript', async () => {
+    const captured: {server?: ServerApi<Record<never, never>>} = {}
+    const probe = defineExtension({name: 'probe'}).server((server) => {
+      captured.server = server
+      return {context: {}}
+    })
+    const kit = await createTestkit(createTestHarness(claude), bootCoreApp({extensions: [probe]})).setup()
+    const token = HarnessSessionId.parse(`usage-${process.pid}-${Math.random().toString(36).slice(2)}`)
+    const server = captured.server
+    if (!server) throw new Error('server api not captured')
+    const transcript = requireTranscriptPath(claude)(server.cwd, token)
+    try {
+      const sessionId = SessionId.parse(await kit.session())
+      const window = {from: Date.now(), to: Date.now() + 60_000}
+      expect(await server.sessions.transcript(sessionId, window)).toBeNull()
+
+      await server.sessions.recordToken(sessionId, token)
+      mkdirSync(dirname(transcript), {recursive: true})
+      writeFileSync(
+        transcript,
+        [
+          JSON.stringify({type: 'user', timestamp: new Date(window.from).toISOString(), message: {content: 'go'}}),
+          JSON.stringify({
+            type: 'assistant',
+            message: {id: 'm1', model: 'claude-sonnet-4-5', content: [], usage: {input_tokens: 10, output_tokens: 4}},
+          }),
+          JSON.stringify({type: 'result', total_cost_usd: 0.5}),
+        ].join('\n'),
+      )
+
+      expect(await server.sessions.transcript(sessionId, window)).toEqual({
+        nativeId: token,
+        model: 'claude-sonnet-4-5',
+        usage: {promptTokens: 10, completionTokens: 4, totalTokens: 14, cost: 0.5},
+        cost: 0.5,
+      })
+    } finally {
+      rmSync(transcript, {force: true})
+      await kit.cleanup()
+    }
+  }, 30_000)
 })
 
 describe('api installed harnesses', () => {
