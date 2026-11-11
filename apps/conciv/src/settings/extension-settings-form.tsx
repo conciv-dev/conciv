@@ -20,6 +20,8 @@ const route = getRouteApi('/panel/$sessionId_/settings/extensions/$name')
 
 type SettingsLayers = ReturnType<typeof createSettingsLayers>
 
+type ExtensionSettingsPage = ReturnType<typeof extensionSettingsPage>
+
 export function ExtensionSettingsForm(): JSX.Element {
   const extension = route.useRouteContext()().settingsExtension
   const search = route.useSearch()
@@ -32,11 +34,15 @@ export function ExtensionSettingsForm(): JSX.Element {
   return (
     <SettingsLoad status={layers.status()} retry={layers.retry}>
       <Show when={search().scope} keyed>
-        {(scope) => (
-          <SettingNote.Provider value={(key) => layers.note(scope, key)}>
-            {scopedForm({extension, layers, scope})}
-          </SettingNote.Provider>
-        )}
+        {(scope) => {
+          const page = extensionSettingsPage(extension)
+          const form = createExtensionForm({extension, layers, scope}, page.fields)
+          return (
+            <SettingNote.Provider value={(key) => layers.note(scope, key)}>
+              {extensionFields(page, form)}
+            </SettingNote.Provider>
+          )
+        }}
       </Show>
     </SettingsLoad>
   )
@@ -44,9 +50,9 @@ export function ExtensionSettingsForm(): JSX.Element {
 
 type ScopedForm = {extension: AnyExtension; layers: SettingsLayers; scope: SettingsScope}
 
-function scopedForm(scoped: ScopedForm): JSX.Element {
-  const page = extensionSettingsPage(scoped.extension)
-  const form = createExtensionForm(scoped, page.fields)
+type ExtensionForm = ReturnType<typeof createExtensionForm>
+
+function extensionFields(page: ExtensionSettingsPage, form: ExtensionForm): JSX.Element {
   return (
     <form class={FORM} aria-label={page.title} onSubmit={(event) => event.preventDefault()}>
       <Group title={page.title}>
