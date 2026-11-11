@@ -1036,7 +1036,7 @@ describe('cli', () => {
             .code
         const closed = Promise.all([closedCode(browser), closedCode(framed)])
         runRevoke({all: true, cwd: project.nested})
-        await expect.poll(call, {timeout: 2_000, interval: 20}).toBe(401)
+        expect(await call()).toBe(401)
         expect([...(await closed), agent.readyState]).toEqual([1008, 1008, WebSocket.OPEN])
         agent.close()
       } finally {
