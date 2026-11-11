@@ -1,4 +1,5 @@
 import {describe, expect, it, vi, test} from 'vitest'
+import {once} from 'es-toolkit'
 import {parseSync} from 'oxc-parser'
 import {TOKENS} from '@conciv/ui-kit-system/tokens'
 import {buildCatalog, scaffold, validateSource, type ScaffoldKind} from '../src/catalog.js'
@@ -13,6 +14,7 @@ import type {SettingsSnapshot} from '@conciv/contract'
 import {
   type ClientEffect,
   type SettingsState,
+  type SettingsStore,
   type ServerToolPageAccess,
   type ServerToolRegistryAccess,
   type ToolRequest,
@@ -327,6 +329,28 @@ describe('define extension', () => {
       {fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''},
     ])
     expect(await reader.all()).toEqual({fontSize: 16, cursor: 'bar', copyOnSelect: false, shell: ''})
+  })
+
+  test('readSettings delivers a write that lands while it loads the files', async () => {
+    const ext = defineExtension({name: 'terminal', settings: terminalSettings})
+    const project = memoryStore({})
+    const racingWrite = once(() => project.set('fontSize', 20))
+    const racing: SettingsStore = {
+      ...project,
+      all: async () => {
+        const value = await project.all()
+        void racingWrite()
+        return value
+      },
+    }
+    const reader = ext.readSettings({project: racing, global: memoryStore({})})
+    const changes: unknown[] = []
+    await reader.onChange((value) => changes.push(value))
+    await project.set('cursor', 'bar')
+    expect(changes).toEqual([
+      {fontSize: 20, cursor: 'block', copyOnSelect: false, shell: ''},
+      {fontSize: 20, cursor: 'bar', copyOnSelect: false, shell: ''},
+    ])
   })
 
   test('readSettings leaves out a settings file it cannot read and applies the other one', async () => {

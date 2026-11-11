@@ -243,22 +243,28 @@ function mergedReader(
     const [project, global] = await Promise.all([load('project'), load('global')])
     return {project, global}
   }
-  const merged = (latest: Record<SettingsScope, StoredSettings>) => parse(mergeSettings(latest.project, latest.global))
+  const merged = (latest: Partial<Record<SettingsScope, StoredSettings>>) =>
+    parse(mergeSettings(latest.project ?? {}, latest.global ?? {}))
   return {
     all: async () => merged(await loadBoth()),
     onChange: async (fn) => {
-      const latest = await loadBoth()
+      const latest: Partial<Record<SettingsScope, StoredSettings>> = {}
+      const loaded = Promise.withResolvers<void>()
       const follow = (scope: SettingsScope): Promise<() => void> =>
         stores[scope]
           .onChange((value) => {
             latest[scope] = value
-            fn(merged(latest))
+            void loaded.promise.then(() => fn(merged(latest)))
           })
           .catch((error: unknown) => {
             report[scope](error)
             return () => undefined
           })
       const stops = await Promise.all([follow('project'), follow('global')])
+      const stored = await loadBoth()
+      latest.project ??= stored.project
+      latest.global ??= stored.global
+      loaded.resolve()
       return () => stops.forEach((stop) => stop())
     },
   }
