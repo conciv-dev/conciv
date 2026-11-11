@@ -15,11 +15,13 @@ export type {
   RegisteredTools,
   ToolBinding,
   ToolBuilder,
+  ToolCallContext,
   ToolDefinition,
   ToolError,
   ToolErrorSpec,
   ToolErrors,
   ToolMeta,
+  ToolMiddleware,
   ToolNameProblem,
 } from './define-tool.js'
 export {defineAttachment} from './define-attachment.js'

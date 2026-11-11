@@ -105,7 +105,7 @@ import {type TokenUsage} from '@conciv/protocol/usage-types'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {createORPCClient} from '@orpc/client'
 import {RPCLink} from '@orpc/client/fetch'
-import {os, type RouterClient} from '@orpc/server'
+import {onError, ORPCError, os, type RouterClient} from '@orpc/server'
 import WebSocket from 'ws'
 import {z} from 'zod'
 import {makeApp, type MadeApp} from '../src/app.js'
@@ -2269,6 +2269,50 @@ describe('rpc wire', () => {
         expect((await mcpPost({[CONCIV_SESSION_HEADER]: 'nope'})).status).toBe(400)
       })
 
+      it('a call refused at the outside admission or at the ask reaches the middleware of the tool it named', async () => {
+        const sessionId = await newSession()
+        const [ran, seen] = [toolRuns.ask, refusedCalls.length]
+        const hub = makeRpcClient(chatKit().base, {
+          headers: {
+            [CONCIV_SESSION_HEADER]: sessionId,
+            [CONCIV_ORIGIN_HEADER]: 'hub',
+            [CONCIV_CLIENT_HEADER]: 'terminal',
+          },
+        })
+        const admitted = hub.registry.call({name: 'fixture_ask', input: {target: 'outside'}})
+        const refusal = expect(admitted).rejects.toMatchObject({
+          code: 'APPROVAL_DENIED',
+          message: expect.stringMatching(/denied terminal/),
+        })
+        const pending = async () => (await chatKit().hydrate(sessionId)).pendingApprovals
+        await vi.waitFor(async () => expect(await pending()).toHaveLength(1), {timeout: 3000})
+        const [outsideAsk] = await pending()
+        await decide(sessionId, outsideAsk?.approvalId ?? '', false)
+        await refusal
+        const asked = callerWith(sessionId).registry.call({name: 'fixture_ask', input: {target: 'asked'}})
+        await expect(asked).rejects.toMatchObject({
+          code: 'APPROVAL_DENIED',
+          message: expect.stringMatching(/needs the user/),
+        })
+        expect(refusedCalls.slice(seen)).toEqual([
+          {
+            code: 'APPROVAL_DENIED',
+            message: expect.stringMatching(/denied terminal/),
+            sessionId,
+            tool: 'fixture_ask',
+            input: {target: 'outside'},
+          },
+          {
+            code: 'APPROVAL_DENIED',
+            message: expect.stringMatching(/needs the user/),
+            sessionId,
+            tool: 'fixture_ask',
+            input: {target: 'asked'},
+          },
+        ])
+        expect(toolRuns.ask).toBe(ran)
+      })
+
       it('a caller outside the widget is refused, shows the ask, and one approval runs one retry', async () => {
         const sessionId = await newSession()
         const ran = toolRuns.ask
@@ -3470,6 +3514,7 @@ return seen`
   const seenRuns: SeenRun[] = []
   const cli: {usage: TokenUsage[]; launchFailures: string[]} = {usage: [], launchFailures: []}
   const toolRuns = {ask: 0, echo: 0}
+  const refusedCalls: {code: string; message: string; sessionId: string; tool: string; input: unknown}[] = []
   const holdEntered = Promise.withResolvers<void>()
   const turnEnds: string[] = []
   const turnEndWaiters: {sessionId: string; settle: () => void}[] = []
@@ -3538,10 +3583,23 @@ return seen`
       outputSchema: z.object({done: z.string()}),
       meta: {summary: 'a risky fixture action', category: 'fixture', mutating: false},
       approval: 'ask',
-    }).server((input) => {
-      toolRuns.ask += 1
-      return {done: input.target}
     })
+      .server((input) => {
+        toolRuns.ask += 1
+        return {done: input.target}
+      })
+      .use(
+        onError((error, {path, context}, input) => {
+          if (!(error instanceof ORPCError)) return
+          refusedCalls.push({
+            code: error.code,
+            message: error.message,
+            sessionId: context.request.sessionId,
+            tool: path.join('.'),
+            input,
+          })
+        }),
+      )
   }
 
   function failTool() {

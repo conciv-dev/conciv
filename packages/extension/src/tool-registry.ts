@@ -16,6 +16,7 @@ import {
   FORBIDDEN_TOOL_SEGMENTS,
   isToolError,
   type ProjectedToolBinding,
+  type RegistryToolMeta,
   type ToolBinding,
   type ToolErrors,
   type ToolMeta,
@@ -28,9 +29,11 @@ import type {CtxOf, ServerToolRegistryAccess, ServerToolPageAccess, ToolRequest,
 
 export type {ServerToolRegistryAccess, ServerToolPageAccess} from './types.js'
 
-export type RegistryToolMeta = ToolMeta & {name: string; binding: ToolBinding; approval?: 'ask'}
+export type {RegistryToolMeta} from './define-tool.js'
 
-export type RegistryCallContext = {request: ToolRequest}
+export type RegistryCallGate = <Output>(run: () => Promise<Output>) => Promise<Output>
+
+export type RegistryCallContext = {request: ToolRequest; gate?: RegistryCallGate}
 
 type RegisteredExtensionTools<Entry> = Entry extends {tools: infer Tools} ? Tools : Record<never, never>
 
@@ -159,7 +162,7 @@ export type ToolRegistry = {
   router: ExtensionToolRouter
   register: <Tool extends AnyToolBuilder>(tool: Tool, ...registration: ToolRegistration<CtxOf<Tool>>) => void
   has: (name: string) => boolean
-  call: (name: string, input: unknown, options: {request: ToolRequest}) => Promise<unknown>
+  call: (name: string, input: unknown, options: RegistryCallContext) => Promise<unknown>
   catalog: ToolCatalog
   sandboxTools: () => SandboxTool[]
   whenPageConnected: (connected: () => boolean) => {catalog: ToolCatalog; sandboxTools: () => SandboxTool[]}
@@ -175,7 +178,7 @@ export function createToolRegistry(
   const walked = (): RegistryWalkEntry[] => namedConsistently(walkRegistryProcedures(router))
   const has = (name: string): boolean => walked().some((entry) => entry.path.join('.') === name)
   const call: ToolRegistry['call'] = (name, input, callCtx) =>
-    has(name) ? callTool(router, name, input, callCtx.request) : Promise.reject(new Error(`unknown tool "${name}"`))
+    has(name) ? callTool(router, name, input, callCtx) : Promise.reject(new Error(`unknown tool "${name}"`))
   const viewFor = (connected: () => boolean) => ({
     catalog: {
       list: () => catalogEntries(walked(), connected()),
@@ -222,9 +225,14 @@ function toolMember(node: unknown, segment: string): unknown {
   return Reflect.get(node, segment)
 }
 
-function callTool(router: ExtensionToolRouter, name: string, input: unknown, request: ToolRequest): Promise<unknown> {
+function callTool(
+  router: ExtensionToolRouter,
+  name: string,
+  input: unknown,
+  context: RegistryCallContext,
+): Promise<unknown> {
   const dispatch: AnyRouter = router
-  const client = createRouterClient(dispatch, {context: {request}})
+  const client = createRouterClient(dispatch, {context})
   const target = name.split('.').reduce<unknown>(toolMember, client)
   if (typeof target !== 'function') return Promise.reject(new Error(`unknown tool "${name}"`))
   const result: unknown = target(input)
@@ -341,7 +349,18 @@ function compileTool(
   }
   const declaredErrors: ToolErrors =
     tool.binding === 'client' ? {...tool.errors, ...TOOL_TRANSPORT_ERRORS} : (tool.errors ?? {})
-  const procedure = registryBase.meta(meta).errors(declaredErrors).input(tool.inputSchema).output(tool.outputSchema)
+  const procedure = tool.middlewares
+    .reduce(
+      (built, middleware) => built.use(middleware),
+      registryBase.use(({next}) => next({context: {ctx: context}})),
+    )
+    .use(async ({context: call, next}, _input, output) =>
+      call.gate === undefined ? next() : output(await call.gate(async () => (await next()).output)),
+    )
+    .meta(meta)
+    .errors(declaredErrors)
+    .input(tool.inputSchema)
+    .output(tool.outputSchema)
   if (tool.binding === 'server') {
     return procedure.handler(({input, errors, context: call}) =>
       runServerTool(tool, input, context, call.request, declaredErrors, errors, pageCaller, self),
@@ -538,7 +557,7 @@ function sandboxToolList(
     return {
       ...signatureOf(entry, base),
       schema: entry.inputSchema,
-      run: (input, request) => callTool(router, base.name, input, request),
+      run: (input, request) => callTool(router, base.name, input, {request}),
     }
   })
 }

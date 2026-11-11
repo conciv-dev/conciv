@@ -21,7 +21,7 @@ import {SessionId} from '@conciv/protocol/chat-types'
 import {readFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {pageVerbError, isPageVerbError} from '../src/page-errors.js'
-import {os, createRouterClient, type AnyRouter} from '@orpc/server'
+import {os, createRouterClient, onError, type AnyRouter} from '@orpc/server'
 import {rpcWebsocketRoute, type UpgradeWebSocket} from '../src/rpc-mount.js'
 import {RPC_WS_PATH} from '@conciv/protocol/rpc-types'
 import {isDefinedError, ORPCError} from '@orpc/client'
@@ -623,6 +623,46 @@ describe('tool registry', () => {
       meta: {summary: 'a tool nobody bound'},
     })
     expect(() => registry.register(tool, {owner: 'a test registrant'})).toThrow(/server\(\)|client\(\)/)
+  })
+
+  test("a tool's middleware sees a call the gate refuses, with the extension context, and the handler never runs", async () => {
+    type Refusals = {seen: string[]; ran: number}
+    const refusals: Refusals = {seen: [], ran: 0}
+    const tool = defineTool({
+      name: 'gated_tool',
+      description: 'd',
+      inputSchema: z.object({target: z.string()}),
+      outputSchema: z.object({done: z.string()}),
+      meta: {summary: 'a tool behind a gate'},
+    })
+      .server<Refusals>((input, state) => {
+        state.ran += 1
+        return {done: input.target}
+      })
+      .use(
+        onError((error, {path, context}, input) => {
+          context.ctx.seen.push(
+            `${context.request.sessionId} ${path.join('.')} ${JSON.stringify(input)} ${error.message}`,
+          )
+        }),
+      )
+    const registry = createToolRegistry()
+    registry.register(tool, {owner: 'a test registrant', context: refusals})
+    const refused = registry.call(
+      'gated_tool',
+      {target: 'x'},
+      {
+        request: TEST_REQUEST,
+        gate: () => Promise.reject(new ORPCError('APPROVAL_DENIED', {message: 'the user said no'})),
+      },
+    )
+    await expect(refused).rejects.toMatchObject({code: 'APPROVAL_DENIED', message: 'the user said no'})
+    const admitted = registry.call('gated_tool', {target: 'y'}, {request: TEST_REQUEST, gate: (run) => run()})
+    await expect(admitted).resolves.toEqual({done: 'y'})
+    expect(refusals).toEqual({
+      seen: [`${TEST_REQUEST.sessionId} gated_tool {"target":"x"} the user said no`],
+      ran: 1,
+    })
   })
 
   test('registering the same tool name twice fails loudly', () => {

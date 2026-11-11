@@ -3,6 +3,7 @@ import {ORPCError} from '@orpc/server'
 import {asc, eq, sql} from 'drizzle-orm'
 import {isPageFailure, type PageErrorCode} from '@conciv/protocol/page-types'
 import {isPageVerbError, isToolError} from '@conciv/extension'
+import type {RegistryCallGate} from '@conciv/extension/registry'
 import {resolveHarnessModels} from '@conciv/harness'
 import {BUILTIN_OPEN_TOOL, BUILTIN_SERVER_TOOL} from '@conciv/tools/builtins'
 import {drafts, markers} from '@conciv/db'
@@ -13,7 +14,7 @@ import {listCommands} from '../../sessions/commands.js'
 import {session} from '../../runtime/session-context.js'
 import {chatRouter} from './chat.js'
 import {harnessMenuEntryOf, harnessMetaOf, sessionsRouter} from './sessions.js'
-import {makeHubAdmission, makeSessionOs, os, type RpcDeps} from './mount.js'
+import {admitOutsideCall, makeHubAdmission, makeSessionOs, makeToolCallOs, os, type RpcDeps} from './mount.js'
 import type {SessionScope} from '../../runtime/scope-types.js'
 import {rpcHeader, type RpcContext} from '@conciv/protocol/rpc-types'
 import {cappedText, safeStringify} from '@conciv/chat'
@@ -100,6 +101,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
   const db = chat.db
   const engine = deps.runtime.engine
   const sessionOs = makeSessionOs(deps)
+  const toolCallOs = makeToolCallOs(deps)
   return os.use(makeHubAdmission(deps)).router({
     auth: deps.auth,
     sessions: sessionsRouter(deps),
@@ -142,19 +144,21 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
     },
     registry: {
       catalog: os.registry.catalog.handler(() => engine.catalog()),
-      call: sessionOs.registry.call.handler(async ({input, context, errors, signal}) => {
+      call: toolCallOs.registry.call.handler(async ({input, context, errors, signal, path}) => {
         const assist = deps.assist(context.session.id).find((capability) => capability.name === input.name)
         if (assist === undefined && !context.session.tools.has(input.name)) throw errors.UNKNOWN_TOOL()
-        await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
-        const run = (): Promise<unknown> =>
+        const gate: RegistryCallGate = async (run) => {
+          await admitOutsideCall(deps, context, context.session, signal, path.join('.'))
+          await refuseUnapproved(deps, input.name, input.input, {context, errors, signal})
+          return hubTraced(context, input.name, input.input, run)
+        }
+        const call = (): Promise<unknown> =>
           assist === undefined
-            ? context.session.tools.call(input.name, input.input, {signal})
-            : assist.execute(input.input)
-        return hubTraced(context, input.name, input.input, () =>
-          run().catch((error: unknown) => {
-            throw registryCallError(error, errors)
-          }),
-        )
+            ? context.session.tools.call(input.name, input.input, {signal, gate})
+            : gate(() => assist.execute(input.input))
+        return call().catch((error: unknown) => {
+          throw registryCallError(error, errors)
+        })
       }),
     },
     captures: {
