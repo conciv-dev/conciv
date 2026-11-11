@@ -119,6 +119,14 @@ run's cost in minutes in brackets:
   broke the widget ("failed to start widget") and showed "Engine is running outdated code". Never build in a worktree while a
   run uses it.
 
+**After run 3** (05:00 to 06:30) eight fixes landed: conciv stamps over TanStack devtools inject-source (91a1bd3df), server and
+client mint the same key (258018c16), a stale tab id is refused with the tabs open now (b5624e8e7), `discover_tools` is never
+truncated (f944d9eee), init runs over its own AGENTS.md (9fc154a03), a restarted dev server keeps its engine port so the browser
+stays trusted (938f7a3d3, 2acd29539), SIGINT disposes the engine and closes the run (328023e75); external sessions end through
+`sessionEnd` on hub detach, dead pid or dispose (f09632393, 6dd17dd7b, 8ee0a3df3). Open for Omri: a design call refused before the
+extension sees it (the "allow claude" gate, which does wait the decision wait) is recorded nowhere; recording it needs either a
+host tool-calls table joined by a design view (recommended, the refusal is a host event) or a nullable run on `design_tool_calls`.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
