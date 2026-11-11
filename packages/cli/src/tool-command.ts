@@ -20,7 +20,9 @@ const DeclaredTypes = z
   .optional()
   .transform((type) => [type ?? []].flat())
 
-const BranchItems = z.object({type: DeclaredTypes}).transform((items) => ({type: concreteType(items.type)}))
+const BranchItems = z
+  .object({type: DeclaredTypes, format: z.string().optional()})
+  .transform((items) => ({type: concreteType(items.type), format: items.format}))
 
 const UnionBranches = z.array(z.object({type: DeclaredTypes, items: BranchItems.optional()})).default([])
 
@@ -30,7 +32,9 @@ const DeclaredField = DeclaredNode.extend({
   enum: z.array(z.string()).optional(),
   description: z.string().optional(),
   format: z.string().optional(),
-  items: DeclaredNode.transform((items) => ({type: declaredType(items)})).optional(),
+  items: DeclaredNode.extend({format: z.string().optional()})
+    .transform((items) => ({type: declaredType(items), format: items.format}))
+    .optional(),
 }).transform((field) => ({...field, type: declaredType(field), items: field.items ?? branchItems(field)}))
 
 type Field = z.infer<typeof DeclaredField>
@@ -83,7 +87,7 @@ function concreteType(types: string[]): string | undefined {
   return types.find((type) => type !== 'null')
 }
 
-function branchItems(node: z.output<typeof DeclaredNode>): {type: string | undefined} | undefined {
+function branchItems(node: z.output<typeof DeclaredNode>): z.output<typeof BranchItems> | undefined {
   return [...node.anyOf, ...node.oneOf].find((branch) => branch.items !== undefined)?.items
 }
 
@@ -106,7 +110,8 @@ function fieldElement(entry: ToolField, positional: string | undefined): Element
 
 function wireSchema(entry: DeclaredEntry): Schema {
   const {field} = entry
-  const value = field.type === 'array' ? z.array(scalarSchema(field.items?.type, undefined)) : fieldScalar(field)
+  const value =
+    field.type === 'array' ? z.array(scalarSchema(field.items?.type, field.items?.format)) : fieldScalar(field)
   return entry.required ? value : value.optional()
 }
 

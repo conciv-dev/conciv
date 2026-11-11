@@ -326,7 +326,11 @@ describe('cli', () => {
     const frame = defineTool({
       name: 'acme_frame',
       description: 'Frame the acme page from one link or a list of links.',
-      inputSchema: z.object({link: z.union([z.url(), z.array(z.url()).min(1)])}),
+      inputSchema: z.object({
+        link: z.union([z.url(), z.array(z.url()).min(1)]),
+        image: z.union([z.string().meta({format: 'path'}), z.array(z.string().meta({format: 'path'}))]).optional(),
+        labels: z.array(z.string()).optional(),
+      }),
       outputSchema: z.object({framed: z.boolean()}),
       meta: {summary: 'frame the acme page from links', mutating: true},
     }).client()
@@ -340,38 +344,38 @@ describe('cli', () => {
       it('derives design verbs from the design tool declarations online', async () => {
         await bootCli(cleanups, {extensions: [design]})
         expect(await helpText(['tools', 'design', '--help'])).toContain(
-          'compare the live page with the current design target',
+          'Says where the page stands without measuring it',
         )
       })
 
-      it('design diff with no registered target names the tool that registers one', async () => {
+      it('design check with no registered design names the tool that registers one', async () => {
         await bootCli(cleanups, {extensions: [design]})
-        expect(await runCli(cliMain, ['tools', 'design', 'diff', '--limit', '5'])).toBe(1)
+        expect(await runCli(cliMain, ['tools', 'design', 'check'])).toBe(1)
         expect(onlyDocument(written)).toMatchObject({
           ok: false,
-          error: {message: 'no design target is registered; register the design image with design_target'},
+          error: {message: 'no design is registered; call design_get with the Figma link'},
         })
       })
 
       it('sends every repeat of an array flag to the server as one array', async () => {
-        const kit = await bootCli(cleanups, {extensions: [design]})
-        const answer = await answerNextQuery(kit, {ok: true, result: {padding: null, gap: null}})
+        const kit = await bootCli(cleanups, {extensions: [frameExtension]})
+        const answer = await answerNextQuery(kit, {ok: true, result: {framed: true}})
         expect(
           await runCli(cliMain, [
             'tools',
-            'design',
-            'winner',
-            '--selector',
-            '#a',
-            '--properties',
+            'acme',
+            'frame',
+            '--link',
+            'https://a.test/1',
+            '--labels',
             'padding',
-            '--properties',
+            '--labels',
             'gap',
           ]),
         ).toBe(0)
         expect(answer.seen()).toMatchObject({
-          name: 'design_winner',
-          input: {selector: '#a', properties: ['padding', 'gap']},
+          name: 'acme_frame',
+          input: {labels: ['padding', 'gap']},
         })
       })
 
@@ -388,7 +392,7 @@ describe('cli', () => {
       })
 
       it('resolves a relative image path against the CLI working directory', async () => {
-        await bootCli(cleanups, {extensions: [design]})
+        const kit = await bootCli(cleanups, {extensions: [frameExtension]})
         const home = process.cwd()
         const dir = mkdtempSync(join(tmpdir(), 'conciv-design-image-'))
         writeFileSync(join(dir, 'u1.png'), Buffer.from(ONE_PIXEL_PNG, 'base64'))
@@ -397,8 +401,11 @@ describe('cli', () => {
           process.chdir(home)
           rmSync(dir, {recursive: true, force: true})
         })
-        expect(await runCli(cliMain, ['tools', 'design', 'target', './u1.png', '--route', '/'])).toBe(0)
-        expect(onlyDocument(written)).toMatchObject({ok: true, data: {route: '/', width: 1, height: 1}})
+        const answer = await answerNextQuery(kit, {ok: true, result: {framed: true}})
+        expect(
+          await runCli(cliMain, ['tools', 'acme', 'frame', '--link', 'https://a.test/1', '--image', './u1.png']),
+        ).toBe(0)
+        expect(answer.seen()).toMatchObject({name: 'acme_frame', input: {image: [join(process.cwd(), 'u1.png')]}})
       })
 
       it('serves a group from an extension the CLI has never heard of', async () => {
