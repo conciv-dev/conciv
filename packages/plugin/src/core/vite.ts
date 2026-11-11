@@ -1,7 +1,7 @@
 import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
 import type {IncomingMessage, ServerResponse} from 'node:http'
-import type {ErrorPayload, Plugin, ViteDevServer} from 'vite'
+import type {ErrorPayload, InlineConfig, Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge, type BundlerDiagnostic} from '@conciv/protocol/bundler-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
@@ -173,12 +173,7 @@ async function bootEngine(
   })
 }
 
-const runningEngines = new Map<string, Engine>()
-
-function stopEngine(input: {stateRoot: string; engine: Engine}): Promise<void> {
-  if (runningEngines.get(input.stateRoot) === input.engine) runningEngines.delete(input.stateRoot)
-  return input.engine.stop()
-}
+const runningEngines = new WeakMap<InlineConfig, Engine>()
 
 function whenListening(server: ViteDevServer): Promise<void> | undefined {
   const http = server.httpServer
@@ -384,7 +379,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
       served = serveExtensions(server, options, extensions)
-      await runningEngines.get(cfg.stateRoot)?.stop()
+      await runningEngines.get(server.config.inlineConfig)?.stop()
       engine = await bootEngine(
         server,
         options,
@@ -393,11 +388,11 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         builtins.nativePageDir,
       )
       const booted = engine
-      runningEngines.set(cfg.stateRoot, booted)
+      runningEngines.set(server.config.inlineConfig, booted)
       apiBase = `http://127.0.0.1:${booted.port}`
       devServer = server
       mountWidget(server, apiBase, options.widget)
-      server.httpServer?.on('close', () => void stopEngine({stateRoot: cfg.stateRoot, engine: booted}))
+      server.httpServer?.on('close', () => void booted.stop())
     },
   }
 }
