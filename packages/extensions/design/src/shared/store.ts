@@ -18,6 +18,7 @@ export type Store = {
   sources(id: string): Promise<string[]>
   writeVotes(input: {id: string; round: number; votes: Ballot[]}): Promise<void>
   writeToolCall(input: ToolCall & {session: string; round: number | null}): Promise<void>
+  runRound(session: string): Promise<number | null>
   writeLabel(input: Label): Promise<void>
   ids(input: {id: string; round?: number}): Promise<IdTree | null>
   looks(id: string): Promise<Look[]>

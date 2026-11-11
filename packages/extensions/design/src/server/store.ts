@@ -300,6 +300,15 @@ export function createStore(input: {
         at: Date.now(),
       })
     },
+    runRound: async (session) => {
+      const run = await runs.of(session)
+      if (run === null) return null
+      const [last] = await orm
+        .select({round: max(rounds.round)})
+        .from(rounds)
+        .where(eq(rounds.run_id, run))
+      return last?.round ?? null
+    },
     ids: async ({id, round}) => {
       const found = await target(id)
       if (found === undefined) return null

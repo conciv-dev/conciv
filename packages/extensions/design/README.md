@@ -132,6 +132,8 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session_id`, `model`,
   `harness`, `agent_id`, `project_key`, `branch`, `head`, the tools head, version and fingerprint, and `wave`, `lane`
   and `arm` from `designConfig.runs`. Its targets, rounds, rows and tool calls are written there as they happen.
+- A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
+  wrote none), for the other tools the run's latest round when the call ended.
 - Each check writes a `screenshot` and a `design` artifact per measured width under `<home>/artifacts/<run>/<target>/`,
   with the lifetimes of `designConfig.runs.lifetimes`.
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,

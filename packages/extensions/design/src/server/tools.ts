@@ -35,7 +35,9 @@ const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: fro
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
-const RoundOf = z.object({round: z.number()})
+const WrittenSchema = z.object({round: z.number(), unchanged: z.literal(true).optional()})
+
+const VariantsSchema = z.object({variants: z.array(z.unknown())})
 
 const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
@@ -92,6 +94,7 @@ export const SERVER_STEPS = [
       tool: getDef.name,
       input,
       session: request.sessionId,
+      round: () => ctx.design.store.runRound(request.sessionId),
       call: async () => {
         await ctx.design.runs.open(request)
         return withCatalog({reply: await ctx.differ.get({input, session: request.sessionId, page}), ctx})
@@ -104,6 +107,7 @@ export const SERVER_STEPS = [
       tool: checkDef.name,
       input,
       session: request.sessionId,
+      round: async (reply) => writtenRound(reply),
       call: async () => {
         await ctx.design.runs.open(request)
         return ctx.differ.check({nodes: input.nodes, session: request.sessionId})
@@ -116,6 +120,7 @@ export const SERVER_STEPS = [
       tool: statusDef.name,
       input,
       session: request.sessionId,
+      round: () => ctx.design.store.runRound(request.sessionId),
       call: () => ctx.differ.status({session: request.sessionId}),
     }),
   ),
@@ -125,6 +130,7 @@ export const SERVER_STEPS = [
       tool: componentsDef.name,
       input,
       session: request.sessionId,
+      round: () => ctx.design.store.runRound(request.sessionId),
       call: () => listed({input, ctx, session: request.sessionId}),
     }),
   ),
@@ -253,6 +259,7 @@ async function recorded<Reply extends ToolReply>(input: {
   tool: string
   input: unknown
   session: string
+  round: (reply: Reply | null) => Promise<number | null>
   call: () => Promise<Reply>
 }): Promise<Reply> {
   const {ctx, tool, session} = input
@@ -266,16 +273,29 @@ async function recorded<Reply extends ToolReply>(input: {
     ctx.design.store.writeToolCall({session, tool, input: input.input, durationMs: Date.now() - started, ...outcome})
   try {
     const reply = await input.call()
-    const round = RoundOf.safeParse(reply).data?.round ?? null
-    await write({reply, replyBytes: Buffer.byteLength(JSON.stringify(reply)), error: null, round})
+    await write({
+      reply,
+      replyBytes: Buffer.byteLength(JSON.stringify(reply)),
+      error: null,
+      round: await input.round(reply),
+    })
     return reply
   } catch (error) {
     await write({
       reply: null,
       replyBytes: null,
       error: error instanceof Error ? error.message : String(error),
-      round: null,
+      round: await input.round(null),
     })
     throw error
   }
+}
+
+function writtenRound(reply: unknown): number | null {
+  const each = VariantsSchema.safeParse(reply).data?.variants ?? [reply]
+  const rounds = each.flatMap((one) => {
+    const written = WrittenSchema.safeParse(one).data
+    return written === undefined || written.unchanged === true ? [] : [written.round]
+  })
+  return rounds.length === 0 ? null : Math.max(...rounds)
 }

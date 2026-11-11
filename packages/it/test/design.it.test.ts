@@ -2128,6 +2128,46 @@ describe('a run closes with its engine', () => {
   })
 })
 
+describe('the tool calls of a run', () => {
+  it('records the round a check at every width wrote, none for a check that wrote none, and the run round at get and status', async () => {
+    const homeDir = await tempDir('conciv-design-call-rounds-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', {...(await framePerWidth()), route: BUILT_ROUTE})
+      await engine.call('design_check', {})
+      await engine.call('design_check', {})
+      await engine.call('design_status', {})
+    } finally {
+      await engine.dispose()
+    }
+    const [run] = await homeQuery({
+      home: homeDir,
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+    })
+    const calls = await homeQuery({
+      home: homeDir,
+      args: [
+        '--from',
+        'design_stored_tool_calls',
+        '--where',
+        `run == ${String(run?.run)}`,
+        '--select',
+        'tool,round',
+        '--order',
+        'seq',
+      ],
+    })
+    expect(calls).toEqual([
+      {tool: 'design_get', round: null},
+      {tool: 'design_check', round: null},
+      {tool: 'design_check', round: 1},
+      {tool: 'design_status', round: 1},
+    ])
+  })
+})
+
 describe('run_summary of a run that never checked', () => {
   it('lists the run with its status and end, and no round, verdict or rows', async () => {
     const homeDir = await tempDir('conciv-design-unchecked-home-')
