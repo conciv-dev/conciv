@@ -275,11 +275,8 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             name: tool.name,
             description: tool.description,
             inputSchema: capability.inputSchema,
-            run: async (input, parentToolCallId, signal) => {
-              const refusal = await admitCall(sessionId, {toolName: tool.name, input, publish})
-              if (refusal !== null) throw new Error(refusal.message)
-              return execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal})
-            },
+            run: async (input, parentToolCallId, signal) =>
+              execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal}),
           },
         ]
       })

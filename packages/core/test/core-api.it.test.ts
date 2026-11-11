@@ -4743,6 +4743,37 @@ describe('outside agent consent', () => {
     expect(await pendingOf(base, first)).toEqual([])
   })
 
+  it('an outside agent runs an asking tool with no Approve card, while the agent inside the tab is still asked', async () => {
+    const base = await boot('open')
+    const sessionId = await newSession(base)
+    const restart = {name: 'server_restart', input: {}}
+    const overMcp = async (headers: Record<string, string>) => {
+      const mcp = await connectMcpClient(`${base}/api/mcp`, headers)
+      try {
+        const tool = (await mcp.tools()).find((entry) => entry.name === restart.name)
+        return String(await tool?.execute(restart.input).then(JSON.stringify, String))
+      } finally {
+        await mcp.close()
+      }
+    }
+    const outsideCalls = [
+      await makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId, ...HUB}})
+        .registry.call(restart)
+        .then(String, String),
+      await overMcp({[CONCIV_SESSION_HEADER]: sessionId, ...HUB}),
+      await overMcp({[CONCIV_CLAUDE_SESSION_HEADER]: 'plugin-bridge-native'}),
+    ]
+    const ran = expect.stringMatching(/no dev server is attached to conciv/)
+    expect(outsideCalls).toEqual([ran, ran, ran])
+    expect(await pendingOf(base, sessionId)).toEqual([])
+    const insideCalls = [
+      await rpcOf(base, sessionId).registry.call(restart).then(String, String),
+      await overMcp({[CONCIV_SESSION_HEADER]: sessionId}),
+    ]
+    expect(insideCalls).toEqual([expect.stringMatching(/needs the user/), expect.stringMatching(/needs the user/)])
+    expect((await pendingOf(base, sessionId)).map((ask) => ask.toolName)).toEqual([restart.name])
+  })
+
   it('open policy never asks, and hub calls are marked in the transcript', async () => {
     const base = await boot('open')
     const sessionId = await newSession(base)

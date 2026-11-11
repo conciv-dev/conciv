@@ -664,6 +664,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harnessId: harness.id,
       mcp: {
         codeRunner: (sessionId, publish, capabilities) => plane.codeRunner(sessionId, publish, capabilities),
+        admitCall: (sessionId, call) => plane.admitCall(sessionId, call),
         outsideCapabilities: (sessionId) =>
           outsideRunCapabilities([
             ...registryCapabilities(registry.whenPageConnected(() => true).sandboxTools(), scopedToolCall),
