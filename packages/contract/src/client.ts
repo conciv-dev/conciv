@@ -14,7 +14,7 @@ import {
 
 export type RpcClient = ContractRouterClient<typeof contract, RpcClientContext>
 
-export type RpcClientOptions = {headers?: Record<string, string>; validated?: boolean}
+export type RpcClientOptions = {headers?: Record<string, string>}
 
 export function abortableFetch(
   request: Request,
@@ -29,7 +29,7 @@ export function makeRpcClient(apiBase: string, options: RpcClientOptions = {}): 
     url: `${apiBase}/rpc`,
     fetch: abortableFetch,
     headers: {...options.headers, [CONCIV_VERSION_HEADER]: contractManifest.version},
-    plugins: options.validated === true ? [new ResponseValidationPlugin(contract)] : [],
+    plugins: [new ResponseValidationPlugin(contract)],
   })
   return createORPCClient(link)
 }

@@ -21,19 +21,19 @@ import {describe, it, expect, afterEach, onTestFinished, test, vi} from 'vitest'
 import {makeTextAdapter} from '@conciv/ai/server'
 import {createToolCallChunks, fakeText} from '@conciv/ai/testkit'
 import {
-  cappedValue,
   createChatPlane,
   registryCapabilities,
-  safeStringify,
   type ChatPlane,
   type CodeCapability,
   type SessionPort,
 } from '@conciv/chat'
 import {
   browserRpcConnection,
+  cappedValue,
   heldBrowserRpcLink,
   makeBrowserRpcClient,
   makeRpcClient,
+  safeStringify,
   subscribeRpcReachability,
   SOCKET_TRUST_FRAME,
   type EngineStaleness,

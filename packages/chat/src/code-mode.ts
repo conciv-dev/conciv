@@ -1,17 +1,9 @@
 import {z} from 'zod'
-import {imagesIn, withoutImages} from '@conciv/protocol/chat-message-types'
+import {cappedValue} from '@conciv/contract'
 import {defineTool, type ChatTool} from '@conciv/protocol/chat-tool-types'
 import type {ToolRequest} from '@conciv/extension'
 import {type SandboxTool} from '@conciv/extension/registry'
 import type {ConcivServerTool} from '@conciv/tools'
-
-export const RESULT_CAP_CHARS = 50_000
-
-const TRUNCATION_HEAD_CHARS = 4_000
-
-const TRUNCATION_MARKER = 'conciv:truncated'
-
-const TRUNCATION_ADVICE = 'narrow the request or aggregate inside the sandbox and return less data'
 
 export type CodeCapability = {
   name: string
@@ -53,65 +45,6 @@ export function assistCapabilities(tools: ConcivServerTool[]): CodeCapability[] 
     inputSchema: tool.inputSchema,
     execute: (input) => tool.execute(input),
   }))
-}
-
-type StringifyAttempt = {body: string} | {failure: string}
-
-function attemptStringify(value: unknown): StringifyAttempt {
-  try {
-    return {body: JSON.stringify(value) ?? 'null'}
-  } catch (error) {
-    return {failure: String(error)}
-  }
-}
-
-function serializationFailure(reason: string): Record<string, unknown> {
-  return {error: 'value could not be serialized', reason}
-}
-
-export function safeStringify(value: unknown): string {
-  const attempt = attemptStringify(value)
-  if ('body' in attempt) return attempt.body
-  return JSON.stringify(serializationFailure(attempt.failure))
-}
-
-function wellFormedSlice(text: string, length: number): string {
-  const sliced = text.slice(0, length)
-  const last = sliced.charCodeAt(sliced.length - 1)
-  if (last >= 0xd800 && last <= 0xdbff) return sliced.slice(0, -1)
-  return sliced
-}
-
-function truncationPayload(reason: string, headSource: string): Record<string, unknown> {
-  return {
-    [TRUNCATION_MARKER]: true,
-    truncated: true,
-    reason,
-    advice: TRUNCATION_ADVICE,
-    head: wellFormedSlice(headSource, TRUNCATION_HEAD_CHARS),
-  }
-}
-
-export function truncationEnvelope(reason: string, headSource: string): string {
-  return JSON.stringify(truncationPayload(reason, headSource))
-}
-
-function oversizeReason(length: number): string {
-  return `the serialized result is ${length} characters and the cap is ${RESULT_CAP_CHARS}`
-}
-
-export function cappedText(body: string): string {
-  if (body.length <= RESULT_CAP_CHARS) return body
-  return truncationEnvelope(oversizeReason(body.length), body)
-}
-
-export function cappedValue(value: unknown): unknown {
-  const attempt = attemptStringify(value)
-  if ('failure' in attempt) return serializationFailure(attempt.failure)
-  const body = safeStringify(withoutImages(value))
-  if (body.length <= RESULT_CAP_CHARS) return value
-  const images = imagesIn(value)
-  return {...truncationPayload(oversizeReason(body.length), body), ...(images.length === 0 ? {} : {images})}
 }
 
 function declaredCodeOf(error: unknown): string | null {

@@ -80,10 +80,5 @@ async function tabOwner(live: EngineRow[], tab: SessionId): Promise<string> {
 }
 
 async function holdsTab(row: EngineRow, tab: SessionId): Promise<boolean> {
-  return (
-    await makeRpcClient(row.apiBase, {validated: true}).tabs.get(
-      {sessionId: tab},
-      {signal: AbortSignal.timeout(PROBE_MS)},
-    )
-  ).open
+  return (await makeRpcClient(row.apiBase).tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})).open
 }

@@ -6,7 +6,7 @@ import type {UpgradeWebSocket} from '@conciv/extension/rpc-mount'
 import {approvalRequestedEvent, ChatEventType, sessionRunEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {approvalNeeded, childCardChunks, createChatServer, drizzleChatStores, toolApprovalId} from '@conciv/ai/server'
-import type {ChatHistoryWindow, ChatHydration} from '@conciv/contract'
+import {cappedValue, type ChatHistoryWindow, type ChatHydration} from '@conciv/contract'
 import {chatRuns, markers, type ConcivDb} from '@conciv/db'
 import {CHAT_SSE_PATH, CHAT_WS_PATH, isSessionId, SessionId, type HubAccess} from '@conciv/protocol/chat-types'
 import {concivStateDir} from '@conciv/protocol/state-types'
@@ -18,21 +18,12 @@ import {
   type ApprovalDecision,
   type ApprovalScope,
 } from './approvals.js'
-import {cappedValue, chatToolSet, type CodeCapability} from './code-mode.js'
+import {chatToolSet, type CodeCapability} from './code-mode.js'
 import {clearThread, metadataKeysEndingWith, runningThreadIds} from './stores.js'
 import {createTranscriptImporter, messageHarnesses, normalizedMessages, toolNameNormalizer} from './transcript.js'
 import {firstUserTitle, turnHooks, type TurnDeps} from './turn.js'
 
-export {
-  assistCapabilities,
-  cappedText,
-  cappedValue,
-  RESULT_CAP_CHARS,
-  registryCapabilities,
-  safeStringify,
-  truncationEnvelope,
-  type CodeCapability,
-} from './code-mode.js'
+export {assistCapabilities, registryCapabilities, type CodeCapability} from './code-mode.js'
 export type {AttachmentExpanders, SessionPort} from './turn.js'
 
 const FIRST_OUTPUT_TIMEOUT_MS = 30_000

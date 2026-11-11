@@ -17,6 +17,7 @@ import {
 import type {SessionId} from '@conciv/protocol/chat-types'
 import {ChatEventType, pageQueueEvent, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {generateMessageId} from '@conciv/protocol/chat-message-types'
+import {queueNotice} from '@conciv/contract'
 import type {Journal, PageBus} from './page-bus.js'
 import {logError} from '../lib/debug.js'
 
@@ -57,10 +58,6 @@ export type PageQueues = {
 const KEPT_QUEUES = 200
 
 const OWED_QUEUES = 1000
-
-export function queueNotice(result: PageQueueResult): string {
-  return `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`
-}
 
 function playedOutcome(index: number, tool: string, outcome: PageOutcome): Settled {
   if (outcome.ok) return {outcome: {index, tool, ok: true, result: outcome.result}, landed: 'played'}

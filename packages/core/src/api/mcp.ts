@@ -1,15 +1,19 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {defineTool} from '@conciv/protocol/chat-tool-types'
-import {
-  imageBlocks,
-  imagesIn,
-  isContentParts,
-  withoutImages,
-  type ContentPart,
-} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
-import type {CodeDescriptions, CodeExecuteResult, EngineStaleness} from '@conciv/contract'
+import {
+  cappedText,
+  cappedValue,
+  codeExecuteReply,
+  queueNotice,
+  safeStringify,
+  type CodeDescriptions,
+  type CodeExecuteResult,
+  type CodeReply,
+  type CodeReplyContent,
+  type EngineStaleness,
+} from '@conciv/contract'
 import {HTTPException} from 'hono/http-exception'
 import {
   CONCIV_CLAUDE_SESSION_HEADER,
@@ -22,21 +26,11 @@ import {
 import type {SessionScope} from '../runtime/scope-types.js'
 import {logError} from '../lib/debug.js'
 import corePackage from '../../package.json' with {type: 'json'}
-import {
-  cappedText,
-  cappedValue,
-  RESULT_CAP_CHARS,
-  safeStringify,
-  truncationEnvelope,
-  type CodeCapability,
-  type CodeRunner,
-  type CodeTool,
-} from '@conciv/chat'
+import type {CodeCapability, CodeRunner, CodeTool} from '@conciv/chat'
 import {createMCPServer} from '@conciv/ai/server'
 import {loopbackHostAllowlist} from '../lib/cors.js'
 import {callTrace} from './call-trace.js'
 import {EXECUTE_TOOL_NAME, ExecuteInputSchema, ExecuteResultSchema, type ExecuteResult} from './execute-schemas.js'
-import {queueNotice} from '../page/page-queue.js'
 import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
 
 export function sessionIdFromHeaders(headers: Headers): SessionId | null {
@@ -53,20 +47,7 @@ export function nativeIdFromHeaders(headers: Headers): HarnessSessionId | null {
   return raw
 }
 
-type TextContent = {type: 'text'; text: string}
-type ImageContent = {type: 'image'; data: string; mimeType: string}
-
-type ExecuteReply = {content: (TextContent | ImageContent)[]; isError?: boolean}
-
 type CodeExecuteError = Extract<CodeExecuteResult, {ok: false}>['error']
-
-function partToContent(part: ContentPart): TextContent | ImageContent {
-  if (part.type === 'text') return {type: 'text', text: part.content}
-  if (part.type === 'image') {
-    return {type: 'image', data: part.source.value, mimeType: part.source.mimeType ?? 'application/octet-stream'}
-  }
-  return {type: 'text', text: safeStringify(part)}
-}
 
 const DISCOVER_TOOL_NAME = 'discover_tools'
 
@@ -175,55 +156,6 @@ function executeError(result: ExecuteResult, declaredCodes: ReadonlySet<string>)
   }
 }
 
-function errorReply(result: ExecuteResult, declaredCodes: ReadonlySet<string>): ExecuteReply {
-  const payload = {
-    error: executeError(result, declaredCodes),
-    ...(result.logs === undefined || result.logs.length === 0 ? {} : {logs: result.logs}),
-  }
-  return {content: [{type: 'text', text: cappedText(safeStringify(payload))}], isError: true}
-}
-
-function cappedParts(parts: (TextContent | ImageContent)[]): (TextContent | ImageContent)[] {
-  const totalTextChars = parts.reduce((total, part) => (part.type === 'text' ? total + part.text.length : total), 0)
-  if (totalTextChars <= RESULT_CAP_CHARS) return parts
-  const kept: (TextContent | ImageContent)[] = []
-  const dropped: string[] = []
-  let budget = RESULT_CAP_CHARS
-  for (const part of parts) {
-    if (part.type !== 'text') {
-      kept.push(part)
-      continue
-    }
-    if (dropped.length === 0 && part.text.length <= budget) {
-      budget -= part.text.length
-      kept.push(part)
-      continue
-    }
-    dropped.push(part.text)
-  }
-  kept.push({
-    type: 'text',
-    text: truncationEnvelope(
-      `the content parts carry ${totalTextChars} characters of text and the cap is ${RESULT_CAP_CHARS}`,
-      dropped[0] ?? '',
-    ),
-  })
-  return kept
-}
-
-function logsPart(logs: string[]): TextContent[] {
-  if (logs.length === 0) return []
-  return [{type: 'text', text: cappedText(safeStringify({logs}))}]
-}
-
-function successReply(result: ExecuteResult): ExecuteReply {
-  if (isContentParts(result.result)) {
-    return {content: cappedParts([...result.result.map(partToContent), ...logsPart(result.logs ?? [])])}
-  }
-  const body = safeStringify({result: withoutImages(result.result ?? null), logs: result.logs ?? []})
-  return {content: [{type: 'text', text: cappedText(body)}, ...imageBlocks(imagesIn(result.result))]}
-}
-
 type PublishChunks = (chunks: readonly ChatEvent[]) => void
 
 type CallTrace = ReturnType<typeof callTrace>
@@ -236,18 +168,20 @@ type CallPublisher = {
   signal: AbortSignal
 }
 
-function replyText(reply: ExecuteReply): string {
+function replyText(reply: CodeReply): string {
   return reply.content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n')
 }
 
-async function publishResult(calls: CallPublisher, reply: ExecuteReply): Promise<void> {
+async function publishResult(calls: CallPublisher, reply: CodeReply): Promise<void> {
   calls.publish(calls.trace.result(calls.run, replyText(reply), reply.isError === true))
   await calls.settle()
 }
 
-type Executed = {result: ExecuteResult; reply: ExecuteReply}
-
-async function runExecute(runner: CodeRunner, typescriptCode: string, calls: CallPublisher): Promise<Executed> {
+async function runExecute(
+  runner: CodeRunner,
+  typescriptCode: string,
+  calls: CallPublisher,
+): Promise<CodeExecuteResult> {
   calls.publish(calls.trace.start(calls.run, EXECUTE_TOOL_NAME, {typescriptCode}))
   const raw = await runner
     .run(typescriptCode, calls.trace.callId, calls.signal)
@@ -256,14 +190,14 @@ async function runExecute(runner: CodeRunner, typescriptCode: string, calls: Cal
   const result = parsed.success
     ? parsed.data
     : {success: false, error: {message: 'the sandbox returned an unreadable result'}}
-  const reply = result.success ? successReply(result) : errorReply(result, runner.declaredCodes)
-  await publishResult(calls, reply)
-  return {result, reply}
+  const typed = typedResult(result, runner.declaredCodes, {queued: [], finished: []})
+  await publishResult(calls, codeExecuteReply(typed))
+  return typed
 }
 
-async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<ExecuteReply> {
+async function runDirect(tool: CodeTool, input: unknown, calls: CallPublisher): Promise<CodeReply> {
   calls.publish(calls.trace.start(calls.run, tool.name, input))
-  const reply: ExecuteReply = await tool.run(input, calls.trace.callId, calls.signal).then(
+  const reply: CodeReply = await tool.run(input, calls.trace.callId, calls.signal).then(
     (value) => ({content: [{type: 'text', text: cappedText(safeStringify(value))}]}),
     (error: unknown) => ({
       content: [{type: 'text', text: cappedText(safeStringify({error: {message: String(error)}}))}],
@@ -292,8 +226,8 @@ type McpDeps = {
 
 export type McpVars = {mcp: McpDeps}
 
-function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => Promise<ExecuteReply>) {
-  return async (args: Args): Promise<ExecuteReply> => {
+function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => Promise<CodeReply>) {
+  return async (args: Args): Promise<CodeReply> => {
     const refusal = await admit()
     if (refusal === null) return run(args)
     return {content: [{type: 'text', text: refusal}], isError: true}
@@ -302,20 +236,20 @@ function gated<Args>(admit: () => Promise<string | null>, run: (args: Args) => P
 
 type CodeCaller = {trace: CallTrace; outside: boolean; signal: AbortSignal}
 
-function withFinishedQueues(reply: ExecuteReply, finished: readonly PageQueueResult[]): ExecuteReply {
+function withFinishedQueues(reply: CodeReply, finished: readonly PageQueueResult[]): CodeReply {
   if (finished.length === 0) return reply
-  const notices = finished.map((result): TextContent => ({type: 'text', text: cappedText(queueNotice(result))}))
+  const notices = finished.map((result): CodeReplyContent => ({type: 'text', text: cappedText(queueNotice(result))}))
   return {...reply, content: [...notices, ...reply.content]}
 }
 
-type CodeRun = {result: CodeExecuteResult; reply: ExecuteReply}
+type CodeRun = {result: CodeExecuteResult; reply: CodeReply}
 
 export type CodeSession = {
   runner: CodeRunner
   describe: () => CodeDescriptions
   execute: (typescriptCode: string) => Promise<CodeRun>
   discover: (toolNames: string[]) => Promise<unknown>
-  direct: (tool: CodeTool, input: unknown) => Promise<ExecuteReply>
+  direct: (tool: CodeTool, input: unknown) => Promise<CodeReply>
 }
 
 export async function openCodeSession(
@@ -356,11 +290,12 @@ export async function openCodeSession(
       const started = deps.startedQueues(scope.id, childCalls)
       const delivered = finished()
       const finishedIds = new Set(delivered.map((result) => result.queueId))
-      const delivery = {queued: started.filter((handle) => !finishedIds.has(handle.queueId)), finished: delivered}
-      return {
-        result: typedResult(executed.result, runner.declaredCodes, delivery),
-        reply: withFinishedQueues(executed.reply, delivery.finished),
+      const result = {
+        ...executed,
+        queued: started.filter((handle) => !finishedIds.has(handle.queueId)),
+        finished: delivered,
       }
+      return {result, reply: codeExecuteReply(result)}
     },
     discover: async (toolNames) => {
       if (runner.discover === null) throw new Error('no tools to discover')
@@ -373,9 +308,16 @@ export async function openCodeSession(
 type Delivery = Pick<CodeExecuteResult, 'queued' | 'finished'>
 
 function typedResult(result: ExecuteResult, declaredCodes: ReadonlySet<string>, delivery: Delivery): CodeExecuteResult {
-  const logs = result.logs ?? []
+  const logs = cappedLogs(result.logs ?? [])
   if (result.success) return {ok: true, result: cappedValue(result.result), logs, ...delivery}
-  return {ok: false, error: executeError(result, declaredCodes), logs, ...delivery}
+  const error = executeError(result, declaredCodes)
+  return {ok: false, error: {...error, message: cappedText(error.message)}, logs, ...delivery}
+}
+
+function cappedLogs(logs: string[]): string[] {
+  const body = safeStringify(logs)
+  const capped = cappedText(body)
+  return capped === body ? logs : [capped]
 }
 
 async function sessionTools(deps: McpDeps, scope: SessionScope, caller: CodeCaller) {

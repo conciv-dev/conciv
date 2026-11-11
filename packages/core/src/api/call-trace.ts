@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {generateMessageId, type OutsideCallMetadataSchema} from '@conciv/protocol/chat-message-types'
 import {ChatEventType, type ChatEvent} from '@conciv/protocol/chat-event-types'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER} from '@conciv/protocol/chat-types'
-import {safeStringify} from '@conciv/chat'
+import {safeStringify} from '@conciv/contract'
 import {logError} from '../lib/debug.js'
 
 const HubOriginSchema = z.object({

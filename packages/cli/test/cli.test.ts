@@ -2016,6 +2016,23 @@ describe('cli', () => {
         }
       })
 
+      it('megabytes of logs or of an error message reach the agent capped through the hub', async () => {
+        const {home, engine} = await queueTab()
+        const client = await hub(home)
+        try {
+          const onTab = async (typescriptCode: string) =>
+            JSON.stringify(await client.callTool('execute_typescript', {typescriptCode, tab: engine.sessionId}))
+          const logged = await onTab('for (let line = 0; line < 4000; line++) console.log("x".repeat(100)); return 1')
+          const thrown = await onTab('throw new Error("y".repeat(200000))')
+          expect([logged.length < 60_000, thrown.length < 60_000]).toEqual([true, true])
+          expect(logged).toContain('conciv:truncated')
+          expect(thrown).toContain('conciv:truncated')
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
       async function engineBeforeOrpcTabs(home: string) {
         const id = 'engine-before-orpc-tabs'
         const root = mkdtempSync(join(tmpdir(), 'conciv-before-orpc-'))

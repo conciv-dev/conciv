@@ -42,7 +42,7 @@ export function createOutsideTabs(given: string | undefined) {
 async function engineTabs(row: EngineRow): Promise<EngineListing> {
   try {
     return {
-      tabs: await makeRpcClient(row.apiBase, {validated: true}).tabs.list(undefined, {
+      tabs: await makeRpcClient(row.apiBase).tabs.list(undefined, {
         signal: AbortSignal.timeout(LISTING_MS),
       }),
     }

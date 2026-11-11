@@ -24,8 +24,7 @@ import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
 import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
-import {cappedValue} from '@conciv/chat'
-import {abortableFetch, type EngineStaleness} from '@conciv/contract'
+import {abortableFetch, cappedValue, type EngineStaleness} from '@conciv/contract'
 import {
   defineExtension,
   defineTool,

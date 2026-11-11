@@ -7,20 +7,16 @@ import {createMCPServer, type McpServer} from '@tanstack/ai-mcp/server'
 import {serveMCPStdio} from '@tanstack/ai-mcp/server/stdio'
 import {checkEngines, concivHome, type EngineRow} from '@conciv/db'
 import {
+  cappedText,
+  codeExecuteReply,
   engineTooOld,
   makeRpcClient,
+  queueNotice,
   type CodeDescriptions,
-  type CodeExecuteResult,
+  type CodeReply,
   type RpcClient,
 } from '@conciv/contract'
 import {CONCIV_CLIENT_HEADER, CONCIV_ORIGIN_HEADER, SessionId, type TabOpen} from '@conciv/protocol/chat-types'
-import {
-  imageBlocks,
-  imagesIn,
-  isContentParts,
-  withoutImages,
-  type ContentPart,
-} from '@conciv/protocol/chat-message-types'
 import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {HubAgentSchema} from './hub-agent.js'
@@ -78,9 +74,7 @@ const FALLBACK_DESCRIPTIONS = {
 
 type ToolName = keyof typeof FALLBACK_DESCRIPTIONS
 
-type Content = {type: 'text'; text: string} | {type: 'image'; data: string; mimeType: string}
-
-type Reply = {content: Content[]; isError?: true}
+type Reply = CodeReply
 
 type Runner = {root: string; rpc: RpcClient; described: CodeDescriptions | null}
 
@@ -97,7 +91,7 @@ type PolledQueue = PageQueueResult | PageQueueProgress | GoneQueue
 type EngineCall<Value> = (rpc: RpcClient, signal: AbortSignal | undefined) => Promise<Value>
 
 type TaskReply = {
-  content: Content[]
+  content: Reply['content']
   resultType: 'task'
   taskId: string
   status: 'working'
@@ -218,7 +212,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     const executed = await routed(
       tab,
       (rpc, aborted) => rpc.code.execute({...sessionOf(tab), typescriptCode}, {signal: aborted}),
-      executeReply,
+      codeExecuteReply,
       signal,
     )
     const queued = executed.value?.queued ?? []
@@ -267,7 +261,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       }
     }
     queueTasks.delete(taskId)
-    const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNotice(state)))
+    const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNoticePart(state)))
     const lastUpdatedAt = new Date().toISOString()
     if (settled.every((state) => state.status !== 'gone')) {
       const result = {...task.reply, content: [...task.reply.content, ...notices]}
@@ -346,19 +340,19 @@ async function pickRunner(home: string, headers: Record<string, string>): Promis
 async function firstUsable(rows: EngineRow[], headers: Record<string, string>, tooOld: string[]): Promise<Runner> {
   const [row, ...rest] = rows
   if (row === undefined) throw new Error(`no conciv dev server this hub can use is running: ${tooOld.join('; ')}`)
-  const probed = await runnerAt(row, headers)
-  if ('runner' in probed) return probed.runner
-  return firstUsable(rest, headers, [...tooOld, `${probed.tooOld} (${TOO_OLD})`])
+  const runner = await runnerAt(row, headers)
+  if (runner !== null) return runner
+  return firstUsable(rest, headers, [...tooOld, `${row.root} (${TOO_OLD})`])
 }
 
-async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<{runner: Runner} | {tooOld: string}> {
-  const rpc = makeRpcClient(row.apiBase, {headers, validated: true})
+async function runnerAt(row: EngineRow, headers: Record<string, string>): Promise<Runner | null> {
+  const rpc = makeRpcClient(row.apiBase, {headers})
   return rpc.code.describe().then(
-    (described) => ({runner: {root: row.root, rpc, described}}),
+    (described) => ({root: row.root, rpc, described}),
     (error: unknown) => {
-      if (engineTooOld(error)) return {tooOld: row.root}
+      if (engineTooOld(error)) return null
       logHub(`reading the tool descriptions of the conciv engine at ${row.root} failed; using the built-in text`, error)
-      return {runner: {root: row.root, rpc, described: null}}
+      return {root: row.root, rpc, described: null}
     },
   )
 }
@@ -387,7 +381,7 @@ async function findOwner(home: string, tab: SessionId, headers: Record<string, s
     root: only.row.root,
     apiBase: only.row.apiBase,
     instructions: only.answer.instructions,
-    rpc: makeRpcClient(only.row.apiBase, {headers, validated: true}),
+    rpc: makeRpcClient(only.row.apiBase, {headers}),
   }
 }
 
@@ -406,7 +400,7 @@ function liveEngines(home: string): ReturnType<typeof checkEngines> {
 }
 
 async function tabAnswer(engine: Pick<EngineRow, 'root' | 'apiBase'>, tab: SessionId): Promise<TabOpen> {
-  return makeRpcClient(engine.apiBase, {validated: true})
+  return makeRpcClient(engine.apiBase)
     .tabs.get({sessionId: tab}, {signal: AbortSignal.timeout(PROBE_MS)})
     .catch((error: unknown) => {
       throw new Error(`${engine.root} (${engineTooOld(error) ? TOO_OLD : errorText(error)})`, {cause: error})
@@ -434,40 +428,8 @@ function sessionOf(tab: SessionId | undefined): {sessionId?: SessionId} {
   return tab === undefined ? {} : {sessionId: tab}
 }
 
-function executeReply(executed: CodeExecuteResult): Reply {
-  const notices = executed.finished.map(queueNotice)
-  if (!executed.ok) {
-    const logs = executed.logs.length === 0 ? {} : {logs: executed.logs}
-    return {
-      content: [...notices, {type: 'text', text: JSON.stringify({error: executed.error, ...logs})}],
-      isError: true,
-    }
-  }
-  return {content: [...notices, ...resultContent(executed.result, executed.logs)]}
-}
-
-function resultContent(result: unknown, logs: string[]): Content[] {
-  if (!isContentParts(result)) {
-    const body = JSON.stringify({result: withoutImages(result ?? null), logs})
-    return [{type: 'text', text: body}, ...imageBlocks(imagesIn(result))]
-  }
-  const logged: Content[] = logs.length === 0 ? [] : [{type: 'text', text: JSON.stringify({logs})}]
-  return [...result.map(partContent), ...logged]
-}
-
-function partContent(part: ContentPart): Content {
-  if (part.type === 'text') return {type: 'text', text: part.content}
-  if (part.type === 'image') {
-    return {type: 'image', data: part.source.value, mimeType: part.source.mimeType ?? 'application/octet-stream'}
-  }
-  return {type: 'text', text: JSON.stringify(part)}
-}
-
-function queueNotice(result: PageQueueResult): {type: 'text'; text: string} {
-  return {
-    type: 'text',
-    text: `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`,
-  }
+function queueNoticePart(result: PageQueueResult): {type: 'text'; text: string} {
+  return {type: 'text', text: cappedText(queueNotice(result))}
 }
 
 async function pollQueue(
@@ -502,7 +464,7 @@ function answerText(root: string, error: unknown): string {
 async function withTaskName(request: Request): Promise<Request> {
   if (!request.headers.get('mcp-method')?.startsWith('tasks/') || request.headers.has('mcp-name')) return request
   const body = await request.text()
-  const message: unknown = await new Response(body).json().catch(() => null)
+  const message: unknown = JSON.parse(body)
   const taskId = TaskRequestSchema.safeParse(message).data?.params.taskId
   const headers = new Headers(request.headers)
   if (taskId !== undefined) headers.set('mcp-name', taskId)
