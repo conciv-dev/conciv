@@ -2,6 +2,7 @@ import {defineConfig} from 'tsdown'
 
 export default defineConfig({
   entry: [
+    'src/index.ts',
     'src/server.ts',
     'src/shared/defs.ts',
     'src/server/provenance/mappers.ts',

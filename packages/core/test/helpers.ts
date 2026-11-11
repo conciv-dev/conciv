@@ -104,7 +104,6 @@ export function bootMadeApp(env: BootEnv, overrides: BootOverrides = {}): Promis
     sessionId: undefined,
     harnessSessionId: undefined,
     systemPrompt: '',
-    extensions: undefined,
     hubAccess: 'session',
   }
   return makeApp({

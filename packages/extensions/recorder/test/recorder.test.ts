@@ -681,6 +681,20 @@ describe('content blocker', () => {
       )
       await expectLocator(page.getByRole('button', {name: 'Reload page'})).toBeVisible()
       await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toHaveCount(0)
+      await page.unrouteAll()
+    }, 120_000)
+  })
+
+  describe('only the replay player blocked by a content blocker (real browser)', () => {
+    it('keeps recording and its actions and explains the paused replay', async () => {
+      const page = api().page
+      await page.route(/rrweb-player/, (route) => route.abort('blockedbyclient'))
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.getByRole('tab', {name: 'Recorder'}).click()
+      await expectLocator(page.getByText('Replay is paused by your content blocker.')).toBeVisible({timeout: 30_000})
+      await expectLocator(page.getByRole('button', {name: 'Send to agent'})).toBeVisible()
+      await expectLocator(page.getByText('Recording is paused by your content blocker')).toBeHidden()
+      await page.unrouteAll()
     }, 120_000)
   })
 })

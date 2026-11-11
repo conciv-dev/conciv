@@ -66,7 +66,6 @@ export async function bootCoreKit(opts: {
         sessionId: undefined,
         harnessSessionId: undefined,
         systemPrompt: '',
-        extensions: undefined,
         hubAccess: 'session',
       },
       cwd: env.cwd,

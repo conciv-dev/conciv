@@ -4,6 +4,11 @@ import {tanstackStart} from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import conciv from '@conciv/it/plugin/vite'
+import design from '@conciv/extension-design'
+import recorder from '@conciv/extension-recorder'
+import terminal from '@conciv/extension-terminal'
+import testRunner from '@conciv/extension-test-runner'
+import whiteboard from '@conciv/extension-whiteboard'
 
 const withNitro = process.env.CONCIV_NITRO === '1'
 
@@ -18,7 +23,10 @@ export default defineConfig(async () => {
       tailwindcss(),
       tanstackStart(),
       viteReact(),
-      conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
+      conciv({
+        widget: {quickTerminal: {hotkey: 'Alt+k'}},
+        extensions: [terminal(), testRunner(), whiteboard(), recorder(), design()],
+      }),
     ],
   }
 })

@@ -16,11 +16,11 @@ import {afterAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient, ToolCommandSignatureSchema, type RpcClient} from '@conciv/contract'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {EXTENSIONS_ROUTE} from '@conciv/extension-compiler/extensions'
 import {awaitPagePlaneSubscribed} from '@conciv/extension-testkit/page-plane'
 import {magicLink} from '@conciv/harness-testkit/login'
 import type {} from '@conciv/extension-design/client'
+import design from '@conciv/extension-design'
 import {
   CaptureInputSchema,
   ClearInputSchema,
@@ -58,7 +58,7 @@ const HOST_STYLES = join(HOST_ROOT, 'src', 'styles.css')
 const CatalogSchema = z.array(ToolCommandSignatureSchema)
 const EndpointSchema = z.object({apiBase: z.string().min(1)})
 
-type DesignConfigInput = NonNullable<ConcivConfig['extensions']>['design']
+type DesignConfigInput = Parameters<typeof design>[0]
 
 function decodePng(bytes: Buffer): PNG {
   return PNG.sync.read(bytes)
@@ -142,7 +142,7 @@ async function boot(options: {config?: DesignConfigInput} = {}): Promise<Kit> {
         harnessBin: 'true',
         systemPrompt: false,
         devEndpointDir,
-        extensions: {design: options.config ?? {}},
+        extensions: [design(options.config)],
       }),
     ],
   })

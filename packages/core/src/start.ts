@@ -38,6 +38,7 @@ export type StartOpts = {
   print?: (text: string) => void
 
   extensions?: AnyExtension[]
+  extensionConfig?: Record<string, unknown>
   harness?: HarnessAdapter
   nativePageDir?: string
   devEndpointDir?: string
@@ -171,7 +172,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const systemPrompt = composeSystemPrompt(cfg.systemPrompt, withBuiltinExtensions(opts.extensions), {
     cwd: opts.root,
-    extensions: cfg.extensions,
+    extensions: opts.extensionConfig,
   })
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
@@ -211,7 +212,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
-    extensionConfig: cfg.extensions,
+    extensionConfig: opts.extensionConfig,
     harness: opts.harness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,

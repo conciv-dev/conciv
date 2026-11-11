@@ -28,12 +28,16 @@ export interface ConcivSettingsInit extends WidgetConfig {
 
 export interface ExtensionRegistry {}
 
-export type RegisteredExtensionConfig<Entry> = Entry extends {config: infer Config} ? Config : never
+export interface ExtensionPackage {
+  server: string
+  client: string
+  config: unknown
+}
 
 export interface ConcivConfig {
   enabled?: boolean
 
-  extensions?: {[Name in keyof ExtensionRegistry]?: RegisteredExtensionConfig<ExtensionRegistry[Name]>}
+  extensions?: readonly ExtensionPackage[]
   widgetUrl?: string
 
   widget?: WidgetConfig | false
