@@ -80,7 +80,7 @@ import {claude} from '@conciv/harness/claude'
 import {codex as codexHarness} from '@conciv/harness/codex'
 import {pi as piHarness} from '@conciv/harness/pi'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
-import {approvalAskOf, type ChatEvent, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {approvalAskOf, type ChatEvent, ChatEventType, pageQueueEvent} from '@conciv/protocol/chat-event-types'
 import {type ChatMessage} from '@conciv/protocol/chat-message-types'
 import {
   CHAT_SSE_PATH,
@@ -98,7 +98,7 @@ import {
 } from '@conciv/protocol/chat-types'
 import {type ElementCapture, type ElementCaptureKind} from '@conciv/protocol/element-capture-types'
 import {type HarnessChatDeps, type HarnessListCursor, type HarnessModel} from '@conciv/protocol/harness-types'
-import {type PageOutcome, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
+import {type PageOutcome, PageQuerySchema, PAGE_TRANSPORT_ERROR_CODES} from '@conciv/protocol/page-types'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH} from '@conciv/protocol/push-types'
 import {type RpcContext} from '@conciv/protocol/rpc-types'
 import {type TokenUsage} from '@conciv/protocol/usage-types'
@@ -4926,5 +4926,189 @@ describe('session activity recorded with its chat messages', () => {
       {id: 'conciv_stale', title: 'fill the form', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
       {id: 'conciv_titled', title: 'kept', updatedAt: Date.parse('2026-11-10T09:39:00.000Z')},
     ])
+  })
+})
+
+describe('page action queue delivery', () => {
+  const HUB = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: 'codex'}
+  const ACTIONS = [
+    {tool: 'page_fill', selector: '#first', value: 'Ada'},
+    {tool: 'page_check', selector: '#agree'},
+  ]
+  const QueueHandleSchema = z.object({result: z.object({queueId: z.string(), actions: z.number()})})
+  const pages = new AbortController()
+  const engines: Engine[] = []
+  afterAll(async () => {
+    pages.abort()
+    await Promise.all(engines.map((engine) => engine.stop()))
+  })
+
+  type QueuedOnTab = {id: string; replies: string[]}
+
+  async function engineWithTab() {
+    const home = tempDir('conciv-queue-home-')
+    withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
+    const engine = await bootAt(home, tempDir('conciv-queue-'), 'open')
+    engines.push(engine)
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const sessionId = (await makeRpcClient(base).sessions.create(undefined)).sessionId
+    const tab = makeRpcClient(base, {headers: {[CONCIV_SESSION_HEADER]: sessionId}})
+    const closed = new AbortController()
+    const queries = await tab.page.queries(undefined, {signal: AbortSignal.any([pages.signal, closed.signal])})
+    const accepted: QueuedOnTab[] = []
+    const arrivals = new EventTarget()
+    const answering = (async () => {
+      for await (const {requestId, query} of queries) {
+        const parsed = PageQuerySchema.parse(query)
+        if (parsed.queue === undefined) {
+          await tab.page.reply({requestId, outcome: {ok: true, result: {}}})
+          continue
+        }
+        const {id, replies} = parsed.queue
+        await tab.page.reply({requestId, outcome: {ok: true, result: {queueId: id, actions: replies.length}}})
+        accepted.push({id, replies})
+        arrivals.dispatchEvent(new Event('queue'))
+      }
+    })().catch((error: unknown) => {
+      if (!closed.signal.aborted && !pages.signal.aborted) throw error
+    })
+    const nextQueue = async (): Promise<QueuedOnTab> => {
+      const known = accepted.shift()
+      if (known !== undefined) return known
+      await once(arrivals, 'queue')
+      return nextQueue()
+    }
+    const play = (queued: QueuedOnTab, index: number, outcome: PageOutcome) =>
+      tab.page.reply({requestId: queued.replies[index] ?? '', outcome})
+    const events = await tab.chat.events({sessionId}, {signal: pages.signal})
+    const seen: ChatEvent[] = []
+    const watching = (async () => {
+      for await (const chunk of events) {
+        seen.push(chunk)
+        arrivals.dispatchEvent(new Event('chunk'))
+      }
+    })().catch((error: unknown) => {
+      if (!pages.signal.aborted) throw error
+    })
+    const queueEvents = () => seen.flatMap((chunk) => pageQueueEvent.parse(chunk) ?? [])
+    const finishedEvent = async (queueId: string): Promise<void> => {
+      if (queueEvents().some((event) => event.queueId === queueId)) return
+      await once(arrivals, 'chunk')
+      return finishedEvent(queueId)
+    }
+    const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
+    await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
+    const hub = (code: string) => executeOverMcp(base, {...HUB, [CONCIV_SESSION_HEADER]: sessionId}, code)
+    const close = async () => {
+      closed.abort()
+      await answering
+    }
+    void watching
+    return {base, sessionId, tab, nextQueue, play, hub, close, queueEvents, finishedEvent}
+  }
+
+  const queued = (actions: unknown[] = ACTIONS) =>
+    `return await external_page_queue({actions: ${JSON.stringify(actions)}})`
+
+  function handleOf(reply: unknown): {queueId: string; actions: number} {
+    return QueueHandleSchema.parse(JSON.parse(String(reply))).result
+  }
+
+  it('external_page_queue answers with a queue id before the tab has played anything', async () => {
+    const page = await engineWithTab()
+    const handle = handleOf(await page.hub(queued()))
+    expect(handle).toEqual({queueId: expect.stringMatching(/^q_/), actions: 2})
+    expect((await page.nextQueue()).id).toBe(handle.queueId)
+  })
+
+  it('the next reply for that session carries the finished result once, and the reply after does not', async () => {
+    const page = await engineWithTab()
+    const {queueId} = handleOf(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: false, error: {code: 'invalid-args', message: 'That element is disabled.'}})
+    await page.finishedEvent(queueId)
+    const next = await page.hub('return 7')
+    expect(Array.isArray(next)).toBe(true)
+    const [notice, rest] = z.array(z.object({type: z.literal('text'), content: z.string()})).parse(next)
+    expect(notice?.content.split('\n')[0]).toBe(`queue ${queueId} finished: 2 played, 1 failed`)
+    expect(JSON.parse(notice?.content.split('\n').slice(1).join('\n') ?? '')).toEqual({
+      queueId,
+      status: 'finished',
+      outcomes: [
+        {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Ada'}},
+        {index: 1, tool: 'page_check', ok: false, error: 'That element is disabled.'},
+      ],
+      failed: 1,
+      played: 2,
+    })
+    expect(rest?.content).toContain('"result":7')
+    const after = await page.hub('return 8')
+    expect(after).toContain('"result":8')
+    expect(after).not.toContain(queueId)
+  })
+
+  it('external_page_queue_wait returns playing with progress on a short wait, then the result', async () => {
+    const page = await engineWithTab()
+    const {queueId} = handleOf(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    const wait = (waitMs: number) =>
+      page.hub(`return await external_page_queue_wait({queueId: ${JSON.stringify(queueId)}, waitMs: ${waitMs}})`)
+    expect(JSON.parse(String(await wait(0))).result).toEqual({queueId, status: 'playing', done: 1, of: 2})
+    const waiting = wait(60_000)
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    expect(JSON.parse(String(await waiting)).result).toMatchObject({queueId, status: 'finished', failed: 0, played: 2})
+    expect(String(await page.hub('return 1'))).not.toContain(queueId)
+  })
+
+  it('a tab that closes mid-queue leaves the queue lost, with the confirmed outcomes kept and the rest unconfirmed', async () => {
+    const page = await engineWithTab()
+    const {queueId} = handleOf(await page.hub(queued()))
+    const onTab = await page.nextQueue()
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.close()
+    await page.finishedEvent(queueId)
+    const result = JSON.parse(
+      String(await page.hub(`return await external_page_queue_wait({queueId: ${JSON.stringify(queueId)}})`)),
+    ).result
+    expect(result).toEqual({
+      queueId,
+      status: 'lost',
+      outcomes: [
+        {index: 0, tool: 'page_fill', ok: true, result: {ok: true, value: 'Ada'}},
+        {
+          index: 1,
+          tool: 'page_check',
+          ok: false,
+          error: 'the page reloaded or closed during page_check; it may already have run',
+        },
+      ],
+      failed: 0,
+      played: 1,
+    })
+  })
+
+  it('an in-page queue publishes one conciv.page-queue event, records it, and starts a follow-up turn', async () => {
+    const page = await engineWithTab()
+    const handle = page.tab.registry.call({name: 'page_queue', input: {actions: ACTIONS}})
+    const onTab = await page.nextQueue()
+    const {queueId} = z.object({queueId: z.string()}).parse(await handle)
+    await page.play(onTab, 0, {ok: true, result: {ok: true, value: 'Ada'}})
+    await page.play(onTab, 1, {ok: true, result: {ok: true, checked: true}})
+    await page.finishedEvent(queueId)
+    expect(page.queueEvents()).toEqual([expect.objectContaining({queueId, status: 'finished', played: 2, failed: 0})])
+    await vi.waitFor(
+      async () => {
+        const hydrated = await page.tab.chat.hydrate({sessionId: page.sessionId})
+        const assistant = hydrated.messages.filter((message) => message.role === 'assistant')
+        const parts = assistant.flatMap((message) => message.parts)
+        expect(parts).toContainEqual(expect.objectContaining({type: 'tool-call', name: 'page_queue_wait'}))
+        expect(parts).toContainEqual({type: 'text', content: 'ok'})
+        expect(hydrated.activeRun).toBeNull()
+      },
+      {timeout: 10_000},
+    )
+    expect(page.queueEvents()).toHaveLength(1)
   })
 })

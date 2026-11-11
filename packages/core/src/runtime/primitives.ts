@@ -5,6 +5,7 @@ import type {TabsListing} from '@conciv/protocol/chat-types'
 import {createSessionBus, type SessionBus} from '../sessions/session-bus.js'
 import {makeJournal, makePageBus, type CaptureSink, type PageEnv} from '../page-bus.js'
 import {makeBuiltinRegistry} from '../tool-registry.js'
+import {makePageQueues} from '../page-queue.js'
 
 export type SessionPrimitives = {
   stream: SessionBus
@@ -22,11 +23,14 @@ export type SessionPrimitivesDeps = {
 }
 
 export function makeSessionPrimitives(deps: SessionPrimitivesDeps): SessionPrimitives {
+  const journal = makeJournal(deps.db)
+  const bus = makePageBus()
   const page: PageEnv = {
-    journal: makeJournal(deps.db),
+    journal,
     root: deps.root,
-    bus: makePageBus(),
+    bus,
     storeCapture: deps.storeCapture,
+    queues: makePageQueues({bus, journal}),
   }
   return {
     stream: createSessionBus(),

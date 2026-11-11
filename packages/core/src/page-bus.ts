@@ -5,6 +5,7 @@ import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@con
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
 import {appendPageChange, clearPageChanges, pageChangesFor, type ConcivDb} from '@conciv/db'
+import type {PageQueues} from './page-queue.js'
 
 export type ChangeEntry = {
   seq: number
@@ -90,6 +91,10 @@ export type PageAnswer = {result: Record<string, unknown>; capture?: PageCapture
 
 export type BrowserTabFocus = {focusedAt: number; visible: boolean}
 
+export type QueuePlay = {accepted: Promise<PageAnswer>; played: Promise<PageOutcome>[]}
+
+export const QUEUED_ACTION_MS = 7000
+
 export type PageBus = {
   ask: (
     sessionId: SessionId,
@@ -102,6 +107,7 @@ export type PageBus = {
   openSessions: () => Array<{sessionId: SessionId; browserTabs: string[]}>
   resolve: (sessionId: SessionId, requestId: string, outcome: PageOutcome) => boolean
   subscribe: (sessionId: SessionId, emit: (frame: unknown) => void, focus?: () => BrowserTabFocus) => () => void
+  playQueue: (sessionId: SessionId, query: Omit<PageQuery, 'requestId'>, queueId: string, count: number) => QueuePlay
 }
 
 export type CaptureSink = (params: {
@@ -110,7 +116,7 @@ export type CaptureSink = (params: {
   bundle: PageCaptureBundle
 }) => Promise<void>
 
-export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink}
+export type PageEnv = {journal: Journal; root: string; bus: PageBus; storeCapture: CaptureSink; queues: PageQueues}
 
 type BrowserTab = {id: string; order: number; emit: (frame: unknown) => void; focus: () => BrowserTabFocus}
 
@@ -124,6 +130,12 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const subscribed = {count: 0}
   const arrivals = new EventTarget()
+  const lanes = new Map<SessionId, Set<{until: number}>>()
+
+  const laneBudget = (sessionId: SessionId): number => {
+    const until = Math.max(0, ...[...(lanes.get(sessionId) ?? [])].map((entry) => entry.until))
+    return Math.max(0, until - Date.now())
+  }
 
   const pageOf = (sessionId: SessionId): SessionPage => {
     const existing = bySession.get(sessionId)
@@ -210,7 +222,8 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     const pinned = route !== undefined && 'browserTab' in route ? route.browserTab : undefined
     const tab = target(sessionId, bySession.get(sessionId), pinned)
     const declared = query.input['timeout']
-    const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
+    const ms =
+      (typeof declared === 'number' ? declared + 1000 : timeoutMs) + (query.mutating ? laneBudget(sessionId) : 0)
     const deadline = Date.now() + ms
     const outcome = await send(sessionId, tab, query, ms, signal).catch(async (error: unknown) => {
       if (route === undefined || 'browserTab' in route || !isPageFailure(error)) throw error
@@ -240,6 +253,41 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return {result: outcome.result, capture: outcome.capture}
   }
 
+  function playQueue(
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    queueId: string,
+    count: number,
+  ): QueuePlay {
+    const tab = target(sessionId, bySession.get(sessionId), undefined)
+    const page = pageOf(sessionId)
+    const ahead = laneBudget(sessionId)
+    const entry = {until: Date.now() + ahead + count * QUEUED_ACTION_MS}
+    const lane = lanes.get(sessionId) ?? new Set()
+    lanes.set(sessionId, lane.add(entry))
+    const requestId = randomUUID()
+    const replies = Array.from({length: count}, () => randomUUID())
+    const played = replies.map((id, index) => page.pending.await(id, tab.id, ahead + (index + 1) * QUEUED_ACTION_MS))
+    const accepted = page.pending.await(requestId, tab.id, timeoutMs).then((outcome): PageAnswer => {
+      if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
+      return {result: outcome.result}
+    })
+    accepted.catch((error: unknown) => {
+      const refused: PageOutcome = {
+        ok: false,
+        error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`},
+      }
+      replies.forEach((id) => page.pending.resolve(id, refused))
+    })
+    void Promise.allSettled([accepted, ...played]).then(() => {
+      lane.delete(entry)
+      if (lane.size === 0 && lanes.get(sessionId) === lane) lanes.delete(sessionId)
+      dropIfIdle(sessionId, page)
+    })
+    tab.emit({requestId, ...query, queue: {id: queueId, replies}})
+    return {accepted, played}
+  }
+
   function connected(sessionId: SessionId): boolean {
     return (bySession.get(sessionId)?.browserTabs.size ?? 0) > 0
   }
@@ -251,6 +299,7 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     openSessions,
     resolve: (sessionId, requestId, outcome) => bySession.get(sessionId)?.pending.resolve(requestId, outcome) ?? false,
     subscribe,
+    playQueue,
   }
 }
 
