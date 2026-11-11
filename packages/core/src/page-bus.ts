@@ -1,6 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {once} from 'node:events'
 import {orderBy} from 'es-toolkit'
+import PQueue from 'p-queue'
+import pTimeout from 'p-timeout'
 import {isPageFailure, pageFailure, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {PageCaptureBundle} from '@conciv/protocol/element-capture-types'
@@ -43,33 +45,8 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
   const waiters = new Map<string, Waiter<T>>()
 
   function awaitReply(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T> {
-    return new Promise<T>((settle, reject) => {
-      const timer = setTimeout(() => {
-        done()
-        reject(timedOut())
-      }, timeoutMs)
-      const aborted = (): void => {
-        done()
-        reject(signal?.reason)
-      }
-      const done = (): void => {
-        clearTimeout(timer)
-        waiters.delete(id)
-        signal?.removeEventListener('abort', aborted)
-      }
-      signal?.addEventListener('abort', aborted, {once: true})
-      waiters.set(id, {
-        owner,
-        settle: (value) => {
-          done()
-          settle(value)
-        },
-        fail: (reason) => {
-          done()
-          reject(reason)
-        },
-      })
-    })
+    const reply = new Promise<T>((settle, fail) => waiters.set(id, {owner, settle, fail}))
+    return pTimeout(reply, {milliseconds: timeoutMs, message: timedOut(), signal}).finally(() => waiters.delete(id))
   }
 
   function resolve(id: string, value: T): boolean {
@@ -130,11 +107,22 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   const bySession = new Map<SessionId, SessionPage>()
   const subscribed = {count: 0}
   const arrivals = new EventTarget()
-  const lanes = new Map<SessionId, Set<{until: number}>>()
+  const lanes = new Map<SessionId, PQueue>()
 
-  const laneBudget = (sessionId: SessionId): number => {
-    const until = Math.max(0, ...[...(lanes.get(sessionId) ?? [])].map((entry) => entry.until))
-    return Math.max(0, until - Date.now())
+  const laneOf = (sessionId: SessionId): PQueue => {
+    const existing = lanes.get(sessionId)
+    if (existing !== undefined) return existing
+    const lane = new PQueue({concurrency: 1})
+    lane.addEventListener('idle', () => {
+      if (lanes.get(sessionId) === lane) lanes.delete(sessionId)
+    })
+    lanes.set(sessionId, lane)
+    return lane
+  }
+
+  const busy = (sessionId: SessionId): boolean => {
+    const lane = lanes.get(sessionId)
+    return lane !== undefined && lane.size + lane.pending > 0
   }
 
   const pageOf = (sessionId: SessionId): SessionPage => {
@@ -213,17 +201,26 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     return once(arrivals, sessionId, {signal: signal === undefined ? waited : AbortSignal.any([waited, signal])})
   }
 
-  async function ask(
+  function ask(
     sessionId: SessionId,
     query: Omit<PageQuery, 'requestId'>,
     route?: {browserTab: string} | {mutating: boolean},
     signal?: AbortSignal,
   ): Promise<PageAnswer> {
+    if (query.mutating !== true || !busy(sessionId)) return askNow(sessionId, query, route, signal)
+    return laneOf(sessionId).add(() => askNow(sessionId, query, route, signal), {signal})
+  }
+
+  async function askNow(
+    sessionId: SessionId,
+    query: Omit<PageQuery, 'requestId'>,
+    route: {browserTab: string} | {mutating: boolean} | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<PageAnswer> {
     const pinned = route !== undefined && 'browserTab' in route ? route.browserTab : undefined
     const tab = target(sessionId, bySession.get(sessionId), pinned)
     const declared = query.input['timeout']
-    const ms =
-      (typeof declared === 'number' ? declared + 1000 : timeoutMs) + (query.mutating ? laneBudget(sessionId) : 0)
+    const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     const deadline = Date.now() + ms
     const outcome = await send(sessionId, tab, query, ms, signal).catch(async (error: unknown) => {
       if (route === undefined || 'browserTab' in route || !isPageFailure(error)) throw error
@@ -261,29 +258,29 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   ): QueuePlay {
     const tab = target(sessionId, bySession.get(sessionId), undefined)
     const page = pageOf(sessionId)
-    const ahead = laneBudget(sessionId)
-    const entry = {until: Date.now() + ahead + count * QUEUED_ACTION_MS}
-    const lane = lanes.get(sessionId) ?? new Set()
-    lanes.set(sessionId, lane.add(entry))
     const requestId = randomUUID()
     const replies = Array.from({length: count}, () => randomUUID())
-    const played = replies.map((id, index) => page.pending.await(id, tab.id, ahead + (index + 1) * QUEUED_ACTION_MS))
     const accepted = page.pending.await(requestId, tab.id, timeoutMs).then((outcome): PageAnswer => {
       if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)
       return {result: outcome.result}
     })
-    accepted.catch((error: unknown) => {
-      const refused: PageOutcome = {
+    const refusal = accepted.then(
+      () => null,
+      (error: unknown): PageOutcome => ({
         ok: false,
         error: {code: 'handler-error', message: `the page refused the queue: ${String(error)}`},
-      }
-      replies.forEach((id) => page.pending.resolve(id, refused))
-    })
-    void Promise.allSettled([accepted, ...played]).then(() => {
-      lane.delete(entry)
-      if (lane.size === 0 && lanes.get(sessionId) === lane) lanes.delete(sessionId)
-      dropIfIdle(sessionId, page)
-    })
+      }),
+    )
+    const lane = laneOf(sessionId)
+    const playedNext = async (id: string): Promise<PageOutcome> => {
+      const refused = await refusal
+      if (refused !== null) return refused
+      if (!page.browserTabs.has(tab.id))
+        throw pageFailure('no-widget', `browser tab ${tab.id} closed before it replied`)
+      return page.pending.await(id, tab.id, QUEUED_ACTION_MS)
+    }
+    const played = replies.map((id) => lane.add(() => playedNext(id)))
+    void Promise.allSettled([accepted, ...played]).then(() => dropIfIdle(sessionId, page))
     tab.emit({requestId, ...query, queue: {id: queueId, replies}})
     return {accepted, played}
   }

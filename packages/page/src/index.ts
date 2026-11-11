@@ -1,4 +1,11 @@
-import {PageQuerySchema, PageQueueActionsSchema, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
+import PQueue from 'p-queue'
+import {
+  PAGE_QUEUE_STOPPED,
+  PageQuerySchema,
+  PageQueueActionsSchema,
+  type PageOutcome,
+  type PageQuery,
+} from '@conciv/protocol/page-types'
 import type {ClientToolEntry} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 
@@ -20,9 +27,7 @@ export type PageQuerySource = {
   reply: (input: {requestId: string; outcome: PageOutcome}) => Promise<unknown>
 }
 
-type Lane = {tail: Promise<void>; queued: number}
-
-type Played = {source: PageQuerySource; driver: PageDriver; lane: Lane; signal: AbortSignal}
+type Played = {source: PageQuerySource; driver: PageDriver; lane: PQueue}
 
 function replyTo(source: PageQuerySource, requestId: string, outcome: PageOutcome): Promise<void> {
   return source.reply({requestId, outcome}).then(
@@ -31,20 +36,25 @@ function replyTo(source: PageQuerySource, requestId: string, outcome: PageOutcom
   )
 }
 
-function inLane(lane: Lane, play: () => Promise<void>): void {
-  lane.queued += 1
-  lane.tail = lane.tail
-    .then(play)
-    .catch((error: unknown) => console.error('[conciv] a queued page action failed to play', error))
-    .finally(() => {
-      lane.queued -= 1
-    })
+function unplayed(name: string, error: unknown): PageOutcome {
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    const message = `the page closed before ${name} ran; it did not run`
+    return {ok: false, error: {code: 'handler-error', message, raised: {code: PAGE_QUEUE_STOPPED, message}}}
+  }
+  return {ok: false, error: {code: 'handler-error', message: `${name} failed to play: ${String(error)}`}}
+}
+
+function inLane(played: Played, requestId: string, name: string, play: () => Promise<PageOutcome>): void {
+  void played.lane.add(play).then(
+    (outcome) => replyTo(played.source, requestId, outcome),
+    (error: unknown) => replyTo(played.source, requestId, unplayed(name, error)),
+  )
 }
 
 function playQueue(played: Played, requestId: string, query: PageQuery): void {
   const queue = query.queue
   if (queue === undefined) return
-  const {source, driver, lane, signal} = played
+  const {source, driver} = played
   const of = queue.replies.length
   const listed = PageQueueActionsSchema.safeParse(query.input)
   const accepted = driver.execute({
@@ -54,21 +64,26 @@ function playQueue(played: Played, requestId: string, query: PageQuery): void {
     queued: {id: queue.id, index: -1, of},
   })
   void accepted.then((outcome) => replyTo(source, requestId, outcome))
-  queue.replies.forEach((replyId, index) =>
-    inLane(lane, async () => {
-      const action = listed.success ? listed.data.actions[index] : undefined
-      if (signal.aborted || action === undefined || !(await accepted).ok) return
-      const {tool, ...input} = action
-      const outcome = await driver.execute({
+  queue.replies.forEach((replyId, index) => {
+    const action = listed.success ? listed.data.actions[index] : undefined
+    if (action === undefined) {
+      const message = `queued action ${index} is not a page action`
+      void replyTo(source, replyId, {ok: false, error: {code: 'invalid-args', message}})
+      return
+    }
+    const {tool, ...input} = action
+    inLane(played, replyId, tool, async () => {
+      const ready = await accepted
+      if (!ready.ok) return ready
+      return driver.execute({
         agentId: query.agentId,
         name: tool,
         input,
         mutating: true,
         queued: {id: queue.id, index, of},
       })
-      await replyTo(source, replyId, outcome)
-    }),
-  )
+    })
+  })
 }
 
 export async function servePageQueries(
@@ -76,7 +91,8 @@ export async function servePageQueries(
   driver: PageDriver,
   signal: AbortSignal,
 ): Promise<void> {
-  const played: Played = {source, driver, lane: {tail: Promise.resolve(), queued: 0}, signal}
+  const played: Played = {source, driver, lane: new PQueue({concurrency: 1})}
+  signal.addEventListener('abort', () => played.lane.clear(), {once: true})
   for await (const item of source.queries(signal)) {
     const parsed = PageQuerySchema.safeParse(item.query)
     if (!parsed.success) continue
@@ -86,12 +102,11 @@ export async function servePageQueries(
       playQueue(played, requestId, query)
       continue
     }
-    const answer = (): Promise<void> => driver.execute(query).then((outcome) => replyTo(source, requestId, outcome))
-    if (query.mutating === true && played.lane.queued > 0) {
-      inLane(played.lane, answer)
+    if (query.mutating === true && played.lane.size + played.lane.pending > 0) {
+      inLane(played, requestId, query.name, () => driver.execute(query))
       continue
     }
-    void answer()
+    void driver.execute(query).then((outcome) => replyTo(source, requestId, outcome))
   }
 }
 

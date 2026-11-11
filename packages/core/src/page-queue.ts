@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import pTimeout from 'p-timeout'
 import {
   isPageFailure,
   PAGE_QUEUE_STOPPED,
@@ -94,14 +95,6 @@ function stringField(record: Record<string, unknown>, key: 'ref' | 'selector'): 
   return typeof value === 'string' ? value : undefined
 }
 
-function untilDone(done: Promise<unknown>, waitMs: number): Promise<unknown> {
-  const timer: {id: ReturnType<typeof setTimeout> | undefined} = {id: undefined}
-  const elapsed = new Promise<void>((resolve) => {
-    timer.id = setTimeout(resolve, waitMs)
-  })
-  return Promise.race([done, elapsed]).finally(() => clearTimeout(timer.id))
-}
-
 export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueues {
   const records = new Map<string, QueueRecord>()
   const listeners: Array<(record: QueueRecord) => void> = []
@@ -187,7 +180,7 @@ export function makePageQueues(deps: {bus: PageBus; journal: Journal}): PageQueu
     if (record === undefined || record.sessionId !== sessionId) {
       throw new Error(`no queue ${queueId} on this tab; page_queue returns the queueId to wait for`)
     }
-    if (record.result === null) await untilDone(record.done, waitMs)
+    if (record.result === null && waitMs > 0) await pTimeout(record.done, {milliseconds: waitMs, fallback: () => null})
     if (record.result !== null) {
       record.delivered = true
       return record.result

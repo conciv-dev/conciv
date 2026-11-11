@@ -324,6 +324,9 @@ catalogs:
     oxlint:
       specifier: 1.90.0
       version: 1.90.0
+    p-queue:
+      specifier: ^10.0.0
+      version: 10.0.0
     p-timeout:
       specifier: ^8.0.0
       version: 8.0.0
@@ -2400,6 +2403,12 @@ importers:
       lucide-solid:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
+      p-queue:
+        specifier: 'catalog:'
+        version: 10.0.0
+      p-timeout:
+        specifier: 'catalog:'
+        version: 8.0.0
       unstorage:
         specifier: 'catalog:'
         version: 1.17.5(@netlify/blobs@10.7.9)(db0@0.3.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7)))(ioredis@5.11.1)
@@ -4198,6 +4207,9 @@ importers:
       bippy:
         specifier: 'catalog:'
         version: 0.6.1(react@19.3.1)
+      p-queue:
+        specifier: 'catalog:'
+        version: 10.0.0
       react-grab:
         specifier: 'catalog:'
         version: 0.2.0(react@19.3.1)
@@ -16691,6 +16703,10 @@ packages:
   p-locate@5.0.0:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
+
+  p-queue@10.0.0:
+    resolution: {integrity: sha512-P2wrCri3bhGLPo3kX7qYVXbo/5GvaVATU0DpO24CbeT53Y4z35t8JUWku04ERpXHUYB5rPMi3TkWE3fmJgx5rA==}
+    engines: {node: '>=22'}
 
   p-queue@9.3.5:
     resolution: {integrity: sha512-Lki/zhXFVmDhesBUn/yHRLW9Bte7mE7xoFHzTR8sIomV7a2z+LxYAPkGvdfidNiu4fKSfjtawixxSHcZci5QcQ==}
@@ -30782,6 +30798,8 @@ snapshots:
   p-locate@5.0.0:
     dependencies:
       p-limit: 3.1.0
+
+  p-queue@10.0.0: {}
 
   p-queue@9.3.5:
     dependencies:
