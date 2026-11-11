@@ -1,7 +1,7 @@
+import {lazy} from 'solid-js'
 import SquareTerminal from 'lucide-solid/icons/square-terminal'
 import {defineExtension, type RegisterExtension} from '@conciv/extension'
 import {TERMINAL_NAME} from './shared/protocol.js'
-import {TerminalPanelView} from './client/terminal-panel-view.js'
 import {TerminalActions} from './client/terminal-actions.js'
 import {createTerminalStore} from './client/terminal-store.js'
 
@@ -12,7 +12,9 @@ export const terminal = defineExtension({
       id: 'terminal',
       label: 'Terminal',
       icon: SquareTerminal,
-      Component: TerminalPanelView,
+      Component: lazy(() =>
+        import('./client/terminal-panel-view.js').then((module) => ({default: module.TerminalPanelView})),
+      ),
       actions: TerminalActions,
     },
   ],

@@ -2,7 +2,7 @@
 
 ## Overview
 
-CLI and library that gzip-measure every non-private package's dist JS/CSS, the embed widget global bundle, and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker exceeds a 3 MiB gzip budget.
+CLI and library that gzip-measure every non-private package's dist JS/CSS, the embed widget (its first load and its lazy chunks as two rows), and the apps/site worker (through a wrangler dry-run). The CLI renders a markdown size table with deltas against a baseline JSON file and fails when the worker exceeds a 3 MiB gzip budget.
 
 ## Interface
 
@@ -11,7 +11,7 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS, the e
 - `WorkerReport` type (`measure.ts`): {size: PackageSize, chunks: {file, gzip}[]}
 - `WORKER_NAME` (`measure.ts`): 'conciv.dev worker (apps/site)'
 - `WORKER_LIMIT_KIB` (`measure.ts`): 3 * 1024 (3072 KiB gzip budget)
-- `measureSizes(root)` (`measure.ts`): widget bundle size first, then non-private packages under packages/ and packages/extensions/ sorted by name
+- `measureSizes(root)` (`measure.ts`): widget first load (the `conciv-widget.global.js` loader plus the static-import closure of its entry chunk and the `mount-impl` chunk the widget imports at mount) and widget lazy chunks (every other `dist/widget` chunk) first, then non-private packages under packages/ and packages/extensions/ sorted by name
 - `parseSizes(raw)` (`measure.ts`): parses baseline JSON leniently into PackageSize[]
 - `parseWorkerSize(wranglerOutput)` (`measure.ts`): strips ANSI codes and extracts 'Total Upload: X KiB / gzip: Y KiB' as bytes
 - `workerIsOverBudget(report, limitKib)` (`measure.ts`): true when gzip &gt; limitKib*1024
@@ -24,7 +24,7 @@ CLI and library that gzip-measure every non-private package's dist JS/CSS, the e
 
 - `publishedPackages` (`measure.ts`): skips dirs without package.json and manifests with private === true or a non-string name
 - `distFiles` (`measure.ts`): counts only .js/.mjs/.cjs/.css files under dist, recursively
-- `measureSizes` (`measure.ts`): drops packages with 0 dist files; the widget row is included only if packages/embed/dist/conciv-widget.global.js exists
+- `measureSizes` (`measure.ts`): drops packages with 0 dist files; the two widget rows are included only if packages/embed/dist/conciv-widget.global.js and packages/embed/dist/widget exist
 - `parseSizes` (`measure.ts`): invalid JSON or a non-array gives []; entries without a string name are dropped; non-number raw/gzip/files default to 0
 - `parseWorkerSize` (`measure.ts`): throws unless exactly one wrangler size line matches, and on non-finite numbers
 - `measureWorker` (`measure.ts`): throws if apps/site/dist/server/wrangler.json is missing, naming `pnpm exec turbo run build --filter=site`

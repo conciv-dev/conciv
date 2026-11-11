@@ -1,14 +1,58 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
+import {Script} from 'node:vm'
 import {describe, expect, it} from 'vitest'
 import {createConciv, mountConciv} from '../../src/mount.js'
+
+const widgetDistDir = fileURLToPath(new URL('../../dist/', import.meta.url))
+
+function chunkText(file: string): string {
+  return readFileSync(widgetDistDir + 'widget/' + file, 'utf8')
+}
+
+function referencedChunks(source: string, pattern: RegExp): string[] {
+  return [...source.matchAll(pattern)].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
+}
+
+function walkChunks(roots: string[], pattern: RegExp): string[] {
+  const emitted = new Set(readdirSync(widgetDistDir + 'widget'))
+  const seen = new Set<string>()
+  const pending = [...roots]
+  while (pending.length > 0) {
+    const file = pending.pop()
+    if (file === undefined || seen.has(file) || !emitted.has(file)) continue
+    seen.add(file)
+    pending.push(...referencedChunks(chunkText(file), pattern))
+  }
+  return [...seen]
+}
+
+const STATIC_IMPORT = /(?:import|export)\s*(?:[\w${}\s,*]*?from\s*)?["']\.\/([^"']+\.js)["']/g
+const ANY_IMPORT = /["'`]\.\/([\w.-]+\.js)["'`]/g
+
+function loaderEntry(loader: string): string {
+  return /["']widget\/([^"']+\.js)["']/.exec(readFileSync(widgetDistDir + loader, 'utf8'))?.[1] ?? ''
+}
+
+function shippedText(loader: string): string {
+  return walkChunks([loaderEntry(loader)], ANY_IMPORT)
+    .map(chunkText)
+    .join('\n')
+}
+
+function firstLoadText(loader: string): string {
+  const mountImpl = readdirSync(widgetDistDir + 'widget').filter((name) => /^mount-impl-.*\.js$/.test(name))
+  return walkChunks([loaderEntry(loader), ...mountImpl], STATIC_IMPORT)
+    .map(chunkText)
+    .join('\n')
+}
 
 describe('mount externals', () => {
   const distDir = fileURLToPath(new URL('../../dist/', import.meta.url))
   const chunkName = readdirSync(distDir).find((name) => /^mount-impl.*\.js$/.test(name)) ?? ''
   const mount = chunkName ? readFileSync(distDir + chunkName, 'utf8') : ''
   const entry = readFileSync(distDir + 'mount.js', 'utf8')
-  const globalBundle = readFileSync(distDir + 'conciv-widget.global.js', 'utf8')
+  const globalBundle = shippedText('conciv-widget.global.js')
 
   const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
 
@@ -78,9 +122,8 @@ describe('mount node', () => {
 })
 
 describe('native bundle', () => {
-  const distDir = fileURLToPath(new URL('../../dist/', import.meta.url))
-  const nativeBundle = readFileSync(distDir + 'conciv-widget-native.global.js', 'utf8')
-  const widgetBundle = readFileSync(distDir + 'conciv-widget.global.js', 'utf8')
+  const nativeBundle = shippedText('conciv-widget-native.global.js')
+  const widgetBundle = shippedText('conciv-widget.global.js')
 
   const importsExternally = (specifier: string) =>
     new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(nativeBundle)
@@ -110,6 +153,42 @@ describe('native bundle', () => {
       expect(nativeTrack).toBeGreaterThan(0)
       expect(nativeProxy).toBe(occurrences(widgetBundle, 'solid-proxy'))
       expect(nativeTrack).toBe(occurrences(widgetBundle, 'solid-track'))
+    })
+  })
+})
+
+describe('widget loaders', () => {
+  const loaders = ['conciv-widget.global.js', 'conciv-widget-native.global.js']
+
+  describe('each public bundle file is a classic-script loader over shared ESM chunks', () => {
+    it.each(loaders)('%s parses as a classic script, so a plain <script src> runs it', (loader) => {
+      const source = readFileSync(widgetDistDir + loader, 'utf8')
+      expect(() => new Script(source)).not.toThrow()
+      expect(source.length).toBeLessThan(512)
+    })
+
+    it.each(loaders)('%s resolves its entry chunk next to itself', (loader) => {
+      const entry = loaderEntry(loader)
+      expect(entry).not.toBe('')
+      expect(chunkText(entry).length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('heavy optional libraries stay out of the first load', () => {
+    const lazyMarkers = {
+      mermaid: 'mermaidAPI',
+      katex: 'KaTeX parse error',
+      xterm: 'xterm-helper-textarea',
+      shikiGrammars: 'source.cobol',
+    }
+
+    it.each(loaders)('%s ships mermaid, katex, xterm and shiki grammars only as lazy chunks', (loader) => {
+      const firstLoad = firstLoadText(loader)
+      const shipped = shippedText(loader)
+      for (const marker of Object.values(lazyMarkers)) expect(firstLoad).not.toContain(marker)
+      expect(shipped).toContain(lazyMarkers.mermaid)
+      expect(shipped).toContain(lazyMarkers.katex)
+      expect(shipped).toContain(lazyMarkers.shikiGrammars)
     })
   })
 })
