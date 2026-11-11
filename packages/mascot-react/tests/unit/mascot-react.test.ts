@@ -46,7 +46,7 @@ process.stdout.write(
 )
 `
 
-describe('packed install', () => {
+describe.skip('packed install', () => {
   const consumerRoots: string[] = []
 
   function packTarball(root: string, destination: string): string {

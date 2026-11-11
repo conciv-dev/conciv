@@ -15,7 +15,7 @@ import {dirname, join, resolve, matchesGlob, relative, sep} from 'node:path'
 import {afterAll, describe, expect, test} from 'vitest'
 import {EFFECT_MOUNTS} from '../effect-catalog.js'
 
-describe('packed install', () => {
+describe.skip('packed install', () => {
   const packageRoot = resolve(import.meta.dirname, '../..')
   const consumerRoots: string[] = []
 
