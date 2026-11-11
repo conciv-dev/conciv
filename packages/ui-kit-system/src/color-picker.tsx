@@ -42,7 +42,7 @@ type ColorPickerProps = {
 const toHex = (details: {value: {toString: (format: 'hex') => string}}): string => details.value.toString('hex')
 
 export function ColorPicker(props: ColorPickerProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'value',
     'onValueChange',
     'onValueCommit',
@@ -73,7 +73,7 @@ export function ColorPicker(props: ColorPickerProps): JSX.Element {
     },
   }))
   return (
-    <Ark.RootProvider value={picker} class={`${ROOT}  ${local.class ?? ''}`}>
+    <Ark.RootProvider {...rest} value={picker} class={`${ROOT}  ${local.class ?? ''}`}>
       <Ark.Control class={CONTROL}>
         <Ark.Trigger class={TRIGGER}>
           <Ark.ValueSwatch class={VALUE_SWATCH} />

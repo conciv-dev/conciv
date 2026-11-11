@@ -59,17 +59,18 @@ function metaTone(mark: ToolRowMark, meta: string): string {
 }
 
 export function TraceMark(props: {mark: ToolRowMark}): JSX.Element {
+  const [, rest] = splitProps(props, ['mark'])
   const face = () => markFace(props.mark)
   return (
-    <span role="img" aria-label={face().label} class={`${MARK}  ${face().tone}`}>
+    <span {...rest} role="img" aria-label={face().label} class={`${MARK}  ${face().tone}`}>
       {face().glyph}
     </span>
   )
 }
 
-export function TraceRing(): JSX.Element {
+export function TraceRing(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.Element {
   return (
-    <span role="img" aria-label="running" class={RING}>
+    <span {...props} role="img" aria-label="running" class={RING}>
       <span class={RING_DOT} aria-hidden="true" />
     </span>
   )
@@ -89,11 +90,11 @@ export function TraceFoldableRow(props: {
   body?: () => JSX.Element
   foldable?: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['line', 'ring', 'body', 'foldable'])
+  const [local, rest] = splitProps(props, ['line', 'ring', 'body', 'foldable'])
   const foldable = () => local.foldable ?? local.body !== undefined
   const body = createMemo(() => local.body)
   return (
-    <li class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
+    <li {...rest} class={ROW_ITEM} data-trace-live={local.ring ? '' : undefined}>
       <Collapsible.Root defaultOpen disabled={!foldable()} class="min-w-0 w-full">
         <Collapsible.Trigger disabled={!foldable()} class={`${ROW}  ${FOLD_ROW}`}>
           {local.line()}
@@ -114,7 +115,7 @@ export function TraceRunRow(props: {
   body?: () => JSX.Element
   foldable?: boolean
 }): JSX.Element {
-  const [local] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body', 'foldable'])
+  const [local, rest] = splitProps(props, ['label', 'text', 'meta', 'live', 'ring', 'body', 'foldable'])
   const line = (): JSX.Element => (
     <>
       {(local.live ?? true) ? (
@@ -129,7 +130,7 @@ export function TraceRunRow(props: {
       {local.meta ? <TruncatedText class={`${META} text-chat-dim`} text={local.meta ?? ''} /> : undefined}
     </>
   )
-  return <TraceFoldableRow line={line} ring={local.ring} body={local.body} foldable={local.foldable} />
+  return <TraceFoldableRow {...rest} line={line} ring={local.ring} body={local.body} foldable={local.foldable} />
 }
 
 export function TraceToolRow(props: {
@@ -139,7 +140,7 @@ export function TraceToolRow(props: {
   foldable?: boolean
   tag?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['projection', 'ring', 'body', 'foldable', 'tag'])
+  const [local, rest] = splitProps(props, ['projection', 'ring', 'body', 'foldable', 'tag'])
   const running = () => local.projection.mark === 'run' && (local.ring ?? true)
   const body = () => local.projection.block ?? local.body
   const metaClass = () => `${META}  ${metaTone(local.projection.mark, local.projection.meta ?? '')}`
@@ -152,5 +153,5 @@ export function TraceToolRow(props: {
       {local.projection.meta ? <TruncatedText class={metaClass()} text={local.projection.meta ?? ''} /> : undefined}
     </>
   )
-  return <TraceFoldableRow line={line} ring={local.ring} body={body()} foldable={local.foldable} />
+  return <TraceFoldableRow {...rest} line={line} ring={local.ring} body={body()} foldable={local.foldable} />
 }

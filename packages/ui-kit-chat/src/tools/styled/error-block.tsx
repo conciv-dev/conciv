@@ -14,11 +14,11 @@ export function ErrorBlock(props: {
   outcome?: ToolResultPart['outcome']
   class?: string
 }): JSX.Element {
-  const [local] = splitProps(props, ['message', 'label', 'outcome', 'class'])
+  const [local, rest] = splitProps(props, ['message', 'label', 'outcome', 'class'])
   const wrapperClass = (): string => `${WRAPPER_CLASS} ${local.class ?? ''}`
   const labelClass = (): string => `${LABEL_CLASS} ${OUTCOME_TONE[local.outcome ?? 'error'].text}`
   return (
-    <div class={wrapperClass()}>
+    <div {...rest} class={wrapperClass()}>
       <p class={labelClass()}>{local.label ?? OUTCOME_LABEL[local.outcome ?? 'error']}</p>
       <Show when={local.message}>
         <p class={local.outcome === undefined ? DANGER_TEXT_CLASS : OUTCOME_TEXT_CLASS}>{local.message}</p>

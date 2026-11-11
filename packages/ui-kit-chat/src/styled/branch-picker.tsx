@@ -1,12 +1,14 @@
-import {type JSX} from 'solid-js'
+import {splitProps, type JSX} from 'solid-js'
 import ChevronLeft from 'lucide-solid/icons/chevron-left'
 import ChevronRight from 'lucide-solid/icons/chevron-right'
 import {BranchPicker as BranchPickerPrimitive} from '../primitives/branch-picker/branch-picker.js'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 
 export function BranchPicker(props: {class?: string}): JSX.Element {
+  const [, rest] = splitProps(props, ['class'])
   return (
     <BranchPickerPrimitive.Root
+      {...rest}
       hideWhenSingleBranch
       class={`text-[0.6875rem] inline-flex gap-0.5 [color:var(--chat-text-3)] items-center ${props.class ?? ''}`}
     >

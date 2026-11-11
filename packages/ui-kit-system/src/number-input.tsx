@@ -37,7 +37,7 @@ const clampStep = (options: {value: number; min: number | undefined; max: number
 const toNumber = (value: number): number | undefined => (Number.isNaN(value) ? undefined : value)
 
 export function NumberInput(props: NumberInputProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'value',
     'onValueChange',
     'onValueCommit',
@@ -58,6 +58,7 @@ export function NumberInput(props: NumberInputProps): JSX.Element {
   const largeStep = () => (local.step ?? 1) * 10
   return (
     <Ark.Root
+      {...rest}
       class={`${ROOT}  ${local.class ?? 'w-36'}`}
       value={local.value === undefined ? '' : String(local.value)}
       onValueChange={(details) => local.onValueChange?.(toNumber(details.valueAsNumber))}

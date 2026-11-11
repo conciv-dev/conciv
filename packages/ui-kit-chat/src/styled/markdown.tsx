@@ -1,4 +1,4 @@
-import {createContext, createSignal, onMount, Show, useContext, type JSX} from 'solid-js'
+import {createContext, createSignal, onMount, Show, splitProps, useContext, type JSX} from 'solid-js'
 import {mapValues} from 'es-toolkit'
 import {ReactiveMap} from '@solid-primitives/map'
 import {Highlight} from '@conciv/ui-kit-system'
@@ -287,14 +287,16 @@ export function HighlightedText(props: {text: string}): JSX.Element {
 }
 
 export function Markdown(props: MarkdownProps): JSX.Element {
+  const [, rest] = splitProps(props, ['content', 'streaming', 'compact', 'highlight'])
   const inherited = useContext(MarkdownHighlightContext)
   const highlight = () => props.highlight ?? inherited
   return (
     <Show
       when={props.compact}
-      fallback={<FullMarkdown content={props.content} streaming={props.streaming} highlight={highlight()} />}
+      fallback={<FullMarkdown {...rest} content={props.content} streaming={props.streaming} highlight={highlight()} />}
     >
       <Streamdown
+        {...rest}
         class="chat-markdown-compact"
         allowedLinkPrefixes={NO_LINK_PREFIXES}
         linkBlockPolicy="text-only"
@@ -307,10 +309,12 @@ export function Markdown(props: MarkdownProps): JSX.Element {
 }
 
 function FullMarkdown(props: Omit<MarkdownProps, 'compact'>): JSX.Element {
+  const [, rest] = splitProps(props, ['content', 'streaming', 'highlight'])
   warmHighlighter()
   const highlightCode: HighlightCode = (code, lang) => codeBlock(code, lang, props.streaming === true)
   return (
     <Streamdown
+      {...rest}
       class={props.streaming ? 'prose-chat chat-caret-live' : 'prose-chat'}
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}

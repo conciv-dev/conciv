@@ -121,6 +121,20 @@ function TextStates() {
 
 export const States: Story = {render: () => <TextStates />}
 
+export const Variants: Story = {
+  render: () => (
+    <div class="p-4 flex flex-col gap-3 w-80 [background:var(--chat-bg)]">
+      <TextField aria-label="Filled" placeholder="Filled" />
+      <TextField aria-label="Outline" placeholder="Outline" variant="outline" />
+    </div>
+  ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('textbox', {name: 'Filled'})).toBeVisible()
+    await expect(canvas.getByRole('textbox', {name: 'Outline'})).toBeVisible()
+  },
+}
+
 export const Keyboard: Story = {
   render: () => <TextStates />,
   play: async ({canvasElement}) => {

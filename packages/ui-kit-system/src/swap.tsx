@@ -17,9 +17,10 @@ function Indicator(props: ComponentProps<typeof Ark.Indicator>) {
 }
 
 function Resting(props: {children: JSX.Element}) {
+  const [local, rest] = splitProps(props, ['children'])
   return (
-    <span class={ROOT}>
-      <span class={INDICATOR}>{props.children}</span>
+    <span {...rest} class={ROOT}>
+      <span class={INDICATOR}>{local.children}</span>
     </span>
   )
 }

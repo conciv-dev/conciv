@@ -88,8 +88,9 @@ function Search(props: JSX.InputHTMLAttributes<HTMLInputElement> & {placeholder?
 }
 
 function Item(props: {model: ModelOption}): JSX.Element {
+  const [, rest] = splitProps(props, ['model'])
   return (
-    <ModelSelectorPrimitive.Item model={props.model} class={ITEM}>
+    <ModelSelectorPrimitive.Item {...rest} model={props.model} class={ITEM}>
       <div class={ITEM_BODY}>
         <Combobox.ItemText>{props.model.name}</Combobox.ItemText>
         <Show when={props.model.description}>
@@ -103,10 +104,10 @@ function Item(props: {model: ModelOption}): JSX.Element {
   )
 }
 
-function List(): JSX.Element {
+function List(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
   const context = useModelSelectorContext()
   return (
-    <ModelSelectorPrimitive.List class={LIST}>
+    <ModelSelectorPrimitive.List {...props} class={LIST}>
       <Show when={context.filteredModels().length === 0}>
         <div class={EMPTY}>No models match</div>
       </Show>
@@ -135,10 +136,12 @@ function Group(props: JSX.HTMLAttributes<HTMLDivElement> & {label?: JSX.Element}
 }
 
 function Effort(props: {label?: JSX.Element}): JSX.Element {
+  const [, rest] = splitProps(props, ['label'])
   const {efforts, effort, setEffort} = useModelSelectorEfforts()
   return (
     <Show when={efforts()?.length}>
       <div
+        {...rest}
         role="group"
         aria-label="Reasoning effort"
         class={EFFORT_ROW}

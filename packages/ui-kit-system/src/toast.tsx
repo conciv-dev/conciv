@@ -1,4 +1,4 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, splitProps, type JSX} from 'solid-js'
 import {Toast as Ark, Toaster as ArkToaster, createToaster, type CreateToasterReturn} from '@ark-ui/solid/toast'
 import XIcon from 'lucide-solid/icons/x'
 
@@ -12,8 +12,9 @@ const CLOSE =
 type ToasterInstance = CreateToasterReturn
 
 function Toaster(props: {toaster: ToasterInstance}): JSX.Element {
+  const [local, rest] = splitProps(props, ['toaster'])
   return (
-    <ArkToaster toaster={props.toaster}>
+    <ArkToaster {...rest} toaster={local.toaster}>
       {(toast) => (
         <Ark.Root class={ROOT}>
           <Ark.Title class={TITLE}>{toast().title}</Ark.Title>

@@ -24,7 +24,7 @@ type TagsInputProps = {
 }
 
 export function TagsInput(props: TagsInputProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'value',
     'onValueChange',
     'placeholder',
@@ -40,6 +40,7 @@ export function TagsInput(props: TagsInputProps): JSX.Element {
   const readOnly = () => local.readOnly ?? field?.().readOnly
   return (
     <Ark.Root
+      {...rest}
       class={`min-w-0 ${local.class ?? ''}`}
       value={local.value}
       onValueChange={(details) => local.onValueChange?.(details.value)}

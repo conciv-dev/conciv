@@ -31,7 +31,7 @@ export function Trace(props: {
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'summary',
     'compactLine',
     'items',
@@ -65,6 +65,7 @@ export function Trace(props: {
   })
   return (
     <Collapsible.Root
+      {...rest}
       open={open()}
       onOpenChange={(details) => change(details.open)}
       ref={setRootEl}

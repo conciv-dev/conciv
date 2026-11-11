@@ -35,7 +35,7 @@ type ComboboxSelectProps = {
 }
 
 export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'options',
     'value',
     'onValueChange',
@@ -56,6 +56,7 @@ export function ComboboxSelect(props: ComboboxSelectProps): JSX.Element {
   )
   return (
     <Combobox.Root
+      {...rest}
       class={`${ROOT}  ${local.class ?? ''}`}
       collection={collection()}
       value={local.value === undefined ? [] : [local.value]}

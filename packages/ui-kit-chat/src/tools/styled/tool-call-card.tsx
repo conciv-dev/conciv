@@ -67,6 +67,7 @@ function matchedEntry(tools: ToolCardEntry[] | undefined, name: string): ToolCar
 }
 
 function ToolCardView(props: ToolCallCardProps): JSX.Element {
+  const [, rest] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'capture'])
   const render = (): ToolUIComponent => {
     const card = matchedEntry(props.tools?.(), props.part.name)?.render
     if (card) return card
@@ -75,6 +76,7 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
   }
   return (
     <Dynamic
+      {...rest}
       component={render()}
       part={props.part}
       result={props.result}
@@ -89,7 +91,16 @@ function ToolCardView(props: ToolCallCardProps): JSX.Element {
 export type ToolTraceRowProps = ToolCallCardProps & {ring?: boolean}
 
 export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
-  const [local] = splitProps(props, ['part', 'result', 'ctx', 'tools', 'fallback', 'durationMs', 'ring'])
+  const [local, rest] = splitProps(props, [
+    'part',
+    'result',
+    'ctx',
+    'tools',
+    'fallback',
+    'durationMs',
+    'capture',
+    'ring',
+  ])
   const [cardHeader, setCardHeader] = createSignal<{read: () => EmbeddedCardHeader}>()
   const publishHeader: EmbeddedHeaderChannel = (read) => {
     const published = {read}
@@ -143,6 +154,7 @@ export function ToolTraceRow(props: ToolTraceRowProps): JSX.Element {
   return (
     <>
       <TraceToolRow
+        {...rest}
         projection={projection()}
         ring={local.ring ?? true}
         body={cardBody}

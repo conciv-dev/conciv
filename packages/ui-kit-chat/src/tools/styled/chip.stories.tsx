@@ -44,6 +44,21 @@ export const PillKind: Story = {
   },
 }
 
+export const CompactPill: Story = {
+  render: () =>
+    frame(
+      <ChipGroup>
+        <For each={TONES}>{(tone) => <Chip kind="pill" size="compact" tone={tone} value={`compact-${tone}`} />}</For>
+      </ChipGroup>,
+    ),
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    for (const tone of TONES) {
+      await expect(canvas.getByText(`compact-${tone}`)).toBeVisible()
+    }
+  },
+}
+
 export const PillWithTooltip: Story = {
   render: () => frame(<Chip kind="pill" tone="accent" value="npm run build" tooltip="Runs the project build script" />),
   play: async ({canvasElement}) => {

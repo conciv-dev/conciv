@@ -42,6 +42,7 @@ export type PinInputProps = {
 }
 
 export function PinInput(props: PinInputProps): JSX.Element {
+  const [, rest] = splitProps(props, ['label', 'length', 'onValueChange', 'onValueComplete', 'digitLabel', 'invalid'])
   const pin = usePinInput(() => ({
     otp: true,
     type: 'numeric',
@@ -53,7 +54,7 @@ export function PinInput(props: PinInputProps): JSX.Element {
     onValueComplete: (details) => props.onValueComplete(details.valueAsString, {clear: () => pin().clearValue()}),
   }))
   return (
-    <Ark.RootProvider value={pin} class={ROOT}>
+    <Ark.RootProvider {...rest} value={pin} class={ROOT}>
       <Ark.Label class={LABEL}>{props.label}</Ark.Label>
       <Ark.Control class={CONTROL}>
         <Index each={Array.from({length: props.length}, (_, index) => index)}>

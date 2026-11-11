@@ -29,10 +29,10 @@ export function TraceBodyFrame(props: {
   size?: TraceClampSize
   overflowLabel?: (hiddenLines: number) => string
 }): JSX.Element {
-  const [local] = splitProps(props, ['children', 'tone', 'live', 'chrome', 'size', 'overflowLabel'])
+  const [local, rest] = splitProps(props, ['children', 'tone', 'live', 'chrome', 'size', 'overflowLabel'])
   const shell = () => (local.chrome === false ? BARE_FRAME : `${FRAME}  ${FRAME_TONE[local.tone ?? 'normal']}`)
   return (
-    <div class={shell()}>
+    <div {...rest} class={shell()}>
       <TraceClamp live={local.live} size={local.size} overflowLabel={local.overflowLabel}>
         <div class={BODY_CONTENT}>{local.children}</div>
       </TraceClamp>
@@ -57,7 +57,7 @@ export function TraceOutputBlock(props: {
   onOpen?: () => void
   writeText?: (text: string) => Promise<void>
 }): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'children',
     'text',
     'tone',
@@ -73,7 +73,7 @@ export function TraceOutputBlock(props: {
   const tone = (): TraceOutputTone => local.tone ?? 'normal'
   const hasActions = () => local.text !== undefined || local.onOpen !== undefined
   return (
-    <div class={`${FRAME}  ${FRAME_TONE[tone()]}`} role="group" aria-label={local.label ?? TONE_NAME[tone()]}>
+    <div {...rest} class={`${FRAME}  ${FRAME_TONE[tone()]}`} role="group" aria-label={local.label ?? TONE_NAME[tone()]}>
       <Show when={hasActions()}>
         <div class={CHROME_ROW}>
           <Show when={local.text !== undefined}>

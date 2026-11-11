@@ -17,7 +17,7 @@ type ConfirmDialogProps = {
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'open',
     'onOpenChange',
     'title',
@@ -29,6 +29,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
   let cancel: HTMLButtonElement | undefined
   return (
     <Dialog
+      {...rest}
       open={local.open}
       onOpenChange={local.onOpenChange}
       title={local.title}

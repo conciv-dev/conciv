@@ -60,7 +60,7 @@ export type ComposerActionsHostProps = {
 }
 
 export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Element {
-  const [local] = splitProps(props, ['maxInlineAuto', 'onOverflowDismissed', 'children'])
+  const [local, rest] = splitProps(props, ['maxInlineAuto', 'onOverflowDismissed', 'children'])
   const [widths, setWidths] = createStore<RegionWidths>({row: 0, leading: 0, trailing: 0})
   let rowElement: Element | undefined
   let leadingElement: Element | undefined
@@ -77,6 +77,7 @@ export function ComposerActionsHost(props: ComposerActionsHostProps): JSX.Elemen
     <CoordinatorContext.Provider value={coordinator}>
       <Tooltip.Group>
         <div
+          {...rest}
           ref={(element) => {
             rowElement = element
             observe(element)
@@ -223,7 +224,7 @@ export type ComposerActionsActionButtonProps = {
 }
 
 function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
-  const [local] = splitProps(props, [
+  const [local, rest] = splitProps(props, [
     'priority',
     'visible',
     'tooltip',
@@ -249,6 +250,7 @@ function ActionButton(props: ComposerActionsActionButtonProps): JSX.Element {
   return (
     <Show when={inline()}>
       <TooltipIconButton
+        {...rest}
         tooltip={local.tooltip}
         variant={local.variant}
         class={local.class ?? ACTION_CLASS}
