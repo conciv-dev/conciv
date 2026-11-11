@@ -32,7 +32,7 @@ export function makeJournal(db: ConcivDb): Journal {
   }
 }
 
-type Held<T> = {value: T} | {reason: unknown}
+type Held<T> = {kind: 'value'; value: T} | {kind: 'failed'; reason: unknown}
 
 type Pending<T> = {
   await(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T>
@@ -56,8 +56,8 @@ function makePending<T>(timedOut: () => Error): Pending<T> {
   function hold(id: string, owner: string): Promise<Held<T>> {
     return new Promise<T>((settle, fail) => waiters.set(id, {owner, settle, fail}))
       .then(
-        (value): Held<T> => ({value}),
-        (reason: unknown): Held<T> => ({reason}),
+        (value): Held<T> => ({kind: 'value', value}),
+        (reason: unknown): Held<T> => ({kind: 'failed', reason}),
       )
       .finally(() => waiters.delete(id))
   }
@@ -298,7 +298,7 @@ export function makePageBus(timeoutMs = 5000, queuedActionMs = QUEUED_ACTION_MS)
       const answered = await pTimeout(reply, {milliseconds: queuedActionMs, message: unanswered()}).finally(() =>
         page.pending.drop(id),
       )
-      if ('reason' in answered) throw answered.reason
+      if (answered.kind === 'failed') throw answered.reason
       return answered.value
     }
     const played = replies.map((id) => {
