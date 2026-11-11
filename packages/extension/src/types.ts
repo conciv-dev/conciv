@@ -194,10 +194,7 @@ export type ServerResult<Context> = {
   router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: SessionId, run: TurnRun) => void | Promise<void>
-  sessionEnd?: (
-    sessionId: SessionId,
-    end: {reason: SessionEndReason; harnessSessionId?: HarnessSessionId},
-  ) => void | Promise<void>
+  sessionEnd?: (sessionId: SessionId, end: {reason: SessionEndReason}) => void | Promise<void>
   systemPrompt?: SessionPromptResolver
   dispose?: () => void | Promise<void>
   verbs?: Record<string, ServerVerb>

@@ -173,6 +173,11 @@ describe('db query', () => {
     })
   })
 
+  it('takes an option value that starts with a dash as its own next argument', async () => {
+    project()
+    expect(await query(['--select', '-seq', '--order', '-seq'])).toBe('-2\n-1\n')
+  })
+
   it('refuses a query it cannot answer as a user error naming the reason', async () => {
     project()
     const refused = async (args: string[]) => JSON.parse(await query(args)).error

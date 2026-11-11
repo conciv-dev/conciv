@@ -107,7 +107,9 @@ export const SERVER_STEPS = [
       round: () => ctx.design.store.runRound(request.sessionId),
       call: async () => {
         await ctx.design.runs.open(request)
-        return withCatalog({reply: await ctx.differ.get({input, session: request.sessionId, page}), ctx})
+        const reply = await ctx.differ.get({input, session: request.sessionId, page})
+        await ctx.design.runs.refresh(request.sessionId)
+        return withCatalog({reply, ctx})
       },
     }),
   ),
@@ -120,7 +122,9 @@ export const SERVER_STEPS = [
       round: async (reply) => writtenRound(reply),
       call: async () => {
         await ctx.design.runs.open(request)
-        return ctx.differ.check({nodes: input.nodes, session: request.sessionId})
+        const reply = await ctx.differ.check({nodes: input.nodes, session: request.sessionId})
+        await ctx.design.runs.refresh(request.sessionId)
+        return reply
       },
     }),
   ),
@@ -131,7 +135,11 @@ export const SERVER_STEPS = [
       input,
       session: request.sessionId,
       round: () => ctx.design.store.runRound(request.sessionId),
-      call: () => ctx.differ.status({session: request.sessionId}),
+      call: async () => {
+        const reply = await ctx.differ.status({session: request.sessionId})
+        await ctx.design.runs.refresh(request.sessionId)
+        return reply
+      },
     }),
   ),
   componentsDef.server((input, ctx: DesignContext, request) =>

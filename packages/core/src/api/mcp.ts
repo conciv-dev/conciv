@@ -277,7 +277,6 @@ type McpDeps = {
     publish: (chunk: ChatEvent) => void,
     caller?: {capabilities?: readonly CodeCapability[]; harnessSessionId?: HarnessSessionId},
   ) => Promise<CodeRunner | null>
-  harnessEnded: (nativeId: HarnessSessionId) => Promise<void>
   outsideCapabilities: (caller: {
     sessionId: SessionId
     client: string | null
@@ -365,32 +364,25 @@ async function sessionTools(deps: McpDeps, scope: SessionScope, caller: McpCalle
   return [...discoverTools, ...askingTools, executeTool]
 }
 
-const app = new Hono<{Variables: McpVars}>()
-  .delete('/', async (c) => {
-    if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
-    const nativeId = nativeIdFromHeaders(c.req.raw.headers)
-    if (nativeId !== null) await c.var.mcp.harnessEnded(nativeId)
-    return c.body(null, 204)
+const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
+  if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
+  const header = sessionIdFromHeaders(c.req.raw.headers)
+  const nativeId = nativeIdFromHeaders(c.req.raw.headers)
+  const trace = callTrace((name) => c.req.raw.headers.get(name))
+  const scope = await c.var.mcp.resolveSession(header, nativeId)
+  const caller = {
+    trace,
+    outside: trace.hub !== null && header === null && nativeId === null,
+    signal: c.req.raw.signal,
+    nativeId,
+  }
+  const server = createMCPServer({
+    name: 'conciv',
+    version: corePackage.version,
+    tools: await sessionTools(c.var.mcp, scope, caller),
+    onerror: (error) => logError(`[mcp] ${error.message}`),
   })
-  .post('/', async (c) => {
-    if (loopbackHostAllowlist(c.req.header('host') ?? null).length === 0) return c.text('forbidden host', 403)
-    const header = sessionIdFromHeaders(c.req.raw.headers)
-    const nativeId = nativeIdFromHeaders(c.req.raw.headers)
-    const trace = callTrace((name) => c.req.raw.headers.get(name))
-    const scope = await c.var.mcp.resolveSession(header, nativeId)
-    const caller = {
-      trace,
-      outside: trace.hub !== null && header === null && nativeId === null,
-      signal: c.req.raw.signal,
-      nativeId,
-    }
-    const server = createMCPServer({
-      name: 'conciv',
-      version: corePackage.version,
-      tools: await sessionTools(c.var.mcp, scope, caller),
-      onerror: (error) => logError(`[mcp] ${error.message}`),
-    })
-    return server.handle(c.req.raw)
-  })
+  return server.handle(c.req.raw)
+})
 
 export default app

@@ -28,7 +28,7 @@ Claude-specific init. It generates a local Claude plugin marketplace under `<sta
 - Reads env `CLAUDE_CONFIG_DIR` (`claudeInit.installed`).
 - Reads `<configDir>/plugins/installed_plugins.json`, `known_marketplaces.json` and cached plugin files (`readTextOrNull`, `install-state.ts`).
 - This package returns the plugin files and install commands; the caller writes the files and spawns `claude plugin ...` (`installPlan`, `init.ts`).
-- The generated bridge script, at runtime, reads env `CLAUDE_CODE_SESSION_ID` and `CONCIV_MCP_TIMEOUT_MS`, reads `<CONCIV_STATE_DIR>/mcp-endpoint.json`, POSTs each stdin line to `mcpUrl` with header `CONCIV_CLAUDE_SESSION_HEADER`, writes JSON-RPC replies to stdout, and when claude closes its stdin sends one `DELETE` to `mcpUrl` with that header, so the engine ends that claude session (`bridge.ts`). `CLAUDE_SESSION_ENV` (`names.ts`) names the variable; `claudeInit.hub.sessionEnv` hands it to the CLI, which sends it on every call.
+- The generated bridge script, at runtime, reads env `CLAUDE_CODE_SESSION_ID` and `CONCIV_MCP_TIMEOUT_MS`, reads `<CONCIV_STATE_DIR>/mcp-endpoint.json`, POSTs each stdin line to `mcpUrl` with header `CONCIV_CLAUDE_SESSION_HEADER`, and writes JSON-RPC replies to stdout (`bridge.ts`). `CLAUDE_SESSION_ENV` (`names.ts`) names the variable; `claudeInit.hub.sessionEnv` hands it to the CLI, which sends it on every call.
 
 ## Verification
 

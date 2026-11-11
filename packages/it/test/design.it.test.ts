@@ -1,7 +1,6 @@
 import {execFile, spawn} from 'node:child_process'
-import {once} from 'node:events'
 import {existsSync} from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {appendFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {basename, join} from 'node:path'
 import {createInterface} from 'node:readline'
@@ -271,11 +270,7 @@ describe('store', () => {
     const homeDir = await mkdtemp(join(tmpdir(), 'conciv-design-store-home-'))
     const opened = openStore(homeDir)
     const db = {orm: opened.orm, tables: storeTables}
-    const [run] = opened.orm
-      .insert(storeTables.runs)
-      .values({started: 1, status: 'running', project_key: 'p'})
-      .returning()
-      .all()
+    const [run] = opened.orm.insert(storeTables.runs).values({started: 1, project_key: 'p'}).returning().all()
     const home = openHomeDb(homeDir)
     const catalog = createCatalog({home, db, cwd: HOST_ROOT, sources: []})
     const store = createStore({
@@ -880,14 +875,16 @@ describe('catalog hints on design_get', () => {
     expect(firstOfTier({text: listed.text, tier: 'kit'})).not.toBe("import {Button} from '@conciv/ui-kit-system'")
   })
 
-  it('lists the hinted nodes in hint_vs_drawn of the running run, a round or none', async () => {
+  it('lists the hinted nodes in hint_vs_drawn of the latest run, a round or none', async () => {
     const got = await hintedTarget()
     const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
       await kit.rpc.db
         .read({
           from: 'design_stored_runs',
-          where: `session == "${kit.session}" && status == "running"`,
+          where: `session == "${kit.session}"`,
           select: fields('run'),
+          order: [{field: 'run', dir: 'desc'}],
+          limit: 1,
         })
         .then(resultsOf),
     )
@@ -1742,7 +1739,7 @@ function seededRuns(store: Store): number[] {
         model: 'm',
         prompt_head: 'p',
         started: 0,
-        ended: 60_000,
+        last_at: 60_000,
         cost: seed.cost,
         verdict: seed.verdict,
       })
@@ -1834,8 +1831,7 @@ describe('the runs store', () => {
         usage: {promptTokens: 10, completionTokens: 5, totalTokens: 15, cost: 3.01},
         cost: 3.01,
         harness_session_id: 'h',
-        status: 'aborted',
-        ended: 1794381815406,
+        error_code: 'no-transcript',
       }
       await sources.write({into: 'design_runs', values: correction})
       expect(
@@ -1854,8 +1850,7 @@ describe('the runs store', () => {
           usage: null,
           cost: 3,
           harness_session_id: null,
-          status: null,
-          ended: 60_000,
+          error_code: null,
           verdict: 'not-yet',
           prompt_head: 'p',
         },
@@ -1864,10 +1859,10 @@ describe('the runs store', () => {
       await expect(refused({run: 9999, cost: 1})).rejects.toThrow('no run 9999 in design_runs')
       await expect(refused({cost: 1})).rejects.toThrow('design_runs takes the run to correct')
       await expect(refused({run, prompt_head: 'x'})).rejects.toThrow(
-        'no writable field prompt_head in design_runs; the writable fields are model, ended, cost, verdict, status, usage, error, error_code, harness_session_id',
+        'no writable field prompt_head in design_runs; the writable fields are model, cost, verdict, usage, error, error_code, harness_session_id',
       )
       await expect(refused({run, usage: {promptTokens: 'many'}})).rejects.toThrow('usage is not valid')
-      await expect(refused({run, status: 'fine'})).rejects.toThrow('status is not valid')
+      await expect(refused({run, verdict: 'fine'})).rejects.toThrow('verdict is not valid')
     })
   })
 
@@ -1912,7 +1907,7 @@ async function homeQuery(input: {home: string; args: string[]}): Promise<Record<
 }
 
 describe('the store is written at the source', () => {
-  it('opens a running run with its provenance at the first design_get of a session, and writes its rounds there', async () => {
+  it('opens a run with its provenance at the first design_get of a session, and writes its rounds there', async () => {
     await goto('target')
     await cardsTarget()
     roundOf(await call('design_check', {}))
@@ -1924,14 +1919,14 @@ describe('the store is written at the source', () => {
         '--where',
         `session == "${kit.session}"`,
         '--select',
-        fields('run', 'status', 'session', 'project_key', 'harness', 'agent_id'),
+        fields('run', 'last_at', 'session', 'project_key', 'harness', 'agent_id'),
       ],
     })
     const remote = await git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']})
     expect(runs).toEqual([
       {
         run: expect.any(Number),
-        status: 'running',
+        last_at: expect.any(Number),
         session: kit.session,
         project_key: `${remote}#packages/it/test/fixtures/design/host/`,
         harness: expect.any(String),
@@ -2032,46 +2027,6 @@ describe('artifacts at the source', () => {
   })
 })
 
-const TurnUsageSchema = z.object({
-  promptTokens: z.number(),
-  completionTokens: z.number(),
-  totalTokens: z.number(),
-  cost: z.number(),
-})
-
-const ClosedSchema = z.array(
-  z.object({run: z.number(), status: z.string(), ended: z.number().nullable(), cost: z.number().nullable()}),
-)
-
-function runningChatRun(input: {stateRoot: string; session: string; runId: string; cost: number}): void {
-  const project = new DatabaseSync(join(input.stateRoot, '.conciv', 'conciv.db'))
-  const usage = {promptTokens: 10, completionTokens: 5, totalTokens: 15, cost: input.cost}
-  project
-    .prepare(
-      "INSERT INTO chat_runs (run_id, thread_id, harness_id, status, started_at, usage_json) VALUES (?, ?, 'claude', 'running', ?, ?)",
-    )
-    .run(input.runId, input.session, Date.now(), JSON.stringify(usage))
-  project.close()
-}
-
-function crashed(input: {home: string; session: string}): void {
-  const store = new DatabaseSync(join(input.home, 'runs.db'))
-  store
-    .prepare("UPDATE design_runs SET status = 'running', ended = NULL, verdict = NULL WHERE session = ?")
-    .run(input.session)
-  store.close()
-}
-
-function reachedDone(input: {home: string; session: string}): void {
-  const store = new DatabaseSync(join(input.home, 'runs.db'))
-  store
-    .prepare(
-      "UPDATE design_rounds SET verdict = 'done' WHERE run_id IN (SELECT run_id FROM design_runs WHERE session = ? AND status = 'running')",
-    )
-    .run(input.session)
-  store.close()
-}
-
 describe('design_check after the tab went away', () => {
   it('says the tab crashed and to reload it after a renderer crash, and that no widget is connected after a navigation away', async () => {
     const engine = await bootDesignHost()
@@ -2133,57 +2088,14 @@ describe('a live tab and a second dev server on the same project', () => {
   })
 })
 
-describe('a run closes with its session', () => {
-  it('closes the run of an external session when its hub detaches, completed at done and aborted short of it, with no cost or usage', async () => {
-    const homeDir = await tempDir('conciv-design-detach-home-')
-    const engine = await bootDesignHost({homeDir})
-    const {session} = engine
-    const runs = () =>
-      homeQuery({
-        home: homeDir,
-        args: [
-          '--from',
-          'design_stored_runs',
-          '--where',
-          `session == "${session}"`,
-          '--select',
-          fields('status', 'ended', 'cost', 'usage', 'verdict'),
-          '--order',
-          'run',
-        ],
-      })
-    const closed = {ended: expect.any(Number), cost: null, usage: null}
-    try {
-      await engine.goto('target')
-      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
-      await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      roundOf(await engine.call('design_check', {}))
-      reachedDone({home: homeDir, session})
-      await engine.rpc.sessions.detach({pid: process.pid})
-      expect(await runs()).toEqual([{...closed, status: 'completed', verdict: 'done'}])
-      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
-      await engine.call('design_check', {})
-      await engine.rpc.sessions.detach({pid: process.pid})
-      expect(await runs()).toEqual([
-        {...closed, status: 'completed', verdict: 'done'},
-        {...closed, status: 'aborted', verdict: null},
-      ])
-    } finally {
-      await engine.dispose()
-    }
-  })
-})
-
 describe('a run is one agent conversation', () => {
-  it('opens a run per claude conversation the CLI names on one tab, a new one when another conversation took the tab, and fills each from its own transcript at close', async () => {
+  it('reads a conversation model, usage and cost from its transcript as its calls land, with no close, and a conversation keeps its run across calls', async () => {
     const homeDir = await tempDir('conciv-design-agents-home-')
-    const engine = await bootDesignHost({homeDir})
-    const {session} = engine
     const first = HarnessSessionId.parse(`design-agent-a-${process.pid}`)
     const second = HarnessSessionId.parse(`design-agent-b-${process.pid}`)
     const transcript = claude.history?.transcriptPath?.(await tempDir('conciv-agent-cwd-'), first)
     if (transcript === undefined) throw new Error('the claude harness names no transcript path')
-    const check = (agent: HarnessSessionId) =>
+    const check = (engine: Kit, agent: HarnessSessionId) =>
       promisify(execFile)(
         process.execPath,
         [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'tools', 'design', 'check'],
@@ -2200,63 +2112,75 @@ describe('a run is one agent conversation', () => {
           },
         },
       ).catch((failed: unknown) => PrintedSchema.parse(failed))
-    try {
-      await engine.goto('target')
-      await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      const printed = [await check(first), await check(second), await check(first)]
+    const answered = (printed: {stdout: string}[]) =>
       expect(printed.map((each) => JSON.parse(each.stdout))).toEqual(
-        Array.from({length: 3}, () => expect.objectContaining({ok: true})),
+        printed.map(() => expect.objectContaining({ok: true})),
       )
-      await mkdir(join(transcript, '..'), {recursive: true})
-      await writeFile(transcript, syntheticTranscript(new Date().toISOString()))
-      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
-      await engine.rpc.sessions.detach({pid: process.pid})
-      const stored = await homeQuery({
+    const runs = () =>
+      homeQuery({
         home: homeDir,
         args: [
           '--from',
           'design_stored_runs',
-          '--where',
-          `session == "${session}"`,
           '--select',
-          fields('harness_session_id', 'status', 'model', 'usage', 'cost', 'error_code'),
+          fields('run', 'harness_session_id', 'model', 'usage', 'cost', 'error_code', 'last_at'),
           '--order',
           'run',
         ],
       })
-      const closed = {status: 'aborted', model: null, usage: null, cost: null, error_code: 'no-transcript'}
-      const read = {
-        harness_session_id: first,
-        status: 'aborted',
-        model: 'claude-sonnet-4-5',
-        usage: {
-          promptTokens: 134,
-          completionTokens: 12,
-          totalTokens: 146,
-          promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+    const usage = {
+      promptTokens: 134,
+      completionTokens: 12,
+      totalTokens: 146,
+      promptTokensDetails: {cachedTokens: 100, cacheWriteTokens: 20},
+    }
+    const unread = {model: null, usage: null, cost: null, error_code: 'no-transcript', last_at: expect.any(Number)}
+    await mkdir(join(transcript, '..'), {recursive: true})
+    await writeFile(transcript, syntheticTranscript(new Date().toISOString()))
+    const engine = await bootDesignHost({homeDir})
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      answered([await check(engine, first)])
+      const before = await runs()
+      expect(before).toEqual([
+        expect.objectContaining({harness_session_id: null}),
+        {
+          run: expect.any(Number),
+          harness_session_id: first,
+          model: 'claude-sonnet-4-5',
+          usage: {...usage, cost: 0.75},
           cost: 0.75,
+          error_code: null,
+          last_at: expect.any(Number),
         },
-        cost: 0.75,
-        error_code: null,
-      }
-      expect(stored).toEqual([
-        {...closed, harness_session_id: null},
-        read,
-        {...closed, harness_session_id: second},
-        read,
       ])
+      await appendFile(transcript, `\n${JSON.stringify({type: 'result', total_cost_usd: 1})}`)
+      answered([await check(engine, first), await check(engine, second)])
+      const after = await runs()
+      expect(after.slice(0, 2).map((row) => row.run)).toEqual(before.map((row) => row.run))
+      expect(after[1]).toEqual({...before[1], usage: {...usage, cost: 1.75}, cost: 1.75, last_at: expect.any(Number)})
+      expect(Number(after[1]?.last_at)).toBeGreaterThan(Number(before[1]?.last_at))
+      expect(after[2]).toEqual({...unread, run: expect.any(Number), harness_session_id: second})
       const checks = await homeQuery({
         home: homeDir,
-        args: ['--from', 'design_stored_rounds', '--where', `session == "${session}"`, '--select', fields('run')],
+        args: [
+          '--from',
+          'design_stored_tool_calls',
+          '--where',
+          `run == ${String(before[1]?.run)} && tool == "design_check"`,
+          '--select',
+          fields('seq'),
+        ],
       })
-      expect(new Set(checks.map((row) => row.run)).size).toBe(3)
+      expect(checks).toHaveLength(2)
     } finally {
       await engine.dispose()
       await rm(transcript, {force: true})
     }
-  })
+  }, 240_000)
 
-  it('names the claude session of a plugin bridge call on its run, and closes the run when claude closes the bridge', async () => {
+  it('names the claude session of a plugin bridge call on its run', async () => {
     const homeDir = await tempDir('conciv-design-bridge-home-')
     const engine = await bootDesignHost({homeDir})
     const agent = HarnessSessionId.parse(`design-bridge-${process.pid}`)
@@ -2289,7 +2213,7 @@ describe('a run is one agent conversation', () => {
           '--where',
           `harness_session_id == "${agent}"`,
           '--select',
-          fields('status', 'ended'),
+          fields('harness_session_id', 'last_at'),
         ],
       })
     try {
@@ -2308,42 +2232,9 @@ describe('a run is one agent conversation', () => {
           arguments: {typescriptCode: `return await external_design_get(${JSON.stringify({...design, route: '/'})})`},
         },
       })
-      expect(await runs()).toEqual([{status: 'running', ended: null}])
-      child.stdin.end()
-      await once(child, 'exit')
-      expect(await runs()).toEqual([{status: 'aborted', ended: expect.any(Number)}])
+      expect(await runs()).toEqual([{harness_session_id: agent, last_at: expect.any(Number)}])
     } finally {
       child.kill()
-      await engine.dispose()
-    }
-  })
-})
-
-describe('a run closes from its harness transcript', () => {
-  it('records no-transcript on an external session run that has no transcript, with model, usage and cost null', async () => {
-    const homeDir = await tempDir('conciv-design-no-transcript-home-')
-    const engine = await bootDesignHost({homeDir})
-    const {session} = engine
-    try {
-      await engine.goto('target')
-      await engine.rpc.sessions.take({sessionId: session, pid: process.pid})
-      await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      await engine.rpc.sessions.detach({pid: process.pid})
-      const stored = await homeQuery({
-        home: homeDir,
-        args: [
-          '--from',
-          'design_stored_runs',
-          '--where',
-          `session == "${session}"`,
-          '--select',
-          fields('model', 'usage', 'cost', 'harness_session_id', 'error', 'error_code'),
-        ],
-      })
-      expect(stored).toEqual([
-        {model: null, usage: null, cost: null, harness_session_id: null, error: null, error_code: 'no-transcript'},
-      ])
-    } finally {
       await engine.dispose()
     }
   })
@@ -2439,59 +2330,6 @@ describe('design_get with a Figma token that expired or is invalid', () => {
   })
 })
 
-describe('a run closes with its engine', () => {
-  it('closes every open run of an engine as aborted when the engine is disposed, with its verdict and no cost', async () => {
-    const homeDir = await tempDir('conciv-design-dispose-home-')
-    const engine = await bootDesignHost({homeDir})
-    const {session} = engine
-    try {
-      await engine.goto('target')
-      await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      roundOf(await engine.call('design_check', {}))
-    } finally {
-      await engine.dispose()
-    }
-    const closed = await homeQuery({
-      home: homeDir,
-      args: [
-        '--from',
-        'design_stored_runs',
-        '--where',
-        `session == "${session}"`,
-        '--select',
-        fields('status', 'ended', 'cost', 'verdict'),
-      ],
-    })
-    expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number), cost: null, verdict: expect.any(String)}])
-  })
-
-  it('closes a run whose last check said done as completed when the engine is disposed', async () => {
-    const homeDir = await tempDir('conciv-design-dispose-done-home-')
-    const engine = await bootDesignHost({homeDir})
-    const {session} = engine
-    try {
-      await engine.goto('target')
-      await engine.call('design_get', await cardsDesign(engine.targetsDir))
-      roundOf(await engine.call('design_check', {}))
-      reachedDone({home: homeDir, session})
-    } finally {
-      await engine.dispose()
-    }
-    const closed = await homeQuery({
-      home: homeDir,
-      args: [
-        '--from',
-        'design_stored_runs',
-        '--where',
-        `session == "${session}"`,
-        '--select',
-        fields('status', 'verdict'),
-      ],
-    })
-    expect(closed).toEqual([{status: 'completed', verdict: 'done'}])
-  })
-})
-
 describe('the tool calls of a run', () => {
   it('writes a round for every check, unsettled, measured and unchanged, and records the round each call wrote or read', async () => {
     const homeDir = await tempDir('conciv-design-call-rounds-home-')
@@ -2571,7 +2409,7 @@ describe('the tool calls of a run', () => {
 })
 
 describe('run_summary of a run that never checked', () => {
-  it('lists the run with its status and end, and no round, verdict or rows', async () => {
+  it('lists the run with its last call, and no round, verdict or rows', async () => {
     const homeDir = await tempDir('conciv-design-unchecked-home-')
     const engine = await bootDesignHost({homeDir})
     const {session} = engine
@@ -2593,15 +2431,15 @@ describe('run_summary of a run that never checked', () => {
         '--where',
         `run == ${String(run?.run)}`,
         '--select',
-        fields('status', 'ended', 'round', 'verdict', 'rows'),
+        fields('last_at', 'round', 'verdict', 'rows'),
       ],
     })
-    expect(summary).toEqual([{status: 'aborted', ended: expect.any(Number), round: null, verdict: null, rows: null}])
+    expect(summary).toEqual([{last_at: expect.any(Number), round: null, verdict: null, rows: null}])
   })
 })
 
-describe('a run closes when its dev server is interrupted', () => {
-  it('closes the open run as aborted with its end time when the dev server process gets SIGINT, as Ctrl-C sends it', async () => {
+describe('a run outlives its dev server', () => {
+  it('keeps the run with its verdict and last call when the dev server process gets SIGINT, as Ctrl-C sends it', async () => {
     const homeDir = await tempDir('conciv-design-sigint-home-')
     const engine = await bootDesignHost({homeDir, spawned: true})
     const {session} = engine
@@ -2621,66 +2459,10 @@ describe('a run closes when its dev server is interrupted', () => {
         '--where',
         `session == "${session}"`,
         '--select',
-        fields('status', 'ended'),
+        fields('verdict', 'last_at'),
       ],
     })
-    expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number)}])
-  })
-})
-
-describe('a run closes with its turn', () => {
-  it('closes the design run with the chat run the next boot swept, once, keeps its rounds, and a check after opens a new run', async () => {
-    const stateRoot = await tempDir('conciv-design-turn-state-')
-    const homeDir = await tempDir('conciv-design-turn-home-')
-    const first = await bootDesignHost({stateRoot, homeDir})
-    const session = first.session
-    try {
-      await first.goto('target')
-      await first.call('design_get', await cardsDesign(first.targetsDir))
-      roundOf(await first.call('design_check', {}))
-    } finally {
-      await first.dispose()
-    }
-    crashed({home: homeDir, session})
-    runningChatRun({stateRoot, session, runId: 'it-turn-1', cost: 1.5})
-    runningChatRun({stateRoot, session, runId: 'it-turn-2', cost: 9})
-    const second = await bootDesignHost({stateRoot, homeDir})
-    try {
-      const read = (where: string, select: string) =>
-        homeQuery({
-          home: homeDir,
-          args: ['--from', 'design_stored_runs', '--where', where, '--select', fields(...select.split(','))],
-        })
-      const [closed] = ClosedSchema.parse(await read(`session == "${session}"`, 'run,status,ended,cost'))
-      expect(closed).toEqual({run: expect.any(Number), status: 'aborted', ended: expect.any(Number), cost: 1.5})
-      const [usage] = await read(`session == "${session}"`, 'usage')
-      expect(TurnUsageSchema.parse(usage?.usage)).toEqual({
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-        cost: 1.5,
-      })
-      const kept = await homeQuery({
-        home: homeDir,
-        args: [
-          '--from',
-          'design_stored_rounds',
-          '--where',
-          `run == ${String(closed?.run)}`,
-          '--select',
-          fields('round'),
-        ],
-      })
-      expect(kept.length).toBeGreaterThan(0)
-      await second.goto('target')
-      roundOf(await second.call('design_check', {}))
-      const opened = ClosedSchema.parse(await read('status == "running"', 'run,status,ended,cost'))
-      expect(opened.map((row) => row.run)).not.toContain(closed?.run)
-      expect(opened).toHaveLength(1)
-      expect(ClosedSchema.parse(await read(`run == ${String(closed?.run)}`, 'run,status,ended,cost'))).toEqual([closed])
-    } finally {
-      await second.dispose()
-    }
+    expect(closed).toEqual([{verdict: expect.any(String), last_at: expect.any(Number)}])
   })
 })
 

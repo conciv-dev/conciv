@@ -185,23 +185,9 @@ async function forward(line) {
   }
 }
 
-async function ended() {
-  const resolved = endpoint()
-  if (resolved.url === null || claudeSessionId === '') return
-  await fetch(resolved.url, {
-    method: 'DELETE',
-    headers: {'${CONCIV_CLAUDE_SESSION_HEADER}': claudeSessionId},
-    signal: AbortSignal.timeout(timeoutMs()),
-  }).catch(() => null)
-}
-
-createInterface({input: process.stdin})
-  .on('line', (line) => {
-    if (line.trim().length === 0) return
-    void forward(line)
-  })
-  .on('close', () => {
-    void ended()
-  })
+createInterface({input: process.stdin}).on('line', (line) => {
+  if (line.trim().length === 0) return
+  void forward(line)
+})
 `
 }

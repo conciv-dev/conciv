@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {command, description, name, option, schema, toggle} from '@bomb.sh/router'
 import type {SourcePage, SourceRead} from '@conciv/db'
 import {uniq} from 'es-toolkit'
+import {dashValue} from './dash-value.js'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {userFailure} from './failure.js'
 import {localCatalog, type LocalCatalog} from './local-catalog.js'
@@ -28,25 +29,29 @@ export function sourceCommands(scope: {extension?: string; label: string; prefix
     command(
       name(`${prefix}query`),
       description(`read ${label} sources; with no --from, list every source and its fields`),
-      option(name('from'), description('the source to read'), schema(z.string().optional())),
+      option(name('from'), dashValue, description('the source to read'), schema(z.string().optional())),
       option(
         name('where'),
+        dashValue,
         description('a CEL predicate over the source fields, e.g. round == 3 && kind in ["text"]'),
         schema(z.string().optional()),
       ),
       option(
         name('select'),
+        dashValue,
         description('a CEL expression per row: a map prints a table, e.g. {"round": round, "kind": kind}'),
         schema(z.string().optional()),
       ),
       option(
         name('order'),
+        dashValue,
         description('comma-separated fields to sort by, -field for descending'),
         schema(z.string().optional()),
       ),
-      option(name('limit'), description('the most rows to return'), schema(z.int().optional())),
+      option(name('limit'), dashValue, description('the most rows to return'), schema(z.int().optional())),
       option(
         name('cursor'),
+        dashValue,
         description('the next of a page read with the same --order'),
         schema(z.string().optional()),
       ),
@@ -57,8 +62,8 @@ export function sourceCommands(scope: {extension?: string; label: string; prefix
     command(
       name(`${prefix}write`),
       description(`write a row into a writable source of ${label}`),
-      option(name('into'), description('the writable source'), schema(z.string())),
-      option(name('values'), description('the row as a JSON object of field to value'), schema(z.string())),
+      option(name('into'), dashValue, description('the writable source'), schema(z.string())),
+      option(name('values'), dashValue, description('the row as a JSON object of field to value'), schema(z.string())),
       envelopeFlag,
       handler((model) => {
         const {into, values} = WriteModelSchema.parse(model)

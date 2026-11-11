@@ -11,7 +11,6 @@ import {
   type SQLiteColumn,
   type SQLiteTableFn,
 } from 'drizzle-orm/sqlite-core'
-import {RUN_STATUSES} from '@conciv/protocol/chat-event-types'
 import type {TokenUsage} from '@conciv/protocol/usage-types'
 import {BROKEN_BY, DESIGN_VERDICTS, ROUND_STATES, WIDGETS, type Design} from '../shared/defs.js'
 import {DESIGN_TOOLS} from '../shared/design-tools.js'
@@ -47,7 +46,7 @@ export function designTables(table: SQLiteTableFn) {
       model: text(),
       prompt_head: text(),
       started: integer().notNull(),
-      ended: integer(),
+      last_at: integer(),
       cost: real(),
       verdict: text({enum: RUN_VERDICTS}),
       project_key: text(),
@@ -57,7 +56,6 @@ export function designTables(table: SQLiteTableFn) {
       tools_version: text(),
       tools_fingerprint: text(),
       session: text(),
-      status: text({enum: RUN_STATUSES}),
       harness: text(),
       agent_id: text(),
       usage: text({mode: 'json'}).$type<TokenUsage>(),
@@ -66,9 +64,9 @@ export function designTables(table: SQLiteTableFn) {
       harness_session_id: text(),
     },
     (self) => [
-      index('runs_by_session').on(self.session, self.status),
+      index('runs_by_session').on(self.session),
+      index('runs_by_harness_session').on(self.harness_session_id),
       check('runs_verdict', inArray(self.verdict, [...RUN_VERDICTS]).inlineParams()),
-      check('runs_status', inArray(self.status, [...RUN_STATUSES]).inlineParams()),
     ],
   )
   const targets = table(

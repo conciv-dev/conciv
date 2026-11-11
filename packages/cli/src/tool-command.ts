@@ -3,6 +3,7 @@ import {resolve} from 'node:path'
 import {z} from 'zod'
 import {kebabCase} from 'es-toolkit'
 import {argument, cli, command, description, multiple, name, option, schema, toggle, type Schema} from '@bomb.sh/router'
+import {dashValue} from './dash-value.js'
 import {envelopeFlag, type CliOutcome} from './envelope.js'
 import {handler} from './router/handler.js'
 import type {CliTarget} from './request.js'
@@ -100,12 +101,13 @@ function fieldElement(entry: ToolField, positional: string | undefined): Element
     return option(
       name(entry.name),
       spellings,
+      dashValue,
       description(`${text} (repeat the flag for more)`),
       multiple(),
       schema(entry.schema),
     )
   }
-  return option(name(entry.name), spellings, description(text), schema(entry.schema))
+  return option(name(entry.name), spellings, dashValue, description(text), schema(entry.schema))
 }
 
 function wireSchema(entry: DeclaredEntry): Schema {

@@ -2,6 +2,7 @@ import {z} from 'zod'
 import {argument, command, description, dynamic, extend, multiple, name, option, schema, toggle} from '@bomb.sh/router'
 import {concivHome, readHomeDb, type CommandOption, type CommandValues} from '@conciv/db'
 import {sourceCommands} from './db.js'
+import {dashValue} from './dash-value.js'
 import {envelopeFlag} from './envelope.js'
 import {failureOf, type EnvelopeError} from './failure.js'
 import {localCatalog} from './local-catalog.js'
@@ -93,9 +94,15 @@ function optionOf(input: {key: string; declared: CommandOption}) {
   const {key, declared} = input
   if (declared.type === 'boolean') return toggle(name(key), description(declared.description))
   if (declared.multiple === true)
-    return option(name(key), description(declared.description), multiple(), schema(z.array(z.string()).optional()))
+    return option(
+      name(key),
+      description(declared.description),
+      dashValue,
+      multiple(),
+      schema(z.array(z.string()).optional()),
+    )
   const scalar = declared.type === 'number' ? z.number() : z.string()
-  return option(name(key), description(declared.description), schema(scalar.optional()))
+  return option(name(key), description(declared.description), dashValue, schema(scalar.optional()))
 }
 
 function valuesOf(input: {model: Record<string, unknown>; declared: string[]}): CommandValues {
