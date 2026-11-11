@@ -13,7 +13,7 @@ import {isExtension} from '../src/extension-guard.js'
 import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/split-extension.js'
 import {compileExtensionSolid} from '../src/compile-extension.js'
-import {mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync} from 'node:fs'
+import {chmodSync, mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync, statSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {defineExtension} from '@conciv/extension'
 import {addSourceToJsx} from '../src/inject-source.js'
@@ -394,6 +394,46 @@ describe('inject source', () => {
       expect(readFileSync(file, 'utf8')).toBe(raw)
       expect(keys).toHaveLength(2)
       expect(keys.filter((key) => key.length !== 6)).toEqual([])
+    })
+
+    it('does not hand a deleted element its key back after the file lost all its JSX', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Gone.tsx')
+      const memory = new Map()
+      const serve = (code: string): string[] => {
+        writeFileSync(file, code)
+        return keyValues(addSourceToJsx({code, id: file, root: dir, keys: memory})?.code ?? '')
+      }
+
+      const [before] = serve('export const Gone = () => <button>a</button>\n')
+      serve('export const Gone = () => null\n')
+      const [after] = serve('export const Gone = () => (\n  <button>a</button>\n)\n')
+
+      expect(before).toBeDefined()
+      expect(after).toBeDefined()
+      expect(after).not.toBe(before)
+    })
+
+    it('stamps a root-relative source for a file whose name starts with two dots', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, '..panel.tsx')
+      const code = 'export const Panel = () => <div>x</div>\n'
+      writeFileSync(file, code)
+
+      const out = addSourceToJsx({code, id: file, root: dir, keys: null})
+
+      expect(sourceValues(out?.code ?? '')).toEqual(['..panel.tsx:1:28'])
+    })
+
+    it('surfaces a source file it is not allowed to read instead of stamping from the transformed code', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'conciv-key-'))
+      const file = join(dir, 'Locked.tsx')
+      const code = 'export const Locked = () => <div>x</div>\n'
+      writeFileSync(file, code)
+      chmodSync(file, 0o000)
+
+      expect(() => addSourceToJsx({code, id: file, root: dir, keys: null})).toThrow(/EACCES/)
+      chmodSync(file, 0o644)
     })
   })
 })

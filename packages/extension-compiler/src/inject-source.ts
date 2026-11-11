@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
-import {isAbsolute, relative} from 'node:path'
+import {isAbsolute, relative, sep} from 'node:path'
 import {diffArrays} from 'diff'
 import {parseSync} from 'oxc-parser'
 import MagicString from 'magic-string'
@@ -41,7 +41,11 @@ export function addSourceToJsx(input: {
   if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
   if (code.includes(SOURCE_ATTR)) return null
   const parsed = parseModule(file, code)
-  if (parsed === null || parsed.openings.length === 0) return null
+  if (parsed === null) return null
+  if (parsed.openings.length === 0) {
+    input.keys?.set(file, {openings: [], keys: []})
+    return null
+  }
   const {openings, imported} = parsed
   const onDisk = alignedDisk({file, text: readText(file), expected: openings.length})
   const rel = inside({file, root}) ? relative(root, file) : file
@@ -136,7 +140,7 @@ function withGap(walk: Walk): Gap[] {
 
 function inside(input: {file: string; root: string}): boolean {
   const rel = relative(input.root, input.file)
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel)
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
 }
 
 function insertAt(node: Node): number {
@@ -167,8 +171,9 @@ function literalKey(node: Node): string | null {
 function readText(file: string): string | null {
   try {
     return readFileSync(file, 'utf8')
-  } catch {
-    return null
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null
+    throw error
   }
 }
 
