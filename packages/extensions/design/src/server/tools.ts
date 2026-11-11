@@ -29,9 +29,9 @@ const SOURCES =
   'Sources, each row with target and at: targets (the registered design: link, width, height, image, lead: the first frame of the set when the design has a frame per width), rounds (one per design_check: much, noticeably, slightly, pins, other, reflow, paint, rows_count, nodes, mapped, rendered, revoted, pixel_share, and against the round before: pixel_before, closed, opened, kept, gained, lost, changed_ratio, changed_regions, note, verdict, unsettled: why a round was measured but not judged), missing (per round the nodes no element renders, kind missing, not_rendered or dupe), candidates (tied votes: node, selector, score), widths (the widths a round measured: width, from, root_height, overflow_x), regions (where the screenshot changed since the round before: x, y, width, height and per overlapping element id, node, name, source, overlap; truncated when only the largest are listed), rows (what a round returned: node, id, source, selector, kind, name, magnitude, width, text, token, component, specifier, kit_token, design_token, confidence, margin; the kind of a paint row is fill, text color, font family, font weight, font size, line height, radius, border, opacity or image; a token-drift row is a paint row inside a component whose kit token and design variable disagree, with component, kit_token and design_token; a component row is a node the design names after a component but the page draws by hand, with component and specifier), nodes (one per Figma node of the design, its expected look: node, name, type, within, depth, x, y, w, h, fill_kind solid, gradient, image, image-stack (a background asset that is the fill stack flattened) or none, fill, fill_opacity, stroke, stroke_weight, radius, font_family, font_weight, font_size, line_height, text_align, text, opacity, image, asset, and the token each field is bound to: token_fill, token_stroke, token_radius, token_font, token_gap, token_padding), fom (the stored mapping per conciv id and Figma node: source, confidence, margin, round, revoted_round, reason, joined to the look of that node with every nodes field), votes (every candidate scored per node and round: candidate, path, dom, src, cssom, total, won), tool_calls (tool, input, reply: the whole reply the tool returned, reply_bytes, duration_ms, error), runs (model, started, ended, cost, verdict, status, session_id, arm, harness, agent_id), labels (a verdict right or wrong on a node or id: run, round, node, id, verdict, by, note), notes (run, round, text) and node_components (which project component rendered each design node in a round: round, node, component_id, source, the source line that tied them).'
 
 const EXAMPLES =
-  'Examples: what the element with conciv id VgfUgw should look like: {from: "fom", where: "id == \\"VgfUgw\\"", select: ["node", "name", "fill", "radius", "font_family", "font_size", "asset"]}; every node bound to one token: {from: "nodes", where: "token_fill == \\"color/brand/primary\\"", select: ["node", "name", "fill"]}; the paint rows of round 4 by kind: {from: "rows", where: "round == 4 && magnitude == \\"paint\\"", select: ["kind", "node", "text"], order: [{field: "kind", dir: "asc"}]}.'
+  'Examples: what the element with conciv id VgfUgw should look like: {from: "fom", where: "id == \\"VgfUgw\\"", select: "{\\"node\\": node, \\"name\\": name, \\"fill\\": fill, \\"radius\\": radius, \\"font_family\\": font_family, \\"font_size\\": font_size, \\"asset\\": asset}"}; every node bound to one token: {from: "nodes", where: "token_fill == \\"color/brand/primary\\"", select: "{\\"node\\": node, \\"name\\": name, \\"fill\\": fill}"}; the paint rows of round 4 by kind: {from: "rows", where: "round == 4 && magnitude == \\"paint\\"", select: "{\\"kind\\": kind, \\"node\\": node, \\"text\\": text}", order: [{field: "kind", dir: "asc"}]}.'
 
-const QUERY_SUMMARY = `Reads one design source and returns its rows as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select the fields to return, order the fields to sort by (seq is the order rows were written), limit the most rows; ask only for what you need. ${EXAMPLES} ${SOURCES}`
+const QUERY_SUMMARY = `Reads one design source and returns {results, total, next} as JSON: from names the source, where is a CEL predicate over its fields (round == 3 && magnitude in ["much", "noticeably"], text.contains("Pro")), select a CEL expression per row (a map keeps its keys, a list or scalar is returned as is, a row it fails on gives null), order the fields to sort by (seq is the order rows were written), limit the most rows, cursor the next of an earlier page with the same order; ask only for what you need. ${EXAMPLES} ${SOURCES}`
 
 const WRITE_SUMMARY = `Writes one row into labels or notes: into names the source, values maps its fields to values; at is filled in. Every other source is written by the design tools only. ${SOURCES}`
 
@@ -41,6 +41,8 @@ const VariantsSchema = z.object({variants: z.array(z.unknown())})
 
 const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
+const PageSchema = z.object({results: z.array(z.unknown()), total: z.number().int(), next: z.string().nullable()})
+
 const queryDef = designDataTool({
   verb: 'query',
   summary: QUERY_SUMMARY,
@@ -49,13 +51,19 @@ const queryDef = designDataTool({
   input: z.object({
     from: z.string().min(1).describe('the source to read'),
     where: z.string().min(1).optional().describe('a CEL predicate over the source fields'),
-    select: z.array(z.string().min(1)).optional().describe('the fields to return, all when absent'),
+    select: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('a CEL expression per row, e.g. {"node": node, "fill": fill}; every field when absent'),
     order: z
       .array(z.object({field: z.string().min(1), dir: z.enum(['asc', 'desc'])}))
       .optional()
       .describe('the fields to sort by, in turn'),
     limit: z.number().int().positive().optional().describe('the most rows to return'),
+    cursor: z.string().min(1).optional().describe('the next of an earlier page read with the same order'),
   }),
+  output: PageSchema,
 })
 
 const LabelValues = z.strictObject({
@@ -229,18 +237,19 @@ function propLine(prop: PropSketch): string {
   return `${prop.name}${prop.required ? '' : '?'}: ${prop.type}`
 }
 
-function designDataTool<Shape extends z.ZodRawShape>(spec: {
+function designDataTool<Shape extends z.ZodRawShape, Output extends z.ZodType = typeof RowsSchema>(spec: {
   verb: string
   summary: string
   running: string
   done: string
   input: z.ZodObject<Shape>
+  output?: Output
 }) {
   return defineTool({
     name: `${DESIGN_TOOL_PREFIX}${spec.verb}`,
     description: spec.summary,
     inputSchema: spec.input,
-    outputSchema: RowsSchema,
+    outputSchema: spec.output ?? RowsSchema,
     meta: {
       summary: spec.summary,
       category: 'design',

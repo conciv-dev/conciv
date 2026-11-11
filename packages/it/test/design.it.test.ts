@@ -880,18 +880,22 @@ describe('catalog hints on design_get', () => {
   it('lists the hinted nodes in hint_vs_drawn of the running run, a round or none', async () => {
     const got = await hintedTarget()
     const [{run: runId} = {run: 0}] = z.array(z.object({run: z.number()})).parse(
-      await kit.rpc.db.read({
-        from: 'design_stored_runs',
-        where: `session_id == "${kit.session}" && status == "running"`,
-        select: ['run'],
-      }),
+      await kit.rpc.db
+        .read({
+          from: 'design_stored_runs',
+          where: `session_id == "${kit.session}" && status == "running"`,
+          select: fields('run'),
+        })
+        .then(resultsOf),
     )
     const rows = z.array(z.object({node: z.string(), hint: z.string()})).parse(
-      await kit.rpc.db.read({
-        from: 'design_hint_vs_drawn',
-        where: `run == ${runId} && target == "${got.target}"`,
-        select: ['node', 'hint'],
-      }),
+      await kit.rpc.db
+        .read({
+          from: 'design_hint_vs_drawn',
+          where: `run == ${runId} && target == "${got.target}"`,
+          select: fields('node', 'hint'),
+        })
+        .then(resultsOf),
     )
     expect(new Set(rows.map((row) => row.hint))).toEqual(new Set(['Button', 'TooltipIconButton']))
     await expect(
@@ -909,16 +913,18 @@ describe('catalog hints on design_get', () => {
       input: z.unknown(),
     })
     const [stored] = z.array(StoredSchema).parse(
-      await kit.rpc.registry.call({
-        name: 'design_query',
-        input: {
-          from: 'tool_calls',
-          where: 'tool == "design_get"',
-          select: ['reply', 'input'],
-          order: [{field: 'seq', dir: 'desc'}],
-          limit: 1,
-        },
-      }),
+      await kit.rpc.registry
+        .call({
+          name: 'design_query',
+          input: {
+            from: 'tool_calls',
+            where: 'tool == "design_get"',
+            select: fields('reply', 'input'),
+            order: [{field: 'seq', dir: 'desc'}],
+            limit: 1,
+          },
+        })
+        .then(resultsOf),
     )
     const hinted = got.nodes.find((node) => node.hint !== undefined)
     expect(stored?.reply.components).toBe(got.components)
@@ -931,7 +937,7 @@ describe('node components', () => {
   const RowsSchema = z.array(z.record(z.string(), z.unknown()))
 
   async function query(input: {from: string; where: string}) {
-    return RowsSchema.parse(await kit.rpc.registry.call({name: 'design_query', input}))
+    return RowsSchema.parse(resultsOf(await kit.rpc.registry.call({name: 'design_query', input})))
   }
 
   it('records which component rendered each node of a round, and the component names its nodes', async () => {
@@ -1022,18 +1028,23 @@ describe('token drift', () => {
   }
 
   async function paired(input: {on: Kit; target: string}) {
-    const read = async (query: {from: string; select: string[]}) =>
+    const read = async (query: {from: string; select: string}) =>
       RowsSchema.parse(
-        await input.on.rpc.registry.call({
-          name: 'design_query',
-          input: {...query, where: `target == "${input.target}"`, order: [{field: 'seq', dir: 'asc'}]},
-        }),
+        resultsOf(
+          await input.on.rpc.registry.call({
+            name: 'design_query',
+            input: {...query, where: `target == "${input.target}"`, order: [{field: 'seq', dir: 'asc'}]},
+          }),
+        ),
       )
     return {
-      fom: await read({from: 'fom', select: ['round', 'id', 'node', 'source', 'instance', 'confidence', 'margin']}),
+      fom: await read({
+        from: 'fom',
+        select: fields('round', 'id', 'node', 'source', 'instance', 'confidence', 'margin'),
+      }),
       votes: await read({
         from: 'votes',
-        select: ['round', 'node', 'candidate', 'path', 'dom', 'src', 'cssom', 'total', 'won'],
+        select: fields('round', 'node', 'candidate', 'path', 'dom', 'src', 'cssom', 'total', 'won'),
       }),
     }
   }
@@ -1386,10 +1397,12 @@ async function framePerWidth(): Promise<{figma: string[]; image: string[]; docum
 
 async function targetsOfRun(): Promise<{route: unknown; at: unknown}[]> {
   return z.array(z.object({route: z.unknown(), at: z.unknown()})).parse(
-    await kit.rpc.registry.call({
-      name: 'design_query',
-      input: {from: 'targets', where: 'link.startsWith("ItRoutesKey/")', select: ['route', 'at']},
-    }),
+    await kit.rpc.registry
+      .call({
+        name: 'design_query',
+        input: {from: 'targets', where: 'link.startsWith("ItRoutesKey/")', select: fields('route', 'at')},
+      })
+      .then(resultsOf),
   )
 }
 
@@ -1736,7 +1749,9 @@ describe('the runs store', () => {
     await withStore(async ({sources}) => {
       const expected = [...STORED.map((name) => `design_stored_${name}`), ...VIEWS.map((name) => `design_${name}`)]
       expect(new Set(sources.list().map((source) => source.name))).toEqual(new Set(expected))
-      const read = await Promise.all(expected.map((from) => sources.read({from, limit: 1})))
+      const read = await Promise.all(
+        expected.map((from) => sources.read({from, limit: 1}).then((page) => page.results)),
+      )
       expect(read).toEqual(expected.map(() => []))
     })
   })
@@ -1768,11 +1783,13 @@ describe('the runs store', () => {
       }
       await sources.write({into: 'design_runs', values: correction})
       expect(
-        await sources.read({
-          from: 'design_runs',
-          select: [...Object.keys(correction), 'verdict', 'prompt_head'],
-          order: [{field: 'run', dir: 'asc'}],
-        }),
+        (
+          await sources.read({
+            from: 'design_runs',
+            select: fields(...Object.keys(correction), 'verdict', 'prompt_head'),
+            order: [{field: 'run', dir: 'asc'}],
+          })
+        ).results,
       ).toEqual([
         {...correction, verdict: 'done', prompt_head: 'p'},
         {
@@ -1823,16 +1840,19 @@ async function git(input: {cwd: string; args: string[]}): Promise<string> {
   return (await promisify(execFile)('git', input.args, {cwd: input.cwd})).stdout.trim()
 }
 
-const CliRowsSchema = z.object({ok: z.literal(true), data: z.array(z.record(z.string(), z.unknown()))})
+const CliRowsSchema = z.object({
+  ok: z.literal(true),
+  data: z.object({results: z.array(z.record(z.string(), z.unknown()))}),
+})
 
 async function homeQuery(input: {home: string; args: string[]}): Promise<Record<string, unknown>[]> {
   const cwd = await tempDir('conciv-no-project-')
   const printed = await promisify(execFile)(
     process.execPath,
-    [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'db', 'query', ...input.args],
+    [fileURLToPath(import.meta.resolve('@conciv/cli/bin')), 'db', 'query', '--json', ...input.args],
     {cwd, env: {...process.env, CONCIV_HOME: input.home}},
   )
-  return CliRowsSchema.parse(JSON.parse(printed.stdout)).data
+  return CliRowsSchema.parse(JSON.parse(printed.stdout)).data.results
 }
 
 describe('the store is written at the source', () => {
@@ -1848,7 +1868,7 @@ describe('the store is written at the source', () => {
         '--where',
         `session_id == "${kit.session}"`,
         '--select',
-        'run,status,session_id,project_key,harness,agent_id',
+        fields('run', 'status', 'session_id', 'project_key', 'harness', 'agent_id'),
       ],
     })
     const remote = await git({cwd: kit.hostRoot, args: ['remote', 'get-url', 'origin']})
@@ -1864,7 +1884,14 @@ describe('the store is written at the source', () => {
     ])
     const rounds = await homeQuery({
       home: kit.home,
-      args: ['--from', 'design_stored_rounds', '--where', `run == ${String(runs[0]?.run)}`, '--select', 'round'],
+      args: [
+        '--from',
+        'design_stored_rounds',
+        '--where',
+        `run == ${String(runs[0]?.run)}`,
+        '--select',
+        fields('round'),
+      ],
     })
     expect(rounds.length).toBeGreaterThan(0)
     const project = new DatabaseSync(join(kit.stateRoot, '.conciv', 'conciv.db'), {readOnly: true})
@@ -1883,7 +1910,7 @@ describe('artifacts at the source', () => {
     const checked = roundOf(await call('design_check', {}))
     const [running] = await homeQuery({
       home: kit.home,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${kit.session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${kit.session}"`, '--select', fields('run')],
     })
     const stored = ArtifactRowsSchema.parse(
       await homeQuery({
@@ -1894,7 +1921,7 @@ describe('artifacts at the source', () => {
           '--where',
           `run == ${String(running?.run)}`,
           '--select',
-          'kind,width,path',
+          fields('kind', 'width', 'path'),
         ],
       }),
     )
@@ -2030,7 +2057,7 @@ describe('a run closes with its session', () => {
           '--where',
           `session_id == "${session}"`,
           '--select',
-          'status,ended,cost,usage,verdict',
+          fields('status', 'ended', 'cost', 'usage', 'verdict'),
           '--order',
           'run',
         ],
@@ -2080,7 +2107,7 @@ describe('a run closes from its harness transcript', () => {
           '--where',
           `session_id == "${session}"`,
           '--select',
-          'run,model,usage,cost,harness_session_id,error_code',
+          fields('run', 'model', 'usage', 'cost', 'harness_session_id', 'error_code'),
         ],
       })
       expect(stored).toEqual({
@@ -2105,7 +2132,7 @@ describe('a run closes from its harness transcript', () => {
           '--where',
           `run == ${String(stored?.run)}`,
           '--select',
-          'harness_session_id',
+          fields('harness_session_id'),
         ],
       })
       expect(summary).toEqual([{harness_session_id: nativeId}])
@@ -2132,7 +2159,7 @@ describe('a run closes from its harness transcript', () => {
           '--where',
           `session_id == "${session}"`,
           '--select',
-          'model,usage,cost,harness_session_id,error,error_code',
+          fields('model', 'usage', 'cost', 'harness_session_id', 'error', 'error_code'),
         ],
       })
       expect(stored).toEqual([
@@ -2254,7 +2281,7 @@ describe('a run closes with its engine', () => {
         '--where',
         `session_id == "${session}"`,
         '--select',
-        'status,ended,cost,verdict',
+        fields('status', 'ended', 'cost', 'verdict'),
       ],
     })
     expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number), cost: null, verdict: expect.any(String)}])
@@ -2274,7 +2301,14 @@ describe('a run closes with its engine', () => {
     }
     const closed = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,verdict'],
+      args: [
+        '--from',
+        'design_stored_runs',
+        '--where',
+        `session_id == "${session}"`,
+        '--select',
+        fields('status', 'verdict'),
+      ],
     })
     expect(closed).toEqual([{status: 'completed', verdict: 'done'}])
   })
@@ -2296,7 +2330,7 @@ describe('the tool calls of a run', () => {
     }
     const [run] = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', fields('run')],
     })
     const calls = await homeQuery({
       home: homeDir,
@@ -2306,7 +2340,7 @@ describe('the tool calls of a run', () => {
         '--where',
         `run == ${String(run?.run)}`,
         '--select',
-        'tool,round',
+        fields('tool', 'round'),
         '--order',
         'seq',
       ],
@@ -2333,7 +2367,7 @@ describe('run_summary of a run that never checked', () => {
     }
     const [run] = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'run'],
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', fields('run')],
     })
     const summary = await homeQuery({
       home: homeDir,
@@ -2343,7 +2377,7 @@ describe('run_summary of a run that never checked', () => {
         '--where',
         `run == ${String(run?.run)}`,
         '--select',
-        'status,ended,round,verdict,rows',
+        fields('status', 'ended', 'round', 'verdict', 'rows'),
       ],
     })
     expect(summary).toEqual([{status: 'aborted', ended: expect.any(Number), round: null, verdict: null, rows: null}])
@@ -2365,7 +2399,14 @@ describe('a run closes when its dev server is interrupted', () => {
     }
     const closed = await homeQuery({
       home: homeDir,
-      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,ended'],
+      args: [
+        '--from',
+        'design_stored_runs',
+        '--where',
+        `session_id == "${session}"`,
+        '--select',
+        fields('status', 'ended'),
+      ],
     })
     expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number)}])
   })
@@ -2390,7 +2431,10 @@ describe('a run closes with its turn', () => {
     const second = await bootDesignHost({stateRoot, homeDir})
     try {
       const read = (where: string, select: string) =>
-        homeQuery({home: homeDir, args: ['--from', 'design_stored_runs', '--where', where, '--select', select]})
+        homeQuery({
+          home: homeDir,
+          args: ['--from', 'design_stored_runs', '--where', where, '--select', fields(...select.split(','))],
+        })
       const [closed] = ClosedSchema.parse(await read(`session_id == "${session}"`, 'run,status,ended,cost'))
       expect(closed).toEqual({run: expect.any(Number), status: 'aborted', ended: expect.any(Number), cost: 1.5})
       const [usage] = await read(`session_id == "${session}"`, 'usage')
@@ -2402,7 +2446,14 @@ describe('a run closes with its turn', () => {
       })
       const kept = await homeQuery({
         home: homeDir,
-        args: ['--from', 'design_stored_rounds', '--where', `run == ${String(closed?.run)}`, '--select', 'round'],
+        args: [
+          '--from',
+          'design_stored_rounds',
+          '--where',
+          `run == ${String(closed?.run)}`,
+          '--select',
+          fields('round'),
+        ],
       })
       expect(kept.length).toBeGreaterThan(0)
       await second.goto('target')
@@ -2425,4 +2476,12 @@ async function tempDir(prefix: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix))
   importedDirs.push(dir)
   return dir
+}
+
+function fields(...names: string[]): string {
+  return `{${names.map((name) => `"${name}": ${name}`).join(', ')}}`
+}
+
+function resultsOf(page: unknown): unknown[] {
+  return z.object({results: z.array(z.unknown())}).parse(page).results
 }
