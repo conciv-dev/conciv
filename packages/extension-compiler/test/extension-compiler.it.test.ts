@@ -21,7 +21,7 @@ import {parseSync, Visitor, type JSXAttributeItem, type JSXElementName} from 'ox
 import {scaffold} from '@conciv/extension/catalog'
 
 describe('client entry inject', () => {
-  const CTX = {root: '/app', deferToTsd: false, persist: false}
+  const CTX = {root: '/app', persist: false}
 
   describe('client-entry module-graph injection', () => {
     it('matches framework client-entry ids, not ordinary modules', () => {

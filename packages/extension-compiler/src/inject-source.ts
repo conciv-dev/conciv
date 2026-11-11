@@ -28,7 +28,7 @@ export function addSourceToJsx(input: {
   const {code, id, root} = input
   const file = id.split('?')[0] ?? id
   if (!JSX_EXTENSIONS.some((extension) => file.endsWith(extension))) return null
-  if (code.includes('data-tsd-source') || code.includes(SOURCE_ATTR)) return null
+  if (code.includes(SOURCE_ATTR)) return null
   const parsed = parseModule(file, code)
   if (parsed === null || parsed.openings.length === 0) return null
   const {openings, imported} = parsed
