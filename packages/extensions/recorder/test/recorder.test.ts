@@ -534,16 +534,19 @@ describe('lazy capture', () => {
       const calls = rpcCallCursor(page)
       const flushCount = (): number => calls.startedSince(FLUSH_PATH)
 
+      const recorderRpc = makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
+      const control = await recorderRpc.control(undefined, {signal: AbortSignal.timeout(60_000)})
+      expect((await control.next()).value).toEqual({live: false})
+
       await addMarker(page)
       await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
-      const idlePullStartedAt = Date.now()
       const idlePull = JSON.stringify(await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0}))
-      expect(Date.now() - idlePullStartedAt).toBeLessThan(1000)
       expect(flushCount()).toBe(0)
       expect(idlePull).not.toContain('click')
 
-      const recorderRpc = makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
       const started = z.object({captureId: z.string()}).parse(await api().callTool('recording_start', {}))
+      expect((await control.next()).value).toEqual({live: true, snapshot: true, flush: true})
+      await control.return(undefined)
       const client: {id?: string} = {}
       await until(
         async () => {
