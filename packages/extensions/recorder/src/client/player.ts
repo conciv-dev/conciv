@@ -97,7 +97,6 @@ function observeContainerSize(
   }
 }
 
-const LIVE_POLL_MS = 1000
 const SCRUB_STEP_MS = 5000
 
 const scrubStep = z.union([z.literal('ArrowLeft'), z.literal('ArrowRight')])
@@ -151,7 +150,7 @@ export function mountStreamPlayer(
   container: HTMLDivElement,
   initial: {events: RrwebEvent[]; cursor: number},
   hooks: {
-    pull: (cursor: number) => Promise<{events: RrwebEvent[]; cursor: number}>
+    follow: (cursor: number, signal: AbortSignal) => Promise<AsyncIterable<{events: RrwebEvent[]; cursor: number}>>
     onLive: (live: boolean) => void
   },
 ): StreamPlayerHandle {
@@ -160,8 +159,7 @@ export function mountStreamPlayer(
   let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
   let player: Player | undefined
-  let stopped = false
-  let poll: ReturnType<typeof setTimeout> | undefined
+  const following = new AbortController()
 
   const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
 
@@ -210,16 +208,21 @@ export function mountStreamPlayer(
     player.addEvent(parsed)
   }
 
-  const tick = async (): Promise<void> => {
-    const fresh = await hooks.pull(cursor).catch((): {events: RrwebEvent[]; cursor: number} => ({events: [], cursor}))
-    if (stopped) return
+  const take = (fresh: {events: RrwebEvent[]; cursor: number}): void => {
     const atEdge = isLive()
     for (const event of fresh.events) feed(event, atEdge)
     cursor = Math.max(cursor, fresh.cursor)
     announceLive()
-    poll = setTimeout(() => void tick(), LIVE_POLL_MS)
   }
-  poll = setTimeout(() => void tick(), LIVE_POLL_MS)
+
+  const follow = async (): Promise<void> => {
+    try {
+      for await (const fresh of await hooks.follow(cursor, following.signal)) take(fresh)
+    } catch (error) {
+      if (!following.signal.aborted) console.error('[conciv] the recorder replay stopped following new events', error)
+    }
+  }
+  void follow()
 
   const stopResize = observeContainerSize(
     container,
@@ -236,9 +239,8 @@ export function mountStreamPlayer(
       hooks.onLive(true)
     },
     dispose: () => {
-      stopped = true
+      following.abort()
       cancelBuild()
-      if (poll) clearTimeout(poll)
       stopResize()
       player?.$destroy()
     },

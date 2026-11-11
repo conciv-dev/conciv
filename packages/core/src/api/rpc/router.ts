@@ -243,10 +243,7 @@ export function makeRpcRouter(deps: RpcDeps): Router<typeof contract, RpcContext
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
       engine: os.meta.engine.handler(() => engine.staleness()),
-      hubAgents: os.meta.hubAgents.handler(() => ({
-        installs: deps.hub.installs(),
-        connections: deps.hub.connections(),
-      })),
+      hubAgents: os.meta.hubAgents.handler(({signal}) => deps.hub.agents(signal)),
       connectHub: os.meta.connectHub.handler(({input}) => deps.hub.connect(input.harness)),
       disconnectHub: os.meta.disconnectHub.handler(({input}) => deps.hub.disconnect(input.harness)),
     },

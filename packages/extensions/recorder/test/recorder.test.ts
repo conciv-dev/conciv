@@ -543,7 +543,6 @@ describe('lazy capture', () => {
       expect(idlePull).not.toContain('click')
 
       const recorderRpc = makeExtRpcClient<RecorderRouter>(api().apiBase, 'recorder')
-      const captureBaseline = 0
       const started = z.object({captureId: z.string()}).parse(await api().callTool('recording_start', {}))
       const client: {id?: string} = {}
       await until(
@@ -553,8 +552,8 @@ describe('lazy capture', () => {
             client.id = clients.at(-1)?.id
           }
           if (client.id === undefined) return false
-          const appended = await recorderRpc.events({cursor: captureBaseline, clientId: client.id})
-          return appended.events.some((event) => FullSnapshotSchema.safeParse(event).success)
+          const recorded = await recorderRpc.window({clientId: client.id})
+          return recorded.events.some((event) => FullSnapshotSchema.safeParse(event).success)
         },
         {hangGuardMs: 20_000, intervalMs: 100},
       )
@@ -587,6 +586,18 @@ describe('lazy capture', () => {
 describe('live routes', () => {
   const context = {context: {request: new Request('http://local')}}
 
+  async function nextOf<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
+    const next = await stream.next()
+    if (next.done === true) throw new Error('the stream ended before its next value')
+    return next.value
+  }
+
+  async function firstOf<T>(stream: AsyncGenerator<T, void, unknown>): Promise<T> {
+    const value = await nextOf(stream)
+    await stream.return(undefined)
+    return value
+  }
+
   describe('live follow routes', () => {
     it('events returns raw deltas after the cursor', async () => {
       const runtime = runtimeFixture()
@@ -594,17 +605,48 @@ describe('live routes', () => {
       const router = makeRecorderRouter(runtime)
       const first = await call(router.window, {clientId: 'c'}, context)
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
-      const delta = await call(router.events, {cursor: first.cursor, clientId: 'c'}, context)
+      const delta = await firstOf(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
       expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
+    })
+
+    it('replay answers the window, again on each append until it can be replayed, then ends', async () => {
+      const runtime = runtimeFixture()
+      const router = makeRecorderRouter(runtime)
+      const replay = await call(router.replay, {clientId: 'c'}, context)
+      expect((await nextOf(replay)).events).toEqual([])
+      runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
+      expect((await nextOf(replay)).events).toHaveLength(1)
+      runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
+      expect((await nextOf(replay)).events).toHaveLength(2)
+      expect((await replay.next()).done).toBe(true)
+    })
+
+    it('events pushes each append after the cursor and resumes after the last event id it sent', async () => {
+      const runtime = runtimeFixture()
+      runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
+      const router = makeRecorderRouter(runtime)
+      const live = await call(router.events, {cursor: 0, clientId: 'c'}, context)
+      await nextOf(live)
+      runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
+      const sent = await nextOf(live)
+      expect(sent.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2000}])
+      await live.return(undefined)
+      runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 2}, timestamp: 3000}])
+      const resumed = await call(
+        router.events,
+        {cursor: 0, clientId: 'c'},
+        {...context, lastEventId: String(sent.cursor)},
+      )
+      expect((await firstOf(resumed)).events).toEqual([{type: 3, data: {source: 2, type: 2, id: 2}, timestamp: 3000}])
     })
 
     it('events after an equal-timestamp append are not swallowed by the cursor', async () => {
       const runtime = runtimeFixture()
       runtime.rings.append('c', [{type: 2, data: {node: {}}, timestamp: 1000}])
       const router = makeRecorderRouter(runtime)
-      const first = await call(router.events, {cursor: 0, clientId: 'c'}, context)
+      const first = await firstOf(await call(router.events, {cursor: 0, clientId: 'c'}, context))
       runtime.rings.append('c', [{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
-      const delta = await call(router.events, {cursor: first.cursor, clientId: 'c'}, context)
+      const delta = await firstOf(await call(router.events, {cursor: first.cursor, clientId: 'c'}, context))
       expect(delta.events).toEqual([{type: 3, data: {source: 2, type: 2, id: 7}, timestamp: 1000}])
     })
 
@@ -621,7 +663,7 @@ describe('live routes', () => {
       const router = makeRecorderRouter(runtime)
       const pinned = await call(router.window, {clientId: 'mine'}, context)
       expect(pinned.events.map((event) => event.timestamp)).toEqual([1000, 2000])
-      const delta = await call(router.events, {cursor: 1, clientId: 'mine'}, context)
+      const delta = await firstOf(await call(router.events, {cursor: 1, clientId: 'mine'}, context))
       expect(delta.events.map((event) => event.timestamp)).toEqual([2000])
       const saved = await call(router.recordings.save, {clientId: 'mine'}, context)
       if (!('recordingId' in saved)) throw new Error('expected recordingId')
@@ -657,6 +699,7 @@ describe('panel empty', () => {
 
   describe('panel opened before any interaction (real browser)', () => {
     it('recovers from the empty state and starts the live replay without reopening', async () => {
+      const calls = rpcCallCursor(api().page)
       await api().page.getByRole('tab', {name: 'Recorder'}).click()
       const label = await addMarker(api().page)
       await api().page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
@@ -665,6 +708,9 @@ describe('panel empty', () => {
       })
       await api().page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
       await api().page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})
+      expect(calls.startedSince(['ext', 'recorder', 'replay'])).toBe(1)
+      expect(calls.startedSince(['ext', 'recorder', 'window'])).toBe(0)
+      expect(calls.startedSince(['ext', 'recorder', 'log'])).toBe(1)
     }, 120_000)
   })
 })
@@ -877,6 +923,7 @@ describe('panel stream', () => {
   describe('panel stream replay (real browser)', () => {
     it('streams live by default with a working, accessible controller', async () => {
       const page = api().page
+      const calls = rpcCallCursor(page)
       await openPanelStreaming(page)
       await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
       await page.getByRole('button', {name: 'Toggle playback'}).waitFor({state: 'visible', timeout: 10_000})
@@ -884,12 +931,15 @@ describe('panel stream', () => {
       await page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})
       const followed = await addMarker(page)
       await expectLocator(replayed(page, followed)).toBeAttached({timeout: 30_000})
+      const followedAgain = await addMarker(page)
+      await expectLocator(replayed(page, followedAgain)).toBeAttached({timeout: 30_000})
+      expect(calls.startedSince(['ext', 'recorder', 'events'])).toBe(1)
     }, 120_000)
 
     it('scrubbing back leaves the live edge and Go live returns to it', async () => {
       const page = api().page
       await openPanelStreaming(page)
-      await page.waitForTimeout(1_500)
+      await page.waitForTimeout(3_000)
       const late = await addMarker(page)
       await expectLocator(replayed(page, late)).toBeAttached({timeout: 30_000})
 
