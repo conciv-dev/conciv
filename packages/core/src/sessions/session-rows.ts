@@ -229,10 +229,10 @@ export async function anonymousExternalRow(scope: RowScope): Promise<SessionId> 
   return mintExternalRow(scope)
 }
 
-export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string): void {
+export function recordActivity(db: ConcivDb, sessionId: SessionId, title: string, at: number): void {
   db.update(sessions)
     .set({
-      updatedAt: Date.now(),
+      updatedAt: sql`max(${sessions.updatedAt}, ${at})`,
       title: sql`coalesce(${sessions.title}, iif(${sessions.harnessSessionId} is null, ${title === '' ? null : title}, null))`,
     })
     .where(eq(sessions.id, sessionId))

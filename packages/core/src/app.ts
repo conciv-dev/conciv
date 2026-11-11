@@ -270,7 +270,7 @@ function sessionPort(
       const usage = currentRow(db, sessionId)?.usage
       if (usage) await recordSessionUsage(db, sessionId, {...usage, contextTokens})
     },
-    recordActivity: (sessionId, title) => recordActivity(db, sessionId, title),
+    recordActivity: (sessionId, title, at) => recordActivity(db, sessionId, title, at),
     onRunStart: hooks.onRunStart,
     onRunEnd: hooks.onRunEnd,
     publish: hooks.publish,

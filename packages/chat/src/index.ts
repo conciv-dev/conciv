@@ -106,8 +106,13 @@ export type ChatPlane = {
 export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
   const stores = drizzleChatStores(deps.db, {
     harnessOf: (threadId) => deps.harnessFor(SessionId.parse(threadId)).id,
-    saved: (threadId, messages) => {
-      if (isSessionId(threadId)) deps.sessions.recordActivity(threadId, firstUserTitle(messages))
+    saved: (threadId, messages, at) => {
+      if (!isSessionId(threadId)) return
+      try {
+        deps.sessions.recordActivity(threadId, firstUserTitle(messages), at)
+      } catch (error) {
+        deps.log(`[conciv] recording the activity of session ${threadId} failed: ${String(error)}`)
+      }
     },
   })
   const approvals = createApprovalStore(

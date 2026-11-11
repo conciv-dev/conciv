@@ -4417,6 +4417,28 @@ function codexHome(): string {
 
 describe('session activity recorded with its chat messages', () => {
   const ROW_AT = Date.parse('2026-08-17T00:00:00.000Z')
+  const WRITTEN_AT = Date.parse('2026-11-10T09:39:00.000Z')
+  const IMPORTED_NATIVE = HarnessSessionId.parse(randomUUID())
+  const importedFixture: FixtureSession = {
+    id: IMPORTED_NATIVE,
+    derivedTitle: 'a transcript written earlier',
+    updatedAt: WRITTEN_AT,
+    sizeBytes: 1024,
+    messages: [
+      {
+        id: 'imported-user',
+        role: 'user',
+        parts: [{type: 'text', content: 'a transcript written earlier'}],
+        createdAt: new Date('2026-10-30T08:00:00.000Z'),
+      },
+      {
+        id: 'imported-reply',
+        role: 'assistant',
+        parts: [{type: 'text', content: 'done'}],
+        createdAt: new Date(WRITTEN_AT),
+      },
+    ],
+  }
   const saved = process.env.CONCIV_HOME
   const held: {made: MadeApp | undefined} = {made: undefined}
   beforeAll(() => {
@@ -4427,7 +4449,7 @@ describe('session activity recorded with its chat messages', () => {
     else process.env.CONCIV_HOME = saved
   })
   const kit = sharedKit(() =>
-    createTestkit(createFakeHarness({id: 'fake-activity'}), async (env) => {
+    createTestkit(createFakeHarness({id: 'fake-activity', history: [importedFixture]}), async (env) => {
       const booted = await bootMadeApp(env, {home: tempDir('conciv-activity-home-')})
       held.made = booted
       return {fetch: booted.fetch, dispose: booted.dispose, agentToken: booted.agentToken}
@@ -4482,6 +4504,16 @@ describe('session activity recorded with its chat messages', () => {
     const row = made().chat.db.select().from(sessions).where(eq(sessions.id, native)).get()
     expect(row?.title).toBeNull()
     expect(row?.updatedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('importing a transcript stamps lastActive with its newest message time, not the time it was opened', async () => {
+    const sessionId = await staleSession()
+    made().chat.db.update(sessions).set({harnessSessionId: IMPORTED_NATIVE}).where(eq(sessions.id, sessionId)).run()
+    await kit().hydrate(sessionId)
+    const reopened = await kit().hydrate(sessionId)
+    const row = made().chat.db.select().from(sessions).where(eq(sessions.id, sessionId)).get()
+    expect(reopened.messages.map((message) => message.id)).toEqual(['imported-user', 'imported-reply'])
+    expect(row).toMatchObject({title: null, updatedAt: WRITTEN_AT})
   })
 
   it('a session with no messages keeps its row time and the New session title', async () => {

@@ -54,7 +54,13 @@ const metadataAt = (namespace: string, key: string) =>
 
 type StoreOptions = {
   harnessOf: (threadId: string) => string
-  saved?: (threadId: string, messages: readonly ModelMessage[]) => void
+  saved?: (threadId: string, messages: readonly ModelMessage[], at: number) => void
+}
+
+function newestAt(createdAts: readonly {createdAt: unknown}[]): number {
+  const times = createdAts.flatMap(({createdAt}) => (typeof createdAt === 'string' ? [Date.parse(createdAt)] : []))
+  const known = times.filter(Number.isFinite)
+  return known.length === 0 ? Date.now() : Math.max(...known)
 }
 
 export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): ChatStores {
@@ -131,16 +137,17 @@ export function drizzleChatStores(db: NodeSQLiteDatabase, opts: StoreOptions): C
     messages: {
       loadThread,
       saveThread: async (threadId, messages) => {
-        db.transaction((tx) => {
+        const changed = db.transaction((tx) => {
           const dropped = tx
             .delete(chatMessages)
             .where(and(eq(chatMessages.threadId, threadId), gte(chatMessages.position, messages.length)))
             .run()
-          const written = tx.run(
-            sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json`,
+          const written = tx.all<{createdAt: unknown}>(
+            sql`INSERT INTO ${chatMessages} (thread_id, position, message_id, role, message_json) SELECT ${threadId}, CAST(key AS INTEGER), json_extract(value, '$.id'), json_extract(value, '$.role'), value FROM json_each(${JSON.stringify(messages)}) WHERE true ON CONFLICT (thread_id, position) DO UPDATE SET message_id = excluded.message_id, role = excluded.role, message_json = excluded.message_json WHERE message_json IS NOT excluded.message_json RETURNING json_extract(message_json, '$.createdAt') AS createdAt`,
           )
-          if (Number(dropped.changes) > 0 || Number(written.changes) > 0) opts.saved?.(threadId, messages)
+          return Number(dropped.changes) > 0 || written.length > 0 ? written : null
         })
+        if (changed !== null) opts.saved?.(threadId, messages, newestAt(changed))
       },
     },
     runs: {
