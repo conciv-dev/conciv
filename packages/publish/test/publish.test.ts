@@ -32,17 +32,20 @@ import {buildDependencyGraph, readWorkspacePackages, transitiveDependents} from 
 import {assertTypecheckCoversTrackedFiles} from '../src/typecheck-coverage.ts'
 
 describe('catalog', () => {
-  test('assertSharedDependenciesCatalogued accepts shared deps taken from the catalog and single-manifest deps kept explicit', async () => {
+  test('assertSharedDependenciesCatalogued accepts catalog deps, single-manifest explicit deps, workspace: references and peer ranges', async () => {
     const root = await scaffoldWorkspaceRoot('catalog-ok-')
     await Promise.all([
       writeManifest(join(root, 'packages', 'a'), {
         name: '@conciv/a',
-        dependencies: {zod: 'catalog:', 'only-in-a': '^1.0.0'},
+        dependencies: {zod: 'catalog:', 'only-in-a': '^1.0.0', '@conciv/shared': 'workspace:*'},
         devDependencies: {typescript: 'catalog:'},
+        peerDependencies: {'solid-js': '^1.9.13'},
       }),
       writeManifest(join(root, 'packages', 'b'), {
         name: '@conciv/b',
-        devDependencies: {zod: 'catalog:default', typescript: 'catalog:ts6'},
+        dependencies: {'@conciv/shared': 'workspace:^'},
+        devDependencies: {zod: 'catalog:default', typescript: 'catalog:ts6', 'solid-js': 'catalog:'},
+        peerDependencies: {'solid-js': '^1.9.13'},
       }),
     ])
     await expect(assertSharedDependenciesCatalogued(root)).resolves.toBeUndefined()
@@ -65,24 +68,6 @@ describe('catalog', () => {
     )
     await writeManifest(join(root, 'packages', 'a'), {name: '@conciv/a', devDependencies: {typescript: 'catalog:'}})
     await expect(assertSharedDependenciesCatalogued(root)).rejects.toThrow('./package.json: typescript "^6.0.3"')
-  })
-
-  test('assertSharedDependenciesCatalogued ignores workspace: references and peerDependencies ranges', async () => {
-    const root = await scaffoldWorkspaceRoot('catalog-peer-')
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'a'), {
-        name: '@conciv/a',
-        dependencies: {'@conciv/shared': 'workspace:*'},
-        peerDependencies: {'solid-js': '^1.9.13'},
-      }),
-      writeManifest(join(root, 'packages', 'b'), {
-        name: '@conciv/b',
-        dependencies: {'@conciv/shared': 'workspace:^'},
-        devDependencies: {'solid-js': 'catalog:'},
-        peerDependencies: {'solid-js': '^1.9.13'},
-      }),
-    ])
-    await expect(assertSharedDependenciesCatalogued(root)).resolves.toBeUndefined()
   })
 
   test('assertSharedDependenciesCatalogued lets an exempt manifest keep its own line of a shared dep', async () => {
@@ -136,23 +121,17 @@ describe('typecheck coverage', () => {
 })
 
 describe('cli', () => {
-  test('accepts plain dist-tags', () => {
+  test('accepts plain dist-tags and rejects flag-like or injecting ones (argument injection)', () => {
     expect(() => assertValidTag('beta')).not.toThrow()
     expect(() => assertValidTag('next-11')).not.toThrow()
-  })
-
-  test('rejects flag-like or injecting tags (argument injection)', () => {
     for (const bad of ['--otp=999', '--ignore=@conciv/core', '-rm', '', 'Beta', 'a b', 'a;b']) {
       expect(() => assertValidTag(bad), bad).toThrow(/invalid dist-tag/)
     }
   })
 
-  test('accepts scoped conciv package names', () => {
+  test('accepts scoped conciv package names and rejects foreign scopes and flag-like names (argument injection)', () => {
     expect(() => assertValidPackageName('@conciv/extension-recorder')).not.toThrow()
     expect(() => assertValidPackageName('@conciv/core')).not.toThrow()
-  })
-
-  test('rejects foreign scopes and flag-like package names (argument injection)', () => {
     for (const bad of [
       '@evil/pkg',
       'core',
@@ -198,45 +177,28 @@ describe('cli', () => {
     return root
   }
 
-  test('assertBootstrappable rejects names missing from PUBLIC_PACKAGES', async () => {
-    const root = await workspaceWith({name: '@conciv/not-listed', version: '0.0.14'})
-    await expect(assertBootstrappable(root, '@conciv/not-listed')).rejects.toThrow(/not in PUBLIC_PACKAGES/)
+  test('assertBootstrappable accepts only a listed, present, public, versioned package', async () => {
+    const cases: {manifest: object; name: string; error?: RegExp}[] = [
+      {
+        manifest: {name: '@conciv/not-listed', version: '0.0.14'},
+        name: '@conciv/not-listed',
+        error: /not in PUBLIC_PACKAGES/,
+      },
+      {manifest: {name: '@conciv/thing', version: '0.0.14'}, name: '@conciv/core', error: /not found in the workspace/},
+      {manifest: {name: '@conciv/core', version: '0.0.14', private: true}, name: '@conciv/core', error: /is private/},
+      {manifest: {name: '@conciv/core', version: '0.0.0'}, name: '@conciv/core', error: /still 0\.0\.0/},
+      {manifest: {name: '@conciv/core', version: '0.0.14'}, name: '@conciv/core'},
+    ]
+    for (const {manifest, name, error} of cases) {
+      const checked = assertBootstrappable(await workspaceWith(manifest), name)
+      await (error ? expect(checked).rejects.toThrow(error) : expect(checked).resolves.toBeUndefined())
+    }
   })
 
-  test('assertBootstrappable rejects packages absent from the workspace', async () => {
-    const root = await workspaceWith({name: '@conciv/thing', version: '0.0.14'})
-    await expect(assertBootstrappable(root, '@conciv/core')).rejects.toThrow(/not found in the workspace/)
-  })
-
-  test('assertBootstrappable rejects private and unversioned packages', async () => {
-    const privateRoot = await workspaceWith({name: '@conciv/core', version: '0.0.14', private: true})
-    await expect(assertBootstrappable(privateRoot, '@conciv/core')).rejects.toThrow(/is private/)
-
-    const unversionedRoot = await workspaceWith({name: '@conciv/core', version: '0.0.0'})
-    await expect(assertBootstrappable(unversionedRoot, '@conciv/core')).rejects.toThrow(/still 0\.0\.0/)
-  })
-
-  test('assertBootstrappable accepts a listed, public, versioned package', async () => {
-    const root = await workspaceWith({name: '@conciv/core', version: '0.0.14'})
-    await expect(assertBootstrappable(root, '@conciv/core')).resolves.toBeUndefined()
-  })
-
-  test('assertPublicDepsPublic accepts a public package whose workspace deps are all public', async () => {
+  test('assertPublicDepsPublic accepts public workspace deps and a private one under devDependencies only', async () => {
     const root = await scaffoldWorkspaceRoot('deps-public-')
     await Promise.all([
       writeManifest(join(root, 'packages', 'grab'), {name: '@conciv/grab', version: '0.0.19'}),
-      writeManifest(join(root, 'packages', 'page'), {
-        name: '@conciv/page',
-        version: '0.0.19',
-        dependencies: {'@conciv/grab': 'workspace:^'},
-      }),
-    ])
-    await expect(assertPublicDepsPublic(root)).resolves.toBeUndefined()
-  })
-
-  test('assertPublicDepsPublic accepts a public package whose private workspace dep appears only under devDependencies', async () => {
-    const root = await scaffoldWorkspaceRoot('deps-private-devdep-')
-    await Promise.all([
       writeManifest(join(root, 'packages', 'internal-tool'), {
         name: '@conciv/internal-tool',
         version: '0.0.19',
@@ -245,55 +207,28 @@ describe('cli', () => {
       writeManifest(join(root, 'packages', 'page'), {
         name: '@conciv/page',
         version: '0.0.19',
+        dependencies: {'@conciv/grab': 'workspace:^'},
         devDependencies: {'@conciv/internal-tool': 'workspace:*'},
       }),
     ])
     await expect(assertPublicDepsPublic(root)).resolves.toBeUndefined()
   })
 
-  test('assertPublicDepsPublic rejects a public package depending on a private workspace package, naming both', async () => {
-    const root = await scaffoldWorkspaceRoot('deps-private-')
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
-      writeManifest(join(root, 'packages', 'extension-page'), {
-        name: '@conciv/extension-page',
-        version: '0.0.19',
-        dependencies: {'@conciv/page': 'workspace:^'},
-      }),
-    ])
-    await expect(assertPublicDepsPublic(root)).rejects.toThrow(
-      /@conciv\/extension-page depends on private workspace package @conciv\/page/,
-    )
-  })
-
-  test('assertPublicDepsPublic rejects a public package with the private dep under optionalDependencies, naming both', async () => {
-    const root = await scaffoldWorkspaceRoot('deps-private-optional-')
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
-      writeManifest(join(root, 'packages', 'extension-page'), {
-        name: '@conciv/extension-page',
-        version: '0.0.19',
-        optionalDependencies: {'@conciv/page': 'workspace:^'},
-      }),
-    ])
-    await expect(assertPublicDepsPublic(root)).rejects.toThrow(
-      /@conciv\/extension-page depends on private workspace package @conciv\/page/,
-    )
-  })
-
-  test('assertPublicDepsPublic rejects a public package with the private dep under peerDependencies, naming both', async () => {
-    const root = await scaffoldWorkspaceRoot('deps-private-peer-')
-    await Promise.all([
-      writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
-      writeManifest(join(root, 'packages', 'extension-page'), {
-        name: '@conciv/extension-page',
-        version: '0.0.19',
-        peerDependencies: {'@conciv/page': 'workspace:^'},
-      }),
-    ])
-    await expect(assertPublicDepsPublic(root)).rejects.toThrow(
-      /@conciv\/extension-page depends on private workspace package @conciv\/page/,
-    )
+  test('assertPublicDepsPublic rejects a private workspace dep under dependencies, optionalDependencies or peerDependencies, naming both', async () => {
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
+      const root = await scaffoldWorkspaceRoot('deps-private-')
+      await Promise.all([
+        writeManifest(join(root, 'packages', 'page'), {name: '@conciv/page', version: '0.0.19', private: true}),
+        writeManifest(join(root, 'packages', 'extension-page'), {
+          name: '@conciv/extension-page',
+          version: '0.0.19',
+          [field]: {'@conciv/page': 'workspace:^'},
+        }),
+      ])
+      await expect(assertPublicDepsPublic(root), field).rejects.toThrow(
+        /@conciv\/extension-page depends on private workspace package @conciv\/page/,
+      )
+    }
   })
 
   async function workspaceWithChangesets(names: string[], changesets: Record<string, string>): Promise<string> {
@@ -304,28 +239,38 @@ describe('cli', () => {
     return root
   }
 
-  test('assertChangesetsResolve accepts a changeset naming a real workspace package', async () => {
+  test('assertChangesetsResolve accepts single- and double-quoted real packages, ignores README.md, and passes with zero changesets', async () => {
     const root = await workspaceWithChangesets(['@conciv/core'], {
       'brave-lions-fly.md': `---\n'@conciv/core': patch\n---\n\nSomething changed.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
-  })
-
-  test('assertChangesetsResolve rejects a changeset naming a non-workspace package, with file and name', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'small-donuts-shave.md': `---\n'conciv': patch\n---\n\nBroken entry.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).rejects.toThrow(/small-donuts-shave\.md.*"conciv"/s)
-  })
-
-  test('assertChangesetsResolve ignores README.md and passes with zero changesets', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
+      'double-quoted.md': `---\n"@conciv/core": patch\n---\n\nDouble-quoted entry.\n`,
       'README.md': '# Changesets\n\nNot a real changeset.\n',
     })
     await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
 
     const emptyRoot = await workspaceWithChangesets(['@conciv/core'], {})
     await expect(assertChangesetsResolve(emptyRoot)).resolves.toBeUndefined()
+  })
+
+  test('assertChangesetsResolve rejects a broken changeset, naming the file and the reason', async () => {
+    const cases: [string, string, RegExp][] = [
+      ['small-donuts-shave.md', `---\n'conciv': patch\n---\n\nBroken entry.\n`, /small-donuts-shave\.md.*"conciv"/s],
+      [
+        'double-entry.md',
+        `---\n'@conciv/core': patch\n'@conciv/core': minor\n---\n\nDouble entry.\n`,
+        /double-entry\.md.*Map keys must be unique/s,
+      ],
+      ['malformed.md', 'no frontmatter here at all\n', /malformed\.md.*missing or invalid frontmatter/s],
+      ['empty-releases.md', `---\n---\n\nNothing to release.\n`, /empty-releases\.md.*no releases/s],
+      [
+        'unquoted-bogus.md',
+        `---\nconciv: patch\n---\n\nUnquoted bogus name.\n`,
+        /unquoted-bogus\.md.*"conciv".*not in the workspace/s,
+      ],
+    ]
+    for (const [file, content, error] of cases) {
+      const root = await workspaceWithChangesets(['@conciv/core'], {[file]: content})
+      await expect(assertChangesetsResolve(root), file).rejects.toThrow(error)
+    }
   })
 
   test('assertChangesetsResolve rejects a missing .changeset directory instead of passing vacuously', async () => {
@@ -342,41 +287,6 @@ describe('cli', () => {
     await expect(assertChangesetsResolve(root)).rejects.toThrow(/evil-link\.md.*must not be symlinks/s)
   })
 
-  test('assertChangesetsResolve rejects a changeset that lists the same package twice, propagating the parser error with the filename', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'double-entry.md': `---\n'@conciv/core': patch\n'@conciv/core': minor\n---\n\nDouble entry.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).rejects.toThrow(/double-entry\.md.*Map keys must be unique/s)
-  })
-
-  test('assertChangesetsResolve rejects a changeset with malformed frontmatter, naming the file', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'malformed.md': 'no frontmatter here at all\n',
-    })
-    await expect(assertChangesetsResolve(root)).rejects.toThrow(/malformed\.md.*missing or invalid frontmatter/s)
-  })
-
-  test('assertChangesetsResolve rejects a changeset with empty frontmatter (zero releases), naming the file', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'empty-releases.md': `---\n---\n\nNothing to release.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).rejects.toThrow(/empty-releases\.md.*no releases/s)
-  })
-
-  test('assertChangesetsResolve flows an unquoted entry name through to workspace validation, not parse failure', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'unquoted-bogus.md': `---\nconciv: patch\n---\n\nUnquoted bogus name.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).rejects.toThrow(/unquoted-bogus\.md.*"conciv".*not in the workspace/s)
-  })
-
-  test('assertChangesetsResolve accepts a double-quoted entry naming a real workspace package', async () => {
-    const root = await workspaceWithChangesets(['@conciv/core'], {
-      'double-quoted.md': `---\n"@conciv/core": patch\n---\n\nDouble-quoted entry.\n`,
-    })
-    await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
-  })
-
   test('assertChangesetsResolve accepts a changeset naming a package that lives under an apps/ workspace group, not just packages/', async () => {
     const root = await scaffoldWorkspaceRoot('apps-changeset-', ['packages/*', 'apps/*'])
     await mkdir(join(root, '.changeset'), {recursive: true})
@@ -391,23 +301,14 @@ describe('cli', () => {
     await expect(assertChangesetsResolve(root)).resolves.toBeUndefined()
   })
 
-  test('assertWorkspaceRoot accepts a directory that looks like the workspace root', async () => {
+  test('assertWorkspaceRoot accepts only the workspace root with its .changeset directory, naming a nested cwd', async () => {
     const root = await scaffoldWorkspaceRoot('root-')
+    await expect(assertWorkspaceRoot(root)).rejects.toThrow(/workspace root/)
     await mkdir(join(root, '.changeset'), {recursive: true})
     await expect(assertWorkspaceRoot(root)).resolves.toBeUndefined()
-  })
-
-  test('assertWorkspaceRoot rejects a subdirectory of the workspace, naming the cwd', async () => {
-    const root = await scaffoldWorkspaceRoot('root-')
-    await mkdir(join(root, '.changeset'), {recursive: true})
     const nested = join(root, 'packages', 'core')
     await mkdir(nested, {recursive: true})
     await expect(assertWorkspaceRoot(nested)).rejects.toThrow(nested)
-  })
-
-  test('assertWorkspaceRoot rejects a workspace missing the .changeset directory', async () => {
-    const root = await scaffoldWorkspaceRoot('root-')
-    await expect(assertWorkspaceRoot(root)).rejects.toThrow(/workspace root/)
   })
 
   const git = (cwd: string, args: string[]) => execa('git', args, {cwd})
@@ -569,55 +470,82 @@ describe('coverage', () => {
     return {repo, git, base}
   }
 
-  test('assertPublishedChangesCovered rejects an uncovered published-package code change, naming the package', async () => {
-    const {repo, git, base} = await scaffoldBase()
+  const uncovered: {label: string; change: (repo: string) => Promise<unknown>; pkg: string}[] = [
+    {
+      label: 'a published-package code change',
+      change: (repo) => writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n'),
+      pkg: '@conciv/core',
+    },
+    {
+      label: 'a code change whose changeset names only a private @conciv package',
+      change: async (repo) => {
+        await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
+        await writeFile(join(repo, '.changeset', 'wrong-target.md'), `---\n'@conciv/internal': patch\n---\n\nWrong.\n`)
+      },
+      pkg: '@conciv/core',
+    },
+    {
+      label: 'a non-code file matched by the manifest files allowlist',
+      change: (repo) => writeFile(join(repo, 'packages', 'assets', 'skills', 'guide.md'), '# guide\n\nUpdated.\n'),
+      pkg: '@conciv/assets',
+    },
+    {
+      label: 'an extensionless file',
+      change: (repo) => writeFile(join(repo, 'packages', 'core', 'Dockerfile'), 'FROM node:22\n'),
+      pkg: '@conciv/core',
+    },
+    {
+      label: 'a file under a nested, non-top-level test directory',
+      change: async (repo) => {
+        await mkdir(join(repo, 'packages', 'core', 'src', 'test'), {recursive: true})
+        await writeFile(join(repo, 'packages', 'core', 'src', 'test', 'helper.ts'), 'export const helper = 1\n')
+      },
+      pkg: '@conciv/core',
+    },
+    {
+      label: 'a file moved out of a published package',
+      change: (repo) =>
+        execa('git', ['-C', repo, 'mv', 'packages/core/src/index.ts', 'packages/internal/index-moved.ts']),
+      pkg: '@conciv/core',
+    },
+    {
+      label: 'a lockfile bump plus an edit to the private package a published package depends on (workspace:*)',
+      change: async (repo) => {
+        await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\nsettings:\n  autoInstallPeers: true\n')
+        await writeFile(join(repo, 'packages', 'shared', 'index.ts'), 'export const shared = 2\n')
+      },
+      pkg: '@conciv/consumer',
+    },
+  ]
 
-    await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
-    await commitAll(git, 'bump core')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/core/s,
-    )
-  })
+  for (const {label, change, pkg} of uncovered) {
+    test(`assertPublishedChangesCovered rejects ${label}, naming ${pkg}`, async () => {
+      const {repo, git, base} = await scaffoldBase()
+      await change(repo)
+      await commitAll(git, label)
+      await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
+        new RegExp(`no changeset covers changed published packages.*${pkg}`, 's'),
+      )
+    })
+  }
 
   test('assertPublishedChangesCovered passes when a changeset naming any published @conciv package exists', async () => {
     const {repo, git, base} = await scaffoldBase()
-
     await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
     await writeFile(join(repo, '.changeset', 'bump-core.md'), `---\n'@conciv/core': patch\n---\n\nBump core.\n`)
     await commitAll(git, 'bump core with changeset')
-
     await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
   })
 
-  test('assertPublishedChangesCovered passes for a test-only change', async () => {
+  test('assertPublishedChangesCovered passes for a test-only and markdown-only change', async () => {
     const {repo, git, base} = await scaffoldBase()
-
     await writeFile(join(repo, 'packages', 'core', 'test', 'index.test.ts'), 'test.todo("another")\n')
-    await commitAll(git, 'edit test only')
-
-    await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
-  })
-
-  test('assertPublishedChangesCovered passes for a markdown-only change', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
     await writeFile(join(repo, 'packages', 'core', 'README.md'), '# core\n\nUpdated docs.\n')
-    await commitAll(git, 'edit docs only')
-
+    await commitAll(git, 'edit test and docs only')
     await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
   })
 
-  test('assertPublishedChangesCovered passes for a private-package-only change with no published dependent', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'packages', 'internal', 'index.ts'), 'export const internal = 2\n')
-    await commitAll(git, 'edit private package only')
-
-    await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
-  })
-
-  test('assertPublishedChangesCovered (H1) ignores a changeset already committed at base, only counting ones added by this PR', async () => {
+  test('assertPublishedChangesCovered counts only changesets this PR adds, never one already committed at base', async () => {
     const {repo, git} = await initRepo()
     await scaffoldWorkspace(repo)
     await writeFile(join(repo, '.changeset', 'pre-existing.md'), `---\n'@conciv/core': patch\n---\n\nPre-existing.\n`)
@@ -626,118 +554,22 @@ describe('coverage', () => {
 
     await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
     await commitAll(git, 'bump core, no new changeset in this PR')
-
     await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
       /no changeset covers changed published packages.*@conciv\/core/s,
     )
-  })
 
-  test('assertPublishedChangesCovered (H1) passes once a changeset is added in the PR commits, alongside a pre-existing one', async () => {
-    const {repo, git} = await initRepo()
-    await scaffoldWorkspace(repo)
-    await writeFile(join(repo, '.changeset', 'pre-existing.md'), `---\n'@conciv/core': patch\n---\n\nPre-existing.\n`)
-    await commitAll(git, 'base with a pre-existing changeset')
-    const base = await baseSha(git)
-
-    await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
     await writeFile(join(repo, '.changeset', 'new-one.md'), `---\n'@conciv/core': patch\n---\n\nNew one.\n`)
-    await commitAll(git, 'bump core with a new changeset')
-
+    await commitAll(git, 'add a changeset in the PR')
     await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
-  })
-
-  test('assertPublishedChangesCovered (H4a) attributes a private dependency change to its published dependent', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'packages', 'shared', 'index.ts'), 'export const shared = 2\n')
-    await commitAll(git, 'edit private shared dependency')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/consumer/s,
-    )
-  })
-
-  test('assertPublishedChangesCovered (H4b) requires coverage for a non-code file matched by the manifest files allowlist', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'packages', 'assets', 'skills', 'guide.md'), '# guide\n\nUpdated.\n')
-    await commitAll(git, 'edit allowlisted docs')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/assets/s,
-    )
-  })
-
-  test('(L1) assertPublishedChangesCovered requires coverage for an extensionless file in a published package', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'packages', 'core', 'Dockerfile'), 'FROM node:22\n')
-    await commitAll(git, 'add extensionless file')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/core/s,
-    )
-  })
-
-  test('(L2) assertPublishedChangesCovered still requires coverage for a nested (non-top-level) "test" directory', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await mkdir(join(repo, 'packages', 'core', 'src', 'test'), {recursive: true})
-    await writeFile(join(repo, 'packages', 'core', 'src', 'test', 'helper.ts'), 'export const helper = 1\n')
-    await commitAll(git, 'add nested src/test/helper.ts')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/core/s,
-    )
-  })
-
-  test('(L3) assertPublishedChangesCovered rejects a changeset that names only a private @conciv package as insufficient coverage', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'packages', 'core', 'src', 'index.ts'), 'export const version = 2\n')
-    await writeFile(
-      join(repo, '.changeset', 'wrong-target.md'),
-      `---\n'@conciv/internal': patch\n---\n\nWrong target.\n`,
-    )
-    await commitAll(git, 'bump core, changeset names a private package only')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/core/s,
-    )
-  })
-
-  test('(M2) assertPublishedChangesCovered detects a file moved out of a published package under git rename heuristics', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await execa('git', ['-C', repo, 'mv', 'packages/core/src/index.ts', 'packages/internal/index-moved.ts'])
-    await commitAll(git, 'move a core file into the private package')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/core/s,
-    )
   })
 
   test('assertPublishedChangesCovered passes with zero changesets when only root-level files (lockfile, workflow) and a dependent-less private package change', async () => {
     const {repo, git, base} = await scaffoldBase()
-
     await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\nsettings:\n  autoInstallPeers: true\n')
     await writeFile(join(repo, '.github', 'workflows', 'ci.yml'), 'name: CI\non:\n  push: {}\n  pull_request: {}\n')
     await writeFile(join(repo, 'packages', 'internal', 'index.ts'), 'export const internal = 2\n')
     await commitAll(git, 'bump lockfile, tweak a workflow, edit a private tool package')
-
     await expect(assertPublishedChangesCovered(repo, base)).resolves.toBeUndefined()
-  })
-
-  test('assertPublishedChangesCovered still requires coverage for a private package a published package genuinely depends on (workspace:*), alongside the root/private-tool-only pass case above', async () => {
-    const {repo, git, base} = await scaffoldBase()
-
-    await writeFile(join(repo, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\nsettings:\n  autoInstallPeers: true\n')
-    await writeFile(join(repo, 'packages', 'shared', 'index.ts'), 'export const shared = 2\n')
-    await commitAll(git, 'bump lockfile and edit the private dependency of a published package')
-
-    await expect(assertPublishedChangesCovered(repo, base)).rejects.toThrow(
-      /no changeset covers changed published packages.*@conciv\/consumer/s,
-    )
   })
 })
 
