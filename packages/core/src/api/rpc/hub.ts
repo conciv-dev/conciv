@@ -1,4 +1,5 @@
-import {mkdir, stat, watch} from 'node:fs/promises'
+import {statSync} from 'node:fs'
+import {mkdir, watch} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {isEqual} from 'es-toolkit'
@@ -49,13 +50,13 @@ export function createHubInstaller(homeDir: string | undefined) {
       const folder = home()
       await mkdir(folder, {recursive: true, mode: 0o700})
       const changes = watch(folder, {signal})
-      let written = await homeDbStamp(folder)
+      let written = homeDbStamp(folder)
       let current = agents()
       yield current
       try {
         for await (const change of changes) {
           if (change.filename?.startsWith(HOME_DB) === false) continue
-          const stamp = await homeDbStamp(folder)
+          const stamp = homeDbStamp(folder)
           if (stamp === written) continue
           written = stamp
           const next = agents()
@@ -84,17 +85,11 @@ function hubCommand(harness: InitHarnessId): string[] {
   return ['npx', '-y', `@conciv/cli@${corePackage.version}`, 'mcp', 'serve', '--agent', harness]
 }
 
-async function homeDbStamp(folder: string): Promise<string> {
-  const files = await Promise.all(
-    [HOME_DB, `${HOME_DB}-wal`].map((file) =>
-      stat(join(folder, file)).then(
-        (found) => `${found.mtimeMs}:${found.size}`,
-        (error: unknown) => {
-          if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return 'absent'
-          throw error
-        },
-      ),
-    ),
-  )
-  return files.join('|')
+function homeDbStamp(folder: string): string {
+  return [HOME_DB, `${HOME_DB}-wal`]
+    .map((file) => {
+      const found = statSync(join(folder, file), {throwIfNoEntry: false})
+      return found === undefined ? 'absent' : `${found.mtimeMs}:${found.size}`
+    })
+    .join('|')
 }

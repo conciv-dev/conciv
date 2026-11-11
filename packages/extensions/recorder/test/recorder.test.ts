@@ -897,6 +897,7 @@ describe('panel store isolation', () => {
 
 describe('panel stream', () => {
   const api = useRecorderTestApi()
+  const LIVE_EDGE_MS = 2_500
 
   const replayed = (page: Page, text: string) => page.frameLocator('iframe').getByText(text, {exact: true}).first()
 
@@ -910,6 +911,16 @@ describe('panel stream', () => {
     const timeline = page.getByRole('slider', {name: 'Timeline'})
     await timeline.focus()
     for (let press = 0; press < presses; press += 1) await page.keyboard.press('ArrowLeft')
+  }
+
+  async function recordPastLiveEdge(page: Page): Promise<string> {
+    const marker = await addMarker(page)
+    await expectLocator(replayed(page, marker)).toBeAttached({timeout: 30_000})
+    const timeline = page.getByRole('slider', {name: 'Timeline'})
+    await timeline.focus()
+    await page.keyboard.press('ArrowRight')
+    const recorded = Number(await timeline.getAttribute('aria-valuemax'))
+    return recorded > LIVE_EDGE_MS ? marker : recordPastLiveEdge(page)
   }
 
   async function openPanelStreaming(page: Page): Promise<string> {
@@ -939,9 +950,7 @@ describe('panel stream', () => {
     it('scrubbing back leaves the live edge and Go live returns to it', async () => {
       const page = api().page
       await openPanelStreaming(page)
-      await page.waitForTimeout(3_000)
-      const late = await addMarker(page)
-      await expectLocator(replayed(page, late)).toBeAttached({timeout: 30_000})
+      const late = await recordPastLiveEdge(page)
 
       await scrubBack(page, 4)
       await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
