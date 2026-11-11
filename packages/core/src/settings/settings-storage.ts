@@ -117,7 +117,7 @@ async function openSettingsFile(storage: Storage, key: string, generation: strin
   const state = createSharedState<SettingsSnapshot>({initialValue: {generation, version: 0, value}})
   const write = debounce((snapshot: SettingsSnapshot) => writeSaved(storage, key, snapshot.value), WRITE_DEBOUNCE_MS)
   state.on('updated', (snapshot, _patches, syncId) => {
-    if (!syncId.startsWith(FROM_DISK)) write(snapshot).catch(() => undefined)
+    if (!syncId.startsWith(FROM_DISK)) write(snapshot)
   })
   const settings: SettingsState = {
     read: async () => state.value(),
@@ -147,7 +147,7 @@ async function openSettingsFile(storage: Storage, key: string, generation: strin
       try {
         const later = on(relay, 'updated', {signal})
         yield state.value()
-        while (!(await later.next()).done) yield state.value()
+        for await (const _ of later) yield state.value()
       } finally {
         stop()
       }
