@@ -466,10 +466,13 @@ describe('db', () => {
       expect(opened).toEqual(Array.from({length: 16}, () => ({migrations: migrations.length})))
     })
 
-    it('drizzle row type matches SessionRecord (id brand applied by zod parse)', () => {
-      expectTypeOf<Omit<typeof sessions.$inferSelect, 'id'>>().toEqualTypeOf<Omit<SessionRecord, 'id'>>()
+    it('drizzle row type matches SessionRecord (id brands applied by zod parse)', () => {
+      type Branded = 'id' | 'harnessSessionId'
+      expectTypeOf<Omit<typeof sessions.$inferSelect, Branded>>().toEqualTypeOf<Omit<SessionRecord, Branded>>()
       expectTypeOf<(typeof sessions.$inferSelect)['id']>().toEqualTypeOf<string>()
       expectTypeOf<SessionRecord['id']>().toExtend<string>()
+      expectTypeOf<(typeof sessions.$inferSelect)['harnessSessionId']>().toEqualTypeOf<string | null>()
+      expectTypeOf<SessionRecord['harnessSessionId']>().toExtend<string | null>()
     })
   })
 })
