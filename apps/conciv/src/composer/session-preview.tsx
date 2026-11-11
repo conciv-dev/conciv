@@ -1,5 +1,5 @@
 import {createMemo, createUniqueId, Match, Show, Suspense, Switch, untrack, type JSX} from 'solid-js'
-import {useInfiniteQuery, useQuery} from '@tanstack/solid-query'
+import {useInfiniteQuery, useQuery} from '@conciv/client'
 import {
   Button,
   ClipboardCopyButton,

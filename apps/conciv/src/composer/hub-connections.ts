@@ -1,4 +1,4 @@
-import {useMutation, useMutationState, useQuery, useQueryClient} from '@tanstack/solid-query'
+import {useMutation, useMutationState, useQuery, useQueryClient} from '@conciv/client'
 import {z} from 'zod'
 import type {HubAgents} from '@conciv/protocol/chat-types'
 import {useAppData, useRpc} from '../app/context.js'

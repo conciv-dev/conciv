@@ -9,6 +9,10 @@ description: Use when fetching, caching, polling, or invalidating server data in
 
 Server reads are queries, server writes are mutations, and every query key comes from the oRPC utils. The one documented production failure this skill exists to prevent: the connect picker fetched its candidate list with `useMutation` plus a hand-rolled `['attach-readiness', …]` key — result: no cache, a full skeleton on every open, a frozen list rendered as live, and two competing sources for one read.
 
+## Imports
+
+Import every TanStack Query hook, `QueryClient`, `QueryClientProvider` and `createTanstackQueryUtils` from `@conciv/client`, never from `@tanstack/solid-query`, `@tanstack/query-core` or `@orpc/tanstack-query` (lint error). `@conciv/client` bundles the single patched copy (TanStack/query#11230) that the widget and every extension share.
+
 ## The two rules that are never negotiated
 
 1. **Reads = `useQuery`. Writes = `useMutation`.** "I only need it once when the dialog opens" is a read. "It returns data I then display" is a read. A mutation that calls a list/get procedure is wrong in review, no exceptions.

@@ -8,7 +8,7 @@ import {
   useMatchRoute,
   useRouter,
 } from '@tanstack/solid-router'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@conciv/client'
 import {Button, Editable, Popover, TooltipIconButton, TooltipIconButtonSlot, TruncatedText} from '@conciv/ui-kit-system'
 import {
   coalesceTurns,

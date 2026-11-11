@@ -1,7 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {QueryClient} from '@tanstack/solid-query'
+import type {QueryClient, ChatSession} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
-import type {ChatSession} from '@conciv/client'
 import type {GrabProvider} from '@conciv/grab'
 import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
