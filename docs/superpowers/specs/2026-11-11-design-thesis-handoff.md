@@ -127,6 +127,13 @@ stays trusted (938f7a3d3, 2acd29539), SIGINT disposes the engine and closes the 
 extension sees it (the "allow claude" gate, which does wait the decision wait) is recorded nowhere; recording it needs either a
 host tool-calls table joined by a design view (recommended, the refusal is a host event) or a nullable run on `design_tool_calls`.
 
+**Run 4** = store run 178 (06:16, 8 min, $1.27, 46 turns, sonnet itself): no check ran. Fable's own flag `--setting-sources
+project` (meant to keep the user's global CLAUDE.md from making sonnet delegate to opus) also dropped the conciv plugin and the
+hub MCP from the session, so the agent used only the CLI; never use that flag, `--disallowedTools Agent` alone stops delegation.
+Product defects: the CLI's `design_check` answered `NO_PAGE_CLIENT` "the page is showing another session" while the trusted tab
+was open on the targets' own session; `design_run_summary` has no row for a run without rounds (178 invisible); the key write-back
+stamped `data-conciv-key` into five source files and changed design.tsx under the agent's edit. Fix agent dispatched 06:34.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
