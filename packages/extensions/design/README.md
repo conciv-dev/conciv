@@ -137,8 +137,8 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
   `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies
   the target into it.
-- When the engine is disposed (the dev server stops), every run it opened that is still `running` closes as `aborted`
-  with `ended` and the verdict of its last round.
+- When the engine is disposed (the dev server stops, SIGINT included), every run it opened that is still `running`
+  closes `completed` when its last round's verdict is `done`, else `aborted`, with `ended` and that verdict.
 - An external session (an agent connected through the hub) has no chat run, so no turn end closes its run. The hub
   holds the session from its first `use_tab`, and the run closes when the engine ends that session (`sessionEnd`):
   the hub detaches when its agent exits, a boot finds the hub's pid dead, or the engine is disposed. It closes

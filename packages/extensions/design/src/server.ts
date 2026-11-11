@@ -141,11 +141,10 @@ const design = defineExtension({
             ...(run.usage === undefined ? {} : {usage: run.usage}),
             ...(run.error === undefined ? {} : {error: run.error}),
           }),
-    sessionEnd: (sessionId) =>
-      runs.close(sessionId, {status: (verdict) => (verdict === 'done' ? 'completed' : 'aborted'), ended: Date.now()}),
+    sessionEnd: (sessionId) => runs.end(sessionId),
     dispose: async () => {
       await backfilled
-      await runs.closeAll({status: 'aborted', ended: Date.now()})
+      await runs.endAll()
       await Promise.all(runtime.adapters.map((adapter) => adapter.dispose?.()))
       differ.dispose()
       measurer.dispose()

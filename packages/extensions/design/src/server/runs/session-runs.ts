@@ -87,10 +87,16 @@ export function createSessionRuns(input: {
       return {sessionId: last.sessionId, run: await last.run}
     },
     close,
-    closeAll: async (state: Closed): Promise<void> => {
+    end: (sessionId: string): Promise<void> => close(sessionId, endedNow()),
+    endAll: async (): Promise<void> => {
+      const state = endedNow()
       await Promise.all([...held.keys()].map((sessionId) => close(sessionId, state)))
     },
   }
+}
+
+function endedNow(): Closed {
+  return {status: (verdict) => (verdict === 'done' ? 'completed' : 'aborted'), ended: Date.now()}
 }
 
 type Closed = {

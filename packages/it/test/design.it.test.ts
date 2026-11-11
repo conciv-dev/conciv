@@ -2107,6 +2107,25 @@ describe('a run closes with its engine', () => {
     })
     expect(closed).toEqual([{status: 'aborted', ended: expect.any(Number), cost: null, verdict: expect.any(String)}])
   })
+
+  it('closes a run whose last check said done as completed when the engine is disposed', async () => {
+    const homeDir = await tempDir('conciv-design-dispose-done-home-')
+    const engine = await bootDesignHost({homeDir})
+    const {session} = engine
+    try {
+      await engine.goto('target')
+      await engine.call('design_get', await cardsDesign(engine.targetsDir))
+      roundOf(await engine.call('design_check', {}))
+      reachedDone({home: homeDir, session})
+    } finally {
+      await engine.dispose()
+    }
+    const closed = await homeQuery({
+      home: homeDir,
+      args: ['--from', 'design_stored_runs', '--where', `session_id == "${session}"`, '--select', 'status,verdict'],
+    })
+    expect(closed).toEqual([{status: 'completed', verdict: 'done'}])
+  })
 })
 
 describe('run_summary of a run that never checked', () => {
