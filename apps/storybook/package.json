@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.6.0",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@shikijs/langs-precompiled": "catalog:",

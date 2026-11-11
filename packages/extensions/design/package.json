@@ -98,6 +98,7 @@
   },
   "devDependencies": {
     "@conciv/contract": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@iconify-json/ph": "catalog:",

@@ -57,6 +57,9 @@ catalogs:
     '@shikijs/langs-precompiled':
       specifier: 4.5.0
       version: 4.5.0
+    '@shikijs/magic-move':
+      specifier: ^4.5.0
+      version: 4.5.0
     '@solid-primitives/date':
       specifier: ^2.1.8
       version: 2.1.8
@@ -409,8 +412,8 @@ catalogs:
       specifier: ^4.23.15
       version: 4.23.15
     typescript:
-      specifier: ^6.0.3
-      version: 6.0.3
+      specifier: ^7.0.2
+      version: 7.0.2
     unified:
       specifier: ^11.0.5
       version: 11.0.5
@@ -435,6 +438,10 @@ catalogs:
     zod:
       specifier: ^4.6.7
       version: 4.6.7
+  ts6:
+    typescript:
+      specifier: ^6.0.3
+      version: 6.0.3
 
 overrides:
   lodash-es@<4.18.0: '>=4.18.1'
@@ -485,7 +492,7 @@ importers:
         version: 26.6.6
       '@unocss/eslint-plugin':
         specifier: 66.12.0
-        version: 66.12.0(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
+        version: 66.12.0(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
@@ -494,7 +501,7 @@ importers:
         version: 2.12.1(eslint@10.13.0(jiti@2.7.0))
       eslint-plugin-solid:
         specifier: 'catalog:'
-        version: 0.18.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
+        version: 0.18.1(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)
       fallow:
         specifier: 3.36.0
         version: 3.36.0
@@ -515,7 +522,7 @@ importers:
         version: 2.11.10
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -640,6 +647,9 @@ importers:
       '@conciv/storage-history':
         specifier: workspace:^
         version: link:../../packages/storage-history
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../packages/uno-preset
@@ -672,10 +682,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -726,7 +736,7 @@ importers:
         specifier: 16.4.3
         version: 16.4.3(@typescript-eslint/parser@8.61.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
       typescript:
-        specifier: 'catalog:'
+        specifier: catalog:ts6
         version: 6.0.3
 
   apps/examples/tanstack-start:
@@ -815,7 +825,7 @@ importers:
         version: nitro-nightly@3.0.1-20261028-065025-1a9a371c(nitro-nightly@3.0.1-20261028-065025-1a9a371c)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -828,6 +838,9 @@ importers:
       '@conciv/brand':
         specifier: workspace:*
         version: link:../../packages/brand
+      '@conciv/brand-react':
+        specifier: workspace:*
+        version: link:../../packages/brand-react
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../packages/embed
@@ -840,9 +853,9 @@ importers:
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
-      '@conciv/mascot':
+      '@conciv/mascot-react':
         specifier: workspace:*
-        version: link:../../packages/mascot
+        version: link:../../packages/mascot-react
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -856,7 +869,7 @@ importers:
         specifier: ~4.2.0
         version: 4.2.0
       '@shikijs/magic-move':
-        specifier: ^4.5.0
+        specifier: 'catalog:'
         version: 4.5.0(react@19.3.1)(shiki@4.5.0)(solid-js@1.9.17)(svelte@5.57.3(@typescript-eslint/types@8.72.1))
       '@tanstack/react-query':
         specifier: 'catalog:'
@@ -915,6 +928,9 @@ importers:
       shadcn:
         specifier: ^4.23.0
         version: 4.23.0
+      site-snippets:
+        specifier: workspace:*
+        version: link:../site-snippets
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
@@ -949,6 +965,9 @@ importers:
       '@conciv/try':
         specifier: workspace:*
         version: link:../../packages/try
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
@@ -976,24 +995,46 @@ importers:
       playwright:
         specifier: 'catalog:'
         version: 1.64.1
-      shiki:
-        specifier: 'catalog:'
-        version: 4.5.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
-      twoslash:
-        specifier: ^0.3.9
-        version: 0.3.9(typescript@6.0.3)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
       wrangler:
         specifier: ^4.154.0
         version: 4.154.0(@types/node@26.6.6)
+
+  apps/site-snippets:
+    dependencies:
+      '@shikijs/magic-move':
+        specifier: 'catalog:'
+        version: 4.5.0(react@19.3.1)(shiki@4.5.0)(solid-js@1.9.17)(svelte@5.57.3(@typescript-eslint/types@8.72.1))
+    devDependencies:
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      shiki:
+        specifier: 'catalog:'
+        version: 4.5.0
+      twoslash:
+        specifier: ^0.3.9
+        version: 0.3.9(typescript@6.0.3)
+      typescript:
+        specifier: catalog:ts6
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
 
   apps/storybook:
     dependencies:
@@ -1028,6 +1069,9 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.6.0
         version: 5.6.0(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../packages/uno-preset
@@ -1138,10 +1182,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unified:
         specifier: 'catalog:'
         version: 11.0.5
@@ -1180,12 +1224,15 @@ importers:
         specifier: 'catalog:'
         version: 1.64.1
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   e2e/harnesses:
     dependencies:
@@ -1222,7 +1269,7 @@ importers:
         version: 1.90.0
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1232,6 +1279,9 @@ importers:
       '@conciv/cli':
         specifier: workspace:*
         version: link:../../packages/cli
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
@@ -1240,7 +1290,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -1295,7 +1345,7 @@ importers:
         version: 4.23.15
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   e2e/nextjs-component:
     dependencies:
@@ -1342,7 +1392,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   e2e/solid-start:
     dependencies:
@@ -1403,7 +1453,7 @@ importers:
         specifier: ^4.7.7
         version: 4.7.7(picomatch@4.0.7)(svelte@5.57.3(@typescript-eslint/types@8.72.1))(typescript@6.0.3)
       typescript:
-        specifier: 'catalog:'
+        specifier: catalog:ts6
         version: 6.0.3
       vite:
         specifier: 'catalog:'
@@ -1483,7 +1533,7 @@ importers:
         version: 6.1.2(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1556,7 +1606,7 @@ importers:
         version: 6.1.2(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1590,7 +1640,7 @@ importers:
         version: 1.90.0
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1630,7 +1680,7 @@ importers:
         version: 1.90.0
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1676,7 +1726,7 @@ importers:
         version: 1.90.0
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1686,6 +1736,9 @@ importers:
       '@conciv/e2e-utils':
         specifier: workspace:*
         version: link:../e2e-utils
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../packages/tsconfig
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.64.1
@@ -1694,7 +1747,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   e2e/vite-solid:
     dependencies:
@@ -1716,7 +1769,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1750,7 +1803,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1772,7 +1825,7 @@ importers:
         version: 1.64.1
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -1788,25 +1841,19 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
 
   packages/ai:
     dependencies:
-      '@agentclientprotocol/sdk':
-        specifier: ~1.8.0
-        version: 1.8.0(zod@4.6.7)
       '@conciv/db':
         specifier: workspace:^
         version: link:../db
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@opencode-ai/sdk':
-        specifier: ^1.19.4
-        version: 1.19.5
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.16.1(@opentelemetry/api@1.9.1)
@@ -1816,12 +1863,21 @@ importers:
       '@tanstack/ai':
         specifier: 'catalog:'
         version: 1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      '@tanstack/ai-acp':
+        specifier: 'catalog:'
+        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-claude-code':
+        specifier: 'catalog:'
+        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
       '@tanstack/ai-client':
         specifier: 'catalog:'
         version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
       '@tanstack/ai-code-mode':
         specifier: 'catalog:'
         version: 1.1.0(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
+      '@tanstack/ai-codex':
+        specifier: 'catalog:'
+        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
       '@tanstack/ai-event-client':
         specifier: 'catalog:'
         version: 1.0.1
@@ -1831,9 +1887,21 @@ importers:
       '@tanstack/ai-mcp':
         specifier: 'catalog:'
         version: 1.1.0(@opentelemetry/api@1.9.1)(zod@4.6.7)
+      '@tanstack/ai-opencode':
+        specifier: 'catalog:'
+        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
       '@tanstack/ai-persistence':
         specifier: 'catalog:'
         version: 1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)
+      '@tanstack/ai-sandbox':
+        specifier: 'catalog:'
+        version: 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7)
+      '@tanstack/ai-sandbox-local-process':
+        specifier: 'catalog:'
+        version: 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))
+      '@tanstack/ai-solid':
+        specifier: 'catalog:'
+        version: 1.0.1(@opentelemetry/api@1.9.1)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@tanstack/store':
         specifier: 'catalog:'
         version: 0.11.2
@@ -1850,30 +1918,12 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
-      '@tanstack/ai-acp':
-        specifier: 'catalog:'
-        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(zod@4.6.7)
-      '@tanstack/ai-claude-code':
-        specifier: 'catalog:'
-        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
-      '@tanstack/ai-codex':
-        specifier: 'catalog:'
-        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
-      '@tanstack/ai-opencode':
-        specifier: 'catalog:'
-        version: 1.0.1(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))
-      '@tanstack/ai-sandbox':
-        specifier: 'catalog:'
-        version: 1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7)
-      '@tanstack/ai-sandbox-local-process':
-        specifier: 'catalog:'
-        version: 1.0.0(@tanstack/ai-sandbox@1.2.0(@tanstack/ai-persistence@1.0.1(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0))(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(vitest@5.1.0)(zod@4.6.7))
-      '@tanstack/ai-solid':
-        specifier: 'catalog:'
-        version: 1.0.1(@opentelemetry/api@1.9.1)(@tanstack/ai@1.2.0(@opentelemetry/api@1.9.1)(zod@4.6.7))(react@19.3.1)(solid-js@1.9.17)(zod@4.6.7)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1885,10 +1935,10 @@ importers:
         version: 0.156.0
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -1906,6 +1956,9 @@ importers:
         specifier: 'catalog:'
         version: 14.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -1918,6 +1971,52 @@ importers:
       '@storybook/addon-docs':
         specifier: 'catalog:'
         version: 10.6.5(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
+      playwright:
+        specifier: 'catalog:'
+        version: 1.64.1
+      solid-js:
+        specifier: 'catalog:'
+        version: 1.9.17
+      storybook:
+        specifier: 'catalog:'
+        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      storybook-solidjs-vite:
+        specifier: 'catalog:'
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      unocss:
+        specifier: 'catalog:'
+        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
+      vite-plugin-solid:
+        specifier: 'catalog:'
+        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
+  packages/brand-react:
+    dependencies:
+      motion:
+        specifier: 'catalog:'
+        version: 14.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1939,30 +2038,12 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
-      solid-js:
-        specifier: 'catalog:'
-        version: 1.9.17
-      storybook:
-        specifier: 'catalog:'
-        version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
-      storybook-solidjs-vite:
-        specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
-      unocss:
-        specifier: 'catalog:'
-        version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
-      vite:
-        specifier: 'catalog:'
-        version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
-      vite-plugin-solid:
-        specifier: 'catalog:'
-        version: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -1979,15 +2060,21 @@ importers:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   packages/bundle-size:
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -1999,7 +2086,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2037,18 +2124,21 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   packages/cli:
     dependencies:
@@ -2107,6 +2197,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2118,10 +2211,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2168,6 +2261,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2176,10 +2272,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2205,6 +2301,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2216,10 +2315,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2308,6 +2407,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -2337,16 +2439,16 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -2378,6 +2480,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2392,10 +2497,10 @@ importers:
         version: 1.0.0-rc.5(drizzle-orm@1.0.0-rc.5(@electric-sql/pglite@0.3.16)(@libsql/client@0.18.0)(@opentelemetry/api@1.9.1)(zod@4.6.7))
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -2426,6 +2531,9 @@ importers:
       '@conciv/mascot':
         specifier: workspace:^
         version: link:../mascot
+      '@conciv/page':
+        specifier: workspace:^
+        version: link:../page
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -2493,9 +2601,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
-      '@conciv/page':
-        specifier: workspace:^
-        version: link:../page
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -2522,10 +2630,10 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -2575,6 +2683,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2587,15 +2698,18 @@ importers:
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.156.0
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unplugin-solid:
         specifier: ^2.0.0
         version: 2.0.0(@testing-library/jest-dom@6.9.1)(esbuild@0.28.2)(rolldown@1.2.15)(rollup@4.62.2)(solid-js@1.9.17)(vite@8.3.5)
@@ -2636,6 +2750,9 @@ importers:
         specifier: 'catalog:'
         version: 0.156.0
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/ui-kit-chat':
         specifier: workspace:*
         version: link:../ui-kit-chat
@@ -2656,10 +2773,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -2754,6 +2871,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -2762,7 +2882,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   packages/extensions/design:
     dependencies:
@@ -2824,6 +2944,9 @@ importers:
       '@conciv/contract':
         specifier: workspace:^
         version: link:../../contract
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
@@ -2859,10 +2982,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -2894,6 +3017,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../../vitest-config
@@ -2905,10 +3031,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -2958,6 +3084,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3014,13 +3143,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3097,6 +3226,9 @@ importers:
       '@conciv/serve':
         specifier: workspace:^
         version: link:../../serve
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3117,13 +3249,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3176,6 +3308,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3220,13 +3355,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3300,6 +3435,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3332,10 +3470,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3385,6 +3523,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3414,16 +3555,16 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3461,6 +3602,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3490,7 +3634,7 @@ importers:
         version: 1.9.17
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3559,7 +3703,7 @@ importers:
         version: 0.23.1
       '@tanstack/solid-db':
         specifier: ^0.2.28
-        version: 0.2.28(solid-js@1.9.17)(typescript@6.0.3)
+        version: 0.2.28(solid-js@1.9.17)(typescript@7.0.2)
       cytoscape:
         specifier: 3.34.4
         version: 3.34.4
@@ -3597,6 +3741,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -3632,13 +3779,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -3661,15 +3808,18 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
 
   packages/harness:
     dependencies:
@@ -3689,6 +3839,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3700,13 +3853,13 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -3723,6 +3876,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3734,10 +3890,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -3781,6 +3937,9 @@ importers:
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3792,7 +3951,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -3842,6 +4001,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3886,10 +4048,10 @@ importers:
         version: 19.3.1(react@19.3.1)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -3906,6 +4068,9 @@ importers:
         specifier: 'catalog:'
         version: 3.15.0
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3918,21 +4083,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.3.0(@types/react@19.3.0)
       '@vitest/browser-playwright':
         specifier: 'catalog:'
         version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
-      react:
-        specifier: 'catalog:'
-        version: 19.3.1
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.3.1(react@19.3.1)
       solid-js:
         specifier: 'catalog:'
         version: 1.9.17
@@ -3941,13 +4094,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -3958,8 +4111,54 @@ importers:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
+  packages/mascot-react:
+    dependencies:
+      '@conciv/mascot':
+        specifier: workspace:^
+        version: link:../mascot
+    devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@conciv/vitest-config':
+        specifier: workspace:*
+        version: link:../vitest-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitest/browser-playwright':
+        specifier: 'catalog:'
+        version: 5.1.0(playwright@1.64.1)(vite@8.3.5)(vitest@5.1.0)
+      gsap:
+        specifier: 'catalog:'
+        version: 3.15.0
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.3.1(react@19.3.1)
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
   packages/oxlint-plugin:
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -3974,7 +4173,7 @@ importers:
         version: 1.90.0
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4003,6 +4202,9 @@ importers:
         specifier: 'catalog:'
         version: 1.9.17
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4035,10 +4237,10 @@ importers:
         version: 19.3.1(react@19.3.1)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4103,6 +4305,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4123,10 +4328,10 @@ importers:
         version: 1.64.1
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4146,6 +4351,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4166,10 +4374,10 @@ importers:
         version: 0.3.25
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4186,6 +4394,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4200,10 +4411,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4229,6 +4440,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4240,7 +4454,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4257,6 +4471,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4286,10 +4503,10 @@ importers:
         version: 19.3.1(react@19.3.1)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4312,6 +4529,9 @@ importers:
         specifier: 'catalog:'
         version: 8.22.0
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4326,16 +4546,19 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
 
   packages/skills:
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4347,7 +4570,7 @@ importers:
         version: 26.6.6
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4364,6 +4587,9 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../extension-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4384,10 +4610,10 @@ importers:
         version: 1.9.17
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4407,6 +4633,9 @@ importers:
         specifier: 'catalog:'
         version: 0.24.0(solid-js@1.9.17)
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4421,10 +4650,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4471,6 +4700,9 @@ importers:
         specifier: 'catalog:'
         version: 11.0.5
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4497,10 +4729,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -4517,6 +4749,9 @@ importers:
         specifier: ^1.162.5
         version: 1.162.5
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4525,10 +4760,10 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
@@ -4560,6 +4795,9 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -4580,13 +4818,13 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -4627,6 +4865,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -4638,13 +4879,15 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       tsdown:
         specifier: 'catalog:'
-        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3)
+        version: 0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vitest:
         specifier: 'catalog:'
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.3.5)
+
+  packages/tsconfig: {}
 
   packages/ui-kit-chat:
     dependencies:
@@ -4727,6 +4970,9 @@ importers:
       '@conciv/ai':
         specifier: workspace:*
         version: link:../ai
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -4762,10 +5008,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -4812,6 +5058,9 @@ importers:
       '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -4847,10 +5096,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -4900,6 +5149,9 @@ importers:
         specifier: 'catalog:'
         version: 1.66.0(solid-js@1.9.17)
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -4935,10 +5187,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -4988,6 +5240,9 @@ importers:
         specifier: ^3.32.0
         version: 3.32.1(@floating-ui/dom@1.8.0)(@tiptap/core@3.32.1(@tiptap/pm@3.32.1))(@tiptap/pm@3.32.1)
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -5023,10 +5278,10 @@ importers:
         version: 10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       storybook-solidjs-vite:
         specifier: 'catalog:'
-        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
+        version: 10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -5055,6 +5310,9 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -5084,7 +5342,7 @@ importers:
         version: 1.9.17
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -5110,6 +5368,9 @@ importers:
         specifier: ^66.12.0
         version: 66.12.0
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@conciv/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
@@ -5121,7 +5382,7 @@ importers:
         version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       unocss:
         specifier: 'catalog:'
         version: 66.12.0(@devframes/agentic@1.2.6)(@oxc-project/types@0.156.0)(@unocss/postcss@66.12.0(postcss@8.5.32))(cac@7.1.0)(ocache@0.3.1)(rolldown@1.2.15)(rollup@4.62.2)(srvx@1.0.8)(vite@8.3.5)
@@ -5131,6 +5392,9 @@ importers:
 
   packages/vitest-config:
     devDependencies:
+      '@conciv/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
       '@solidjs/testing-library':
         specifier: 'catalog:'
         version: 0.8.10(@solidjs/router@1.0.0(solid-js@1.9.17))(solid-js@1.9.17)
@@ -5145,7 +5409,7 @@ importers:
         version: 1.9.17
       typescript:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 7.0.2
       vite:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
@@ -23658,18 +23922,18 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@tanstack/db-ivm@0.1.18(typescript@6.0.3)':
+  '@tanstack/db-ivm@0.1.18(typescript@7.0.2)':
     dependencies:
       fractional-indexing: 3.2.0
       sorted-btree: 1.8.1
-      typescript: 6.0.3
+      typescript: 7.0.2
 
-  '@tanstack/db@0.6.14(typescript@6.0.3)':
+  '@tanstack/db@0.6.14(typescript@7.0.2)':
     dependencies:
       '@standard-schema/spec': 1.1.0
-      '@tanstack/db-ivm': 0.1.18(typescript@6.0.3)
+      '@tanstack/db-ivm': 0.1.18(typescript@7.0.2)
       '@tanstack/pacer-lite': 0.2.2
-      typescript: 6.0.3
+      typescript: 7.0.2
 
   '@tanstack/devtools-bundler-core@0.1.3(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)':
     dependencies:
@@ -24124,10 +24388,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@tanstack/solid-db@0.2.28(solid-js@1.9.17)(typescript@6.0.3)':
+  '@tanstack/solid-db@0.2.28(solid-js@1.9.17)(typescript@7.0.2)':
     dependencies:
       '@solid-primitives/map': 0.7.4(solid-js@1.9.17)
-      '@tanstack/db': 0.6.14(typescript@6.0.3)
+      '@tanstack/db': 0.6.14(typescript@7.0.2)
       solid-js: 1.9.17
     transitivePeerDependencies:
       - typescript
@@ -24652,12 +24916,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.72.1(typescript@6.0.3)':
+  '@typescript-eslint/project-service@8.72.1(typescript@7.0.2)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.72.1(typescript@6.0.3)
+      '@typescript-eslint/tsconfig-utils': 8.72.1(typescript@7.0.2)
       '@typescript-eslint/types': 8.72.1
       debug: 4.4.3
-      typescript: 6.0.3
+      typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -24678,6 +24942,10 @@ snapshots:
   '@typescript-eslint/tsconfig-utils@8.72.1(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
+
+  '@typescript-eslint/tsconfig-utils@8.72.1(typescript@7.0.2)':
+    dependencies:
+      typescript: 7.0.2
 
   '@typescript-eslint/type-utils@8.61.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)':
     dependencies:
@@ -24710,18 +24978,18 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/typescript-estree@8.72.1(typescript@6.0.3)':
+  '@typescript-eslint/typescript-estree@8.72.1(typescript@7.0.2)':
     dependencies:
-      '@typescript-eslint/project-service': 8.72.1(typescript@6.0.3)
-      '@typescript-eslint/tsconfig-utils': 8.72.1(typescript@6.0.3)
+      '@typescript-eslint/project-service': 8.72.1(typescript@7.0.2)
+      '@typescript-eslint/tsconfig-utils': 8.72.1(typescript@7.0.2)
       '@typescript-eslint/types': 8.72.1
       '@typescript-eslint/visitor-keys': 8.72.1
       debug: 4.4.3
       minimatch: 10.2.6
       semver: 7.8.5
       tinyglobby: 0.2.17
-      ts-api-utils: 2.5.0(typescript@6.0.3)
-      typescript: 6.0.3
+      ts-api-utils: 2.5.0(typescript@7.0.2)
+      typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -24736,14 +25004,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)':
+  '@typescript-eslint/utils@8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)':
     dependencies:
       '@eslint-community/eslint-utils': 4.10.1(eslint@10.13.0(jiti@2.7.0))
       '@typescript-eslint/scope-manager': 8.72.1
       '@typescript-eslint/types': 8.72.1
-      '@typescript-eslint/typescript-estree': 8.72.1(typescript@6.0.3)
+      '@typescript-eslint/typescript-estree': 8.72.1(typescript@7.0.2)
       eslint: 10.13.0(jiti@2.7.0)
-      typescript: 6.0.3
+      typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -24862,9 +25130,9 @@ snapshots:
 
   '@unocss/core@66.12.0': {}
 
-  '@unocss/eslint-plugin@66.12.0(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)':
+  '@unocss/eslint-plugin@66.12.0(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)':
     dependencies:
-      '@typescript-eslint/utils': 8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)
       '@unocss/config': 66.12.0
       '@unocss/core': 66.12.0
       '@unocss/rule-utils': 66.12.0
@@ -27629,16 +27897,16 @@ snapshots:
       string.prototype.matchall: 4.0.12
       string.prototype.repeat: 1.0.0
 
-  eslint-plugin-solid@0.18.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3):
+  eslint-plugin-solid@0.18.1(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2):
     dependencies:
-      '@typescript-eslint/utils': 8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.72.1(eslint@10.13.0(jiti@2.7.0))(typescript@7.0.2)
       eslint: 10.13.0(jiti@2.7.0)
       estraverse: 5.3.0
       is-html: 2.0.0
       kebab-case: 1.0.2
       known-css-properties: 0.30.0
       style-to-object: 1.0.14
-      typescript: 6.0.3
+      typescript: 7.0.2
     transitivePeerDependencies:
       - supports-color
 
@@ -31250,7 +31518,7 @@ snapshots:
 
   robust-predicates@3.0.3: {}
 
-  rolldown-plugin-dts@0.28.8(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(rolldown@1.2.15)(typescript@6.0.3):
+  rolldown-plugin-dts@0.28.8(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(rolldown@1.2.15)(typescript@7.0.2):
     dependencies:
       dts-resolver: 3.0.0(oxc-resolver@11.21.2)
       get-tsconfig: 5.0.0-beta.6
@@ -31261,7 +31529,7 @@ snapshots:
       yuku-parser: 0.19.0
     optionalDependencies:
       '@volar/typescript': 2.4.28
-      typescript: 6.0.3
+      typescript: 7.0.2
     transitivePeerDependencies:
       - oxc-resolver
 
@@ -31780,7 +32048,7 @@ snapshots:
       es-errors: 1.3.0
       internal-slot: 1.1.0
 
-  storybook-solidjs-vite@10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@6.0.3)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5):
+  storybook-solidjs-vite@10.7.4(solid-js@1.9.17)(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(typescript@7.0.2)(vite-plugin-solid@2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5))(vite@8.3.5):
     dependencies:
       '@storybook/builder-vite': 10.6.5(storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(vite@8.3.5)
       '@storybook/global': 5.0.0
@@ -31793,7 +32061,7 @@ snapshots:
       vite: 8.3.5(@types/node@26.6.6)(@vitejs/devtools@0.8.0)(esbuild@0.28.2)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.23.15)(yaml@2.9.1)
       vite-plugin-solid: 2.11.14(@testing-library/jest-dom@6.9.1)(solid-js@1.9.17)(vite@8.3.5)
     optionalDependencies:
-      typescript: 6.0.3
+      typescript: 7.0.2
 
   storybook@10.6.5(@types/react@19.3.0)(prettier@3.9.10)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
@@ -32193,6 +32461,10 @@ snapshots:
     dependencies:
       typescript: 6.0.3
 
+  ts-api-utils@2.5.0(typescript@7.0.2):
+    dependencies:
+      typescript: 7.0.2
+
   ts-dedent@2.3.0: {}
 
   ts-interface-checker@0.1.13: {}
@@ -32215,7 +32487,7 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
-  tsdown@0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@6.0.3):
+  tsdown@0.23.4(@arethetypeswrong/core@0.18.5)(@vitejs/devtools@0.8.0)(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(publint@0.3.25)(tsx@4.23.15)(typescript@7.0.2):
     dependencies:
       cac: 7.1.0
       defu: 6.1.7
@@ -32225,7 +32497,7 @@ snapshots:
       obug: 3.0.0
       picomatch: 4.0.7
       rolldown: 1.2.15
-      rolldown-plugin-dts: 0.28.8(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(rolldown@1.2.15)(typescript@6.0.3)
+      rolldown-plugin-dts: 0.28.8(@volar/typescript@2.4.28)(oxc-resolver@11.21.2)(rolldown@1.2.15)(typescript@7.0.2)
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyps: 0.5.1
@@ -32236,7 +32508,7 @@ snapshots:
       '@vitejs/devtools': 0.8.0(crossws@0.4.17(srvx@1.0.8))(ocache@0.3.1)(srvx@1.0.8)(vite@8.3.5)
       publint: 0.3.25
       tsx: 4.23.15
-      typescript: 6.0.3
+      typescript: 7.0.2
     transitivePeerDependencies:
       - '@typescript/native-preview'
       - '@volar/typescript'
@@ -32369,7 +32641,6 @@ snapshots:
       '@typescript/typescript-sunos-x64': 7.0.2
       '@typescript/typescript-win32-arm64': 7.0.2
       '@typescript/typescript-win32-x64': 7.0.2
-    optional: true
 
   ufo@1.6.4: {}
 

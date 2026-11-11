@@ -8,7 +8,7 @@ Source root of `@conciv/mascot`. Its own files are the generated layer images an
 
 - `layers.gen.ts:robotLayers` - `{head, eyes, antenna}` PNG data URIs, imported by `core/skin.ts`.
 - `*.stories.tsx` - Storybook stories titled `mascot/Core` and `mascot/Effects/<Name>`, one per effect.
-- Subdirectories: [core](./core/README.md), [react](./react/README.md), [solid](./solid/README.md).
+- Subdirectories: [core](./core/README.md), [solid](./solid/README.md).
 
 ## Invariants
 

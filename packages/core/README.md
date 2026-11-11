@@ -14,7 +14,7 @@ Package root for @conciv/core, the engine that @conciv/it installs. Node entries
 - Exports `./app`, `./config`, `./runtime` (`package.json`)
 - Export `./cards` (`package.json`): dist/cards.js with `browser` and `import` conditions
 - `peerDependencies` (`package.json`): solid-js
-- `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.cards.build.json`), typecheck (tsconfig.json and tsconfig.cards.json), lint, test, publint, attw
+- `scripts` (`package.json`): build (`tsdown && vite build && tsc -p tsconfig.build.json`), typecheck (`tsconfig.json`, which covers the Solid card `.tsx` too), lint, test, publint, attw
 - Subdirectories:
   - src: [./src/README.md](./src/README.md) - engine entry, app composition, page bus, tool registry
   - `test/rpc/`: type test for the page error map (`page-error-map.test-d.ts`)

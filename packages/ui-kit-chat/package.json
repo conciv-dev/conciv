@@ -82,6 +82,7 @@
   },
   "devDependencies": {
     "@conciv/ai": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

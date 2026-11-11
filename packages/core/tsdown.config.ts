@@ -10,5 +10,5 @@ export default defineConfig({
   },
   format: 'esm',
   fixedExtension: false,
-  dts: {resolver: 'tsc'},
+  dts: false,
 })

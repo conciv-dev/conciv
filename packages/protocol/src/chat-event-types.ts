@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {EventType, type CustomEvent, type RunStatus as LibraryRunStatus, type StreamChunk} from '@tanstack/ai'
+import {EventType, type CustomEvent, type StreamChunk} from '@tanstack/ai'
 
 export type ChatEvent = StreamChunk
 
@@ -56,7 +56,7 @@ export function approvalAskOf(event: ChatEvent): ApprovalAsk | null {
   }
 }
 
-export type RunStatus = LibraryRunStatus
+export type RunStatus = 'running' | 'interrupted' | 'completed' | 'failed' | 'aborted'
 
 const RunPhaseSchema = z.enum(['running', 'stopping', 'completed', 'failed', 'aborted'])
 

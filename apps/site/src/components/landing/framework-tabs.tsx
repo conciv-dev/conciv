@@ -6,8 +6,8 @@ import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {Select, SelectContent, SelectItem, SelectTrigger} from '@/components/ui/select'
 import {CopyButton} from './copy-button'
-import {cleanSnippet, type FrameworkSnippet} from './framework-snippets'
-import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from './framework-snippets.gen'
+import {cleanSnippet, type FrameworkSnippet} from 'site-snippets'
+import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from 'site-snippets/generated'
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 

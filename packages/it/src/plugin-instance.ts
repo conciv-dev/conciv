@@ -10,7 +10,7 @@ import design from '@conciv/extension-design'
 
 const embedEntry = fileURLToPath(import.meta.resolve('@conciv/embed'))
 
-export const unplugin = createConcivUnplugin({
+export const unplugin: ReturnType<typeof createConcivUnplugin> = createConcivUnplugin({
   serverExtensions: [terminal, testRunner, whiteboard, recorder, iosServer, design],
   clientEntries: [
     fileURLToPath(import.meta.resolve('@conciv/extension-terminal/client')),

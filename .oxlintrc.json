@@ -236,11 +236,11 @@
         "apps/site/**",
         "packages/react/**",
         "packages/preact/**",
-        "packages/brand/src/react/**",
+        "packages/brand-react/**",
         "apps/examples/tanstack-start/src/**",
         "packages/page/test/**",
         "packages/extensions/page/test/fixtures/**",
-        "packages/extensions/page/test/page.browser.test.tsx"
+        "packages/extensions/page/test/page.browser.test.ts"
       ],
       "rules": {
         "solid/jsx-no-duplicate-props": "off",
@@ -269,7 +269,7 @@
       }
     },
     {
-      "files": ["packages/mascot/src/react/**", "packages/mascot/tests/browser/react-*"],
+      "files": ["packages/mascot-react/**"],
       "rules": {
         "solid/reactivity": "off",
         "solid/no-destructure": "off",

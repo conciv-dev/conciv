@@ -1,4 +1,5 @@
 import {toolDefinition, type AnyTool} from '@tanstack/ai'
+export type {ToolDefinition} from '@tanstack/ai'
 
 export type ChatTool = AnyTool
 

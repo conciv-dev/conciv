@@ -4,6 +4,6 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: 'esm',
   fixedExtension: false,
-  dts: true,
+  dts: false,
   external: [/^@conciv\//, 'react-grab', 'bippy', /^bippy\//, 'solid-js', /^solid-js\//],
 })
