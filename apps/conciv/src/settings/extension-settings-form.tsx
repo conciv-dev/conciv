@@ -1,5 +1,5 @@
 import {For, Match, Show, Switch, type JSX} from 'solid-js'
-import {useMutation, useQuery} from '@tanstack/solid-query'
+import {useMutation, useQuery} from '@conciv/client'
 import type {AnyFieldApi} from '@tanstack/solid-form'
 import {isEqual} from 'es-toolkit'
 import type {AnyExtension} from '@conciv/extension'

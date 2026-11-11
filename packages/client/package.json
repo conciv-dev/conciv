@@ -46,6 +46,7 @@
     "@orpc/tanstack-query": "catalog:",
     "@tanstack/pacer": "catalog:",
     "@tanstack/query-core": "catalog:",
+    "@tanstack/solid-query": "catalog:",
     "partysocket": "catalog:",
     "solid-js": "catalog:"
   },
@@ -54,7 +55,6 @@
     "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/vitest-config": "workspace:*",
-    "@tanstack/solid-query": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

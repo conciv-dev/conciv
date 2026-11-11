@@ -1,5 +1,4 @@
-import {makeQueryUtils, type QueryUtils} from '@conciv/client'
-import type {QueryClient} from '@tanstack/solid-query'
+import {makeQueryUtils, type QueryUtils, type QueryClient} from '@conciv/client'
 import type {RpcClient} from '@conciv/contract'
 
 const SESSIONS_STALE_MS = 30_000

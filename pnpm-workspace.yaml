@@ -62,9 +62,9 @@ catalog:
   '@tailwindcss/vite': '^4.3.3'
   '@tanstack/devtools-vite': '^0.8.5'
   '@tanstack/pacer': '^0.23.1'
-  '@tanstack/query-core': '^5.105.0'
+  '@tanstack/query-core': '^5.107.1'
   '@tanstack/react-devtools': '^0.10.13'
-  '@tanstack/react-query': '^5.105.0'
+  '@tanstack/react-query': '^5.107.1'
   '@tanstack/react-router': 1.170.46
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-start': 1.169.4
@@ -72,7 +72,7 @@ catalog:
   '@tanstack/router-plugin': 1.168.48
   '@tanstack/solid-hotkeys': ^0.17.0
   '@tanstack/solid-pacer': 0.24.0
-  '@tanstack/solid-query': '^5.105.0'
+  '@tanstack/solid-query': '^5.107.1'
   '@tanstack/solid-router': 1.170.43
   '@tanstack/solid-virtual': '^3.13.51'
   '@tiptap/core': '^3.32.1'
@@ -274,7 +274,9 @@ patchedDependencies:
   # once upstream fixes all of these.
   '@tanstack/ai-sandbox@1.2.0': patches/@tanstack__ai-sandbox@1.2.0.patch
   # TanStack/query#11230: cached data resolves the query resource synchronously so background refetches stop
-  # re-suspending (focus loss in the composer and model search); drop once a solid-query release includes it
-  '@tanstack/solid-query@5.105.0': patches/@tanstack__solid-query@5.105.0.patch
+  # re-suspending (focus loss in the composer and model search). The patch only reaches users because
+  # @conciv/client bundles the one solid-query + query-core copy the widget and every extension import; a
+  # host-resolved copy would be unpatched. Drop it once a solid-query release includes #11230.
+  '@tanstack/solid-query@5.107.1': patches/@tanstack__solid-query@5.107.1.patch
   # vitest-dev/vitest#11709: read cached server modules as utf-8 (fixes #11682 code.charCodeAt crash); drop once a vitest release includes it
   vitest@5.0.5: patches/vitest@5.0.5.patch

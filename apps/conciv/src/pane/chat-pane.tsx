@@ -10,7 +10,7 @@ import {
   untrack,
   type JSX,
 } from 'solid-js'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery, type ChatSession} from '@conciv/client'
 import {Button} from '@conciv/ui-kit-system'
 import {z} from 'zod'
 import {
@@ -36,7 +36,6 @@ import {concivToolCards} from '@conciv/tools/cards'
 import {coreToolCards} from '@conciv/core/cards'
 import type {ToolCardEntry, ToolCatalogView} from '@conciv/protocol/tool-view-types'
 import type {MarkerRow} from '@conciv/contract'
-import type {ChatSession} from '@conciv/client'
 import type {ChatMessage, SendContent} from '@conciv/protocol/chat-message-types'
 import {HostApiProvider} from '@conciv/extension/host'
 import type {Grab} from '@conciv/grab'

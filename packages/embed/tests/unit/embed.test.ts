@@ -56,9 +56,21 @@ describe('mount externals', () => {
 
   const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
 
-  describe('embed mount build pins the onlineManager singleton topology (#350)', () => {
-    it('never externalizes @tanstack/query-core, so the mounted app shares one onlineManager with its own QueryClient', () => {
+  describe('embed mount build pins one TanStack Query copy, the one @conciv/client bundles (#350, TanStack/query#11230)', () => {
+    const solidQueryCopies = (bundle: string) => bundle.split('No QueryClient set').length - 1
+
+    it('carries no solid-query of its own, so the app and every extension share one QueryClient context and onlineManager', () => {
+      expect(solidQueryCopies(mount)).toBe(0)
+      expect(externalized('@tanstack/solid-query')).toBe(false)
       expect(externalized('@tanstack/query-core')).toBe(false)
+    })
+
+    it('imports TanStack Query through @conciv/client, whose bundle carries the patched copy', () => {
+      expect(externalized('@conciv/client')).toBe(true)
+    })
+
+    it('inlines exactly one solid-query copy into the self-contained global bundle', () => {
+      expect(solidQueryCopies(globalBundle)).toBe(1)
     })
 
     it('never inlines @conciv/contract, so its reachability seam cannot capture a second query-core instance', () => {

@@ -1,6 +1,6 @@
 import {createFileRoute} from '@tanstack/solid-router'
 import type {JSX} from 'solid-js'
-import {useMutation} from '@tanstack/solid-query'
+import {useMutation} from '@conciv/client'
 import {ConfirmDialog} from '@conciv/ui-kit-system'
 import {useAnnounce, usePreferences} from '../app/context.js'
 

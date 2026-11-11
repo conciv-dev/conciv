@@ -551,6 +551,37 @@ describe('terminal view', () => {
     await expectLocator(page.getByText('P>').first()).toBeVisible({timeout: 30_000})
   }
 
+  test('the terminal model picker lists the harness models and keeps the picked one across a reload', async () => {
+    const api = await getExtensionTestApi({
+      server: terminal,
+      host: fixtureHost(fileURLToPath(new URL('../dist/test-host', import.meta.url))),
+      harness: createFakeHarness({
+        id: 'fake-terminal',
+        text: 'ok',
+        tty: bashTty,
+        models: [
+          {id: 'fast', name: 'Fast'},
+          {id: 'deep', name: 'Deep'},
+        ],
+      }),
+    })
+    try {
+      const {page} = api
+      const picker = page.getByRole('button', {name: 'Select model'})
+      await openTerminalView(page)
+      await expectLocator(picker).toHaveText('Fast')
+      await picker.click()
+      await page.getByRole('option', {name: 'Deep'}).click()
+      await expectLocator(picker).toHaveText('Deep')
+
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await openTerminalView(page)
+      await expectLocator(picker).toHaveText('Deep')
+    } finally {
+      await api.dispose()
+    }
+  }, 90_000)
+
   test('a remounted terminal view replays the pty output it left behind', async () => {
     const api = await getExtensionTestApi({
       server: terminal,

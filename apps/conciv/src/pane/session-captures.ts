@@ -1,5 +1,5 @@
 import {createMemo} from 'solid-js'
-import {useQuery} from '@tanstack/solid-query'
+import {useQuery} from '@conciv/client'
 import {toolCaptureViews, type ToolCaptureView} from '@conciv/protocol/element-capture-types'
 import {useAppData} from '../app/context.js'
 
