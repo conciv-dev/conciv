@@ -26,6 +26,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

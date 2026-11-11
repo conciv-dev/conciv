@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
@@ -43,6 +43,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "tsdown": "catalog:",
     "typescript": "catalog:"

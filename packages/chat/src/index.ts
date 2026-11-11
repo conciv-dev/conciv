@@ -51,12 +51,12 @@ export type CodeTool = {
   name: string
   description: string
   inputSchema: CodeCapability['inputSchema']
-  run: (input: unknown, parentToolCallId: string) => Promise<unknown>
+  run: (input: unknown, parentToolCallId: string, signal?: AbortSignal) => Promise<unknown>
 }
 
 export type CodeRunner = {
   capabilities: {name: string; description: string}[]
-  run: (code: string, parentToolCallId: string | null) => Promise<unknown>
+  run: (code: string, parentToolCallId: string | null, signal?: AbortSignal) => Promise<unknown>
   discover: {description: string; run: (toolNames: string[]) => Promise<unknown>} | null
   asking: CodeTool[]
   declaredCodes: ReadonlySet<string>
@@ -275,17 +275,17 @@ export async function createChatPlane(deps: ChatPlaneDeps): Promise<ChatPlane> {
             name: tool.name,
             description: tool.description,
             inputSchema: capability.inputSchema,
-            run: async (input, parentToolCallId) => {
+            run: async (input, parentToolCallId, signal) => {
               const refusal = await admitCall(sessionId, {toolName: tool.name, input, publish})
               if (refusal !== null) throw new Error(refusal.message)
-              return execute(input, {emitCustomEvent: emitter(parentToolCallId)})
+              return execute(input, {emitCustomEvent: emitter(parentToolCallId), abortSignal: signal})
             },
           },
         ]
       })
       return {
         capabilities: toolSet.codeMode.map((tool) => ({name: tool.name, description: tool.description})),
-        run: (code, parentToolCallId) => runner.run(code, emitter(parentToolCallId)),
+        run: (code, parentToolCallId, signal) => runner.run(code, emitter(parentToolCallId), signal),
         discover: runner.discover,
         asking,
         declaredCodes: new Set(capabilities.flatMap((capability) => capability.errors.map(({code}) => code))),

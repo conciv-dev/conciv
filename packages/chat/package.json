@@ -29,7 +29,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
@@ -48,6 +48,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "tsx": "catalog:",

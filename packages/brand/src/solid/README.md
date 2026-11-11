@@ -2,7 +2,7 @@
 
 ## Overview
 
-Solid version of the conciv lockup and mark, with the same path data, colors and hover/focus animation as the React version, built on `motion` and `@solid-primitives/event-listener`. `conciv-lockup.tsx` is the entry for the package's `./solid` export (vite lib entry `solid` in `vite.config.ts`) and is the component the Storybook stories in [../README.md](../README.md) render.
+Solid version of the conciv lockup and mark, with the same path data, colors and hover/focus animation as the React version in `@conciv/brand-react`, built on `motion` and `@solid-primitives/event-listener`. `conciv-lockup.tsx` is the entry for the package's `./solid` export (vite lib entry `solid` in `vite.config.ts`) and is the component the Storybook stories in [../README.md](../README.md) render.
 
 ## Interface
 

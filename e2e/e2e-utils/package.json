@@ -19,6 +19,7 @@
     "@playwright/test": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

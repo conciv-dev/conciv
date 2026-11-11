@@ -76,6 +76,7 @@
     "@conciv/harness": "workspace:*",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/serve": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@types/node": "catalog:",

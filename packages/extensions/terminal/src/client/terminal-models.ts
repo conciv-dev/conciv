@@ -1,12 +1,20 @@
-import {createMemo} from 'solid-js'
-import {makeQueryUtils, useQuery} from '@conciv/client'
+import {createMemo, type Accessor} from 'solid-js'
+import {makeQueryUtils, useQuery, type UseQueryResult} from '@conciv/client'
+import type {ChatModels, HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {getExtensionApi} from '@conciv/extension'
 import {TERMINAL_NAME} from '../shared/protocol.js'
 import {useTerminalContext} from './terminal-context.js'
 
 const MODEL_KEY = 'conciv-model'
 
-export function useTerminalModels() {
+type TerminalModels = {
+  models: UseQueryResult<ChatModels>
+  list: Accessor<HarnessModelInfo[]>
+  spawnModel: Accessor<string | null>
+  choose: (id: string) => void
+}
+
+export function useTerminalModels(): TerminalModels {
   const host = getExtensionApi(TERMINAL_NAME)
   const store = useTerminalContext((context) => context.store)
   const sessionId = host.useSessionId()

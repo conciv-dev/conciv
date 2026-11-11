@@ -1,15 +1,8 @@
 {
-  "extends": "../../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node"],
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js"
+    "types": ["node"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
-  "exclude": ["test/host/**", "test/fixtures/**", "dist", "node_modules"]
+  "exclude": ["test/host/main.tsx", "test/host/virtual-extension.d.ts", "test/fixtures/**", "dist", "node_modules"]
 }

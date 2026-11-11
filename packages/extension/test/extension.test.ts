@@ -1,5 +1,5 @@
 import {describe, expect, it, vi, test} from 'vitest'
-import ts from 'typescript'
+import {parseSync} from 'oxc-parser'
 import {TOKENS} from '@conciv/ui-kit-system/tokens'
 import {buildCatalog, scaffold, validateSource, type ScaffoldKind} from '../src/catalog.js'
 import {defineExtension} from '../src/define-extension.js'
@@ -118,13 +118,9 @@ export default defineExtension({name: 'x'})`
     it('every scaffold kind emits source that parses as TS/TSX', () => {
       const kinds: ScaffoldKind[] = ['composer-action', 'tool', 'tool-renderer', 'component', 'full']
       for (const kind of kinds) {
-        const out = ts.transpileModule(scaffold(kind, {name: 'demo'}), {
-          fileName: `${kind}.tsx`,
-          reportDiagnostics: true,
-          compilerOptions: {jsx: ts.JsxEmit.Preserve, target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext},
-        })
-        const syntactic = (out.diagnostics ?? []).filter((d) => d.category === ts.DiagnosticCategory.Error)
-        expect(syntactic, `${kind} scaffold should parse`).toHaveLength(0)
+        const parsed = parseSync(`${kind}.tsx`, scaffold(kind, {name: 'demo'}), {sourceType: 'module'})
+        expect(parsed.errors, `${kind} scaffold should parse`).toEqual([])
+        expect(parsed.program.body.length, `${kind} scaffold should not be empty`).toBeGreaterThan(0)
       }
     })
   })

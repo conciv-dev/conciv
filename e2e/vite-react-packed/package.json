@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@conciv/e2e-utils": "workspace:*",
+    "@conciv/tsconfig": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"

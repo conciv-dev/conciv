@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "incremental": false,
+    "rootDir": "${configDir}/src",
+    "outDir": "${configDir}/dist"
+  },
+  "include": ["${configDir}/src"],
+  "exclude": [
+    "${configDir}/src/**/*.stories.*",
+    "${configDir}/src/**/*.test.*",
+    "${configDir}/src/**/fixtures.*",
+    "${configDir}/src/**/*.fixtures.*"
+  ]
+}

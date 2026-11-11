@@ -165,6 +165,7 @@
     "@conciv/harness",
     "@conciv/it",
     "@conciv/mascot",
+    "@conciv/mascot-react",
     "@conciv/plugin",
     "@conciv/preact",
     "@conciv/protocol",
@@ -198,14 +199,13 @@
     }
   ],
   "entry": [
-    "packages/brand/src/react/conciv-lockup.tsx",
+    "packages/brand-react/src/conciv-lockup.tsx",
     "packages/brand/src/brand-guidelines.mdx",
     "packages/ui-kit-chat/src/tools.tsx",
     "packages/extension-testkit/src/host/host-entry.tsx",
     "packages/embed/src/native-entry.ts",
     "packages/extensions/design/src/xray/entry.tsx",
     "packages/extensions/tanstack/test/host/main.tsx",
-    "packages/extensions/tanstack/test/host/conciv/extensions/connect-probe.tsx",
     "packages/extensions/try-it/test/fixture/connect-pane-fixture.tsx",
     "e2e/harnesses/vite.*.config.ts",
     "packages/db/drizzle-home.config.ts",

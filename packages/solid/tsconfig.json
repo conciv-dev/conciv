@@ -1,15 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@conciv/tsconfig/tsconfig.solid.json",
   "compilerOptions": {
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo",
-    "rootDir": ".",
-    "noEmit": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2024", "DOM"],
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
     "types": ["vite/client", "node"],
     "paths": {
       "@conciv/solid": ["./src/index.ts"]

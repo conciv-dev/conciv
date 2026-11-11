@@ -33,7 +33,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vite build --config vite.fixture.config.ts && vitest run",
@@ -46,6 +46,7 @@
   "devDependencies": {
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

@@ -1,3 +1,6 @@
+import type concivPlugin from '@conciv/plugin/webpack'
 import {unplugin} from '../plugin-instance.js'
 
-export default unplugin.webpack
+const plugin: typeof concivPlugin = unplugin.webpack
+
+export default plugin

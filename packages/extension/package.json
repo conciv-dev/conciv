@@ -57,7 +57,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
@@ -77,10 +77,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@types/semver": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "oxc-parser": "catalog:",
     "solid-js": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

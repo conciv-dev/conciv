@@ -89,7 +89,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -102,6 +102,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

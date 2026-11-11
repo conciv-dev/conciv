@@ -774,6 +774,31 @@ describe('page bus and the session scope', () => {
     expect(replyingTab(bus, {})).toHaveLength(0)
   })
 
+  it('a call its caller aborts rejects at once, settles nothing later and is never sent again', async () => {
+    const bus = makePageBus(60_000)
+    const frames: unknown[] = []
+    const lost = bus.subscribe(SESSION_A, (frame) => frames.push(frame))
+    const route = {name: 'page_route', input: {}, agentId: SESSION_A}
+    const waiting = new AbortController()
+    const answered = bus.ask(SESSION_A, route, {mutating: false}, waiting.signal)
+    waiting.abort()
+    await expect(answered).rejects.toMatchObject({name: 'AbortError'})
+    const requestId = frames.map(requestIdOf).find((found) => found !== null)
+    expect(bus.resolve(SESSION_A, requestId ?? '', {ok: true, result: {}})).toBe(false)
+    const lostTab = new AbortController()
+    const reading = bus.ask(SESSION_A, route, {mutating: false}, lostTab.signal)
+    lost()
+    await setImmediate()
+    lostTab.abort()
+    await expect(reading).rejects.toMatchObject({name: 'AbortError'})
+    const returned = replyingTab(bus, {href: '/after-abort'})
+    await expect(bus.ask(SESSION_A, route, {mutating: false}, lostTab.signal)).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(returned).toHaveLength(0)
+    expect(frames.map(requestIdOf).filter((found) => found !== null)).toHaveLength(2)
+  })
+
   it('a page tool asks, journals and is reachable under the established session, never the one the request names', async () => {
     const fixture = await makeChatFixture()
     try {

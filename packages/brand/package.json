@@ -2,12 +2,11 @@
   "name": "@conciv/brand",
   "version": "0.0.22",
   "private": true,
-  "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and Solid/React logo components.",
+  "description": "Official conciv brand assets: the crimson chat-bubble robot mark, Geist SemiBold outlined wordmark, favicons, social tiles, and the Solid logo component (React lives in @conciv/brand-react).",
   "keywords": [
     "brand",
     "conciv",
     "logo",
-    "react",
     "solid-js"
   ],
   "homepage": "https://conciv.dev",
@@ -25,10 +24,6 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    "./react": {
-      "types": "./dist/react.d.ts",
-      "import": "./dist/react.js"
-    },
     "./solid": {
       "types": "./dist/solid/conciv-lockup.d.ts",
       "import": "./dist/solid.js"
@@ -37,8 +32,8 @@
     "./assets/*": "./assets/*"
   },
   "scripts": {
-    "build": "vite build && tsdown -c tsdown.config.ts && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.react.json --noEmit",
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests"
   },
@@ -47,21 +42,17 @@
     "motion": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",
     "@storybook/addon-docs": "catalog:",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
     "@vitest/browser-playwright": "catalog:",
     "playwright": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "solid-js": "catalog:",
     "storybook": "catalog:",
     "storybook-solidjs-vite": "catalog:",
-    "tsdown": "catalog:",
     "typescript": "catalog:",
     "unocss": "catalog:",
     "vite": "catalog:",
@@ -69,13 +60,9 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "react": "^19",
     "solid-js": "^1.9.13"
   },
   "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
     "solid-js": {
       "optional": true
     }

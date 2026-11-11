@@ -2,7 +2,9 @@ import {randomUUID} from 'node:crypto'
 import {platform} from 'node:os'
 import {and, eq, isNull} from 'drizzle-orm'
 import {uniqBy} from 'es-toolkit'
-import type {SessionHit, SessionMeta} from '@conciv/contract'
+import type {Router} from '@orpc/server'
+import type {contract, SessionHit, SessionMeta} from '@conciv/contract'
+import type {RpcContext} from '@conciv/protocol/rpc-types'
 import {
   SessionId,
   type HarnessMenuEntry,
@@ -169,7 +171,7 @@ export async function harnessMenuEntryOf(harness: HarnessAdapter): Promise<Harne
   }
 }
 
-export function sessionsRouter(deps: RpcDeps) {
+export function sessionsRouter(deps: RpcDeps): Router<typeof contract.sessions, RpcContext> {
   const chat = deps.chat
   const db = chat.db
   const scope = {db, harnessKind: chat.defaultHarness.id, cwd: chat.cwd}

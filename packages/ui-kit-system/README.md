@@ -22,7 +22,7 @@ npm install -D @conciv/it
 - Exports (`package.json`): `.` -> `./dist/index.js` (from `src/index.tsx`), `./tokens` -> `./dist/tokens.js` (from `src/tokens.ts`), `./tokens.css` -> `./src/tokens.css` (generated). `files`: `dist`, `docs`, `src/tokens.css`. No bin.
 - Generated docs: `docs/skin-anchors.md`, `docs/extension-tokens.md`.
 - Peer `solid-js` ^1.9.13; runtime deps `@ark-ui/solid`, `@solid-primitives/{clipboard,event-listener,resize-observer,timer}`, `@tanstack/solid-virtual`, `@zag-js/json-tree-utils`, `class-variance-authority`, `lucide-solid`.
-- Scripts: `gen:tokens` (`node scripts/gen-tokens.ts`), `gen:check` (`node scripts/check-tokens.ts`), `build` (`pnpm gen:tokens && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json` and `tsconfig.scripts.json`), `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw` (`--profile esm-only --exclude-entrypoints tokens.css`).
+- Scripts: `gen:tokens` (`node scripts/gen-tokens.ts`), `gen:check` (`node scripts/check-tokens.ts`), `build` (`pnpm gen:tokens && vite build && tsc -p tsconfig.build.json`), `typecheck` (`tsconfig.json`, which covers `scripts/` too), `lint` (`oxlint`), `test` (`vitest run --passWithNoTests`), `publint`, `attw` (`--profile esm-only --exclude-entrypoints tokens.css`).
 - Vitest projects (`vitest.config.ts`): `browser` (headless Chromium through `playwright({})`, `test/**/*.browser.test.ts(x)`, `ciTestSolidBrowser()`, UnoCSS plugin) and `node` (`test/**/*.it.test.ts`, `test/**/*.node.test.ts`).
 - `uno.config.ts`: `presetConciv()` over `src/**/*.{ts,tsx}`; `postcss.config.mjs`: `@unocss/postcss`.
 

@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

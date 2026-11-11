@@ -97,6 +97,24 @@ function withResult(tool: ChatTool, shape: (value: unknown) => unknown): ChatToo
   return {...tool, execute: async (args: unknown, context?: ToolContext) => shape(await execute(args, context))}
 }
 
+function endingCalls(tool: ChatTool): ChatTool {
+  const execute = tool.execute
+  if (!execute) return tool
+  return {
+    ...tool,
+    execute: async (args: unknown, context?: ToolContext) => {
+      const ended = new AbortController()
+      const caller = context?.abortSignal
+      const abortSignal = caller === undefined ? ended.signal : AbortSignal.any([caller, ended.signal])
+      try {
+        return await execute(args, context === undefined ? {abortSignal} : {...context, abortSignal})
+      } finally {
+        ended.abort()
+      }
+    },
+  }
+}
+
 const SECRET_REFUSAL = 'looks like a secret, so code mode refuses to run it'
 
 const FailedRunSchema = z.object({success: z.literal(false), error: z.object({message: z.string()})})
@@ -169,7 +187,7 @@ export function codeModeTools(
     onSecretParameter: (found) => secrets.set(found.toolName, found.paramPath.join('.')),
     lazyToolsConfig: {includeDescription: 'first-sentence'},
   })
-  const execute = withResult(codeMode.tool, shapeResult)
+  const execute = withResult(endingCalls(codeMode.tool), shapeResult)
   const discover =
     codeMode.discoveryTool === null ? null : {...codeMode.discoveryTool, description: DISCOVER_DESCRIPTION}
   return {

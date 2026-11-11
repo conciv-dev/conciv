@@ -11,7 +11,8 @@ import {
   type Accessor,
   type JSX,
 } from 'solid-js'
-import {createStore, type SetStoreFunction} from 'solid-js/store'
+import {createStore} from 'solid-js/store'
+import {ReactiveMap} from '@solid-primitives/map'
 import {useTooltipContext} from '@ark-ui/solid/tooltip'
 import {Tooltip} from './tooltip.js'
 
@@ -76,7 +77,7 @@ export type SharedTooltip = {
 
 type Shown = {key: string; value: string; target: RevealTarget}
 
-type SharedRevealState = {targets: Record<string, RevealTarget | undefined>; current: string | null}
+type SharedRevealState = {current: string | null}
 
 const SharedTooltipContext = createContext<SharedTooltip>()
 
@@ -90,9 +91,10 @@ export type TruncatedTextGroupProps = {side?: TruncatedTextSide; children?: JSX.
 
 export function TruncatedTextGroup(props: TruncatedTextGroupProps): JSX.Element {
   const [local] = splitProps(props, ['side', 'children'])
-  const [reveal, setReveal] = createStore<SharedRevealState>({targets: {}, current: null})
+  const [reveal, setReveal] = createStore<SharedRevealState>({current: null})
+  const targets = new ReactiveMap<string, RevealTarget>()
   const keepsOpen = () => {
-    const target = reveal.current === null ? undefined : reveal.targets[reveal.current]
+    const target = reveal.current === null ? undefined : targets.get(reveal.current)
     return target?.kind === 'label' && target.keepOpenOnClick === true
   }
   return (
@@ -104,7 +106,7 @@ export function TruncatedTextGroup(props: TruncatedTextGroupProps): JSX.Element 
       lazyMount
       unmountOnExit
     >
-      <SharedReveal side={local.side ?? 'top'} reveal={reveal} setReveal={setReveal}>
+      <SharedReveal side={local.side ?? 'top'} targets={targets}>
         {local.children}
       </SharedReveal>
     </Tooltip.Root>
@@ -125,21 +127,20 @@ function revealedContent(shown: Shown | undefined): JSX.Element {
 
 function SharedReveal(props: {
   side: TruncatedTextSide
-  reveal: SharedRevealState
-  setReveal: SetStoreFunction<SharedRevealState>
+  targets: ReactiveMap<string, RevealTarget>
   children?: JSX.Element
 }): JSX.Element {
   const api = useTooltipContext()
   const shown = createMemo(() => {
     const value = api().triggerValue
     if (!api().open || value === null) return undefined
-    return shownTarget(value, props.reveal.targets[value])
+    return shownTarget(value, props.targets.get(value))
   })
   const scope: SharedTooltip = {
     side: () => props.side,
     owns: (candidate) => candidate === api,
-    register: (value, target) => props.setReveal('targets', value, target),
-    release: (value) => props.setReveal('targets', value, undefined),
+    register: (value, target) => props.targets.set(value, target),
+    release: (value) => props.targets.delete(value),
     describe: (value, triggerProps) => describedWhen(shown()?.value === value, triggerProps),
   }
   return (

@@ -30,7 +30,7 @@ export function makeJournal(db: ConcivDb): Journal {
 }
 
 type Pending<T> = {
-  await(id: string, owner: string, timeoutMs: number): Promise<T>
+  await(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T>
   resolve(id: string, value: T): boolean
   abandon(owner: string, reason: Error): void
   idle(): boolean
@@ -41,16 +41,22 @@ type Waiter<T> = {owner: string; settle: (value: T) => void; fail: (reason: Erro
 function makePending<T>(timedOut: () => Error): Pending<T> {
   const waiters = new Map<string, Waiter<T>>()
 
-  function awaitReply(id: string, owner: string, timeoutMs: number): Promise<T> {
+  function awaitReply(id: string, owner: string, timeoutMs: number, signal?: AbortSignal): Promise<T> {
     return new Promise<T>((settle, reject) => {
       const timer = setTimeout(() => {
-        waiters.delete(id)
+        done()
         reject(timedOut())
       }, timeoutMs)
+      const aborted = (): void => {
+        done()
+        reject(signal?.reason)
+      }
       const done = (): void => {
         clearTimeout(timer)
         waiters.delete(id)
+        signal?.removeEventListener('abort', aborted)
       }
+      signal?.addEventListener('abort', aborted, {once: true})
       waiters.set(id, {
         owner,
         settle: (value) => {
@@ -89,6 +95,7 @@ export type PageBus = {
     sessionId: SessionId,
     query: Omit<PageQuery, 'requestId'>,
     route?: {browserTab: string} | {mutating: boolean},
+    signal?: AbortSignal,
   ) => Promise<PageAnswer>
   connected: (sessionId: SessionId) => boolean
   anySubscriber: () => boolean
@@ -179,29 +186,33 @@ export function makePageBus(timeoutMs = 5000): PageBus {
     tab: BrowserTab,
     query: Omit<PageQuery, 'requestId'>,
     ms: number,
+    signal: AbortSignal | undefined,
   ): Promise<PageOutcome> {
+    signal?.throwIfAborted()
     const requestId = randomUUID()
     const settled = pageOf(sessionId)
     tab.emit({requestId, ...query})
-    return settled.pending.await(requestId, tab.id, ms).finally(() => dropIfIdle(sessionId, settled))
+    return settled.pending.await(requestId, tab.id, ms, signal).finally(() => dropIfIdle(sessionId, settled))
   }
 
-  function servingAgain(sessionId: SessionId, ms: number): Promise<unknown> {
+  function servingAgain(sessionId: SessionId, ms: number, signal: AbortSignal | undefined): Promise<unknown> {
     if (connected(sessionId)) return Promise.resolve()
-    return once(arrivals, sessionId, {signal: AbortSignal.timeout(Math.max(ms, 0))})
+    const waited = AbortSignal.timeout(Math.max(ms, 0))
+    return once(arrivals, sessionId, {signal: signal === undefined ? waited : AbortSignal.any([waited, signal])})
   }
 
   async function ask(
     sessionId: SessionId,
     query: Omit<PageQuery, 'requestId'>,
     route?: {browserTab: string} | {mutating: boolean},
+    signal?: AbortSignal,
   ): Promise<PageAnswer> {
     const pinned = route !== undefined && 'browserTab' in route ? route.browserTab : undefined
     const tab = target(sessionId, bySession.get(sessionId), pinned)
     const declared = query.input['timeout']
     const ms = typeof declared === 'number' ? declared + 1000 : timeoutMs
     const deadline = Date.now() + ms
-    const outcome = await send(sessionId, tab, query, ms).catch(async (error: unknown) => {
+    const outcome = await send(sessionId, tab, query, ms, signal).catch(async (error: unknown) => {
       if (route === undefined || 'browserTab' in route || !isPageFailure(error)) throw error
       if (error.error.code !== 'no-widget') throw error
       if (route.mutating) {
@@ -210,14 +221,18 @@ export function makePageBus(timeoutMs = 5000): PageBus {
           `the page reloaded or closed during ${query.name}; it may already have run. Take a new snapshot before continuing`,
         )
       }
-      await servingAgain(sessionId, Math.min(BROWSER_TAB_RETURN_MS, deadline - Date.now())).catch((waited: unknown) => {
-        throw isAbort(waited) ? error : waited
-      })
+      await servingAgain(sessionId, Math.min(BROWSER_TAB_RETURN_MS, deadline - Date.now()), signal).catch(
+        (waited: unknown) => {
+          signal?.throwIfAborted()
+          throw isAbort(waited) ? error : waited
+        },
+      )
       return send(
         sessionId,
         target(sessionId, bySession.get(sessionId), undefined),
         query,
         Math.max(deadline - Date.now(), 0),
+        signal,
       )
     })
     if (!outcome.ok) throw pageFailure(outcome.error.code, outcome.error.message, outcome.error.raised)

@@ -31,7 +31,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -54,6 +54,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
     "tsdown": "catalog:",

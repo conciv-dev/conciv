@@ -55,7 +55,7 @@
   },
   "scripts": {
     "build": "tsdown && vite build && tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.refs.json && tsc -p test/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
@@ -76,6 +76,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@conciv/tsconfig": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@conciv/vitest-config": "workspace:*",
     "@solidjs/testing-library": "catalog:",

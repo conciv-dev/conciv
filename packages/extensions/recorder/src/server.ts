@@ -1,5 +1,5 @@
 import {join} from 'node:path'
-import {eventIterator, os} from '@orpc/server'
+import {eventIterator, os, type Procedure, type Schema} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
 import {
@@ -9,8 +9,12 @@ import {
   RrwebEventSchema,
   jsonByteLength,
   recorderConfig,
+  type ActionLogEntry,
+  type RecorderConfig,
+  type RecorderControl,
+  type RrwebEvent,
 } from './shared/protocol.js'
-import {createClientRings} from './server/rings.js'
+import {createClientRings, type ClientSummary} from './server/rings.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer} from './server/render.js'
@@ -32,13 +36,53 @@ const FlushInput = z
   .object({clientId: ClientId, events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
   .refine((input) => jsonByteLength(input.events) <= MAX_FLUSH_BYTES)
 
-export function makeRecorderRouter(runtime: RecorderRuntime) {
+const EventsInput = z.object({cursor: z.number(), clientId: ClientId})
+const PresenceInput = z.object({viewerId: z.string().min(1).max(128), live: z.boolean()})
+const RecordingInput = z.object({recordingId: z.string()})
+const OkOutput = z.object({ok: z.literal(true)})
+const SaveOutput = z.union([
+  z.object({recordingId: z.string()}),
+  z.object({error: z.enum(['too-large', 'empty', 'io-error'])}),
+])
+const ExportOutput = z.union([z.instanceof(File), z.object({error: z.enum(['expired', 'render-failed'])})])
+
+type RecorderProcedure<Input extends Schema<unknown, unknown>, Output extends Schema<unknown, unknown>> = Procedure<
+  {request: Request},
+  {request: Request},
+  Input,
+  Output,
+  Record<never, never>,
+  Record<never, never>
+>
+type NoInput = Schema<unknown, unknown>
+type Returns<Output> = Schema<Output, Output>
+type EventWindow = Returns<{events: RrwebEvent[]; cursor: number}>
+type Recording = Returns<{events: RrwebEvent[]; expired?: undefined} | {events?: undefined; expired: true}>
+type ControlStream = ReturnType<typeof eventIterator<z.input<typeof RecorderControlSchema>, RecorderControl>>
+export type RecorderRouter = {
+  config: RecorderProcedure<NoInput, Returns<RecorderConfig>>
+  clients: RecorderProcedure<NoInput, Returns<{clients: ClientSummary[]}>>
+  flush: RecorderProcedure<typeof FlushInput, typeof OkOutput>
+  window: RecorderProcedure<typeof RangeInput, EventWindow>
+  events: RecorderProcedure<typeof EventsInput, EventWindow>
+  presence: RecorderProcedure<typeof PresenceInput, typeof OkOutput>
+  reset: RecorderProcedure<NoInput, typeof OkOutput>
+  log: RecorderProcedure<typeof RangeInput, Returns<{entries: ActionLogEntry[]}>>
+  recordings: {
+    save: RecorderProcedure<typeof RangeInput, typeof SaveOutput>
+    get: RecorderProcedure<typeof RecordingInput, Recording>
+    exportVideo: RecorderProcedure<typeof RecordingInput, typeof ExportOutput>
+  }
+  control: RecorderProcedure<NoInput, ControlStream>
+}
+
+export function makeRecorderRouter(runtime: RecorderRuntime): RecorderRouter {
   return recorderOs.router({
     config: recorderOs.handler(() => runtime.config),
     clients: recorderOs.handler(() => ({clients: runtime.rings.clients()})),
     flush: recorderOs
       .input(FlushInput)
-      .output(z.object({ok: z.literal(true)}))
+      .output(OkOutput)
       .handler(({input}) => {
         runtime.rings.append(input.clientId, input.events)
         return {ok: true}
@@ -47,20 +91,20 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       events: runtime.rings.window(input, input.clientId),
       cursor: runtime.rings.head(input.clientId),
     })),
-    events: recorderOs.input(z.object({cursor: z.number(), clientId: ClientId})).handler(({input}) => ({
+    events: recorderOs.input(EventsInput).handler(({input}) => ({
       events: runtime.rings.since(input.cursor, input.clientId),
       cursor: runtime.rings.head(input.clientId),
     })),
     presence: recorderOs
-      .input(z.object({viewerId: z.string().min(1).max(128), live: z.boolean()}))
-      .output(z.object({ok: z.literal(true)}))
+      .input(PresenceInput)
+      .output(OkOutput)
       .handler(({input}) => {
         if (!input.live) runtime.control.dropViewer(input.viewerId)
         const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
         if (joined) runtime.control.emit({snapshot: true, flush: true})
         return {ok: true}
       }),
-    reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
+    reset: recorderOs.output(OkOutput).handler(async () => {
       runtime.rings.clear()
       const appendCursor = runtime.control.emit({snapshot: true, flush: true})
       await runtime.control.awaitAppendAfter(appendCursor, 1500)
@@ -72,20 +116,18 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
     recordings: recorderOs.router({
       save: recorderOs
         .input(RangeInput)
-        .output(
-          z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]),
-        )
+        .output(SaveOutput)
         .handler(async ({input}) => {
           const saved = await runtime.recordings.save(runtime.rings.window(input, input.clientId))
           return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
         }),
-      get: recorderOs.input(z.object({recordingId: z.string()})).handler(async ({input}) => {
+      get: recorderOs.input(RecordingInput).handler(async ({input}) => {
         const events = await runtime.recordings.get(input.recordingId)
         return events ? {events} : {expired: true as const}
       }),
       exportVideo: recorderOs
-        .input(z.object({recordingId: z.string()}))
-        .output(z.union([z.instanceof(File), z.object({error: z.enum(['expired', 'render-failed'])})]))
+        .input(RecordingInput)
+        .output(ExportOutput)
         .handler(async ({input}) => {
           const events = await runtime.recordings.get(input.recordingId)
           if (!events) return {error: 'expired'}
@@ -103,8 +145,6 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
     }),
   })
 }
-
-export type RecorderRouter = ReturnType<typeof makeRecorderRouter>
 
 export default defineExtension({
   name: RECORDER_NAME,

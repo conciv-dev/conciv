@@ -1,7 +1,7 @@
 # @conciv/mascot
 
 The conciv robot mascot: a framework-free GSAP service over three stacked layers (head, eyes,
-antenna), Solid and React compound components over that service, and sixteen effects that ride the
+antenna), a Solid compound component over that service, and sixteen effects that ride the
 antenna tip while work is in flight.
 
 ## Components
@@ -37,14 +37,7 @@ const SteamingRobot = () => (
 `<Mascot.Effect>` mounts any effect subpath in place of the default binary; two effect children mean
 two live emitters. `<Mascot.Binary curve="arc">` is the shorthand for the default one.
 
-`@conciv/mascot/react` is the same compound API and the same slots, with React's own conventions:
-`className` instead of `class`, and `style` as a camelCased object rather than Solid's kebab-cased
-one. Both wrappers are mechanical: all sequencing lives in the core service.
-
-In React, `mount` is a dependency: a new function identity remounts the effect, which drains the
-particles in flight and starts them again. That is what you want when the effect really changed, so
-keep `mount` stable otherwise — a module-level constant as above, or `useCallback` over the values it
-closes over. Solid reads `mount` inside its own tracked scope, so an inline arrow there is fine.
+The React compound component is the separate `@conciv/mascot-react` package.
 
 Root props: `state` (`'rest' | 'awake'`), `working`, `follow` (`boolean` or `{eyes, antenna}`),
 `activity` (`{bob, throb, blink}`), `curve`, `initialSkin`. `follow` on `<Mascot.Eyes>` or
@@ -53,8 +46,10 @@ the merge, and the two levels differ: the root box is yours to own outright, whi
 geometry the rig animates (`position`, `inset` and the `background` shorthand parts) against a
 consumer style that would take it over.
 
-`solid-js`, `react` and `react-dom` are optional peer dependencies, and each wrapper subpath is the
-only entry that reaches its framework.
+`solid-js` is an optional peer dependency, and `./solid` is the only entry that reaches it.
+`./adapter` carries the core helpers a framework wrapper builds on: `activityChannels`,
+`followChannels`, `installStageSize`, `partAlreadyProvided`, `MascotPartName`, `camelCaseProperty`,
+`isGeometryProperty` and `kebabCaseProperty`.
 
 ## Core service
 
@@ -115,16 +110,15 @@ starts.
 
 ## Interface
 
-- `package.json:exports` - `.`, `./solid`, `./react`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
-- `tsdown.config.ts:entry` - `src/core/index.ts`, `src/core/style-merge.ts`, `src/solid/index.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
+- `package.json:exports` - `.`, `./solid`, `./adapter`, and `./effects/<name>` for binary, matrix, thought-cloud, pixel-bubbles, signal-rings, speech-bubble, steam, spark, spark-burst, spark-fountain, satellite, led-cone, tick-ring, signal-bars, heart, notes.
+- `tsdown.config.ts:entry` - `src/core/index.ts`, `src/core/style-merge.ts`, `src/core/adapter.ts`, `src/solid/index.ts` and each `src/core/effects/<name>.ts` (unbundled, ESM, `vite-plugin-solid`).
 - `tsdown.solid-source.config.ts` - `src/solid/index.ts` to `dist/solid` with `jsx: 'preserve'` and `.jsx` output.
-- `tsdown.react.config.ts` - `src/react/index.ts` to `dist/react`.
 - `playwright.config.ts:testDir` - `./tests/e2e`.
 - Source: [src](./src/README.md). Tests: `tests/browser/` (DOM helpers for the browser tests) and [tests/e2e](./tests/e2e/README.md).
 
 ## Invariants
 
-- `package.json:peerDependencies` - `react`/`react-dom` `>=18` and `solid-js` `>=1.8`, optional.
+- `package.json:peerDependencies` - `solid-js` `>=1.8`, optional.
 
 ## Side Effects
 

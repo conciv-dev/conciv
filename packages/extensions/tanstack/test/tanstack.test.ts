@@ -1,13 +1,13 @@
-import {execFileSync} from 'node:child_process'
+import {execFileSync, spawnSync} from 'node:child_process'
 import {cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {mkdtemp, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {createRequire} from 'node:module'
+import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, afterEach, beforeAll, describe, expect, it, test} from 'vitest'
 import {expect as expectLocator} from 'playwright/test'
 import {createServer, type ViteDevServer} from 'vite'
-import ts from 'typescript'
 import {z} from 'zod'
 import {start, type Engine, type StartOpts} from '@conciv/core/start'
 import {loadServerExtensions} from '@conciv/extension-compiler/extensions'
@@ -344,24 +344,41 @@ describe('resolution matrix', () => {
 
     test('typescript resolves types by customConditions', () => {
       const {dir} = fixture()
-      const containingFile = join(dir, 'index.ts')
-      const baseOptions = {
-        moduleResolution: ts.ModuleResolutionKind.Bundler,
-        module: ts.ModuleKind.ESNext,
-        target: ts.ScriptTarget.ESNext,
-      }
-      const defaultResult = ts.resolveModuleName(rootPackage, containingFile, baseOptions, ts.sys)
-      const browserResult = ts.resolveModuleName(
-        rootPackage,
-        containingFile,
-        {...baseOptions, customConditions: ['browser']},
-        ts.sys,
+      const probeDir = join(dir, 'conditions-probe')
+      mkdirSync(probeDir, {recursive: true})
+      writeFileSync(
+        join(probeDir, 'probe.ts'),
+        `import type * as extension from '${rootPackage}'\nexport type {extension}\n`,
       )
-      const defaultTypes = defaultResult.resolvedModule?.resolvedFileName
-      const browserTypes = browserResult.resolvedModule?.resolvedFileName
-      if (!defaultTypes || !browserTypes) throw new Error('typescript failed to resolve types')
-      expect(defaultTypes.endsWith(join('dist', 'server.d.ts'))).toBe(true)
-      expect(browserTypes.endsWith(join('dist', 'client.d.ts'))).toBe(true)
+      const tsc = join(dirname(createRequire(import.meta.url).resolve('typescript/package.json')), 'bin', 'tsc')
+      const resolvedTypes = (conditions: string[]) => {
+        const trace = spawnSync(
+          process.execPath,
+          [
+            tsc,
+            '--noEmit',
+            '--traceResolution',
+            '--module',
+            'esnext',
+            '--moduleResolution',
+            'bundler',
+            '--target',
+            'esnext',
+            '--types',
+            '',
+            ...conditions,
+            'probe.ts',
+          ],
+          {cwd: probeDir, encoding: 'utf8'},
+        ).stdout
+        const resolved = new RegExp(
+          `Module name '${escapeRegExp(rootPackage)}' was successfully resolved to '([^']+)'`,
+        ).exec(trace)?.[1]
+        if (resolved === undefined) throw new Error(`tsc did not resolve ${rootPackage}:\n${trace}`)
+        return resolved
+      }
+      expect(resolvedTypes([]).endsWith(join('dist', 'server.d.ts'))).toBe(true)
+      expect(resolvedTypes(['--customConditions', 'browser']).endsWith(join('dist', 'client.d.ts'))).toBe(true)
     })
   })
 })
