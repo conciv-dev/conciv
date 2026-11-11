@@ -8,10 +8,7 @@ const SOURCE_APP = join(WORKSPACE_ROOT, 'e2e/vite-react')
 const SCAFFOLD_ENTRIES = ['index.html', 'src', 'public']
 const VITE_TOOLING = ['vite', '@vitejs/plugin-react']
 const TARBALL_DIR = join(PACKED_ROOT, 'tarballs')
-const LOCK = {
-  path: join(import.meta.dirname, 'fixture-lock.yaml'),
-  updateCommand: 'pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile',
-}
+const LOCK_PATH = join(import.meta.dirname, 'fixture-lock.yaml')
 
 async function timed<T>(label: string, step: () => Promise<T>): Promise<T> {
   const started = performance.now()
@@ -65,8 +62,8 @@ await timed('install', () =>
     packages: ['.'],
     allowBuilds: {'isolated-vm': false, protobufjs: false},
     overrides,
-    lock: LOCK,
+    lockPath: LOCK_PATH,
     fresh: updateLockfile,
   }),
 )
-if (updateLockfile) copyFileSync(join(PACKED_APP_DIR, 'pnpm-lock.yaml'), LOCK.path)
+if (updateLockfile) copyFileSync(join(PACKED_APP_DIR, 'pnpm-lock.yaml'), LOCK_PATH)

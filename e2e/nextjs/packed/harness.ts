@@ -26,10 +26,6 @@ const CONCIV_FALLBACK_PORT = 41700
 export const DEV_PORT = 41751
 export const CLOSURE_ROOTS = ['@conciv/it', '@conciv/extension-tanstack', '@conciv/extension-compiler']
 export const FIXTURE_LOCK_PATH = join(WORKSPACE_ROOT, 'e2e/nextjs/packed/fixture-lock.yaml')
-const FIXTURE_LOCK = {
-  path: FIXTURE_LOCK_PATH,
-  updateCommand: 'pnpm --filter conciv-e2e-nextjs run update-packed-lockfile',
-}
 
 export const SECOND_SENTINEL = 'CONCIV_FIXTURE_SECOND_SENTINEL'
 
@@ -181,7 +177,7 @@ export async function setupFixture(options: SetupFixtureOptions = {}): Promise<F
     packages: ['packages/*'],
     allowBuilds: {'isolated-vm': false, sharp: false, protobufjs: false},
     overrides,
-    lock: FIXTURE_LOCK,
+    lockPath: FIXTURE_LOCK_PATH,
     fresh,
   })
   return {root, appDir, tgzDir, closure}

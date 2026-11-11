@@ -4,6 +4,8 @@ import {join} from 'node:path'
 import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
 
+const PACKED_SPECS = '**/packed-*.spec.ts'
+
 function reporters(): ReporterDescription[] {
   if (!process.env.GITHUB_ACTIONS) return [['line']]
   return [['line'], ['json', {outputFile: 'test-results.json'}]]
@@ -38,6 +40,7 @@ export function e2eConfig(
   const timeout = opts.timeout ?? 90_000
   return defineConfig({
     testDir: './tests',
+    testIgnore: PACKED_SPECS,
     workers: 1,
     timeout,
     expect: {timeout},
@@ -48,6 +51,18 @@ export function e2eConfig(
       ...(opts.reuseExistingServer === undefined ? {} : {reuseExistingServer: opts.reuseExistingServer}),
     },
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
+  })
+}
+
+export function packedE2eConfig(): ReturnType<typeof defineConfig> {
+  return defineConfig({
+    testDir: './tests',
+    testMatch: PACKED_SPECS,
+    workers: 1,
+    timeout: 90_000,
+    expect: {timeout: 90_000},
+    reporter: reporters(),
+    projects: [{name: 'packed', use: {...devices['Desktop Chrome']}}],
   })
 }
 

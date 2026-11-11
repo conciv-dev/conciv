@@ -152,7 +152,7 @@ describe('framework adapter', () => {
   })
 })
 
-describe.skip('packed resolution', () => {
+describe('packed resolution', {tags: ['packed']}, () => {
   test('packed tarball has no workspace protocol and ships the conditional export map', () => {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-packed-'))
     execFileSync('pnpm', ['pack', '--pack-destination', dir], {cwd: process.cwd()})
@@ -175,7 +175,7 @@ describe.skip('packed resolution', () => {
   })
 })
 
-describe.skip('resolution matrix', () => {
+describe('resolution matrix', {tags: ['packed']}, () => {
   const workspaceRoot = fileURLToPath(new URL('../../../../', import.meta.url))
 
   const rootPackage = '@conciv/extension-tanstack'

@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "test:e2e": "playwright test",
+    "test:packed": "playwright test -c playwright.packed.config.ts",
     "update-packed-lockfile": "tsx packed/update-lockfile.ts"
   },
   "dependencies": {

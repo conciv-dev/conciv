@@ -158,14 +158,12 @@ function releaseAgeYaml(): string[] {
   ]
 }
 
-export type PackedLock = {path: string; updateCommand: string}
-
 export type PackedInstallOptions = {
   root: string
   packages: string[]
   allowBuilds: Record<string, boolean>
   overrides: Record<string, string>
-  lock: PackedLock
+  lockPath: string
   fresh: boolean
 }
 
@@ -187,13 +185,13 @@ export async function installPacked(options: PackedInstallOptions): Promise<void
     '',
   ].join('\n')
   writeFileSync(join(options.root, 'pnpm-workspace.yaml'), workspaceYaml)
-  if (!options.fresh && existsSync(options.lock.path)) {
-    writeFileSync(join(options.root, 'pnpm-lock.yaml'), readFileSync(options.lock.path, 'utf8'))
+  if (!options.fresh && existsSync(options.lockPath)) {
+    writeFileSync(join(options.root, 'pnpm-lock.yaml'), readFileSync(options.lockPath, 'utf8'))
   }
   const [command, args] = installCommand()
   await run(command, args, options.root)
   assertClosed(options.root)
-  if (!options.fresh) assertLockNotDrifted(options.root, options.lock)
+  if (!options.fresh) assertLockNotDrifted(options.root, options.lockPath)
 }
 
 const REGISTRY_PINNED = /(?<![\w/@-])@conciv\/[a-z0-9-]+@(?!file:)\d/
@@ -228,9 +226,9 @@ export function packageCatalogKeys(lockText: string): Set<string> {
   return keys
 }
 
-export function assertLockNotDrifted(root: string, lock: PackedLock): void {
-  if (!existsSync(lock.path)) return
-  const committed = packageCatalogKeys(readFileSync(lock.path, 'utf8'))
+export function assertLockNotDrifted(root: string, lockPath: string): void {
+  if (!existsSync(lockPath)) return
+  const committed = packageCatalogKeys(readFileSync(lockPath, 'utf8'))
   const produced = packageCatalogKeys(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8'))
   const added = [...produced].filter((key) => !committed.has(key)).toSorted()
   const removed = [...committed].filter((key) => !produced.has(key)).toSorted()
@@ -239,9 +237,11 @@ export function assertLockNotDrifted(root: string, lock: PackedLock): void {
   throw new Error(
     [
       'packed fixture install resolved different registry packages than the committed lockfile',
-      `${relative(WORKSPACE_ROOT, lock.path)}:`,
+      `${relative(WORKSPACE_ROOT, lockPath)}:`,
       ...diff,
-      `run \`${lock.updateCommand}\` to refresh it.`,
+      'refresh it in CI, never locally: run the Packed workflow on your branch with update-lockfiles',
+      '(`gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`), download its',
+      'packed-fixture-locks artifact and commit the fixture-lock.yaml files it holds.',
     ].join('\n'),
   )
 }

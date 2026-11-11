@@ -49,15 +49,31 @@ touches none of this is fine.
 | `vite-react-packed`     | copy of `vite-react`       | published-tarball pnpm install, catches dist/packaging bugs     |
 
 `vite-react-packed` installs conciv the way an npm user does, using the packing helpers in
-`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:e2e:packed` runs `install-packed.ts` first:
+`e2e-utils/src/packed.ts` (shared with `nextjs/packed`). Its `test:packed` runs `install-packed.ts` first:
 it builds and `pnpm pack`s `@conciv/it`'s workspace dependency closure, copies `index.html`, `src/` and
 `public/` from `vite-react` into a temp dir outside the workspace, generates the `package.json` and
 `vite.config.ts`, overrides each `@conciv/*` to its tarball and runs `pnpm install` there, seeded from
-the committed `fixture-lock.yaml` and checked for drift. When a registry dependency changes, refresh it
-with `pnpm --filter conciv-e2e-vite-react-packed run update-packed-lockfile`. Playwright runs from
-`e2e/vite-react-packed`; only the vite dev server runs in the temp copy.
+the committed `fixture-lock.yaml` and checked for drift. Playwright runs from `e2e/vite-react-packed`;
+only the vite dev server runs in the temp copy.
 
-The packed suites (this app, `nextjs` `packed-*`/`trust-policy-install` specs, and the `packed install`/`resolution` describes in `mascot`, `mascot-react` and `extension-tanstack`) are skipped for now, until pack/install moves into a dedicated CI workflow.
+### Packed suites run only in CI
+
+Everything that packs runs only in `.github/workflows/packed.yml`, never in `pnpm test`, `test:e2e`, the
+CI planner, or on a laptop. Each suite is a `test:packed` script:
+
+- `vite-react-packed`: the whole app (it has no `test:e2e`).
+- `nextjs`: specs named `tests/packed-*.spec.ts`, run by `playwright.packed.config.ts`; the shared
+  `e2eConfig` ignores that pattern, so `test:e2e` never picks them up.
+- `mascot`, `mascot-react`, `extension-tanstack`: describes tagged `packed`; their vitest configs define the
+  `packed` tag as skipped unless vitest runs in `packed` mode, and `test:packed` runs
+  `vitest run --mode packed --project <node project> --tags-filter=packed`. Any other vitest run, a bare
+  `vitest run <file>` included, skips them (hooks too) and never packs.
+
+The workflow runs on pull requests touching published manifests, `pnpm-lock.yaml`, `e2e-utils` or the
+packed fixtures, on pushes to main, and on demand. When a registry dependency changes, the drift guard
+fails the run; refresh the fixture lockfiles from CI with
+`gh workflow run packed.yml --ref <branch> -f update-lockfiles=true`, download the run's
+`packed-fixture-locks` artifact and commit the two `fixture-lock.yaml` files it holds.
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.
