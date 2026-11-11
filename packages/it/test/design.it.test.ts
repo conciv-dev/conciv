@@ -1340,6 +1340,60 @@ describe('design_check on the route the design is for', () => {
   })
 })
 
+const WIDTHS_KEY = 'https://www.figma.com/design/ItRoutesKey/x?node-id='
+const FRAME_WIDTHS = [1200, 800, 400]
+const MOVED_ROUTE = '/?variant=cards'
+
+async function framePerWidth(): Promise<{figma: string[]; image: string[]; document: unknown[]}> {
+  const frames = await Promise.all(
+    FRAME_WIDTHS.map(async (width, index) => {
+      const id = `7:${index + 1}`
+      const image = join(kit.targetsDir, `routes-${width}.png`)
+      await writeFile(image, blankPng({width, height: 400}))
+      const frame = figmaFrame({id, name: 'Cards', box: {x: 0, y: 0, w: width, h: 400}})
+      const document = {
+        name: 'it routes',
+        lastModified: '2026-11-11T00:00:00Z',
+        version: '1',
+        nodes: {[id]: {document: frame}},
+      }
+      return {figma: `${WIDTHS_KEY}7-${index + 1}`, image, document}
+    }),
+  )
+  return {
+    figma: frames.map((frame) => frame.figma),
+    image: frames.map((frame) => frame.image),
+    document: frames.map((frame) => frame.document),
+  }
+}
+
+async function targetsOfRun(): Promise<{route: unknown; at: unknown}[]> {
+  return z.array(z.object({route: z.unknown(), at: z.unknown()})).parse(
+    await kit.rpc.registry.call({
+      name: 'design_query',
+      input: {from: 'targets', where: 'link.startsWith("ItRoutesKey/")', select: ['route', 'at']},
+    }),
+  )
+}
+
+describe('design_get with a frame per width and one route', () => {
+  it('puts every frame of the call at the route, and a later get with another route moves every target of the run without registering it again', async () => {
+    await goto('empty')
+    const frames = await framePerWidth()
+    await call('design_get', frames)
+    await call('design_get', {...frames, route: BUILT_ROUTE})
+    const routed = await targetsOfRun()
+    expect(routed.map((row) => row.route)).toEqual([BUILT_ROUTE, BUILT_ROUTE, BUILT_ROUTE])
+    const [first, second] = frames.figma
+    await call('design_get', {figma: first, route: MOVED_ROUTE})
+    await call('design_get', {figma: second, route: MOVED_ROUTE})
+    expect(await targetsOfRun()).toEqual(routed.map((row) => ({...row, route: MOVED_ROUTE})))
+    await call('design_get', {figma: first, widget: 'shown'})
+    await call('design_get', {figma: second})
+    expect((await targetsOfRun()).slice(1)).toEqual(routed.slice(1).map((row) => ({...row, route: MOVED_ROUTE})))
+  })
+})
+
 const SLOW_LINK = 'https://www.figma.com/design/ItSlowFontKey/x?node-id=3-1'
 const SLOW_FRAME = {w: 1280, h: 400}
 const SLOW_FONT_FILE = '/slow/fonts/'

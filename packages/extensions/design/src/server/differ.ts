@@ -92,29 +92,33 @@ export function createDiffer(input: {
       ...verdictOf({design: await store.design(record.id), rounds: await store.rounds(record.id)}),
       widget: record.widget,
     })
+  const gotOne = async ({input: query, session, page: access}: Parameters<Differ['get']>[0]) => {
+    const links = linksOf(query.figma)
+    if (links.length > 1) return {variants: await variantsGot({runtime, query, links, session, page: access})}
+    const one = {
+      ...query,
+      figma: links[0],
+      image: at({list: query.image, index: 0}),
+      document: at({list: query.document, index: 0}),
+    }
+    const current = await store.current(session)
+    const set = await store.variants(session)
+    const known = [...(current === null ? [] : [current]), ...set].find((record) =>
+      sameRef({record, query: one, cwd: runtime.cwd}),
+    )
+    if (known !== undefined) {
+      const widget = query.widget ?? known.widget
+      if (widget === known.widget) return stored({runtime, record: known})
+      return stored({runtime, record: await reput({runtime, record: known, widget})})
+    }
+    const record = await registered({runtime, query: one, session, page: access})
+    return stored({runtime, record})
+  }
   return {
-    get: async ({input: query, session, page: access}) => {
-      const links = linksOf(query.figma)
-      if (links.length > 1) return {variants: await variantsGot({runtime, query, links, session, page: access})}
-      const one = {
-        ...query,
-        figma: links[0],
-        image: at({list: query.image, index: 0}),
-        document: at({list: query.document, index: 0}),
-      }
-      const current = await store.current(session)
-      const set = await store.variants(session)
-      const known = [...(current === null ? [] : [current]), ...set].find((record) =>
-        sameRef({record, query: one, cwd: runtime.cwd}),
-      )
-      if (known !== undefined) {
-        const widget = query.widget ?? known.widget
-        const route = query.route ?? known.route
-        if (widget === known.widget && route === known.route) return stored({runtime, record: known})
-        return stored({runtime, record: await reput({runtime, record: known, widget, route})})
-      }
-      const record = await registered({runtime, query: one, session, page: access})
-      return stored({runtime, record})
+    get: async (asked) => {
+      const got = await gotOne(asked)
+      if (asked.input.route !== undefined) await store.reroute({session: asked.session, route: asked.input.route})
+      return got
     },
     check: async ({nodes, session}) => {
       await edits.quiet()
@@ -252,12 +256,7 @@ async function registered(input: {
   })
 }
 
-async function reput(input: {
-  runtime: DesignRuntime
-  record: TargetRecord
-  widget: Widget
-  route: string | undefined
-}): Promise<TargetRecord> {
+async function reput(input: {runtime: DesignRuntime; record: TargetRecord; widget: Widget}): Promise<TargetRecord> {
   const {runtime, record} = input
   const {store} = runtime
   const image = await store.image({id: record.id})
@@ -267,7 +266,7 @@ async function reput(input: {
     image,
     session: record.session,
     widget: input.widget,
-    ...(input.route === undefined ? {} : {route: input.route}),
+    ...(record.route === undefined ? {} : {route: record.route}),
   })
 }
 

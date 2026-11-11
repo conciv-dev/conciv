@@ -73,11 +73,12 @@ src/
   sizing, layoutAlign, constraints, clips, image, crop, absolute`), `implied: true` on a group the layout implies,
   `reflow: {kind: stack | wrap | scroll, minChildWidth}` and `key` once the mapping holds the node. `count` leaves
   implied nodes out. `rules` are the sentences the page must follow.
-- A target is the design of one page. `design_get` takes `route`, the path of that page (`/pricing`, with a query when
-  the page needs one); without it the target takes the pathname the tab is on when the design is registered, and a later
-  `design_get` with the same link and another `route` moves the target there. Each `design_check` measures the target's
-  route: when the tab is on another one, it opens the tab there first (through the client tool `design_route`) and waits
-  until the tab reports that route. A route without a query matches the tab's pathname whatever its query; a route with
+- A run builds one page, so its targets share one route. `design_get` takes `route`, the path of that page (`/pricing`,
+  with a query when the page needs one), and moves every target of the run there, the frames of that call and the
+  frames registered before it; without it a new target takes the pathname the tab is on when the design is registered.
+  A later `design_get` with another `route`, with one link or several, moves every target again. Each `design_check`
+  measures the target's route: when the tab is on another one, it opens the tab there first (through the client tool
+  `design_route`) and waits until the tab reports that route. A route without a query matches the tab's pathname whatever its query; a route with
   one matches the pathname and the query. A target with no route is measured where the tab is. A check that finds no
   design node says which route it measured and that `design_get` with `route` points the target at another page.
 - `design_check({nodes?})` waits for the last save to settle, measures the page at the design width, updates the

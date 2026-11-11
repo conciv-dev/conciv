@@ -1,5 +1,5 @@
 import {and, asc, desc, eq, inArray, isNotNull, max, type SQL} from 'drizzle-orm'
-import {keyBy, uniqBy} from 'es-toolkit'
+import {keyBy, omit, uniqBy} from 'es-toolkit'
 import type {SQLiteColumn} from 'drizzle-orm/sqlite-core'
 import type {Storage} from 'unstorage'
 import {toolError} from '@conciv/extension'
@@ -207,7 +207,7 @@ export function createStore(input: {
       orm.transaction((tx) => {
         tx.insert(targets)
           .values(row)
-          .onConflictDoUpdate({target: [targets.run_id, targets.target_id], set: row})
+          .onConflictDoUpdate({target: [targets.run_id, targets.target_id], set: omit(row, ['lead'])})
           .run()
         tx.delete(nodes).where(keyed(nodes, row)).run()
         for (const {gradient: _gradient, lineAuto: _auto, ...look} of nodeLooks(design))
@@ -477,6 +477,11 @@ export function createStore(input: {
         .filter((entry) => entry.lead === last.lead)
         .map(recordOf)
         .toSorted((a, b) => b.width - a.width)
+    },
+    reroute: async ({session, route}) => {
+      const run = await runs.of(session)
+      if (run === null) return
+      await orm.update(targets).set({route}).where(eq(targets.run_id, run))
     },
     group: async (ids) => {
       const [lead] = ids

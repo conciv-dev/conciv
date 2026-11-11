@@ -38,6 +38,7 @@ export type Store = {
   rounds(id: string): Promise<Round[]>
   current(session: string): Promise<TargetRecord | null>
   variants(session: string): Promise<TargetRecord[]>
+  reroute(input: {session: string; route: string}): Promise<void>
   group(ids: string[]): Promise<void>
   list(): Promise<TargetRecord[]>
 }
