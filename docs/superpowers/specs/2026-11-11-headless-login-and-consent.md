@@ -1,6 +1,6 @@
 # Headless login and outside-agent consent
 
-Status: Part 1 approved for build, Part 2 waiting for a decision. Nothing is implemented yet.
+Status: Parts 1, 2 and 3 approved for build.
 Date: 2026-11-11. Source read at `origin/main` `bd47e7526`. All `file:line` references are to that commit.
 
 ## The ask
@@ -53,7 +53,7 @@ That works inside a test that owns the server process. It does not help `claude 
 Discussed with Omri on 2026-11-11. The token idea is dropped: both problems have a smaller answer.
 
 1. **Browser login: `conciv auth link`.** Approved. Build it.
-2. **Approve prompts for outside agents: remove them.** Proposed, waiting for Omri's yes.
+2. **Approve prompts for outside agents: remove them.** Approved.
 3. **Allow prompt:** already off on main (`hubAccess` defaults to `'open'`). The `design-catalog` branch picks that up when it takes main.
 
 With all three, a headless run is: start the dev server, `conciv auth link <page>`, open the link, run the agent. No clicks, no token to pass around, no log scraping.
@@ -95,26 +95,56 @@ One journey in the existing CLI test file, extending the engine test that alread
 playwright-cli open "$(conciv auth link http://localhost:3001/ | jq -r .data.link)"
 ```
 
-### Possible next step, not in this build
+## Part 2: no Approve prompt for outside agents (approved)
 
-`harness-testkit` (`login.ts`) and the e2e helpers (`e2e/e2e-utils/src/widget.ts`) scrape the printed code from the server log. They could use the new procedure instead. Needs Omri's yes.
+Approved by Omri on 2026-11-11.
 
-## Part 2: remove Approve for outside agents (waiting for yes)
+### Rule
 
-`refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`) asks before a non-widget caller runs a tool with `approval: 'ask'`. Proposal: skip it when the caller is labelled as an outside agent.
+A tool with `approval: 'ask'` runs without a prompt when the caller is an outside agent. The agent inside the widget's own chat keeps its Approve cards: the user is sitting in front of that chat.
 
-Why:
+A caller is an outside agent when either holds:
+
+- it labels itself `conciv-origin: hub` (the CLI found through `--tab` or the home db, and `conciv mcp serve`), or
+- it reaches `/api/mcp` through the Claude plugin bridge: a Claude session header and no conciv session header.
+
+The in-widget agent is neither: it always sends a conciv session header (`packages/harness/src/claude/args.ts:8`) and never the hub label. The plugin bridge is not hub-labelled on main (`packages/harness-init/src/claude/bridge.ts:126` sends only the Claude session id), which is why the second clause exists.
+
+### The two places that ask
+
+1. **RPC**, used by `conciv tools ...`: `refuseUnapproved` (`packages/core/src/api/rpc/router.ts:65-72`), three call sites (`:148,209,215`). Skip when `callTrace(...).hub !== null`.
+2. **MCP**, used by the plugin's Claude and by a hub call that names a tab: the code runner wraps every asking tool in `admitCall` (`packages/chat/src/index.ts:269-285`). `/api/mcp` already knows who is calling (`packages/core/src/api/mcp.ts:353-357`) and decides there.
+
+A tab-less hub call is unaffected: its asking tools are already removed (`packages/core/src/api/outside-run.ts:9`).
+
+### Why
 
 - It is not a security boundary (see "What the engine token already is").
 - For an outside Claude or Codex it is a second prompt. The agent's own permission mode already decides whether the tool call may run, which is the rule `AGENTS.md` states for CLI commands.
-- The calls still show in the chat as outside calls (`hubTraced`, `router.ts:74-96`).
+- The calls still show in the chat as outside calls (`hubTraced`, `router.ts:74-96`; the MCP mirror in `mcp.ts`).
 
-What is lost: a per-call "are you sure" for outside agents. Someone who wants a human in the loop keeps `hubAccess: 'session'` or `'project'`: one Allow, then no further prompts.
+### What stays
 
-Open points:
+- Allow (`hubAccess: 'session'` / `'project'`) is untouched: someone who wants a human in the loop gets one Allow, then no further prompts.
+- A disconnected agent stays refused.
+- Outside agents still cannot answer prompts (`mount.ts:99-104`).
+- The in-widget agent's Approve cards, in a turn and through its CLI.
 
-- `refuseUnapproved` also runs for the in-widget agent when it calls tools through the `conciv` CLI. The proposal leaves that alone. Deleting the gate for everyone is a larger behaviour change and a separate question.
-- Not yet traced: whether outside calls through the MCP `execute_typescript` tool hit a separate per-call prompt inside the code runner. Check before building.
+### Test
+
+One journey per path in the existing files, replacing the tests that assert an outside caller is asked: a hub-labelled RPC call to an asking tool runs with no pending approval; the same call with no hub label still asks. Same pair on `/api/mcp` for a plugin-bridge caller against an in-widget caller. Tests that only existed to cover the removed prompt are deleted, not kept green by other means.
+
+### Note for the `design-catalog` branch
+
+That branch rewrites `mcp.ts`, `app.ts` and `router.ts`. It will need a merge to pick this up, on the same lines.
+
+## Part 3: our own tests log in with the link (approved)
+
+Today the shared helpers get logged in by reading the dev server's output for the printed code (`packages/harness-testkit/src/login.ts`, `e2e/e2e-utils/src/widget.ts`; 27 files reach them). They switch to `auth.issueCode` with the engine token.
+
+- Helpers whose only job is "get this browser logged in" switch (`loginThroughTerminal`, `magicLink`, `loginWidget`, `trustedEngineBase` and their callers).
+- Tests whose subject is the printed code or the Authorize dialog keep reading the terminal (`openLoginFromLockedLauncher`, the core login tests). That is the product path a human uses and must stay covered.
+- A helper left with no callers is deleted.
 
 ## Finding to weigh separately
 

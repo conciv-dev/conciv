@@ -71,20 +71,18 @@ async function withSession(engine: EngineOrigin, target: CliTarget, call: RpcCal
   return call(makeRpcClient(engine.origin, {headers: engine.outside ? {...session, ...hub} : session}))
 }
 
-async function servedOutcome(engine: EngineOrigin, target: CliTarget, call: RpcCall): Promise<CliOutcome | null> {
-  const result = await safe(withSession(engine, target, call))
-  if (result.isSuccess) return {report: 'json', data: result.data}
+export async function engineAnswer<Answer>(origin: string, pending: Promise<Answer>): Promise<Answer> {
+  const result = await safe(pending)
+  if (result.isSuccess) return result.data
   if (result.isDefined) throw rpcFailure(toORPCError(result.error))
-  if (offline(result.error, 0)) return null
+  if (offline(result.error, 0)) throw offlineFailure(origin)
   if (rejectedByServer(result.error)) throw rpcFailure(toORPCError(result.error))
   throw result.error
 }
 
 export async function runRpc(target: CliTarget, call: RpcCall): Promise<CliOutcome> {
   const engine = await engineOrigin(process.cwd(), process.env, target.tab)
-  const outcome = await servedOutcome(engine, target, call)
-  if (outcome === null) throw offlineFailure(engine.origin)
-  return outcome
+  return {report: 'json', data: await engineAnswer(engine.origin, withSession(engine, target, call))}
 }
 
 function callingAgent(env: NodeJS.ProcessEnv): string {

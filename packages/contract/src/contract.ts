@@ -212,6 +212,9 @@ export const contract = {
       .output(z.object({trusted: z.boolean()})),
     exchange: oc.input(z.object({code: z.string().regex(LOGIN_CODE_PATTERN)})).output(ExchangeResultSchema),
     requestCode: oc.input(z.object({reissue: z.boolean().optional()})).output(z.object({expiresAt: z.number()})),
+    issueCode: oc
+      .errors({FORBIDDEN: {message: 'only the engine token may issue a login code'}})
+      .output(z.object({code: z.string().regex(LOGIN_CODE_PATTERN), expiresAt: z.number()})),
   },
   sessions: {
     list: oc
