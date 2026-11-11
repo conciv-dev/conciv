@@ -18,6 +18,7 @@ import {imageRowsOf} from './image-rows.js'
 import {classifyDrift} from './catalog/drift.js'
 import {createTokenMap} from './catalog/token-map.js'
 import {pageHeightRows} from './page-height.js'
+import {ROUTE_HINT} from '../shared/route-hint.js'
 
 export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): Runner {
   const {runtime, folder} = input
@@ -43,11 +44,11 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     const thrown = await thrownError({measured, since, runtime})
     if (thrown !== null) return {thrown}
     const count = streak + 1
-    const error = measured.pageError === undefined ? {} : {error: measured.pageError}
+    const facts = {route: measured.route, ...(measured.pageError === undefined ? {} : {error: measured.pageError})}
     const blank = measured.pageError !== undefined || measured.live.children.length === 0
     if (blank && count < TOLERANCES.stallRounds) {
       await store.writeUnsettledCount({id: record.id, count})
-      return {unsettled: true, rendered: 0, ...error}
+      return {unsettled: true, rendered: 0, ...facts}
     }
     const last = rounds.at(-1)
     const measuredRounds = rounds.filter((round) => round.broken === null)
@@ -72,7 +73,7 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     const unsettled = unsettledReason({measured, rendered: coverage.rendered, settled})
     await store.writeUnsettledCount({id: record.id, count: unsettled === null ? 0 : count})
     const {rendered} = coverage
-    if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...error}
+    if (unsettled !== null && count < TOLERANCES.stallRounds) return {unsettled: true, rendered, ...facts}
     await store.writeVotes({id: record.id, round, votes: mapped.votes})
     const tree = {root: mapped.root, revoted: mapped.revoted, gone: mapped.gone}
     const relation =
@@ -187,7 +188,7 @@ export function createRunner(input: {runtime: DesignRuntime; folder: Storage}): 
     })
     const late = waits.length === 0 ? {} : {fontsLoading: Math.max(...waits)}
     const reply = {round, rows, reflow, coverage: judged, counts, progress, ...late}
-    return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...error}
+    return unsettled === null ? reply : {...reply, unsettled: true, rendered, ...facts}
   }
 }
 
@@ -234,7 +235,7 @@ async function drifted(input: {
 function unsettledReason(input: {measured: Measured; rendered: number; settled: Round | undefined}): string | null {
   const {measured, rendered, settled} = input
   if (measured.pageError !== undefined) return `The page shows an error: ${measured.pageError}`
-  if (rendered === 0) return 'The page rendered no design nodes.'
+  if (rendered === 0) return `The page at ${measured.route} rendered no design nodes. ${ROUTE_HINT}`
   if (settled === undefined || rendered >= settled.coverage.rendered / 2) return null
   return `The page rendered ${rendered} design nodes, under half the ${settled.coverage.rendered} of round ${settled.round}.`
 }

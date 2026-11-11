@@ -1280,6 +1280,24 @@ describe('design_check on a page that breaks the widget or the build', () => {
   })
 })
 
+const ROUTE_LINK = 'https://www.figma.com/design/ItRouteKey/x?node-id=1-2'
+const BUILT_ROUTE = '/built?variant=target'
+
+describe('design_check on the route the design is for', () => {
+  it('names the route it measured when nothing renders, and measures the route design_get names, opening the tab there', async () => {
+    await goto('empty')
+    const cards = {...(await cardsDesign(kit.targetsDir)), figma: ROUTE_LINK}
+    await call('design_get', cards)
+    const blank = await call('design_check', {})
+    expect(blank.reasons.join(' ')).toContain('The page at /?variant=empty rendered 0 design nodes')
+    expect(blank.reasons.join(' ')).toContain('call design_get with route')
+    await call('design_get', {...cards, route: BUILT_ROUTE})
+    const built = roundOf(await call('design_check', {}))
+    expect([kit.page.url().endsWith(BUILT_ROUTE), built.coverage.rendered]).toEqual([true, expect.any(Number)])
+    expect(built.coverage.rendered).toBeGreaterThan(0)
+  })
+})
+
 const SLOW_LINK = 'https://www.figma.com/design/ItSlowFontKey/x?node-id=3-1'
 const SLOW_FRAME = {w: 1280, h: 400}
 const SLOW_FONT_FILE = '/slow/fonts/'

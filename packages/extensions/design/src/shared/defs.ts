@@ -377,6 +377,12 @@ export const GetInputSchema = z
       .describe('the frame REST nodes document when the engine has no key; a list for several'),
     image: PathsSchema.optional().describe('path of the design PNG, or the PNG as base64; a list for several'),
     widget: WidgetSchema.optional().describe('hidden by default; shown when the widget itself is the design'),
+    route: z
+      .string()
+      .optional()
+      .describe(
+        'the path of the page the design is for, such as /pricing; the tab route when design_get is called by default',
+      ),
   })
   .refine((input) => input.document === undefined || (input.figma !== undefined && input.image !== undefined), {
     message: 'document goes with figma and image',
@@ -394,7 +400,12 @@ const GetResultSchema = z.object({
 
 export const GetReplySchema = z.union([GetResultSchema, z.object({variants: z.array(GetResultSchema)})])
 
-const UnsettledSchema = z.object({unsettled: z.literal(true), rendered: z.number(), error: z.string().optional()})
+const UnsettledSchema = z.object({
+  unsettled: z.literal(true),
+  rendered: z.number(),
+  route: z.string().describe('the route the check measured'),
+  error: z.string().optional(),
+})
 
 const CompileErrorSchema = z.object({
   message: z.string().describe('the first line of the error'),
@@ -500,6 +511,10 @@ export const MeasureInputSchema = z.object({
   widget: WidgetSchema.default('hidden'),
   timeout: z.number().int().positive().optional(),
 })
+
+export const RouteInputSchema = z.object({route: z.string().describe('the path to open the tab at')})
+
+export const RouteResultSchema = z.object({initiated: z.literal(true)})
 
 export const ShotsInputSchema = z.object({width: Width, height: Width, nodes: z.array(screenshotNodeDef.inputSchema)})
 

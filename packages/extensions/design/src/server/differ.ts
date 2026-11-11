@@ -27,6 +27,8 @@ import {designConfig} from '../shared/tolerances.js'
 import {documentOf} from './document.js'
 import {figmaRef} from './figma-ref.js'
 import {verdictOf} from './verdict.js'
+import {routeDef} from '../shared/route-def.js'
+import {ROUTE_HINT} from '../shared/route-hint.js'
 
 export function createDiffer(input: {
   runtime: DesignRuntime
@@ -69,9 +71,11 @@ export function createDiffer(input: {
     variants?: number[]
   }) => {
     const {record, nodes} = asked
+    const opened = tab(asked.session)
+    await routed({runtime, page: opened, route: record.route})
     const measured = await runner({
       record,
-      page: tab(asked.session),
+      page: opened,
       since: edits.updated(),
       ...(asked.variants === undefined ? {} : {variants: asked.variants}),
     })
@@ -105,8 +109,9 @@ export function createDiffer(input: {
       )
       if (known !== undefined) {
         const widget = query.widget ?? known.widget
-        if (widget === known.widget) return stored({runtime, record: known})
-        return stored({runtime, record: await rewidgeted({runtime, record: known, widget})})
+        const route = query.route ?? known.route
+        if (widget === known.widget && route === known.route) return stored({runtime, record: known})
+        return stored({runtime, record: await reput({runtime, record: known, widget, route})})
       }
       const record = await registered({runtime, query: one, session, page: access})
       return stored({runtime, record})
@@ -160,7 +165,10 @@ type OneQuery = {
   image?: string | undefined
   document?: unknown
   widget?: Widget | undefined
+  route?: string | undefined
 }
+
+const ROUTE_BASE = 'http://localhost'
 
 const BASE64_REF = 'base64'
 
@@ -230,8 +238,8 @@ async function registered(input: {
       ...(image === undefined ? {} : {image}),
     },
   })
-  const facts = await runtime.measurer.probe(page).catch(() => null)
-  const route = facts === null ? undefined : (facts.route.split('?')[0] ?? facts.route)
+  const facts = query.route === undefined ? await runtime.measurer.probe(page).catch(() => null) : null
+  const route = query.route ?? (facts === null ? undefined : new URL(facts.route, ROUTE_BASE).pathname)
   return runtime.store.put({
     design: loaded.design,
     image: loaded.image,
@@ -242,10 +250,11 @@ async function registered(input: {
   })
 }
 
-async function rewidgeted(input: {
+async function reput(input: {
   runtime: DesignRuntime
   record: TargetRecord
   widget: Widget
+  route: string | undefined
 }): Promise<TargetRecord> {
   const {runtime, record} = input
   const {store} = runtime
@@ -256,8 +265,38 @@ async function rewidgeted(input: {
     image,
     session: record.session,
     widget: input.widget,
-    ...(record.route === undefined ? {} : {route: record.route}),
+    ...(input.route === undefined ? {} : {route: input.route}),
   })
+}
+
+async function routed(input: {
+  runtime: DesignRuntime
+  page: ServerToolPageAccess
+  route: string | undefined
+}): Promise<void> {
+  const {runtime, page, route} = input
+  if (route === undefined) return
+  const facts = await runtime.measurer.probe(page).catch(() => null)
+  if (facts === null || sameRoute({route, at: facts.route})) return
+  await page.call(routeDef.name, {route})
+  const retryer = new AsyncRetryer(() => arrived({runtime, page, route}), {
+    backoff: 'fixed',
+    baseWait: TOLERANCES.widgetPoll,
+    maxAttempts: Math.ceil(TOLERANCES.widgetWait / TOLERANCES.widgetPoll) + 1,
+    throwOnError: false,
+  })
+  await retryer.execute()
+}
+
+async function arrived(input: {runtime: DesignRuntime; page: ServerToolPageAccess; route: string}): Promise<void> {
+  const facts = await input.runtime.measurer.probe(input.page)
+  if (!sameRoute({route: input.route, at: facts.route})) throw new Error(`the tab is not at ${input.route} yet`)
+}
+
+function sameRoute(input: {route: string; at: string}): boolean {
+  const wanted = new URL(input.route, ROUTE_BASE)
+  const current = new URL(input.at, ROUTE_BASE)
+  return wanted.pathname === current.pathname && (wanted.search === '' || wanted.search === current.search)
 }
 
 function projectRef(input: {ref: string; cwd: string}): string {
@@ -303,6 +342,7 @@ async function variantsGot(input: {
       image: at({list: query.image, index}),
       document: at({list: query.document, index}),
       widget: query.widget,
+      route: query.route,
     }
     records.push(known ?? (await registered({runtime, query: one, session, page: input.page})))
   }
@@ -382,7 +422,8 @@ function only(input: {checked: Extract<Checked, {rows: unknown}>; nodes: string[
 
 function unsettledReason(measured: Exclude<RoundReply, {round: number} | {thrown: unknown}>): string {
   if (measured.error !== undefined) return `The page shows an error, so nothing was measured: ${measured.error}`
-  return `The page rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
+  const told = `The page at ${measured.route} rendered ${measured.rendered} design nodes, too few to measure; no round was written. If the next check is unsettled too, it returns the coverage and the rows of what did render.`
+  return measured.rendered === 0 ? `${told} ${ROUTE_HINT}` : told
 }
 
 function fontsLine(waited: number): string {

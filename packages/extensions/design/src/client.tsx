@@ -10,6 +10,7 @@ import {uniq} from 'es-toolkit'
 import type {z} from 'zod'
 import type {Box, LiveComponent, Widget} from './shared/defs.js'
 import {DESIGN_TOOLS} from './shared/design-tools.js'
+import {routeDef} from './shared/route-def.js'
 import {designConfig} from './shared/tolerances.js'
 import {hiddenOverlays} from './shared/overlays.js'
 import {XrayOverlay} from './xray/overlay.js'
@@ -48,6 +49,7 @@ const propertyAliases = designConfig.propertyAliases
 
 type MeasureInput = z.output<(typeof measureDef)['inputSchema']>
 type ShotsInput = z.output<(typeof shotsDef)['inputSchema']>
+type RouteInput = z.output<(typeof routeDef)['inputSchema']>
 type NodeShot = z.output<NonNullable<(typeof shotsDef)['outputSchema']>>['shots'][number]
 type MeasureResult = Omit<z.output<NonNullable<(typeof measureDef)['outputSchema']>>, 'components'> & {
   components: LiveComponent[]
@@ -108,7 +110,7 @@ const mirrorSlot: {current: MirrorSlot | null} = {current: null}
 const engineBase: {current: (() => string) | null} = {current: null}
 const region: {stream: MediaStream | null} = {stream: null}
 
-const CLIENT_TOOLS = [measureDef.client(measureStep), shotsDef.client(shotsStep)] as const
+const CLIENT_TOOLS = [measureDef.client(measureStep), shotsDef.client(shotsStep), routeDef.client(routeStep)] as const
 
 function Component(): JSX.Element {
   const host = getExtensionApi(DESIGN_EXTENSION_NAME)
@@ -169,6 +171,11 @@ async function measureStep(input: MeasureInput, ctx: ClientToolCtx): Promise<Mea
   })
   const queried = {...measured, ...(await pageQueries(document)), ...thrownOf(ctx.consoleEntries())}
   return pageError === null ? queried : {...queried, pageError}
+}
+
+function routeStep(input: RouteInput): {initiated: true} {
+  setTimeout(() => location.assign(input.route))
+  return {initiated: true}
 }
 
 function overlayError(): string | null {
