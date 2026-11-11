@@ -487,10 +487,13 @@ describe('inject source hook', () => {
       expect(out?.code).toContain('data-conciv-source=')
     })
 
-    it('stamps its own data-conciv-source and data-conciv-key over the code @tanstack/devtools inject-source already stamped', async () => {
+    async function throughDevtools(raw: string): Promise<{
+      file: string
+      tsdCode: string
+      conciv: (code: string, ssr: boolean) => Promise<{code: string} | null>
+    }> {
       const root = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-tsd-')))
       const file = join(root, 'src', 'App.tsx')
-      const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
       mkdirSync(dirname(file), {recursive: true})
       writeFileSync(file, raw)
       const plugins = devtools()
@@ -500,8 +503,6 @@ describe('inject source hook', () => {
       if (!inject) throw new Error('@tanstack/devtools has no inject-source transform')
       const injected = await inject.call({} as never, raw, file, undefined as never)
       const tsdCode = typeof injected === 'object' && injected !== null && 'code' in injected ? injected.code : ''
-      expect(tsdCode).toContain('data-tsd-source=')
-
       const hook = makeViteHook({enabled: true})
       const configResolved = hook.configResolved
       if (typeof configResolved === 'function')
@@ -509,11 +510,40 @@ describe('inject source hook', () => {
       const transform = hook.transform
       const run = typeof transform === 'function' ? transform : transform?.handler
       if (!run) throw new Error('conciv plugin has no transform')
-      const out = (await run.call({} as never, String(tsdCode), file, undefined as never)) as {code: string} | null
+      const conciv = async (code: string, ssr: boolean): Promise<{code: string} | null> =>
+        (await run.call({} as never, code, file, {ssr} as never)) as {code: string} | null
+      return {file, tsdCode: String(tsdCode), conciv}
+    }
+
+    const keysOf = (code: string | undefined): string[] =>
+      (code ?? '')
+        .split('data-conciv-key="')
+        .slice(1)
+        .map((rest) => rest.split('"')[0] ?? '')
+
+    it('stamps its own data-conciv-source and data-conciv-key over the code @tanstack/devtools inject-source already stamped', async () => {
+      const {tsdCode, conciv} = await throughDevtools(
+        'export const App = () => <main className="app"><p>hi</p></main>\n',
+      )
+      expect(tsdCode).toContain('data-tsd-source=')
+
+      const out = await conciv(tsdCode, false)
 
       expect(out?.code).toContain('data-tsd-source=')
       expect(out?.code).toContain('data-conciv-source="src/App.tsx:1:26"')
       expect(out?.code.split('data-conciv-key=')).toHaveLength(3)
+    })
+
+    it('serves the server render and the client render of one file the same keys, and writes them into the file', async () => {
+      const raw = 'export const App = () => <main className="app"><p>hi</p></main>\n'
+      const {file, tsdCode, conciv} = await throughDevtools(raw)
+
+      const server = keysOf((await conciv(tsdCode, true))?.code)
+      const client = keysOf((await conciv(tsdCode, false))?.code)
+
+      expect(server).toHaveLength(2)
+      expect(client).toEqual(server)
+      expect(keysOf(readFileSync(file, 'utf8'))).toEqual(server)
     })
   })
 })

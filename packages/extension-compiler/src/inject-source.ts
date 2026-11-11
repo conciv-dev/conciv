@@ -1,4 +1,4 @@
-import {randomBytes} from 'node:crypto'
+import {createHash} from 'node:crypto'
 import {readFileSync, writeFileSync} from 'node:fs'
 import {isAbsolute, relative, sep} from 'node:path'
 import {parseSync} from 'oxc-parser'
@@ -13,7 +13,7 @@ const SITE_ATTR = 'data-conciv-site'
 const FRAMEWORK_PACKAGES = ['solid-js', 'react', 'react-dom']
 const JSX_EXTENSIONS = ['.jsx', '.tsx']
 
-type Disk = {openings: Node[]; locate: (offset: number) => {line: number; column: number}}
+type Disk = {text: string; openings: Node[]; locate: (offset: number) => {line: number; column: number}}
 
 type Stamp = {node: Node; index: number; key: string; served: boolean; fresh: boolean}
 
@@ -33,17 +33,19 @@ export function addSourceToJsx(input: {
   if (parsed === null || parsed.openings.length === 0) return null
   const {openings, imported} = parsed
   const onDisk = alignedDisk({file, text: readText(file), expected: openings.length})
+  const rel = inside({file, root}) ? relative(root, file) : file
   const sites = openings.flatMap((node, index) => (calledComponent({node, imported}) ? [{node, index}] : []))
   const stamps = openings.flatMap((node, index): Stamp[] => {
     if (!hostElement(node.name) || attribute({node, name: SOURCE_ATTR}) !== undefined) return []
     if (attribute({node, name: KEY_ATTR}) !== undefined) return [{node, index, key: '', served: false, fresh: false}]
     const kept = literalKey(onDisk?.openings[index])
-    return [{node, index, key: kept ?? randomBytes(4).toString('base64url'), served: true, fresh: kept === null}]
+    return [
+      {node, index, key: kept ?? mintKey({rel, index, text: onDisk?.text ?? code}), served: true, fresh: kept === null},
+    ]
   })
   if (stamps.length === 0 && sites.length === 0) return null
-  const written = input.persist ? persistKeys({file, root, code, stamps}) : null
+  const written = input.persist && onDisk !== null ? persistKeys({file, root, disk: onDisk, stamps}) : null
   const disk = written === null ? onDisk : alignedDisk({file, text: written, expected: openings.length})
-  const rel = inside({file, root}) ? relative(root, file) : file
   const locate = makeLocator(code)
   const s = new MagicString(code)
   stamps.forEach((stamp) => {
@@ -60,13 +62,19 @@ export function addSourceToJsx(input: {
   return {code: s.toString(), map: s.generateMap({source: file, hires: true})}
 }
 
-function persistKeys(input: {file: string; root: string; code: string; stamps: Stamp[]}): string | null {
+function mintKey(input: {rel: string; index: number; text: string}): string {
+  return createHash('shake256', {outputLength: 4})
+    .update(JSON.stringify([input.rel, input.index, input.text]))
+    .digest('base64url')
+}
+
+function persistKeys(input: {file: string; root: string; disk: Disk; stamps: Stamp[]}): string | null {
   const fresh = input.stamps.filter((stamp) => stamp.fresh)
   if (fresh.length === 0 || !inside(input) || input.file.split(sep).includes('node_modules')) return null
-  const keyed = new MagicString(input.code)
-  fresh.forEach((stamp) => keyed.appendLeft(insertAt(stamp.node), keyText(stamp.key)))
+  const keyed = new MagicString(input.disk.text)
+  fresh.forEach((stamp) => keyed.appendLeft(insertAt(input.disk.openings[stamp.index]), keyText(stamp.key)))
   const text = keyed.toString()
-  if (readText(input.file) !== input.code) return null
+  if (readText(input.file) !== input.disk.text) return null
   try {
     writeFileSync(input.file, text)
     return text
@@ -117,7 +125,7 @@ function alignedDisk(input: {file: string; text: string | null; expected: number
   if (input.text === null) return null
   const parsed = parseModule(input.file, input.text)
   if (parsed === null || parsed.openings.length !== input.expected) return null
-  return {openings: parsed.openings, locate: makeLocator(input.text)}
+  return {text: input.text, openings: parsed.openings, locate: makeLocator(input.text)}
 }
 
 function makeLocator(code: string): (offset: number) => {line: number; column: number} {
