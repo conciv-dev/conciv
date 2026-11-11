@@ -1,8 +1,9 @@
 import {isSensitiveField, MASKED_VALUE} from '@conciv/page'
 import {frameDocument} from './agent-cursor.js'
-import {setNativeValue, simulateClick, simulateFill} from './simulator.js'
+import {setNativeValue, simulateClick, simulateFill, typeByCommands, typeByEvents} from './simulator.js'
 
 const XHTML = 'http://www.w3.org/1999/xhtml'
+const CODE_EDITORS = '.cm-editor, .CodeMirror, .monaco-editor'
 const MOUSE_POINTER = {pointerId: 1, pointerType: 'mouse', isPrimary: true}
 const HOVER_EVENTS = ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']
 
@@ -82,14 +83,58 @@ function pageTurn(): Promise<void> {
   })
 }
 
-export async function fill(options: {element: Element; value: string; agent: string}): Promise<string | null> {
+function editableHost(element: Element): HTMLElement | null {
+  const host = element.closest('[contenteditable]')
+  return host && isHtml(host) ? host : null
+}
+
+function squashed(text: string): string {
+  return text.replace(/[\s\u200B\uFEFF]+/g, ' ').trim()
+}
+
+function holds(options: {host: HTMLElement; value: string}): boolean {
+  return squashed(options.host.innerText) === squashed(options.value)
+}
+
+function reported(options: {element: Element; value: string}): {value: string} {
+  return {value: isSensitiveField(options.element) ? MASKED_VALUE : options.value}
+}
+
+async function fillEditor(options: {
+  host: HTMLElement
+  value: string
+  agent: string
+}): Promise<{value: string} | string> {
+  const {host, value, agent} = options
+  simulateClick({element: host, agent})
+  typeByEvents({host, value})
+  await pageTurn()
+  if (!holds({host, value})) typeByCommands({host, value})
+  host.dispatchEvent(new Event('change', {bubbles: true}))
+  await pageTurn()
+  if (!holds({host, value})) return `The editor rejected ${shown({element: host, value})}; its text does not match it.`
+  return reported({element: host, value: host.innerText.trim()})
+}
+
+export async function fill(options: {
+  element: Element
+  value: string
+  agent: string
+}): Promise<{value: string} | string> {
   const {element, value, agent} = options
-  if (!isInput(element) && !isTextArea(element)) return 'That element is not a text field.'
-  if (element.readOnly) return 'That field is read-only.'
+  if (element.closest(CODE_EDITORS)) return 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.'
+  const readOnly = element.closest('[aria-readonly]')?.getAttribute('aria-readonly') === 'true'
+  if (!isInput(element) && !isTextArea(element)) {
+    const host = editableHost(element)
+    if (!host) return 'That element is not a text field.'
+    if (readOnly || !host.isContentEditable) return 'That field is read-only.'
+    return fillEditor({host, value, agent})
+  }
+  if (readOnly || element.readOnly) return 'That field is read-only.'
   simulateFill({element, value, agent})
   await pageTurn()
   if (value !== '' && element.value === '') return `The field rejected ${shown({element, value})} and stayed empty.`
-  return null
+  return reported({element, value: element.value})
 }
 
 export async function select(options: {element: Element; value: string}): Promise<{value: string} | string> {

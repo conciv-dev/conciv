@@ -10,6 +10,10 @@ import {CHAT_FONTS} from '@conciv/ui-kit-chat/theme/fonts'
 import {createRoot, type Root} from 'react-dom/client'
 import {watchHotUpdates, type HotSurface} from '../src/client/hmr.js'
 import {ControlledForm, FixtureApp} from './fixtures/react-app.js'
+import {Editor} from '@tiptap/core'
+import {Document} from '@tiptap/extension-document'
+import {Paragraph} from '@tiptap/extension-paragraph'
+import {Text} from '@tiptap/extension-text'
 
 const inFirefox = server.browser === 'firefox'
 
@@ -342,7 +346,7 @@ describe.skipIf(inFirefox)('page tools', () => {
       })
       const set = await resultOf('override', {name: 'Counter', target: 'state', path: 'value', json: '77'})
       expect(set.ok).toBe(true)
-      await expect.element(counter()).toHaveTextContent('77')
+      await expect.element(counter()).toMatchTextContent('77')
     })
 
     it('tracks renders between start and stop', async () => {
@@ -521,6 +525,109 @@ describe.skipIf(inFirefox)('page tools', () => {
 
       expect(await resultOf('check', {selector: '#plain-box'})).toEqual({ok: true, checked: true})
       await expect.element(page.getByRole('checkbox', {name: 'Plain box'})).toBeChecked()
+    })
+  })
+
+  describe('rich-text editors', () => {
+    const mountEditors = (html: string): HTMLElement => {
+      const host = document.createElement('div')
+      host.innerHTML = html
+      document.body.append(host)
+      onTestFinished(() => host.remove())
+      return host
+    }
+
+    it('fills a plain contenteditable through a target nested inside it, and a plaintext-only editor', async () => {
+      mountEditors(`
+        <div id="notes" contenteditable="true" role="textbox" aria-label="Notes"><p id="notes-line">old note</p></div>
+        <div id="plain" contenteditable="plaintext-only" role="textbox" aria-label="Plain notes">old</div>
+      `)
+      expect(await resultOf('fill', {selector: '#notes-line', value: 'Hello editor'})).toEqual({
+        ok: true,
+        value: 'Hello editor',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^Hello editor$/)
+      expect(await resultOf('fill', {selector: '#plain', value: 'Plain text'})).toEqual({ok: true, value: 'Plain text'})
+      await expect.element(page.getByRole('textbox', {name: 'Plain notes'})).toMatchTextContent(/^Plain text$/)
+    })
+
+    it('falls back to editing commands when the editor cancels synthetic beforeinput', async () => {
+      const host = mountEditors(
+        `<div id="guarded" contenteditable="true" role="textbox" aria-label="Guarded">draft</div>`,
+      )
+      host.querySelector('#guarded')?.addEventListener('beforeinput', (event) => {
+        if (!event.isTrusted) event.preventDefault()
+      })
+      expect(await resultOf('fill', {selector: '#guarded', value: 'Typed anyway'})).toEqual({
+        ok: true,
+        value: 'Typed anyway',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Guarded'})).toMatchTextContent(/^Typed anyway$/)
+    })
+
+    it('refuses read-only editors', async () => {
+      mountEditors(`
+        <div id="frozen" contenteditable="false" role="textbox" aria-label="Frozen">fixed</div>
+        <div id="aria-frozen" contenteditable="true" aria-readonly="true" role="textbox" aria-label="Aria frozen">fixed</div>
+      `)
+      const readOnly = {code: 'invalid-args', message: 'That field is read-only.'}
+      expect(await failureOf('fill', {selector: '#frozen', value: 'x'})).toEqual(readOnly)
+      expect(await failureOf('fill', {selector: '#aria-frozen', value: 'x'})).toEqual(readOnly)
+      await expect.element(page.getByRole('textbox', {name: 'Frozen'})).toMatchTextContent(/^fixed$/)
+      await expect.element(page.getByRole('textbox', {name: 'Aria frozen'})).toMatchTextContent(/^fixed$/)
+    })
+
+    it('reports an editor that ignores every way of typing, masking sensitive values', async () => {
+      const host = mountEditors(`
+        <div id="stubborn" contenteditable="true" role="textbox" aria-label="Stubborn">locked</div>
+        <div id="stubborn-card" contenteditable="true" autocomplete="cc-number" role="textbox" aria-label="Card">0000</div>
+      `)
+      for (const editor of host.querySelectorAll('[contenteditable]')) {
+        const original = editor.textContent
+        editor.addEventListener('beforeinput', (event) => event.preventDefault())
+        editor.addEventListener('input', () => {
+          if (editor.textContent !== original) editor.textContent = original
+        })
+      }
+      expect(await failureOf('fill', {selector: '#stubborn', value: 'Ada'})).toEqual({
+        code: 'invalid-args',
+        message: 'The editor rejected "Ada"; its text does not match it.',
+      })
+      await expect.element(page.getByRole('textbox', {name: 'Stubborn'})).toMatchTextContent(/^locked$/)
+      const refused = await failureOf('fill', {selector: '#stubborn-card', value: '4242424242424242'})
+      expect(refused).toEqual({code: 'invalid-args', message: 'The editor rejected ***; its text does not match it.'})
+      expect(JSON.stringify(refused)).not.toContain('4242')
+    })
+
+    it('refuses code editors it cannot type into instead of claiming success', async () => {
+      mountEditors(`
+        <div class="cm-editor"><div id="cm" class="cm-content" contenteditable="true" role="textbox" aria-label="Code">let a = 1</div></div>
+        <div class="monaco-editor"><textarea id="monaco" aria-label="Monaco input"></textarea></div>
+      `)
+      const codeEditor = {
+        code: 'invalid-args',
+        message: 'That is a code editor (CodeMirror or Monaco); fill cannot type into it.',
+      }
+      expect(await failureOf('fill', {selector: '#cm', value: 'x'})).toEqual(codeEditor)
+      expect(await failureOf('fill', {selector: '#monaco', value: 'x'})).toEqual(codeEditor)
+      await expect.element(page.getByRole('textbox', {name: 'Code'})).toMatchTextContent(/^let a = 1$/)
+    })
+
+    it('types into a real Tiptap editor so its document model follows', async () => {
+      const host = mountEditors('')
+      const editor = new Editor({
+        element: host,
+        extensions: [Document, Paragraph, Text],
+        content: '<p>old draft</p>',
+        editorProps: {attributes: {id: 'tiptap', role: 'textbox', 'aria-label': 'Composer'}},
+      })
+      onTestFinished(() => editor.destroy())
+      expect(await resultOf('fill', {selector: '#tiptap', value: 'Hello Tiptap'})).toEqual({
+        ok: true,
+        value: 'Hello Tiptap',
+      })
+      expect(editor.getText()).toBe('Hello Tiptap')
+      await expect.element(page.getByRole('textbox', {name: 'Composer'})).toMatchTextContent(/^Hello Tiptap$/)
     })
   })
 
