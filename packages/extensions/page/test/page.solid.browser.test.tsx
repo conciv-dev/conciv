@@ -806,6 +806,9 @@ describe('page action queue', () => {
         <button type="button" onKeyDown={(event) => props.heard(`key ${event.key}`)}>
           Send
         </button>
+        <div id="notes" contenteditable="true" role="textbox" aria-label="Notes">
+          <p id="notes-line">old note</p>
+        </div>
       </form>
     )
   }
@@ -900,6 +903,20 @@ describe('page action queue', () => {
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
     await played.played
     await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
+  it('a queued fill types into a contenteditable editor', async () => {
+    const {queue} = queuePage()
+    expect(
+      await queue('q-editor', [
+        fill('first', 'Ada'),
+        {tool: 'page_fill', selector: '#notes-line', value: 'Hello editor'},
+      ]).played,
+    ).toEqual([
+      {ok: true, result: {ok: true, value: 'Ada'}},
+      {ok: true, result: {ok: true, value: 'Hello editor'}},
+    ])
+    await expect.element(page.getByRole('textbox', {name: 'Notes'})).toMatchTextContent(/^\s*Hello editor\s*$/)
   })
 
   it('masks a card number in the result', async () => {
