@@ -4,6 +4,7 @@ set -uo pipefail
 HOOK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/turbo-filter-gate.sh"
 PASS=0
 FAIL=0
+unset TURBO_CACHE_DIR
 
 run_case() {
   local name="$1"
@@ -126,6 +127,79 @@ run_case "pnpm exec bare vitest run blocked" \
 
 run_case "quoted bare vitest false positive allowed" \
   "echo 'do not run vitest run without a file'" 0
+
+# --- rule 5: separate cache store ---
+run_case "inline TURBO_CACHE_DIR on turbo blocked" \
+  "TURBO_CACHE_DIR=../.turbo-cache pnpm exec turbo run test --filter=@conciv/db" 2
+
+run_case "exported TURBO_CACHE_DIR before turbo blocked" \
+  "export TURBO_CACHE_DIR=../.turbo-cache && turbo run build" 2
+
+run_case "--cache-dir= flag blocked" \
+  "turbo run build --cache-dir=/tmp/x" 2
+
+run_case "--cache-dir flag with separate value blocked" \
+  "turbo run build --cache-dir /tmp/x" 2
+
+run_case "quoted TURBO_CACHE_DIR value on pnpm test:affected blocked" \
+  "TURBO_CACHE_DIR=\"../x\" pnpm test:affected" 2
+
+run_case "TURBO_CACHE_DIR on root pnpm build blocked" \
+  "TURBO_CACHE_DIR=/tmp/c pnpm build" 2
+
+run_case "TURBO_CACHE_DIR on root pnpm lint blocked" \
+  "TURBO_CACHE_DIR=/tmp/c pnpm lint" 2
+
+run_case "TURBO_CACHE_DIR on root pnpm e2e blocked" \
+  "TURBO_CACHE_DIR=/tmp/c pnpm e2e" 2
+
+run_case "TURBO_CACHE_DIR on root pnpm run dev blocked" \
+  "TURBO_CACHE_DIR=/tmp/c pnpm run dev" 2
+
+run_case "quoted env assignment argument blocked" \
+  "env \"TURBO_CACHE_DIR=/tmp/c\" pnpm exec turbo run build" 2
+
+run_case "quoted --cache-dir argument blocked" \
+  "pnpm exec turbo run build \"--cache-dir=/tmp/c\"" 2
+
+run_case "plain filtered turbo test allowed" \
+  "turbo run test --filter=@conciv/db" 0
+
+run_case "plain root pnpm build allowed" \
+  "pnpm build" 0
+
+run_case "quoted echo mention allowed" \
+  "echo \"TURBO_CACHE_DIR=x turbo run build --cache-dir=y\"" 0
+
+run_case "quoted commit message mention allowed" \
+  "git commit -m \"drop TURBO_CACHE_DIR and --cache-dir\"" 0
+
+run_case "quoted --cache-dir inside a message argument of turbo allowed" \
+  "pnpm exec turbo run build --summarize --filter=@conciv/db --log-prefix \"no --cache-dir\"" 0
+
+TURBO_CACHE_DIR=/tmp/other run_case "inherited TURBO_CACHE_DIR blocks turbo" \
+  "turbo run test --filter=@conciv/db" 2
+
+TURBO_CACHE_DIR=/tmp/other run_case "inherited TURBO_CACHE_DIR blocks root pnpm build" \
+  "pnpm build" 2
+
+TURBO_CACHE_DIR=/tmp/other run_case "inherited TURBO_CACHE_DIR ignores non-turbo command" \
+  "ls -la" 0
+
+TURBO_CACHE_DIR=/tmp/other run_case "unset before turbo clears inherited TURBO_CACHE_DIR" \
+  "unset TURBO_CACHE_DIR && pnpm exec turbo run build" 0
+
+TURBO_CACHE_DIR=/tmp/other run_case "env -u on the invocation clears inherited TURBO_CACHE_DIR" \
+  "env -u TURBO_CACHE_DIR pnpm exec turbo run build" 0
+
+TURBO_CACHE_DIR=/tmp/other run_case "env -u on another invocation does not clear it" \
+  "env -u TURBO_CACHE_DIR true && pnpm exec turbo run build" 2
+
+run_case "export after unset in the same command blocked" \
+  "unset TURBO_CACHE_DIR && export TURBO_CACHE_DIR=/tmp/c && pnpm exec turbo run build" 2
+
+run_case "empty command fails open" \
+  "" 0
 
 echo
 echo "Results: $PASS passed, $FAIL failed"
