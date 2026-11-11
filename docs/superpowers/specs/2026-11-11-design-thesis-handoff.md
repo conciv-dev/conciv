@@ -177,6 +177,17 @@ gets the same prompt minus the sentence about the conciv tools and must not be g
 however it can); when the agent ends, the operator runs `design check` once, which writes the only round, the artifacts and the
 verdict. `design_wave_summary` then compares arms on the same store columns. Omri can overrule.
 
+**Control arm** (lane `example-control-1`, labeled 7834db07f; no `conciv init`, operator `design get --route /design` before,
+operator `design check` once after): run 183 (Figma token expired, nothing), 184 (sonnet quit in 3 turns citing the user's global
+CLAUDE.md delegation rule; leaked the arm through the init-written AGENTS.md), 185 (sonnet's Figma MCP calls denied by the
+allowlist), **186** (sonnet with `mcp__plugin_figma_figma` allowed, 19.6 min, $2.77, 104 turns, Figma `get_design_context`,
+`get_metadata`, `get_screenshot`, own screenshots and PIL diffs): page built, check `not yet` with 32/29/36 rows, 166/166/135 nodes
+rendered, pixel share 0.0065/0.017/0.0385. Against tools-arm run 182 (sonnet, 17.2 min, $3.01, `done`, 0 rows, 177/177/149
+nodes, pixel 0.019/0.025/0.058). Control flags: run 3's line with `--allowedTools "Edit,Write,Read,Bash,mcp__plugin_figma_figma"
+--disallowedTools "Agent,mcp__plugin_conciv-connect_conciv,mcp__conciv-hub"`, prompt ends "Keep going until the page matches the
+frames at all three widths." Seen: the page agent ran `playwright-cli close-all` and closed the operator's tab; SIGINT sent to
+pnpm and vite together left run 185 `running`, SIGINT to vite alone closed 186.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
