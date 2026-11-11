@@ -21,6 +21,7 @@ import {createMCPClient} from '@tanstack/ai-mcp'
 import {stdioTransport} from '@tanstack/ai-mcp/stdio'
 import {CONCIV_ORIGIN_HEADER, CONCIV_SESSION_HEADER, TabOpenSchema} from '@conciv/protocol/chat-types'
 import {approvalAskOf, ChatEventType} from '@conciv/protocol/chat-event-types'
+import {PageQuerySchema} from '@conciv/protocol/page-types'
 import {makeRpcClient, SOCKET_TRUST_FRAME} from '@conciv/contract'
 import {PUSH_SESSION_PARAM, PUSH_WS_PATH, type PageServingFrame} from '@conciv/protocol/push-types'
 import {grantBrowser, isTrustedBrowser, readTrustedBrowsers} from '@conciv/protocol/engine-trust'
@@ -1055,6 +1056,7 @@ describe('cli', () => {
       shared?: {root: string; sessionId: string}
       extensions?: Parameters<typeof startEngine>[0]['extensions']
       hubAccess?: 'session' | 'open'
+      queued?: (queue: {id: string; replies: string[]}) => void
     } = {},
   ) {
     const root = given.shared?.root ?? mkdtempSync(join(tmpdir(), 'conciv-hub-'))
@@ -1078,7 +1080,12 @@ describe('cli', () => {
     const queries = await page.page.queries(undefined, {signal: listening})
     const route = {href: `http://localhost${root}`, title: root, state: 'visible', pathname: root, search: ''}
     const answer = async () => {
-      for await (const {requestId} of queries) await page.page.reply({requestId, outcome: {ok: true, result: route}})
+      for await (const {requestId, query} of queries) {
+        const queue = PageQuerySchema.parse(query).queue
+        const result = queue === undefined ? route : {queueId: queue.id, actions: queue.replies.length}
+        await page.page.reply({requestId, outcome: {ok: true, result}})
+        if (queue !== undefined) given.queued?.(queue)
+      }
     }
     const answering = answer().catch((error: unknown) => {
       if (error !== listening.reason) throw error
@@ -1727,6 +1734,124 @@ describe('cli', () => {
         }
       },
     )
+
+    describe('queue as an MCP task', () => {
+      const QUEUE = `return await external_page_queue({actions: ${JSON.stringify([
+        {tool: 'page_fill', selector: '#first', value: 'Ada'},
+        {tool: 'page_check', selector: '#agree'},
+      ])}})`
+      const ENVELOPE = {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        'io.modelcontextprotocol/clientInfo': {name: 'cli-test', version: '1.0.0'},
+        'io.modelcontextprotocol/clientCapabilities': {extensions: {'io.modelcontextprotocol/tasks': {}}},
+      }
+      const RpcReplySchema = z.object({
+        id: z.number(),
+        result: z.looseObject({}).optional(),
+        error: z.unknown().optional(),
+      })
+
+      async function queueTab() {
+        const {home, mcp} = fakeClaude()
+        expect(mcp('connect', 'claude')).toMatchObject({status: 0})
+        const accepted: Array<{id: string; replies: string[]}> = []
+        const engine = await engineWithTab(home, {hubAccess: 'open', queued: (queue) => accepted.push(queue)})
+        const play = async () => {
+          await vi.waitFor(() => expect(accepted).toHaveLength(1))
+          const [queue] = accepted
+          for (const requestId of queue?.replies ?? []) {
+            await engine.page.page.reply({requestId, outcome: {ok: true, result: {ok: true}}})
+          }
+        }
+        return {home, engine, play}
+      }
+
+      function rawHub(home: string) {
+        const child = spawn(process.execPath, [bin, 'mcp', 'serve', '--agent', 'claude'], {
+          env: {...process.env, CONCIV_HOME: home},
+          stdio: ['pipe', 'pipe', 'inherit'],
+        })
+        const waiting = new Map<number, (reply: z.infer<typeof RpcReplySchema>) => void>()
+        const buffered = {text: ''}
+        child.stdout.setEncoding('utf8')
+        child.stdout.on('data', (chunk: string) => {
+          const lines = (buffered.text + chunk).split('\n')
+          buffered.text = lines.pop() ?? ''
+          for (const line of lines.filter((each) => each.trim() !== '')) {
+            const reply = RpcReplySchema.safeParse(JSON.parse(line))
+            if (reply.success) waiting.get(reply.data.id)?.(reply.data)
+          }
+        })
+        const ids = {next: 1}
+        const request = (method: string, params: Record<string, unknown>) => {
+          const id = ids.next++
+          const replied = new Promise<z.infer<typeof RpcReplySchema>>((resolve) => waiting.set(id, resolve))
+          child.stdin.write(`${JSON.stringify({jsonrpc: '2.0', id, method, params: {...params, _meta: ENVELOPE}})}\n`)
+          return replied
+        }
+        const close = async () => {
+          child.stdin.end()
+          await once(child, 'exit')
+        }
+        return {request, close}
+      }
+
+      it('a client on 2026-07-28 with tasks gets a task, and tasks/get goes from working to completed with the result', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = rawHub(home)
+        try {
+          const called = await client.request('tools/call', {
+            name: 'execute_typescript',
+            arguments: {typescriptCode: QUEUE, tab: engine.sessionId},
+          })
+          const task = z
+            .object({resultType: z.literal('task'), taskId: z.string(), status: z.literal('working')})
+            .parse(called.result)
+          expect(task.taskId).toMatch(/^q_/)
+          const get = async () => (await client.request('tasks/get', {taskId: task.taskId})).result
+          expect(await get()).toMatchObject({taskId: task.taskId, status: 'working'})
+          await play()
+          const done = await vi.waitFor(async () => {
+            const polled = await get()
+            expect(polled).toMatchObject({status: 'completed'})
+            return polled
+          })
+          const text = JSON.stringify(done?.['result'])
+          expect(text).toContain(`\\"queueId\\":\\"${task.taskId}\\",\\"status\\":\\"finished\\"`)
+          expect(text).toContain('\\"played\\":2')
+          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
+      it('a client without tasks gets the plain queue reply and the result on its next call', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = await hub(home)
+        try {
+          const onTab = async (typescriptCode: string) =>
+            JSON.stringify(
+              ReplySchema.parse(await client.callTool('execute_typescript', {typescriptCode, tab: engine.sessionId}))
+                .content,
+            )
+          const queued = await onTab(QUEUE)
+          const queueId = /"queueId\\":\\"(q_[^\\]+)/.exec(queued)?.[1]
+          expect(queueId).toMatch(/^q_/)
+          await play()
+          const next = await vi.waitFor(async () => {
+            const reply = await onTab('return 1')
+            expect(reply).toContain(`queue ${queueId} finished: 2 played, 0 failed`)
+            return reply
+          })
+          expect(next).toContain('\\"result\\":1')
+          expect(await onTab('return 2')).not.toContain(`queue ${queueId}`)
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+    })
   })
 
   describe('prod closure', () => {
