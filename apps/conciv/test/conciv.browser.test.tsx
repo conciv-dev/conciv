@@ -4981,6 +4981,18 @@ describe('settings page', () => {
   const saveClash = () => page.getByRole('button', {name: 'Save', exact: true})
   const resetAll = () => page.getByRole('link', {name: 'Reset all', exact: true})
   const resetDialog = () => page.getByRole('alertdialog', {name: 'Reset all settings?'})
+  const titled = (title: string) =>
+    page.getByRole('banner').getByRole('button', {name: new RegExp(`^${title}, session options$`)})
+  const RENAME_PATH = ['sessions', 'rename']
+  const HARNESSES_PATH = ['meta', 'harnesses']
+  const MODELS_PATH = ['meta', 'models']
+  const MOUNT_READS = [HARNESSES_PATH, MODELS_PATH, ['registry', 'catalog']]
+  const renameTo = async (title: string) => {
+    await page.getByRole('banner').getByRole('button', {name: 'Rename session'}).click()
+    await userEvent.clear(page.getByRole('banner').getByRole('textbox', {name: 'Session title'}))
+    await userEvent.type(page.getByRole('banner').getByRole('textbox', {name: 'Session title'}), `${title}{Enter}`)
+    await expect.element(titled(title), {timeout: 8000}).toBeVisible()
+  }
 
   test('a journey through every settings tab that saves, applies, survives a reload and resets', async () => {
     await page.viewport(1000, 900)
@@ -4996,6 +5008,8 @@ describe('settings page', () => {
     await expect.element(composer(), {timeout: 8000}).toBeVisible()
     await expect.element(probe('light')).toBeInTheDocument()
     await expect.element(notesTab()).toBeVisible()
+    await renameTo('renamed before settings')
+    const firstVisit = await coreControl.rpcStartedOnceServed(RENAME_PATH, 1, MOUNT_READS)
 
     await gear().click()
     await expect.element(tab('General')).toHaveAttribute('aria-selected', 'true')
@@ -5034,6 +5048,16 @@ describe('settings page', () => {
     await expect.element(gear()).toHaveFocus()
     expect(harness.pathname()).toBe(`/panel/${sessionId}`)
     await expect.element(notesTab()).not.toBeInTheDocument()
+    await renameTo('renamed after settings')
+    const returned = await coreControl.rpcStartedOnceServed(RENAME_PATH, 2, MOUNT_READS)
+    expect(returned).toEqual(firstVisit)
+    Object.defineProperty(document, 'visibilityState', {configurable: true, value: 'hidden'})
+    document.dispatchEvent(new Event('visibilitychange', {bubbles: true}))
+    Reflect.deleteProperty(document, 'visibilityState')
+    document.dispatchEvent(new Event('visibilitychange', {bubbles: true}))
+    await coreControl.rpcStartedOnceServed(HARNESSES_PATH, (returned[0] ?? 0) + 1, [])
+    await coreControl.rpcStartedOnceServed(MODELS_PATH, (returned[1] ?? 0) + 1, [])
+    await expect.element(titled('renamed after settings')).toBeVisible()
 
     await gear().click()
     await expect.element(tab('Views')).toHaveAttribute('aria-selected', 'true')

@@ -73,7 +73,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     if (lifecycle.runId === run.settled || !(lifecycle.runId === run.live || sentHere)) return
     setState('runs', sessionId, {live: null, settled: lifecycle.runId})
     deps.onRunEnd?.(sessionId)
-    deps.appData.invalidateSessions()
+    void deps.appData.invalidateSession(sessionId)
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.markers.list.key({input: {sessionId}})})
     void deps.queryClient.invalidateQueries({queryKey: deps.appData.utils.captures.list.key({input: {sessionId}})})
     if (lifecycle.phase === 'completed') deps.announce('conciv replied.')
@@ -129,7 +129,7 @@ export function makeLiveSessions(deps: LiveSessionsDeps): LiveSessions {
     onCleanup(() => {
       stopTrust()
       connection.release()
-      if (untrack(session.runInProgress)) deps.appData.invalidateSessions()
+      if (untrack(session.runInProgress)) void deps.appData.invalidateSession(sessionId)
     })
     return session
   }

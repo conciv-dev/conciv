@@ -314,10 +314,30 @@ function restoreHubCli(state: FileState): void {
   rmSync(current.root, {recursive: true, force: true})
 }
 
-const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => {
+const rpcCallCount: BrowserCommand<[string[]]> = (ctx, path): number => callsOf(ctx).servedSince(path)
+
+const rpcStartedOnceServed: BrowserCommand<[string[], number, string[][]]> = async (
+  ctx,
+  served,
+  count,
+  started,
+): Promise<number[]> => {
+  const calls = callsOf(ctx)
+  const {rpcObserverFor} = await testkitOf(ctx)
+  const observer = rpcObserverFor(ctx.page)
+  const settle = async (): Promise<void> => {
+    if (calls.servedSince(served) >= count) return
+    await observer.completed({path: served, served: true, since: observer.mark(), timeout: AWAIT_RPC_TIMEOUT_MS})
+    await settle()
+  }
+  await settle()
+  return started.map((path) => calls.startedSince(path))
+}
+
+function callsOf(ctx: BrowserCommandContext): RpcCallCursor {
   const calls = stateOf(ctx).rpcCalls
   if (!calls) throw new Error('no core is booted for this test file; call bootCore first')
-  return calls.servedSince(path)
+  return calls
 }
 
 type Injector = {repair: () => void; dispose: () => Promise<void>}
@@ -575,6 +595,7 @@ export const coreCommands = {
   fakeHubCli,
   setHubConnection,
   rpcCallCount,
+  rpcStartedOnceServed,
   installFault,
   releaseFault,
   faultPending,

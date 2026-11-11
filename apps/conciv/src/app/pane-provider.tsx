@@ -31,7 +31,7 @@ export function PaneProvider(props: {
 
   const openNewSession = async () => {
     const {sessionId} = await rpc.sessions.create(undefined)
-    appData.invalidateSessions()
+    void appData.invalidateSession(sessionId)
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
   }
 

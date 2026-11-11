@@ -46,7 +46,7 @@ function PanelView(): JSX.Element {
     void rpc.sessions
       .create(undefined)
       .then(({sessionId}) => {
-        appData.invalidateSessions()
+        void appData.invalidateSession(sessionId)
         void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
       })
       .catch((error: unknown) => {
