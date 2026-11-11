@@ -115,9 +115,9 @@ describe('bundler diagnostics', () => {
       expect(buildError.timestamp).toBeGreaterThan(0)
 
       await writeFile(join(root, 'good.ts'), `export const greeting = 'updated'\n`)
-      const hmr = await waitFor(() => ring.find((diagnostic) => diagnostic.kind === 'hmr-update'))
-      if (hmr.kind !== 'hmr-update') throw new Error('expected hmr-update diagnostic')
-      expect(hmr.file).toContain('good.ts')
+      await waitFor(() =>
+        ring.find((diagnostic) => diagnostic.kind === 'hmr-update' && diagnostic.file === join(root, 'good.ts')),
+      )
 
       const body = await fetch(`${base}/good.ts`, {headers: {'sec-fetch-dest': 'script'}}).then((r) => r.text())
       expect(body.length).toBeGreaterThan(0)
