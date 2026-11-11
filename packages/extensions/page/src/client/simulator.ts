@@ -73,6 +73,7 @@ type Simulator = {
   taskSession: string | null
   cursor: string
   onStop: (sessionId: string) => void
+  running: (sessionId: string) => boolean
   queues: Set<string>
   stoppedQueues: Set<string>
   endWhenPlayed: boolean
@@ -90,6 +91,7 @@ const sim: Simulator = {
   taskSession: null,
   cursor: '',
   onStop: ignore,
+  running: idle,
   queues: new Set(),
   stoppedQueues: new Set(),
   endWhenPlayed: false,
@@ -97,6 +99,10 @@ const sim: Simulator = {
 }
 
 function ignore(): void {}
+
+function idle(): boolean {
+  return false
+}
 
 function warnUnlessCanceled(reason: unknown): void {
   if (reason === GLOW_CANCELED) return
@@ -156,9 +162,15 @@ export function mountSimulator(options: {
   root: ShadowRoot
   session: () => string | null
   onStop: (sessionId: string) => void
+  running?: (sessionId: string) => boolean
 }): () => void {
   unmountSimulator()
-  Object.assign(sim, {root: options.root, session: options.session, onStop: options.onStop})
+  Object.assign(sim, {
+    root: options.root,
+    session: options.session,
+    onStop: options.onStop,
+    running: options.running ?? idle,
+  })
   return unmountSimulator
 }
 
@@ -166,7 +178,15 @@ function unmountSimulator(): void {
   clearTimeout(sim.timeout)
   disarm()
   if (sim.run) unmountRun(sim.run)
-  Object.assign(sim, {root: null, run: null, shown: false, taskSession: null, session: () => null, onStop: ignore})
+  Object.assign(sim, {
+    root: null,
+    run: null,
+    shown: false,
+    taskSession: null,
+    session: () => null,
+    onStop: ignore,
+    running: idle,
+  })
 }
 
 function mountRun(root: ShadowRoot): Run {
@@ -306,7 +326,9 @@ export async function landQueued<Result>(options: {beat: Beat; act: () => Promis
 export function finishQueue(queueId: string): void {
   sim.queues.delete(queueId)
   sim.stoppedQueues.delete(queueId)
-  if (sim.queues.size > 0 || !sim.endWhenPlayed) return
+  if (sim.queues.size > 0) return
+  const runLive = sim.taskSession !== null && sim.running(sim.taskSession)
+  if (runLive && !sim.endWhenPlayed) return
   sim.endWhenPlayed = false
   endTask()
 }

@@ -893,6 +893,15 @@ describe('page action queue', () => {
     expect(heard).toEqual(['first', 'email'])
   })
 
+  it('an outside queue with no in-page run takes the mask down once it finishes', async () => {
+    const {queue} = queuePage()
+    const played = queue('q-outside', [fill('first', 'Ada'), fill('last', 'Byron')])
+    await played.accepted
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).toBeInTheDocument()
+    await played.played
+    await expect.element(page.getByRole('status', {name: 'Agent is using this page'})).not.toBeInTheDocument()
+  })
+
   it('masks a card number in the result', async () => {
     const {queue} = queuePage()
     expect(await queue('q-mask', [fill('card', '4242424242424242')]).played).toEqual([

@@ -142,6 +142,7 @@ function AppRoot() {
       mountSimulator({
         root: rootNode,
         session: activeSession,
+        running: liveSessions.runLive,
         onStop: (sessionId) => {
           liveSessions.stop(sessionId)
           endTask()
