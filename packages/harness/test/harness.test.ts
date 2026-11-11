@@ -21,6 +21,7 @@ import {
   type HarnessAdapter,
 } from '../src/registry.js'
 import {claude} from '../src/claude/index.js'
+import {transcriptUsage} from '../src/claude/transcript-usage.js'
 import {
   mkdtempSync,
   readFileSync,
@@ -2809,5 +2810,81 @@ describe('resume.command', () => {
   ])('$harness.id resumes a session by its native id', ({harness, argv}) => {
     const command = harness.resume.command(input)
     expect([command.bin, ...command.args]).toEqual(argv)
+  })
+})
+
+describe('transcript usage', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'conciv-usage-'))
+  const window = {from: Date.parse('2026-11-10T10:00:00.000Z'), to: Date.parse('2026-11-10T11:00:00.000Z')}
+
+  const user = (timestamp: string) =>
+    JSON.stringify({type: 'user', timestamp, message: {role: 'user', content: 'build the page'}})
+  const assistant = (id: string, model: string, usage: Record<string, number>) =>
+    JSON.stringify({
+      type: 'assistant',
+      message: {id, model, role: 'assistant', content: [{type: 'text', text: 'ok'}], usage},
+    })
+  const result = (cost: number) => JSON.stringify({type: 'result', total_cost_usd: cost})
+  const write = (id: string, lines: string[]) => {
+    mkdirSync(transcriptRoot(cwd), {recursive: true})
+    writeFileSync(transcriptPath(cwd, id), lines.join('\n'))
+  }
+
+  beforeAll(() => {
+    write('before-window', [user('2026-11-10T09:00:00.000Z'), assistant('b1', 'claude-opus-4-5', {input_tokens: 9})])
+    write('older-in-window', [user('2026-11-10T10:05:00.000Z'), assistant('o1', 'claude-opus-4-5', {input_tokens: 9})])
+    write('the-run', [
+      user('2026-11-10T10:30:00.000Z'),
+      assistant('a1', 'claude-sonnet-4-5', {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_read_input_tokens: 100,
+        cache_creation_input_tokens: 20,
+      }),
+      assistant('a1', 'claude-sonnet-4-5', {
+        input_tokens: 10,
+        output_tokens: 5,
+        cache_read_input_tokens: 100,
+        cache_creation_input_tokens: 20,
+      }),
+      assistant('a2', 'claude-sonnet-4-5', {input_tokens: 3, output_tokens: 7, cache_read_input_tokens: 200}),
+      assistant('a3', 'claude-haiku-4-5', {input_tokens: 1, output_tokens: 1}),
+      result(0.5),
+      result(0.25),
+    ])
+  })
+
+  afterAll(() => rmSync(transcriptRoot(cwd), {recursive: true, force: true}))
+
+  it('reads the newest transcript that began inside the window', async () => {
+    expect(await transcriptUsage({cwd, ...window})).toEqual({
+      nativeId: 'the-run',
+      model: 'claude-sonnet-4-5',
+      usage: {
+        promptTokens: 334,
+        completionTokens: 13,
+        totalTokens: 347,
+        promptTokensDetails: {cachedTokens: 300, cacheWriteTokens: 20},
+        cost: 0.75,
+      },
+      cost: 0.75,
+    })
+  })
+
+  it('reads the transcript a native id names, whatever its start', async () => {
+    const named = await transcriptUsage({cwd, ...window, nativeId: HarnessSessionId.parse('before-window')})
+    expect(named).toEqual({
+      nativeId: 'before-window',
+      model: 'claude-opus-4-5',
+      usage: {promptTokens: 9, completionTokens: 0, totalTokens: 9},
+    })
+  })
+
+  it('is wired onto the claude history', () => {
+    expect(claude.history?.transcriptUsage).toBe(transcriptUsage)
+  })
+
+  it('answers null when no transcript began inside the window', async () => {
+    expect(await transcriptUsage({cwd, from: window.to + 1, to: window.to + 2})).toBeNull()
   })
 })

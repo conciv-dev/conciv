@@ -1,6 +1,7 @@
 import type {z} from 'zod'
 import type {ChatMessage} from './chat-message-types.js'
 import type {HarnessListCursorSchema, HarnessSessionId, ReasoningEffort, SessionId} from './chat-types.js'
+import type {TokenUsage} from './usage-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -176,4 +177,10 @@ export type HarnessHistory = HarnessTranscriptPaths & {
   meta(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionMeta | null>
 
   summary?(cwd: string, sessionId: HarnessSessionId): Promise<HarnessSessionSummary | null>
+
+  transcriptUsage?(query: TranscriptUsageQuery): Promise<TranscriptUsage | null>
 }
+
+export type TranscriptUsageQuery = {cwd: string; from: number; to: number; nativeId?: HarnessSessionId}
+
+export type TranscriptUsage = {nativeId: HarnessSessionId; model: string; usage: TokenUsage; cost?: number}

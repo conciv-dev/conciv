@@ -18,6 +18,7 @@ Claude Code harness, published as `./claude` (`dist/claude/index.js`). It combin
 - `resume.command({nativeId})` (`index.ts`): `claude --resume <nativeId>`, built by `claudeSessionArgs` (`args.ts`), the same helper `claudeConnectArgs` uses.
 - `claudeTtyCommand(ctx)` (`tty.ts`): `{bin: 'claude', args, env TERM/COLORTERM, unsetEnvPrefixes}`.
 - `transcriptRoot` (under `projects/`, the cwd resolved through symlinks like Claude and the Agent SDK do), `transcriptPath`, `parseHistory`, `parseSessionMeta`, `nameFromTranscript`, `contextTokensFromTranscript`, `listSessions`, `sessionSummary`, `sessionMeta`, `withinProject`, `claudeHistory` (`history.ts`).
+- `transcriptUsage({cwd, from, to, nativeId?})` (`transcript-usage.ts`, wired as `history.transcriptUsage`): the transcript `nativeId` names, else the newest under `transcriptRoot(cwd)` whose first timestamped record lies in `[from, to]`; `model` is the model of the most assistant messages (deduplicated by message id, `<synthetic>` skipped), `usage` their summed usage as a `TokenUsage` (prompt = input + cache read + cache creation, as `@tanstack/ai-claude-code` counts it), `cost` the summed `total_cost_usd` of result records, absent when the transcript has none. Null when no transcript or no assistant message. The other harnesses have no `transcriptUsage`.
 
 ## Invariants
 
