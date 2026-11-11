@@ -9,7 +9,7 @@ import {
 import {For, Show, createMemo, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {createElementSize} from '@solid-primitives/resize-observer'
-import {SegmentGroup, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
+import {Switch, TabsPrimitive as Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import SlidersHorizontal from 'lucide-solid/icons/sliders-horizontal'
 import LayoutPanelTop from 'lucide-solid/icons/layout-panel-top'
 import Keyboard from 'lucide-solid/icons/keyboard'
@@ -27,6 +27,7 @@ const HEADER = 'flex h-13 shrink-0 items-center gap-1.5 px-2 [border-block-end:1
 const TITLE =
   'flex-1 m-0 [font-family:var(--chat-font-display)] text-[0.9375rem] font-semibold text-chat-text-hi leading-[1.25]'
 const BACK = 'size-9 shrink-0'
+const SCOPE = 'min-h-11 px-1.5'
 const SPLIT = 'flex flex-1 min-h-0 flex-col @lg:[--settings-rail:wide] data-[orientation=vertical]:flex-row'
 const RAIL =
   'relative flex shrink-0 gap-0.5 pt-1.5 px-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [border-block-end:1px_solid_var(--chat-line-soft)] data-[orientation=vertical]:flex-col data-[orientation=vertical]:w-37.5 data-[orientation=vertical]:py-2.5 data-[orientation=vertical]:overflow-x-hidden data-[orientation=vertical]:overflow-y-auto data-[orientation=vertical]:[border-block-end:none] data-[orientation=vertical]:[border-inline-end:1px_solid_var(--chat-line-soft)]'
@@ -60,11 +61,6 @@ const MAIN_TABS: BuiltinTab[] = [
 const ADVANCED_TAB: BuiltinTab = {id: 'advanced', label: 'Advanced', icon: Shield}
 
 const MAX_TOP_ROW_TABS = 4
-
-const SCOPES: {value: SettingsScope; label: string}[] = [
-  {value: 'project', label: 'This project'},
-  {value: 'global', label: 'All projects'},
-]
 
 export const Route = createFileRoute('/panel/$sessionId_/settings')({
   validateSearch: settingsSearchSchema,
@@ -124,10 +120,8 @@ function SettingsLayout(): JSX.Element {
   const orientation = () => (wide() || tabs.length > MAX_TOP_ROW_TABS ? 'vertical' : 'horizontal')
   const current = () => tabs.find((tab) => tab.selected())?.id ?? 'general'
   const select = (id: string) => tabs.find((tab) => tab.id === id)?.open()
-  const changeScope = (value: string | null) => {
-    const scope = SCOPES.find((entry) => entry.value === value)?.value
-    if (scope) void router.navigate({to: '.', search: (previous) => ({...previous, scope})})
-  }
+  const changeScope = (scope: SettingsScope) =>
+    void router.navigate({to: '.', search: (previous) => ({...previous, scope})})
   const close = () =>
     void navigate({
       to: '/panel/$sessionId',
@@ -142,22 +136,17 @@ function SettingsLayout(): JSX.Element {
           <ChevronLeft class="size-4" strokeWidth={1.5} aria-hidden="true" />
         </TooltipIconButton>
         <h2 class={TITLE}>Settings</h2>
-        <SegmentGroup.Root
-          aria-label="Settings scope"
-          value={search().scope}
-          onValueChange={(details) => changeScope(details.value)}
+        <Switch.Root
+          class={SCOPE}
+          checked={search().scope === 'global'}
+          onCheckedChange={(details) => changeScope(details.checked ? 'global' : 'project')}
         >
-          <SegmentGroup.Indicator />
-          <For each={SCOPES}>
-            {(option) => (
-              <SegmentGroup.Item value={option.value}>
-                <SegmentGroup.ItemText>{option.label}</SegmentGroup.ItemText>
-                <SegmentGroup.ItemControl />
-                <SegmentGroup.ItemHiddenInput />
-              </SegmentGroup.Item>
-            )}
-          </For>
-        </SegmentGroup.Root>
+          <Switch.Label>All projects</Switch.Label>
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+          <Switch.HiddenInput />
+        </Switch.Root>
       </header>
       <Tabs.Root
         ref={(element: HTMLDivElement) => {

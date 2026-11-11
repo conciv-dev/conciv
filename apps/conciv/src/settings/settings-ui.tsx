@@ -20,6 +20,7 @@ const ROW = 'flex items-center gap-3 min-h-11.5 py-2.5 px-3'
 const STACK = 'flex flex-col gap-2.5 p-3'
 const TEXT = 'flex flex-1 min-w-0 flex-col gap-0.5'
 const LOCK = 'inline-flex items-center gap-1.25 [font-family:var(--chat-mono)] text-[0.65625rem] text-chat-dim'
+const HEADLINE = 'flex flex-wrap items-baseline gap-x-2'
 const ERROR = 'text-[0.75rem] leading-[1.35] text-chat-danger'
 const SECTION = `${CARD} overflow-hidden anim-rise`
 const SECTION_DANGER = '[border-color:color-mix(in_oklch,var(--chat-danger)_35%,transparent)]'
@@ -46,14 +47,16 @@ export function Group(props: GroupProps): JSX.Element {
     <section class={`${SECTION} ${props.danger ? SECTION_DANGER : ''}`} aria-labelledby={titleId}>
       <div class={SECTION_HEAD}>
         <div class={SECTION_TEXT}>
-          <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
-            {props.title}
-          </h3>
+          <span class={HEADLINE}>
+            <h3 id={titleId} class={`${SECTION_TITLE} ${props.danger ? '!text-chat-danger' : ''}`}>
+              {props.title}
+            </h3>
+            <Show when={note()}>
+              <span class={LOCK}>{note()}</span>
+            </Show>
+          </span>
           <Show when={props.description}>
             <p class={SECTION_DESCRIPTION}>{props.description}</p>
-          </Show>
-          <Show when={note()}>
-            <span class={LOCK}>{note()}</span>
           </Show>
         </div>
         {props.action}
@@ -68,7 +71,12 @@ type RowTextProps = {label: JSX.Element; hint?: JSX.Element; lock?: string; note
 function RowText(props: RowTextProps): JSX.Element {
   return (
     <span class={TEXT}>
-      <Field.Label class={LABEL}>{props.label}</Field.Label>
+      <span class={HEADLINE}>
+        <Field.Label class={LABEL}>{props.label}</Field.Label>
+        <Show when={props.note}>
+          <span class={LOCK}>{props.note}</span>
+        </Show>
+      </span>
       <Show when={props.hint}>
         <Field.HelperText class={HINT}>{props.hint}</Field.HelperText>
       </Show>
@@ -79,9 +87,6 @@ function RowText(props: RowTextProps): JSX.Element {
             {reason()}
           </span>
         )}
-      </Show>
-      <Show when={props.note}>
-        <span class={LOCK}>{props.note}</span>
       </Show>
       <Field.ErrorText class={ERROR}>{props.error}</Field.ErrorText>
     </span>
