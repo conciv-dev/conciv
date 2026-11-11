@@ -5,7 +5,6 @@ import type {TranscriptUsage} from '@conciv/protocol/harness-types'
 import {tokenUsageToSnapshot, type TokenUsage} from '@conciv/protocol/usage-types'
 import type {ToolRequest} from '@conciv/extension'
 import {RUN_VERDICTS} from '../../shared/run-verdicts.js'
-import type {Arm} from '../../shared/arm.js'
 import type {openStore} from './open-store.js'
 import {storeTables} from './store-tables.js'
 import {provenanceOf} from './commands/provenance.js'
@@ -14,11 +13,10 @@ export function createSessionRuns(input: {
   orm: ReturnType<typeof openStore>['orm']
   cwd: string
   extensionDir: string
-  labels: {wave: string | null; lane: string | null; arm: Arm}
   harness: (sessionId: string) => string
   transcript: (sessionId: string, window: {from: number; to: number}) => Promise<TranscriptUsage | null>
 }) {
-  const {orm, cwd, extensionDir, labels} = input
+  const {orm, cwd, extensionDir} = input
   const {runs, rounds} = storeTables
   const held = new Map<string, Promise<number>>()
   const opened: {last: {sessionId: string; run: Promise<number>} | null} = {last: null}
@@ -33,7 +31,6 @@ export function createSessionRuns(input: {
         agent_id: request.agentId,
         harness: input.harness(request.sessionId),
         started: Date.now(),
-        ...labels,
         ...(await provenanceOf({cwd, extensionDir})),
       })
       .returning({run: runs.run_id})
@@ -60,20 +57,9 @@ export function createSessionRuns(input: {
           state.usage === undefined
             ? await input.transcript(sessionId, {from: started, to: state.ended}).catch(() => null)
             : null
-        const usage = state.usage ?? read?.usage
         await orm
           .update(runs)
-          .set({
-            status: typeof state.status === 'function' ? state.status(verdict) : state.status,
-            ended: state.ended,
-            model: model ?? read?.model ?? null,
-            usage: usage ?? null,
-            cost: usage === undefined ? null : (tokenUsageToSnapshot(usage).totalCostUsd ?? read?.cost ?? null),
-            harness_session_id: read?.nativeId ?? null,
-            error: state.error?.message ?? null,
-            error_code: state.error?.code ?? (state.error === undefined && usage === undefined ? NO_TRANSCRIPT : null),
-            verdict,
-          })
+          .set(closedValues({state, verdict, model, read}))
           .where(and(eq(runs.run_id, run), eq(runs.status, RUNNING)))
       }),
     )
@@ -102,6 +88,33 @@ export function createSessionRuns(input: {
       await Promise.all([...held.keys()].map((sessionId) => close(sessionId, state)))
     },
   }
+}
+
+function closedValues(input: {
+  state: Closed
+  verdict: z.output<typeof VerdictSchema>
+  model: string | null
+  read: TranscriptUsage | null
+}) {
+  const {state, verdict, read} = input
+  const usage = state.usage ?? read?.usage
+  return {
+    status: typeof state.status === 'function' ? state.status(verdict) : state.status,
+    ended: state.ended,
+    model: input.model ?? read?.model ?? null,
+    usage: usage ?? null,
+    cost: usage === undefined ? null : (tokenUsageToSnapshot(usage).totalCostUsd ?? read?.cost ?? null),
+    harness_session_id: read?.nativeId ?? null,
+    error: state.error?.message ?? null,
+    error_code: errorCode({state, usage}),
+    verdict,
+  }
+}
+
+function errorCode(input: {state: Closed; usage: TokenUsage | undefined}): string | null {
+  const {state, usage} = input
+  if (state.error !== undefined) return state.error.code ?? null
+  return usage === undefined ? NO_TRANSCRIPT : null
 }
 
 function endedNow(): Closed {

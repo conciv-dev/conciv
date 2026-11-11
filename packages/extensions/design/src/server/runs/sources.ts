@@ -7,7 +7,7 @@ import {runsViews} from './views/index-of-views.js'
 export function storeSources(): Record<string, Source> {
   const tables = Object.entries(storeTables).map(([name, table]): [string, Source] => [
     `stored_${name}`,
-    {table, database: RUNS, fields: fieldsOf(getTableColumns(table)), ...(name === 'judgements' ? WRITABLE : {})},
+    {table, database: RUNS, fields: fieldsOf(getTableColumns(table))},
   ])
   const views = Object.entries(runsViews).map(([name, view]): [string, Source] => [
     name,
@@ -17,8 +17,6 @@ export function storeSources(): Record<string, Source> {
 }
 
 const RUNS = 'runs'
-
-const WRITABLE = {writable: true} as const
 
 const RENAMED: Record<string, string> = {run_id: 'run', target_id: 'target'}
 

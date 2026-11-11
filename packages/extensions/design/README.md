@@ -130,12 +130,12 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
 `.conciv` keeps no design tables.
 
 - A session's first `design_get` or `design_check` opens a `running` run with its provenance: `session_id`, `model`,
-  `harness`, `agent_id`, `project_key`, `branch`, `head`, the tools head, version and fingerprint, and `wave`, `lane`
-  and `arm` from `designConfig.runs`. Its targets, rounds, rows and tool calls are written there as they happen.
+  `harness`, `agent_id`, `project_key`, `branch`, `head`, and the tools head, version and fingerprint. Its targets,
+  rounds, rows and tool calls are written there as they happen.
 - A tool call row carries its round: for `design_check` the round it wrote (the highest across widths, null when it
   wrote none), for the other tools the run's latest round when the call ended.
-- Each check writes a `screenshot` and a `design` artifact per measured width under `<home>/artifacts/<run>/<target>/`,
-  with the lifetimes of `designConfig.runs.lifetimes`.
+- Each check writes a `screenshot` and a `design` artifact per measured width under `<home>/artifacts/<run>/<target>/`;
+  nothing expires.
 - The run closes with the chat run that ends the turn, or that the next boot sweeps as aborted: `status`, `ended`,
   `usage`, `cost`, `error`, `error_code` and the verdict of its last round. A later check opens a new run and copies
   the target into it.
@@ -154,18 +154,9 @@ Every design session is recorded in one store, `<conciv home>/runs.db`, migrated
   `harness_session_id`, in `design_stored_runs` and `design_run_summary`. A run with no transcript keeps the three null
   and gets `error_code` `no-transcript` when it has no other error. Harnesses other than Claude read no transcript usage.
 
-Commands, all home scope:
-
-- `conciv design:judge <wave> [--judge-model <model>]`: scores each run, target and width of the wave without a
-  judgement by that model, from its `design` and `screenshot` artifacts, with `claude -p` and the Read tool; a
-  missing artifact is named and nothing is written for it.
-- `conciv design:report <wave>`: renders `wave_summary` and `judged` to `<home>/artifacts/reports/<wave>.md`.
-- `conciv design:runs-gc`: deletes the expired artifacts and prints each file removed; runs are kept.
-
-Queries: `conciv db query --from design_run_summary` (one row per run and target, with `status`, `ended`, `wave`,
-`lane` and `arm` to filter by, as in `--where 'wave == "thirtyone"'`; a run with no target or no round still has a row,
-its `round`, `verdict` and `rows` null), `design_judged` and `design_wave_summary` (per wave, arm and measured width,
-so a run never checked is not in them); every stored table is `design_stored_<table>`.
+Queries: `conciv db query --from design_run_summary` (one row per run and target, with `status`, `ended`, `model`
+and `harness` to filter by, as in `--where 'status == "completed"'`; a run with no target or no round still has a row,
+its `round`, `verdict` and `rows` null); every stored table is `design_stored_<table>`.
 
 A run row the close got wrong is corrected with the house write: `conciv db write --into design_runs --values
 '{"run": 182, "model": "claude-sonnet-5-5", "cost": 3.01, "status": "aborted", "ended": 1794381815406}'`. `run` must
@@ -174,7 +165,7 @@ exist; only `model`, `usage` (a `TokenUsage`), `cost`, `harness_session_id`, `st
 
 ## Sources
 
-Each delta names the source that measured it, and each report lists the sources of its run.
+Each delta names the source that measured it.
 
 - `dom`: the live document in the app tab. Used when the tab width equals the design width. Its pixels are taken
   with snapdom (`capturePath: snapdom-live`) from the computed styles alone: the page's `<style>` and `<link>`

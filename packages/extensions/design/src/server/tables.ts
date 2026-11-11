@@ -17,7 +17,6 @@ import {BROKEN_BY, DESIGN_VERDICTS, WIDGETS, type Design, type IdTree} from '../
 import {DESIGN_TOOLS} from '../shared/design-tools.js'
 import {MAGNITUDES} from '../shared/magnitudes.js'
 import {RUN_VERDICTS} from '../shared/run-verdicts.js'
-import {Arm} from '../shared/arm.js'
 import type {ToolReply} from '../shared/tool-reply.js'
 
 export function designTables(table: SQLiteTableFn) {
@@ -53,16 +52,11 @@ export function designTables(table: SQLiteTableFn) {
       project_key: text(),
       branch: text(),
       head: text(),
-      wave: text(),
-      lane: text(),
       tools_head: text(),
       tools_version: text(),
       tools_fingerprint: text(),
-      source_path: text(),
-      source_run_id: integer(),
       session_id: text(),
       status: text({enum: RUN_STATUSES}),
-      arm: text({enum: ARMS}),
       harness: text(),
       agent_id: text(),
       usage: text({mode: 'json'}).$type<TokenUsage>(),
@@ -71,11 +65,9 @@ export function designTables(table: SQLiteTableFn) {
       harness_session_id: text(),
     },
     (self) => [
-      uniqueIndex('runs_source').on(self.source_path, self.source_run_id),
       index('runs_by_session').on(self.session_id, self.status),
       check('runs_verdict', inArray(self.verdict, [...RUN_VERDICTS]).inlineParams()),
       check('runs_status', inArray(self.status, [...RUN_STATUSES]).inlineParams()),
-      check('runs_arm', inArray(self.arm, [...ARMS]).inlineParams()),
     ],
   )
   const targets = table(
@@ -389,8 +381,6 @@ export function designTables(table: SQLiteTableFn) {
     ),
   }
 }
-
-const ARMS = [Arm.TOOLS, Arm.CONTROL] as const
 
 const COVERAGE_LISTS = ['missing', 'not_rendered', 'dupe'] as const
 

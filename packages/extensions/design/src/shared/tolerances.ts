@@ -1,7 +1,6 @@
 import {differenceCiede2000, parse} from 'culori'
 import {z} from 'zod'
 import {CatalogSchemas} from './catalog-defs.js'
-import {Arm} from './arm.js'
 
 type Rgb = [number, number, number]
 
@@ -24,14 +23,6 @@ export const designConfig = Object.assign(
       .object({overlay: z.string(), pick: z.string()})
       .default({overlay: 'Mod+Shift+X', pick: 'Mod+Shift+P'})
       .describe('the x-ray overlay keys: overlay on and off, pick on and off'),
-    runs: z
-      .object({
-        wave: z.string().nullable().default(null).describe('the wave a measured set of runs belongs to'),
-        lane: z.string().nullable().default(null).describe('the lane label of this project inside the wave'),
-        arm: z.enum(Arm).default(Arm.TOOLS).describe('tools when the agent has the design tools, control when not'),
-      })
-      .prefault({})
-      .describe('the labels every run of this project carries in the runs store'),
   }),
   {
     tolerances: {
@@ -135,11 +126,6 @@ export const designConfig = Object.assign(
     },
     stampRoot: '../../..',
     rowKinds: {page: 'page'},
-    runs: {
-      lifetimes: {design: 'infinite', screenshot: 30, report: 'infinite', source_diff: 'infinite'},
-      score: {lowest: 1, highest: 5},
-      judgeModel: 'opus',
-    },
     propertyAliases,
     folded,
     hex,

@@ -31,7 +31,6 @@ import {createSessionRuns} from './server/runs/session-runs.js'
 import {storeTables} from './server/runs/store-tables.js'
 import {projectKey} from './server/catalog/project-key.js'
 import {storeSources} from './server/runs/sources.js'
-import {DESIGN_COMMANDS} from './server/runs/commands/design-commands.js'
 
 const DESIGN_EXTENSION_NAME = 'design'
 
@@ -52,7 +51,6 @@ const design = defineExtension({
   configSchema: designConfig,
   tools: SERVER_STEPS,
   sources: () => ({...designSources(), ...storeSources()}),
-  cliCommands: DESIGN_COMMANDS,
   devServer: createPreviewServer,
 }).server((server) => {
   const {config, db} = server
@@ -68,7 +66,6 @@ const design = defineExtension({
     orm: opened.orm,
     cwd: server.cwd,
     extensionDir,
-    labels: config.runs,
     harness: (sessionId) => server.harness(SessionId.parse(sessionId)).id,
     transcript: (sessionId, window) => server.sessions.transcript(SessionId.parse(sessionId), window),
   })

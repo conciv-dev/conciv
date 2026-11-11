@@ -1,4 +1,3 @@
-/* oxlint-disable playwright/no-raw-locators -- the cases read the tab directly */
 import {execFile} from 'node:child_process'
 import {existsSync} from 'node:fs'
 import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
@@ -16,11 +15,10 @@ import memoryDriver from 'unstorage/drivers/memory'
 import {afterAll, afterEach, beforeAll, describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {catalogSources, closeHomeDb, componentScans, openDb, openHomeDb, sourceCatalog} from '@conciv/db'
+import {catalogSources, closeHomeDb, componentScans, openHomeDb, sourceCatalog} from '@conciv/db'
 import {makeExtRpcClient} from '@conciv/extension'
-import {extensionDb} from '@conciv/extension/db'
 import type {} from '@conciv/extension-design/client'
-import {design, type XrayRouter} from '@conciv/extension-design/server'
+import type {XrayRouter} from '@conciv/extension-design/server'
 import {
   type Box,
   type Design,
@@ -36,12 +34,10 @@ import {claude} from '@conciv/harness/claude'
 import {designConfig} from '../../extensions/design/src/shared/tolerances.js'
 import {walk} from '../../extensions/design/src/shared/tree.js'
 import {createStore} from '../../extensions/design/src/server/store.js'
-import {runsMigrations} from '../../extensions/design/src/server/runs-migrations.gen.js'
 import {openStore} from '../../extensions/design/src/server/runs/open-store.js'
 import {storeSources} from '../../extensions/design/src/server/runs/sources.js'
 import {designSources} from '../../extensions/design/src/server/sources.js'
 import {storeTables} from '../../extensions/design/src/server/runs/store-tables.js'
-import {storeArtifacts} from '../../extensions/design/src/server/runs/artifacts.js'
 import {createRaster} from '../../extensions/design/src/server/raster.js'
 import {createImageAdapter} from '../../extensions/design/src/server/sources/image.js'
 import {figmaRefused} from '../../extensions/design/src/server/sources/figma-refused.js'
@@ -1211,27 +1207,25 @@ describe('component previews', () => {
     const id = shown.component?.id ?? ''
     const tab = await kit.browser.newPage()
     const reply = await tab.goto(new URL(`/__conciv/preview/${id}`, kit.origin).href)
-    return {id, shown, tab, status: reply?.status()}
+    return {id, shown, tab, status: reply?.status(), html: (await reply?.text()) ?? ''}
   }
 
   it('renders a component alone at its preview route, the path design_components show returns', async () => {
     const {id, shown, tab, status} = await previewed('Chip')
     try {
       expect([status, shown.preview]).toEqual([200, `/__conciv/preview/${id}`])
-      await expectLocator(tab.locator('#conciv-preview .chip')).toBeVisible()
+      await expectLocator(tab.getByTitle('chip')).toBeVisible()
     } finally {
       await tab.close()
     }
   })
 
   it('serves the preview page without the conciv widget', async () => {
-    const {tab} = await previewed('Chip')
+    const {tab, html} = await previewed('Chip')
     try {
-      await expectLocator(tab.locator('#conciv-preview .chip')).toBeVisible()
-      expect([
-        await tab.locator('meta[name="conciv-api-base"]').count(),
-        await tab.locator('[data-conciv-root]').count(),
-      ]).toEqual([0, 0])
+      await expectLocator(tab.getByTitle('chip')).toBeVisible()
+      expect(html).not.toContain('conciv-api-base')
+      await expectLocator(tab.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveCount(0)
     } finally {
       await tab.close()
     }
@@ -1240,7 +1234,7 @@ describe('component previews', () => {
   it('a component that throws shows the first line of its error and the catalog lists it', async () => {
     const {tab} = await previewed('Broken')
     try {
-      await expectLocator(tab.locator('#conciv-preview')).toHaveText('error: broken on purpose')
+      await expectLocator(tab.getByText('error: broken on purpose', {exact: true})).toBeVisible()
       await expect
         .poll(async () => (await call('design_components', {show: 'Broken'})).preview)
         .toBe('error: broken on purpose')
@@ -1654,8 +1648,6 @@ const STORED = [
   'node_components',
   'notes',
   'artifacts',
-  'judgements',
-  'reports',
 ]
 
 const VIEWS = [
@@ -1668,8 +1660,6 @@ const VIEWS = [
   'lost_components',
   'hint_vs_drawn',
   'kit_per_round',
-  'judged',
-  'wave_summary',
   'fom_nodes',
 ]
 
@@ -1679,7 +1669,7 @@ function seededRuns(store: Store): number[] {
     {verdict: 'done' as const, cost: 1, rows: 2, pixels: 0.1, rendered: 5},
     {verdict: 'not-yet' as const, cost: 3, rows: 4, pixels: 0.3, rendered: 7},
   ]
-  return seeds.map((seed, index) => {
+  return seeds.map((seed) => {
     const [run] = store.orm
       .insert(runs)
       .values({
@@ -1689,8 +1679,6 @@ function seededRuns(store: Store): number[] {
         ended: 60_000,
         cost: seed.cost,
         verdict: seed.verdict,
-        wave: 'thirty',
-        lane: `figma7-${index}`,
       })
       .returning()
       .all()
@@ -1753,53 +1741,9 @@ describe('the runs store', () => {
     })
   })
 
-  it('answers wave_summary per wave and width with the done count and the medians', async () => {
-    await withStore(async ({store, sources}) => {
-      seededRuns(store)
-      expect(await sources.read({from: 'design_wave_summary', where: 'wave == "thirty"'})).toEqual([
-        {
-          wave: 'thirty',
-          arm: null,
-          width: 390,
-          runs: 2,
-          done: 1,
-          median_rows: 3,
-          median_pixels: 0.2,
-          median_cost: 2,
-          median_lowest_rendered: 6,
-        },
-      ])
-    })
-  })
-
-  it('filters run_summary by wave and lane', async () => {
-    await withStore(async ({store, sources}) => {
-      const [, run] = seededRuns(store)
-      expect(
-        await sources.read({
-          from: 'design_run_summary',
-          where: 'wave == "thirty" && lane == "figma7-1"',
-          select: ['run', 'wave', 'lane', 'arm'],
-        }),
-      ).toEqual([{run, wave: 'thirty', lane: 'figma7-1', arm: null}])
-    })
-  })
-
-  it('takes a judgement through the house write, refuses a score of six, and joins it in judged', async () => {
+  it('refuses a write into a stored table', async () => {
     await withStore(async ({store, sources}) => {
       const [run] = seededRuns(store)
-      const judgement = {run, target: 't', width: 390, reason: 'close', judge_model: 'opus', at: 1}
-      await sources.write({into: 'design_stored_judgements', values: {...judgement, score: 4}})
-      await expect(
-        sources.write({into: 'design_stored_judgements', values: {...judgement, judge_model: 'other', score: 6}}),
-      ).rejects.toMatchObject({cause: {message: 'CHECK constraint failed: judgements_score'}})
-      expect(
-        await sources.read({
-          from: 'design_judged',
-          where: 'score != null',
-          select: ['run', 'lane', 'verdict', 'score'],
-        }),
-      ).toEqual([{run, lane: 'figma7-0', verdict: 'done', score: 4}])
       await expect(sources.write({into: 'design_stored_notes', values: {target: 't', run, text: 'x'}})).rejects.toThrow(
         'design_stored_notes is read-only',
       )
@@ -1826,11 +1770,11 @@ describe('the runs store', () => {
       expect(
         await sources.read({
           from: 'design_runs',
-          select: [...Object.keys(correction), 'verdict', 'wave'],
+          select: [...Object.keys(correction), 'verdict', 'prompt_head'],
           order: [{field: 'run', dir: 'asc'}],
         }),
       ).toEqual([
-        {...correction, verdict: 'done', wave: 'thirty'},
+        {...correction, verdict: 'done', prompt_head: 'p'},
         {
           run: other,
           model: 'm',
@@ -1840,14 +1784,14 @@ describe('the runs store', () => {
           status: null,
           ended: 60_000,
           verdict: 'not-yet',
-          wave: 'thirty',
+          prompt_head: 'p',
         },
       ])
       const refused = (values: Record<string, unknown>) => sources.write({into: 'design_runs', values})
       await expect(refused({run: 9999, cost: 1})).rejects.toThrow('no run 9999 in design_runs')
       await expect(refused({cost: 1})).rejects.toThrow('design_runs takes the run to correct')
-      await expect(refused({run, wave: 'x'})).rejects.toThrow(
-        'no writable field wave in design_runs; the writable fields are model, ended, cost, verdict, status, usage, error, error_code, harness_session_id',
+      await expect(refused({run, prompt_head: 'x'})).rejects.toThrow(
+        'no writable field prompt_head in design_runs; the writable fields are model, ended, cost, verdict, status, usage, error, error_code, harness_session_id',
       )
       await expect(refused({run, usage: {promptTokens: 'many'}})).rejects.toThrow('usage is not valid')
       await expect(refused({run, status: 'fine'})).rejects.toThrow('status is not valid')
@@ -2473,8 +2417,6 @@ describe('a run closes with its turn', () => {
   })
 })
 
-const BACKFILL = 'runs_backfill_wave_lane'
-
 const importedDirs: string[] = []
 
 afterAll(() => Promise.all(importedDirs.map((dir) => rm(dir, {recursive: true, force: true}))))
@@ -2484,176 +2426,3 @@ async function tempDir(prefix: string): Promise<string> {
   importedDirs.push(dir)
   return dir
 }
-
-describe('the runs store migrations', () => {
-  it('backfills the wave and lane of a stored run from the run dir name in its source path', async () => {
-    const home = await tempDir('conciv-runs-backfill-')
-    const store = openStore(home)
-    store.orm.$client.exec(
-      "INSERT INTO design_runs (model, prompt_head, started, source_path, source_run_id) VALUES ('m', 'p', 1, '/lanes/twentyfour-figma7-1/state', 1)",
-    )
-    const backfill = runsMigrations.find((migration) => migration.name.endsWith(BACKFILL))
-    backfill?.sql.forEach((statement) => store.orm.$client.exec(statement))
-    store.close()
-    const homeOrm = openHomeDb(home)
-    const sources = catalogSources({
-      orm: homeOrm,
-      sources: sourceCatalog({extension: 'design', sources: storeSources(), home}),
-    })
-    const read = await sources.read({from: 'design_stored_runs', select: ['wave', 'lane']})
-    closeHomeDb(homeOrm)
-    expect(read).toEqual([{wave: 'twentyfour', lane: 'figma7-1'}])
-  })
-})
-
-async function withHome<T>(
-  run: (input: {home: string; store: Store; sources: Sources; command: (name: string) => Command}) => Promise<T>,
-): Promise<T> {
-  const [cwd, stateRoot, home] = await Promise.all([
-    tempDir('conciv-gc-cwd-'),
-    tempDir('conciv-gc-state-'),
-    tempDir('conciv-gc-home-'),
-  ])
-  await writeFile(join(cwd, 'package.json'), JSON.stringify({name: 'gc-host'}))
-  const orm = openDb({stateRoot, extensions: [design]})
-  const {commands, sources} = extensionDb({orm, extensions: [design], home, cwd})
-  const store = openStore(home)
-  const command = (name: string): Command => {
-    const found = commands.find((entry) => entry.name === `design:${name}`)
-    if (found === undefined) throw new Error(`no command design:${name}`)
-    return found
-  }
-  try {
-    return await run({home, store, sources, command})
-  } finally {
-    store.close()
-    orm.$client.close()
-  }
-}
-
-type Command = {run: (call: {args: string[]; options: Record<string, string | boolean | string[]>}) => unknown}
-
-const GcSchema = z.object({removed: z.array(z.string()), kept: z.number()})
-
-describe('runs gc', () => {
-  it('removes an artifact written with a lifetime of 0 days, its row and file, and keeps an infinite one', async () => {
-    await withHome(async ({home, store, sources, command}) => {
-      const [run = 0] = seededRuns(store)
-      const paths = store.orm.transaction((tx) =>
-        storeArtifacts({
-          tx,
-          home,
-          runId: run,
-          artifacts: [
-            {kind: 'screenshot', width: 390, name: '390.png', bytes: Buffer.from('shot'), lifetime: '0'},
-            {kind: 'source', width: null, name: 'source.tar', bytes: Buffer.from('tar'), lifetime: 'infinite'},
-          ],
-        }),
-      )
-      const [expired = '', kept = ''] = paths.map(({path}) => join(home, 'artifacts', path))
-      expect(GcSchema.parse(await command('runs-gc').run({args: [], options: {}}))).toEqual({
-        removed: [expired],
-        kept: 1,
-      })
-      expect(await sources.read({from: 'design_stored_artifacts', select: ['kind']})).toEqual([{kind: 'source'}])
-      expect([existsSync(expired), existsSync(kept)]).toEqual([false, true])
-    })
-  })
-})
-
-describe('design:judge', () => {
-  it('names the run and width whose screenshot is missing and writes no judgement for it', async () => {
-    await withHome(async ({home, store, sources, command}) => {
-      const [first] = seededRuns(store)
-      const written = store.orm.transaction((tx) =>
-        storeArtifacts({
-          tx,
-          home,
-          runId: first ?? null,
-          folder: `${String(first)}/t`,
-          artifacts: ['design', 'screenshot'].map((kind) => ({
-            kind: z.enum(['design', 'screenshot']).parse(kind),
-            width: 390,
-            name: `${kind}-1-390.png`,
-            bytes: blankPng({width: 4, height: 4}),
-            lifetime: 'infinite',
-          })),
-        }),
-      )
-      const shot = written.find((artifact) => artifact.path.includes('screenshot'))
-      await rm(join(home, 'artifacts', shot?.path ?? ''), {force: true})
-      const printed = z.string().parse(await command('judge').run({args: ['thirty'], options: {}}))
-      expect(printed).toContain(`run ${String(first)} target t width 390: screenshot missing`)
-      expect(await sources.read({from: 'design_stored_judgements'})).toEqual([])
-    })
-  })
-})
-
-describe('report', () => {
-  it('writes the wave report whose cells equal the wave_summary and judged reads, and records it', async () => {
-    await withHome(async ({home, store, sources, command}) => {
-      const [first] = seededRuns(store)
-      await sources.write({
-        into: 'design_stored_judgements',
-        values: {run: first, target: 't', width: 390, score: 4, reason: 'close', judge_model: 'opus', at: 1},
-      })
-      const printed = z.string().parse(await command('report').run({args: ['thirty'], options: {}}))
-      expect(printed).toBe(join(home, 'artifacts', 'reports', 'thirty.md'))
-      const cells = (await readFile(printed, 'utf8'))
-        .split('\n')
-        .filter((line) => line.startsWith('| ') && !line.startsWith('| -'))
-        .map((line) => line.slice(2, -2).split(' | '))
-      const shown = (rows: Record<string, unknown>[]) =>
-        rows.flatMap((row) => [Object.keys(row), Object.values(row).map((value) => String(value ?? ''))])
-      const summary = await sources.read({
-        from: 'design_wave_summary',
-        where: 'wave == "thirty"',
-        select: [
-          'arm',
-          'width',
-          'runs',
-          'done',
-          'median_rows',
-          'median_pixels',
-          'median_cost',
-          'median_lowest_rendered',
-        ],
-        order: [
-          {field: 'arm', dir: 'asc'},
-          {field: 'width', dir: 'asc'},
-        ],
-      })
-      const judged = await sources.read({
-        from: 'design_judged',
-        where: 'wave == "thirty"',
-        select: ['run', 'lane', 'arm', 'target', 'width', 'verdict', 'rows', 'pixels', 'score', 'reason'],
-        order: [
-          {field: 'run', dir: 'asc'},
-          {field: 'target', dir: 'asc'},
-          {field: 'width', dir: 'asc'},
-        ],
-      })
-      expect(summary.map((row) => row.runs)).toEqual(summary.map(() => 2))
-      expect(judged.some((row) => row.score === 4)).toBe(true)
-      const judgedHeader = Object.keys(judged[0] ?? {})
-      expect(cells).toEqual([
-        ...summary.flatMap((row) => shown([row])),
-        judgedHeader,
-        ...judged.map((row) => Object.values(row).map((value) => String(value ?? ''))),
-      ])
-      const [report] = z
-        .array(
-          z.object({wave: z.string(), artifact_id: z.number(), queries: z.array(z.looseObject({from: z.string()}))}),
-        )
-        .parse(await sources.read({from: 'design_stored_reports', select: ['wave', 'artifact_id', 'queries']}))
-      expect(report?.queries.map((query) => query.from)).toEqual(['design_wave_summary', 'design_judged'])
-      expect(
-        await sources.read({
-          from: 'design_stored_artifacts',
-          where: `artifact_id == ${report?.artifact_id}`,
-          select: ['kind', 'path'],
-        }),
-      ).toEqual([{kind: 'report', path: join('reports', 'thirty.md')}])
-    })
-  })
-})

@@ -18,10 +18,7 @@ export default defineConfig(async () => {
       tailwindcss(),
       tanstackStart(),
       viteReact(),
-      conciv({
-        widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: {design: {runs: {wave: 'thirtyone', lane: 'example-control-1', arm: 'control'}}},
-      }),
+      conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
     ],
   }
 })

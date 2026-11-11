@@ -18,8 +18,6 @@ export const {
   notes,
   node_components,
   artifacts,
-  judgements,
-  reports,
 } = storeTables
 
 export const {
@@ -32,7 +30,5 @@ export const {
   page_height_rows,
   broken_rounds,
   lowest_rendered,
-  judged,
-  wave_summary,
   fom_nodes,
 } = runsViews

@@ -3,7 +3,7 @@ import {keyBy, omit, uniqBy} from 'es-toolkit'
 import type {SQLiteColumn} from 'drizzle-orm/sqlite-core'
 import type {Storage} from 'unstorage'
 import {toolError} from '@conciv/extension'
-import {RoundSchema, type GateRow, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
+import {RoundSchema, type GateRow, type IdTree, type Mapping, type Round, type TargetRecord} from '../shared/defs.js'
 import type {Store} from '../shared/store.js'
 import type {Catalog} from '../shared/catalog-defs.js'
 import {walk} from '../shared/tree.js'
@@ -15,7 +15,6 @@ import {roundOf} from './round-of.js'
 import type {openStore} from './runs/open-store.js'
 import type {storeTables} from './runs/store-tables.js'
 import {storeArtifacts} from './runs/artifacts.js'
-import {designConfig} from '../shared/tolerances.js'
 
 export function createStore(input: {
   db: DesignDb
@@ -371,43 +370,8 @@ export function createStore(input: {
           tx.insert(notes)
             .values({...own, text})
             .run()
-        const {counts, coverage, progress} = written
         tx.insert(rounds)
-          .values({
-            ...own,
-            at: written.at,
-            much: counts.much,
-            noticeably: counts.noticeably,
-            slightly: counts.slightly,
-            pins: counts.pins,
-            other: counts.other,
-            reflow: counts.reflow,
-            paint: counts.paint ?? 0,
-            drift: counts.drift ?? 0,
-            rows_count: counts.rows,
-            nodes: coverage.nodes,
-            mapped: coverage.mapped,
-            rendered: coverage.rendered,
-            revoted: coverage.revoted,
-            pixel_share: written.pixels?.share ?? null,
-            pixel_before: progress?.pixels.before ?? null,
-            closed: progress?.closed ?? null,
-            opened: progress?.opened ?? null,
-            kept: progress?.kept.length ?? null,
-            gained: progress?.mapped.gained.length ?? null,
-            lost: progress?.mapped.lost.length ?? null,
-            changed_ratio: progress?.changed?.ratio ?? null,
-            changed_regions: progress?.changed?.count ?? null,
-            note: progress?.note ?? null,
-            tree: written.tree,
-            verdict: written.verdict,
-            unsettled: written.unsettled,
-            broken: written.broken,
-            broken_by: written.brokenBy,
-            live: livePath,
-            diff: diffPath,
-            ids: ids === undefined ? null : {...ids.tree, root: attached({node: ids.tree.root, mapping: {}})},
-          })
+          .values(roundValues({own, written, live: livePath, diff: diffPath, ids}))
           .run()
         if (ids !== undefined) writeFom({tx, fom, id, runId, round: written.round, ids, names, before, at: written.at})
         if (artifacts !== undefined)
@@ -421,53 +385,11 @@ export function createStore(input: {
         const key = roundKey({run: runId, id, round: written.round})
         for (const write of pending.get(key) ?? []) write(tx)
         pending.delete(key)
-        for (const row of written.rows)
-          tx.insert(rows)
-            .values({
-              ...own,
-              at: written.at,
-              ...rowOf(row),
-              repeat: repeats.get(rowKey({...row, width: row.width ?? null})) ?? 0,
-            })
-            .run()
-        for (const [kind, listed] of [
-          ['missing', coverage.missing],
-          ['not_rendered', coverage.notRendered],
-          ['dupe', coverage.dupes],
-        ] as const)
-          for (const node of listed)
-            tx.insert(missing)
-              .values({...own, node, kind})
-              .run()
-        for (const tied of coverage.candidates)
-          for (const {selector, score} of tied.candidates)
-            tx.insert(candidates)
-              .values({...own, node: tied.node, selector, score})
-              .run()
-        for (const {width, from} of written.reflow.widths) {
-          const result = written.reflow.results.find((entry) => entry.width === width)
-          const measured = {root_height: result?.rootHeight ?? 0, overflow_x: result?.overflowX ?? false}
-          for (const named of from)
-            tx.insert(widths)
-              .values({...own, width, from: named, ...measured})
-              .run()
-        }
-        for (const region of progress?.changed?.regions ?? []) {
-          const {x, y, w, h} = region.box
-          const at = {...own, x, y, width: w, height: h, truncated: progress?.changed?.truncated ?? false}
-          const named = region.ids.length === 0 ? [null] : region.ids
-          for (const entry of named)
-            tx.insert(regions)
-              .values({
-                ...at,
-                id: entry?.id ?? null,
-                node: entry?.node ?? null,
-                name: entry?.name ?? null,
-                source: entry?.source ?? null,
-                overlap: entry?.overlap ?? null,
-              })
-              .run()
-        }
+        const into = {tx, tables, own}
+        insertRows({...into, written, repeats})
+        insertCoverage({...into, coverage: written.coverage})
+        insertWidths({...into, reflow: written.reflow})
+        insertRegions({...into, changed: written.progress?.changed})
       })
       return written
     },
@@ -520,6 +442,138 @@ type FomRow = DesignDb['tables']['fom']['$inferSelect']
 type Transaction = Parameters<Parameters<DesignDb['orm']['transaction']>[0]>[0]
 
 const TARGET_IMAGE = 'target.png'
+
+type Own = {target_id: string; run_id: number; round: number}
+
+type Into = {tx: Transaction; tables: Tables; own: Own}
+
+function roundValues(input: {
+  own: Own
+  written: Round
+  live: string | null
+  diff: string | null
+  ids: {tree: IdTree} | undefined
+}): Tables['rounds']['$inferInsert'] {
+  const {own, written, ids} = input
+  const {counts, coverage} = written
+  return {
+    ...own,
+    at: written.at,
+    much: counts.much,
+    noticeably: counts.noticeably,
+    slightly: counts.slightly,
+    pins: counts.pins,
+    other: counts.other,
+    reflow: counts.reflow,
+    paint: counts.paint ?? 0,
+    drift: counts.drift ?? 0,
+    rows_count: counts.rows,
+    nodes: coverage.nodes,
+    mapped: coverage.mapped,
+    rendered: coverage.rendered,
+    revoted: coverage.revoted,
+    pixel_share: written.pixels?.share ?? null,
+    ...progressValues(written.progress),
+    tree: written.tree,
+    verdict: written.verdict,
+    unsettled: written.unsettled,
+    broken: written.broken,
+    broken_by: written.brokenBy,
+    live: input.live,
+    diff: input.diff,
+    ids: ids === undefined ? null : {...ids.tree, root: attached({node: ids.tree.root, mapping: {}})},
+  }
+}
+
+function progressValues(progress: Round['progress']) {
+  if (progress === undefined || progress === null) return EMPTY_PROGRESS
+  return {
+    pixel_before: progress.pixels.before,
+    closed: progress.closed,
+    opened: progress.opened,
+    kept: progress.kept.length,
+    gained: progress.mapped.gained.length,
+    lost: progress.mapped.lost.length,
+    changed_ratio: progress.changed?.ratio ?? null,
+    changed_regions: progress.changed?.count ?? null,
+    note: progress.note ?? null,
+  }
+}
+
+const EMPTY_PROGRESS = {
+  pixel_before: null,
+  closed: null,
+  opened: null,
+  kept: null,
+  gained: null,
+  lost: null,
+  changed_ratio: null,
+  changed_regions: null,
+  note: null,
+}
+
+function insertRows(input: Into & {written: Round; repeats: Map<string, number>}): void {
+  const {tx, tables, own, written, repeats} = input
+  for (const row of written.rows)
+    tx.insert(tables.rows)
+      .values({
+        ...own,
+        at: written.at,
+        ...rowOf(row),
+        repeat: repeats.get(rowKey({...row, width: row.width ?? null})) ?? 0,
+      })
+      .run()
+}
+
+function insertCoverage(input: Into & {coverage: Round['coverage']}): void {
+  const {tx, tables, own, coverage} = input
+  const listed = [
+    ...coverage.missing.map((node) => ({node, kind: 'missing' as const})),
+    ...coverage.notRendered.map((node) => ({node, kind: 'not_rendered' as const})),
+    ...coverage.dupes.map((node) => ({node, kind: 'dupe' as const})),
+  ]
+  for (const entry of listed)
+    tx.insert(tables.missing)
+      .values({...own, ...entry})
+      .run()
+  for (const tied of coverage.candidates)
+    for (const {selector, score} of tied.candidates)
+      tx.insert(tables.candidates)
+        .values({...own, node: tied.node, selector, score})
+        .run()
+}
+
+function insertWidths(input: Into & {reflow: Round['reflow']}): void {
+  const {tx, tables, own, reflow} = input
+  for (const {width, from} of reflow.widths) {
+    const result = reflow.results.find((entry) => entry.width === width)
+    const measured = {root_height: result?.rootHeight ?? 0, overflow_x: result?.overflowX ?? false}
+    for (const named of from)
+      tx.insert(tables.widths)
+        .values({...own, width, from: named, ...measured})
+        .run()
+  }
+}
+
+function insertRegions(input: Into & {changed: NonNullable<Round['progress']>['changed'] | undefined}): void {
+  const {tx, tables, own, changed} = input
+  for (const region of changed?.regions ?? []) {
+    const {x, y, w, h} = region.box
+    const at = {...own, x, y, width: w, height: h, truncated: changed?.truncated ?? false}
+    const named = region.ids.length === 0 ? [null] : region.ids
+    for (const entry of named)
+      tx.insert(tables.regions)
+        .values({
+          ...at,
+          id: entry?.id ?? null,
+          node: entry?.node ?? null,
+          name: entry?.name ?? null,
+          source: entry?.source ?? null,
+          overlap: entry?.overlap ?? null,
+        })
+        .run()
+  }
+}
 
 function roundKey(input: {run: number; id: string; round: number}): string {
   return JSON.stringify([input.run, input.id, input.round])
@@ -575,7 +629,6 @@ async function readRaw(input: {state: Storage; key: string | null}): Promise<Uin
 }
 
 function checkArtifacts(input: {design: Uint8Array; shots: {width: number; png: Uint8Array}[]; round: number}) {
-  const {lifetimes} = designConfig.runs
   return input.shots.flatMap(({width, png}) =>
     (
       [
@@ -587,7 +640,6 @@ function checkArtifacts(input: {design: Uint8Array; shots: {width: number; png: 
       width,
       name: `${kind}-${input.round}-${width}.png`,
       bytes,
-      lifetime: String(lifetimes[kind]),
     })),
   )
 }

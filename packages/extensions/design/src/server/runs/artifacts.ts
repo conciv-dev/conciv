@@ -26,7 +26,6 @@ export function storeArtifacts(input: {
         path,
         size: artifact.bytes.length,
         checksum: createHash('sha256').update(artifact.bytes).digest('hex'),
-        lifetime: artifact.lifetime,
         written: Date.now(),
       })
       .run()
@@ -41,7 +40,6 @@ type Artifact = {
   width: number | null
   name: string
   bytes: Uint8Array
-  lifetime: string
 }
 
 const ARTIFACTS = 'artifacts'
