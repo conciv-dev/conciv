@@ -56,7 +56,8 @@ All inputs and outputs zod. Session routing and hub admission come from the head
   `{ok: false, error: {message, code?}, logs: string[], queued: QueueHandle[], finished: PageQueueResult[]}`.
   - `queued`: every queue the script started that is still playing when the script returns (an
     `external_page_queue_async` call, or an `external_page_queue` call that outlasted its bound), from the engine's
-    own queue store, never from the script's return value. A sync queue that finished in-call is not listed.
+    own queue store, never from the script's return value. A sync queue that finished in-call is not listed, and
+    no queue is in both `queued` and `finished`.
   - `finished`: the finished, undelivered queues for this caller (today's next-reply path, `mcp.ts`
     `withFinishedQueues`), marked delivered by this call.
   - Same transcript mirroring, call trace and result cap as `/api/mcp` `runExecute`.
@@ -78,7 +79,9 @@ so the two cannot drift. No logic is duplicated between them.
 - MCP task: the hub answers as a task when the client negotiated the tasks extension and `queued` is non-empty. One task
   per call; `taskId` is the hub's own id mapping to the call's `queued` list.
 - `tasks/get` → `page.queue.wait({waitMs: 0})` per queued id; `completed` when all are final, with the typed results
-  formatted as MCP content. A failed poll keeps the task and reports `working` (it is read-only; retrying is safe).
+  formatted as MCP content. A transport failure keeps the task and reports `working` (it is read-only; retrying is
+  safe). An engine that answers NO_QUEUE restarted and lost the queue: the task ends `failed` with a `statusMessage`
+  naming the lost queue and saying its actions may have partly run.
 - `discover_tools` → `code.discover`. Descriptions → `code.describe`.
 - Tab ownership → `tabs.get` on each healthy engine (the dead-engine rules of #829 stand: process alive, root exists,
   answers). `external_tabs` across engines (`packages/core/src/api/outside-tabs.ts`) → `tabs.list` per engine.
@@ -108,6 +111,9 @@ is skipped. `x-conciv-version` is already sent by `makeRpcClient`.
   - a script that returns `{queueId: 'x', actions: 1}` without queuing does not become a task;
   - `tasks/get` reports `working` then `completed` with every outcome; a poll against a stopped engine keeps the task
     `working`;
+  - `tasks/get` ends `failed`, naming the lost queue, once the engine holding the tab restarted without it;
+  - a sync `page_queue` that finished in-call, and an async queue that finished before the script returned, get a plain
+    reply (the finished notice exactly once), never a task;
   - a client without tasks gets the plain reply, and the finished result leads its next reply exactly once;
   - an engine without the new procedures is listed as too old and skipped; a healthy engine still answers.
 - `packages/core/test/core-api.it.test.ts`: `code.execute` and `/api/mcp` `execute_typescript` give the same result for

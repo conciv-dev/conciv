@@ -1899,6 +1899,56 @@ describe('cli', () => {
         }
       })
 
+      it('a queue that finished before execute_typescript returned leads the plain reply once and never becomes a task', async () => {
+        const {home, engine, play} = await queueTab()
+        const client = rawHub(home)
+        try {
+          await client.execute('return 0', engine.sessionId)
+          const both = `await external_page_queue_async({actions: ${JSON.stringify(ACTIONS)}}); ${SYNC_QUEUE}`
+          const replied = client.execute(both, engine.sessionId)
+          await play(0)
+          await play(1)
+          const reply = await replied
+          expect(TaskSchema.safeParse(reply).success).toBe(false)
+          const text = JSON.stringify(reply)
+          expect(text.match(/queue q_[^ ]+ finished: 2 played, 0 failed/g)).toHaveLength(1)
+          expect(JSON.stringify(await client.execute('return 1', engine.sessionId))).not.toContain('queue q_')
+        } finally {
+          await client.close()
+          await engine.engine.stop()
+        }
+      })
+
+      it('tasks/get fails the task, naming the lost queue, once the engine holding the tab restarted without it', async () => {
+        const {home, engine} = await queueTab()
+        const client = rawHub(home)
+        const restarted: {engine?: Awaited<ReturnType<typeof engineWithTab>>} = {}
+        try {
+          const task = TaskSchema.parse(await client.execute(QUEUE, engine.sessionId))
+          expect(await client.poll(task.taskId)).toMatchObject({taskId: task.taskId, status: 'working'})
+          await engine.engine.stop()
+          restarted.engine = await engineWithTab(home, {
+            hubAccess: 'open',
+            shared: {root: engine.root, sessionId: engine.sessionId},
+          })
+          const ended = await vi.waitFor(
+            async () => {
+              const polled = await client.poll(task.taskId)
+              expect(polled).toMatchObject({taskId: task.taskId, status: 'failed'})
+              return polled
+            },
+            {timeout: 10_000},
+          )
+          expect(String(ended?.['statusMessage'])).toMatch(
+            /^queue q_\S+ was lost: the engine holding the tab no longer has it/,
+          )
+          expect((await client.request('tasks/get', {taskId: task.taskId})).error).toMatchObject({code: -32602})
+        } finally {
+          await client.close()
+          await restarted.engine?.engine.stop()
+        }
+      })
+
       it('a script that returns a queue-shaped object without queuing is not a task', async () => {
         const {home, engine, accepted} = await queueTab()
         const client = rawHub(home)

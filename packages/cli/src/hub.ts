@@ -21,7 +21,7 @@ import {
   withoutImages,
   type ContentPart,
 } from '@conciv/protocol/chat-message-types'
-import type {PageQueueHandle, PageQueueResult} from '@conciv/protocol/page-types'
+import type {PageQueueHandle, PageQueueProgress, PageQueueResult} from '@conciv/protocol/page-types'
 import type {InitHarnessId} from '@conciv/protocol/harness-types'
 import {HubAgentSchema} from './hub-agent.js'
 import cliManifest from '../package.json' with {type: 'json'}
@@ -89,6 +89,10 @@ type TabOwner = {root: string; apiBase: string; instructions: string | null; rpc
 type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
 type QueueTask = {tab: SessionId; queued: PageQueueHandle[]; createdAt: string; lastUpdatedAt: string; reply: Reply}
+
+type GoneQueue = {queueId: string; status: 'gone'}
+
+type PolledQueue = PageQueueResult | PageQueueProgress | GoneQueue
 
 type EngineCall<Value> = (rpc: RpcClient, signal: AbortSignal | undefined) => Promise<Value>
 
@@ -244,16 +248,16 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       task.queued.map(async ({queueId}) => {
         const waited = await routed(
           task.tab,
-          (rpc, aborted) => rpc.page.queue.wait({sessionId: task.tab, queueId, waitMs: 0}, {signal: aborted}),
+          (rpc, aborted) => pollQueue(rpc, task.tab, queueId, aborted),
           () => ({content: []}),
           undefined,
         )
         return waited.value
       }),
     )
-    const results = polled.flatMap((state) => (state === null || state.status === 'playing' ? [] : [state]))
+    const settled = polled.flatMap((state) => (state === null || state.status === 'playing' ? [] : [state]))
     const stamped = {taskId, createdAt: task.createdAt, ttlMs: null}
-    if (results.length < task.queued.length) {
+    if (settled.length < task.queued.length) {
       return {
         resultType: 'complete',
         ...stamped,
@@ -263,8 +267,14 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       }
     }
     queueTasks.delete(taskId)
-    const result = {...task.reply, content: [...task.reply.content, ...results.map(queueNotice)]}
-    return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt: new Date().toISOString(), result}
+    const notices = settled.map((state) => (state.status === 'gone' ? goneNotice(state) : queueNotice(state)))
+    const lastUpdatedAt = new Date().toISOString()
+    if (settled.every((state) => state.status !== 'gone')) {
+      const result = {...task.reply, content: [...task.reply.content, ...notices]}
+      return {resultType: 'complete', ...stamped, status: 'completed', lastUpdatedAt, result}
+    }
+    const statusMessage = notices.map((notice) => notice.text).join('\n\n')
+    return {resultType: 'complete', ...stamped, status: 'failed', lastUpdatedAt, statusMessage}
   }
 
   async function discoverCall(input: z.infer<typeof DiscoverInputSchema>, signal: AbortSignal): Promise<Reply> {
@@ -453,10 +463,31 @@ function partContent(part: ContentPart): Content {
   return {type: 'text', text: JSON.stringify(part)}
 }
 
-function queueNotice(result: PageQueueResult): Content {
+function queueNotice(result: PageQueueResult): {type: 'text'; text: string} {
   return {
     type: 'text',
     text: `queue ${result.queueId} ${result.status}: ${result.played} played, ${result.failed} failed\n${JSON.stringify(result)}`,
+  }
+}
+
+async function pollQueue(
+  rpc: RpcClient,
+  sessionId: SessionId,
+  queueId: string,
+  signal: AbortSignal | undefined,
+): Promise<PolledQueue> {
+  try {
+    return await rpc.page.queue.wait({sessionId, queueId, waitMs: 0}, {signal})
+  } catch (error) {
+    if (error instanceof ORPCError && error.code === 'NO_QUEUE') return {queueId, status: 'gone'}
+    throw error
+  }
+}
+
+function goneNotice(gone: GoneQueue): {type: 'text'; text: string} {
+  return {
+    type: 'text',
+    text: `queue ${gone.queueId} was lost: the engine holding the tab no longer has it (it restarted), so its actions may have partly run`,
   }
 }
 

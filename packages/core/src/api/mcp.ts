@@ -353,7 +353,10 @@ export async function openCodeSession(
     }),
     execute: async (typescriptCode) => {
       const executed = await runExecute(runner, typescriptCode, calls)
-      const delivery = {queued: deps.startedQueues(scope.id, childCalls), finished: finished()}
+      const started = deps.startedQueues(scope.id, childCalls)
+      const delivered = finished()
+      const finishedIds = new Set(delivered.map((result) => result.queueId))
+      const delivery = {queued: started.filter((handle) => !finishedIds.has(handle.queueId)), finished: delivered}
       return {
         result: typedResult(executed.result, runner.declaredCodes, delivery),
         reply: withFinishedQueues(executed.reply, delivery.finished),
