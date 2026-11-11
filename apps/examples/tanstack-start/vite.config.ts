@@ -20,7 +20,7 @@ export default defineConfig(async () => {
       viteReact(),
       conciv({
         widget: {quickTerminal: {hotkey: 'Alt+k'}},
-        extensions: {design: {runs: {wave: 'thirtyone', lane: 'example-1'}}},
+        extensions: {design: {runs: {wave: 'thirtyone', lane: 'example-control-1', arm: 'control'}}},
       }),
     ],
   }
