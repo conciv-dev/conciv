@@ -75,6 +75,26 @@ constants (durations and defaults in `designConfig.runs`). Tests inside `design.
 number from a source query. Never kill a process you did not start. Remove worktrees and lanes you created when done. Never edit
 `aidx`, `aidx-key*`, `aidx-demo`, `aidx-loop`, `aidx-verbs`, `aidx-wt-*`, `_ref`, `mono`.
 
+## Real-product runs so far (11 Nov, night)
+
+**Run 1** (01:53, 85 s, $0.50, no store row): the agent never reached a design tool. Found and fixed in the product: the Claude
+plugin bridge sent no MCP protocol headers so the server was `failed` at session start (048143db8); a vite that failed to bind still
+overwrote `.conciv/server.json` and orphaned the live engine (fce909c2a); `--figma` was not repeatable and the agent guide taught
+removed commands (a5ef0fdc9). Not a code defect: the browser must be authorized once (the widget's Authorize button and the
+`#conciv_otp=` link the dev server prints) and Claude approved once in the tab; "The product path" step 2 means those two clicks.
+
+**Run 2** = store run 174 (02:58, 17 min, 94 turns, $2.82, sonnet, wave `thirtyone`, lane `example-1`): the agent built a complete
+/design page (screenshot in the session scratch `w33/design-1440.png`) but `design_check` measured nothing in 18 checks. Rounds 1,
+4, 7, 9, 11: "The page rendered no design nodes" (the target was pinned to route `/`, the tab's route at `design_get`, while the
+page was at `/design`). Rounds 2, 3, 5, 6, 8, 10, 12: `broken`, "ResizeObserver loop completed with undelivered notifications" (a
+benign browser message treated as a runtime error). The run row stayed `running` after the agent and the dev server ended: an
+external session has no chat-server turn end. Also seen: the hub's `external_design_get` handed code-mode a string (`cannot read
+property 'map' of undefined`); the widget reopened a dead session so `conciv tools tabs` listed no tab until a session was picked by
+hand; a `page_eval` call failed `APPROVAL_DENIED` before the user could approve; `conciv init` reported the plugin step failed
+although every sub-step passed; the session picker's options render off-screen at 1200 px. Two fix tasks were dispatched at 03:35
+(design extension: route, ResizeObserver, external-session close, `wave` in `run_summary`; core/widget/cli: the other five). Check
+`git log 8abedf806..HEAD` for what landed.
+
 ## Known defects of the tools, from the store
 
 - A page that rendered as a 569k px blank strip at 390 passed `design_check` with 3 rows (run 169). Task 11 addresses it.
