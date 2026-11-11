@@ -24,6 +24,10 @@ import {
 } from './agent-cursor.js'
 
 const TASK_TIMEOUT_MS = 60_000
+const MOVE_MS = 300
+const AFTER_RIPPLE_MS = 100
+const AFTER_CLICK_MS = 200
+const AFTER_INPUT_MS = 100
 const STOP_CONFIRM_MS = 3000
 const HIDE_MS = 800
 const BLOCKED_EVENTS = ['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'keydown', 'keyup']
@@ -69,6 +73,10 @@ type Simulator = {
   taskSession: string | null
   cursor: string
   onStop: (sessionId: string) => void
+  queues: Set<string>
+  stoppedQueues: Set<string>
+  endWhenPlayed: boolean
+  pacing: boolean
 }
 
 const sim: Simulator = {
@@ -82,6 +90,10 @@ const sim: Simulator = {
   taskSession: null,
   cursor: '',
   onStop: ignore,
+  queues: new Set(),
+  stoppedQueues: new Set(),
+  endWhenPlayed: false,
+  pacing: false,
 }
 
 function ignore(): void {}
@@ -125,6 +137,7 @@ function shake(): void {
 }
 
 function stop(): void {
+  for (const queue of sim.queues) sim.stoppedQueues.add(queue)
   const session = sim.taskSession
   if (session !== null) sim.onStop(session)
 }
@@ -249,7 +262,53 @@ export function endTask(): void {
 }
 
 export function endRun(sessionId: string): void {
-  if (sim.taskSession === sessionId) endTask()
+  if (sim.taskSession !== sessionId) return
+  if (sim.queues.size > 0) {
+    sim.endWhenPlayed = true
+    return
+  }
+  endTask()
+}
+
+export type Beat = 'click' | 'input' | 'point'
+
+export function acceptQueue(queueId: string): void {
+  sim.queues.add(queueId)
+}
+
+export function queueStopped(queueId: string): boolean {
+  return sim.stoppedQueues.has(queueId)
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+export async function arriveAt(options: {element: Element; agent: string; beat: Beat}): Promise<void> {
+  const {element, agent, beat} = options
+  const {arrived} = moveTo({element, agent})
+  await Promise.all([arrived, wait(MOVE_MS)])
+  if (beat === 'point') return
+  ripple(agent)
+  await wait(AFTER_RIPPLE_MS)
+}
+
+export async function landQueued<Result>(options: {beat: Beat; act: () => Promise<Result>}): Promise<Result> {
+  sim.pacing = true
+  try {
+    return await options.act()
+  } finally {
+    sim.pacing = false
+    await wait(options.beat === 'click' ? AFTER_CLICK_MS : AFTER_INPUT_MS)
+  }
+}
+
+export function finishQueue(queueId: string): void {
+  sim.queues.delete(queueId)
+  sim.stoppedQueues.delete(queueId)
+  if (sim.queues.size > 0 || !sim.endWhenPlayed) return
+  sim.endWhenPlayed = false
+  endTask()
 }
 
 function ripple(agent: string): void {
@@ -344,7 +403,10 @@ export function simulateClick(options: {element: Element; agent: string}): void 
   blurLastClicked()
   sim.lastClicked = element
   const {point, arrived} = moveTo({element, agent})
-  void arrived.then(() => ripple(agent))
+  const paced = sim.pacing
+  void arrived.then(() => {
+    if (!paced) ripple(agent)
+  })
   dispatchPress({target: hitTarget({element, point}), element, point})
 }
 

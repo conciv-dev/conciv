@@ -1,4 +1,4 @@
-import {PageQuerySchema, type PageOutcome} from '@conciv/protocol/page-types'
+import {PageQuerySchema, PageQueueActionsSchema, type PageOutcome, type PageQuery} from '@conciv/protocol/page-types'
 import type {ClientToolEntry} from '@conciv/extension'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 
@@ -20,16 +20,78 @@ export type PageQuerySource = {
   reply: (input: {requestId: string; outcome: PageOutcome}) => Promise<unknown>
 }
 
+type Lane = {tail: Promise<void>; queued: number}
+
+type Played = {source: PageQuerySource; driver: PageDriver; lane: Lane; signal: AbortSignal}
+
+function replyTo(source: PageQuerySource, requestId: string, outcome: PageOutcome): Promise<void> {
+  return source.reply({requestId, outcome}).then(
+    () => undefined,
+    (error: unknown) => console.error(`[conciv] the page reply to ${requestId} could not be sent`, error),
+  )
+}
+
+function inLane(lane: Lane, play: () => Promise<void>): void {
+  lane.queued += 1
+  lane.tail = lane.tail
+    .then(play)
+    .catch((error: unknown) => console.error('[conciv] a queued page action failed to play', error))
+    .finally(() => {
+      lane.queued -= 1
+    })
+}
+
+function playQueue(played: Played, requestId: string, query: PageQuery): void {
+  const queue = query.queue
+  if (queue === undefined) return
+  const {source, driver, lane, signal} = played
+  const of = queue.replies.length
+  const listed = PageQueueActionsSchema.safeParse(query.input)
+  const accepted = driver.execute({
+    agentId: query.agentId,
+    name: query.name,
+    input: query.input,
+    queued: {id: queue.id, index: -1, of},
+  })
+  void accepted.then((outcome) => replyTo(source, requestId, outcome))
+  queue.replies.forEach((replyId, index) =>
+    inLane(lane, async () => {
+      const action = listed.success ? listed.data.actions[index] : undefined
+      if (signal.aborted || action === undefined || !(await accepted).ok) return
+      const {tool, ...input} = action
+      const outcome = await driver.execute({
+        agentId: query.agentId,
+        name: tool,
+        input,
+        mutating: true,
+        queued: {id: queue.id, index, of},
+      })
+      await replyTo(source, replyId, outcome)
+    }),
+  )
+}
+
 export async function servePageQueries(
   source: PageQuerySource,
   driver: PageDriver,
   signal: AbortSignal,
 ): Promise<void> {
+  const played: Played = {source, driver, lane: {tail: Promise.resolve(), queued: 0}, signal}
   for await (const item of source.queries(signal)) {
     const parsed = PageQuerySchema.safeParse(item.query)
     if (!parsed.success) continue
     const requestId = item.requestId
-    void driver.execute(parsed.data).then((outcome) => source.reply({requestId, outcome}).catch(() => {}))
+    const query = parsed.data
+    if (query.queue !== undefined) {
+      playQueue(played, requestId, query)
+      continue
+    }
+    const answer = (): Promise<void> => driver.execute(query).then((outcome) => replyTo(source, requestId, outcome))
+    if (query.mutating === true && played.lane.queued > 0) {
+      inLane(played.lane, answer)
+      continue
+    }
+    void answer()
   }
 }
 

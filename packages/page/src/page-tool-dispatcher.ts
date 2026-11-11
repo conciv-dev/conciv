@@ -56,7 +56,7 @@ function missingTarget(locator: ClientToolLocator): never {
 type TargetSlot = {el: Element | null}
 
 function callCtx(
-  agentId: string,
+  query: PageQuery,
   refs: Refs,
   consoleBuf: ConsoleEntry[],
   effects: readonly ClientEffect[],
@@ -68,7 +68,8 @@ function callCtx(
   }
   const resolve = (locator: ClientToolLocator): Element | null => remember(locatorTarget(locator, refs))
   return {
-    agentId,
+    agentId: query.agentId,
+    ...(query.queued === undefined ? {} : {queued: query.queued}),
     document,
     resolve,
     target: (locator) => {
@@ -155,12 +156,12 @@ export function makePageToolDispatcher(
     void loadSnapshotLibrary()
     const slot: TargetSlot = {el: null}
     const captures = makeCaptureCollector()
-    const ctx = callCtx(query.agentId, refs, consoleBuf, effects, slot)
+    const ctx = callCtx(query, refs, consoleBuf, effects, slot)
     try {
       const result = await tool.execute(query.input, capturingCtx(ctx, tool.capture, captures))
       const record = plainRecordOf(result)
       if (!record || !isJsonSerializable(record)) fail(`${query.name} returned a non-serializable result`)
-      if (tool.capture !== 'none') captures.take('after', slot.el)
+      if (tool.capture !== 'none' && query.queued === undefined) captures.take('after', slot.el)
       const bundle = await tryBuildCaptureBundle(captures.entries())
       return bundle === undefined ? {result: record} : {result: record, capture: bundle}
     } catch (error) {
