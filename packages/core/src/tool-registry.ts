@@ -60,6 +60,7 @@ async function runClientTool(
       sessionId,
       {name: tool.name, input: record, agentId: request.agentId},
       {mutating: tool.mutating},
+      request.signal,
     )
     await storeCapture(env, request, answer)
     const data = answer.result

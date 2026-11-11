@@ -102,7 +102,7 @@ export type ChatThread = {
 export type CodeDiscovery = {description: string; run: (toolNames: string[]) => Promise<unknown>}
 
 export type CodeRunner = {
-  run: (code: string, emit: CustomEventSink) => Promise<unknown>
+  run: (code: string, emit: CustomEventSink, signal?: AbortSignal) => Promise<unknown>
   discover: CodeDiscovery | null
 }
 
@@ -611,8 +611,8 @@ export async function createChatServer(config: ChatServerConfig): Promise<ChatSe
       const execute = coded.execute.execute
       if (!execute) return null
       return {
-        run: async (code, emit) => {
-          const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit})
+        run: async (code, emit, signal) => {
+          const result: unknown = await execute({typescriptCode: code}, {emitCustomEvent: emit, abortSignal: signal})
           const refusal = secretRefusalOf(result)
           if (refusal !== null) throw new Error(refusal)
           return result

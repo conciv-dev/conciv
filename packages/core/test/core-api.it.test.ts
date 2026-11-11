@@ -22,7 +22,7 @@ import {DatabaseSync} from 'node:sqlite'
 import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it, afterEach, onTestFinished, test, vi, beforeEach} from 'vitest'
-import {imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
+import {createMCPClient, imageToolProvisioner, makeTextAdapter} from '@conciv/ai/server'
 import {foldChatEvents} from '@conciv/ai/testkit'
 import {cappedValue} from '@conciv/chat'
 import {abortableFetch, type EngineStaleness} from '@conciv/contract'
@@ -1395,6 +1395,21 @@ describe('api page page', () => {
       state.widget = undefined
       await kit().rpc.page.clearChanges(undefined)
       await cleanupChunks()
+    })
+
+    it('a call its rpc caller aborts drops its page query, so the late reply settles nothing', async () => {
+      const listening = new AbortController()
+      onTestFinished(() => listening.abort())
+      const queries = await kit().rpc.page.queries(undefined, {signal: listening.signal})
+      const calling = new AbortController()
+      const called = kit().rpc.registry.call({name: 'page_route', input: {}}, {signal: calling.signal})
+      const asked = await queries.next()
+      calling.abort()
+      await expect(called).rejects.toThrow()
+      const requestId = asked.done === true ? '' : asked.value.requestId
+      await expect(kit().rpc.page.reply({requestId, outcome: {ok: true, result: {}}})).rejects.toMatchObject({
+        code: 'UNKNOWN_REQUEST',
+      })
     })
 
     it('reports NO_PAGE_CLIENT when no widget is subscribed', async () => {
@@ -3144,6 +3159,66 @@ return seen`
         const ended = nextTurnEnd(sessionId)
         await chatKit().rpc.chat.stop({sessionId, runIds: ['hold-run']})
         await ended()
+      })
+
+      async function silentPage(sessionId: string) {
+        const listening = new AbortController()
+        onTestFinished(() => listening.abort())
+        const page = callerWith(sessionId)
+        const queries = await page.page.queries(undefined, {signal: listening.signal})
+        return {
+          asked: async () => {
+            const next = await queries.next()
+            return next.done === true ? '' : next.value.requestId
+          },
+          lateReply: (requestId: string) => page.page.reply({requestId, outcome: {ok: true, result: {}}}),
+        }
+      }
+
+      it('stopping a turn whose program waits on the page drops the page query', async () => {
+        const sessionId = await newSession()
+        const page = await silentPage(sessionId)
+        codeTurn('return await external_page_route({})')
+        await send(sessionId, 'route', {runId: 'page-stop-run'})
+        const requestId = await page.asked()
+        const ended = nextTurnEnd(sessionId)
+        await chatKit().rpc.chat.stop({sessionId, runIds: ['page-stop-run']})
+        await ended()
+        await expect(page.lateReply(requestId)).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+      })
+
+      it('a page call a program leaves running is dropped when the program ends', async () => {
+        const sessionId = await newSession()
+        const page = await silentPage(sessionId)
+        const mcp = await createMCPClient({
+          transport: {type: 'http', url: `${chatKit().base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: sessionId}},
+        })
+        onTestFinished(() => mcp.close())
+        const typescriptCode =
+          'void external_page_route({}); await external_fixture_echo({text: "after"}); return "ended"'
+        expect(JSON.stringify(await mcp.callTool('execute_typescript', {typescriptCode}))).toContain('ended')
+        await expect(page.lateReply(await page.asked())).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
+      })
+
+      it('an MCP client that cancels execute_typescript stops the program and drops its page query', async () => {
+        const sessionId = await newSession()
+        const page = await silentPage(sessionId)
+        const stream = await chatKit().events(sessionId)
+        const events = collect(stream)
+        const mcp = await createMCPClient({
+          transport: {type: 'http', url: `${chatKit().base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: sessionId}},
+        })
+        onTestFinished(() => mcp.close())
+        const cancelling = new AbortController()
+        const typescriptCode = 'return await external_page_route({})'
+        const running = mcp.callTool('execute_typescript', {typescriptCode}, {signal: cancelling.signal})
+        const requestId = await page.asked()
+        cancelling.abort()
+        await expect(running).rejects.toThrow()
+        await stream.waitFor((chunk) => chunk.type === ChatEventType.RUN_FINISHED)
+        const result = events.findLast((chunk) => chunk.type === ChatEventType.TOOL_CALL_RESULT)
+        expect(JSON.stringify(result)).toMatch(/abort/i)
+        await expect(page.lateReply(requestId)).rejects.toMatchObject({code: 'UNKNOWN_REQUEST'})
       })
 
       it('discover_tools shows a tool output shape and declared error codes; the catalog lives on execute_typescript', async () => {
