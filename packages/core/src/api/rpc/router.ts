@@ -26,18 +26,20 @@ export const PAGE_ERROR_NAME = {
   'handler-error': 'HANDLER_ERROR',
 } as const satisfies Record<PageErrorCode, RegistryCallErrorName>
 
-type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string}) => Error>
+type RegistryErrors = Record<RegistryCallErrorName, (options: {message: string; cause: unknown}) => Error>
 type BundlerErrors = {NO_BUNDLER: () => Error}
 type ApprovalErrors = {APPROVAL_DENIED: (options: {message: string}) => Error}
 type SessionContext = RpcContext & {session: SessionScope}
 type GatedCall = {context: SessionContext; errors: ApprovalErrors; signal?: AbortSignal}
 
 function registryCallError(error: unknown, errors: RegistryErrors): Error {
-  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message})
-  if (isPageFailure(error)) return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message})
-  if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data})
+  if (isPageVerbError(error)) return errors[PAGE_ERROR_NAME[error.code]]({message: error.message, cause: error})
+  if (isPageFailure(error)) {
+    return errors[PAGE_ERROR_NAME[error.error.code]]({message: error.error.message, cause: error})
+  }
+  if (isToolError(error)) return new ORPCError(error.code, {message: error.message, data: error.data, cause: error})
   if (error instanceof ORPCError) return error
-  return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error)})
+  return errors.HANDLER_ERROR({message: error instanceof Error ? error.message : String(error), cause: error})
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {

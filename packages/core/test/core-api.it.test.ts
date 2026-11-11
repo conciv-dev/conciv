@@ -1537,8 +1537,11 @@ describe('rpc wire', () => {
           code: 'PAGE_TIMEOUT',
         })
         abort.abort()
-        await consumed.catch(() => {})
-        await iterator.return(undefined).catch(() => {})
+        const aborted = (error: unknown) => {
+          if (!abort.signal.aborted) throw error
+        }
+        await consumed.catch(aborted)
+        await iterator.return(undefined).catch(aborted)
       })
 
       it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
@@ -4010,7 +4013,8 @@ describe('outside sessions', () => {
         const heard: string[] = []
         const answers = {silent: false}
         const socket = new WebSocket(`${kit().wsBase}${PUSH_WS_PATH}?${PUSH_SESSION_PARAM}=${sessionId}`)
-        const frames = on(socket, 'message', {signal: AbortSignal.timeout(10_000)})
+        const listening = AbortSignal.timeout(10_000)
+        const frames = on(socket, 'message', {signal: listening})
         await once(socket, 'open')
         const report = (focused: boolean) =>
           socket.send(JSON.stringify({channel: 'page-serving', serving: true, focus: {focused, visible: true}}))
@@ -4028,7 +4032,9 @@ describe('outside sessions', () => {
             await asSession.page.reply({requestId: frame.requestId, outcome: {ok: true, result}})
           }
         }
-        answering().catch(() => {})
+        answering().catch((error: unknown) => {
+          if (!listening.aborted) throw error
+        })
         await ready.promise
         pages.push(() => socket.close())
         const silence = () => {
@@ -4060,11 +4066,26 @@ describe('outside sessions', () => {
       expect(await routed()).toBe('http://localhost:5173/second')
       second.silence()
       const waited = second.heard.length
-      const inFlight = routed().then(String, String)
+      const inFlight = expect(routed()).rejects.toThrow(/browser tab b\d+ closed before it replied/)
       await vi.waitFor(() => expect(second.heard.length).toBe(waited + 1), {timeout: 3000})
       second.close()
-      expect(await inFlight).toMatch(/browser tab b\d+ closed before it replied/)
+      await inFlight
     })
+
+    it.skipIf(process.getuid?.() === 0)(
+      'an unreadable package.json leaves the project name out and keeps every tab listed',
+      async () => {
+        const sessionId = await kit().session()
+        await joinPage(true)
+        chmodSync(join(app, 'package.json'), 0o000)
+        try {
+          const listing = await listTabs()
+          expect([listing.project.name, listing.tabs.map((tab) => tab.sessionId)]).toEqual([null, [sessionId]])
+        } finally {
+          chmodSync(join(app, 'package.json'), 0o644)
+        }
+      },
+    )
 
     it('branch is re-read per request from the repository above the project, through a worktree gitdir file too', async () => {
       writeFileSync(join(repo, '.git', 'HEAD'), 'ref: refs/heads/other\n')
@@ -4084,12 +4105,37 @@ describe('outside agent consent', () => {
   const DENIED = 'The user denied codex access to the conciv tab'
   const OUTSIDE_ASK = {toolName: 'Allow codex to use this tab', input: {client: 'codex'}}
   const ROUTE = {href: 'http://localhost:5173/a', title: 'A', state: 'visible', pathname: '/a', search: ''}
-  const engines: Engine[] = []
+  type Booted = {base: string; stopped: AbortSignal; answering: Array<Promise<void>>; stop: () => Promise<void>}
+  const engines: Booted[] = []
   const pages = new AbortController()
   afterAll(async () => {
     pages.abort()
-    await Promise.allSettled(engines.map((engine) => engine.stop()))
+    const stops = await Promise.allSettled([...engines].map((engine) => engine.stop()))
+    const failures = stops.flatMap((stop) => (stop.status === 'rejected' ? [stop.reason] : []))
+    if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engines failed')
   })
+
+  function track(engine: Engine): string {
+    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const stopped = new AbortController()
+    const booted: Booted = {
+      base,
+      stopped: stopped.signal,
+      answering: [],
+      stop: async () => {
+        engines.splice(engines.indexOf(booted), 1)
+        stopped.abort()
+        const answered = await Promise.allSettled(booted.answering)
+        const [engineStopped] = await Promise.allSettled([engine.stop()])
+        const failures = [...answered, engineStopped].flatMap((result) =>
+          result.status === 'rejected' ? [result.reason] : [],
+        )
+        if (failures.length > 0) throw new AggregateError(failures, 'stopping the consent engine failed')
+      },
+    }
+    engines.push(booted)
+    return base
+  }
 
   function connectedHome(home = tempDir('conciv-home-')): string {
     withHomeDb(home, (db) => recordHubConnection(db, 'codex', Date.now()))
@@ -4098,14 +4144,15 @@ describe('outside agent consent', () => {
 
   async function boot(hubAccess: HubAccess = 'session', home = tempDir('conciv-home-')): Promise<string> {
     connectedHome(home)
-    const engine = await bootAt(home, tempDir('conciv-consent-'), hubAccess)
-    engines.push(engine)
-    return `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    return track(await bootAt(home, tempDir('conciv-consent-'), hubAccess))
   }
 
   async function openTab(base: string, silent?: () => void, heard: string[] = []): Promise<string> {
+    const engine = engines.find((booted) => booted.base === base)
+    if (engine === undefined) throw new Error(`no engine was booted at ${base}`)
     const sessionId = await newSession(base)
-    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: pages.signal})
+    const listening = AbortSignal.any([pages.signal, engine.stopped])
+    const queries = await rpcOf(base, sessionId).page.queries(undefined, {signal: listening})
     const replies = async () => {
       for await (const {requestId, query} of queries) {
         heard.push(queryName(query))
@@ -4113,7 +4160,11 @@ describe('outside agent consent', () => {
         else await rpcOf(base, sessionId).page.reply({requestId, outcome: {ok: true, result: pageAnswer(query)}})
       }
     }
-    replies().catch(() => {})
+    engine.answering.push(
+      replies().catch((error: unknown) => {
+        if (!listening.aborted) throw error
+      }),
+    )
     const tabOpen = async () => TabOpenSchema.parse(await (await fetch(`${base}/api/tabs?session=${sessionId}`)).json())
     await vi.waitFor(async () => expect((await tabOpen()).open).toBe(true), {timeout: 3000})
     return sessionId
@@ -4247,7 +4298,7 @@ describe('outside agent consent', () => {
       'NO_TAB: pass tab to execute_typescript; external_tabs({}) lists the open tabs',
     )
     const onTab = (code: string) => executeOverMcp(owner, {[CONCIV_SESSION_HEADER]: theirs, ...HUB}, code)
-    const routed = onTab('return await external_page_route({})').then(String, String)
+    const routed = onTab('return await external_page_route({})').then(String)
     await decideOutside(owner, theirs, true)
     expect(await routed).toContain(ROUTE.href)
     const ownerCalls = await rpcOf(owner, theirs).chat.hydrate({sessionId: theirs})
@@ -4320,8 +4371,7 @@ describe('outside agent consent', () => {
       homeDir: connectedHome(),
       extensions: [probe],
     })
-    engines.push(engine)
-    const base = `http://127.0.0.1:${engine.port}/t/${engine.agentToken}`
+    const base = track(engine)
     const sessionId = await newSession(base)
     const extOf = (headers: Record<string, string>): RouterClient<typeof router> =>
       createORPCClient(new RPCLink({url: `${base}/rpc/ext/consent-probe`, fetch: abortableFetch, headers}))
@@ -4486,7 +4536,7 @@ describe('outside agent consent', () => {
     const waiting = hubRpc.registry.call(route)
     await decideOutside(base, sessionId, true)
     expect(await waiting).toMatchObject({href: ROUTE.href})
-    await hubRpc.server.urls().catch(() => null)
+    await expect(hubRpc.server.urls()).rejects.toMatchObject({code: 'NO_BUNDLER'})
     expect(await starts()).toEqual([
       expect.objectContaining({
         toolCallName: 'page_route',
