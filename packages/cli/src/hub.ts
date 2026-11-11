@@ -62,50 +62,45 @@ type Reply = {content: {type: 'text'; text: string}[]; isError: true}
 
 type TabOwner = {root: string; apiBase: string; instructions: string | null; client: MCPClient}
 
-type Lookup = Promise<TabOwner | Reply>
-
-type Picked = Runner | Reply | null
-
-type TabEntry = {owner: Lookup | null; greeted: boolean}
+type TabEntry = {owner: Promise<TabOwner> | null; greeted: boolean}
 
 async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<CliOutcome> {
   const home = concivHome({env})
-  const held: {runner: Promise<Picked> | null} = {runner: null}
+  const held: {runner: Promise<Runner> | null} = {runner: null}
   const tabs = new Map<SessionId, TabEntry>()
   const headers = {[CONCIV_ORIGIN_HEADER]: 'hub', [CONCIV_CLIENT_HEADER]: agent}
 
-  function currentRunner(): Promise<Picked> {
-    held.runner ??= pickRunner(home, headers)
-    return held.runner
+  function currentRunner(): Promise<Runner> {
+    if (held.runner !== null) return held.runner
+    const picking: Promise<Runner> = pickRunner(home, headers).catch((error: unknown) => {
+      if (held.runner === picking) held.runner = null
+      throw error
+    })
+    held.runner = picking
+    return picking
   }
 
-  async function dropRunner(runner: Picked): Promise<void> {
-    if (runner === null || (await held.runner) !== runner) return
+  async function dropRunner(picked: Promise<Runner>, runner: Runner): Promise<void> {
+    if (held.runner !== picked) return
     held.runner = null
-    if ('client' in runner) await closeClient(runner)
+    await closeClient(runner)
   }
 
   async function forward(toolName: ToolName, input: unknown, resent = false): Promise<unknown> {
-    const runner = await currentRunner()
-    if (runner === null || !('client' in runner)) {
-      held.runner = null
-      return (
-        runner ??
-        failed(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
-      )
-    }
+    const picked = currentRunner()
+    const runner = await picked
     try {
       return await runner.client.callTool(toolName, input)
     } catch (error) {
-      await dropRunner(runner)
+      await dropRunner(picked, runner)
       if (!resent && RefusedSchema.safeParse(error).success) return forward(toolName, input, true)
-      const next = await currentRunner()
-      const after =
-        next !== null && 'client' in next
-          ? `the next call runs on ${next.root}`
-          : 'no other conciv dev server is running'
-      return failed(
+      const after = await currentRunner().then(
+        (next) => `the next call runs on ${next.root}`,
+        () => 'no other conciv dev server is running',
+      )
+      throw new Error(
         `the call failed on the conciv engine at ${runner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; ${after}`,
+        {cause: error},
       )
     }
   }
@@ -118,11 +113,10 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
     return created
   }
 
-  async function forget(entry: TabEntry, kept: Lookup): Promise<void> {
+  async function forget(entry: TabEntry, kept: Promise<TabOwner>, owner: TabOwner): Promise<void> {
     if (entry.owner !== kept) return
     entry.owner = null
-    const owner = await kept
-    if ('client' in owner) await closeClient(owner)
+    await closeClient(owner)
   }
 
   async function onTab(toolName: ToolName, input: unknown, tab: SessionId, resent = false): Promise<unknown> {
@@ -132,21 +126,18 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
       if (entry.owner === kept) entry.owner = null
       throw error
     })
-    if (!('client' in owner)) {
-      await forget(entry, kept)
-      return owner
-    }
     try {
       const reply = await owner.client.callTool(toolName, input)
       if (ErrorReplySchema.safeParse(reply).success && !(await holdsTab(owner.apiBase, tab))) {
-        await forget(entry, kept)
+        await forget(entry, kept, owner)
       }
       return greeted(entry, owner, reply)
     } catch (error) {
-      await forget(entry, kept)
+      await forget(entry, kept, owner)
       if (!resent && RefusedSchema.safeParse(error).success) return onTab(toolName, input, tab, true)
-      return failed(
+      throw new Error(
         `the call on tab ${tab} failed on the conciv engine at ${owner.root} (${errorText(error)}); it was not retried, since the block may already have acted on a page; the next call looks up the engine holding the tab again`,
+        {cause: error},
       )
     }
   }
@@ -154,16 +145,21 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   function routed(toolName: ToolName) {
     return async ({tab: given, ...input}: {tab?: string | undefined}): Promise<unknown> => {
       const tab = TabInputSchema.parse(given)
-      return tab === undefined ? forward(toolName, input) : onTab(toolName, input, tab)
+      const call = tab === undefined ? forward(toolName, input) : onTab(toolName, input, tab)
+      return call.catch((error: unknown) => failed(errorText(error)))
     }
   }
 
-  const startup = await currentRunner()
-  const descriptions = await startupDescriptions(startup).catch(async (error: unknown) => {
-    logHub('reading the runner tool descriptions failed; using the built-in text', error)
-    await dropRunner(startup)
-    return FALLBACK_DESCRIPTIONS
-  })
+  const startup = currentRunner()
+  const descriptions = await startup.then(
+    (runner) =>
+      startupDescriptions(runner).catch(async (error: unknown) => {
+        logHub('reading the runner tool descriptions failed; using the built-in text', error)
+        await dropRunner(startup, runner)
+        return FALLBACK_DESCRIPTIONS
+      }),
+    () => FALLBACK_DESCRIPTIONS,
+  )
   const server = createMCPServer({
     name: 'conciv-hub',
     version: cliManifest.version,
@@ -183,8 +179,7 @@ async function runHub(env: NodeJS.ProcessEnv, agent: InitHarnessId): Promise<Cli
   const served = serveMCPStdio(server)
   await once(process.stdin, 'end')
   await served.close()
-  await dropRunner(await held.runner)
-  await Promise.all([...tabs.values()].map((entry) => (entry.owner === null ? null : forget(entry, entry.owner))))
+  await Promise.all([held.runner, ...[...tabs.values()].map((entry) => entry.owner)].map(closeHeld))
   return {report: 'none', code: 0}
 }
 
@@ -201,50 +196,49 @@ export const serveCommand = command(
   handler((model) => runHub(process.env, ServeModelSchema.parse(model).agent)),
 )
 
-async function pickRunner(home: string, headers: Record<string, string>): Promise<Picked> {
+async function pickRunner(home: string, headers: Record<string, string>): Promise<Runner> {
   const checked = await liveEngines(home)
-  if ('isError' in checked) return checked
   const row = checked.live[0]
-  if (row === undefined) return null
-  const client = await connect(row, headers)
-  if ('isError' in client) return client
-  return {root: row.root, client}
+  if (row === undefined) {
+    throw new Error(`no conciv dev server is running; start one and open its page (conciv home folder read: ${home})`)
+  }
+  return {root: row.root, client: await connect(row, headers)}
 }
 
-async function startupDescriptions(runner: Picked): Promise<Record<ToolName, string>> {
-  if (runner === null || !('client' in runner)) return FALLBACK_DESCRIPTIONS
+async function startupDescriptions(runner: Runner): Promise<Record<ToolName, string>> {
   const tools = await runner.client.tools()
   const described = (tool: ToolName) =>
     tools.find((entry) => entry.name === tool)?.description ?? FALLBACK_DESCRIPTIONS[tool]
   return {[EXECUTE_TOOL_NAME]: described(EXECUTE_TOOL_NAME), [DISCOVER_TOOL_NAME]: described(DISCOVER_TOOL_NAME)}
 }
 
-async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Lookup {
+async function findOwner(home: string, tab: SessionId, headers: Record<string, string>): Promise<TabOwner> {
   const checked = await liveEngines(home)
-  if ('isError' in checked) return checked
   const answers = await Promise.all(checked.live.map(async (row) => ({row, answer: await tabAnswer(row.apiBase, tab)})))
   const [only, second] = answers.filter(({answer}) => answer?.open === true)
-  if (only === undefined) return failed(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
+  if (only === undefined) throw new Error(`TAB_NOT_OPEN: tab ${tab} is not open; call external_tabs({})`)
   if (second !== undefined) {
-    return failed(
+    throw new Error(
       `tab ${tab} is open on two conciv engines (${only.row.root} and ${second.row.root}); ask the user to close one of the browser tabs`,
     )
   }
   const client = await connect(only.row, headers)
-  if ('isError' in client) return client
   return {root: only.row.root, apiBase: only.row.apiBase, instructions: only.answer?.instructions ?? null, client}
 }
 
-function liveEngines(home: string): Promise<Awaited<ReturnType<typeof checkEngines>> | Reply> {
-  return checkEngines(home, {timeoutMs: PROBE_MS}).catch((error: unknown) =>
-    failed(`cannot read the conciv home folder ${home}: ${errorText(error)}`),
-  )
+function liveEngines(home: string): ReturnType<typeof checkEngines> {
+  return checkEngines(home, {timeoutMs: PROBE_MS}).catch((error: unknown) => {
+    throw new Error(`cannot read the conciv home folder ${home}: ${errorText(error)}`, {cause: error})
+  })
 }
 
-function connect(row: EngineRow, headers: Record<string, string>): Promise<MCPClient | Reply> {
+function connect(row: EngineRow, headers: Record<string, string>): Promise<MCPClient> {
   return createMCPClient({transport: {type: 'http', url: `${row.apiBase}/api/mcp`, headers}, name: 'conciv-hub'}).catch(
-    (error: unknown) =>
-      failed(`connecting to the conciv engine at ${row.root} failed (${errorText(error)}); nothing ran`),
+    (error: unknown) => {
+      throw new Error(`connecting to the conciv engine at ${row.root} failed (${errorText(error)}); nothing ran`, {
+        cause: error,
+      })
+    },
   )
 }
 
@@ -276,7 +270,11 @@ function greeted(entry: TabEntry, owner: TabOwner, reply: unknown): unknown {
   return {...parsed.data, content: [{type: 'text', text: owner.instructions}, ...parsed.data.content]}
 }
 
-async function closeClient(owner: {root: string; client: MCPClient}): Promise<void> {
+async function closeHeld(held: Promise<Runner> | null): Promise<void> {
+  await held?.then(closeClient, () => undefined)
+}
+
+async function closeClient(owner: Runner): Promise<void> {
   await owner.client
     .close()
     .catch((error: unknown) => logHub(`closing the client of the conciv engine at ${owner.root} failed`, error))
